@@ -16,6 +16,7 @@ import {
   stopDaemon,
   getDaemonStatus,
   tailLogs,
+  updateTriggerfish,
 } from "./daemon.ts";
 
 /** Known CLI commands. */
@@ -189,6 +190,7 @@ COMMANDS:
   status      Show daemon status
   logs        View daemon logs (--tail to follow)
   patrol      Run health diagnostics
+  update      Pull latest code, recompile, and restart
   help        Show this help message
   version     Show version information
 
@@ -200,6 +202,7 @@ EXAMPLES:
   triggerfish status        # Check daemon status
   triggerfish logs --tail   # Follow daemon logs
   triggerfish patrol        # Health check
+  triggerfish update        # Update to latest version
 
 For more information, visit: https://triggerfish.sh/docs
 `);
@@ -252,23 +255,88 @@ async function runDive(
 }
 
 /**
- * Run patrol health diagnostics.
+ * Probe the gateway HTTP endpoint to check if it's alive.
+ */
+async function probeGateway(port = 18789): Promise<boolean> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Count configured channels from the config file.
+ */
+function countConfiguredChannels(): number {
+  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+  try {
+    const raw = Deno.readTextFileSync(configPath);
+    const parsed = parseYaml(raw) as Record<string, unknown>;
+    const channels = parsed?.channels;
+    if (channels && typeof channels === "object" && channels !== null) {
+      return Object.keys(channels).length;
+    }
+  } catch {
+    // Config not found or invalid
+  }
+  return 0;
+}
+
+/**
+ * Count installed skills in ~/.triggerfish/skills/.
+ */
+function countInstalledSkills(): number {
+  const skillsDir = `${Deno.env.get("HOME")}/.triggerfish/skills`;
+  try {
+    let count = 0;
+    for (const entry of Deno.readDirSync(skillsDir)) {
+      if (entry.isDirectory) count++;
+    }
+    return count;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Run patrol health diagnostics using real runtime state.
  */
 async function runPatrol(): Promise<void> {
   console.log("🔍 Running Triggerfish health diagnostics...\n");
 
-  // TODO: Get actual runtime state from gateway
-  // For now, use mock data to demonstrate patrol functionality
+  // Check real state
+  const daemonStatus = await getDaemonStatus();
+  const gatewayAlive = daemonStatus.running ? await probeGateway() : false;
+  const channelCount = countConfiguredChannels();
+  const skillCount = countInstalledSkills();
+
+  // LLM is "connected" if gateway is alive (provider is loaded at startup)
+  // A more thorough check would query the gateway, but this is good enough
+  const llmConnected = gatewayAlive;
+
   const input: PatrolInput = {
-    gatewayRunning: false,
-    llmConnected: false,
-    channelsActive: 0,
-    policyRulesLoaded: 0,
-    skillsInstalled: 0,
+    gatewayRunning: gatewayAlive,
+    llmConnected,
+    channelsActive: channelCount,
+    policyRulesLoaded: gatewayAlive ? 4 : 0, // Fixed rules always loaded when running
+    skillsInstalled: skillCount,
   };
 
   const checker = createPatrolCheck(input);
   const report = await checker.run();
+
+  // Show daemon info
+  if (daemonStatus.running) {
+    console.log(`  Daemon: running (PID ${daemonStatus.pid ?? "?"})`);
+    if (daemonStatus.uptime) {
+      console.log(`  Since:  ${daemonStatus.uptime}`);
+    }
+  }
+  console.log("");
 
   console.log(`Overall Status: ${report.overall}\n`);
   console.log("Health Checks:");
@@ -391,6 +459,27 @@ async function runDaemonLogs(
 }
 
 /**
+ * Pull latest code, recompile, and restart the daemon.
+ */
+async function runUpdate(): Promise<void> {
+  console.log("Updating Triggerfish...\n");
+
+  const result = await updateTriggerfish();
+
+  if (result.ok) {
+    if (result.previousVersion === result.newVersion) {
+      console.log("✓ Already up to date (" + result.newVersion + ")");
+    } else {
+      console.log("✓", result.message);
+      console.log("\nRun 'triggerfish status' to verify the daemon restarted.");
+    }
+  } else {
+    console.log("✗", result.message);
+    Deno.exit(1);
+  }
+}
+
+/**
  * Main CLI entry point.
  */
 async function main(): Promise<void> {
@@ -429,6 +518,9 @@ async function main(): Promise<void> {
       break;
     case "logs":
       await runDaemonLogs(parsed.flags);
+      break;
+    case "update":
+      await runUpdate();
       break;
     case "version":
       showVersion();

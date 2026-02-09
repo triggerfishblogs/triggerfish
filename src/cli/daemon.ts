@@ -404,6 +404,183 @@ export async function tailLogs(
   }
 }
 
+/** Result of an update operation. */
+export interface UpdateResult {
+  readonly ok: boolean;
+  readonly message: string;
+  readonly previousVersion?: string;
+  readonly newVersion?: string;
+}
+
+/**
+ * Update Triggerfish to the latest version from the master branch.
+ *
+ * Pulls the latest source from git, recompiles the binary,
+ * stops the running daemon, replaces the binary, and restarts.
+ *
+ * @param branch - Git branch to pull from. Default: "master".
+ * @returns Result indicating success or failure.
+ */
+export async function updateTriggerfish(
+  branch = "master",
+): Promise<UpdateResult> {
+  const srcDir = `${Deno.env.get("HOME")}/.triggerfish/src`;
+
+  // Check source directory exists
+  try {
+    await Deno.stat(`${srcDir}/.git`);
+  } catch {
+    return {
+      ok: false,
+      message:
+        "Source directory not found. Run the install script first:\n" +
+        "  curl -sSL https://raw.githubusercontent.com/greghavens/triggerfish/master/scripts/install.sh | bash",
+    };
+  }
+
+  // Get current commit hash for version tracking
+  const oldHash = await runCommand("git", ["-C", srcDir, "rev-parse", "--short", "HEAD"]);
+
+  // Pull latest code
+  const fetch = await runCommand("git", ["-C", srcDir, "fetch", "origin"]);
+  if (!fetch.success) {
+    return { ok: false, message: `Failed to fetch updates: ${fetch.stderr}` };
+  }
+
+  const checkout = await runCommand("git", ["-C", srcDir, "checkout", branch]);
+  if (!checkout.success) {
+    return { ok: false, message: `Failed to checkout ${branch}: ${checkout.stderr}` };
+  }
+
+  const pull = await runCommand("git", ["-C", srcDir, "pull", "origin", branch]);
+  if (!pull.success) {
+    return { ok: false, message: `Failed to pull latest code: ${pull.stderr}` };
+  }
+
+  // Check if there were actual changes
+  const newHash = await runCommand("git", ["-C", srcDir, "rev-parse", "--short", "HEAD"]);
+  if (oldHash.stdout === newHash.stdout) {
+    return {
+      ok: true,
+      message: "Already up to date",
+      previousVersion: oldHash.stdout,
+      newVersion: newHash.stdout,
+    };
+  }
+
+  // Find deno binary
+  const denoPath = await findDeno();
+  if (!denoPath) {
+    return { ok: false, message: "Deno not found. Install Deno first." };
+  }
+
+  // Compile new binary
+  const compile = await runCommand(denoPath, [
+    "compile",
+    "--allow-all",
+    `--output=${srcDir}/triggerfish`,
+    `${srcDir}/src/cli/main.ts`,
+  ]);
+  if (!compile.success) {
+    return { ok: false, message: `Compilation failed: ${compile.stderr}` };
+  }
+
+  // Find where the current binary is installed
+  const binaryPath = await findInstalledBinary();
+
+  // Stop daemon so we can replace the binary
+  const status = await getDaemonStatus();
+  const wasRunning = status.running;
+
+  if (wasRunning) {
+    await stopDaemon();
+    // Brief pause to let the process fully exit
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  // Copy new binary into place
+  try {
+    await Deno.copyFile(`${srcDir}/triggerfish`, binaryPath);
+    await Deno.chmod(binaryPath, 0o755);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, message: `Failed to install binary: ${msg}` };
+  }
+
+  // Restart daemon if it was running
+  if (wasRunning) {
+    const manager = detectDaemonManager();
+    if (manager === "systemd") {
+      await runCommand("systemctl", ["--user", "daemon-reload"]);
+      await runCommand("systemctl", ["--user", "start", SYSTEMD_UNIT]);
+    } else if (manager === "launchd") {
+      const plistPath = launchdPlistPath();
+      await runCommand("launchctl", ["load", plistPath]);
+    }
+  }
+
+  return {
+    ok: true,
+    message: `Updated ${oldHash.stdout} → ${newHash.stdout}`,
+    previousVersion: oldHash.stdout,
+    newVersion: newHash.stdout,
+  };
+}
+
+/**
+ * Find the deno binary, checking common locations.
+ */
+async function findDeno(): Promise<string | null> {
+  // Try which/command -v first
+  const which = await runCommand("which", ["deno"]);
+  if (which.success && which.stdout.length > 0) {
+    return which.stdout;
+  }
+
+  // Check common install locations
+  const home = Deno.env.get("HOME") ?? "";
+  const candidates = [
+    `${home}/.deno/bin/deno`,
+    "/usr/local/bin/deno",
+    "/usr/bin/deno",
+  ];
+
+  for (const path of candidates) {
+    try {
+      await Deno.stat(path);
+      return path;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Find the installed triggerfish binary path.
+ */
+async function findInstalledBinary(): Promise<string> {
+  // Check common locations in order of preference
+  const home = Deno.env.get("HOME") ?? "";
+  const candidates = [
+    "/usr/local/bin/triggerfish",
+    `${home}/.local/bin/triggerfish`,
+  ];
+
+  for (const path of candidates) {
+    try {
+      await Deno.stat(path);
+      return path;
+    } catch {
+      continue;
+    }
+  }
+
+  // Default to ~/.local/bin
+  return `${home}/.local/bin/triggerfish`;
+}
+
 /**
  * Uninstall the Triggerfish daemon completely.
  *
