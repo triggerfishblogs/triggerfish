@@ -5,8 +5,10 @@ import { assertEquals, assertExists, assert } from "jsr:@std/assert";
 import {
   parseCronExpression,
   createCronManager,
+  createPersistentCronManager,
   matchesNow,
 } from "../../src/scheduler/cron.ts";
+import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import { createTrigger } from "../../src/scheduler/trigger.ts";
 import {
   createWebhookHandler,
@@ -372,4 +374,143 @@ Deno.test("SchedulerService: cron manager is accessible", () => {
   });
   assert(result.ok);
   assertEquals(svc.cronManager.list().length, 1);
+});
+
+Deno.test("SchedulerService: uses injected cronManager", () => {
+  const { factory } = createMockFactory();
+  const mgr = createCronManager();
+  mgr.create({ expression: "0 9 * * *", task: "pre-existing", classificationCeiling: "PUBLIC" });
+
+  const svc = createSchedulerService({
+    ...createTestConfig(factory),
+    cronManager: mgr,
+  });
+
+  assertEquals(svc.cronManager.list().length, 1);
+  assertEquals(svc.cronManager.list()[0].task, "pre-existing");
+});
+
+// ── Persistent CronManager ───────────────────────────────────────────
+
+Deno.test("PersistentCronManager: creates and persists jobs", async () => {
+  const storage = createMemoryStorage();
+
+  const mgr = await createPersistentCronManager(storage);
+  const result = mgr.create({
+    expression: "0 9 * * *",
+    task: "persistent task",
+    classificationCeiling: "INTERNAL",
+  });
+  assert(result.ok);
+  if (!result.ok) return;
+
+  // Verify the job is in memory
+  assertEquals(mgr.list().length, 1);
+  assertEquals(mgr.list()[0].task, "persistent task");
+
+  // Verify the job was written to storage
+  const keys = await storage.list("cron:");
+  assertEquals(keys.length, 1);
+  assert(keys[0].startsWith("cron:"));
+});
+
+Deno.test("PersistentCronManager: loads jobs on creation", async () => {
+  const storage = createMemoryStorage();
+
+  // Create a job with one manager instance
+  const mgr1 = await createPersistentCronManager(storage);
+  const result = mgr1.create({
+    expression: "*/5 * * * *",
+    task: "reload test",
+    classificationCeiling: "PUBLIC",
+  });
+  assert(result.ok);
+
+  // Create a second manager from the same storage — should load the job
+  const mgr2 = await createPersistentCronManager(storage);
+  assertEquals(mgr2.list().length, 1);
+  assertEquals(mgr2.list()[0].task, "reload test");
+});
+
+Deno.test("PersistentCronManager: delete removes from storage", async () => {
+  const storage = createMemoryStorage();
+
+  const mgr = await createPersistentCronManager(storage);
+  const result = mgr.create({
+    expression: "0 12 * * *",
+    task: "to delete",
+    classificationCeiling: "PUBLIC",
+  });
+  assert(result.ok);
+  if (!result.ok) return;
+
+  mgr.delete(result.value.id);
+  assertEquals(mgr.list().length, 0);
+
+  // Verify removed from storage
+  const keys = await storage.list("cron:");
+  assertEquals(keys.length, 0);
+});
+
+Deno.test("PersistentCronManager: records execution history to storage", async () => {
+  const storage = createMemoryStorage();
+
+  const mgr = await createPersistentCronManager(storage);
+  const result = mgr.create({
+    expression: "0 8 * * *",
+    task: "history test",
+    classificationCeiling: "PUBLIC",
+  });
+  assert(result.ok);
+  if (!result.ok) return;
+
+  const jobId = result.value.id;
+  mgr.recordExecution({
+    jobId,
+    executedAt: new Date(2026, 1, 9, 8, 0),
+    durationMs: 500,
+    success: true,
+  });
+
+  // Verify in memory
+  assertEquals(mgr.history(jobId).length, 1);
+
+  // Verify in storage — reload a new manager
+  const mgr2 = await createPersistentCronManager(storage);
+  const hist = mgr2.history(jobId);
+  assertEquals(hist.length, 1);
+  assertEquals(hist[0].success, true);
+  assertEquals(hist[0].durationMs, 500);
+});
+
+// ── CLI cron command parsing ─────────────────────────────────────────
+
+import { parseCommand } from "../../src/cli/main.ts";
+
+Deno.test("CLI: parses 'cron list' command", () => {
+  const cmd = parseCommand(["cron", "list"]);
+  assertEquals(cmd.command, "cron");
+  assertEquals(cmd.subcommand, "list");
+});
+
+Deno.test("CLI: parses 'cron add' with expression and task", () => {
+  const cmd = parseCommand(["cron", "add", "0 9 * * *", "morning", "briefing"]);
+  assertEquals(cmd.command, "cron");
+  assertEquals(cmd.subcommand, "add");
+  assertEquals(cmd.flags["expression"], "0 9 * * *");
+  assertEquals(cmd.flags["task"], "morning briefing");
+});
+
+Deno.test("CLI: parses 'cron delete' with job ID", () => {
+  const cmd = parseCommand(["cron", "delete", "abc-123"]);
+  assertEquals(cmd.command, "cron");
+  assertEquals(cmd.subcommand, "delete");
+  assertEquals(cmd.flags["job_id"], "abc-123");
+});
+
+Deno.test("CLI: parses 'cron history' with job ID", () => {
+  const cmd = parseCommand(["cron", "history", "abc-123"]);
+  assertEquals(cmd.command, "cron");
+  assertEquals(cmd.subcommand, "history");
+  assertEquals(cmd.flags["job_id"], "abc-123");
 });

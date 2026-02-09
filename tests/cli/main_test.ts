@@ -7,10 +7,15 @@ import { assertEquals, assertExists, assert, assertStringIncludes } from "jsr:@s
 
 // --- Command parsing ---
 
-Deno.test("CLI: parses 'run' command", async () => {
-  const { parseCommand } = await import("../../src/cli/main.ts");
-  const cmd = parseCommand(["run"]);
-  assertEquals(cmd.command, "run");
+Deno.test({
+  name: "CLI: parses 'run' command",
+  // SQLite FFI library loaded on import — cannot be closed in test context
+  sanitizeResources: false,
+  fn: async () => {
+    const { parseCommand } = await import("../../src/cli/main.ts");
+    const cmd = parseCommand(["run"]);
+    assertEquals(cmd.command, "run");
+  },
 });
 
 Deno.test("CLI: parses 'start' command", async () => {

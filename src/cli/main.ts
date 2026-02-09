@@ -42,10 +42,15 @@ import type {
   SchedulerServiceConfig,
   WebhookSourceConfig,
 } from "../scheduler/service.ts";
+import { createPersistentCronManager } from "../scheduler/cron.ts";
+import type { CronManager } from "../scheduler/cron.ts";
+import type { StorageProvider } from "../core/storage/provider.ts";
+import { createSqliteStorage } from "../core/storage/sqlite.ts";
 
 /** Known CLI commands. */
 const KNOWN_COMMANDS = new Set([
   "chat",
+  "cron",
   "run",
   "start",
   "stop",
@@ -161,6 +166,17 @@ export function parseCommand(
   if (command === "config" && positional.length > 1) {
     return { command, subcommand: positional[1], flags };
   }
+  if (command === "cron" && positional.length > 1) {
+    // Capture remaining positional args as flags for cron subcommands
+    const sub = positional[1];
+    if (sub === "add" && positional.length >= 4) {
+      flags["expression"] = positional[2];
+      flags["task"] = positional.slice(3).join(" ");
+    } else if ((sub === "delete" || sub === "history") && positional.length > 2) {
+      flags["job_id"] = positional[2];
+    }
+    return { command, subcommand: sub, flags };
+  }
 
   return { command, flags };
 }
@@ -226,6 +242,7 @@ USAGE:
 
 COMMANDS:
   chat        Start an interactive chat session
+  cron        Manage scheduled cron jobs
   dive        First-run setup wizard (creates triggerfish.yaml)
   run         Run the gateway server in foreground
   start       Install and start the daemon
@@ -237,16 +254,26 @@ COMMANDS:
   help        Show this help message
   version     Show version information
 
+CRON SUBCOMMANDS:
+  cron list                              List all cron jobs
+  cron add "<schedule>" <task>           Create a new cron job
+  cron delete <job_id>                   Delete a cron job
+  cron history <job_id>                  Show execution history
+
 EXAMPLES:
-  triggerfish chat          # Start chatting with your agent
-  triggerfish dive          # Interactive setup
-  triggerfish run           # Run gateway in foreground
-  triggerfish start         # Install and start daemon
-  triggerfish stop          # Stop the daemon
-  triggerfish status        # Check daemon status
-  triggerfish logs --tail   # Follow daemon logs
-  triggerfish patrol        # Health check
-  triggerfish update        # Update to latest version
+  triggerfish chat                                  # Start chatting with your agent
+  triggerfish cron add "0 9 * * *" morning briefing # Daily 9am task
+  triggerfish cron list                             # Show all cron jobs
+  triggerfish cron delete <uuid>                    # Remove a job
+  triggerfish cron history <uuid>                   # View execution log
+  triggerfish dive                                  # Interactive setup
+  triggerfish run                                   # Run gateway in foreground
+  triggerfish start                                 # Install and start daemon
+  triggerfish stop                                  # Stop the daemon
+  triggerfish status                                # Check daemon status
+  triggerfish logs --tail                           # Follow daemon logs
+  triggerfish patrol                                # Health check
+  triggerfish update                                # Update to latest version
 
 For more information, visit: https://triggerfish.sh/docs
 `);
@@ -414,6 +441,7 @@ async function runPatrol(): Promise<void> {
 function createOrchestratorFactory(
   config: TriggerFishConfig,
   baseDir: string,
+  cronManager?: CronManager,
 ): OrchestratorFactory {
   const registry = createProviderRegistry();
   loadProvidersFromConfig(config.models as ModelsConfig, registry);
@@ -434,7 +462,7 @@ function createOrchestratorFactory(
         basePath: `${baseDir}/workspaces`,
       });
       const execTools = createExecTools(workspace);
-      const toolExecutor = createToolExecutor(execTools);
+      const toolExecutor = createToolExecutor(execTools, cronManager);
 
       const orchestrator = createOrchestrator({
         hookRunner,
@@ -496,7 +524,7 @@ function buildSchedulerConfig(
 }
 
 /**
- * Start the gateway server with scheduler.
+ * Start the gateway server with scheduler and persistent cron storage.
  */
 async function runStart(): Promise<void> {
   console.log("Starting Triggerfish gateway...\n");
@@ -524,10 +552,24 @@ async function runStart(): Promise<void> {
 
   console.log("  Configuration loaded");
 
-  // Build orchestrator factory and scheduler
-  const factory = createOrchestratorFactory(config, baseDir);
+  // Create persistent storage for cron jobs
+  const dataDir = `${baseDir}/data`;
+  await Deno.mkdir(dataDir, { recursive: true });
+  const storage = createSqliteStorage(`${dataDir}/triggerfish.db`);
+  const cronManager = await createPersistentCronManager(storage);
+
+  const existingJobs = cronManager.list();
+  if (existingJobs.length > 0) {
+    console.log(`  Loaded ${existingJobs.length} persistent cron job(s)`);
+  }
+
+  // Build orchestrator factory and scheduler with persistent cron manager
+  const factory = createOrchestratorFactory(config, baseDir, cronManager);
   const schedulerConfig = buildSchedulerConfig(config, baseDir, factory);
-  const schedulerService = createSchedulerService(schedulerConfig);
+  const schedulerService = createSchedulerService({
+    ...schedulerConfig,
+    cronManager,
+  });
 
   // Create and start gateway server with scheduler
   const server = createGatewayServer({
@@ -673,18 +715,48 @@ function getToolDefinitions(): readonly ToolDefinition[] {
         content_search: { type: "boolean", description: "If true, search file contents instead of file names", required: false },
       },
     },
+    {
+      name: "cron_create",
+      description: "Create a scheduled cron job. The task runs on the given cron schedule.",
+      parameters: {
+        expression: { type: "string", description: "5-field cron expression (e.g. '0 9 * * *' for 9am daily)", required: true },
+        task: { type: "string", description: "The task/prompt to execute on each trigger", required: true },
+        classification: { type: "string", description: "Classification ceiling: PUBLIC, INTERNAL, CONFIDENTIAL, or RESTRICTED", required: false },
+      },
+    },
+    {
+      name: "cron_list",
+      description: "List all registered cron jobs with their schedules and status.",
+      parameters: {},
+    },
+    {
+      name: "cron_delete",
+      description: "Delete a cron job by its ID.",
+      parameters: {
+        job_id: { type: "string", description: "The UUID of the cron job to delete", required: true },
+      },
+    },
+    {
+      name: "cron_history",
+      description: "Show recent execution history for a cron job.",
+      parameters: {
+        job_id: { type: "string", description: "The UUID of the cron job", required: true },
+      },
+    },
   ];
 }
 
 /**
- * Create a tool executor backed by ExecTools and direct filesystem access.
+ * Create a tool executor backed by ExecTools, direct filesystem access,
+ * and an optional CronManager for scheduling tools.
  *
  * Tools that operate on absolute paths (read_file, list_directory, search_files)
  * use Deno APIs directly. Tools that operate on the workspace (write_file,
- * run_command) use ExecTools for sandboxing.
+ * run_command) use ExecTools for sandboxing. Cron tools delegate to CronManager.
  */
 function createToolExecutor(
   execTools: ReturnType<typeof createExecTools>,
+  cronManager?: CronManager,
 ): ToolExecutor {
   return async (name: string, input: Record<string, unknown>): Promise<string> => {
     switch (name) {
@@ -764,6 +836,47 @@ function createToolExecutor(
         }
       }
 
+      case "cron_create": {
+        if (!cronManager) return "Cron management is not available in this context.";
+        const expression = input.expression as string;
+        const task = input.task as string;
+        const classification = (input.classification as string) ?? "INTERNAL";
+        const result = cronManager.create({
+          expression,
+          task,
+          classificationCeiling: classification as ClassificationLevel,
+        });
+        if (!result.ok) return `Error creating cron job: ${result.error}`;
+        const job = result.value;
+        return `Created cron job:\n  ID: ${job.id}\n  Schedule: ${job.expression}\n  Task: ${job.task}\n  Classification: ${job.classificationCeiling}\n  Created: ${job.createdAt.toISOString()}`;
+      }
+
+      case "cron_list": {
+        if (!cronManager) return "Cron management is not available in this context.";
+        const jobs = cronManager.list();
+        if (jobs.length === 0) return "No cron jobs registered.";
+        return jobs.map((j) =>
+          `${j.id}\n  Schedule: ${j.expression}\n  Task: ${j.task}\n  Enabled: ${j.enabled}\n  Classification: ${j.classificationCeiling}\n  Created: ${j.createdAt.toISOString()}`
+        ).join("\n\n");
+      }
+
+      case "cron_delete": {
+        if (!cronManager) return "Cron management is not available in this context.";
+        const jobId = input.job_id as string;
+        const result = cronManager.delete(jobId);
+        return result.ok ? `Deleted cron job ${jobId}` : `Error: ${result.error}`;
+      }
+
+      case "cron_history": {
+        if (!cronManager) return "Cron management is not available in this context.";
+        const jobId = input.job_id as string;
+        const hist = cronManager.history(jobId);
+        if (hist.length === 0) return "No execution history for this job.";
+        return hist.slice(-10).map((e) =>
+          `${e.executedAt.toISOString()} — ${e.success ? "SUCCESS" : "FAILED"}${e.error ? ` (${e.error})` : ""} [${Math.round(e.durationMs)}ms]`
+        ).join("\n");
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -808,13 +921,19 @@ async function runChat(): Promise<void> {
   const baseDir = `${Deno.env.get("HOME")}/.triggerfish`;
   const spinePath = `${baseDir}/SPINE.md`;
 
+  // Create persistent storage for cron jobs
+  const dataDir = `${baseDir}/data`;
+  await Deno.mkdir(dataDir, { recursive: true });
+  const storage = createSqliteStorage(`${dataDir}/triggerfish.db`);
+  const cronManager = await createPersistentCronManager(storage);
+
   // Create workspace and exec tools for the agent
   const workspace = await createWorkspace({
     agentId: "cli-chat",
     basePath: `${baseDir}/workspaces`,
   });
   const execTools = createExecTools(workspace);
-  const toolExecutor = createToolExecutor(execTools);
+  const toolExecutor = createToolExecutor(execTools, cronManager);
 
   // Create event handler for rich real-time UI
   const eventHandler = createEventHandler();
@@ -893,6 +1012,123 @@ async function runChat(): Promise<void> {
 }
 
 /**
+ * Manage cron jobs via CLI subcommands.
+ */
+async function runCron(
+  subcommand: string | undefined,
+  flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  const baseDir = `${Deno.env.get("HOME")}/.triggerfish`;
+  const dataDir = `${baseDir}/data`;
+  await Deno.mkdir(dataDir, { recursive: true });
+  const storage = createSqliteStorage(`${dataDir}/triggerfish.db`);
+  const cronManager = await createPersistentCronManager(storage);
+
+  try {
+    switch (subcommand) {
+      case "add": {
+        const expression = flags.expression as string | undefined;
+        const task = flags.task as string | undefined;
+        if (!expression || !task) {
+          console.log('Usage: triggerfish cron add "<schedule>" <task description>');
+          console.log('Example: triggerfish cron add "0 9 * * *" morning briefing');
+          Deno.exit(1);
+        }
+        const classification = (flags.classification as string) ?? "INTERNAL";
+        const result = cronManager.create({
+          expression,
+          task,
+          classificationCeiling: classification as ClassificationLevel,
+        });
+        if (!result.ok) {
+          console.log(`Error: ${result.error}`);
+          Deno.exit(1);
+        }
+        const job = result.value;
+        console.log(`Created cron job:`);
+        console.log(`  ID:             ${job.id}`);
+        console.log(`  Schedule:       ${job.expression}`);
+        console.log(`  Task:           ${job.task}`);
+        console.log(`  Classification: ${job.classificationCeiling}`);
+        console.log(`  Created:        ${job.createdAt.toISOString()}`);
+        break;
+      }
+
+      case "list": {
+        const jobs = cronManager.list();
+        if (jobs.length === 0) {
+          console.log("No cron jobs registered.");
+          console.log('\nCreate one with: triggerfish cron add "0 9 * * *" your task here');
+          break;
+        }
+        console.log(`${jobs.length} cron job(s):\n`);
+        for (const job of jobs) {
+          const hist = cronManager.history(job.id);
+          const lastRun = hist.length > 0
+            ? hist[hist.length - 1].executedAt.toISOString()
+            : "never";
+          console.log(`  ${job.enabled ? "+" : "-"} ${job.id}`);
+          console.log(`    Schedule: ${job.expression}`);
+          console.log(`    Task:     ${job.task}`);
+          console.log(`    Ceiling:  ${job.classificationCeiling}`);
+          console.log(`    Last run: ${lastRun}`);
+          console.log(`    Runs:     ${hist.length}`);
+          console.log();
+        }
+        break;
+      }
+
+      case "delete": {
+        const jobId = flags.job_id as string | undefined;
+        if (!jobId) {
+          console.log("Usage: triggerfish cron delete <job_id>");
+          Deno.exit(1);
+        }
+        const result = cronManager.delete(jobId);
+        if (!result.ok) {
+          console.log(`Error: ${result.error}`);
+          Deno.exit(1);
+        }
+        console.log(`Deleted cron job ${jobId}`);
+        break;
+      }
+
+      case "history": {
+        const jobId = flags.job_id as string | undefined;
+        if (!jobId) {
+          console.log("Usage: triggerfish cron history <job_id>");
+          Deno.exit(1);
+        }
+        const hist = cronManager.history(jobId);
+        if (hist.length === 0) {
+          console.log("No execution history for this job.");
+          break;
+        }
+        console.log(`Last ${Math.min(hist.length, 20)} execution(s):\n`);
+        for (const e of hist.slice(-20)) {
+          const status = e.success ? "OK" : "FAIL";
+          const dur = Math.round(e.durationMs);
+          const err = e.error ? ` — ${e.error}` : "";
+          console.log(`  ${e.executedAt.toISOString()}  ${status}  ${dur}ms${err}`);
+        }
+        break;
+      }
+
+      default:
+        console.log("Usage: triggerfish cron <add|list|delete|history>");
+        console.log("\nSubcommands:");
+        console.log('  add "<schedule>" <task>   Create a new cron job');
+        console.log("  list                      List all cron jobs");
+        console.log("  delete <job_id>           Delete a cron job");
+        console.log("  history <job_id>          Show execution history");
+        break;
+    }
+  } finally {
+    await storage.close();
+  }
+}
+
+/**
  * Main CLI entry point.
  */
 async function main(): Promise<void> {
@@ -913,6 +1149,9 @@ async function main(): Promise<void> {
   switch (parsed.command) {
     case "chat":
       await runChat();
+      break;
+    case "cron":
+      await runCron(parsed.subcommand, parsed.flags);
       break;
     case "dive":
       await runDive(parsed.flags);

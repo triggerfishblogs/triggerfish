@@ -65,6 +65,8 @@ export interface SchedulerServiceConfig {
     readonly enabled: boolean;
     readonly sources: Readonly<Record<string, WebhookSourceConfig>>;
   };
+  /** Optional pre-created CronManager (e.g. persistent). */
+  readonly cronManager?: CronManager;
 }
 
 /** The scheduler service interface. */
@@ -98,7 +100,7 @@ export interface SchedulerService {
 export function createSchedulerService(
   config: SchedulerServiceConfig,
 ): SchedulerService {
-  const cronManager = createCronManager();
+  const cronManager = config.cronManager ?? createCronManager();
   const webhookHandler = createWebhookHandler();
   let cronTickId: number | undefined;
   let trigger: Trigger | undefined;

@@ -8,6 +8,7 @@ export {
   parseCronExpression,
   matchesNow,
   createCronManager,
+  createPersistentCronManager,
   type CronExpression,
   type CronJob,
   type CronJobOptions,
