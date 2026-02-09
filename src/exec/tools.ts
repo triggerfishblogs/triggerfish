@@ -1,0 +1,206 @@
+/**
+ * Execution tools for the agent workspace.
+ *
+ * Provides file I/O, command execution, and workspace listing
+ * within the agent's isolated workspace directory. All file operations
+ * are sandboxed to the workspace — path traversal is blocked.
+ *
+ * @module
+ */
+
+import type { Result } from "../core/types/classification.ts";
+import type { Workspace } from "./workspace.ts";
+import { join, resolve } from "https://deno.land/std@0.224.0/path/mod.ts";
+
+/** Result of writing a file. */
+export interface WriteResult {
+  /** Absolute path of the written file. */
+  readonly path: string;
+  /** Number of bytes written. */
+  readonly bytesWritten: number;
+}
+
+/** Result of running a command. */
+export interface RunResult {
+  /** Standard output. */
+  readonly stdout: string;
+  /** Standard error. */
+  readonly stderr: string;
+  /** Process exit code. */
+  readonly exitCode: number;
+  /** Execution duration in milliseconds. */
+  readonly duration: number;
+}
+
+/** A file entry returned by ls. */
+export interface FileEntry {
+  /** File name relative to the listed directory. */
+  readonly name: string;
+  /** File size in bytes. */
+  readonly size: number;
+  /** Whether this entry is a directory. */
+  readonly isDirectory: boolean;
+}
+
+/** Execution tools bound to a workspace. */
+export interface ExecTools {
+  /** Write a file to the workspace. Path is relative to workspace root. */
+  write(path: string, content: string): Promise<Result<WriteResult, string>>;
+  /** Read a file from the workspace. Path is relative to workspace root. */
+  read(path: string): Promise<Result<string, string>>;
+  /** Run a shell command in the workspace directory. */
+  run(command: string): Promise<Result<RunResult, string>>;
+  /** List files in the workspace (or a subdirectory). */
+  ls(path?: string): Promise<Result<readonly FileEntry[], string>>;
+}
+
+/**
+ * Resolve a relative path within the workspace, blocking path traversal.
+ *
+ * @returns The resolved absolute path, or null if it escapes the workspace.
+ */
+function resolveWorkspacePath(
+  workspace: Workspace,
+  relativePath: string,
+): string | null {
+  const resolved = resolve(join(workspace.path, relativePath));
+  if (!resolved.startsWith(workspace.path)) {
+    return null;
+  }
+  return resolved;
+}
+
+/**
+ * Create execution tools bound to a workspace.
+ *
+ * All file operations are sandboxed to the workspace directory.
+ * Path traversal attempts (e.g. `../../etc/passwd`) are blocked.
+ */
+export function createExecTools(workspace: Workspace): ExecTools {
+  return {
+    async write(
+      path: string,
+      content: string,
+    ): Promise<Result<WriteResult, string>> {
+      const resolved = resolveWorkspacePath(workspace, path);
+      if (resolved === null) {
+        return {
+          ok: false,
+          error: `Path "${path}" escapes the workspace directory`,
+        };
+      }
+
+      try {
+        const parentDir = resolve(resolved, "..");
+        await Deno.mkdir(parentDir, { recursive: true });
+        const encoder = new TextEncoder();
+        const bytes = encoder.encode(content);
+        await Deno.writeFile(resolved, bytes);
+        return {
+          ok: true,
+          value: { path: resolved, bytesWritten: bytes.byteLength },
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Failed to write "${path}": ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        };
+      }
+    },
+
+    async read(path: string): Promise<Result<string, string>> {
+      const resolved = resolveWorkspacePath(workspace, path);
+      if (resolved === null) {
+        return {
+          ok: false,
+          error: `Path "${path}" escapes the workspace directory`,
+        };
+      }
+
+      try {
+        const content = await Deno.readTextFile(resolved);
+        return { ok: true, value: content };
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Failed to read "${path}": ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        };
+      }
+    },
+
+    async run(command: string): Promise<Result<RunResult, string>> {
+      try {
+        const start = performance.now();
+        const proc = new Deno.Command("sh", {
+          args: ["-c", command],
+          cwd: workspace.path,
+          stdout: "piped",
+          stderr: "piped",
+        });
+        const output = await proc.output();
+        const duration = performance.now() - start;
+
+        const decoder = new TextDecoder();
+        return {
+          ok: true,
+          value: {
+            stdout: decoder.decode(output.stdout),
+            stderr: decoder.decode(output.stderr),
+            exitCode: output.code,
+            duration,
+          },
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Failed to run command: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        };
+      }
+    },
+
+    async ls(path?: string): Promise<Result<readonly FileEntry[], string>> {
+      const targetPath = path
+        ? resolveWorkspacePath(workspace, path)
+        : workspace.path;
+
+      if (targetPath === null) {
+        return {
+          ok: false,
+          error: `Path "${path}" escapes the workspace directory`,
+        };
+      }
+
+      try {
+        const entries: FileEntry[] = [];
+        for await (const entry of Deno.readDir(targetPath)) {
+          let size = 0;
+          try {
+            const stat = await Deno.stat(join(targetPath, entry.name));
+            size = stat.size ?? 0;
+          } catch {
+            // Skip stat errors, report size 0
+          }
+          entries.push({
+            name: entry.name,
+            size,
+            isDirectory: entry.isDirectory,
+          });
+        }
+        return { ok: true, value: entries };
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Failed to list "${path ?? "."}": ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        };
+      }
+    },
+  };
+}
