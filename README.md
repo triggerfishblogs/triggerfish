@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/🐡_Triggerfish-AI_Agent_Platform-0077B6?style=for-the-badge&labelColor=023E8A" alt="Triggerfish" />
+  <img src="https://img.shields.io/badge/🐠_Triggerfish-AI_Agent_Platform-0077B6?style=for-the-badge&labelColor=023E8A" alt="Triggerfish" />
 </p>
 
-<h1 align="center">🐡 Triggerfish</h1>
+<h1 align="center">🐠 Triggerfish</h1>
 
 <p align="center">
   <strong>A secure, multi-channel AI agent platform with deterministic policy enforcement below the LLM layer.</strong>
@@ -185,5 +185,5 @@ MIT
 ---
 
 <p align="center">
-  <sub>🐡 Secured by design. Powered by the ocean. 🌊</sub>
+  <sub>🐠 Secured by design. Powered by the ocean. 🌊</sub>
 </p>
