@@ -1,0 +1,16 @@
+# Triggerfish Example Configuration
+# Copy to ~/.triggerfish/triggerfish.yaml and edit.
+
+models:
+  primary: anthropic
+  providers:
+    anthropic:
+      model: claude-sonnet-4-5-20250929
+
+channels:
+  cli:
+    enabled: true
+    classification: INTERNAL
+
+policy:
+  default_action: ALLOW
