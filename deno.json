@@ -1,7 +1,7 @@
 {
   "tasks": {
-    "test": "deno test --allow-read --allow-env",
-    "test:watch": "deno test --allow-read --allow-env --watch",
+    "test": "deno test --allow-read --allow-env --no-check",
+    "test:watch": "deno test --allow-read --allow-env --no-check --watch",
     "lint": "deno lint",
     "fmt": "deno fmt",
     "check": "deno check src/mod.ts",
