@@ -1,0 +1,132 @@
+# LLM Providers and Failover
+
+Triggerfish supports multiple LLM providers with automatic failover, per-agent model selection, and session-level model switching. You are never locked into a single provider.
+
+## Supported Providers
+
+| Provider | Auth | Models | Notes |
+|----------|------|--------|-------|
+| Anthropic | OAuth token (Claude Pro/Max) or API key | Claude Opus, Sonnet, Haiku | OAuth uses your existing subscription |
+| OpenAI | API key | GPT-4o, o1, o3 | Standard OpenAI API |
+| Google | API key | Gemini Pro, Flash | Google AI Studio API |
+| Local | None | Llama, Mistral, etc. | Ollama-compatible, OpenAI format |
+| OpenRouter | API key | Any model on OpenRouter | Unified access to many providers |
+
+::: tip
+If you have a Claude Pro or Max subscription, Triggerfish uses your existing `CLAUDE_CODE_OAUTH_TOKEN` -- no separate API key needed. Set the environment variable and Triggerfish detects it automatically.
+:::
+
+## LlmProvider Interface
+
+All providers implement the same interface:
+
+```typescript
+interface LlmProvider {
+  /** Generate a completion from a message history. */
+  complete(
+    messages: Message[],
+    options?: CompletionOptions,
+  ): Promise<CompletionResult>;
+
+  /** Stream a completion token-by-token. */
+  stream(
+    messages: Message[],
+    options?: CompletionOptions,
+  ): AsyncIterable<StreamChunk>;
+
+  /** Whether this provider supports tool/function calling. */
+  supportsTools: boolean;
+
+  /** The model identifier (e.g., "claude-sonnet-4-5", "gpt-4o"). */
+  modelId: string;
+}
+```
+
+This means you can switch providers without changing any application logic. The agent loop and all tool orchestration work identically regardless of which provider is active.
+
+## Configuration
+
+### Basic Setup
+
+Configure your primary model and provider credentials in `triggerfish.yaml`:
+
+```yaml
+models:
+  primary: claude-sonnet-4-5
+  providers:
+    anthropic:
+      model: claude-sonnet-4-5
+      # Auth: set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN env var
+    openai:
+      model: gpt-4o
+      # Auth: set OPENAI_API_KEY env var
+    google:
+      model: gemini-pro
+      # Auth: set GOOGLE_API_KEY env var
+    local:
+      model: llama3
+      baseUrl: "http://localhost:11434/v1"  # Ollama default
+    openrouter:
+      model: anthropic/claude-sonnet-4-5
+      # Auth: set OPENROUTER_API_KEY env var
+```
+
+### Failover Chain
+
+The FailoverChain provides automatic fallback when a provider is unavailable. Configure an ordered list of fallback models:
+
+```yaml
+models:
+  primary: claude-opus-4-5
+  failover:
+    - claude-sonnet-4-5      # First fallback
+    - gpt-4o                  # Second fallback
+    - ollama/llama3           # Local fallback (no internet required)
+
+  failover_config:
+    max_retries: 3
+    retry_delay_ms: 1000
+    conditions:
+      - rate_limited
+      - server_error
+      - timeout
+```
+
+When the primary model fails due to a configured condition (rate limiting, server error, or timeout), Triggerfish automatically tries the next provider in the chain. This happens transparently -- the conversation continues without interruption.
+
+### Failover Conditions
+
+| Condition | Description |
+|-----------|-------------|
+| `rate_limited` | Provider returns a 429 rate limit response |
+| `server_error` | Provider returns a 5xx server error |
+| `timeout` | Request exceeds the configured timeout |
+
+## Per-Agent Model Selection
+
+In a [multi-agent setup](./multi-agent), each agent can use a different model optimized for its role:
+
+```yaml
+agents:
+  list:
+    - id: research
+      model: claude-opus-4-5           # Best reasoning for research
+    - id: quick-tasks
+      model: claude-haiku-4-5          # Fast and cheap for simple tasks
+    - id: coding
+      model: claude-sonnet-4-5         # Good balance for code
+```
+
+## Session-Level Model Switching
+
+The agent can switch models mid-session for cost optimization. Use a fast model for simple queries and escalate to a more capable model for complex reasoning. This is available through the `session_status` tool.
+
+## Anthropic OAuth
+
+For Claude Pro and Max subscribers, Triggerfish supports OAuth authentication using the `CLAUDE_CODE_OAUTH_TOKEN` environment variable. This lets you use your existing subscription without a separate API key.
+
+The token is detected automatically by its `sk-ant-oat` prefix. When using OAuth, Triggerfish sends the required authentication headers for the Anthropic API.
+
+::: info
+API keys are never stored in configuration files. Set credentials as environment variables or use your OS keychain. See the [Security Model](/security/) for details on secrets management.
+:::
