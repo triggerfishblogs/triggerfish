@@ -25,3 +25,39 @@ export {
 } from "./daemon.ts";
 
 export type { DaemonManagerType, DaemonOptions } from "./daemon.ts";
+
+export {
+  createKeypressReader,
+  createLineEditor,
+  createSuggestionEngine,
+  parseKeypresses,
+} from "./terminal.ts";
+
+export type {
+  Keypress,
+  KeypressReader,
+  LineEditor,
+  SuggestionEngine,
+} from "./terminal.ts";
+
+export {
+  createInputHistory,
+  loadInputHistory,
+  saveInputHistory,
+} from "./history.ts";
+
+export type { InputHistory } from "./history.ts";
+
+export { createScreenManager } from "./screen.ts";
+export type { ScreenManager } from "./screen.ts";
+
+export {
+  formatBanner,
+  formatToolCallCompact,
+  formatToolCallExpanded,
+  formatToolResultExpanded,
+  formatResponse,
+  formatError,
+  createScreenEventHandler,
+} from "./chat_ui.ts";
+export type { ToolDisplayMode } from "./chat_ui.ts";

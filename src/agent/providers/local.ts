@@ -40,8 +40,9 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
     async complete(
       messages: readonly LlmMessage[],
       _tools: readonly unknown[],
-      _options: Record<string, unknown>,
+      options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
+      const signal = options.signal as AbortSignal | undefined;
       const openaiMessages = messages.map((m) => ({
         role: m.role,
         content: typeof m.content === "string"
@@ -57,6 +58,7 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
           max_tokens: maxTokens,
           messages: openaiMessages,
         }),
+        ...(signal ? { signal } : {}),
       });
 
       if (!response.ok) {

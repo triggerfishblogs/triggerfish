@@ -48,9 +48,10 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
     async complete(
       messages: readonly LlmMessage[],
       _tools: readonly unknown[],
-      _options: Record<string, unknown>,
+      options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       const openaiClient = getClient();
+      const signal = options.signal as AbortSignal | undefined;
 
       // Convert messages to OpenAI format
       const openaiMessages = messages.map((m) => ({
@@ -60,11 +61,14 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
           : JSON.stringify(m.content),
       }));
 
-      const response = await openaiClient.chat.completions.create({
-        model,
-        max_tokens: maxTokens,
-        messages: openaiMessages,
-      });
+      const response = await openaiClient.chat.completions.create(
+        {
+          model,
+          max_tokens: maxTokens,
+          messages: openaiMessages,
+        },
+        signal ? { signal } : undefined,
+      );
 
       const choice = response.choices[0];
 

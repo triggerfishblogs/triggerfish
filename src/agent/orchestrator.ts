@@ -16,6 +16,8 @@ import type { Result, ClassificationLevel } from "../core/types/classification.t
 import type { SessionState, SessionId } from "../core/types/session.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { LlmProviderRegistry, LlmMessage } from "./llm.ts";
+import { createCompactor } from "./compactor.ts";
+import type { Compactor, CompactorConfig } from "./compactor.ts";
 
 /** Default system prompt used when no SPINE.md is found. */
 const DEFAULT_SYSTEM_PROMPT =
@@ -23,7 +25,10 @@ const DEFAULT_SYSTEM_PROMPT =
   "Follow the user's instructions and respond clearly and concisely.";
 
 /** Maximum tool call iterations to prevent infinite loops. */
-const MAX_TOOL_ITERATIONS = 10;
+const MAX_TOOL_ITERATIONS = 25;
+
+/** Iteration at which the LLM is warned to wrap up. */
+const SOFT_LIMIT_ITERATIONS = 20;
 
 /** A tool definition for prompt-based tool calling. */
 export interface ToolDefinition {
@@ -53,6 +58,8 @@ export interface OrchestratorConfig {
   readonly toolExecutor?: ToolExecutor;
   /** Event callback for real-time progress reporting. */
   readonly onEvent?: OrchestratorEventCallback;
+  /** Configuration for conversation compactor. */
+  readonly compactorConfig?: Partial<CompactorConfig>;
 }
 
 /** Options for processing a single message. */
@@ -60,6 +67,8 @@ export interface ProcessMessageOptions {
   readonly session: SessionState;
   readonly message: string;
   readonly targetClassification: ClassificationLevel;
+  /** Optional signal to abort the operation. */
+  readonly signal?: AbortSignal;
 }
 
 /** Successful response from message processing. */
@@ -85,7 +94,7 @@ export interface Orchestrator {
 
 /** Events emitted by the orchestrator during message processing. */
 export type OrchestratorEvent =
-  | { readonly type: "llm_start"; readonly iteration: number }
+  | { readonly type: "llm_start"; readonly iteration: number; readonly maxIterations: number }
   | {
     readonly type: "llm_complete";
     readonly iteration: number;
@@ -156,6 +165,27 @@ Important: Use tools when the user asks you to interact with the filesystem, run
 }
 
 /**
+ * Extract arguments from a parsed tool call JSON object.
+ * LLMs use varying key names for arguments: args, input, parameters, arguments.
+ * Falls back to collecting all top-level keys except "name" as flat args.
+ */
+function extractArgs(parsed: Record<string, unknown>): Record<string, unknown> {
+  // Check common arg container key names
+  for (const key of ["args", "input", "parameters", "arguments"]) {
+    const val = parsed[key];
+    if (val !== null && val !== undefined && typeof val === "object" && !Array.isArray(val)) {
+      return val as Record<string, unknown>;
+    }
+  }
+  // Flat format: args are top-level siblings of "name"
+  const { name: _, args: _a, input: _i, parameters: _p, arguments: _g, ...rest } = parsed;
+  if (Object.keys(rest).length > 0) {
+    return rest;
+  }
+  return {};
+}
+
+/**
  * Parse tool calls from LLM text output.
  * Looks for <tool_call>...</tool_call> blocks containing JSON.
  */
@@ -169,7 +199,7 @@ function parseToolCalls(text: string): readonly ParsedToolCall[] {
       if (parsed.name && typeof parsed.name === "string") {
         calls.push({
           name: parsed.name,
-          args: parsed.args ?? {},
+          args: extractArgs(parsed),
         });
       }
     } catch {
@@ -209,11 +239,12 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   const toolExecutor = config.toolExecutor;
   const emit = config.onEvent ?? (() => {});
   const histories = new Map<string, HistoryEntry[]>();
+  const compactor: Compactor = createCompactor(config.compactorConfig);
 
   async function processMessage(
     options: ProcessMessageOptions,
   ): Promise<Result<ProcessMessageResult, string>> {
-    const { session, message, targetClassification } = options;
+    const { session, message, targetClassification, signal } = options;
 
     // 1. Fire PRE_CONTEXT_INJECTION hook
     const preContextResult = await hookRunner.run("PRE_CONTEXT_INJECTION", {
@@ -253,12 +284,24 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     // Add user message to history
     history.push({ role: "user", content: message });
 
+    // Auto-compact history if approaching context limits
+    const compacted = compactor.compact(history);
+    if (compacted.length < history.length) {
+      history.length = 0;
+      history.push(...compacted);
+    }
+
     // 4. Agent loop — call LLM, parse tool calls, execute, repeat
     let iterations = 0;
     while (iterations < MAX_TOOL_ITERATIONS) {
       iterations++;
 
-      emit({ type: "llm_start", iteration: iterations });
+      // Check abort signal
+      if (signal?.aborted) {
+        return { ok: false, error: "Operation cancelled by user" };
+      }
+
+      emit({ type: "llm_start", iteration: iterations, maxIterations: MAX_TOOL_ITERATIONS });
 
       // Build messages array: system prompt + conversation history
       const messages: LlmMessage[] = [
@@ -267,7 +310,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       ];
 
       // Call LLM provider (no native tools — we use prompt-based tools)
-      const completion = await provider.complete(messages, [], {});
+      const completion = await provider.complete(messages, [], {
+        ...(signal ? { signal } : {}),
+      });
 
       // Parse tool calls from the response text
       const parsedCalls = (tools.length > 0 && toolExecutor)
@@ -314,9 +359,26 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       // Tool calls found — add assistant message to history
       history.push({ role: "assistant", content: completion.content });
 
+      // Inject soft limit warning to help the LLM wrap up
+      if (iterations === SOFT_LIMIT_ITERATIONS) {
+        history.push({
+          role: "user",
+          content:
+            `[SYSTEM] You have used many tool calls (${iterations}/${MAX_TOOL_ITERATIONS}). ` +
+            `You have ${MAX_TOOL_ITERATIONS - iterations} remaining iterations. ` +
+            "Please provide your best answer now based on the information gathered so far. " +
+            "If you cannot find what you're looking for, say so rather than continuing to search.",
+        });
+      }
+
       // Execute each tool call and build results
       const resultParts: string[] = [];
       for (const call of parsedCalls) {
+        // Check abort signal before each tool execution
+        if (signal?.aborted) {
+          return { ok: false, error: "Operation cancelled by user" };
+        }
+
         emit({ type: "tool_call", name: call.name, args: call.args });
 
         // Fire PRE_TOOL_CALL hook

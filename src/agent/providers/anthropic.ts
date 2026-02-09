@@ -91,9 +91,10 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
     async complete(
       messages: readonly LlmMessage[],
       _tools: readonly unknown[],
-      _options: Record<string, unknown>,
+      options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       const anthropicClient = getClient();
+      const signal = options.signal as AbortSignal | undefined;
 
       // Extract system prompt from messages
       const systemMessage = messages.find((m) => m.role === "system");
@@ -141,7 +142,10 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
         ...(systemParam ? { system: systemParam as MessageCreateParamsNonStreaming["system"] } : {}),
       };
 
-      const response = await anthropicClient.messages.create(requestParams);
+      const response = await anthropicClient.messages.create(
+        requestParams,
+        signal ? { signal } : undefined,
+      );
 
       // Extract text from response content blocks
       const textContent = response.content
