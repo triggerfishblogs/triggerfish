@@ -109,13 +109,13 @@ Deno.test({
 });
 
 Deno.test({
-  name: "Discord: defaults to INTERNAL classification",
+  name: "Discord: defaults to PUBLIC classification",
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
     const { createDiscordChannel } = await import("../../src/channels/discord/adapter.ts");
     const adapter = createDiscordChannel({ botToken: "fake-discord-token" });
-    assertEquals(adapter.classification, "INTERNAL");
+    assertEquals(adapter.classification, "PUBLIC");
   },
 });
 
@@ -132,14 +132,14 @@ Deno.test("WhatsApp: factory creates adapter with correct channel type", async (
   assertEquals(adapter.status().connected, false);
 });
 
-Deno.test("WhatsApp: defaults to INTERNAL classification", async () => {
+Deno.test("WhatsApp: defaults to PUBLIC classification", async () => {
   const { createWhatsAppChannel } = await import("../../src/channels/whatsapp/adapter.ts");
   const adapter = createWhatsAppChannel({
     accessToken: "fake-token",
     phoneNumberId: "123456",
     verifyToken: "verify-me",
   });
-  assertEquals(adapter.classification, "INTERNAL");
+  assertEquals(adapter.classification, "PUBLIC");
 });
 
 // --- WebChat ---
@@ -174,7 +174,7 @@ Deno.test("Email: factory creates adapter with correct channel type", async () =
   assertEquals(adapter.status().connected, false);
 });
 
-Deno.test("Email: defaults to CONFIDENTIAL classification", async () => {
+Deno.test("Email: defaults to PUBLIC classification", async () => {
   const { createEmailChannel } = await import("../../src/channels/email/adapter.ts");
   const adapter = createEmailChannel({
     smtpApiUrl: "https://api.sendgrid.com/v3/mail/send",
@@ -184,7 +184,7 @@ Deno.test("Email: defaults to CONFIDENTIAL classification", async () => {
     imapPassword: "password",
     fromAddress: "bot@example.com",
   });
-  assertEquals(adapter.classification, "CONFIDENTIAL");
+  assertEquals(adapter.classification, "PUBLIC");
 });
 
 // --- Enhanced Router ---

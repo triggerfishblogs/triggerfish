@@ -34,7 +34,7 @@ export interface EmailConfig {
   readonly fromAddress: string;
   /** Poll interval in ms for checking new emails. Default: 30000 */
   readonly pollInterval?: number;
-  /** Classification level for this channel. Default: CONFIDENTIAL */
+  /** Classification level for this channel. Default: PUBLIC */
   readonly classification?: ClassificationLevel;
   /** Owner's email address for isOwner checks. */
   readonly ownerEmail?: string;
@@ -50,7 +50,7 @@ export interface EmailConfig {
  * @returns A ChannelAdapter wired to email.
  */
 export function createEmailChannel(config: EmailConfig): ChannelAdapter {
-  const classification = (config.classification ?? "CONFIDENTIAL") as ClassificationLevel;
+  const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
   const pollInterval = config.pollInterval ?? 30000;
   let connected = false;
   let handler: MessageHandler | null = null;

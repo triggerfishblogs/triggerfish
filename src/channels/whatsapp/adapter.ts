@@ -28,7 +28,7 @@ export interface WhatsAppConfig {
   readonly verifyToken: string;
   /** Port to listen for webhooks. Default: 8443 */
   readonly webhookPort?: number;
-  /** Classification level for this channel. Default: INTERNAL */
+  /** Classification level for this channel. Default: PUBLIC */
   readonly classification?: ClassificationLevel;
   /** Owner's phone number (e.g. "15551234567"). */
   readonly ownerPhone?: string;
@@ -48,7 +48,7 @@ const WA_API_BASE = "https://graph.facebook.com/v18.0";
  * @returns A ChannelAdapter wired to WhatsApp.
  */
 export function createWhatsAppChannel(config: WhatsAppConfig): ChannelAdapter {
-  const classification = (config.classification ?? "INTERNAL") as ClassificationLevel;
+  const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
   const webhookPort = config.webhookPort ?? 8443;
   let connected = false;
   let handler: MessageHandler | null = null;

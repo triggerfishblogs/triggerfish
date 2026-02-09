@@ -29,7 +29,7 @@ const MAX_MESSAGE_LENGTH = 2000;
 export interface DiscordConfig {
   /** Discord Bot Token. */
   readonly botToken: string;
-  /** Classification level for this channel. Default: INTERNAL */
+  /** Classification level for this channel. Default: PUBLIC */
   readonly classification?: ClassificationLevel;
   /** Owner's Discord user ID (snowflake). */
   readonly ownerId?: string;
@@ -45,7 +45,7 @@ export interface DiscordConfig {
  * @returns A ChannelAdapter wired to Discord.
  */
 export function createDiscordChannel(config: DiscordConfig): ChannelAdapter {
-  const classification = (config.classification ?? "INTERNAL") as ClassificationLevel;
+  const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
   const ownerId = config.ownerId;
   let connected = false;
   let handler: MessageHandler | null = null;

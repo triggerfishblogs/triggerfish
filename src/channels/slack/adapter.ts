@@ -29,7 +29,7 @@ export interface SlackConfig {
   readonly appToken: string;
   /** Slack Signing Secret. */
   readonly signingSecret: string;
-  /** Classification level for this channel. Default: INTERNAL */
+  /** Classification level for this channel. Default: PUBLIC */
   readonly classification?: ClassificationLevel;
   /** Owner's Slack user ID (e.g. U01234ABC). */
   readonly ownerId?: string;
@@ -45,7 +45,7 @@ export interface SlackConfig {
  * @returns A ChannelAdapter wired to Slack.
  */
 export function createSlackChannel(config: SlackConfig): ChannelAdapter {
-  const classification = (config.classification ?? "INTERNAL") as ClassificationLevel;
+  const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
   const ownerId = config.ownerId;
   let connected = false;
   let handler: MessageHandler | null = null;
