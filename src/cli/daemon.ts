@@ -211,6 +211,23 @@ export async function installAndStartDaemon(
 
     await Deno.writeTextFile(unitPath, unit);
 
+    // Enable lingering so the user service survives logout.
+    // Without this, systemd kills all user services when the session ends.
+    const lingerResult = await runCommand("loginctl", [
+      "enable-linger",
+      Deno.env.get("USER") ?? "",
+    ]);
+    if (!lingerResult.success) {
+      // Non-fatal — service will still work while logged in
+      console.log(
+        "  ⚠ Could not enable linger (daemon will stop on logout):",
+        lingerResult.stderr,
+      );
+      console.log(
+        "    Fix: sudo loginctl enable-linger $USER",
+      );
+    }
+
     // Reload systemd daemon
     await runCommand("systemctl", ["--user", "daemon-reload"]);
 

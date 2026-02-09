@@ -221,6 +221,17 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
   const configPath = `${baseDir}/triggerfish.yaml`;
   const spinePath = `${baseDir}/SPINE.md`;
 
+  // Guard: interactive prompts require a TTY on stdin
+  if (!Deno.stdin.isTerminal()) {
+    console.error("");
+    console.error("  Error: the dive wizard requires an interactive terminal.");
+    console.error("");
+    console.error("  If you installed via curl|bash, run the wizard manually:");
+    console.error("    triggerfish dive");
+    console.error("");
+    Deno.exit(1);
+  }
+
   console.log("");
   console.log("  Welcome to Triggerfish");
   console.log("  ======================");

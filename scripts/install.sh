@@ -93,8 +93,10 @@ esac
 # When --install-daemon is passed, dive will auto-start the daemon if the
 # user says yes during the wizard.
 
+# When piped via curl|bash, stdin is the pipe — not the terminal.
+# Redirect from /dev/tty so the interactive wizard can read user input.
 echo ""
-"${INSTALL_DIR}/triggerfish" dive --install-daemon
+"${INSTALL_DIR}/triggerfish" dive --install-daemon </dev/tty
 
 echo ""
 echo "  triggerfish status    # Check daemon status"
