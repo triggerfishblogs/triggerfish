@@ -1,0 +1,10 @@
+# Build docs (reference only, not part of the codebase)
+triggerfish-build-plan.md
+triggerfish-design-doc-v3.md
+PHASE_BREAKDOWN.md
+phases/
+
+# Meta-loop artifacts
+build-logs/
+triggerfish-meta-loop.sh
+BLOCKERS.md
