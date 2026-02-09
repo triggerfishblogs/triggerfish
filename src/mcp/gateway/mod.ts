@@ -9,7 +9,10 @@ export {
   type ServerClassification,
   type GatewayCallOptions,
   type GatewayOptions,
+  type GatewayToolResult,
   type McpGateway,
+  type McpServer,
+  type McpServerToolResult,
 } from "./gateway.ts";
 
 export {
