@@ -1,0 +1,137 @@
+/**
+ * Phase 5: Data Lineage
+ * Tests MUST FAIL until lineage.ts is implemented.
+ * Tests record creation, forward/backward trace, export.
+ */
+import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { createLineageStore } from "../../src/core/session/lineage.ts";
+import { createMemoryStorage } from "../../src/core/storage/memory.ts";
+import type { SessionId } from "../../src/core/types/session.ts";
+
+async function makeStore() {
+  const storage = createMemoryStorage();
+  return createLineageStore(storage);
+}
+
+Deno.test("LineageStore: create returns record with lineage_id and content_hash", async () => {
+  const store = await makeStore();
+  const record = await store.create({
+    content: "test data",
+    origin: {
+      source_type: "integration",
+      source_name: "crm",
+      accessed_at: new Date().toISOString(),
+      accessed_by: "agent-1",
+      access_method: "api",
+    },
+    classification: { level: "CONFIDENTIAL", reason: "CRM data" },
+    sessionId: "sess-1" as SessionId,
+  });
+  assertExists(record.lineage_id);
+  assertExists(record.content_hash);
+  assertEquals(record.classification.level, "CONFIDENTIAL");
+});
+
+Deno.test("LineageStore: get retrieves by lineage_id", async () => {
+  const store = await makeStore();
+  const created = await store.create({
+    content: "data",
+    origin: {
+      source_type: "integration",
+      source_name: "test",
+      accessed_at: new Date().toISOString(),
+      accessed_by: "agent",
+      access_method: "api",
+    },
+    classification: { level: "PUBLIC", reason: "test" },
+    sessionId: "s" as SessionId,
+  });
+  const fetched = await store.get(created.lineage_id);
+  assertExists(fetched);
+  assertEquals(fetched!.lineage_id, created.lineage_id);
+});
+
+Deno.test("LineageStore: getBySession returns records for session", async () => {
+  const store = await makeStore();
+  const sid = "session-abc" as SessionId;
+  await store.create({
+    content: "a",
+    origin: { source_type: "x", source_name: "y", accessed_at: "", accessed_by: "", access_method: "" },
+    classification: { level: "PUBLIC", reason: "" },
+    sessionId: sid,
+  });
+  await store.create({
+    content: "b",
+    origin: { source_type: "x", source_name: "y", accessed_at: "", accessed_by: "", access_method: "" },
+    classification: { level: "INTERNAL", reason: "" },
+    sessionId: sid,
+  });
+  await store.create({
+    content: "c",
+    origin: { source_type: "x", source_name: "y", accessed_at: "", accessed_by: "", access_method: "" },
+    classification: { level: "PUBLIC", reason: "" },
+    sessionId: "other-session" as SessionId,
+  });
+  const records = await store.getBySession(sid);
+  assertEquals(records.length, 2);
+});
+
+Deno.test("LineageStore: trace_forward shows what happened to data", async () => {
+  const store = await makeStore();
+  const original = await store.create({
+    content: "raw data",
+    origin: { source_type: "api", source_name: "crm", accessed_at: "", accessed_by: "", access_method: "" },
+    classification: { level: "CONFIDENTIAL", reason: "crm" },
+    sessionId: "s" as SessionId,
+  });
+  const derived = await store.create({
+    content: "summarized",
+    origin: { source_type: "llm", source_name: "claude", accessed_at: "", accessed_by: "", access_method: "" },
+    classification: { level: "CONFIDENTIAL", reason: "derived from crm" },
+    sessionId: "s" as SessionId,
+    inputLineageIds: [original.lineage_id],
+  });
+  const forward = await store.trace_forward(original.lineage_id);
+  assert(forward.length >= 1);
+  assert(forward.some((r) => r.lineage_id === derived.lineage_id));
+});
+
+Deno.test("LineageStore: trace_backward shows sources", async () => {
+  const store = await makeStore();
+  const source1 = await store.create({
+    content: "source a",
+    origin: { source_type: "api", source_name: "a", accessed_at: "", accessed_by: "", access_method: "" },
+    classification: { level: "INTERNAL", reason: "" },
+    sessionId: "s" as SessionId,
+  });
+  const source2 = await store.create({
+    content: "source b",
+    origin: { source_type: "api", source_name: "b", accessed_at: "", accessed_by: "", access_method: "" },
+    classification: { level: "CONFIDENTIAL", reason: "" },
+    sessionId: "s" as SessionId,
+  });
+  const merged = await store.create({
+    content: "combined",
+    origin: { source_type: "llm", source_name: "claude", accessed_at: "", accessed_by: "", access_method: "" },
+    classification: { level: "CONFIDENTIAL", reason: "max of inputs" },
+    sessionId: "s" as SessionId,
+    inputLineageIds: [source1.lineage_id, source2.lineage_id],
+  });
+  const backward = await store.trace_backward(merged.lineage_id);
+  assertEquals(backward.length, 2);
+});
+
+Deno.test("LineageStore: export produces full chain for session", async () => {
+  const store = await makeStore();
+  const sid = "export-session" as SessionId;
+  await store.create({
+    content: "record 1",
+    origin: { source_type: "x", source_name: "y", accessed_at: "", accessed_by: "", access_method: "" },
+    classification: { level: "PUBLIC", reason: "" },
+    sessionId: sid,
+  });
+  const exported = await store.export(sid);
+  assert(exported.length >= 1);
+  assertExists(exported[0].lineage_id);
+  assertExists(exported[0].content_hash);
+});
