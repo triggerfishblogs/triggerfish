@@ -24,3 +24,22 @@ export { createRippleManager } from "./ripple.ts";
 
 export type { GroupMode, GroupConfig, OwnerContext, GroupManager } from "./groups.ts";
 export { createGroupManager } from "./groups.ts";
+
+export type { TelegramConfig } from "./telegram/adapter.ts";
+export { createTelegramChannel } from "./telegram/adapter.ts";
+export { chunkMessage } from "./telegram/adapter.ts";
+
+export type { SlackConfig } from "./slack/adapter.ts";
+export { createSlackChannel } from "./slack/adapter.ts";
+
+export type { DiscordConfig } from "./discord/adapter.ts";
+export { createDiscordChannel } from "./discord/adapter.ts";
+
+export type { WhatsAppConfig } from "./whatsapp/adapter.ts";
+export { createWhatsAppChannel } from "./whatsapp/adapter.ts";
+
+export type { WebChatConfig } from "./webchat/adapter.ts";
+export { createWebChatChannel } from "./webchat/adapter.ts";
+
+export type { EmailConfig } from "./email/adapter.ts";
+export { createEmailChannel } from "./email/adapter.ts";

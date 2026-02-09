@@ -7,6 +7,15 @@
  */
 
 import { parse as parseYaml } from "@std/yaml";
+import { createGatewayServer } from "../gateway/server.ts";
+import { createPatrolCheck } from "../dive/patrol.ts";
+import type { PatrolInput } from "../dive/patrol.ts";
+import {
+  installAndStartDaemon,
+  stopDaemon,
+  getDaemonStatus,
+  tailLogs,
+} from "./daemon.ts";
 
 /** Known CLI commands. */
 const KNOWN_COMMANDS = new Set([
@@ -159,4 +168,289 @@ export function validateConfig(
   }
 
   return { ok: true, value: undefined };
+}
+
+/**
+ * Display help text.
+ */
+function showHelp(): void {
+  console.log(`
+Triggerfish - Secure Multi-Channel AI Agent Platform
+
+USAGE:
+  triggerfish [command] [options]
+
+COMMANDS:
+  dive        First-run setup wizard (creates triggerfish.yaml)
+  run         Run the gateway server in foreground
+  start       Install and start the daemon
+  stop        Stop the daemon
+  status      Show daemon status
+  logs        View daemon logs (--tail to follow)
+  patrol      Run health diagnostics
+  help        Show this help message
+  version     Show version information
+
+EXAMPLES:
+  triggerfish dive          # Interactive setup
+  triggerfish run           # Run gateway in foreground
+  triggerfish start         # Install and start daemon
+  triggerfish stop          # Stop the daemon
+  triggerfish status        # Check daemon status
+  triggerfish logs --tail   # Follow daemon logs
+  triggerfish patrol        # Health check
+
+For more information, visit: https://triggerfish.sh/docs
+`);
+}
+
+/**
+ * Display version information.
+ */
+function showVersion(): void {
+  console.log("Triggerfish v0.1.0-alpha");
+}
+
+/**
+ * Run the dive setup wizard.
+ */
+async function runDive(): Promise<void> {
+  console.log("🌊 Welcome to Triggerfish!");
+  console.log("\nThis wizard will help you set up your agent.\n");
+
+  // Check if config already exists
+  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+  try {
+    await Deno.stat(configPath);
+    console.log("⚠️  Configuration already exists at:", configPath);
+    console.log("Run 'triggerfish start' to launch the gateway.\n");
+    return;
+  } catch {
+    // Config doesn't exist, continue with setup
+  }
+
+  console.log("Creating configuration directory...");
+  const configDir = `${Deno.env.get("HOME")}/.triggerfish`;
+  await Deno.mkdir(configDir, { recursive: true });
+
+  console.log("Generating default configuration...");
+  const defaultConfig = `# Triggerfish Configuration
+
+models:
+  primary: claude-sonnet-4-5
+  providers:
+    anthropic:
+      model: claude-sonnet-4-5
+
+channels: {}
+
+classification:
+  mode: personal  # personal or enterprise
+`;
+
+  await Deno.writeTextFile(configPath, defaultConfig);
+  console.log("✓ Created:", configPath);
+
+  console.log("\n🎉 Setup complete!");
+  console.log("\nNext steps:");
+  console.log("  1. Edit", configPath, "to configure your agent");
+  console.log("  2. Run 'triggerfish start' to launch the gateway");
+  console.log("  3. Run 'triggerfish patrol' to verify health\n");
+}
+
+/**
+ * Run patrol health diagnostics.
+ */
+async function runPatrol(): Promise<void> {
+  console.log("🔍 Running Triggerfish health diagnostics...\n");
+
+  // TODO: Get actual runtime state from gateway
+  // For now, use mock data to demonstrate patrol functionality
+  const input: PatrolInput = {
+    gatewayRunning: false,
+    llmConnected: false,
+    channelsActive: 0,
+    policyRulesLoaded: 0,
+    skillsInstalled: 0,
+  };
+
+  const checker = createPatrolCheck(input);
+  const report = await checker.run();
+
+  console.log(`Overall Status: ${report.overall}\n`);
+  console.log("Health Checks:");
+  for (const check of report.checks) {
+    const icon = check.status === "HEALTHY"
+      ? "✓"
+      : check.status === "WARNING"
+      ? "⚠"
+      : "✗";
+    console.log(`  ${icon} ${check.name}: ${check.message}`);
+  }
+  console.log();
+
+  if (report.overall === "CRITICAL") {
+    console.log("❌ Critical issues detected. Run 'triggerfish start' to launch the gateway.\n");
+    Deno.exit(1);
+  } else if (report.overall === "WARNING") {
+    console.log("⚠️  Warnings detected. Check configuration.\n");
+  } else {
+    console.log("✅ All systems healthy.\n");
+  }
+}
+
+/**
+ * Start the gateway server.
+ */
+async function runStart(): Promise<void> {
+  console.log("🚀 Starting Triggerfish gateway...\n");
+
+  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+
+  // Check if config exists
+  try {
+    await Deno.stat(configPath);
+  } catch {
+    console.log("❌ Configuration not found.");
+    console.log("Run 'triggerfish dive' to set up your agent.\n");
+    Deno.exit(1);
+  }
+
+  // Load config
+  const configResult = loadConfig(configPath);
+  if (!configResult.ok) {
+    console.log("❌ Failed to load configuration:", configResult.error);
+    Deno.exit(1);
+  }
+
+  console.log("✓ Configuration loaded");
+
+  // Create and start gateway server
+  const server = createGatewayServer({ port: 18789 });
+  const addr = await server.start();
+
+  console.log(`✓ Gateway listening on ${addr.hostname}:${addr.port}`);
+  console.log("\n🌊 Triggerfish is running!");
+  console.log("\nPress Ctrl+C to stop.\n");
+
+  // Keep running until interrupted
+  await new Promise(() => {}); // Never resolves
+}
+
+/**
+ * Install and start the Triggerfish daemon.
+ */
+async function runDaemonStart(): Promise<void> {
+  console.log("Installing Triggerfish daemon...\n");
+
+  const binaryPath = Deno.execPath();
+  const result = await installAndStartDaemon(binaryPath);
+
+  if (result.ok) {
+    console.log("✓", result.message);
+    console.log("\nRun 'triggerfish status' to verify.");
+    console.log("Run 'triggerfish logs --tail' to follow output.\n");
+  } else {
+    console.log("✗", result.message);
+    Deno.exit(1);
+  }
+}
+
+/**
+ * Stop the Triggerfish daemon.
+ */
+async function runDaemonStop(): Promise<void> {
+  const result = await stopDaemon();
+
+  if (result.ok) {
+    console.log("✓", result.message);
+  } else {
+    console.log("✗", result.message);
+    Deno.exit(1);
+  }
+}
+
+/**
+ * Show daemon status.
+ */
+async function runDaemonStatus(): Promise<void> {
+  const status = await getDaemonStatus();
+
+  if (status.running) {
+    console.log("✓ Triggerfish is running");
+    if (status.pid) console.log(`  PID: ${status.pid}`);
+    if (status.uptime) console.log(`  Since: ${status.uptime}`);
+    console.log(`  Manager: ${status.manager}`);
+  } else {
+    console.log("✗ Triggerfish is not running");
+    console.log("\nRun 'triggerfish start' to launch the daemon.");
+  }
+}
+
+/**
+ * Tail daemon logs.
+ */
+async function runDaemonLogs(
+  flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  const follow = flags.tail === true;
+  await tailLogs(follow);
+}
+
+/**
+ * Main CLI entry point.
+ */
+async function main(): Promise<void> {
+  const args = Deno.args;
+
+  // Check if config exists for default command detection
+  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+  let configExists = false;
+  try {
+    await Deno.stat(configPath);
+    configExists = true;
+  } catch {
+    // Config doesn't exist
+  }
+
+  const parsed = parseCommand(args, { configExists });
+
+  switch (parsed.command) {
+    case "dive":
+      await runDive();
+      break;
+    case "patrol":
+      await runPatrol();
+      break;
+    case "run":
+      await runStart();
+      break;
+    case "start":
+      await runDaemonStart();
+      break;
+    case "stop":
+      await runDaemonStop();
+      break;
+    case "status":
+      await runDaemonStatus();
+      break;
+    case "logs":
+      await runDaemonLogs(parsed.flags);
+      break;
+    case "version":
+      showVersion();
+      break;
+    case "help":
+    default:
+      showHelp();
+      break;
+  }
+}
+
+// Execute main if this is the entry point
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error("Fatal error:", err);
+    Deno.exit(1);
+  });
 }
