@@ -1,11 +1,12 @@
 /**
- * Scheduler module: cron jobs, triggers, and webhook handling.
+ * Scheduler module: cron jobs, triggers, webhook handling, and service.
  *
  * @module
  */
 
 export {
   parseCronExpression,
+  matchesNow,
   createCronManager,
   type CronExpression,
   type CronJob,
@@ -23,9 +24,19 @@ export {
 
 export {
   verifyHmac,
+  verifyHmacAsync,
+  computeHmac,
   createWebhookHandler,
   type WebhookEvent,
   type WebhookEventHandler,
   type WebhookSource,
   type WebhookHandler,
 } from "./webhooks.ts";
+
+export {
+  createSchedulerService,
+  type SchedulerService,
+  type SchedulerServiceConfig,
+  type OrchestratorFactory,
+  type WebhookSourceConfig,
+} from "./service.ts";

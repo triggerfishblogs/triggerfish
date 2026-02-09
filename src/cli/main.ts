@@ -36,6 +36,12 @@ import {
   renderError,
   renderPrompt,
 } from "./chat_ui.ts";
+import { createSchedulerService } from "../scheduler/service.ts";
+import type {
+  OrchestratorFactory,
+  SchedulerServiceConfig,
+  WebhookSourceConfig,
+} from "../scheduler/service.ts";
 
 /** Known CLI commands. */
 const KNOWN_COMMANDS = new Set([
@@ -74,6 +80,23 @@ export interface TriggerFishConfig {
   readonly channels: Readonly<Record<string, unknown>>;
   readonly classification: {
     readonly mode: string;
+  };
+  readonly scheduler?: {
+    readonly trigger?: {
+      readonly enabled?: boolean;
+      readonly interval_minutes?: number;
+      readonly quiet_hours?: {
+        readonly start?: number;
+        readonly end?: number;
+      };
+    };
+    readonly webhooks?: {
+      readonly enabled?: boolean;
+      readonly sources?: Readonly<Record<string, {
+        readonly secret: string;
+        readonly classification: string;
+      }>>;
+    };
   };
 }
 
@@ -382,10 +405,101 @@ async function runPatrol(): Promise<void> {
 }
 
 /**
- * Start the gateway server.
+ * Create an OrchestratorFactory from config.
+ *
+ * The factory captures shared infrastructure (provider registry, policy
+ * engine, hook runner, tool definitions) and creates a fresh workspace,
+ * session, and orchestrator per call for execution isolation.
+ */
+function createOrchestratorFactory(
+  config: TriggerFishConfig,
+  baseDir: string,
+): OrchestratorFactory {
+  const registry = createProviderRegistry();
+  loadProvidersFromConfig(config.models as ModelsConfig, registry);
+
+  const engine = createPolicyEngine();
+  for (const rule of createDefaultRules()) {
+    engine.addRule(rule);
+  }
+  const hookRunner = createHookRunner(engine);
+
+  const spinePath = `${baseDir}/SPINE.md`;
+  const toolDefs = getToolDefinitions();
+
+  return {
+    async create(channelId: string) {
+      const workspace = await createWorkspace({
+        agentId: `scheduler-${channelId}-${Date.now()}`,
+        basePath: `${baseDir}/workspaces`,
+      });
+      const execTools = createExecTools(workspace);
+      const toolExecutor = createToolExecutor(execTools);
+
+      const orchestrator = createOrchestrator({
+        hookRunner,
+        providerRegistry: registry,
+        spinePath,
+        tools: toolDefs,
+        toolExecutor,
+      });
+
+      const session = createSession({
+        userId: "owner" as UserId,
+        channelId: channelId as ChannelId,
+      });
+
+      return { orchestrator, session };
+    },
+  };
+}
+
+/**
+ * Build a SchedulerServiceConfig from the YAML config with defaults.
+ */
+function buildSchedulerConfig(
+  config: TriggerFishConfig,
+  baseDir: string,
+  factory: OrchestratorFactory,
+): SchedulerServiceConfig {
+  const sched = config.scheduler;
+
+  const sources: Record<string, WebhookSourceConfig> = {};
+  if (sched?.webhooks?.sources) {
+    for (const [id, src] of Object.entries(sched.webhooks.sources)) {
+      sources[id] = {
+        secret: src.secret,
+        classification: src.classification as ClassificationLevel,
+      };
+    }
+  }
+
+  return {
+    orchestratorFactory: factory,
+    triggerMdPath: `${baseDir}/TRIGGER.md`,
+    trigger: {
+      enabled: sched?.trigger?.enabled ?? true,
+      intervalMinutes: sched?.trigger?.interval_minutes ?? 30,
+      quietHours: sched?.trigger?.quiet_hours
+        ? {
+          start: sched.trigger.quiet_hours.start ?? 22,
+          end: sched.trigger.quiet_hours.end ?? 7,
+        }
+        : { start: 22, end: 7 },
+      classificationCeiling: "INTERNAL" as ClassificationLevel,
+    },
+    webhooks: {
+      enabled: sched?.webhooks?.enabled ?? false,
+      sources,
+    },
+  };
+}
+
+/**
+ * Start the gateway server with scheduler.
  */
 async function runStart(): Promise<void> {
-  console.log("🚀 Starting Triggerfish gateway...\n");
+  console.log("Starting Triggerfish gateway...\n");
 
   const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
 
@@ -393,7 +507,7 @@ async function runStart(): Promise<void> {
   try {
     await Deno.stat(configPath);
   } catch {
-    console.log("❌ Configuration not found.");
+    console.log("Configuration not found.");
     console.log("Run 'triggerfish dive' to set up your agent.\n");
     Deno.exit(1);
   }
@@ -401,18 +515,36 @@ async function runStart(): Promise<void> {
   // Load config
   const configResult = loadConfig(configPath);
   if (!configResult.ok) {
-    console.log("❌ Failed to load configuration:", configResult.error);
+    console.log("Failed to load configuration:", configResult.error);
     Deno.exit(1);
   }
 
-  console.log("✓ Configuration loaded");
+  const config = configResult.value;
+  const baseDir = `${Deno.env.get("HOME")}/.triggerfish`;
 
-  // Create and start gateway server
-  const server = createGatewayServer({ port: 18789 });
+  console.log("  Configuration loaded");
+
+  // Build orchestrator factory and scheduler
+  const factory = createOrchestratorFactory(config, baseDir);
+  const schedulerConfig = buildSchedulerConfig(config, baseDir, factory);
+  const schedulerService = createSchedulerService(schedulerConfig);
+
+  // Create and start gateway server with scheduler
+  const server = createGatewayServer({
+    port: 18789,
+    schedulerService,
+  });
   const addr = await server.start();
 
-  console.log(`✓ Gateway listening on ${addr.hostname}:${addr.port}`);
-  console.log("\n🌊 Triggerfish is running!");
+  // Start the scheduler (cron tick loop + trigger)
+  schedulerService.start();
+
+  console.log(`  Gateway listening on ${addr.hostname}:${addr.port}`);
+  console.log("  Scheduler started");
+  if (schedulerConfig.trigger.enabled) {
+    console.log(`  Trigger: every ${schedulerConfig.trigger.intervalMinutes}m`);
+  }
+  console.log("\n  Triggerfish is running!");
   console.log("\nPress Ctrl+C to stop.\n");
 
   // Keep running until interrupted

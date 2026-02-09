@@ -66,6 +66,8 @@ export interface CronManager {
   delete(jobId: string): Result<void, string>;
   /** Get execution history for a job. */
   history(jobId: string): readonly CronJobExecution[];
+  /** Record an execution result for a job. */
+  recordExecution(execution: CronJobExecution): void;
 }
 
 /** Valid ranges for each cron field. */
@@ -162,6 +164,27 @@ function parseCronField(
 }
 
 /**
+ * Check if a parsed cron expression matches the given date at minute precision.
+ *
+ * Evaluates each field (minute, hour, dayOfMonth, month, dayOfWeek) against
+ * the corresponding component of the date. All five fields must match.
+ *
+ * @param expr - Parsed cron expression
+ * @param now - Date to check against (defaults to current time)
+ * @returns true if the expression matches the given time
+ */
+export function matchesNow(expr: CronExpression, now?: Date): boolean {
+  const d = now ?? new Date();
+  return (
+    expr.minute.values.includes(d.getMinutes()) &&
+    expr.hour.values.includes(d.getHours()) &&
+    expr.dayOfMonth.values.includes(d.getDate()) &&
+    expr.month.values.includes(d.getMonth() + 1) &&
+    expr.dayOfWeek.values.includes(d.getDay())
+  );
+}
+
+/**
  * Parse a standard 5-field cron expression.
  *
  * Format: minute hour day-of-month month day-of-week
@@ -253,6 +276,13 @@ export function createCronManager(): CronManager {
 
     history(jobId: string): readonly CronJobExecution[] {
       return executionHistory.get(jobId) ?? [];
+    },
+
+    recordExecution(execution: CronJobExecution): void {
+      const hist = executionHistory.get(execution.jobId);
+      if (hist) {
+        hist.push(execution);
+      }
     },
   };
 }
