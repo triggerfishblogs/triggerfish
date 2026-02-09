@@ -16,13 +16,13 @@ Triggerfish is a secure, multi-channel AI agent platform with deterministic poli
 
 ## Commands
 
-- `deno task test` â€” Run all tests
-- `deno task test:watch` â€” Run tests in watch mode
-- `deno task test <path>` â€” Run tests for a specific phase/module
-- `deno task lint` â€” Run linter
-- `deno task fmt` â€” Format code
-- `deno task check` â€” Type check all source files
-- `deno task dev` â€” Run in development mode
+- `deno task test` — Run all tests
+- `deno task test:watch` — Run tests in watch mode
+- `deno task test <path>` — Run tests for a specific phase/module
+- `deno task lint` — Run linter
+- `deno task fmt` — Format code
+- `deno task check` — Type check all source files
+- `deno task dev` — Run in development mode
 
 ## Code Style
 
@@ -37,12 +37,12 @@ Triggerfish is a secure, multi-channel AI agent platform with deterministic poli
 
 ## Architecture Principles
 
-1. **Deterministic enforcement** â€” Policy hooks use pure functions, no LLM calls, no randomness. Same input always produces same decision.
-2. **Taint propagation** â€” All data carries classification metadata. Session taint can only escalate, never decrease.
-3. **No write-down** â€” Data cannot flow to a lower classification level. CONFIDENTIAL data cannot reach a PUBLIC channel.
-4. **Audit everything** â€” All policy decisions logged with full context: timestamp, hook type, session ID, input, result, rules evaluated.
-5. **Hooks are unforgeable** â€” The LLM cannot bypass, modify, or influence policy hook decisions. Hooks run in code below the LLM layer.
-6. **Session isolation** â€” Each session tracks taint independently. Background sessions spawn with fresh PUBLIC taint. Agent workspaces are fully isolated.
+1. **Deterministic enforcement** — Policy hooks use pure functions, no LLM calls, no randomness. Same input always produces same decision.
+2. **Taint propagation** — All data carries classification metadata. Session taint can only escalate, never decrease.
+3. **No write-down** — Data cannot flow to a lower classification level. CONFIDENTIAL data cannot reach a PUBLIC channel.
+4. **Audit everything** — All policy decisions logged with full context: timestamp, hook type, session ID, input, result, rules evaluated.
+5. **Hooks are unforgeable** — The LLM cannot bypass, modify, or influence policy hook decisions. Hooks run in code below the LLM layer.
+6. **Session isolation** — Each session tracks taint independently. Background sessions spawn with fresh PUBLIC taint. Agent workspaces are fully isolated.
 
 ## Testing Requirements
 
@@ -72,20 +72,20 @@ Triggerfish is a secure, multi-channel AI agent platform with deterministic poli
 | 13 | `deno task test tests/cli/` |
 | 14 | `deno task test tests/gateway/` (includes `notifications_test.ts`) |
 | 15 | `deno task test tests/channels/` |
-| 16 | `deno task test tests/channels/presence_test.ts tests/channels/groups_test.ts` |
+| 16 | `deno task test tests/channels/ripple_test.ts tests/channels/groups_test.ts` |
 | 17 | `deno task test tests/scheduler/` |
 | 18 | `deno task test tests/browser/` |
-| 19 | `deno task test tests/voice/ tests/canvas/` |
+| 19 | `deno task test tests/voice/ tests/tidepool/` |
 | 20 | `deno task test tests/skills/` |
-| 21 | `deno task test tests/routing/ tests/models/ tests/onboard/` |
+| 21 | `deno task test tests/routing/ tests/models/ tests/dive/` |
 
 ## File Organization
 
 - One concept per file
 - Export via `mod.ts` barrel files per module
-- Tests adjacent to source: `foo.ts` â†’ `foo_test.ts`
-- Flat file structure within each module directory â€” no nested subdirectories
-- No relative path references across module boundaries â€” use barrel imports
+- Tests adjacent to source: `foo.ts` → `foo_test.ts`
+- Flat file structure within each module directory — no nested subdirectories
+- No relative path references across module boundaries — use barrel imports
 
 ## Commit Messages
 
@@ -105,26 +105,32 @@ On each iteration: read the prompt, check current state, implement or fix, run t
 
 ## Key Domain Concepts
 
-- **Classification** â€” Data sensitivity level (RESTRICTED > CONFIDENTIAL > INTERNAL > PUBLIC)
-- **Taint** â€” Session-level classification that escalates as classified data is accessed
-- **Write-down** â€” Prohibited flow of data to a lower classification level
-- **Hook** â€” Deterministic enforcement point in the data flow (PRE_CONTEXT_INJECTION, PRE_TOOL_CALL, POST_TOOL_RESPONSE, PRE_OUTPUT, etc.)
-- **Gateway** â€” WebSocket control plane managing sessions, channels, tools, and events
-- **Exec Environment** â€” Agent's code workspace for writing, running, and debugging code in a tight writeâ†’runâ†’fix feedback loop (distinct from Plugin Sandbox which protects FROM untrusted code)
-- **Workspace** â€” Per-agent filesystem directory where the agent writes and executes its own code
-- **Session** â€” Fundamental unit of conversation state with independent taint tracking
-- **Skill** â€” Folder with SKILL.md giving the agent new capabilities (bundled, managed, or workspace)
-- **Node** â€” Companion app providing device capabilities (camera, location, etc.)
-- **Heartbeat** â€” Periodic agent wakeup for proactive autonomous behavior
-- **A2UI** â€” Agent-to-UI protocol for canvas visual workspace updates
+- **Classification** — Data sensitivity level (RESTRICTED > CONFIDENTIAL > INTERNAL > PUBLIC)
+- **Taint** — Session-level classification that escalates as classified data is accessed
+- **Write-down** — Prohibited flow of data to a lower classification level
+- **Hook** — Deterministic enforcement point in the data flow (PRE_CONTEXT_INJECTION, PRE_TOOL_CALL, POST_TOOL_RESPONSE, PRE_OUTPUT, etc.)
+- **Gateway** — WebSocket control plane managing sessions, channels, tools, and events
+- **Exec Environment** — Agent's code workspace for writing, running, and debugging code in a tight write→run→fix feedback loop (distinct from Plugin Sandbox which protects FROM untrusted code)
+- **Workspace** — Per-agent filesystem directory where the agent writes and executes its own code
+- **Session** — Fundamental unit of conversation state with independent taint tracking
+- **Skill** — Folder with SKILL.md giving the agent new capabilities (bundled, managed, or workspace)
+- **Buoy** — Companion app providing device capabilities (camera, location, etc.)
+- **Trigger** — Periodic agent wakeup for proactive autonomous behavior, configured via TRIGGER.md
+- **SPINE.md** — Agent identity & mission file (system prompt foundation). Triggerfish's equivalent of CLAUDE.md
+- **TRIGGER.md** — Agent's proactive behavior definition: what to check, monitor, and act on during trigger wakeups
+- **Tide Pool** — Visual workspace rendered via A2UI (Agent-to-UI) protocol
+- **Patrol** — Diagnostic health check command (`triggerfish patrol`)
+- **Dive** — First-run setup wizard (`triggerfish dive`), scaffolds SPINE.md and triggerfish.yaml
+- **Ripple** — Typing indicators and online status signals
+- **The Reef** — Skill marketplace for discovering, installing, and publishing skills
 
 ## MCP Servers for Development
 
 When using Claude Code on this project, configure these MCP servers:
-- desktop-commander â€” file and process operations
-- context7 â€” documentation lookup
-- ESLint â€” linting integration
-- Deno executor â€” run Deno commands
+- desktop-commander — file and process operations
+- context7 — documentation lookup
+- ESLint — linting integration
+- Deno executor — run Deno commands
 
 ## What NOT to Do
 
@@ -135,6 +141,6 @@ When using Claude Code on this project, configure these MCP servers:
 - Never allow the LLM to influence hook decisions
 - Never store secrets in config files (use OS keychain or env vars)
 - Never expose the Gateway WebSocket to the public internet without auth
-- Never use raw `Map` or in-memory structures for data that must survive restarts — use StorageProvider
-- Never implement ad-hoc "notify owner" logic — use NotificationService
-- Never hardcode a single LLM provider — use LlmProvider interface
+- Never use raw `Map` or in-memory structures for data that must survive restarts â€” use StorageProvider
+- Never implement ad-hoc "notify owner" logic â€” use NotificationService
+- Never hardcode a single LLM provider â€” use LlmProvider interface

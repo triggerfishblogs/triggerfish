@@ -8,3 +8,4 @@ phases/
 build-logs/
 triggerfish-meta-loop.sh
 BLOCKERS.md
+ARCHITECTURE_REFERENCE.md
