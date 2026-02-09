@@ -4,7 +4,8 @@ build:
 	deno task compile
 
 install: build
-	cp triggerfish /usr/local/bin/triggerfish
+	mkdir -p $(HOME)/.local/bin
+	cp triggerfish $(HOME)/.local/bin/triggerfish
 
 release:
 	deno compile --allow-all --target x86_64-unknown-linux-gnu --output=dist/triggerfish-linux-x64 src/cli/main.ts

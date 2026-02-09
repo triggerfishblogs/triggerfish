@@ -8,6 +8,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import type { MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resources/messages.js";
 import type { LlmProvider, LlmMessage, LlmCompletionResult } from "../llm.ts";
 
 /** Configuration for the Anthropic provider. */
@@ -102,14 +103,13 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
           : JSON.stringify(systemMessage.content))
         : undefined;
 
-      // Convert remaining messages to Anthropic format
+      // Convert remaining messages to Anthropic format.
+      // Structured content (tool_use blocks, tool_result arrays) passes through as-is.
       const anthropicMessages = messages
         .filter((m) => m.role !== "system")
         .map((m) => ({
           role: m.role as "user" | "assistant",
-          content: typeof m.content === "string"
-            ? m.content
-            : JSON.stringify(m.content),
+          content: m.content as string | Array<Record<string, unknown>>,
         }));
 
       // Build system prompt — OAuth requires Claude Code identity prefix
@@ -134,30 +134,25 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
         systemParam = userSystemPrompt;
       }
 
-      const requestParams: Record<string, unknown> = {
+      const requestParams: MessageCreateParamsNonStreaming = {
         model,
         max_tokens: maxTokens,
         messages: anthropicMessages,
+        ...(systemParam ? { system: systemParam as MessageCreateParamsNonStreaming["system"] } : {}),
       };
 
-      if (systemParam) {
-        requestParams.system = systemParam;
-      }
-
-      const response = await anthropicClient.messages.create(
-        requestParams as Parameters<typeof anthropicClient.messages.create>[0],
-      );
+      const response = await anthropicClient.messages.create(requestParams);
 
       // Extract text from response content blocks
       const textContent = response.content
-        .filter((block: { type: string }) => block.type === "text")
-        .map((block: { type: string; text: string }) => block.text)
+        .filter((block) => block.type === "text")
+        .map((block) => block.type === "text" ? block.text : "")
         .join("");
 
       return {
         content: textContent,
         toolCalls: response.content
-          .filter((block: { type: string }) => block.type === "tool_use"),
+          .filter((block) => block.type === "tool_use"),
         usage: {
           inputTokens: response.usage.input_tokens,
           outputTokens: response.usage.output_tokens,

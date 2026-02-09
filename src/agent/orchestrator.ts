@@ -3,7 +3,11 @@
  *
  * Receives messages from channels, fires enforcement hooks,
  * builds LLM context with SPINE.md, calls the LLM provider,
- * and returns responses subject to policy checks.
+ * executes tool calls, and returns responses subject to policy checks.
+ *
+ * Uses prompt-based tool calling: tool definitions are embedded in the
+ * system prompt and the LLM outputs structured JSON tool invocations.
+ * This works universally with both OAuth and API key authentication.
  *
  * @module
  */
@@ -18,11 +22,37 @@ const DEFAULT_SYSTEM_PROMPT =
   "You are a helpful AI assistant powered by Triggerfish. " +
   "Follow the user's instructions and respond clearly and concisely.";
 
+/** Maximum tool call iterations to prevent infinite loops. */
+const MAX_TOOL_ITERATIONS = 10;
+
+/** A tool definition for prompt-based tool calling. */
+export interface ToolDefinition {
+  readonly name: string;
+  readonly description: string;
+  readonly parameters: Readonly<Record<string, {
+    readonly type: string;
+    readonly description: string;
+    readonly required?: boolean;
+  }>>;
+}
+
+/** Handler that executes a tool call and returns the result text. */
+export type ToolExecutor = (
+  name: string,
+  input: Record<string, unknown>,
+) => Promise<string>;
+
 /** Configuration for creating an orchestrator. */
 export interface OrchestratorConfig {
   readonly hookRunner: HookRunner;
   readonly providerRegistry: LlmProviderRegistry;
   readonly spinePath?: string;
+  /** Tool definitions available to the agent. */
+  readonly tools?: readonly ToolDefinition[];
+  /** Callback to execute tool calls. */
+  readonly toolExecutor?: ToolExecutor;
+  /** Event callback for real-time progress reporting. */
+  readonly onEvent?: OrchestratorEventCallback;
 }
 
 /** Options for processing a single message. */
@@ -53,6 +83,30 @@ export interface Orchestrator {
   getHistory(sessionId: SessionId): readonly HistoryEntry[];
 }
 
+/** Events emitted by the orchestrator during message processing. */
+export type OrchestratorEvent =
+  | { readonly type: "llm_start"; readonly iteration: number }
+  | {
+    readonly type: "llm_complete";
+    readonly iteration: number;
+    readonly hasToolCalls: boolean;
+  }
+  | {
+    readonly type: "tool_call";
+    readonly name: string;
+    readonly args: Record<string, unknown>;
+  }
+  | {
+    readonly type: "tool_result";
+    readonly name: string;
+    readonly result: string;
+    readonly blocked: boolean;
+  }
+  | { readonly type: "response"; readonly text: string };
+
+/** Callback for real-time orchestrator event reporting. */
+export type OrchestratorEventCallback = (event: OrchestratorEvent) => void;
+
 /**
  * Load SPINE.md content from the filesystem.
  * Returns the file content or null if the file cannot be read.
@@ -66,24 +120,94 @@ async function loadSpine(spinePath: string | undefined): Promise<string | null> 
   }
 }
 
+/** A parsed tool call from LLM text output. */
+interface ParsedToolCall {
+  readonly name: string;
+  readonly args: Record<string, unknown>;
+}
+
+/**
+ * Build the tool-use instruction block for the system prompt.
+ */
+function buildToolPrompt(tools: readonly ToolDefinition[]): string {
+  const toolDescs = tools.map((t) => {
+    const params = Object.entries(t.parameters)
+      .map(([name, info]) => {
+        const req = info.required !== false ? " (required)" : " (optional)";
+        return `    - ${name} (${info.type}${req}): ${info.description}`;
+      })
+      .join("\n");
+    return `  ${t.name}: ${t.description}\n    Parameters:\n${params}`;
+  }).join("\n\n");
+
+  return `## Available Tools
+
+You have access to the following tools. To use a tool, output a JSON block wrapped in <tool_call> tags. You may use multiple tools in a single response. After all tool results are returned, continue your response.
+
+Format:
+<tool_call>
+{"name": "tool_name", "args": {"param1": "value1"}}
+</tool_call>
+
+Tools:
+${toolDescs}
+
+Important: Use tools when the user asks you to interact with the filesystem, run commands, or search for files. After using tools, provide your answer based on the results.`;
+}
+
+/**
+ * Parse tool calls from LLM text output.
+ * Looks for <tool_call>...</tool_call> blocks containing JSON.
+ */
+function parseToolCalls(text: string): readonly ParsedToolCall[] {
+  const calls: ParsedToolCall[] = [];
+  const regex = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (parsed.name && typeof parsed.name === "string") {
+        calls.push({
+          name: parsed.name,
+          args: parsed.args ?? {},
+        });
+      }
+    } catch {
+      // Skip malformed JSON
+    }
+  }
+  return calls;
+}
+
+/**
+ * Strip tool_call blocks from text to get the "clean" response.
+ */
+function stripToolCalls(text: string): string {
+  return text.replace(/<tool_call>\s*[\s\S]*?\s*<\/tool_call>/g, "").trim();
+}
+
 /**
  * Create an agent orchestrator.
  *
  * The orchestrator implements the agent loop:
  * 1. Receive message from channel
  * 2. Fire PRE_CONTEXT_INJECTION hook
- * 3. Build LLM context with SPINE.md as system prompt
+ * 3. Build LLM context with SPINE.md + tool instructions as system prompt
  * 4. Send to LLM provider
- * 5. Parse response for tool calls
- * 6. For each tool call: PRE_TOOL_CALL → execute → POST_TOOL_RESPONSE
- * 7. Fire PRE_OUTPUT on final response
- * 8. Return response
+ * 5. Parse tool calls from text response
+ * 6. If tool calls found: execute each, append results, call LLM again
+ * 7. Repeat until no more tool calls (or max iterations)
+ * 8. Fire PRE_OUTPUT on final text response
+ * 9. Return response
  *
  * @param config - Orchestrator configuration
  * @returns An Orchestrator instance
  */
 export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   const { hookRunner, providerRegistry, spinePath } = config;
+  const tools = config.tools ?? [];
+  const toolExecutor = config.toolExecutor;
+  const emit = config.onEvent ?? (() => {});
   const histories = new Map<string, HistoryEntry[]>();
 
   async function processMessage(
@@ -112,7 +236,12 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
     // 3. Build LLM context — load SPINE.md or use default prompt
     const spineContent = await loadSpine(spinePath);
-    const systemPrompt = spineContent ?? DEFAULT_SYSTEM_PROMPT;
+    let systemPrompt = spineContent ?? DEFAULT_SYSTEM_PROMPT;
+
+    // Append tool instructions if tools are available
+    if (tools.length > 0 && toolExecutor) {
+      systemPrompt += "\n\n" + buildToolPrompt(tools);
+    }
 
     // Get or create conversation history for this session
     const sessionKey = session.id as string;
@@ -124,53 +253,102 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     // Add user message to history
     history.push({ role: "user", content: message });
 
-    // Build messages array: system prompt + conversation history
-    const messages: LlmMessage[] = [
-      { role: "system", content: systemPrompt },
-      ...history,
-    ];
+    // 4. Agent loop — call LLM, parse tool calls, execute, repeat
+    let iterations = 0;
+    while (iterations < MAX_TOOL_ITERATIONS) {
+      iterations++;
 
-    // 4. Call LLM provider
-    const completion = await provider.complete(messages, [], {});
+      emit({ type: "llm_start", iteration: iterations });
 
-    // 5. Handle tool calls (if any)
-    // For each tool call: PRE_TOOL_CALL → execute → POST_TOOL_RESPONSE
-    for (const toolCall of completion.toolCalls) {
-      const preToolResult = await hookRunner.run("PRE_TOOL_CALL", {
-        session,
-        input: { tool_call: toolCall },
+      // Build messages array: system prompt + conversation history
+      const messages: LlmMessage[] = [
+        { role: "system", content: systemPrompt },
+        ...history,
+      ];
+
+      // Call LLM provider (no native tools — we use prompt-based tools)
+      const completion = await provider.complete(messages, [], {});
+
+      // Parse tool calls from the response text
+      const parsedCalls = (tools.length > 0 && toolExecutor)
+        ? parseToolCalls(completion.content)
+        : [];
+
+      emit({
+        type: "llm_complete",
+        iteration: iterations,
+        hasToolCalls: parsedCalls.length > 0,
       });
 
-      if (!preToolResult.allowed) {
-        continue; // Skip blocked tool calls
+      if (parsedCalls.length === 0) {
+        // No tool calls — this is the final response
+        const finalText = stripToolCalls(completion.content);
+
+        // Fire PRE_OUTPUT hook
+        const preOutputResult = await hookRunner.run("PRE_OUTPUT", {
+          session,
+          input: {
+            content: finalText,
+            target_classification: targetClassification,
+          },
+        });
+
+        if (!preOutputResult.allowed) {
+          return {
+            ok: false,
+            error: preOutputResult.message ?? "Output blocked by policy",
+          };
+        }
+
+        emit({ type: "response", text: finalText });
+
+        // Add assistant response to history
+        history.push({ role: "assistant", content: completion.content });
+
+        return {
+          ok: true,
+          value: { response: finalText },
+        };
       }
 
-      // POST_TOOL_RESPONSE hook would fire after tool execution
-      // Tool execution is handled by the MCP gateway / exec environment
+      // Tool calls found — add assistant message to history
+      history.push({ role: "assistant", content: completion.content });
+
+      // Execute each tool call and build results
+      const resultParts: string[] = [];
+      for (const call of parsedCalls) {
+        emit({ type: "tool_call", name: call.name, args: call.args });
+
+        // Fire PRE_TOOL_CALL hook
+        const preToolResult = await hookRunner.run("PRE_TOOL_CALL", {
+          session,
+          input: { tool_call: call },
+        });
+
+        let resultText: string;
+        if (!preToolResult.allowed) {
+          resultText = `Tool call blocked by policy: ${preToolResult.message ?? "denied"}`;
+        } else {
+          resultText = await toolExecutor!(call.name, call.args);
+        }
+
+        emit({
+          type: "tool_result",
+          name: call.name,
+          result: resultText,
+          blocked: !preToolResult.allowed,
+        });
+        resultParts.push(`<tool_result name="${call.name}">\n${resultText}\n</tool_result>`);
+      }
+
+      // Add tool results as a user message
+      history.push({ role: "user", content: resultParts.join("\n\n") });
     }
 
-    // 6. Fire PRE_OUTPUT hook — enforce write-down check
-    const preOutputResult = await hookRunner.run("PRE_OUTPUT", {
-      session,
-      input: {
-        content: completion.content,
-        target_classification: targetClassification,
-      },
-    });
-
-    if (!preOutputResult.allowed) {
-      return {
-        ok: false,
-        error: preOutputResult.message ?? "Output blocked by policy",
-      };
-    }
-
-    // 7. Add assistant response to history
-    history.push({ role: "assistant", content: completion.content });
-
+    // Exceeded max iterations
     return {
-      ok: true,
-      value: { response: completion.content },
+      ok: false,
+      error: "Agent loop exceeded maximum tool call iterations",
     };
   }
 
