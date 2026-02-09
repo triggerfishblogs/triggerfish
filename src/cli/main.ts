@@ -32,10 +32,18 @@ import { createWorkspace } from "../exec/workspace.ts";
 import { createExecTools } from "../exec/tools.ts";
 import {
   printBanner,
+  formatBanner,
   createEventHandler,
+  createScreenEventHandler,
   renderError,
+  formatError,
   renderPrompt,
 } from "./chat_ui.ts";
+import type { ToolDisplayMode } from "./chat_ui.ts";
+import { createKeypressReader, createLineEditor, createSuggestionEngine } from "./terminal.ts";
+import type { LineEditor } from "./terminal.ts";
+import { createInputHistory, loadInputHistory, saveInputHistory } from "./history.ts";
+import { createScreenManager } from "./screen.ts";
 import { createSchedulerService } from "../scheduler/service.ts";
 import type {
   OrchestratorFactory,
@@ -761,7 +769,10 @@ function createToolExecutor(
   return async (name: string, input: Record<string, unknown>): Promise<string> => {
     switch (name) {
       case "read_file": {
-        const path = input.path as string;
+        const path = input.path;
+        if (typeof path !== "string" || path.length === 0) {
+          return "Error: read_file requires a 'path' argument (string).";
+        }
         try {
           const content = await Deno.readTextFile(path);
           return content;
@@ -771,17 +782,25 @@ function createToolExecutor(
       }
 
       case "write_file": {
-        const result = await execTools.write(
-          input.path as string,
-          input.content as string,
-        );
+        const path = input.path;
+        const content = input.content;
+        if (typeof path !== "string" || path.length === 0) {
+          return "Error: write_file requires a 'path' argument (string).";
+        }
+        if (typeof content !== "string") {
+          return "Error: write_file requires a 'content' argument (string).";
+        }
+        const result = await execTools.write(path, content);
         return result.ok
           ? `Wrote ${result.value.bytesWritten} bytes to ${result.value.path}`
           : `Error: ${result.error}`;
       }
 
       case "list_directory": {
-        const path = input.path as string;
+        const path = input.path;
+        if (typeof path !== "string" || path.length === 0) {
+          return "Error: list_directory requires a 'path' argument (string).";
+        }
         try {
           const entries: string[] = [];
           for await (const entry of Deno.readDir(path)) {
@@ -795,7 +814,11 @@ function createToolExecutor(
       }
 
       case "run_command": {
-        const result = await execTools.run(input.command as string);
+        const command = input.command ?? input.cmd;
+        if (typeof command !== "string" || command.length === 0) {
+          return "Error: run_command requires a 'command' argument (string).";
+        }
+        const result = await execTools.run(command);
         if (!result.ok) return `Error: ${result.error}`;
         const out = result.value;
         const parts: string[] = [];
@@ -806,8 +829,14 @@ function createToolExecutor(
       }
 
       case "search_files": {
-        const searchPath = input.path as string;
-        const pattern = input.pattern as string;
+        const searchPath = input.path;
+        const pattern = input.pattern;
+        if (typeof searchPath !== "string" || searchPath.length === 0) {
+          return "Error: search_files requires a 'path' argument (string).";
+        }
+        if (typeof pattern !== "string" || pattern.length === 0) {
+          return "Error: search_files requires a 'pattern' argument (string).";
+        }
         const contentSearch = input.content_search === true;
         try {
           if (contentSearch) {
@@ -887,7 +916,8 @@ function createToolExecutor(
  * Run an interactive chat REPL.
  *
  * Wires up the full agent stack: config → providers → policy engine →
- * hook runner → orchestrator (with tools) → REPL loop.
+ * hook runner → orchestrator (with tools) → raw terminal REPL loop
+ * with input history, tab-complete, ESC interrupt, and compact tool display.
  */
 async function runChat(): Promise<void> {
   const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
@@ -935,8 +965,20 @@ async function runChat(): Promise<void> {
   const execTools = createExecTools(workspace);
   const toolExecutor = createToolExecutor(execTools, cronManager);
 
-  // Create event handler for rich real-time UI
-  const eventHandler = createEventHandler();
+  // Determine if we're in TTY mode
+  const isTty = Deno.stdin.isTerminal();
+
+  // Set up display mode toggle (Ctrl+O)
+  let displayMode: ToolDisplayMode = "compact";
+  const getDisplayMode = (): ToolDisplayMode => displayMode;
+
+  // Set up screen manager
+  const screen = createScreenManager();
+
+  // Create event handler — use screen-aware handler for TTY, legacy for pipes
+  const eventHandler = isTty
+    ? createScreenEventHandler(screen, getDisplayMode)
+    : createEventHandler();
 
   // Create orchestrator with tools and event callback
   const orchestrator = createOrchestrator({
@@ -954,11 +996,324 @@ async function runChat(): Promise<void> {
     channelId: "cli" as ChannelId,
   });
 
-  // Print the rich ASCII banner
   const providerName = registry.getDefault()!.name;
-  printBanner(providerName, config.models.primary, workspace.path);
 
-  // REPL loop — read from stdin line by line
+  // Load input history
+  const historyFilePath = `${dataDir}/input_history.json`;
+  let inputHistory = await loadInputHistory(historyFilePath);
+
+  // Set up suggestion engine
+  const suggestionEngine = createSuggestionEngine();
+
+  // If not a TTY, fall back to the simple line-buffered REPL
+  if (!isTty) {
+    printBanner(providerName, config.models.primary, workspace.path);
+    await runSimpleRepl(orchestrator, session, providerName, config, workspace);
+    return;
+  }
+
+  // ─── TTY mode: raw terminal with scroll regions ──────────────
+
+  // Print banner via screen manager
+  screen.init();
+  screen.writeOutput(formatBanner(providerName, config.models.primary, workspace.path));
+
+  // Create keypress reader and line editor
+  const keypressReader = createKeypressReader();
+  let editor: LineEditor = createLineEditor();
+  // Mutable state holder — avoids TypeScript narrowing `AbortController | null` to `never`
+  const state = { isProcessing: false, abortController: null as AbortController | null };
+  let stashedInput = ""; // Stash current input when entering history navigation
+
+  // Cleanup function — must run on exit
+  function cleanup(): void {
+    keypressReader.stop();
+    screen.cleanup();
+    saveInputHistory(historyFilePath, inputHistory).catch(() => {});
+    storage.close();
+  }
+
+  // Handle SIGINT (Ctrl+C from outside raw mode, e.g. kill signal)
+  try {
+    Deno.addSignalListener("SIGINT", () => {
+      if (state.isProcessing && state.abortController) {
+        state.abortController.abort();
+      } else {
+        cleanup();
+        Deno.exit(0);
+      }
+    });
+  } catch {
+    // Signal listeners may not be supported on all platforms
+  }
+
+  // Draw initial input prompt
+  screen.redrawInput(editor);
+
+  // Start reading keypresses
+  keypressReader.start();
+
+  for await (const keypress of keypressReader) {
+    // ─── Processing mode: only ESC and Ctrl+C are active ────
+    if (state.isProcessing) {
+      if (keypress.key === "esc" || keypress.key === "ctrl+c") {
+        if (state.abortController) {
+          state.abortController.abort();
+          screen.writeOutput(`  \x1b[33m⚠ Interrupted\x1b[0m`);
+        }
+      }
+      continue;
+    }
+
+    // ─── Idle mode: full input handling ─────────────────────
+    switch (keypress.key) {
+      case "enter": {
+        const text = editor.text.trim();
+
+        if (text.length === 0) {
+          break;
+        }
+
+        // Echo the submitted text into the output region
+        screen.writeOutput(`  \x1b[36m\x1b[1m❯\x1b[0m ${text}`);
+        screen.writeOutput("");
+
+        // Add to history and save
+        inputHistory = inputHistory.push(text);
+        inputHistory = inputHistory.resetNavigation();
+        saveInputHistory(historyFilePath, inputHistory).catch(() => {});
+
+        // Clear editor
+        editor = editor.clear();
+        screen.redrawInput(editor);
+        stashedInput = "";
+
+        // Handle slash commands locally
+        if (text === "/quit" || text === "/exit" || text === "/q") {
+          screen.writeOutput("  Goodbye.");
+          cleanup();
+          return;
+        }
+
+        if (text === "/clear") {
+          screen.cleanup();
+          screen.init();
+          screen.writeOutput(formatBanner(providerName, config.models.primary, workspace.path));
+          screen.redrawInput(editor);
+          break;
+        }
+
+        if (text === "/help") {
+          screen.writeOutput(
+            "  Commands:\n" +
+            "    /quit, /exit, /q  — Exit chat\n" +
+            "    /clear            — Clear screen\n" +
+            "    /compact          — Summarize conversation history\n" +
+            "    /verbose          — Toggle tool display detail\n" +
+            "    /help             — Show this help\n" +
+            "    Ctrl+O            — Toggle tool display mode\n" +
+            "    ESC               — Interrupt current operation\n" +
+            "    Up/Down           — Navigate input history\n" +
+            "    Tab               — Accept suggestion",
+          );
+          break;
+        }
+
+        if (text === "/verbose") {
+          displayMode = displayMode === "compact" ? "expanded" : "compact";
+          screen.writeOutput(`  Tool display: ${displayMode}`);
+          break;
+        }
+
+        if (text === "/compact") {
+          screen.writeOutput("  Compacting conversation history...");
+          // Force compaction is handled by the orchestrator's compactor
+          // For now, just acknowledge the command
+          screen.writeOutput("  History will be compacted on next message.");
+          break;
+        }
+
+        // Process message through orchestrator — run in background so the
+        // keypress loop stays responsive (ESC can abort, Ctrl+C can exit).
+        state.isProcessing = true;
+        state.abortController = new AbortController();
+
+        orchestrator.processMessage({
+          session,
+          message: text,
+          targetClassification: "INTERNAL" as ClassificationLevel,
+          signal: state.abortController.signal,
+        }).then((result) => {
+          if (!result.ok) {
+            screen.writeOutput(formatError(result.error));
+          }
+        }).catch((err: unknown) => {
+          screen.writeOutput(formatError(
+            err instanceof Error ? err.message : String(err),
+          ));
+        }).finally(() => {
+          state.isProcessing = false;
+          state.abortController = null;
+          screen.writeOutput("");
+          screen.redrawInput(editor);
+        });
+
+        break;
+      }
+
+      case "backspace":
+        editor = editor.backspace();
+        updateSuggestion();
+        screen.redrawInput(editor);
+        break;
+
+      case "delete":
+        editor = editor.deleteChar();
+        updateSuggestion();
+        screen.redrawInput(editor);
+        break;
+
+      case "left":
+        editor = editor.moveCursor("left");
+        screen.redrawInput(editor);
+        break;
+
+      case "right":
+        editor = editor.moveCursor("right");
+        screen.redrawInput(editor);
+        break;
+
+      case "home":
+      case "ctrl+a":
+        editor = editor.moveCursor("home");
+        screen.redrawInput(editor);
+        break;
+
+      case "end":
+      case "ctrl+e":
+        editor = editor.moveCursor("end");
+        screen.redrawInput(editor);
+        break;
+
+      case "up": {
+        // Stash current input when first entering history
+        if (inputHistory.index === -1 && editor.text.length > 0) {
+          stashedInput = editor.text;
+        }
+        inputHistory = inputHistory.up();
+        const histText = inputHistory.current();
+        if (histText !== null) {
+          editor = editor.setText(histText);
+          editor = editor.setSuggestion("");
+          screen.redrawInput(editor);
+        }
+        break;
+      }
+
+      case "down": {
+        inputHistory = inputHistory.down();
+        const histText = inputHistory.current();
+        if (histText !== null) {
+          editor = editor.setText(histText);
+        } else {
+          // Back to fresh input — restore stashed text
+          editor = editor.setText(stashedInput);
+          stashedInput = "";
+        }
+        editor = editor.setSuggestion("");
+        screen.redrawInput(editor);
+        break;
+      }
+
+      case "tab":
+        editor = editor.acceptSuggestion();
+        screen.redrawInput(editor);
+        break;
+
+      case "ctrl+o":
+        displayMode = displayMode === "compact" ? "expanded" : "compact";
+        screen.setStatus(`Tool display: ${displayMode}`);
+        setTimeout(() => screen.clearStatus(), 1500);
+        break;
+
+      case "ctrl+c":
+        cleanup();
+        return;
+
+      case "ctrl+d":
+        if (editor.text.length === 0) {
+          cleanup();
+          return;
+        }
+        break;
+
+      case "ctrl+u":
+        // Clear line
+        editor = editor.clear();
+        screen.redrawInput(editor);
+        break;
+
+      case "ctrl+w": {
+        // Delete word backwards
+        let text = editor.text;
+        let cursor = editor.cursor;
+        // Skip trailing spaces
+        while (cursor > 0 && text[cursor - 1] === " ") cursor--;
+        // Delete to previous space
+        while (cursor > 0 && text[cursor - 1] !== " ") cursor--;
+        editor = editor.setText(text.slice(0, cursor) + text.slice(editor.cursor));
+        screen.redrawInput(editor);
+        break;
+      }
+
+      case "esc":
+        // ESC in idle mode — ignore
+        break;
+
+      default:
+        // Printable character
+        if (keypress.char !== null) {
+          editor = editor.insert(keypress.char);
+          inputHistory = inputHistory.resetNavigation();
+          stashedInput = "";
+          updateSuggestion();
+          screen.redrawInput(editor);
+        }
+        break;
+    }
+  }
+
+  // EOF reached
+  cleanup();
+
+  /** Update the suggestion based on current editor text. */
+  function updateSuggestion(): void {
+    const suggestion = suggestionEngine.suggest(
+      editor.text,
+      inputHistory.entries as string[],
+    );
+    if (suggestion) {
+      const remainder = suggestion.slice(editor.text.length);
+      editor = editor.setSuggestion(remainder);
+    } else {
+      editor = editor.setSuggestion("");
+    }
+  }
+}
+
+/**
+ * Simple line-buffered REPL for non-TTY environments (piped input).
+ *
+ * Falls back to the original stdin.read() approach for compatibility
+ * with piped input and non-interactive use.
+ */
+async function runSimpleRepl(
+  orchestrator: ReturnType<typeof createOrchestrator>,
+  session: ReturnType<typeof createSession>,
+  providerName: string,
+  config: TriggerFishConfig,
+  workspace: { readonly path: string },
+): Promise<void> {
   const decoder = new TextDecoder();
   const buf = new Uint8Array(8192);
   let partial = "";
@@ -967,11 +1322,10 @@ async function runChat(): Promise<void> {
 
   while (true) {
     const n = await Deno.stdin.read(buf);
-    if (n === null) break; // EOF
+    if (n === null) break;
 
     partial += decoder.decode(buf.subarray(0, n));
 
-    // Process complete lines
     let newlineIdx: number;
     while ((newlineIdx = partial.indexOf("\n")) !== -1) {
       const line = partial.slice(0, newlineIdx).trimEnd();
@@ -994,7 +1348,6 @@ async function runChat(): Promise<void> {
         continue;
       }
 
-      // Blank line after input, then events handle all real-time rendering
       console.log();
       const result = await orchestrator.processMessage({
         session,

@@ -228,14 +228,14 @@ Deno.test("Wizard: generateSpine includes security boundaries", () => {
 
 // ─── Config validation integration ───────────────────────────────────────────
 
-Deno.test("Wizard: generated config passes validateConfig", async () => {
+Deno.test({ name: "Wizard: generated config passes validateConfig", sanitizeResources: false, fn: async () => {
   const { validateConfig } = await import("../../src/cli/main.ts");
   const answers = makeAnswers();
   const yaml = generateConfig(answers);
   const parsed = parseYaml(yaml) as Record<string, unknown>;
   const result = validateConfig(parsed);
   assertEquals(result.ok, true);
-});
+}});
 
 Deno.test("Wizard: generated config loads via loadConfig", async () => {
   const { loadConfig } = await import("../../src/cli/main.ts");

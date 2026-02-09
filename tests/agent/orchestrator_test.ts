@@ -191,6 +191,155 @@ Deno.test("Orchestrator: loads SPINE.md as system prompt foundation", async () =
   assert(receivedSystemPrompt.length > 0, "System prompt should not be empty");
 });
 
+Deno.test("Orchestrator: parses tool calls with 'args' key", async () => {
+  const engine = createPolicyEngine();
+  const runner = createHookRunner(engine);
+  const registry = createProviderRegistry();
+
+  // Provider returns a tool call with "args" key, then a final response
+  let callCount = 0;
+  const toolProvider: LlmProvider = {
+    name: "tool-test",
+    supportsStreaming: false,
+    async complete(_messages, _tools, _options) {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          content: '<tool_call>\n{"name": "read_file", "args": {"path": "/tmp/test.txt"}}\n</tool_call>',
+          toolCalls: [],
+          usage: { inputTokens: 10, outputTokens: 5 },
+        };
+      }
+      return { content: "Done reading file.", toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } };
+    },
+  };
+  registry.register(toolProvider);
+  registry.setDefault("tool-test");
+
+  let executedArgs: Record<string, unknown> = {};
+  const orchestrator = createOrchestrator({
+    hookRunner: runner,
+    providerRegistry: registry,
+    tools: [{ name: "read_file", description: "Read a file", parameters: { path: { type: "string", description: "path", required: true } } }],
+    toolExecutor: async (_name, input) => { executedArgs = input; return "file content"; },
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  await orchestrator.processMessage({ session, message: "read it", targetClassification: "INTERNAL" });
+  assertEquals(executedArgs.path, "/tmp/test.txt");
+});
+
+Deno.test("Orchestrator: parses tool calls with 'input' key", async () => {
+  const engine = createPolicyEngine();
+  const runner = createHookRunner(engine);
+  const registry = createProviderRegistry();
+
+  let callCount = 0;
+  const toolProvider: LlmProvider = {
+    name: "tool-test",
+    supportsStreaming: false,
+    async complete(_messages, _tools, _options) {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          content: '<tool_call>\n{"name": "run_command", "input": {"command": "ls -la"}}\n</tool_call>',
+          toolCalls: [],
+          usage: { inputTokens: 10, outputTokens: 5 },
+        };
+      }
+      return { content: "Listed files.", toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } };
+    },
+  };
+  registry.register(toolProvider);
+  registry.setDefault("tool-test");
+
+  let executedArgs: Record<string, unknown> = {};
+  const orchestrator = createOrchestrator({
+    hookRunner: runner,
+    providerRegistry: registry,
+    tools: [{ name: "run_command", description: "Run command", parameters: { command: { type: "string", description: "cmd", required: true } } }],
+    toolExecutor: async (_name, input) => { executedArgs = input; return "output"; },
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  await orchestrator.processMessage({ session, message: "run ls", targetClassification: "INTERNAL" });
+  assertEquals(executedArgs.command, "ls -la");
+});
+
+Deno.test("Orchestrator: parses tool calls with 'parameters' key", async () => {
+  const engine = createPolicyEngine();
+  const runner = createHookRunner(engine);
+  const registry = createProviderRegistry();
+
+  let callCount = 0;
+  const toolProvider: LlmProvider = {
+    name: "tool-test",
+    supportsStreaming: false,
+    async complete(_messages, _tools, _options) {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          content: '<tool_call>\n{"name": "list_directory", "parameters": {"path": "/home"}}\n</tool_call>',
+          toolCalls: [],
+          usage: { inputTokens: 10, outputTokens: 5 },
+        };
+      }
+      return { content: "Listed dir.", toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } };
+    },
+  };
+  registry.register(toolProvider);
+  registry.setDefault("tool-test");
+
+  let executedArgs: Record<string, unknown> = {};
+  const orchestrator = createOrchestrator({
+    hookRunner: runner,
+    providerRegistry: registry,
+    tools: [{ name: "list_directory", description: "List dir", parameters: { path: { type: "string", description: "path", required: true } } }],
+    toolExecutor: async (_name, input) => { executedArgs = input; return "/home/venom"; },
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  await orchestrator.processMessage({ session, message: "list home", targetClassification: "INTERNAL" });
+  assertEquals(executedArgs.path, "/home");
+});
+
+Deno.test("Orchestrator: parses tool calls with flat args format", async () => {
+  const engine = createPolicyEngine();
+  const runner = createHookRunner(engine);
+  const registry = createProviderRegistry();
+
+  let callCount = 0;
+  const toolProvider: LlmProvider = {
+    name: "tool-test",
+    supportsStreaming: false,
+    async complete(_messages, _tools, _options) {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          content: '<tool_call>\n{"name": "run_command", "command": "echo hello"}\n</tool_call>',
+          toolCalls: [],
+          usage: { inputTokens: 10, outputTokens: 5 },
+        };
+      }
+      return { content: "Echoed.", toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } };
+    },
+  };
+  registry.register(toolProvider);
+  registry.setDefault("tool-test");
+
+  let executedArgs: Record<string, unknown> = {};
+  const orchestrator = createOrchestrator({
+    hookRunner: runner,
+    providerRegistry: registry,
+    tools: [{ name: "run_command", description: "Run command", parameters: { command: { type: "string", description: "cmd", required: true } } }],
+    toolExecutor: async (_name, input) => { executedArgs = input; return "hello"; },
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  await orchestrator.processMessage({ session, message: "echo", targetClassification: "INTERNAL" });
+  assertEquals(executedArgs.command, "echo hello");
+});
+
 Deno.test("Orchestrator: uses default prompt when SPINE.md absent", async () => {
   const engine = createPolicyEngine();
   const runner = createHookRunner(engine);

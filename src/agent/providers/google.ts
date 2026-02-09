@@ -39,8 +39,9 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
     async complete(
       messages: readonly LlmMessage[],
       _tools: readonly unknown[],
-      _options: Record<string, unknown>,
+      options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
+      const signal = options.signal as AbortSignal | undefined;
       // Extract system instruction
       const systemMessage = messages.find((m) => m.role === "system");
       const systemInstruction = systemMessage
@@ -83,7 +84,24 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
         : "";
 
       const chat = model.startChat({ history });
-      const result = await chat.sendMessage(userContent);
+
+      // Google SDK doesn't natively support AbortSignal — use Promise.race
+      const sendPromise = chat.sendMessage(userContent);
+      let result;
+      if (signal) {
+        const abortPromise = new Promise<never>((_resolve, reject) => {
+          if (signal.aborted) {
+            reject(new DOMException("Operation cancelled", "AbortError"));
+            return;
+          }
+          signal.addEventListener("abort", () => {
+            reject(new DOMException("Operation cancelled", "AbortError"));
+          }, { once: true });
+        });
+        result = await Promise.race([sendPromise, abortPromise]);
+      } else {
+        result = await sendPromise;
+      }
       const response = result.response;
 
       // Estimate token usage from response metadata
