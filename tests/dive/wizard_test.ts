@@ -1,0 +1,289 @@
+/**
+ * Tests for the dive wizard — config and SPINE.md generation.
+ *
+ * Tests the pure generation functions, not the interactive prompts.
+ */
+import {
+  assert,
+  assertEquals,
+  assertStringIncludes,
+} from "jsr:@std/assert";
+import { parse as parseYaml } from "@std/yaml";
+
+import {
+  createDirectoryTree,
+  generateConfig,
+  generateSpine,
+} from "../../src/dive/wizard.ts";
+import type { WizardAnswers } from "../../src/dive/wizard.ts";
+
+// ─── Test fixtures ───────────────────────────────────────────────────────────
+
+function makeAnswers(
+  overrides: Partial<WizardAnswers> = {},
+): WizardAnswers {
+  return {
+    provider: "anthropic",
+    providerModel: "claude-sonnet-4-5",
+    apiKey: "",
+    authMethod: "oauth",
+    agentName: "TestBot",
+    mission: "A test agent for unit tests.",
+    tone: "professional",
+    customTone: "",
+    channels: ["cli"],
+    telegramBotToken: "",
+    telegramOwnerId: "",
+    webchatPort: 8765,
+    classificationMode: "standard",
+    skills: [],
+    installDaemon: false,
+    ...overrides,
+  };
+}
+
+// ─── generateConfig tests ────────────────────────────────────────────────────
+
+Deno.test("Wizard: generateConfig produces valid YAML", () => {
+  const answers = makeAnswers();
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml);
+  assert(typeof parsed === "object" && parsed !== null);
+});
+
+Deno.test("Wizard: generateConfig sets correct primary model for Anthropic", () => {
+  const answers = makeAnswers({
+    provider: "anthropic",
+    providerModel: "claude-sonnet-4-5",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const models = parsed.models as Record<string, unknown>;
+  assertEquals(models.primary, "claude-sonnet-4-5");
+});
+
+Deno.test("Wizard: generateConfig sets oauth auth for Anthropic OAuth", () => {
+  const answers = makeAnswers({
+    provider: "anthropic",
+    authMethod: "oauth",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const models = parsed.models as Record<string, unknown>;
+  const providers = models.providers as Record<string, Record<string, string>>;
+  assertEquals(providers.anthropic.auth, "oauth");
+});
+
+Deno.test("Wizard: generateConfig sets correct model for OpenAI", () => {
+  const answers = makeAnswers({
+    provider: "openai",
+    providerModel: "gpt-4o",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const models = parsed.models as Record<string, unknown>;
+  assertEquals(models.primary, "gpt-4o");
+  const providers = models.providers as Record<string, Record<string, string>>;
+  assertEquals(providers.openai.model, "gpt-4o");
+});
+
+Deno.test("Wizard: generateConfig sets endpoint for local provider", () => {
+  const answers = makeAnswers({
+    provider: "local",
+    providerModel: "llama3",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const models = parsed.models as Record<string, unknown>;
+  const providers = models.providers as Record<string, Record<string, string>>;
+  assertEquals(providers.local.endpoint, "http://localhost:11434");
+  assertEquals(providers.local.model, "llama3");
+});
+
+Deno.test("Wizard: generateConfig includes webchat channel config", () => {
+  const answers = makeAnswers({
+    channels: ["cli", "webchat"],
+    webchatPort: 9999,
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const channels = parsed.channels as Record<string, Record<string, unknown>>;
+  assertEquals(channels.webchat.port, 9999);
+  assertEquals(channels.webchat.classification, "PUBLIC");
+});
+
+Deno.test("Wizard: generateConfig includes telegram channel config", () => {
+  const answers = makeAnswers({
+    channels: ["cli", "telegram"],
+    telegramBotToken: "123:ABC",
+    telegramOwnerId: "483291057",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const channels = parsed.channels as Record<string, Record<string, unknown>>;
+  assertEquals(channels.telegram.classification, "INTERNAL");
+  assertEquals(channels.telegram.ownerId, 483291057);
+  // Token stored as env var reference, not plaintext
+  assertEquals(channels.telegram.botToken, "${TELEGRAM_BOT_TOKEN}");
+});
+
+Deno.test("Wizard: generateConfig has empty channels when only CLI selected", () => {
+  const answers = makeAnswers({ channels: ["cli"] });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const channels = parsed.channels as Record<string, unknown>;
+  assertEquals(Object.keys(channels).length, 0);
+});
+
+Deno.test("Wizard: generateConfig sets classification levels", () => {
+  const standard = makeAnswers({ classificationMode: "standard" });
+  const simple = makeAnswers({ classificationMode: "simple" });
+
+  const stdParsed = parseYaml(generateConfig(standard)) as Record<string, unknown>;
+  const simpParsed = parseYaml(generateConfig(simple)) as Record<string, unknown>;
+
+  const stdClass = stdParsed.classification as Record<string, string>;
+  const simpClass = simpParsed.classification as Record<string, string>;
+
+  assertEquals(stdClass.levels, "standard");
+  assertEquals(simpClass.levels, "simple");
+});
+
+Deno.test("Wizard: generateConfig for Google provider", () => {
+  const answers = makeAnswers({
+    provider: "google",
+    providerModel: "gemini-2.0-flash",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const models = parsed.models as Record<string, unknown>;
+  const providers = models.providers as Record<string, Record<string, string>>;
+  assertEquals(providers.google.model, "gemini-2.0-flash");
+});
+
+Deno.test("Wizard: generateConfig for OpenRouter provider", () => {
+  const answers = makeAnswers({
+    provider: "openrouter",
+    providerModel: "anthropic/claude-sonnet-4-5",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const models = parsed.models as Record<string, unknown>;
+  const providers = models.providers as Record<string, Record<string, string>>;
+  assertEquals(providers.openrouter.model, "anthropic/claude-sonnet-4-5");
+});
+
+// ─── generateSpine tests ─────────────────────────────────────────────────────
+
+Deno.test("Wizard: generateSpine includes agent name as heading", () => {
+  const answers = makeAnswers({ agentName: "Cleo" });
+  const spine = generateSpine(answers);
+  assertStringIncludes(spine, "# Cleo");
+});
+
+Deno.test("Wizard: generateSpine includes mission statement", () => {
+  const answers = makeAnswers({
+    mission: "Help me manage my day efficiently.",
+  });
+  const spine = generateSpine(answers);
+  assertStringIncludes(spine, "Help me manage my day efficiently.");
+});
+
+Deno.test("Wizard: generateSpine sets professional tone", () => {
+  const answers = makeAnswers({ tone: "professional" });
+  const spine = generateSpine(answers);
+  assertStringIncludes(spine, "Tone: Professional");
+  assertStringIncludes(spine, "formally");
+});
+
+Deno.test("Wizard: generateSpine sets casual tone", () => {
+  const answers = makeAnswers({ tone: "casual" });
+  const spine = generateSpine(answers);
+  assertStringIncludes(spine, "Tone: Casual");
+  assertStringIncludes(spine, "friendly");
+});
+
+Deno.test("Wizard: generateSpine sets terse tone", () => {
+  const answers = makeAnswers({ tone: "terse" });
+  const spine = generateSpine(answers);
+  assertStringIncludes(spine, "Tone: Terse");
+  assertStringIncludes(spine, "extremely brief");
+});
+
+Deno.test("Wizard: generateSpine sets custom tone", () => {
+  const answers = makeAnswers({
+    tone: "custom",
+    customTone: "Speak like a pirate captain",
+  });
+  const spine = generateSpine(answers);
+  assertStringIncludes(spine, "Speak like a pirate captain");
+});
+
+Deno.test("Wizard: generateSpine includes security boundaries", () => {
+  const answers = makeAnswers();
+  const spine = generateSpine(answers);
+  assertStringIncludes(spine, "Never share sensitive data");
+  assertStringIncludes(spine, "classification levels");
+});
+
+// ─── Config validation integration ───────────────────────────────────────────
+
+Deno.test("Wizard: generated config passes validateConfig", async () => {
+  const { validateConfig } = await import("../../src/cli/main.ts");
+  const answers = makeAnswers();
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const result = validateConfig(parsed);
+  assertEquals(result.ok, true);
+});
+
+Deno.test("Wizard: generated config loads via loadConfig", async () => {
+  const { loadConfig } = await import("../../src/cli/main.ts");
+  const answers = makeAnswers();
+  const yaml = generateConfig(answers);
+
+  const tmpDir = await Deno.makeTempDir();
+  const configPath = `${tmpDir}/triggerfish.yaml`;
+  await Deno.writeTextFile(configPath, yaml);
+
+  const result = loadConfig(configPath);
+  assertEquals(result.ok, true);
+  if (result.ok) {
+    assertEquals(result.value.models.primary, "claude-sonnet-4-5");
+  }
+  await Deno.remove(tmpDir, { recursive: true });
+});
+
+// ─── Directory creation ──────────────────────────────────────────────────────
+
+Deno.test("Wizard: createDirectoryTree creates all required directories", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const baseDir = `${tmpDir}/triggerfish-test`;
+
+  await createDirectoryTree(baseDir);
+
+  // Check all directories exist
+  const dirs = ["", "/workspace", "/skills", "/data", "/logs"];
+  for (const dir of dirs) {
+    const stat = await Deno.stat(`${baseDir}${dir}`);
+    assert(stat.isDirectory, `${baseDir}${dir} should be a directory`);
+  }
+
+  await Deno.remove(tmpDir, { recursive: true });
+});
+
+// ─── CLI flag parsing ────────────────────────────────────────────────────────
+
+Deno.test("Wizard: dive --install-daemon flag parses correctly", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["dive", "--install-daemon"]);
+  assertEquals(cmd.command, "dive");
+  assertEquals(cmd.flags["install-daemon"], true);
+});
+
+Deno.test("Wizard: dive --force flag parses correctly", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["dive", "--force"]);
+  assertEquals(cmd.command, "dive");
+  assertEquals(cmd.flags["force"], true);
+});

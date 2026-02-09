@@ -20,7 +20,8 @@
     "@google/generative-ai": "npm:@google/generative-ai@^0.21.0",
     "grammy": "npm:grammy@^1.20.0",
     "@slack/bolt": "npm:@slack/bolt@^3.17.0",
-    "discord.js": "npm:discord.js@^14.14.0"
+    "discord.js": "npm:discord.js@^14.14.0",
+    "@cliffy/prompt": "jsr:@cliffy/prompt@^1.0.0-rc.7"
   },
   "exclude": [
     "test-seeds/",

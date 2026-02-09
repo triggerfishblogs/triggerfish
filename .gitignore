@@ -1,3 +1,9 @@
+# Compiled binary
+triggerfish
+
+# Lock file (generated, not committed)
+deno.lock
+
 # Build docs (reference only, not part of the codebase)
 triggerfish-build-plan.md
 triggerfish-design-doc-v3.md

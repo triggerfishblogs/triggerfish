@@ -14,3 +14,16 @@ export {
   type PatrolInput,
   type PatrolReport,
 } from "./patrol.ts";
+
+export {
+  type ChannelChoice,
+  type ClassificationMode,
+  createDirectoryTree,
+  type DiveResult,
+  generateConfig,
+  generateSpine,
+  type ProviderChoice,
+  runWizard,
+  type ToneChoice,
+  type WizardAnswers,
+} from "./wizard.ts";

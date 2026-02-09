@@ -88,18 +88,14 @@ case ":${PATH}:" in
     ;;
 esac
 
-# --- Step 6: First-time setup ---
+# --- Step 6: First-time setup + optional daemon install ---
+# The dive wizard asks the user whether to install the daemon (step 6/6).
+# When --install-daemon is passed, dive will auto-start the daemon if the
+# user says yes during the wizard.
 
 echo ""
-"${INSTALL_DIR}/triggerfish" dive
+"${INSTALL_DIR}/triggerfish" dive --install-daemon
 
-# --- Step 7: Install and start the daemon ---
-
-echo ""
-"${INSTALL_DIR}/triggerfish" start
-
-echo ""
-echo "Triggerfish is running!"
 echo ""
 echo "  triggerfish status    # Check daemon status"
 echo "  triggerfish logs      # View logs"

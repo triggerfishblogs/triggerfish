@@ -10,6 +10,7 @@ import { parse as parseYaml } from "@std/yaml";
 import { createGatewayServer } from "../gateway/server.ts";
 import { createPatrolCheck } from "../dive/patrol.ts";
 import type { PatrolInput } from "../dive/patrol.ts";
+import { runWizard } from "../dive/wizard.ts";
 import {
   installAndStartDaemon,
   stopDaemon,
@@ -213,49 +214,41 @@ function showVersion(): void {
 
 /**
  * Run the dive setup wizard.
+ *
+ * Returns true if the wizard requested daemon installation,
+ * false otherwise. Exits with code 0 on success, 1 on error.
  */
-async function runDive(): Promise<void> {
-  console.log("🌊 Welcome to Triggerfish!");
-  console.log("\nThis wizard will help you set up your agent.\n");
+async function runDive(
+  flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  const baseDir = `${Deno.env.get("HOME")}/.triggerfish`;
+  const configPath = `${baseDir}/triggerfish.yaml`;
 
-  // Check if config already exists
-  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
-  try {
-    await Deno.stat(configPath);
-    console.log("⚠️  Configuration already exists at:", configPath);
-    console.log("Run 'triggerfish start' to launch the gateway.\n");
-    return;
-  } catch {
-    // Config doesn't exist, continue with setup
+  // Check if config already exists (skip check if --force)
+  if (flags["force"] !== true) {
+    try {
+      await Deno.stat(configPath);
+      console.log("");
+      console.log("  Configuration already exists at:", configPath);
+      console.log("  Run 'triggerfish start' to launch the gateway.");
+      console.log("  Run 'triggerfish dive --force' to re-run the wizard.");
+      console.log("");
+      return;
+    } catch {
+      // Config doesn't exist, continue with setup
+    }
   }
 
-  console.log("Creating configuration directory...");
-  const configDir = `${Deno.env.get("HOME")}/.triggerfish`;
-  await Deno.mkdir(configDir, { recursive: true });
+  const result = await runWizard(baseDir);
 
-  console.log("Generating default configuration...");
-  const defaultConfig = `# Triggerfish Configuration
-
-models:
-  primary: claude-sonnet-4-5
-  providers:
-    anthropic:
-      model: claude-sonnet-4-5
-
-channels: {}
-
-classification:
-  mode: personal  # personal or enterprise
-`;
-
-  await Deno.writeTextFile(configPath, defaultConfig);
-  console.log("✓ Created:", configPath);
-
-  console.log("\n🎉 Setup complete!");
-  console.log("\nNext steps:");
-  console.log("  1. Edit", configPath, "to configure your agent");
-  console.log("  2. Run 'triggerfish start' to launch the gateway");
-  console.log("  3. Run 'triggerfish patrol' to verify health\n");
+  // If called with --install-daemon (from install script), auto-start daemon
+  if (result.installDaemon && flags["install-daemon"] === true) {
+    await runDaemonStart();
+  } else if (result.installDaemon) {
+    // User said yes to daemon but not called from installer — tell them how
+    console.log("  Run 'triggerfish start' to install the daemon.");
+    console.log("");
+  }
 }
 
 /**
@@ -417,7 +410,7 @@ async function main(): Promise<void> {
 
   switch (parsed.command) {
     case "dive":
-      await runDive();
+      await runDive(parsed.flags);
       break;
     case "patrol":
       await runPatrol();
