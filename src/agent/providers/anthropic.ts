@@ -8,7 +8,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import type { MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resources/messages.js";
+import type { MessageCreateParamsNonStreaming, MessageParam } from "@anthropic-ai/sdk/resources/messages.js";
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
 
 /** Configuration for the Anthropic provider. */
@@ -106,11 +106,11 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
 
       // Convert remaining messages to Anthropic format.
       // Structured content (tool_use blocks, tool_result arrays) passes through as-is.
-      const anthropicMessages = messages
+      const anthropicMessages: MessageParam[] = messages
         .filter((m) => m.role !== "system")
         .map((m) => ({
           role: m.role as "user" | "assistant",
-          content: m.content as string | Array<Record<string, unknown>>,
+          content: m.content as MessageParam["content"],
         }));
 
       // Build system prompt — OAuth requires Claude Code identity prefix
@@ -179,11 +179,11 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
           : JSON.stringify(systemMessage.content))
         : undefined;
 
-      const anthropicMessages = messages
+      const anthropicMessages: MessageParam[] = messages
         .filter((m) => m.role !== "system")
         .map((m) => ({
           role: m.role as "user" | "assistant",
-          content: m.content as string | Array<Record<string, unknown>>,
+          content: m.content as MessageParam["content"],
         }));
 
       let systemParam: unknown;
