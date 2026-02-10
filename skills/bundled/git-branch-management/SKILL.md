@@ -3,8 +3,10 @@ name: git-branch-management
 description: >
   Git branch management for development work. Teaches the agent to create
   feature branches, commit atomically, open PRs via gh CLI, track PR state,
-  and respond to code reviews via webhook-delivered events. Use when the
-  agent performs development tasks in the exec environment.
+  and respond to code reviews. Supports two review delivery modes:
+  webhook events (instant) or trigger-based polling via gh CLI (works
+  behind firewalls). Use when the agent performs development tasks in
+  the exec environment.
 classification_ceiling: INTERNAL
 requires_tools:
   - exec
@@ -22,6 +24,7 @@ Manage git branches, commits, PRs, and code review feedback when doing developme
 - Any development task that modifies code in a git repository
 - Bug fixes, feature work, refactoring, dependency updates
 - When a webhook delivers a `pull_request_review`, `pull_request_review_comment`, `issue_comment`, or `pull_request.closed` event for a tracked PR
+- During trigger wakeups: scan tracked PRs for new reviews via `gh pr view`
 
 ## Branch Workflow
 
@@ -151,7 +154,7 @@ exec.run("gh pr view --json number,url")
 
 ## PR Tracking
 
-After opening a PR, write a tracking file so future webhook-triggered sessions can recover context.
+After opening a PR, write a tracking file so future sessions can recover context -- whether triggered by a webhook event or a scheduled polling check.
 
 ### Tracking file location
 
@@ -174,6 +177,8 @@ Replace `/` in the branch name with `--` for the filename:
   "repository": "owner/repo",
   "createdAt": "2025-01-15T10:30:00Z",
   "updatedAt": "2025-01-15T10:30:00Z",
+  "lastCheckedAt": "2025-01-15T10:30:00Z",
+  "lastReviewId": "",
   "status": "open",
   "commits": [
     "feat: add token refresh before expiry",
@@ -203,11 +208,51 @@ Or use `exec.write` if available.
 
 ## After Opening the PR
 
-**Stop.** Do not poll for reviews. Do not loop waiting for feedback.
+**Stop.** Do not spin-loop or sleep-poll waiting for feedback.
 
-Triggerfish's webhook system delivers GitHub events as new sessions. When a review arrives, a new session is spawned with the event payload. The agent reads the tracking file to recover context and continues from there.
+Review feedback is delivered via one of two mechanisms:
 
-## Handling Review Feedback
+- **Webhooks (instant):** If the owner has configured GitHub webhooks pointing to the Triggerfish gateway, review events arrive immediately as new sessions. This requires the gateway to be reachable from the internet.
+- **Trigger-based polling (works behind firewalls):** A cron job periodically checks all open tracked PRs for new activity via `gh pr view`. No inbound connectivity required -- the agent reaches out to GitHub.
+
+Both paths use the same tracking files and the same handling process below.
+
+## Checking for Reviews (Trigger-Based Polling)
+
+During a trigger wakeup or cron job, scan all open tracking files:
+
+### 1. List open tracking files
+
+```
+exec.run("ls ~/.triggerfish/workspace/<agent-id>/scratch/pr-tracking/")
+```
+
+Skip files in the `completed/` subdirectory. For each `.json` file, read it and check `status`. Only process PRs with status `open` or `changes_requested`.
+
+### 2. Query GitHub for new activity
+
+```
+exec.run("gh pr view <pr-number> --json state,reviews,comments,mergedAt,closedAt")
+```
+
+Compare review data against `lastCheckedAt` and `lastReviewId` in the tracking file. If there are new reviews or comments, the PR needs attention -- proceed to "Handling Review Feedback" below.
+
+### 3. Detect state changes
+
+| GitHub state | Action |
+|-------------|--------|
+| New review with `CHANGES_REQUESTED` | Address the feedback (see below) |
+| New review with `APPROVED` | Update status to `approved`, notify owner (see "Merge Policy") |
+| New comments since `lastCheckedAt` | Read and address if actionable |
+| PR state is `MERGED` | Run cleanup (see "Cleanup After Merge") |
+| PR state is `CLOSED` (not merged) | Archive tracking file, notify owner |
+| No new activity | Update `lastCheckedAt`, move on |
+
+### 4. Update the tracking file
+
+After checking, always update `lastCheckedAt` to the current timestamp. If reviews were found, update `lastReviewId` to the most recent review ID.
+
+## Handling Review Feedback (Webhook Path)
 
 When a webhook delivers a review event (`pull_request_review`, `pull_request_review_comment`, or `issue_comment`), follow this process:
 
@@ -268,11 +313,11 @@ exec.run('gh pr comment <pr-number> --body "Addressed the review feedback:\n- Fi
 
 ### 8. Update the tracking file
 
-Update `status` to `changes_requested` or back to `open` after addressing feedback. Update `updatedAt` and append to `commits`.
+Update `status` to `changes_requested` or back to `open` after addressing feedback. Update `updatedAt`, `lastCheckedAt`, and append to `commits`.
 
 ### 9. Repeat
 
-Continue until the review is approved. Each review event spawns a new session -- the tracking file provides continuity.
+Continue until the review is approved. Each review event (webhook) or trigger check (polling) spawns a new session -- the tracking file provides continuity.
 
 ## Merge Policy
 
@@ -297,7 +342,7 @@ Then proceed to cleanup.
 
 ## Cleanup After Merge
 
-When a `pull_request.closed` event arrives with `merged: true`, or after a successful merge:
+When a `pull_request.closed` event arrives with `merged: true`, or when `gh pr view` reports the PR as merged, or after an explicit merge:
 
 ### 1. Delete the remote branch (if not already deleted)
 
@@ -330,7 +375,31 @@ If the PR was closed without merging (`merged: false` in the event payload), upd
 
 ## Webhook Configuration
 
-The owner must configure these GitHub webhook events in `triggerfish.yaml` for the review feedback loop to work:
+The owner configures one or both delivery mechanisms in `triggerfish.yaml`.
+
+### Option A: Trigger-Based Polling (works behind firewalls)
+
+No inbound connectivity needed. The agent reaches out to GitHub on a schedule.
+
+```yaml
+scheduler:
+  cron:
+    jobs:
+      - id: pr-review-check
+        schedule: "*/15 * * * *"
+        task: >
+          Check all open PR tracking files in scratch/pr-tracking/.
+          For each open PR, query GitHub for new reviews or state changes
+          using gh pr view. Address any review feedback, handle merges
+          and closures.
+        classification: INTERNAL
+```
+
+Or add "check open PRs for review feedback" to the agent's TRIGGER.md for execution during the regular trigger wakeup cycle.
+
+### Option B: Webhooks (instant, requires public endpoint)
+
+If the gateway is reachable from the internet (e.g. via Tailscale Funnel, reverse proxy, or tunnel), configure GitHub webhooks for instant delivery:
 
 ```yaml
 webhooks:
@@ -377,7 +446,7 @@ The GitHub webhook must be configured to send these event types:
 | Working on main | Risk of pushing directly to production branch | Always create a feature branch first |
 | One giant commit | Hard to review, hard to revert, loses history | Commit after each logical unit of work |
 | Forgetting to push | PR has no changes, reviewer sees stale code | Push after every commit batch |
-| Polling for reviews | Wastes resources, blocks the agent | Stop after opening PR; let webhooks deliver events |
+| Spin-looping for reviews | Blocks the agent, wastes resources | Write tracking file and stop; let triggers or webhooks handle it |
 | Not writing tracking file | Cannot recover context when review arrives | Always write tracking file after opening PR |
 | Auto-merging without permission | Owner may want to review before merge | Default to notify-only; respect `github.auto_merge` config |
 | Committing secrets | Credentials exposed in git history | Never `git add .env` or credential files |

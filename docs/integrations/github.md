@@ -2,11 +2,11 @@
 
 Triggerfish integrates with GitHub through three composable pieces:
 
-1. **Webhook endpoints** -- receive GitHub events (PR reviews, comments, merges) in real time
-2. **`gh` CLI via exec** -- perform GitHub actions (create PRs, comment, merge) from the agent
+1. **`gh` CLI via exec** -- perform all GitHub actions (create PRs, read reviews, comment, merge)
+2. **Review delivery** -- two modes: **webhook events** (instant, requires public endpoint) or **trigger-based polling** via `gh pr view` (works behind firewalls)
 3. **git-branch-management skill** -- teaches the agent the complete branch/PR/review workflow
 
-Together, these create a full development feedback loop: the agent creates branches, commits code, opens PRs, and responds to reviewer feedback -- all without polling or custom GitHub API code.
+Together, these create a full development feedback loop: the agent creates branches, commits code, opens PRs, and responds to reviewer feedback -- no custom GitHub API code required.
 
 ## Prerequisites
 
@@ -49,9 +49,35 @@ git config --global user.email "triggerfish@example.com"
 
 The agent's workspace must be a git repository (or contain one) with push access to the remote.
 
-## Webhook Setup
+## Review Delivery
 
-Webhooks enable the review feedback loop. GitHub sends events to Triggerfish, which spawns isolated sessions to handle them.
+There are two ways for the agent to learn about new PR reviews. Choose one or use both together.
+
+### Option A: Trigger-Based Polling
+
+No inbound connectivity required. The agent polls GitHub on a schedule using `gh pr view`. Works behind any firewall, NAT, or VPN.
+
+Add a cron job to `triggerfish.yaml`:
+
+```yaml
+scheduler:
+  cron:
+    jobs:
+      - id: pr-review-check
+        schedule: "*/15 * * * *"
+        task: >
+          Check all open PR tracking files in scratch/pr-tracking/.
+          For each open PR, query GitHub for new reviews or state changes
+          using gh pr view. Address any review feedback, handle merges
+          and closures.
+        classification: INTERNAL
+```
+
+Or add "check open PRs for review feedback" to the agent's TRIGGER.md for execution during the regular trigger wakeup cycle.
+
+### Option B: Webhook Setup
+
+Webhooks deliver review events instantly. This requires the Triggerfish gateway to be reachable from GitHub's servers (e.g. via Tailscale Funnel, reverse proxy, or tunnel).
 
 ### Step 1: Generate a webhook secret
 
@@ -159,6 +185,8 @@ triggerfish logs --tail
 
 ## How the Feedback Loop Works
 
+### With webhooks (instant)
+
 ```
 Agent                          GitHub                    Triggerfish Gateway
   |                              |                              |
@@ -185,7 +213,32 @@ Agent                          GitHub                    Triggerfish Gateway
   |                              |                              |
 ```
 
-Each webhook event spawns an isolated session. The agent recovers context by reading the PR tracking file from `~/.triggerfish/workspace/<agent-id>/scratch/pr-tracking/`.
+### With trigger-based polling (behind firewall)
+
+```
+Agent                              GitHub
+  |                                  |
+  |-- git push + gh pr create ------>|  (opens PR #42)
+  |                                  |
+  |  Write tracking file locally     |
+  |  Stop. Wait for next trigger.    |
+  |                                  |
+  |           ... time passes ...    |
+  |           Reviewer posts review  |
+  |                                  |
+  |  [trigger wakeup / cron]         |
+  |-- gh pr view #42 --------------->|  (check for new reviews)
+  |<-- review data ------------------|
+  |                                  |
+  |  Read tracking file              |
+  |  git checkout branch             |
+  |  Make changes, commit, push      |
+  |  gh pr comment                   |
+  |-- push + comment ---------------->|
+  |                                  |
+```
+
+Both paths use the same tracking files. The agent recovers context by reading the PR tracking file from `~/.triggerfish/workspace/<agent-id>/scratch/pr-tracking/`.
 
 ## PR Tracking Files
 
@@ -206,6 +259,8 @@ Schema:
   "repository": "owner/repo",
   "createdAt": "2025-01-15T10:30:00Z",
   "updatedAt": "2025-01-15T10:30:00Z",
+  "lastCheckedAt": "2025-01-15T10:30:00Z",
+  "lastReviewId": "",
   "status": "open",
   "commits": [
     "feat: add token refresh before expiry",
@@ -253,9 +308,9 @@ This is not required for the branch management workflow -- `gh` CLI covers all n
 
 | Control | Detail |
 |---------|--------|
-| **HMAC verification** | All GitHub webhooks are verified with HMAC-SHA256 before processing |
-| **Classification** | GitHub events are classified as `INTERNAL` by default -- code and PR data should not leak to public channels |
-| **Session isolation** | Each webhook event spawns a fresh isolated session |
+| **HMAC verification** | All GitHub webhooks are verified with HMAC-SHA256 before processing (webhook mode) |
+| **Classification** | GitHub data is classified as `INTERNAL` by default -- code and PR data do not leak to public channels |
+| **Session isolation** | Each webhook event or trigger wakeup spawns a fresh isolated session |
 | **No Write-Down** | Agent responses to INTERNAL-classified PR events cannot be sent to PUBLIC channels |
 | **Credential handling** | `gh` CLI manages its own auth token; no GitHub tokens stored in triggerfish.yaml |
 | **Branch naming** | `triggerfish/` prefix makes agent branches easily identifiable and filterable |
@@ -272,6 +327,14 @@ If your repository contains sensitive code (proprietary, security-critical), con
 2. In GitHub, go to **Settings** > **Webhooks** and check the **Recent Deliveries** tab for errors
 3. Verify the secret matches between GitHub and `GITHUB_WEBHOOK_SECRET`
 4. Check Triggerfish logs: `triggerfish logs --tail`
+
+### PR reviews not being picked up (polling mode)
+
+1. Check that the `pr-review-check` cron job is configured in `triggerfish.yaml`
+2. Verify the daemon is running: `triggerfish status`
+3. Check that tracking files exist in `~/.triggerfish/workspace/<agent-id>/scratch/pr-tracking/`
+4. Test manually: `gh pr view <number> --json reviews`
+5. Check Triggerfish logs: `triggerfish logs --tail`
 
 ### gh CLI not authenticated
 

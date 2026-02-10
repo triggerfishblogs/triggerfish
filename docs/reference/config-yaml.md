@@ -164,6 +164,11 @@ scheduler:
         channel: slack
         classification: CONFIDENTIAL
 
+      - id: pr-review-check
+        schedule: "*/15 * * * *"           # Every 15 minutes
+        task: "Check open PR tracking files and query GitHub for new reviews"
+        classification: INTERNAL
+
   trigger:
     interval: 30m                           # Check every 30 minutes
     classification: INTERNAL                # Max taint ceiling for triggers
