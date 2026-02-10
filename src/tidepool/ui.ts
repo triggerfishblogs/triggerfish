@@ -38,6 +38,9 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
   .msg { max-width: 85%; padding: 10px 14px; border-radius: 8px; line-height: 1.5; word-wrap: break-word; }
   .msg.user { align-self: flex-end; background: var(--accent); color: #1a1b26; }
   .msg.assistant { align-self: flex-start; background: var(--bg2); border: 1px solid var(--border); }
+  .msg.assistant.thinking { color: var(--fg3); min-height: 20px; }
+  .msg.assistant.thinking .thinking-label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+  .msg.assistant.thinking .thinking-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--fg3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
   .msg.error { align-self: flex-start; background: #2d1b2e; border: 1px solid var(--red); color: var(--red); }
   .msg pre { background: var(--bg); padding: 8px; border-radius: 4px; overflow-x: auto; margin: 6px 0; font-size: 13px; }
   .msg code { background: var(--bg); padding: 2px 4px; border-radius: 3px; font-size: 13px; }
@@ -50,6 +53,19 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
   .tool.done .spinner { display: none; }
   .tool.done::before { content: "\\2713"; color: var(--green); }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Todo list */
+  .todo-list { padding: 10px 14px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; max-width: 85%; font-size: 13px; line-height: 1.8; }
+  .todo-list .todo-header { font-size: 13px; color: var(--fg2); margin-bottom: 4px; }
+  .todo-list .todo-empty { color: var(--fg3); }
+  .todo-list .todo-item { padding: 1px 0; }
+  .todo-list .todo-done { color: var(--fg3); }
+  .todo-list .todo-done .todo-check { color: var(--green); }
+  .todo-list .todo-done s { text-decoration: line-through; }
+  .todo-list .todo-active { color: var(--yellow); font-weight: 600; }
+  .todo-list .todo-active .todo-arrow { color: var(--yellow); }
+  .todo-list .todo-pending { color: var(--fg2); }
+  .todo-list .todo-pending .todo-circle { color: var(--fg3); }
 
   /* Input */
   #input-bar { display: flex; gap: 8px; padding: 12px 16px; background: var(--bg2); border-top: 1px solid var(--border); }
@@ -130,6 +146,8 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
       case "llm_start":
         if (!currentAssistantEl) {
           currentAssistantEl = addMessage("assistant", "");
+          currentAssistantEl.classList.add("thinking");
+          currentAssistantEl.innerHTML = '<span class="thinking-label"><span class="thinking-spinner"></span> Thinking\\u2026</span>';
           currentAssistantText = "";
         }
         break;
@@ -137,10 +155,11 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
         addTool(evt.name, evt.args);
         break;
       case "tool_result":
-        finishTool(evt.name);
+        finishTool(evt.name, evt.result);
         break;
       case "response":
         if (currentAssistantEl) {
+          currentAssistantEl.classList.remove("thinking");
           currentAssistantText = evt.text;
           currentAssistantEl.innerHTML = renderMarkdown(evt.text);
         } else {
@@ -148,14 +167,17 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
         }
         currentAssistantEl = null;
         currentAssistantText = "";
+        todoListEl = null;
         processing = false;
         sendBtn.disabled = false;
         input.focus();
         break;
       case "error":
+        if (currentAssistantEl) currentAssistantEl.classList.remove("thinking");
         addMessage("error", evt.message);
         currentAssistantEl = null;
         currentAssistantText = "";
+        todoListEl = null;
         processing = false;
         sendBtn.disabled = false;
         input.focus();
@@ -173,7 +195,18 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
   }
 
   var activeTools = {};
+  var pendingTodoArgs = null;
+  var todoListEl = null;
+
+  function isTodoTool(name) {
+    return name === "todo_read" || name === "todo_write";
+  }
+
   function addTool(name, args) {
+    if (isTodoTool(name)) {
+      pendingTodoArgs = args;
+      return;
+    }
     var el = document.createElement("div");
     el.className = "tool";
     var argStr = Object.keys(args || {}).map(function(k) { return args[k]; }).join(" ");
@@ -183,11 +216,58 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
     activeTools[name] = el;
   }
 
-  function finishTool(name) {
+  function finishTool(name, result) {
+    if (isTodoTool(name)) {
+      var todos = extractTodos(name, pendingTodoArgs, result);
+      pendingTodoArgs = null;
+      if (todos && todos.length > 0) {
+        renderTodoList(todos);
+      }
+      return;
+    }
     if (activeTools[name]) {
       activeTools[name].className = "tool done";
       delete activeTools[name];
     }
+  }
+
+  function extractTodos(name, args, result) {
+    // Both todo_read and todo_write return JSON with merged list
+    if (result) {
+      try {
+        var parsed = JSON.parse(result);
+        if (parsed.todos && Array.isArray(parsed.todos)) return parsed.todos;
+      } catch(e) {}
+    }
+    // Fallback: check args for todo_write (pre-merge input)
+    if (name === "todo_write" && args && Array.isArray(args.todos)) {
+      return args.todos;
+    }
+    return null;
+  }
+
+  function renderTodoList(todos) {
+    var html = '<div class="todo-header">📋 Tasks</div>';
+    for (var i = 0; i < todos.length; i++) {
+      var t = todos[i];
+      var content = escapeHtml(t.content || "");
+      if (t.status === "completed") {
+        html += '<div class="todo-item todo-done"><span class="todo-check">✓</span> <s>' + content + '</s></div>';
+      } else if (t.status === "in_progress") {
+        html += '<div class="todo-item todo-active"><span class="todo-arrow">▶</span> ' + content + '</div>';
+      } else {
+        html += '<div class="todo-item todo-pending"><span class="todo-circle">○</span> ' + content + '</div>';
+      }
+    }
+    if (todoListEl) {
+      todoListEl.innerHTML = html;
+    } else {
+      todoListEl = document.createElement("div");
+      todoListEl.className = "todo-list";
+      todoListEl.innerHTML = html;
+      messages.appendChild(todoListEl);
+    }
+    messages.scrollTop = messages.scrollHeight;
   }
 
   function renderMarkdown(text) {

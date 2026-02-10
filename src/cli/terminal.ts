@@ -83,13 +83,21 @@ export function parseKeypresses(bytes: Uint8Array): readonly Keypress[] {
 
     // ESC sequences
     if (byte === 0x1B) {
-      // Check if followed by [ (CSI sequence)
-      if (i + 1 < bytes.length && bytes[i + 1] === 0x5B) {
+      if (i + 1 < bytes.length) {
+        const next = bytes[i + 1];
         // CSI sequence: ESC [ ...
-        const parsed = parseCSI(bytes, i + 2);
-        if (parsed) {
-          keys.push(parsed.key);
-          i = parsed.nextIndex;
+        if (next === 0x5B) {
+          const parsed = parseCSI(bytes, i + 2);
+          if (parsed) {
+            keys.push(parsed.key);
+            i = parsed.nextIndex;
+            continue;
+          }
+        }
+        // Alt+Enter: ESC followed by CR or LF
+        if (next === 0x0D || next === 0x0A) {
+          keys.push({ key: "shift+enter", char: "\n", ctrl: false });
+          i += 2;
           continue;
         }
       }
@@ -159,19 +167,39 @@ function parseCSI(
       return { key: { key: "end", char: null, ctrl: false }, nextIndex: start + 1 };
   }
 
-  // Extended sequences: ESC [ <number> ~
-  if (b >= 0x30 && b <= 0x39 && start + 1 < bytes.length && bytes[start + 1] === 0x7E) {
-    const num = b - 0x30;
-    switch (num) {
-      case 1: // Home
-        return { key: { key: "home", char: null, ctrl: false }, nextIndex: start + 2 };
-      case 3: // Delete
-        return { key: { key: "delete", char: null, ctrl: false }, nextIndex: start + 2 };
-      case 4: // End
-        return { key: { key: "end", char: null, ctrl: false }, nextIndex: start + 2 };
+  // Multi-byte CSI sequences: collect digits, semicolons, then final byte
+  if (b >= 0x30 && b <= 0x39) {
+    // Parse parameter bytes until we hit a final byte (0x40-0x7E)
+    let j = start;
+    while (j < bytes.length && ((bytes[j] >= 0x30 && bytes[j] <= 0x39) || bytes[j] === 0x3B)) {
+      j++;
     }
-    // Other number~ sequences — skip
-    return { key: { key: `unknown_csi_${num}`, char: null, ctrl: false }, nextIndex: start + 2 };
+    if (j >= bytes.length) return null;
+    const final = bytes[j];
+    const paramStr = new TextDecoder().decode(bytes.subarray(start, j));
+
+    // CSI <number> ~ sequences (e.g. ESC [3~ = Delete)
+    if (final === 0x7E) {
+      const num = parseInt(paramStr, 10);
+      switch (num) {
+        case 1: return { key: { key: "home", char: null, ctrl: false }, nextIndex: j + 1 };
+        case 3: return { key: { key: "delete", char: null, ctrl: false }, nextIndex: j + 1 };
+        case 4: return { key: { key: "end", char: null, ctrl: false }, nextIndex: j + 1 };
+      }
+      return { key: { key: `unknown_csi_${paramStr}`, char: null, ctrl: false }, nextIndex: j + 1 };
+    }
+
+    // Kitty keyboard protocol: CSI <keycode> ; <modifiers> u
+    if (final === 0x75) { // 'u'
+      const parts = paramStr.split(";");
+      const keycode = parseInt(parts[0], 10);
+      const mods = parts.length > 1 ? parseInt(parts[1], 10) : 1;
+      const shift = (mods - 1) & 1;
+      if (keycode === 13 && shift) {
+        return { key: { key: "shift+enter", char: "\n", ctrl: false }, nextIndex: j + 1 };
+      }
+      return { key: { key: `csi_u_${keycode}_${mods}`, char: null, ctrl: false }, nextIndex: j + 1 };
+    }
   }
 
   return null;

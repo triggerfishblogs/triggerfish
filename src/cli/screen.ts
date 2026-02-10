@@ -73,6 +73,10 @@ export interface ScreenManager {
   setStatus(text: string): void;
   /** Clear status bar. */
   clearStatus(): void;
+  /** Start an animated spinner in the status bar. */
+  startSpinner(text: string): void;
+  /** Stop the animated spinner and clear the status bar. */
+  stopSpinner(): void;
   /** Handle terminal resize. */
   handleResize(): void;
   /** Restore terminal to normal mode. */
@@ -80,6 +84,28 @@ export interface ScreenManager {
   /** Whether running in TTY mode (vs dumb/piped). */
   readonly isTty: boolean;
 }
+
+// ─── Spinner frames and thinking messages ────────────────────
+
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+const THINKING_VERBS: readonly string[] = [
+  "Thinking",
+  "Reasoning",
+  "Considering",
+  "Analyzing",
+  "Pondering",
+  "Evaluating",
+  "Processing",
+  "Synthesizing",
+  "Reflecting",
+  "Deliberating",
+  "Formulating",
+  "Examining",
+  "Contemplating",
+  "Computing",
+  "Assembling",
+];
 
 /** Terminal dimensions. */
 interface TermSize {
@@ -119,47 +145,67 @@ export function createScreenManager(): ScreenManager {
 function createTtyScreenManager(): ScreenManager {
   let size = getTermSize();
   let statusText = "";
-
-  // Input row = last 2 rows (status + prompt)
-  // Scroll region = rows 1 through (rows - 2)
-  function getPromptRow(): number {
-    return size.rows - 1;
-  }
+  let inputLineCount = 1;
+  let spinnerTimer: ReturnType<typeof setInterval> | null = null;
+  let spinnerFrame = 0;
+  let spinnerLabel = "";
+  let spinnerVerbIdx = 0;
 
   function getStatusRow(): number {
     return size.rows;
   }
 
   function getScrollBottom(): number {
-    return size.rows - 2;
+    return size.rows - inputLineCount - 1;
   }
 
   function setupScrollRegion(): void {
-    rawWrite(setScrollRegion(1, getScrollBottom()));
+    const bottom = getScrollBottom();
+    if (bottom >= 1) {
+      rawWrite(setScrollRegion(1, bottom));
+    }
   }
 
   function drawInputBar(editor: LineEditor): void {
-    const promptRow = getPromptRow();
+    const lines = editor.text.split("\n");
+    const newLineCount = Math.max(lines.length, 1);
+
+    // If line count changed, adjust scroll region
+    if (newLineCount !== inputLineCount) {
+      inputLineCount = newLineCount;
+      setupScrollRegion();
+    }
+
+    const firstInputRow = size.rows - inputLineCount;
     const prefix = `  ${CYAN}${BOLD}❯${RESET} `;
-    const prefixLen = 4; // "  ❯ "
+    const contPrefix = `  ${DIM}·${RESET} `;
+    const prefixLen = 4; // "  ❯ " or "  · "
 
-    // Hide cursor, move to prompt row, clear, draw
     rawWrite(HIDE_CURSOR);
-    rawWrite(moveTo(promptRow, 1));
-    rawWrite(CLEAR_LINE);
-    rawWrite(prefix);
 
-    // Draw text up to cursor
-    rawWrite(editor.text);
+    // Draw each input line
+    for (let i = 0; i < lines.length; i++) {
+      const row = firstInputRow + i;
+      rawWrite(moveTo(row, 1));
+      rawWrite(CLEAR_LINE);
+      rawWrite(i === 0 ? prefix : contPrefix);
+      rawWrite(lines[i]);
+    }
 
-    // Draw ghost suggestion in dim
-    if (editor.suggestion.length > 0) {
+    // Draw ghost suggestion on the last line (only for single-line input)
+    if (lines.length === 1 && editor.suggestion.length > 0) {
       rawWrite(`${DIM}${editor.suggestion}${RESET}`);
     }
 
-    // Position cursor at the correct column
-    const cursorCol = prefixLen + editor.cursor + 1;
-    rawWrite(moveTo(promptRow, cursorCol));
+    // Calculate cursor position within multi-line text
+    const textBeforeCursor = editor.text.slice(0, editor.cursor);
+    const cursorLines = textBeforeCursor.split("\n");
+    const cursorLineIdx = cursorLines.length - 1;
+    const cursorColInLine = cursorLines[cursorLineIdx].length;
+
+    const cursorRow = firstInputRow + cursorLineIdx;
+    const cursorCol = prefixLen + cursorColInLine + 1;
+    rawWrite(moveTo(cursorRow, cursorCol));
     rawWrite(SHOW_CURSOR);
   }
 
@@ -169,7 +215,7 @@ function createTtyScreenManager(): ScreenManager {
     rawWrite(moveTo(statusRow, 1));
     rawWrite(CLEAR_LINE);
     if (statusText.length > 0) {
-      rawWrite(`  ${DIM}${statusText}${RESET}`);
+      rawWrite(`  ${statusText}${RESET}`);
     }
     rawWrite(RESTORE_CURSOR);
   }
@@ -179,10 +225,12 @@ function createTtyScreenManager(): ScreenManager {
 
     init(): void {
       size = getTermSize();
+      inputLineCount = 1;
       setupScrollRegion();
 
       // Clear the input and status rows
-      rawWrite(moveTo(getPromptRow(), 1));
+      const firstInputRow = size.rows - inputLineCount;
+      rawWrite(moveTo(firstInputRow, 1));
       rawWrite(CLEAR_LINE);
       rawWrite(moveTo(getStatusRow(), 1));
       rawWrite(CLEAR_LINE);
@@ -212,11 +260,48 @@ function createTtyScreenManager(): ScreenManager {
     },
 
     setStatus(text: string): void {
-      statusText = text;
+      statusText = `${DIM}${text}`;
       drawStatusBar();
     },
 
     clearStatus(): void {
+      statusText = "";
+      drawStatusBar();
+    },
+
+    startSpinner(text: string): void {
+      // Stop any existing spinner
+      if (spinnerTimer !== null) {
+        clearInterval(spinnerTimer);
+      }
+      spinnerLabel = text;
+      spinnerFrame = 0;
+      spinnerVerbIdx = Math.floor(Math.random() * THINKING_VERBS.length);
+
+      const render = () => {
+        const ch = SPINNER_FRAMES[spinnerFrame % SPINNER_FRAMES.length];
+        // Rotate the verb every ~2.5 seconds (30 frames at 80ms)
+        if (spinnerFrame > 0 && spinnerFrame % 30 === 0) {
+          spinnerVerbIdx = (spinnerVerbIdx + 1) % THINKING_VERBS.length;
+        }
+        const verb = THINKING_VERBS[spinnerVerbIdx];
+        const label = spinnerLabel
+          ? `${verb}… ${DIM}(${spinnerLabel})${RESET}`
+          : `${verb}…`;
+        statusText = `${CYAN}${ch}${RESET} ${label}`;
+        drawStatusBar();
+        spinnerFrame++;
+      };
+
+      render();
+      spinnerTimer = setInterval(render, 80);
+    },
+
+    stopSpinner(): void {
+      if (spinnerTimer !== null) {
+        clearInterval(spinnerTimer);
+        spinnerTimer = null;
+      }
       statusText = "";
       drawStatusBar();
     },
@@ -228,6 +313,10 @@ function createTtyScreenManager(): ScreenManager {
     },
 
     cleanup(): void {
+      if (spinnerTimer !== null) {
+        clearInterval(spinnerTimer);
+        spinnerTimer = null;
+      }
       // Reset scroll region to full screen
       rawWrite(RESET_SCROLL);
       // Move cursor to bottom
@@ -261,6 +350,14 @@ function createDumbScreenManager(): ScreenManager {
     },
 
     clearStatus(): void {
+      // No-op
+    },
+
+    startSpinner(_text: string): void {
+      // No-op — legacy handler uses its own spinner
+    },
+
+    stopSpinner(): void {
       // No-op
     },
 

@@ -7,6 +7,9 @@
 export {
   createTodoManager,
   createTodoToolExecutor,
+  extractTodosFromEvent,
+  formatTodoListAnsi,
+  formatTodoListHtml,
   getTodoToolDefinitions,
   TODO_SYSTEM_PROMPT,
 } from "./todo.ts";

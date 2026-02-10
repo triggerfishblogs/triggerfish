@@ -15,6 +15,7 @@
 
 import type { OrchestratorEvent } from "../agent/orchestrator.ts";
 import type { ScreenManager } from "./screen.ts";
+import { extractTodosFromEvent, formatTodoListAnsi } from "../tools/todo.ts";
 
 // ─── ANSI escape codes ─────────────────────────────────────────
 
@@ -62,13 +63,13 @@ export function printBanner(
     `  ${CYAN}${BOLD}│${RESET}                                                  ${CYAN}${BOLD}│${RESET}`,
   );
   writeln(
-    `  ${CYAN}${BOLD}│${RESET}   ${BLUE}${BOLD}▀█▀ █▀▄ █ █▀▀ █▀▀ █▀▀ █▀▄ █▀▀ █ █▀▀ █ █${RESET}    ${CYAN}${BOLD}│${RESET}`,
+    `  ${CYAN}${BOLD}│${RESET}   ${BLUE}${BOLD}▀█▀ █▀▄ █ █▀▀ █▀▀ █▀▀ █▀▄ █▀▀ █ █▀▀ █ █${RESET}        ${CYAN}${BOLD}│${RESET}`,
   );
   writeln(
-    `  ${CYAN}${BOLD}│${RESET}   ${BLUE}${BOLD} █  █▀▄ █ █ █ █ █ █▀▀ █▀▄ █▀  █ ▀▀█ █▀█${RESET}    ${CYAN}${BOLD}│${RESET}`,
+    `  ${CYAN}${BOLD}│${RESET}   ${BLUE}${BOLD} █  █▀▄ █ █ █ █ █ █▀▀ █▀▄ █▀  █ ▀▀█ █▀█${RESET}        ${CYAN}${BOLD}│${RESET}`,
   );
   writeln(
-    `  ${CYAN}${BOLD}│${RESET}   ${BLUE}${BOLD} █  ▀ ▀ ▀ ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀ ▀   ▀ ▀▀▀ ▀ ▀${RESET}    ${CYAN}${BOLD}│${RESET}`,
+    `  ${CYAN}${BOLD}│${RESET}   ${BLUE}${BOLD} █  ▀ ▀ ▀ ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀ ▀   ▀ ▀▀▀ ▀ ▀${RESET}        ${CYAN}${BOLD}│${RESET}`,
   );
   writeln(
     `  ${CYAN}${BOLD}│${RESET}                                                  ${CYAN}${BOLD}│${RESET}`,
@@ -108,13 +109,13 @@ export function formatBanner(
     `  ${CYAN}${BOLD}│${RESET}                                                  ${CYAN}${BOLD}│${RESET}`,
   );
   lines.push(
-    `  ${CYAN}${BOLD}│${RESET}   ${BLUE}${BOLD}▀█▀ █▀▄ █ █▀▀ █▀▀ █▀▀ █▀▄ █▀▀ █ █▀▀ █ █${RESET}    ${CYAN}${BOLD}│${RESET}`,
+    `  ${CYAN}${BOLD}│${RESET}   ${BLUE}${BOLD}▀█▀ █▀▄ █ █▀▀ █▀▀ █▀▀ █▀▄ █▀▀ █ █▀▀ █ █${RESET}        ${CYAN}${BOLD}│${RESET}`,
   );
   lines.push(
-    `  ${CYAN}${BOLD}│${RESET}   ${BLUE}${BOLD} █  █▀▄ █ █ █ █ █ █▀▀ █▀▄ █▀  █ ▀▀█ █▀█${RESET}    ${CYAN}${BOLD}│${RESET}`,
+    `  ${CYAN}${BOLD}│${RESET}   ${BLUE}${BOLD} █  █▀▄ █ █ █ █ █ █▀▀ █▀▄ █▀  █ ▀▀█ █▀█${RESET}        ${CYAN}${BOLD}│${RESET}`,
   );
   lines.push(
-    `  ${CYAN}${BOLD}│${RESET}   ${BLUE}${BOLD} █  ▀ ▀ ▀ ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀ ▀   ▀ ▀▀▀ ▀ ▀${RESET}    ${CYAN}${BOLD}│${RESET}`,
+    `  ${CYAN}${BOLD}│${RESET}   ${BLUE}${BOLD} █  ▀ ▀ ▀ ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀ ▀   ▀ ▀▀▀ ▀ ▀${RESET}        ${CYAN}${BOLD}│${RESET}`,
   );
   lines.push(
     `  ${CYAN}${BOLD}│${RESET}                                                  ${CYAN}${BOLD}│${RESET}`,
@@ -357,6 +358,11 @@ export function renderPrompt(): void {
 /** Event callback type matching orchestrator. */
 export type EventCallback = (event: OrchestratorEvent) => void;
 
+/** Check whether a tool name is a todo tool. */
+function isTodoTool(name: string): boolean {
+  return name === "todo_read" || name === "todo_write";
+}
+
 /**
  * Create a UI event handler that renders orchestrator events
  * to the terminal in real time.
@@ -369,6 +375,7 @@ export type EventCallback = (event: OrchestratorEvent) => void;
  */
 export function createEventHandler(): EventCallback {
   let spinner: Spinner | null = null;
+  let pendingTodoArgs: Record<string, unknown> | null = null;
 
   return (event: OrchestratorEvent) => {
     switch (event.type) {
@@ -388,11 +395,27 @@ export function createEventHandler(): EventCallback {
         break;
 
       case "tool_call":
-        renderToolCall(event.name, event.args);
+        if (isTodoTool(event.name)) {
+          pendingTodoArgs = event.args;
+        } else {
+          renderToolCall(event.name, event.args);
+        }
         break;
 
       case "tool_result":
-        renderToolResult(event.name, event.result, event.blocked);
+        if (isTodoTool(event.name)) {
+          const todos = extractTodosFromEvent(event.name, {
+            args: pendingTodoArgs ?? undefined,
+            result: event.result,
+          });
+          pendingTodoArgs = null;
+          if (todos) {
+            writeln(formatTodoListAnsi(todos));
+            writeln();
+          }
+        } else {
+          renderToolResult(event.name, event.result, event.blocked);
+        }
         break;
 
       case "response":
@@ -424,10 +447,10 @@ export function createScreenEventHandler(
     switch (event.type) {
       case "llm_start":
         if (screen.isTty) {
-          screen.setStatus(
-            event.iteration === 1
-              ? "Thinking…"
-              : `Thinking… (step ${event.iteration}/${event.maxIterations})`,
+          screen.startSpinner(
+            event.iteration > 1
+              ? `step ${event.iteration}/${event.maxIterations}`
+              : "",
           );
         } else {
           spinner = createSpinner(
@@ -440,7 +463,7 @@ export function createScreenEventHandler(
 
       case "llm_complete":
         if (screen.isTty) {
-          screen.clearStatus();
+          screen.stopSpinner();
         } else if (spinner) {
           spinner.stop();
           spinner = null;
@@ -448,7 +471,10 @@ export function createScreenEventHandler(
         break;
 
       case "tool_call":
-        if (getDisplayMode() === "compact") {
+        if (isTodoTool(event.name)) {
+          // Buffer todo args — render formatted list when result arrives
+          pendingToolCall = { name: event.name, args: event.args };
+        } else if (getDisplayMode() === "compact") {
           // Buffer the tool call — render when result arrives
           pendingToolCall = { name: event.name, args: event.args };
         } else {
@@ -457,7 +483,16 @@ export function createScreenEventHandler(
         break;
 
       case "tool_result":
-        if (getDisplayMode() === "compact" && pendingToolCall) {
+        if (isTodoTool(event.name)) {
+          const todos = extractTodosFromEvent(event.name, {
+            args: pendingToolCall?.args,
+            result: event.result,
+          });
+          pendingToolCall = null;
+          if (todos) {
+            screen.writeOutput(formatTodoListAnsi(todos) + "\n");
+          }
+        } else if (getDisplayMode() === "compact" && pendingToolCall) {
           screen.writeOutput(
             formatToolCallCompact(
               pendingToolCall.name,
