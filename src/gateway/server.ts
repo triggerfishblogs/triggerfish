@@ -11,6 +11,7 @@
 import type { SchedulerService } from "../scheduler/service.ts";
 import type { EnhancedSessionManager } from "./sessions.ts";
 import type { NotificationService } from "./notifications.ts";
+import type { ChatSession, ChatClientMessage } from "./chat.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import type { SessionId, UserId, ChannelId } from "../core/types/session.ts";
 
@@ -26,6 +27,8 @@ export interface GatewayServerOptions {
   readonly sessionManager?: EnhancedSessionManager;
   /** Optional notification service for JSON-RPC notification methods. */
   readonly notificationService?: NotificationService;
+  /** Optional chat session for /chat WebSocket endpoint. */
+  readonly chatSession?: ChatSession;
 }
 
 /** Address information returned after server start. */
@@ -219,12 +222,83 @@ async function handleJsonRpc(
 }
 
 /**
+ * Handle a /chat WebSocket connection.
+ *
+ * Upgrades the request to a WebSocket, sends a `connected` event,
+ * and routes incoming chat messages to the ChatSession. Each connection
+ * gets its own AbortController for cancel support.
+ */
+function handleChatWebSocket(
+  request: Request,
+  chat: ChatSession,
+): Response {
+  const { socket, response } = Deno.upgradeWebSocket(request);
+  let abortController: AbortController | null = null;
+
+  socket.addEventListener("open", () => {
+    try {
+      socket.send(JSON.stringify({
+        type: "connected",
+        provider: chat.providerName,
+        model: chat.modelName,
+      }));
+    } catch {
+      // Client may have disconnected immediately
+    }
+  });
+
+  socket.addEventListener("message", (event: MessageEvent) => {
+    try {
+      const data = typeof event.data === "string"
+        ? event.data
+        : new TextDecoder().decode(event.data as ArrayBuffer);
+      const msg = JSON.parse(data) as ChatClientMessage;
+
+      if (msg.type === "cancel") {
+        if (abortController) {
+          abortController.abort();
+        }
+        return;
+      }
+
+      if (msg.type === "message" && typeof msg.content === "string") {
+        abortController = new AbortController();
+        const signal = abortController.signal;
+
+        const send = (evt: unknown) => {
+          try {
+            if (socket.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify(evt));
+            }
+          } catch {
+            // Client disconnected
+          }
+        };
+
+        chat.processMessage(msg.content, send, signal).finally(() => {
+          abortController = null;
+        });
+      }
+    } catch {
+      try {
+        socket.send(JSON.stringify({ type: "error", message: "Invalid message format" }));
+      } catch {
+        // Client disconnected
+      }
+    }
+  });
+
+  return response;
+}
+
+/**
  * Create a Gateway WebSocket server.
  *
  * The server listens on the configured port (default 18789) and
  * accepts JSON-RPC 2.0 messages over WebSocket connections. When a
  * SchedulerService is provided, POST /webhooks/:sourceId routes
- * are served for inbound webhook events.
+ * are served for inbound webhook events. When a ChatSession is
+ * provided, /chat WebSocket connections are routed to it.
  */
 export function createGatewayServer(
   options?: GatewayServerOptions,
@@ -233,6 +307,7 @@ export function createGatewayServer(
   const schedulerService = options?.schedulerService;
   const sessionManager = options?.sessionManager;
   const notificationService = options?.notificationService;
+  const chatSession = options?.chatSession;
   let server: Deno.HttpServer | null = null;
   let resolvedAddr: GatewayAddr | null = null;
 
@@ -250,8 +325,16 @@ export function createGatewayServer(
           },
         },
         (request: Request): Response | Promise<Response> => {
+          const url = new URL(request.url);
+
           // Handle WebSocket upgrade
           if (request.headers.get("upgrade") === "websocket") {
+            // Route /chat to the chat session handler
+            if (url.pathname === "/chat" && chatSession) {
+              return handleChatWebSocket(request, chatSession);
+            }
+
+            // All other WebSocket connections: JSON-RPC control plane
             const { socket, response } = Deno.upgradeWebSocket(request);
 
             socket.addEventListener("message", async (event: MessageEvent) => {
@@ -289,7 +372,6 @@ export function createGatewayServer(
           }
 
           // Handle webhook endpoints: POST /webhooks/:sourceId
-          const url = new URL(request.url);
           if (
             request.method === "POST" &&
             url.pathname.startsWith("/webhooks/") &&

@@ -8,6 +8,9 @@
 
 import { parse as parseYaml } from "@std/yaml";
 import { createGatewayServer } from "../gateway/server.ts";
+import { createChatSession } from "../gateway/chat.ts";
+import type { ChatEvent } from "../gateway/chat.ts";
+import { createA2UIHost } from "../tidepool/host.ts";
 import { createPatrolCheck } from "../dive/patrol.ts";
 import type { PatrolInput } from "../dive/patrol.ts";
 import { runWizard } from "../dive/wizard.ts";
@@ -19,7 +22,7 @@ import {
   updateTriggerfish,
 } from "./daemon.ts";
 import { createOrchestrator } from "../agent/orchestrator.ts";
-import type { ToolDefinition, ToolExecutor } from "../agent/orchestrator.ts";
+import type { ToolDefinition, ToolExecutor, OrchestratorEvent } from "../agent/orchestrator.ts";
 import { createProviderRegistry } from "../agent/llm.ts";
 import { loadProvidersFromConfig } from "../agent/providers/config.ts";
 import type { ModelsConfig } from "../agent/providers/config.ts";
@@ -42,7 +45,7 @@ import {
 import type { ToolDisplayMode } from "./chat_ui.ts";
 import { createKeypressReader, createLineEditor, createSuggestionEngine } from "./terminal.ts";
 import type { LineEditor } from "./terminal.ts";
-import { createInputHistory, loadInputHistory, saveInputHistory } from "./history.ts";
+import { loadInputHistory, saveInputHistory } from "./history.ts";
 import { createScreenManager } from "./screen.ts";
 import { createSchedulerService } from "../scheduler/service.ts";
 import type {
@@ -590,10 +593,58 @@ async function runStart(): Promise<void> {
     cronManager,
   });
 
-  // Create and start gateway server with scheduler
+  // Create the main session orchestrator — this is the daemon-owned session
+  const registry = createProviderRegistry();
+  loadProvidersFromConfig(config.models as ModelsConfig, registry);
+
+  if (!registry.getDefault()) {
+    console.log("No LLM provider configured. Check triggerfish.yaml.\n");
+    Deno.exit(1);
+  }
+
+  const engine = createPolicyEngine();
+  for (const rule of createDefaultRules()) {
+    engine.addRule(rule);
+  }
+  const hookRunner = createHookRunner(engine);
+
+  const spinePath = `${baseDir}/SPINE.md`;
+  const mainWorkspace = await createWorkspace({
+    agentId: "main-session",
+    basePath: `${baseDir}/workspaces`,
+  });
+  const execTools = createExecTools(mainWorkspace);
+  const todoManager = createTodoManager({ storage, agentId: "main-session" });
+  const toolExecutor = createToolExecutor(execTools, cronManager, todoManager);
+
+  const session = createSession({
+    userId: "owner" as UserId,
+    channelId: "daemon" as ChannelId,
+  });
+
+  const chatSession = createChatSession({
+    hookRunner,
+    providerRegistry: registry,
+    spinePath,
+    tools: getToolDefinitions(),
+    toolExecutor,
+    systemPromptSections: [TODO_SYSTEM_PROMPT],
+    session,
+  });
+
+  console.log("  Main session created");
+
+  // Create and start Tidepool host with chat support
+  const tidepoolHost = createA2UIHost({ chatSession });
+  const tidepoolPort = 18790;
+  await tidepoolHost.start(tidepoolPort);
+  console.log(`  Tidepool listening on http://127.0.0.1:${tidepoolPort}`);
+
+  // Create and start gateway server with scheduler + chat session
   const server = createGatewayServer({
     port: 18789,
     schedulerService,
+    chatSession,
   });
   const addr = await server.start();
 
@@ -936,14 +987,15 @@ function createToolExecutor(
 /**
  * Run an interactive chat REPL.
  *
- * Wires up the full agent stack: config → providers → policy engine →
- * hook runner → orchestrator (with tools) → raw terminal REPL loop
- * with input history, tab-complete, ESC interrupt, and compact tool display.
+ * Connects to the daemon's gateway WebSocket at /chat for the shared
+ * session. All terminal UI (raw mode, scroll regions, keypress reader,
+ * input history, suggestions, ESC interrupt, Ctrl+O toggle) is preserved.
+ * The daemon owns the session, orchestrator, and policy engine.
  */
 async function runChat(): Promise<void> {
   const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
 
-  // Load config
+  // Load config (for banner display only)
   const configResult = loadConfig(configPath);
   if (!configResult.ok) {
     console.log("No configuration found. Run 'triggerfish dive' first.\n");
@@ -951,42 +1003,36 @@ async function runChat(): Promise<void> {
   }
 
   const config = configResult.value;
-
-  // Set up provider registry from config
-  const registry = createProviderRegistry();
-  loadProvidersFromConfig(config.models as ModelsConfig, registry);
-
-  if (!registry.getDefault()) {
-    console.log("No LLM provider configured. Check triggerfish.yaml.\n");
-    Deno.exit(1);
-  }
-
-  // Set up policy engine with default rules
-  const engine = createPolicyEngine();
-  for (const rule of createDefaultRules()) {
-    engine.addRule(rule);
-  }
-  const hookRunner = createHookRunner(engine);
-
-  // Look for SPINE.md
   const baseDir = `${Deno.env.get("HOME")}/.triggerfish`;
-  const spinePath = `${baseDir}/SPINE.md`;
-
-  // Create persistent storage for cron jobs
   const dataDir = `${baseDir}/data`;
   await Deno.mkdir(dataDir, { recursive: true });
-  const storage = createSqliteStorage(`${dataDir}/triggerfish.db`);
-  const cronManager = await createPersistentCronManager(storage);
 
-  // Create workspace and exec tools for the agent
-  const agentId = "cli-chat";
-  const workspace = await createWorkspace({
-    agentId,
-    basePath: `${baseDir}/workspaces`,
+  // Connect to the daemon's chat WebSocket
+  const gatewayUrl = "ws://127.0.0.1:18789/chat";
+  let ws: WebSocket;
+  try {
+    ws = new WebSocket(gatewayUrl);
+  } catch {
+    console.log("Cannot connect to daemon. Is it running?");
+    console.log("Run 'triggerfish start' or 'triggerfish run' first.\n");
+    Deno.exit(1);
+    return;
+  }
+
+  // Wait for connection + connected event
+  let providerName = "unknown";
+  let modelName = "";
+  const connected = Promise.withResolvers<void>();
+
+  ws.addEventListener("error", () => {
+    console.log("Cannot connect to daemon. Is it running?");
+    console.log("Run 'triggerfish start' or 'triggerfish run' first.\n");
+    Deno.exit(1);
   });
-  const execTools = createExecTools(workspace);
-  const todoManager = createTodoManager({ storage, agentId });
-  const toolExecutor = createToolExecutor(execTools, cronManager, todoManager);
+
+  ws.addEventListener("open", () => {
+    // Connection established, wait for "connected" event
+  });
 
   // Determine if we're in TTY mode
   const isTty = Deno.stdin.isTerminal();
@@ -1003,24 +1049,79 @@ async function runChat(): Promise<void> {
     ? createScreenEventHandler(screen, getDisplayMode)
     : createEventHandler();
 
-  // Create orchestrator with tools and event callback
-  const orchestrator = createOrchestrator({
-    hookRunner,
-    providerRegistry: registry,
-    spinePath,
-    tools: getToolDefinitions(),
-    toolExecutor,
-    onEvent: eventHandler,
-    systemPromptSections: [TODO_SYSTEM_PROMPT],
+  // State tracking
+  const state = { isProcessing: false };
+
+  // Route incoming WebSocket events to the event handler
+  ws.addEventListener("message", (event: MessageEvent) => {
+    try {
+      const data = typeof event.data === "string"
+        ? event.data
+        : new TextDecoder().decode(event.data as ArrayBuffer);
+      const evt = JSON.parse(data) as ChatEvent;
+
+      if (evt.type === "connected") {
+        providerName = evt.provider;
+        modelName = evt.model;
+        connected.resolve();
+        return;
+      }
+
+      if (evt.type === "error") {
+        if (isTty) {
+          screen.writeOutput(formatError(evt.message));
+          screen.writeOutput("");
+          screen.redrawInput(editor);
+        } else {
+          renderError(evt.message);
+          renderPrompt();
+        }
+        state.isProcessing = false;
+        return;
+      }
+
+      if (evt.type === "response") {
+        // The event handler will render the response text
+        eventHandler(evt as OrchestratorEvent);
+        state.isProcessing = false;
+        if (isTty) {
+          screen.writeOutput("");
+          screen.redrawInput(editor);
+        } else {
+          renderPrompt();
+        }
+        return;
+      }
+
+      // Forward all other events (llm_start, llm_complete, tool_call, tool_result)
+      eventHandler(evt as OrchestratorEvent);
+    } catch {
+      // Ignore parse errors
+    }
   });
 
-  // Create a session for this CLI chat
-  const session = createSession({
-    userId: "owner" as UserId,
-    channelId: "cli" as ChannelId,
+  // Handle WebSocket close
+  ws.addEventListener("close", () => {
+    if (isTty) {
+      screen.writeOutput("  \x1b[31mDisconnected from daemon.\x1b[0m");
+      screen.writeOutput("");
+      screen.redrawInput(editor);
+    } else {
+      console.log("\n  Disconnected from daemon.\n");
+    }
+    state.isProcessing = false;
   });
 
-  const providerName = registry.getDefault()!.name;
+  // Wait for the connected event before showing UI
+  // Timeout after 5 seconds
+  const timeout = setTimeout(() => {
+    console.log("Timed out waiting for daemon. Is it running?");
+    console.log("Run 'triggerfish start' or 'triggerfish run' first.\n");
+    ws.close();
+    Deno.exit(1);
+  }, 5000);
+  await connected.promise;
+  clearTimeout(timeout);
 
   // Load input history
   const historyFilePath = `${dataDir}/input_history.json`;
@@ -1031,8 +1132,8 @@ async function runChat(): Promise<void> {
 
   // If not a TTY, fall back to the simple line-buffered REPL
   if (!isTty) {
-    printBanner(providerName, config.models.primary, workspace.path);
-    await runSimpleRepl(orchestrator, session, providerName, config, workspace);
+    printBanner(providerName, config.models.primary, "");
+    await runSimpleWsRepl(ws, providerName, config);
     return;
   }
 
@@ -1040,13 +1141,11 @@ async function runChat(): Promise<void> {
 
   // Print banner via screen manager
   screen.init();
-  screen.writeOutput(formatBanner(providerName, config.models.primary, workspace.path));
+  screen.writeOutput(formatBanner(providerName, config.models.primary, ""));
 
   // Create keypress reader and line editor
   const keypressReader = createKeypressReader();
   let editor: LineEditor = createLineEditor();
-  // Mutable state holder — avoids TypeScript narrowing `AbortController | null` to `never`
-  const state = { isProcessing: false, abortController: null as AbortController | null };
   let stashedInput = ""; // Stash current input when entering history navigation
 
   // Cleanup function — must run on exit
@@ -1054,14 +1153,15 @@ async function runChat(): Promise<void> {
     keypressReader.stop();
     screen.cleanup();
     saveInputHistory(historyFilePath, inputHistory).catch(() => {});
-    storage.close();
+    try { ws.close(); } catch { /* already closed */ }
   }
 
   // Handle SIGINT (Ctrl+C from outside raw mode, e.g. kill signal)
   try {
     Deno.addSignalListener("SIGINT", () => {
-      if (state.isProcessing && state.abortController) {
-        state.abortController.abort();
+      if (state.isProcessing) {
+        try { ws.send(JSON.stringify({ type: "cancel" })); } catch { /* ignore */ }
+        screen.writeOutput(`  \x1b[33m⚠ Interrupted\x1b[0m`);
       } else {
         cleanup();
         Deno.exit(0);
@@ -1081,10 +1181,8 @@ async function runChat(): Promise<void> {
     // ─── Processing mode: only ESC and Ctrl+C are active ────
     if (state.isProcessing) {
       if (keypress.key === "esc" || keypress.key === "ctrl+c") {
-        if (state.abortController) {
-          state.abortController.abort();
-          screen.writeOutput(`  \x1b[33m⚠ Interrupted\x1b[0m`);
-        }
+        try { ws.send(JSON.stringify({ type: "cancel" })); } catch { /* ignore */ }
+        screen.writeOutput(`  \x1b[33m⚠ Interrupted\x1b[0m`);
       }
       continue;
     }
@@ -1122,7 +1220,7 @@ async function runChat(): Promise<void> {
         if (text === "/clear") {
           screen.cleanup();
           screen.init();
-          screen.writeOutput(formatBanner(providerName, config.models.primary, workspace.path));
+          screen.writeOutput(formatBanner(providerName, config.models.primary, ""));
           screen.redrawInput(editor);
           break;
         }
@@ -1151,36 +1249,20 @@ async function runChat(): Promise<void> {
 
         if (text === "/compact") {
           screen.writeOutput("  Compacting conversation history...");
-          // Force compaction is handled by the orchestrator's compactor
-          // For now, just acknowledge the command
           screen.writeOutput("  History will be compacted on next message.");
           break;
         }
 
-        // Process message through orchestrator — run in background so the
-        // keypress loop stays responsive (ESC can abort, Ctrl+C can exit).
+        // Send message to daemon via WebSocket
         state.isProcessing = true;
-        state.abortController = new AbortController();
-
-        orchestrator.processMessage({
-          session,
-          message: text,
-          targetClassification: "INTERNAL" as ClassificationLevel,
-          signal: state.abortController.signal,
-        }).then((result) => {
-          if (!result.ok) {
-            screen.writeOutput(formatError(result.error));
-          }
-        }).catch((err: unknown) => {
-          screen.writeOutput(formatError(
-            err instanceof Error ? err.message : String(err),
-          ));
-        }).finally(() => {
+        try {
+          ws.send(JSON.stringify({ type: "message", content: text }));
+        } catch {
+          screen.writeOutput(formatError("Lost connection to daemon"));
           state.isProcessing = false;
-          state.abortController = null;
           screen.writeOutput("");
           screen.redrawInput(editor);
-        });
+        }
 
         break;
       }
@@ -1328,15 +1410,13 @@ async function runChat(): Promise<void> {
 /**
  * Simple line-buffered REPL for non-TTY environments (piped input).
  *
- * Falls back to the original stdin.read() approach for compatibility
- * with piped input and non-interactive use.
+ * Connects to the daemon via WebSocket. Falls back to the original
+ * stdin.read() approach for compatibility with piped input.
  */
-async function runSimpleRepl(
-  orchestrator: ReturnType<typeof createOrchestrator>,
-  session: ReturnType<typeof createSession>,
+async function runSimpleWsRepl(
+  ws: WebSocket,
   providerName: string,
   config: TriggerFishConfig,
-  workspace: { readonly path: string },
 ): Promise<void> {
   const decoder = new TextDecoder();
   const buf = new Uint8Array(8192);
@@ -1357,12 +1437,13 @@ async function runSimpleRepl(
 
       if (line === "/quit" || line === "/exit" || line === "/q") {
         console.log("\n  Goodbye.\n");
+        ws.close();
         return;
       }
 
       if (line === "/clear") {
         console.log("\x1b[2J\x1b[H");
-        printBanner(providerName, config.models.primary, workspace.path);
+        printBanner(providerName, config.models.primary, "");
         renderPrompt();
         continue;
       }
@@ -1372,20 +1453,36 @@ async function runSimpleRepl(
         continue;
       }
 
+      // Send to daemon and wait for response
       console.log();
-      const result = await orchestrator.processMessage({
-        session,
-        message: line,
-        targetClassification: "INTERNAL" as ClassificationLevel,
-      });
+      const responsePromise = Promise.withResolvers<void>();
 
-      if (!result.ok) {
-        renderError(result.error);
-      }
+      const handler = (event: MessageEvent) => {
+        try {
+          const data = typeof event.data === "string"
+            ? event.data
+            : new TextDecoder().decode(event.data as ArrayBuffer);
+          const evt = JSON.parse(data) as ChatEvent;
+          if (evt.type === "response" || evt.type === "error") {
+            if (evt.type === "error") {
+              renderError(evt.message);
+            }
+            ws.removeEventListener("message", handler);
+            responsePromise.resolve();
+          }
+        } catch {
+          // ignore
+        }
+      };
+
+      ws.addEventListener("message", handler);
+      ws.send(JSON.stringify({ type: "message", content: line }));
+      await responsePromise.promise;
 
       renderPrompt();
     }
   }
+  ws.close();
 }
 
 /**

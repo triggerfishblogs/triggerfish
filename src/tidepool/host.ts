@@ -4,11 +4,14 @@
  * Provides two host implementations:
  * - TidepoolHost: callback-based host for HTML push/eval/reset/snapshot
  * - A2UIHost: WebSocket server that broadcasts component trees to clients
+ *   and optionally handles chat messages via a ChatSession
  *
  * @module
  */
 
 import type { ComponentTree } from "./components.ts";
+import type { ChatSession, ChatClientMessage } from "../gateway/chat.ts";
+import { TIDEPOOL_HTML } from "./ui.ts";
 
 // ---------------------------------------------------------------------------
 // Legacy callback-based TidepoolHost (retained for backward compatibility)
@@ -67,6 +70,12 @@ export function createTidepoolHost(options: TidepoolHostOptions): TidepoolHost {
 // A2UI WebSocket Host
 // ---------------------------------------------------------------------------
 
+/** Options for creating an A2UI host. */
+export interface A2UIHostOptions {
+  /** Chat session for handling browser chat messages. */
+  readonly chatSession?: ChatSession;
+}
+
 /** A2UI WebSocket host that broadcasts component trees to connected clients. */
 export interface A2UIHost {
   /** Start the WebSocket server on the given port. */
@@ -87,9 +96,14 @@ export interface A2UIHost {
  * tree (if one has been set). Subsequent `broadcast()` calls push the
  * tree to every connected client. Disconnected clients are cleaned up
  * automatically.
+ *
+ * When a `chatSession` is provided via options, the host also handles
+ * incoming chat messages from browser clients and serves the Tidepool
+ * HTML chat interface on HTTP requests.
  */
-export function createA2UIHost(): A2UIHost {
+export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
   const clients = new Set<WebSocket>();
+  const chatSession = options?.chatSession;
   let server: Deno.HttpServer | null = null;
   let currentTree: ComponentTree | null = null;
   let resolvedPort = 0;
@@ -110,11 +124,63 @@ export function createA2UIHost(): A2UIHost {
         (request: Request): Response => {
           if (request.headers.get("upgrade") === "websocket") {
             const { socket, response } = Deno.upgradeWebSocket(request);
+            let abortController: AbortController | null = null;
 
             socket.addEventListener("open", () => {
               clients.add(socket);
+              // Send current component tree if one exists
               if (currentTree) {
                 socket.send(JSON.stringify(currentTree));
+              }
+              // Send connected event if chat session is available
+              if (chatSession) {
+                try {
+                  socket.send(JSON.stringify({
+                    type: "connected",
+                    provider: chatSession.providerName,
+                    model: chatSession.modelName,
+                  }));
+                } catch {
+                  // Client may have disconnected
+                }
+              }
+            });
+
+            socket.addEventListener("message", (event: MessageEvent) => {
+              if (!chatSession) return;
+              try {
+                const data = typeof event.data === "string"
+                  ? event.data
+                  : new TextDecoder().decode(event.data as ArrayBuffer);
+                const msg = JSON.parse(data) as ChatClientMessage;
+
+                if (msg.type === "cancel") {
+                  if (abortController) {
+                    abortController.abort();
+                  }
+                  return;
+                }
+
+                if (msg.type === "message" && typeof msg.content === "string") {
+                  abortController = new AbortController();
+                  const signal = abortController.signal;
+
+                  const send = (evt: unknown) => {
+                    try {
+                      if (socket.readyState === WebSocket.OPEN) {
+                        socket.send(JSON.stringify(evt));
+                      }
+                    } catch {
+                      // Client disconnected
+                    }
+                  };
+
+                  chatSession.processMessage(msg.content, send, signal).finally(() => {
+                    abortController = null;
+                  });
+                }
+              } catch {
+                // Ignore malformed messages
               }
             });
 
@@ -127,6 +193,14 @@ export function createA2UIHost(): A2UIHost {
             });
 
             return response;
+          }
+
+          // Serve Tidepool chat HTML when chat session is available
+          if (chatSession) {
+            return new Response(TIDEPOOL_HTML, {
+              status: 200,
+              headers: { "content-type": "text/html; charset=utf-8" },
+            });
           }
 
           return new Response("Tide Pool A2UI Host", { status: 200 });

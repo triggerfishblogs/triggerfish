@@ -39,3 +39,12 @@ export type {
   ConfigChangeCallback,
   ConfigWatcher,
 } from "./config_watcher.ts";
+
+export { createChatSession } from "./chat.ts";
+export type {
+  ChatEvent,
+  ChatClientMessage,
+  ChatEventSender,
+  ChatSession,
+  ChatSessionConfig,
+} from "./chat.ts";
