@@ -73,9 +73,21 @@ Triggerfish supports three types of skills, with a clear priority order when nam
 
 ### Bundled Skills
 
-Ship with Triggerfish. Maintained by the project. Always available.
+Ship with Triggerfish in the `skills/bundled/` directory. Maintained by the project. Always available.
 
-Examples: basic calendar integration, email summary, web search.
+Triggerfish includes five foundational skills that make the agent self-sufficient from day one:
+
+| Skill | Description |
+|-------|-------------|
+| **tdd** | Test-Driven Development methodology for Deno 2.x. Red-green-refactor cycle, `Deno.test()` patterns, `@std/assert` usage, Result type testing, test helpers. |
+| **mastering-typescript** | TypeScript patterns for Deno and Triggerfish. Strict mode, `Result<T, E>`, branded types, factory functions, immutable interfaces, `mod.ts` barrels. |
+| **mastering-python** | Python patterns for Pyodide WASM plugins. Standard library alternatives to native packages, SDK usage, async patterns, classification rules. |
+| **skill-builder** | How to author new skills. SKILL.md format, frontmatter fields, classification ceilings, self-authoring workflow, security scanning. |
+| **integration-builder** | How to build Triggerfish integrations. All six patterns: channel adapters, LLM providers, MCP servers, storage providers, exec tools, and plugins. |
+
+These are the bootstrap skills -- the agent uses them to extend itself. The skill-builder teaches the agent how to create new skills, and the integration-builder teaches it how to build new adapters and providers.
+
+See [Building Skills](/integrations/building-skills) for a hands-on guide to creating your own.
 
 ### Managed Skills
 
