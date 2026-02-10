@@ -488,43 +488,66 @@ export async function updateTriggerfish(
   // Find where the current binary is installed
   const binaryPath = await findInstalledBinary();
 
-  // Stop daemon so we can replace the binary
+  // Check daemon state before we exit
   const status = await getDaemonStatus();
   const wasRunning = status.running;
 
-  if (wasRunning) {
-    await stopDaemon();
-    // Brief pause to let the process fully exit
-    await new Promise((resolve) => setTimeout(resolve, 500));
+  // Spawn a detached child process to:
+  //   1. Wait for this process to exit
+  //   2. Stop the daemon
+  //   3. Replace the binary
+  //   4. Restart the daemon if it was running
+  const newBinary = `${srcDir}/triggerfish`;
+
+  if (Deno.build.os === "windows") {
+    const ps = [
+      `Start-Sleep 1`,
+      `Stop-Process -Name triggerfish -Force -ErrorAction SilentlyContinue`,
+      `Start-Sleep 1`,
+      `Copy-Item '${newBinary}' '${binaryPath}' -Force`,
+      ...(wasRunning
+        ? [`& '${binaryPath}' start`]
+        : []),
+      `Write-Host 'Update complete.'`,
+    ].join("; ");
+    const cmd = new Deno.Command("powershell", {
+      args: ["-NoProfile", "-Command", ps],
+      stdin: "null",
+      stdout: "null",
+      stderr: "null",
+    });
+    cmd.spawn().unref();
+  } else {
+    const stopCmd = wasRunning
+      ? detectDaemonManager() === "systemd"
+        ? `systemctl --user stop ${SYSTEMD_UNIT};`
+        : `launchctl unload '${launchdPlistPath()}';`
+      : "";
+    const startCmd = wasRunning
+      ? detectDaemonManager() === "systemd"
+        ? `systemctl --user daemon-reload; systemctl --user start ${SYSTEMD_UNIT};`
+        : `launchctl load '${launchdPlistPath()}';`
+      : "";
+    const sh = [
+      `sleep 1`,
+      stopCmd,
+      `rm -f '${binaryPath}'`,
+      `cp '${newBinary}' '${binaryPath}'`,
+      `chmod 755 '${binaryPath}'`,
+      startCmd,
+    ].filter(Boolean).join(" && ");
+    const cmd = new Deno.Command("sh", {
+      args: ["-c", sh],
+      stdin: "null",
+      stdout: "null",
+      stderr: "null",
+    });
+    cmd.spawn().unref();
   }
 
-  // Copy new binary into place
-  try {
-    await Deno.copyFile(`${srcDir}/triggerfish`, binaryPath);
-    await Deno.chmod(binaryPath, 0o755);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, message: `Failed to install binary: ${msg}` };
-  }
-
-  // Restart daemon if it was running
-  if (wasRunning) {
-    const manager = detectDaemonManager();
-    if (manager === "systemd") {
-      await runCommand("systemctl", ["--user", "daemon-reload"]);
-      await runCommand("systemctl", ["--user", "start", SYSTEMD_UNIT]);
-    } else if (manager === "launchd") {
-      const plistPath = launchdPlistPath();
-      await runCommand("launchctl", ["load", plistPath]);
-    }
-  }
-
-  return {
-    ok: true,
-    message: `Updated ${oldHash.stdout} → ${newHash.stdout}`,
-    previousVersion: oldHash.stdout,
-    newVersion: newHash.stdout,
-  };
+  console.log(`\n✓ Update ${oldHash.stdout} → ${newHash.stdout} in progress.`);
+  console.log("  Binary will be replaced momentarily after this process exits.");
+  Deno.exit(0);
 }
 
 /**
