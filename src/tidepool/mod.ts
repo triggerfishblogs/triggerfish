@@ -17,8 +17,11 @@ export type { ComponentType, A2UIComponent, ComponentTree } from "./components.t
 export { card, table, markdown, layout } from "./components.ts";
 
 // A2UI WebSocket host
-export type { A2UIHost } from "./host.ts";
+export type { A2UIHost, A2UIHostOptions } from "./host.ts";
 export { createA2UIHost } from "./host.ts";
+
+// Tidepool browser chat HTML
+export { TIDEPOOL_HTML } from "./ui.ts";
 
 // A2UI tools (Result-based, component tree)
 export type { TidePoolTools } from "./tools.ts";
