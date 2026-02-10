@@ -96,6 +96,7 @@ export default defineConfig({
             { text: 'Building Skills', link: '/integrations/building-skills' },
             { text: 'Browser Automation', link: '/integrations/browser' },
             { text: 'Webhooks', link: '/integrations/webhooks' },
+            { text: 'GitHub', link: '/integrations/github' },
           ],
         },
       ],
