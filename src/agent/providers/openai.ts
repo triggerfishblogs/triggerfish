@@ -7,7 +7,7 @@
  */
 
 import OpenAI from "openai";
-import type { LlmProvider, LlmMessage, LlmCompletionResult } from "../llm.ts";
+import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
 
 /** Configuration for the OpenAI provider. */
 export interface OpenAiConfig {
@@ -79,6 +79,53 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
           inputTokens: response.usage?.prompt_tokens ?? 0,
           outputTokens: response.usage?.completion_tokens ?? 0,
         },
+      };
+    },
+
+    async *stream(
+      messages: readonly LlmMessage[],
+      _tools: readonly unknown[],
+      options: Record<string, unknown>,
+    ): AsyncIterable<LlmStreamChunk> {
+      const openaiClient = getClient();
+      const signal = options.signal as AbortSignal | undefined;
+
+      const openaiMessages = messages.map((m) => ({
+        role: m.role as "system" | "user" | "assistant",
+        content: typeof m.content === "string"
+          ? m.content
+          : JSON.stringify(m.content),
+      }));
+
+      const stream = await openaiClient.chat.completions.create(
+        {
+          model,
+          max_tokens: maxTokens,
+          messages: openaiMessages,
+          stream: true,
+          stream_options: { include_usage: true },
+        },
+        signal ? { signal } : undefined,
+      );
+
+      let inputTokens = 0;
+      let outputTokens = 0;
+
+      for await (const chunk of stream) {
+        const delta = chunk.choices?.[0]?.delta;
+        if (delta?.content) {
+          yield { text: delta.content, done: false };
+        }
+        if (chunk.usage) {
+          inputTokens = chunk.usage.prompt_tokens ?? 0;
+          outputTokens = chunk.usage.completion_tokens ?? 0;
+        }
+      }
+
+      yield {
+        text: "",
+        done: true,
+        usage: { inputTokens, outputTokens },
       };
     },
   };

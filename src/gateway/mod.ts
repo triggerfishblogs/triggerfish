@@ -26,3 +26,16 @@ export type {
   NotificationPriority,
   NotificationService,
 } from "./notifications.ts";
+
+export { createPriorityRouter } from "./priority_router.ts";
+export type {
+  PriorityRouter,
+  PriorityRouterConfig,
+  RoutingDecision,
+} from "./priority_router.ts";
+
+export { createConfigWatcher } from "./config_watcher.ts";
+export type {
+  ConfigChangeCallback,
+  ConfigWatcher,
+} from "./config_watcher.ts";

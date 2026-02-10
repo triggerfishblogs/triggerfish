@@ -1,5 +1,7 @@
 # Voice Pipeline
 
+<ComingSoon />
+
 Triggerfish supports speech interaction with wake word detection, push-to-talk, and text-to-speech response across macOS, iOS, and Android.
 
 ## Architecture

@@ -7,7 +7,7 @@
  */
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import type { LlmProvider, LlmMessage, LlmCompletionResult } from "../llm.ts";
+import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
 
 /** Configuration for the Google provider. */
 export interface GoogleConfig {
@@ -113,6 +113,81 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
         usage: {
           inputTokens: usageMetadata?.promptTokenCount ?? 0,
           outputTokens: usageMetadata?.candidatesTokenCount ?? 0,
+        },
+      };
+    },
+
+    async *stream(
+      messages: readonly LlmMessage[],
+      _tools: readonly unknown[],
+      options: Record<string, unknown>,
+    ): AsyncIterable<LlmStreamChunk> {
+      const signal = options.signal as AbortSignal | undefined;
+
+      const systemMessage = messages.find((m) => m.role === "system");
+      const systemInstruction = systemMessage
+        ? (typeof systemMessage.content === "string"
+          ? systemMessage.content
+          : JSON.stringify(systemMessage.content))
+        : undefined;
+
+      const modelConfig: Record<string, unknown> = {};
+      if (systemInstruction) {
+        modelConfig.systemInstruction = systemInstruction;
+      }
+
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: { maxOutputTokens: maxTokens },
+        ...modelConfig,
+      });
+
+      const history = messages
+        .filter((m) => m.role !== "system")
+        .slice(0, -1)
+        .map((m) => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{
+            text: typeof m.content === "string"
+              ? m.content
+              : JSON.stringify(m.content),
+          }],
+        }));
+
+      const lastMessage = messages.filter((m) => m.role !== "system").at(-1);
+      const userContent = lastMessage
+        ? (typeof lastMessage.content === "string"
+          ? lastMessage.content
+          : JSON.stringify(lastMessage.content))
+        : "";
+
+      const chat = model.startChat({ history });
+      const streamResult = await chat.sendMessageStream(userContent);
+
+      // Check abort before iterating
+      if (signal?.aborted) {
+        throw new DOMException("Operation cancelled", "AbortError");
+      }
+
+      for await (const chunk of streamResult.stream) {
+        if (signal?.aborted) {
+          throw new DOMException("Operation cancelled", "AbortError");
+        }
+        const text = chunk.text();
+        if (text) {
+          yield { text, done: false };
+        }
+      }
+
+      const finalResponse = await streamResult.response;
+      const meta = finalResponse.usageMetadata;
+
+      yield {
+        text: "",
+        done: true,
+        usage: {
+          inputTokens: meta?.promptTokenCount ?? 0,
+          outputTokens: meta?.candidatesTokenCount ?? 0,
         },
       };
     },

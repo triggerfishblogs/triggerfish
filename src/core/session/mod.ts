@@ -18,3 +18,6 @@ export type {
   LineageTransformation,
 } from "./lineage.ts";
 export { createLineageStore } from "./lineage.ts";
+
+export type { RetentionConfig } from "./retention.ts";
+export { applyRetention } from "./retention.ts";

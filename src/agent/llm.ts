@@ -26,6 +26,16 @@ export interface LlmCompletionResult {
   readonly usage: LlmUsage;
 }
 
+/** A chunk yielded during streaming. */
+export interface LlmStreamChunk {
+  /** Incremental text content (may be empty for non-text chunks). */
+  readonly text: string;
+  /** Whether this is the final chunk. */
+  readonly done: boolean;
+  /** Usage statistics, available on the final chunk. */
+  readonly usage?: LlmUsage;
+}
+
 /**
  * Interface for LLM completion providers.
  *
@@ -43,6 +53,12 @@ export interface LlmProvider {
     tools: readonly unknown[],
     options: Record<string, unknown>,
   ): Promise<LlmCompletionResult>;
+  /** Stream a response from the LLM, yielding incremental chunks. */
+  stream?(
+    messages: readonly LlmMessage[],
+    tools: readonly unknown[],
+    options: Record<string, unknown>,
+  ): AsyncIterable<LlmStreamChunk>;
 }
 
 /**

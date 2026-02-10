@@ -2,13 +2,17 @@
  * Gateway WebSocket Control Plane.
  *
  * Provides a WebSocket server on a configurable port for managing
- * sessions, configuration, channels, and gateway state via JSON-RPC.
+ * sessions, configuration, channels, and gateway state via JSON-RPC 2.0.
  * Also serves webhook HTTP endpoints when a SchedulerService is attached.
  *
  * @module
  */
 
 import type { SchedulerService } from "../scheduler/service.ts";
+import type { EnhancedSessionManager } from "./sessions.ts";
+import type { NotificationService } from "./notifications.ts";
+import type { ClassificationLevel } from "../core/types/classification.ts";
+import type { SessionId, UserId } from "../core/types/session.ts";
 
 /** Options for creating a gateway server. */
 export interface GatewayServerOptions {
@@ -18,6 +22,10 @@ export interface GatewayServerOptions {
   readonly token?: string;
   /** Optional scheduler service for webhook endpoints. */
   readonly schedulerService?: SchedulerService;
+  /** Optional session manager for JSON-RPC session methods. */
+  readonly sessionManager?: EnhancedSessionManager;
+  /** Optional notification service for JSON-RPC notification methods. */
+  readonly notificationService?: NotificationService;
 }
 
 /** Address information returned after server start. */
@@ -32,6 +40,25 @@ export interface GatewayServer {
   start(): Promise<GatewayAddr>;
   /** Stop the server gracefully. */
   stop(): Promise<void>;
+}
+
+/** JSON-RPC 2.0 request. */
+interface JsonRpcRequest {
+  readonly jsonrpc: "2.0";
+  readonly id: number | string;
+  readonly method: string;
+  readonly params?: Record<string, unknown>;
+}
+
+/** JSON-RPC 2.0 response. */
+interface JsonRpcResponse {
+  readonly jsonrpc: "2.0";
+  readonly id: number | string;
+  readonly result?: unknown;
+  readonly error?: {
+    readonly code: number;
+    readonly message: string;
+  };
 }
 
 /**
@@ -78,10 +105,124 @@ async function handleWebhookHttp(
 }
 
 /**
+ * Handle a JSON-RPC 2.0 request.
+ *
+ * Dispatches to the appropriate handler based on the method name.
+ * Returns a JSON-RPC response.
+ */
+async function handleJsonRpc(
+  request: JsonRpcRequest,
+  sessions: EnhancedSessionManager | undefined,
+  notifications: NotificationService | undefined,
+): Promise<JsonRpcResponse> {
+  const id = request.id;
+
+  function success(result: unknown): JsonRpcResponse {
+    return { jsonrpc: "2.0", id, result };
+  }
+
+  function error(code: number, message: string): JsonRpcResponse {
+    return { jsonrpc: "2.0", id, error: { code, message } };
+  }
+
+  try {
+    const params = request.params ?? {};
+
+    switch (request.method) {
+      // --- Session methods ---
+      case "sessions.list": {
+        if (!sessions) return error(-32601, "Session manager not configured");
+        const list = await sessions.sessionsList(params.filter as undefined);
+        return success(list);
+      }
+
+      case "sessions.get": {
+        if (!sessions) return error(-32601, "Session manager not configured");
+        const sessionId = params.id as string;
+        if (!sessionId) return error(-32602, "Missing required param: id");
+        const session = await sessions.get(sessionId as SessionId);
+        if (!session) return error(-32602, `Session not found: ${sessionId}`);
+        return success(session);
+      }
+
+      case "sessions.create": {
+        if (!sessions) return error(-32601, "Session manager not configured");
+        const userId = params.userId as string;
+        const channelId = params.channelId as string;
+        if (!userId || !channelId) {
+          return error(-32602, "Missing required params: userId, channelId");
+        }
+        const created = await sessions.create({
+          userId: userId as UserId,
+          channelId: channelId as SessionId,
+        });
+        return success(created);
+      }
+
+      case "sessions.send": {
+        if (!sessions) return error(-32601, "Session manager not configured");
+        const fromId = params.fromId as string;
+        const toId = params.toId as string;
+        const content = params.content as string;
+        const targetClassification = params.targetClassification as ClassificationLevel;
+        if (!fromId || !toId || !content || !targetClassification) {
+          return error(-32602, "Missing required params: fromId, toId, content, targetClassification");
+        }
+        const sendResult = await sessions.sessionsSend(
+          fromId as SessionId,
+          toId as SessionId,
+          content,
+          targetClassification,
+        );
+        if (sendResult.ok) {
+          return success({ delivered: true });
+        }
+        return error(-32000, sendResult.error);
+      }
+
+      case "sessions.spawn": {
+        if (!sessions) return error(-32601, "Session manager not configured");
+        const parentId = params.parentId as string;
+        const task = params.task as string;
+        if (!parentId) return error(-32602, "Missing required param: parentId");
+        const spawned = await sessions.sessionsSpawn(
+          parentId as SessionId,
+          task ?? "background",
+        );
+        return success(spawned);
+      }
+
+      // --- Notification methods ---
+      case "notifications.list": {
+        if (!notifications) return error(-32601, "Notification service not configured");
+        const nUserId = params.userId as string;
+        if (!nUserId) return error(-32602, "Missing required param: userId");
+        const pending = await notifications.getPending(nUserId as UserId);
+        return success(pending);
+      }
+
+      case "notifications.acknowledge": {
+        if (!notifications) return error(-32601, "Notification service not configured");
+        const notifId = params.notificationId as string;
+        if (!notifId) return error(-32602, "Missing required param: notificationId");
+        await notifications.acknowledge(notifId);
+        return success({ acknowledged: true });
+      }
+
+      default:
+        return error(-32601, `Method not found: ${request.method}`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return error(-32603, msg);
+  }
+}
+
+/**
  * Create a Gateway WebSocket server.
  *
  * The server listens on the configured port (default 18789) and
- * accepts JSON-RPC messages over WebSocket connections. When a
+ * accepts JSON-RPC 2.0 messages over WebSocket connections. When a
  * SchedulerService is provided, POST /webhooks/:sourceId routes
  * are served for inbound webhook events.
  */
@@ -90,6 +231,8 @@ export function createGatewayServer(
 ): GatewayServer {
   const port = options?.port ?? 18789;
   const schedulerService = options?.schedulerService;
+  const sessionManager = options?.sessionManager;
+  const notificationService = options?.notificationService;
   let server: Deno.HttpServer | null = null;
   let resolvedAddr: GatewayAddr | null = null;
 
@@ -111,8 +254,35 @@ export function createGatewayServer(
           if (request.headers.get("upgrade") === "websocket") {
             const { socket, response } = Deno.upgradeWebSocket(request);
 
-            socket.addEventListener("message", (_event: MessageEvent) => {
-              // JSON-RPC message handling will be expanded
+            socket.addEventListener("message", async (event: MessageEvent) => {
+              try {
+                const data = typeof event.data === "string"
+                  ? event.data
+                  : new TextDecoder().decode(event.data as ArrayBuffer);
+                const rpcRequest = JSON.parse(data) as JsonRpcRequest;
+
+                if (rpcRequest.jsonrpc !== "2.0" || !rpcRequest.method) {
+                  socket.send(JSON.stringify({
+                    jsonrpc: "2.0",
+                    id: rpcRequest.id ?? null,
+                    error: { code: -32600, message: "Invalid JSON-RPC request" },
+                  }));
+                  return;
+                }
+
+                const rpcResponse = await handleJsonRpc(
+                  rpcRequest,
+                  sessionManager,
+                  notificationService,
+                );
+                socket.send(JSON.stringify(rpcResponse));
+              } catch {
+                socket.send(JSON.stringify({
+                  jsonrpc: "2.0",
+                  id: null,
+                  error: { code: -32700, message: "Parse error" },
+                }));
+              }
             });
 
             return response;

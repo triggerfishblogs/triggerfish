@@ -9,7 +9,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resources/messages.js";
-import type { LlmProvider, LlmMessage, LlmCompletionResult } from "../llm.ts";
+import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
 
 /** Configuration for the Anthropic provider. */
 export interface AnthropicConfig {
@@ -160,6 +160,76 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
         usage: {
           inputTokens: response.usage.input_tokens,
           outputTokens: response.usage.output_tokens,
+        },
+      };
+    },
+
+    async *stream(
+      messages: readonly LlmMessage[],
+      _tools: readonly unknown[],
+      options: Record<string, unknown>,
+    ): AsyncIterable<LlmStreamChunk> {
+      const anthropicClient = getClient();
+      const signal = options.signal as AbortSignal | undefined;
+
+      const systemMessage = messages.find((m) => m.role === "system");
+      const userSystemPrompt = systemMessage
+        ? (typeof systemMessage.content === "string"
+          ? systemMessage.content
+          : JSON.stringify(systemMessage.content))
+        : undefined;
+
+      const anthropicMessages = messages
+        .filter((m) => m.role !== "system")
+        .map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content as string | Array<Record<string, unknown>>,
+        }));
+
+      let systemParam: unknown;
+      if (usingOAuth) {
+        const systemBlocks: { type: string; text: string; cache_control: { type: string } }[] = [
+          {
+            type: "text",
+            text: "You are Claude Code, Anthropic's official CLI for Claude.",
+            cache_control: { type: "ephemeral" },
+          },
+        ];
+        if (userSystemPrompt) {
+          systemBlocks.push({
+            type: "text",
+            text: userSystemPrompt,
+            cache_control: { type: "ephemeral" },
+          });
+        }
+        systemParam = systemBlocks;
+      } else {
+        systemParam = userSystemPrompt;
+      }
+
+      const stream = anthropicClient.messages.stream({
+        model,
+        max_tokens: maxTokens,
+        messages: anthropicMessages,
+        ...(systemParam ? { system: systemParam as MessageCreateParamsNonStreaming["system"] } : {}),
+      }, signal ? { signal } : undefined);
+
+      for await (const event of stream) {
+        if (event.type === "content_block_delta" && "delta" in event) {
+          const delta = event.delta as { type: string; text?: string };
+          if (delta.type === "text_delta" && delta.text) {
+            yield { text: delta.text, done: false };
+          }
+        }
+      }
+
+      const finalMessage = await stream.finalMessage();
+      yield {
+        text: "",
+        done: true,
+        usage: {
+          inputTokens: finalMessage.usage.input_tokens,
+          outputTokens: finalMessage.usage.output_tokens,
         },
       };
     },

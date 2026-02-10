@@ -154,7 +154,7 @@ In enterprise deployments, additional controls apply to self-authored skills:
 - Network endpoint declarations are audited
 - All self-authored skills are logged for compliance review
 
-## The Reef
+## The Reef <ComingSoon :inline="true" />
 
 The Reef is Triggerfish's community skill marketplace -- a registry where you can discover, install, publish, and share skills.
 
