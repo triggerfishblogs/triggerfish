@@ -219,15 +219,29 @@ voice:
 # ---------------------------------------------------------------------------
 webhooks:
   endpoints:
-    - id: github-events
+    - id: github
       path: /webhook/github
       secret: "${GITHUB_WEBHOOK_SECRET}"
       classification: INTERNAL
       actions:
         - event: "pull_request.opened"
           task: "Review PR and post summary"
+        - event: "pull_request_review"
+          task: "A PR review was submitted. Read tracking file, address feedback, commit, push."
+        - event: "pull_request_review_comment"
+          task: "An inline review comment was posted. Read tracking file, address comment."
+        - event: "issue_comment"
+          task: "A comment was posted on a PR. If tracked, address feedback."
+        - event: "pull_request.closed"
+          task: "PR closed or merged. Clean up branches and archive tracking file."
         - event: "issues.opened"
           task: "Triage new issue"
+
+# ---------------------------------------------------------------------------
+# GitHub: GitHub integration settings (optional)
+# ---------------------------------------------------------------------------
+github:
+  auto_merge: false              # Default: false. Set true to auto-merge approved PRs.
 
 # ---------------------------------------------------------------------------
 # Groups: Group chat behavior (optional)
@@ -294,3 +308,11 @@ Cron job definitions and trigger timing. See [Cron and Triggers](/features/cron-
 ### `notifications`
 
 Notification delivery preferences. See [Notifications](/features/notifications) for details.
+
+### `github`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `auto_merge` | boolean | `false` | When `true`, the agent auto-merges PRs after receiving an approving review. When `false` (default), the agent notifies the owner and waits for an explicit merge instruction. |
+
+See the [GitHub Integration](/integrations/github) guide for full setup instructions.

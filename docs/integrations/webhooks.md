@@ -196,6 +196,52 @@ webhooks:
 | Audit logging | Complete event lifecycle recorded |
 | Not publicly exposed | Webhook endpoints are not exposed to the public internet by default |
 
+## Example: GitHub PR Review Loop
+
+A powerful real-world example of webhooks in action: the agent opens a PR, then GitHub webhook events drive the code review feedback loop without any polling.
+
+### How It Works
+
+1. The agent creates a feature branch, commits code, and opens a PR via `gh pr create`
+2. The agent writes a tracking file to `~/.triggerfish/workspace/<agent-id>/scratch/pr-tracking/` with the branch name, PR number, and task context
+3. The agent stops and waits -- no polling
+
+When a reviewer posts feedback:
+
+4. GitHub sends a `pull_request_review` webhook to Triggerfish
+5. Triggerfish verifies the HMAC signature, classifies the event, and spawns an isolated session
+6. The agent reads the tracking file to recover context, checks out the branch, addresses the review, commits, pushes, and comments on the PR
+7. Steps 4-6 repeat until the review is approved
+
+When the PR is merged:
+
+8. GitHub sends a `pull_request.closed` webhook with `merged: true`
+9. The agent cleans up: deletes the local branch, archives the tracking file
+
+### Configuration
+
+```yaml
+webhooks:
+  endpoints:
+    - id: github
+      path: /webhook/github
+      secret: "${GITHUB_WEBHOOK_SECRET}"
+      classification: INTERNAL
+      actions:
+        - event: "pull_request_review"
+          task: "A PR review was submitted. Read the tracking file, address feedback, commit, push."
+        - event: "pull_request_review_comment"
+          task: "An inline review comment was posted. Read the tracking file, address the comment."
+        - event: "issue_comment"
+          task: "A comment was posted on a PR. If tracked, address the feedback."
+        - event: "pull_request.closed"
+          task: "A PR was closed or merged. Clean up branches and archive tracking file."
+```
+
+The GitHub webhook must send: `Pull requests`, `Pull request reviews`, `Pull request review comments`, and `Issue comments`.
+
+See the full [GitHub Integration](/integrations/github) guide for setup instructions and the `git-branch-management` bundled skill for the complete agent workflow.
+
 ### Enterprise Controls
 
 - **Webhook allowlist** managed by admin -- only approved external sources can register endpoints

@@ -14,6 +14,7 @@ Triggerfish offers five distinct ways to extend the platform. Each serves a diff
 | [Skills](./skills) | Give the agent new capabilities via instructions | Reusable behaviors, community marketplace, agent self-authoring |
 | [Browser Automation](./browser) | Control a browser instance via CDP | Web research, form filling, scraping, automated web workflows |
 | [Webhooks](./webhooks) | Receive inbound events from external services | Real-time reactions to emails, alerts, CI/CD events, calendar changes |
+| [GitHub](./github) | Full GitHub workflow integration | PR review loops, issue triage, branch management via webhooks + exec + skills |
 
 ## Security Model
 
