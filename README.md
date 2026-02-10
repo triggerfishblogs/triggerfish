@@ -173,8 +173,8 @@ Switch between providers or configure failover chains.
 | 🎯 **Skill** | A folder with `SKILL.md` that gives the agent new capabilities |
 | ⏰ **Trigger** | Periodic agent wakeup for proactive autonomous behavior |
 | 🏖️ **Tide Pool** | Visual workspace rendered via Agent-to-UI protocol |
-| 🪸 **The Reef** | Skill marketplace for discovering, installing, and publishing skills |
-| 🛟 **Buoy** | Companion app providing device capabilities (camera, location, etc.) |
+| 🪸 **The Reef** | Skill marketplace for discovering, installing, and publishing skills *(coming soon)* |
+| 🛟 **Buoy** | Companion app providing device capabilities (camera, location, etc.) *(coming soon)* |
 
 ---
 
