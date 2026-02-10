@@ -117,9 +117,36 @@ export function createTodoManager(options: TodoManagerOptions): TodoManager {
       const validated = todos
         .map(validateTodoItem)
         .filter((item): item is TodoItem => item !== null);
-      const list: TodoList = { todos: validated };
-      await storage.set(key, JSON.stringify(list));
-      return list;
+
+      // Auto-preserve: any previously-stored items whose IDs are absent
+      // from the incoming write get kept as completed. This means the LLM
+      // can freely drop finished items — the tool tracks history for display.
+      const oldRaw = await storage.get(key);
+      let preserved: readonly TodoItem[] = [];
+      if (oldRaw !== null) {
+        try {
+          const parsed = JSON.parse(oldRaw);
+          if (Array.isArray(parsed.todos)) {
+            const oldItems = parsed.todos
+              .map(validateTodoItem)
+              .filter((item: TodoItem | null): item is TodoItem => item !== null);
+            const newIds = new Set(validated.map((t) => t.id));
+            preserved = oldItems
+              .filter((old: TodoItem) => !newIds.has(old.id))
+              .map((old: TodoItem): TodoItem => ({
+                ...old,
+                status: "completed" as TodoStatus,
+                updated_at: new Date().toISOString(),
+              }));
+          }
+        } catch {
+          // corrupted storage — skip preservation
+        }
+      }
+
+      const merged: TodoList = { todos: [...preserved, ...validated] };
+      await storage.set(key, JSON.stringify(merged));
+      return merged;
     },
   };
 }
@@ -176,19 +203,131 @@ export function createTodoToolExecutor(
           return "Error: todo_write requires a 'todos' argument (array).";
         }
         const list = await manager.write(rawTodos as readonly TodoItem[]);
-        const counts = {
-          total: list.todos.length,
-          pending: list.todos.filter((t) => t.status === "pending").length,
-          in_progress: list.todos.filter((t) => t.status === "in_progress").length,
-          completed: list.todos.filter((t) => t.status === "completed").length,
-        };
-        return `Updated todo list: ${counts.total} items (${counts.pending} pending, ${counts.in_progress} in progress, ${counts.completed} completed)`;
+        return JSON.stringify(list, null, 2);
       }
 
       default:
         return null;
     }
   };
+}
+
+// ─── ANSI escape codes (duplicated from chat_ui to avoid circular deps) ───
+
+const RESET = "\x1b[0m";
+const BOLD = "\x1b[1m";
+const DIM = "\x1b[2m";
+const STRIKETHROUGH = "\x1b[9m";
+const YELLOW = "\x1b[33m";
+const GREEN = "\x1b[32m";
+const CYAN = "\x1b[36m";
+
+/** Strip ANSI escape sequences to get visible character count. */
+function visibleLength(s: string): number {
+  // deno-lint-ignore no-control-regex
+  return s.replace(/\x1b\[[0-9;]*m/g, "").length;
+}
+
+/**
+ * Format a todo list as ANSI-styled text for CLI display inside a box.
+ *
+ * - Completed items: ✓ with strikethrough + dim
+ * - In-progress items: ▶ bold + yellow (highlighted)
+ * - Pending items: ○ normal
+ */
+export function formatTodoListAnsi(todos: readonly TodoItem[]): string {
+  if (todos.length === 0) {
+    return `  ${DIM}╭─ 📋 No tasks ─╮${RESET}\n  ${DIM}╰────────────────╯${RESET}`;
+  }
+
+  // Build content lines (without box borders yet)
+  const header = `📋 Tasks`;
+  const contentLines: string[] = [];
+  for (const todo of todos) {
+    switch (todo.status) {
+      case "completed":
+        contentLines.push(`${DIM}${GREEN}✓${RESET} ${DIM}${STRIKETHROUGH}${todo.content}${RESET}`);
+        break;
+      case "in_progress":
+        contentLines.push(`${YELLOW}${BOLD}▶${RESET} ${BOLD}${todo.content}${RESET}`);
+        break;
+      case "pending":
+        contentLines.push(`${DIM}○${RESET} ${todo.content}`);
+        break;
+    }
+  }
+
+  // Calculate box width from the widest visible line
+  const allVisible = [header, ...contentLines];
+  const maxWidth = Math.max(...allVisible.map(visibleLength));
+  const boxInner = Math.max(maxWidth + 2, 20); // +2 for padding
+
+  // Build box
+  const lines: string[] = [];
+  const headerVis = visibleLength(header);
+  const dashesAfter = boxInner - headerVis - 3; // 3 = "─ " before + " " after
+  lines.push(`  ${CYAN}╭─ ${RESET}${header}${CYAN} ${"─".repeat(Math.max(dashesAfter, 1))}╮${RESET}`);
+  for (const line of contentLines) {
+    const pad = boxInner - visibleLength(line) - 2; // 2 for "│ " prefix spacing inside
+    lines.push(`  ${CYAN}│${RESET} ${line}${" ".repeat(Math.max(pad, 0))} ${CYAN}│${RESET}`);
+  }
+  lines.push(`  ${CYAN}╰${"─".repeat(boxInner)}╯${RESET}`);
+  return lines.join("\n");
+}
+
+/**
+ * Format a todo list as HTML for the Tidepool web client.
+ *
+ * Returns a styled div with completed/active/pending items.
+ */
+export function formatTodoListHtml(todos: readonly TodoItem[]): string {
+  if (todos.length === 0) {
+    return '<div class="todo-list"><span class="todo-empty">📋 No tasks</span></div>';
+  }
+  const items = todos.map((todo) => {
+    switch (todo.status) {
+      case "completed":
+        return `<div class="todo-item todo-done"><span class="todo-check">✓</span> <s>${escapeHtml(todo.content)}</s></div>`;
+      case "in_progress":
+        return `<div class="todo-item todo-active"><span class="todo-arrow">▶</span> ${escapeHtml(todo.content)}</div>`;
+      case "pending":
+        return `<div class="todo-item todo-pending"><span class="todo-circle">○</span> ${escapeHtml(todo.content)}</div>`;
+    }
+  }).join("");
+  return `<div class="todo-list"><div class="todo-header">📋 Tasks</div>${items}</div>`;
+}
+
+/** HTML-escape a string. */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/**
+ * Extract TodoItem[] from a tool_call args object or a tool_result JSON string.
+ *
+ * Returns the items if parseable, or null otherwise.
+ */
+export function extractTodosFromEvent(
+  toolName: string,
+  data: { args?: Record<string, unknown>; result?: string },
+): readonly TodoItem[] | null {
+  if (toolName !== "todo_read" && toolName !== "todo_write") return null;
+
+  // Both todo_read and todo_write now return JSON — parse the result first.
+  if (data.result) {
+    try {
+      const parsed = JSON.parse(data.result);
+      if (parsed.todos && Array.isArray(parsed.todos)) {
+        const validated = (parsed.todos as unknown[])
+          .map(validateTodoItem)
+          .filter((t): t is TodoItem => t !== null);
+        if (validated.length > 0) return validated;
+      }
+    } catch {
+      // not JSON — e.g. "No todos" message
+    }
+  }
+  return null;
 }
 
 /**

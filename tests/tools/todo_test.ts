@@ -10,6 +10,9 @@ import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import {
   createTodoManager,
   createTodoToolExecutor,
+  extractTodosFromEvent,
+  formatTodoListAnsi,
+  formatTodoListHtml,
   getTodoToolDefinitions,
   TODO_SYSTEM_PROMPT,
 } from "../../src/tools/mod.ts";
@@ -62,7 +65,7 @@ Deno.test("TodoManager: write and read round-trip", async () => {
   await storage.close();
 });
 
-Deno.test("TodoManager: write replaces entire list (not merge)", async () => {
+Deno.test("TodoManager: write preserves dropped items as completed", async () => {
   const storage = createMemoryStorage();
   const manager = createTodoManager({ storage, agentId: "agent-1" });
 
@@ -72,28 +75,37 @@ Deno.test("TodoManager: write replaces entire list (not merge)", async () => {
     makeTodo({ id: "t2", content: "Another task" }),
   ]);
 
-  // Replace with completely different list
+  // Replace — dropped items (t1, t2) auto-preserved as completed
   await manager.write([
     makeTodo({ id: "t3", content: "Replacement task" }),
   ]);
 
   const list = await manager.read();
-  assertEquals(list.todos.length, 1);
-  assertEquals(list.todos[0].id, "t3");
-  assertEquals(list.todos[0].content, "Replacement task");
+  assertEquals(list.todos.length, 3);
+  // Preserved items come first, then new ones
+  assertEquals(list.todos[0].id, "t1");
+  assertEquals(list.todos[0].status, "completed");
+  assertEquals(list.todos[1].id, "t2");
+  assertEquals(list.todos[1].status, "completed");
+  assertEquals(list.todos[2].id, "t3");
+  assertEquals(list.todos[2].content, "Replacement task");
 
   await storage.close();
 });
 
-Deno.test("TodoManager: write empty list clears all todos", async () => {
+Deno.test("TodoManager: write empty list preserves old items as completed", async () => {
   const storage = createMemoryStorage();
   const manager = createTodoManager({ storage, agentId: "agent-1" });
 
-  await manager.write([makeTodo()]);
+  await manager.write([makeTodo({ id: "t1", content: "Task" })]);
   assertEquals((await manager.read()).todos.length, 1);
 
+  // Writing empty list — old item preserved as completed
   await manager.write([]);
-  assertEquals((await manager.read()).todos.length, 0);
+  const list = await manager.read();
+  assertEquals(list.todos.length, 1);
+  assertEquals(list.todos[0].id, "t1");
+  assertEquals(list.todos[0].status, "completed");
 
   await storage.close();
 });
@@ -201,7 +213,7 @@ Deno.test("TodoToolExecutor: todo_read returns empty message", async () => {
   await storage.close();
 });
 
-Deno.test("TodoToolExecutor: todo_write + todo_read round-trip", async () => {
+Deno.test("TodoToolExecutor: todo_write returns JSON of merged list", async () => {
   const storage = createMemoryStorage();
   const manager = createTodoManager({ storage, agentId: "agent-1" });
   const executor = createTodoToolExecutor(manager);
@@ -214,15 +226,15 @@ Deno.test("TodoToolExecutor: todo_write + todo_read round-trip", async () => {
   });
 
   assert(typeof writeResult === "string");
-  assert(writeResult!.includes("2 items"));
-  assert(writeResult!.includes("1 in progress"));
-  assert(writeResult!.includes("1 pending"));
-
-  const readResult = await executor("todo_read", {});
-  assert(typeof readResult === "string");
-  const parsed = JSON.parse(readResult!);
+  const parsed = JSON.parse(writeResult!);
   assertEquals(parsed.todos.length, 2);
   assertEquals(parsed.todos[0].content, "Write code");
+  assertEquals(parsed.todos[1].content, "Run tests");
+
+  // Read should match
+  const readResult = await executor("todo_read", {});
+  const readParsed = JSON.parse(readResult!);
+  assertEquals(readParsed.todos.length, 2);
 
   await storage.close();
 });
@@ -274,4 +286,140 @@ Deno.test("TODO_SYSTEM_PROMPT: contains key instructions", () => {
   assert(TODO_SYSTEM_PROMPT.includes("todo_write"));
   assert(TODO_SYSTEM_PROMPT.includes("in_progress"));
   assert(TODO_SYSTEM_PROMPT.includes("completed"));
+});
+
+// ─── ANSI formatter ─────────────────────────────────────────────
+
+Deno.test("formatTodoListAnsi: renders empty list in a box", () => {
+  const result = formatTodoListAnsi([]);
+  assert(result.includes("No tasks"));
+  assert(result.includes("╭"));
+  assert(result.includes("╯"));
+});
+
+Deno.test("formatTodoListAnsi: renders completed items with strikethrough", () => {
+  const result = formatTodoListAnsi([
+    makeTodo({ id: "t1", content: "Done task", status: "completed" }),
+  ]);
+  assert(result.includes("✓"));
+  assert(result.includes("Done task"));
+  // Should contain ANSI strikethrough code \x1b[9m
+  assert(result.includes("\x1b[9m"));
+});
+
+Deno.test("formatTodoListAnsi: renders in_progress items highlighted", () => {
+  const result = formatTodoListAnsi([
+    makeTodo({ id: "t1", content: "Working on it", status: "in_progress" }),
+  ]);
+  assert(result.includes("▶"));
+  assert(result.includes("Working on it"));
+  // Should contain ANSI bold code \x1b[1m
+  assert(result.includes("\x1b[1m"));
+});
+
+Deno.test("formatTodoListAnsi: renders pending items", () => {
+  const result = formatTodoListAnsi([
+    makeTodo({ id: "t1", content: "Future task", status: "pending" }),
+  ]);
+  assert(result.includes("○"));
+  assert(result.includes("Future task"));
+});
+
+Deno.test("formatTodoListAnsi: mixed statuses render correctly in a box", () => {
+  const result = formatTodoListAnsi([
+    makeTodo({ id: "t1", content: "First", status: "completed" }),
+    makeTodo({ id: "t2", content: "Second", status: "in_progress" }),
+    makeTodo({ id: "t3", content: "Third", status: "pending" }),
+  ]);
+  // Header and box borders
+  assert(result.includes("Tasks"));
+  assert(result.includes("╭"));
+  assert(result.includes("│"));
+  assert(result.includes("╰"));
+  assert(result.includes("╯"));
+  // Status icons
+  assert(result.includes("✓"));
+  assert(result.includes("▶"));
+  assert(result.includes("○"));
+  // Content
+  assert(result.includes("First"));
+  assert(result.includes("Second"));
+  assert(result.includes("Third"));
+});
+
+// ─── HTML formatter ─────────────────────────────────────────────
+
+Deno.test("formatTodoListHtml: renders empty list", () => {
+  const result = formatTodoListHtml([]);
+  assert(result.includes("todo-empty"));
+  assert(result.includes("No tasks"));
+});
+
+Deno.test("formatTodoListHtml: renders completed items with strikethrough", () => {
+  const result = formatTodoListHtml([
+    makeTodo({ id: "t1", content: "Done task", status: "completed" }),
+  ]);
+  assert(result.includes("todo-done"));
+  assert(result.includes("<s>Done task</s>"));
+  assert(result.includes("✓"));
+});
+
+Deno.test("formatTodoListHtml: renders in_progress items as active", () => {
+  const result = formatTodoListHtml([
+    makeTodo({ id: "t1", content: "Active task", status: "in_progress" }),
+  ]);
+  assert(result.includes("todo-active"));
+  assert(result.includes("▶"));
+  assert(result.includes("Active task"));
+});
+
+Deno.test("formatTodoListHtml: escapes HTML in content", () => {
+  const result = formatTodoListHtml([
+    makeTodo({ id: "t1", content: "<script>alert('xss')</script>", status: "pending" }),
+  ]);
+  assert(!result.includes("<script>"));
+  assert(result.includes("&lt;script&gt;"));
+});
+
+// ─── extractTodosFromEvent ──────────────────────────────────────
+
+Deno.test("extractTodosFromEvent: extracts from todo_write result JSON", () => {
+  const jsonResult = JSON.stringify({
+    todos: [
+      makeTodo({ id: "t1", content: "Task A", status: "pending" }),
+      makeTodo({ id: "t2", content: "Task B", status: "in_progress" }),
+    ],
+  });
+  const todos = extractTodosFromEvent("todo_write", { result: jsonResult });
+  assert(todos !== null);
+  assertEquals(todos!.length, 2);
+  assertEquals(todos![0].content, "Task A");
+  assertEquals(todos![1].status, "in_progress");
+});
+
+Deno.test("extractTodosFromEvent: extracts from todo_read result JSON", () => {
+  const jsonResult = JSON.stringify({
+    todos: [
+      makeTodo({ id: "t1", content: "Read task", status: "completed" }),
+    ],
+  });
+  const todos = extractTodosFromEvent("todo_read", { result: jsonResult });
+  assert(todos !== null);
+  assertEquals(todos!.length, 1);
+  assertEquals(todos![0].content, "Read task");
+});
+
+Deno.test("extractTodosFromEvent: returns null for todo_read with no-todos message", () => {
+  const todos = extractTodosFromEvent("todo_read", {
+    result: "No todos. Use todo_write to create your task list.",
+  });
+  assertEquals(todos, null);
+});
+
+Deno.test("extractTodosFromEvent: returns null for non-todo tools", () => {
+  const todos = extractTodosFromEvent("read_file", {
+    args: { path: "/etc/passwd" },
+    result: "file contents",
+  });
+  assertEquals(todos, null);
 });

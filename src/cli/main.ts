@@ -674,6 +674,7 @@ async function runDaemonStart(): Promise<void> {
 
   if (result.ok) {
     console.log("✓", result.message);
+    console.log(`\n  Tidepool: http://127.0.0.1:18790`);
     console.log("\nRun 'triggerfish status' to verify.");
     console.log("Run 'triggerfish logs --tail' to follow output.\n");
   } else {
@@ -1051,6 +1052,24 @@ async function runChat(): Promise<void> {
 
   // State tracking
   const state = { isProcessing: false };
+  const messageQueue: string[] = [];
+
+  /** Send the next queued message (if any). */
+  function drainQueue(): void {
+    if (messageQueue.length === 0) return;
+    const next = messageQueue.shift()!;
+    screen.writeOutput(`  ${"\x1b[36m"}\x1b[1m❯\x1b[0m ${next}`);
+    screen.writeOutput(`  \x1b[2m(queued)\x1b[0m`);
+    screen.writeOutput("");
+    state.isProcessing = true;
+    try {
+      ws.send(JSON.stringify({ type: "message", content: next }));
+    } catch {
+      screen.writeOutput(formatError("Lost connection to daemon"));
+      state.isProcessing = false;
+      screen.redrawInput(editor);
+    }
+  }
 
   // Route incoming WebSocket events to the event handler
   ws.addEventListener("message", (event: MessageEvent) => {
@@ -1077,6 +1096,7 @@ async function runChat(): Promise<void> {
           renderPrompt();
         }
         state.isProcessing = false;
+        drainQueue();
         return;
       }
 
@@ -1090,6 +1110,7 @@ async function runChat(): Promise<void> {
         } else {
           renderPrompt();
         }
+        drainQueue();
         return;
       }
 
@@ -1177,18 +1198,43 @@ async function runChat(): Promise<void> {
   // Start reading keypresses
   keypressReader.start();
 
+  let lastCtrlCTime = 0;
+
   for await (const keypress of keypressReader) {
-    // ─── Processing mode: only ESC and Ctrl+C are active ────
-    if (state.isProcessing) {
-      if (keypress.key === "esc" || keypress.key === "ctrl+c") {
+    // ─── Interrupt keys (work in any mode) ──────────────────
+    if (keypress.key === "esc" && state.isProcessing) {
+      try { ws.send(JSON.stringify({ type: "cancel" })); } catch { /* ignore */ }
+      screen.writeOutput(`  \x1b[33m⚠ Interrupted\x1b[0m`);
+      continue;
+    }
+
+    if (keypress.key === "ctrl+c") {
+      if (state.isProcessing) {
+        const now = Date.now();
+        if (now - lastCtrlCTime < 1000) {
+          cleanup();
+          return;
+        }
+        lastCtrlCTime = now;
         try { ws.send(JSON.stringify({ type: "cancel" })); } catch { /* ignore */ }
-        screen.writeOutput(`  \x1b[33m⚠ Interrupted\x1b[0m`);
+        screen.writeOutput(`  \x1b[33m⚠ Interrupted (Ctrl+C again to exit)\x1b[0m`);
+      } else {
+        cleanup();
+        return;
       }
       continue;
     }
 
-    // ─── Idle mode: full input handling ─────────────────────
+    // ─── Input handling (works in both idle and processing) ─
     switch (keypress.key) {
+      case "shift+enter": {
+        // Insert newline for multi-line input
+        editor = editor.insert("\n");
+        editor = editor.setSuggestion("");
+        screen.redrawInput(editor);
+        break;
+      }
+
       case "enter": {
         const text = editor.text.trim();
 
@@ -1197,7 +1243,10 @@ async function runChat(): Promise<void> {
         }
 
         // Echo the submitted text into the output region
-        screen.writeOutput(`  \x1b[36m\x1b[1m❯\x1b[0m ${text}`);
+        const displayText = text.includes("\n")
+          ? text.split("\n").join(`\n  ${"\x1b[2m"}·\x1b[0m `)
+          : text;
+        screen.writeOutput(`  \x1b[36m\x1b[1m❯\x1b[0m ${displayText}`);
         screen.writeOutput("");
 
         // Add to history and save
@@ -1210,58 +1259,65 @@ async function runChat(): Promise<void> {
         screen.redrawInput(editor);
         stashedInput = "";
 
-        // Handle slash commands locally
-        if (text === "/quit" || text === "/exit" || text === "/q") {
-          screen.writeOutput("  Goodbye.");
-          cleanup();
-          return;
-        }
+        // Handle slash commands locally (only in idle mode)
+        if (!state.isProcessing) {
+          if (text === "/quit" || text === "/exit" || text === "/q") {
+            screen.writeOutput("  Goodbye.");
+            cleanup();
+            return;
+          }
 
-        if (text === "/clear") {
-          screen.cleanup();
-          screen.init();
-          screen.writeOutput(formatBanner(providerName, config.models.primary, ""));
-          screen.redrawInput(editor);
-          break;
-        }
+          if (text === "/clear") {
+            screen.cleanup();
+            screen.init();
+            screen.writeOutput(formatBanner(providerName, config.models.primary, ""));
+            screen.redrawInput(editor);
+            break;
+          }
 
-        if (text === "/help") {
-          screen.writeOutput(
-            "  Commands:\n" +
-            "    /quit, /exit, /q  — Exit chat\n" +
-            "    /clear            — Clear screen\n" +
-            "    /compact          — Summarize conversation history\n" +
-            "    /verbose          — Toggle tool display detail\n" +
-            "    /help             — Show this help\n" +
-            "    Ctrl+O            — Toggle tool display mode\n" +
-            "    ESC               — Interrupt current operation\n" +
-            "    Up/Down           — Navigate input history\n" +
-            "    Tab               — Accept suggestion",
-          );
-          break;
-        }
+          if (text === "/help") {
+            screen.writeOutput(
+              "  Commands:\n" +
+              "    /quit, /exit, /q     — Exit chat\n" +
+              "    /clear               — Clear screen\n" +
+              "    /compact             — Summarize conversation history\n" +
+              "    /verbose             — Toggle tool display detail\n" +
+              "    /help                — Show this help\n" +
+              "    Ctrl+O               — Toggle tool display mode\n" +
+              "    ESC                  — Interrupt current operation\n" +
+              "    Shift+Enter          — New line in message\n" +
+              "    Up/Down              — Navigate input history\n" +
+              "    Tab                  — Accept suggestion",
+            );
+            break;
+          }
 
-        if (text === "/verbose") {
-          displayMode = displayMode === "compact" ? "expanded" : "compact";
-          screen.writeOutput(`  Tool display: ${displayMode}`);
-          break;
-        }
+          if (text === "/verbose") {
+            displayMode = displayMode === "compact" ? "expanded" : "compact";
+            screen.writeOutput(`  Tool display: ${displayMode}`);
+            break;
+          }
 
-        if (text === "/compact") {
-          screen.writeOutput("  Compacting conversation history...");
-          screen.writeOutput("  History will be compacted on next message.");
-          break;
-        }
+          if (text === "/compact") {
+            screen.writeOutput("  Compacting conversation history...");
+            screen.writeOutput("  History will be compacted on next message.");
+            break;
+          }
 
-        // Send message to daemon via WebSocket
-        state.isProcessing = true;
-        try {
-          ws.send(JSON.stringify({ type: "message", content: text }));
-        } catch {
-          screen.writeOutput(formatError("Lost connection to daemon"));
-          state.isProcessing = false;
-          screen.writeOutput("");
-          screen.redrawInput(editor);
+          // Send message to daemon via WebSocket
+          state.isProcessing = true;
+          try {
+            ws.send(JSON.stringify({ type: "message", content: text }));
+          } catch {
+            screen.writeOutput(formatError("Lost connection to daemon"));
+            state.isProcessing = false;
+            screen.writeOutput("");
+            screen.redrawInput(editor);
+          }
+        } else {
+          // Processing mode — queue the message
+          messageQueue.push(text);
+          screen.writeOutput(`  \x1b[2m(queued — will send after current response)\x1b[0m`);
         }
 
         break;
@@ -1341,10 +1397,6 @@ async function runChat(): Promise<void> {
         screen.setStatus(`Tool display: ${displayMode}`);
         setTimeout(() => screen.clearStatus(), 1500);
         break;
-
-      case "ctrl+c":
-        cleanup();
-        return;
 
       case "ctrl+d":
         if (editor.text.length === 0) {
