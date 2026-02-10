@@ -93,6 +93,7 @@ export default defineConfig({
             { text: 'Plugin SDK', link: '/integrations/plugins' },
             { text: 'Exec Environment', link: '/integrations/exec-environment' },
             { text: 'Skills', link: '/integrations/skills' },
+            { text: 'Building Skills', link: '/integrations/building-skills' },
             { text: 'Browser Automation', link: '/integrations/browser' },
             { text: 'Webhooks', link: '/integrations/webhooks' },
           ],

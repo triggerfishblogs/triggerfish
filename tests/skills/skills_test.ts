@@ -50,6 +50,33 @@ classification_ceiling: PUBLIC
   await Deno.remove(workspace, { recursive: true });
 });
 
+Deno.test("SkillLoader: discovers all bundled skills", async () => {
+  const bundledDir = new URL("../../skills/bundled", import.meta.url).pathname;
+  const loader = createSkillLoader({
+    directories: [bundledDir],
+    dirTypes: { [bundledDir]: "bundled" },
+  });
+  const skills = await loader.discover();
+
+  // Should find all 5 bundled skills
+  assertEquals(skills.length, 5);
+
+  const names = skills.map((s) => s.name).sort();
+  assertEquals(names, [
+    "integration-builder",
+    "mastering-python",
+    "mastering-typescript",
+    "skill-builder",
+    "tdd",
+  ]);
+
+  // All should be bundled source
+  for (const skill of skills) {
+    assertEquals(skill.source, "bundled");
+    assertEquals(skill.classificationCeiling, "INTERNAL");
+  }
+});
+
 Deno.test("SkillScanner: flags prompt injection patterns", async () => {
   const scanner = createSkillScanner();
   const result = await scanner.scan(`
