@@ -84,6 +84,7 @@ Triggerfish includes five foundational skills that make the agent self-sufficien
 | **mastering-python** | Python patterns for Pyodide WASM plugins. Standard library alternatives to native packages, SDK usage, async patterns, classification rules. |
 | **skill-builder** | How to author new skills. SKILL.md format, frontmatter fields, classification ceilings, self-authoring workflow, security scanning. |
 | **integration-builder** | How to build Triggerfish integrations. All six patterns: channel adapters, LLM providers, MCP servers, storage providers, exec tools, and plugins. |
+| **git-branch-management** | Git branch workflow for development. Feature branches, atomic commits, PR creation via `gh` CLI, PR tracking, review feedback loop via webhooks, merge and cleanup. |
 
 These are the bootstrap skills -- the agent uses them to extend itself. The skill-builder teaches the agent how to create new skills, and the integration-builder teaches it how to build new adapters and providers.
 
