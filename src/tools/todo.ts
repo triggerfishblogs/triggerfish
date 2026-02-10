@@ -118,29 +118,40 @@ export function createTodoManager(options: TodoManagerOptions): TodoManager {
         .map(validateTodoItem)
         .filter((item): item is TodoItem => item !== null);
 
-      // Auto-preserve: any previously-stored items whose IDs are absent
-      // from the incoming write get kept as completed. This means the LLM
-      // can freely drop finished items — the tool tracks history for display.
-      const oldRaw = await storage.get(key);
+      // If the LLM sends an empty list, clear everything.
+      if (validated.length === 0) {
+        await storage.delete(key);
+        return { todos: [] };
+      }
+
+      // If all items are completed, store them but don't preserve old items —
+      // the LLM is done and should be able to move on with a clean slate.
+      const allDone = validated.every((t) => t.status === "completed");
+
       let preserved: readonly TodoItem[] = [];
-      if (oldRaw !== null) {
-        try {
-          const parsed = JSON.parse(oldRaw);
-          if (Array.isArray(parsed.todos)) {
-            const oldItems = parsed.todos
-              .map(validateTodoItem)
-              .filter((item: TodoItem | null): item is TodoItem => item !== null);
-            const newIds = new Set(validated.map((t) => t.id));
-            preserved = oldItems
-              .filter((old: TodoItem) => !newIds.has(old.id))
-              .map((old: TodoItem): TodoItem => ({
-                ...old,
-                status: "completed" as TodoStatus,
-                updated_at: new Date().toISOString(),
-              }));
+      if (!allDone) {
+        // Auto-preserve: any previously-stored items whose IDs are absent
+        // from the incoming write get kept as completed.
+        const oldRaw = await storage.get(key);
+        if (oldRaw !== null) {
+          try {
+            const parsed = JSON.parse(oldRaw);
+            if (Array.isArray(parsed.todos)) {
+              const oldItems = parsed.todos
+                .map(validateTodoItem)
+                .filter((item: TodoItem | null): item is TodoItem => item !== null);
+              const newIds = new Set(validated.map((t) => t.id));
+              preserved = oldItems
+                .filter((old: TodoItem) => !newIds.has(old.id))
+                .map((old: TodoItem): TodoItem => ({
+                  ...old,
+                  status: "completed" as TodoStatus,
+                  updated_at: new Date().toISOString(),
+                }));
+            }
+          } catch {
+            // corrupted storage — skip preservation
           }
-        } catch {
-          // corrupted storage — skip preservation
         }
       }
 

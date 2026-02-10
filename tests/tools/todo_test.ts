@@ -93,19 +93,17 @@ Deno.test("TodoManager: write preserves dropped items as completed", async () =>
   await storage.close();
 });
 
-Deno.test("TodoManager: write empty list preserves old items as completed", async () => {
+Deno.test("TodoManager: write empty list clears the list", async () => {
   const storage = createMemoryStorage();
   const manager = createTodoManager({ storage, agentId: "agent-1" });
 
   await manager.write([makeTodo({ id: "t1", content: "Task" })]);
   assertEquals((await manager.read()).todos.length, 1);
 
-  // Writing empty list — old item preserved as completed
+  // Writing empty list clears everything
   await manager.write([]);
   const list = await manager.read();
-  assertEquals(list.todos.length, 1);
-  assertEquals(list.todos[0].id, "t1");
-  assertEquals(list.todos[0].status, "completed");
+  assertEquals(list.todos.length, 0);
 
   await storage.close();
 });
