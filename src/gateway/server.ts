@@ -12,7 +12,7 @@ import type { SchedulerService } from "../scheduler/service.ts";
 import type { EnhancedSessionManager } from "./sessions.ts";
 import type { NotificationService } from "./notifications.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { SessionId, UserId } from "../core/types/session.ts";
+import type { SessionId, UserId, ChannelId } from "../core/types/session.ts";
 
 /** Options for creating a gateway server. */
 export interface GatewayServerOptions {
@@ -154,7 +154,7 @@ async function handleJsonRpc(
         }
         const created = await sessions.create({
           userId: userId as UserId,
-          channelId: channelId as SessionId,
+          channelId: channelId as ChannelId,
         });
         return success(created);
       }
