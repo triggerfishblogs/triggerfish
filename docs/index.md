@@ -25,7 +25,7 @@ features:
     details: Agent execution environment with a write/run/fix feedback loop. Self-authoring skills. The Reef marketplace for discovering and sharing capabilities.
   - icon: "\U0001F916"
     title: Any LLM Provider
-    details: Anthropic (Claude Pro/Max OAuth), OpenAI, Google Gemini, local models via Ollama, OpenRouter. Automatic failover chains.
+    details: Anthropic, OpenAI, Google Gemini, local models via Ollama, OpenRouter. Automatic failover chains.
   - icon: "\U0001F3AF"
     title: Proactive by Default
     details: Cron jobs, triggers, and webhooks. Your agent checks in, monitors, and acts autonomously — within strict policy boundaries.
