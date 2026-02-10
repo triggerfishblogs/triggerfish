@@ -60,6 +60,12 @@ export interface OrchestratorConfig {
   readonly onEvent?: OrchestratorEventCallback;
   /** Configuration for conversation compactor. */
   readonly compactorConfig?: Partial<CompactorConfig>;
+  /**
+   * Additional system prompt sections injected by the platform.
+   * Appended AFTER SPINE.md and tool definitions. SPINE.md remains
+   * the foundation — these sections layer platform behaviour on top.
+   */
+  readonly systemPromptSections?: readonly string[];
 }
 
 /** Options for processing a single message. */
@@ -237,6 +243,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   const { hookRunner, providerRegistry, spinePath } = config;
   const tools = config.tools ?? [];
   const toolExecutor = config.toolExecutor;
+  const systemPromptSections = config.systemPromptSections ?? [];
   const emit = config.onEvent ?? (() => {});
   const histories = new Map<string, HistoryEntry[]>();
   const compactor: Compactor = createCompactor(config.compactorConfig);
@@ -272,6 +279,11 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     // Append tool instructions if tools are available
     if (tools.length > 0 && toolExecutor) {
       systemPrompt += "\n\n" + buildToolPrompt(tools);
+    }
+
+    // Append platform-level sections (layered after SPINE.md + tools)
+    for (const section of systemPromptSections) {
+      systemPrompt += "\n\n" + section;
     }
 
     // Get or create conversation history for this session

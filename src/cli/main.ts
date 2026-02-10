@@ -54,6 +54,13 @@ import { createPersistentCronManager } from "../scheduler/cron.ts";
 import type { CronManager } from "../scheduler/cron.ts";
 import type { StorageProvider } from "../core/storage/provider.ts";
 import { createSqliteStorage } from "../core/storage/sqlite.ts";
+import {
+  createTodoManager,
+  createTodoToolExecutor,
+  getTodoToolDefinitions,
+  TODO_SYSTEM_PROMPT,
+} from "../tools/mod.ts";
+import type { TodoManager } from "../tools/mod.ts";
 
 /** Known CLI commands. */
 const KNOWN_COMMANDS = new Set([
@@ -450,6 +457,7 @@ function createOrchestratorFactory(
   config: TriggerFishConfig,
   baseDir: string,
   cronManager?: CronManager,
+  storage?: StorageProvider,
 ): OrchestratorFactory {
   const registry = createProviderRegistry();
   loadProvidersFromConfig(config.models as ModelsConfig, registry);
@@ -465,12 +473,14 @@ function createOrchestratorFactory(
 
   return {
     async create(channelId: string) {
+      const agentId = `scheduler-${channelId}-${Date.now()}`;
       const workspace = await createWorkspace({
-        agentId: `scheduler-${channelId}-${Date.now()}`,
+        agentId,
         basePath: `${baseDir}/workspaces`,
       });
       const execTools = createExecTools(workspace);
-      const toolExecutor = createToolExecutor(execTools, cronManager);
+      const todoManager = storage ? createTodoManager({ storage, agentId }) : undefined;
+      const toolExecutor = createToolExecutor(execTools, cronManager, todoManager);
 
       const orchestrator = createOrchestrator({
         hookRunner,
@@ -478,6 +488,7 @@ function createOrchestratorFactory(
         spinePath,
         tools: toolDefs,
         toolExecutor,
+        systemPromptSections: [TODO_SYSTEM_PROMPT],
       });
 
       const session = createSession({
@@ -572,7 +583,7 @@ async function runStart(): Promise<void> {
   }
 
   // Build orchestrator factory and scheduler with persistent cron manager
-  const factory = createOrchestratorFactory(config, baseDir, cronManager);
+  const factory = createOrchestratorFactory(config, baseDir, cronManager, storage);
   const schedulerConfig = buildSchedulerConfig(config, baseDir, factory);
   const schedulerService = createSchedulerService({
     ...schedulerConfig,
@@ -685,6 +696,7 @@ async function runUpdate(): Promise<void> {
 /** Tool definitions for the agent. */
 function getToolDefinitions(): readonly ToolDefinition[] {
   return [
+    ...getTodoToolDefinitions(),
     {
       name: "read_file",
       description: "Read the contents of a file at an absolute path.",
@@ -765,8 +777,17 @@ function getToolDefinitions(): readonly ToolDefinition[] {
 function createToolExecutor(
   execTools: ReturnType<typeof createExecTools>,
   cronManager?: CronManager,
+  todoManager?: TodoManager,
 ): ToolExecutor {
+  const todoExecutor = todoManager ? createTodoToolExecutor(todoManager) : null;
+
   return async (name: string, input: Record<string, unknown>): Promise<string> => {
+    // Try todo tools first (returns null if not a todo tool)
+    if (todoExecutor) {
+      const todoResult = await todoExecutor(name, input);
+      if (todoResult !== null) return todoResult;
+    }
+
     switch (name) {
       case "read_file": {
         const path = input.path;
@@ -958,12 +979,14 @@ async function runChat(): Promise<void> {
   const cronManager = await createPersistentCronManager(storage);
 
   // Create workspace and exec tools for the agent
+  const agentId = "cli-chat";
   const workspace = await createWorkspace({
-    agentId: "cli-chat",
+    agentId,
     basePath: `${baseDir}/workspaces`,
   });
   const execTools = createExecTools(workspace);
-  const toolExecutor = createToolExecutor(execTools, cronManager);
+  const todoManager = createTodoManager({ storage, agentId });
+  const toolExecutor = createToolExecutor(execTools, cronManager, todoManager);
 
   // Determine if we're in TTY mode
   const isTty = Deno.stdin.isTerminal();
@@ -988,6 +1011,7 @@ async function runChat(): Promise<void> {
     tools: getToolDefinitions(),
     toolExecutor,
     onEvent: eventHandler,
+    systemPromptSections: [TODO_SYSTEM_PROMPT],
   });
 
   // Create a session for this CLI chat
