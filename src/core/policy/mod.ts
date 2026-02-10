@@ -24,3 +24,12 @@ export type {
   HookRunnerOptions,
   HookRunner,
 } from "./hooks.ts";
+
+export { createAuditChain, verifyAuditChain } from "./audit.ts";
+export type {
+  AuditEntry,
+  ChainedAuditEntry,
+  AuditChain,
+} from "./audit.ts";
+
+export { effectiveClassification } from "./recipient.ts";

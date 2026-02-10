@@ -7,7 +7,8 @@
  * @module
  */
 
-import type { LlmProvider, LlmMessage, LlmCompletionResult } from "../llm.ts";
+import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import { parseSseStream } from "./sse.ts";
 
 /** Configuration for the local LLM provider. */
 export interface LocalConfig {
@@ -35,7 +36,7 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
 
   return {
     name: "local",
-    supportsStreaming: false,
+    supportsStreaming: true,
 
     async complete(
       messages: readonly LlmMessage[],
@@ -76,6 +77,43 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
           outputTokens: data.usage?.completion_tokens ?? 0,
         },
       };
+    },
+
+    async *stream(
+      messages: readonly LlmMessage[],
+      _tools: readonly unknown[],
+      options: Record<string, unknown>,
+    ): AsyncIterable<LlmStreamChunk> {
+      const signal = options.signal as AbortSignal | undefined;
+      const openaiMessages = messages.map((m) => ({
+        role: m.role,
+        content: typeof m.content === "string"
+          ? m.content
+          : JSON.stringify(m.content),
+      }));
+
+      const response = await fetch(`${endpoint}/v1/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          max_tokens: maxTokens,
+          messages: openaiMessages,
+          stream: true,
+        }),
+        ...(signal ? { signal } : {}),
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Local LLM stream failed (${response.status}): ${body}`);
+      }
+
+      if (!response.body) {
+        throw new Error("No response body for streaming");
+      }
+
+      yield* parseSseStream(response.body);
     },
   };
 }

@@ -174,7 +174,7 @@ Deno.test("Email: factory creates adapter with correct channel type", async () =
   assertEquals(adapter.status().connected, false);
 });
 
-Deno.test("Email: defaults to PUBLIC classification", async () => {
+Deno.test("Email: defaults to CONFIDENTIAL classification", async () => {
   const { createEmailChannel } = await import("../../src/channels/email/adapter.ts");
   const adapter = createEmailChannel({
     smtpApiUrl: "https://api.sendgrid.com/v3/mail/send",
@@ -184,7 +184,7 @@ Deno.test("Email: defaults to PUBLIC classification", async () => {
     imapPassword: "password",
     fromAddress: "bot@example.com",
   });
-  assertEquals(adapter.classification, "PUBLIC");
+  assertEquals(adapter.classification, "CONFIDENTIAL");
 });
 
 // --- Enhanced Router ---

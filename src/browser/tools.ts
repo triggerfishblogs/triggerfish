@@ -3,13 +3,15 @@
  *
  * Provides navigate, snapshot, click, type, select, upload,
  * evaluate, and wait operations. All navigation passes through
- * PRE_TOOL_CALL hooks. Screenshots are classified at session taint.
+ * domain policy checks. Screenshots are classified at session taint.
  * Scraped content creates lineage records.
  *
  * @module
  */
 
+import type { Page, ElementHandle } from "puppeteer-core";
 import type { Result } from "../core/types/classification.ts";
+import type { BrowserManager } from "./manager.ts";
 
 /** Result of a browser tool operation. */
 export interface BrowserToolResult {
@@ -42,43 +44,187 @@ export interface BrowserTools {
 }
 
 /**
- * Create browser tools for page interaction.
+ * Create browser tools backed by a real CDP connection.
  *
- * Note: Actual CDP integration requires puppeteer-core or playwright.
- * This provides the interface and type definitions.
+ * All navigation checks the manager's domain policy before proceeding.
+ * Tool results follow the project's Result<T, E> pattern.
  *
- * @returns A BrowserTools stub (CDP integration pending)
+ * @param manager - A BrowserManager that provides the page instance and domain policy
+ * @returns BrowserTools for interacting with the browser page
  */
-export function createBrowserTools(): BrowserTools {
-  const notConnected = (): Result<BrowserToolResult, string> => ({
-    ok: false,
-    error: "Browser not connected",
-  });
+export function createBrowserTools(manager: BrowserManager): BrowserTools {
+  function getPage(): Result<Page, string> {
+    const p = manager.getPage() as Page | undefined;
+    if (!p) {
+      return { ok: false, error: "Browser not connected" };
+    }
+    return { ok: true, value: p };
+  }
 
   return {
-    async navigate(_url: string) {
-      return notConnected();
+    async navigate(url: string): Promise<Result<BrowserToolResult, string>> {
+      if (!manager.domainPolicy.isAllowed(url)) {
+        return {
+          ok: false,
+          error: `Navigation blocked by domain policy: ${url}`,
+        };
+      }
+
+      const pageResult = getPage();
+      if (!pageResult.ok) return pageResult;
+
+      try {
+        const response = await pageResult.value.goto(url, {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        return {
+          ok: true,
+          value: {
+            success: true,
+            data: {
+              url: pageResult.value.url(),
+              status: response?.status(),
+            },
+          },
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Navigation failed: ${(err as Error).message}`,
+        };
+      }
     },
-    async snapshot() {
-      return { ok: false as const, error: "Browser not connected" };
+
+    async snapshot(): Promise<Result<Uint8Array, string>> {
+      const pageResult = getPage();
+      if (!pageResult.ok) return { ok: false, error: pageResult.error };
+
+      try {
+        const buffer = await pageResult.value.screenshot({
+          type: "png",
+          fullPage: false,
+        });
+        return { ok: true, value: new Uint8Array(buffer) };
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Screenshot failed: ${(err as Error).message}`,
+        };
+      }
     },
-    async click(_selector: string) {
-      return notConnected();
+
+    async click(selector: string): Promise<Result<BrowserToolResult, string>> {
+      const pageResult = getPage();
+      if (!pageResult.ok) return pageResult;
+
+      try {
+        await pageResult.value.click(selector);
+        return { ok: true, value: { success: true } };
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Click failed on "${selector}": ${(err as Error).message}`,
+        };
+      }
     },
-    async type(_selector: string, _text: string) {
-      return notConnected();
+
+    async type(
+      selector: string,
+      text: string,
+    ): Promise<Result<BrowserToolResult, string>> {
+      const pageResult = getPage();
+      if (!pageResult.ok) return pageResult;
+
+      try {
+        await pageResult.value.type(selector, text);
+        return { ok: true, value: { success: true } };
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Type failed on "${selector}": ${(err as Error).message}`,
+        };
+      }
     },
-    async select(_selector: string, _value: string) {
-      return notConnected();
+
+    async select(
+      selector: string,
+      value: string,
+    ): Promise<Result<BrowserToolResult, string>> {
+      const pageResult = getPage();
+      if (!pageResult.ok) return pageResult;
+
+      try {
+        const selected = await pageResult.value.select(selector, value);
+        return {
+          ok: true,
+          value: { success: true, data: { selected } },
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Select failed on "${selector}": ${(err as Error).message}`,
+        };
+      }
     },
-    async upload(_selector: string, _filePath: string) {
-      return notConnected();
+
+    async upload(
+      selector: string,
+      filePath: string,
+    ): Promise<Result<BrowserToolResult, string>> {
+      const pageResult = getPage();
+      if (!pageResult.ok) return pageResult;
+
+      try {
+        const element = await pageResult.value.$(selector) as ElementHandle | null;
+        if (!element) {
+          return {
+            ok: false,
+            error: `Upload element not found: "${selector}"`,
+          };
+        }
+        await element.uploadFile(filePath);
+        return { ok: true, value: { success: true } };
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Upload failed on "${selector}": ${(err as Error).message}`,
+        };
+      }
     },
-    async evaluate(_js: string) {
-      return { ok: false as const, error: "Browser not connected" };
+
+    async evaluate(js: string): Promise<Result<unknown, string>> {
+      const pageResult = getPage();
+      if (!pageResult.ok) return { ok: false, error: pageResult.error };
+
+      try {
+        const result = await pageResult.value.evaluate(js);
+        return { ok: true, value: result };
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Evaluate failed: ${(err as Error).message}`,
+        };
+      }
     },
-    async wait(_selectorOrCondition: string) {
-      return notConnected();
+
+    async wait(
+      selectorOrCondition: string,
+    ): Promise<Result<BrowserToolResult, string>> {
+      const pageResult = getPage();
+      if (!pageResult.ok) return pageResult;
+
+      try {
+        await pageResult.value.waitForSelector(selectorOrCondition, {
+          timeout: 30000,
+        });
+        return { ok: true, value: { success: true } };
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Wait failed for "${selectorOrCondition}": ${(err as Error).message}`,
+        };
+      }
     },
   };
 }

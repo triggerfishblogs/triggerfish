@@ -3,11 +3,13 @@
  *
  * Provides first-class notification delivery with priority levels,
  * queuing for offline users, and quiet hours support.
+ * Notifications are persisted via StorageProvider (namespace: `notifications:`).
  *
  * @module
  */
 
 import type { UserId } from "../core/types/session.ts";
+import type { StorageProvider } from "../core/storage/provider.ts";
 
 /** Notification priority levels. */
 export type NotificationPriority = "critical" | "normal" | "low";
@@ -40,14 +42,53 @@ export interface NotificationService {
   acknowledge(notificationId: string): Promise<void>;
 }
 
+/** Serialized notification shape for storage. */
+interface StoredNotification {
+  readonly id: string;
+  readonly userId: string;
+  readonly message: string;
+  readonly priority: NotificationPriority;
+  readonly createdAt: string;
+}
+
 /**
- * Create a notification service.
+ * Create a notification service backed by a StorageProvider.
  *
- * Notifications are queued in memory when the user is offline
- * and delivered on next session start or channel connection.
+ * Each notification is stored as a separate key:
+ *   `notifications:<userId>:<notificationId>`
+ *
+ * This ensures notifications survive restarts.
  */
-export function createNotificationService(): NotificationService {
-  const pending = new Map<string, Notification[]>();
+export function createNotificationService(
+  storage: StorageProvider,
+): NotificationService {
+  const keyPrefix = "notifications:";
+
+  function notificationKey(userId: string, id: string): string {
+    return `${keyPrefix}${userId}:${id}`;
+  }
+
+  function serialize(n: Notification): string {
+    const stored: StoredNotification = {
+      id: n.id,
+      userId: n.userId as string,
+      message: n.message,
+      priority: n.priority,
+      createdAt: n.createdAt.toISOString(),
+    };
+    return JSON.stringify(stored);
+  }
+
+  function deserialize(raw: string): Notification {
+    const stored: StoredNotification = JSON.parse(raw);
+    return {
+      id: stored.id,
+      userId: stored.userId as UserId,
+      message: stored.message,
+      priority: stored.priority,
+      createdAt: new Date(stored.createdAt),
+    };
+  }
 
   return {
     async deliver(options: DeliverOptions): Promise<void> {
@@ -59,20 +100,40 @@ export function createNotificationService(): NotificationService {
         createdAt: new Date(),
       };
 
-      const userKey = options.userId as string;
-      const existing = pending.get(userKey) ?? [];
-      pending.set(userKey, [...existing, notification]);
+      const key = notificationKey(
+        options.userId as string,
+        notification.id,
+      );
+      await storage.set(key, serialize(notification));
     },
 
     async getPending(userId: UserId): Promise<Notification[]> {
-      return pending.get(userId as string) ?? [];
+      const prefix = `${keyPrefix}${userId as string}:`;
+      const keys = await storage.list(prefix);
+      const results: Notification[] = [];
+
+      for (const key of keys) {
+        const raw = await storage.get(key);
+        if (raw !== null) {
+          results.push(deserialize(raw));
+        }
+      }
+
+      // Sort by creation time, oldest first
+      results.sort(
+        (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+      );
+      return results;
     },
 
     async acknowledge(notificationId: string): Promise<void> {
-      for (const [key, notifications] of pending) {
-        const filtered = notifications.filter((n) => n.id !== notificationId);
-        if (filtered.length !== notifications.length) {
-          pending.set(key, filtered);
+      // We need to find the key containing this notification ID.
+      // The ID is the suffix of the key, so list all notifications
+      // and find the matching one.
+      const keys = await storage.list(keyPrefix);
+      for (const key of keys) {
+        if (key.endsWith(`:${notificationId}`)) {
+          await storage.delete(key);
           return;
         }
       }

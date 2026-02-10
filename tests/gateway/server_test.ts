@@ -58,7 +58,8 @@ Deno.test("EnhancedSessionManager: sessions_send blocks write-down", async () =>
 // --- Notification service ---
 
 Deno.test("NotificationService: queues notification for offline user", async () => {
-  const svc = createNotificationService();
+  const storage = createMemoryStorage();
+  const svc = createNotificationService(storage);
   await svc.deliver({
     userId: "u" as UserId,
     message: "test notification",
@@ -66,4 +67,35 @@ Deno.test("NotificationService: queues notification for offline user", async () 
   });
   const queued = await svc.getPending("u" as UserId);
   assert(queued.length >= 1);
+});
+
+Deno.test("NotificationService: persists across service instances", async () => {
+  const storage = createMemoryStorage();
+  const svc1 = createNotificationService(storage);
+  await svc1.deliver({
+    userId: "u" as UserId,
+    message: "persistent notification",
+    priority: "critical",
+  });
+  // Create a second service instance sharing the same storage
+  const svc2 = createNotificationService(storage);
+  const queued = await svc2.getPending("u" as UserId);
+  assert(queued.length >= 1);
+  assertEquals(queued[0].message, "persistent notification");
+  assertEquals(queued[0].priority, "critical");
+});
+
+Deno.test("NotificationService: acknowledge removes notification", async () => {
+  const storage = createMemoryStorage();
+  const svc = createNotificationService(storage);
+  await svc.deliver({
+    userId: "u" as UserId,
+    message: "ack me",
+    priority: "normal",
+  });
+  const before = await svc.getPending("u" as UserId);
+  assertEquals(before.length, 1);
+  await svc.acknowledge(before[0].id);
+  const after = await svc.getPending("u" as UserId);
+  assertEquals(after.length, 0);
 });

@@ -41,3 +41,5 @@ export {
   type OrchestratorFactory,
   type WebhookSourceConfig,
 } from "./service.ts";
+
+export { signWebhook, verifyWebhookSignature } from "./webhook_security.ts";

@@ -1,9 +1,9 @@
 /**
  * Email channel adapter via SMTP/IMAP.
  *
- * Sends replies via SMTP and polls for incoming messages via IMAP.
- * Uses fetch-based HTTP endpoints for SMTP relay services (SendGrid,
- * Mailgun, SES) as the primary sending mechanism.
+ * Sends replies via SMTP relay API and receives incoming messages
+ * via IMAP polling. Uses the ImapClient abstraction for receive,
+ * which can be swapped with a mock for testing.
  *
  * @module
  */
@@ -15,6 +15,8 @@ import type {
   ChannelStatus,
   MessageHandler,
 } from "../types.ts";
+import type { ImapClient } from "./imap.ts";
+import { createImapClient } from "./imap.ts";
 
 /** Configuration for the Email channel adapter. */
 export interface EmailConfig {
@@ -34,10 +36,12 @@ export interface EmailConfig {
   readonly fromAddress: string;
   /** Poll interval in ms for checking new emails. Default: 30000 */
   readonly pollInterval?: number;
-  /** Classification level for this channel. Default: PUBLIC */
+  /** Classification level for this channel. Default: CONFIDENTIAL */
   readonly classification?: ClassificationLevel;
   /** Owner's email address for isOwner checks. */
   readonly ownerEmail?: string;
+  /** Injected IMAP client for testing. If not provided, a real client is created. */
+  readonly _imapClient?: ImapClient;
 }
 
 /**
@@ -50,17 +54,28 @@ export interface EmailConfig {
  * @returns A ChannelAdapter wired to email.
  */
 export function createEmailChannel(config: EmailConfig): ChannelAdapter {
-  const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
+  const classification = (config.classification ?? "CONFIDENTIAL") as ClassificationLevel;
   const pollInterval = config.pollInterval ?? 30000;
   let connected = false;
   let handler: MessageHandler | null = null;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  const imapClient: ImapClient = config._imapClient ?? createImapClient({
+    host: config.imapHost,
+    port: config.imapPort ?? 993,
+    user: config.imapUser,
+    password: config.imapPassword,
+    tls: true,
+  });
 
   return {
     classification,
     isOwner: true,
 
     async connect(): Promise<void> {
+      // Connect IMAP client
+      await imapClient.connect();
+
       // Start polling for new emails
       pollTimer = setInterval(async () => {
         await pollEmails();
@@ -76,6 +91,7 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
         clearInterval(pollTimer);
         pollTimer = null;
       }
+      await imapClient.disconnect();
       connected = false;
     },
 
@@ -116,34 +132,22 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
     },
   };
 
-  /**
-   * Poll IMAP for new emails.
-   *
-   * Note: Full IMAP implementation requires a Deno-compatible IMAP client.
-   * This is a placeholder that connects via TCP and checks for UNSEEN messages.
-   * A production implementation would use a dedicated IMAP library.
-   */
+  /** Poll IMAP for unseen emails and dispatch to handler. */
   async function pollEmails(): Promise<void> {
     if (!handler) return;
 
     try {
-      const conn = await Deno.connect({
-        hostname: config.imapHost,
-        port: config.imapPort ?? 993,
-        transport: "tcp",
-      });
+      const messages = await imapClient.fetchUnseen();
 
-      // Basic IMAP handshake to check for messages
-      // Full implementation would parse IMAP protocol properly
-      const reader = conn.readable.getReader();
-      const _greeting = await reader.read();
-
-      // Close immediately — this is a connectivity check
-      // Real IMAP message fetching requires a full protocol implementation
-      reader.releaseLock();
-      conn.close();
+      for (const msg of messages) {
+        const sessionId = `email-${msg.from}`;
+        handler({
+          content: msg.body || msg.subject,
+          sessionId,
+        });
+      }
     } catch {
-      // IMAP connection failed — will retry on next poll
+      // IMAP fetch failed — will retry on next poll
     }
   }
 }

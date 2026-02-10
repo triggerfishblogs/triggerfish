@@ -1,5 +1,9 @@
 # Email
 
+::: warning PARTIAL IMPLEMENTATION
+Outbound email via SMTP relay is fully implemented. Inbound email via IMAP is coming soon.
+:::
+
 Connect your Triggerfish agent to email so it can receive messages via IMAP and send replies via an SMTP relay service. The adapter supports services like SendGrid, Mailgun, and Amazon SES for outbound email, and polls any IMAP server for inbound messages.
 
 ## Default Classification

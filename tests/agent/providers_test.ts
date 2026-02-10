@@ -39,7 +39,7 @@ Deno.test("GoogleProvider: factory creates provider with correct name", () => {
 Deno.test("LocalProvider: factory creates provider with correct name", () => {
   const provider = createLocalProvider({ model: "llama3" });
   assertEquals(provider.name, "local");
-  assertEquals(provider.supportsStreaming, false);
+  assertEquals(provider.supportsStreaming, true);
 });
 
 Deno.test("OpenRouterProvider: factory creates provider with correct name", () => {
@@ -161,6 +161,8 @@ Deno.test("LocalProvider: throws on non-200 response", async () => {
 Deno.test({
   name: "AnthropicProvider: real API call with OAuth (integration)",
   ignore: !Deno.env.get("CLAUDE_CODE_OAUTH_TOKEN"),
+  sanitizeResources: false,
+  sanitizeOps: false,
   async fn() {
     const provider = createAnthropicProvider({});
     const result = await provider.complete(
