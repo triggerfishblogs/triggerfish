@@ -794,6 +794,7 @@ async function runStart(): Promise<void> {
     toolExecutor,
     systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT],
     session,
+    debug: Deno.env.get("TRIGGERFISH_DEBUG") === "1",
   });
 
   console.log("  Main session created");
@@ -837,10 +838,15 @@ async function runStart(): Promise<void> {
         if (event.type === "response") {
           clearInterval(typingInterval);
           typingInterval = undefined;
-          telegramAdapter.send({
-            content: event.text,
-            sessionId: msg.sessionId,
-          }).catch((err) => console.error("Telegram send error:", err));
+          const text = event.text.trim();
+          if (text.length > 0) {
+            telegramAdapter.send({
+              content: text,
+              sessionId: msg.sessionId,
+            }).catch((err) => console.error("Telegram send error:", err));
+          } else {
+            console.error("Telegram: skipping empty response (LLM returned no text)");
+          }
         }
 
         if (event.type === "error") {

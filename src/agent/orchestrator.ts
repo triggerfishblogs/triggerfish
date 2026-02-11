@@ -33,6 +33,14 @@ const MAX_TOOL_ITERATIONS = 25;
 /** Iteration at which the LLM is warned to wrap up. */
 const SOFT_LIMIT_ITERATIONS = 20;
 
+/**
+ * Pattern detecting leaked tool-intent narration in LLM responses.
+ * Matches phrases like "I'll search", "Let me fetch", "I need to look up", etc.
+ * Used as a defense-in-depth guard — the primary fix is prompt hardening.
+ */
+export const LEAKED_INTENT_PATTERN =
+  /\b(?:(?:I(?:'ll| will| need to| should| can| am going to)\s+(?:search|fetch|look up|find|check|browse|retrieve|use web_))|(?:(?:Let|let) me (?:search|fetch|look|find|check|browse|retrieve|use))|(?:(?:We|I) need to (?:fetch|search|look up|find|check|browse|retrieve)))/i;
+
 /** A tool definition for prompt-based tool calling. */
 export interface ToolDefinition {
   readonly name: string;
@@ -71,6 +79,8 @@ export interface OrchestratorConfig {
   readonly systemPromptSections?: readonly string[];
   /** Plan manager for plan mode state tracking and tool execution. */
   readonly planManager?: PlanManager;
+  /** Enable verbose logging of LLM responses and tool calls to stderr. */
+  readonly debug?: boolean;
 }
 
 /** Options for processing a single message. */
@@ -172,7 +182,7 @@ Format:
 Tools:
 ${toolDescs}
 
-Important: Use tools when the user asks you to interact with the filesystem, run commands, or search for files. After using tools, provide your answer based on the results.`;
+Important: Use tools when the user asks you to interact with the filesystem, run commands, or search for files. After using tools, provide your answer based on the results. Never narrate your intent before using a tool — just emit the <tool_call> block directly.`;
 }
 
 /**
@@ -199,6 +209,8 @@ function extractArgs(parsed: Record<string, unknown>): Record<string, unknown> {
 /**
  * Parse tool calls from LLM text output.
  * Looks for <tool_call>...</tool_call> blocks containing JSON.
+ * Falls back to detecting bare JSON objects with a "name" field
+ * (some models forget the XML tags).
  */
 function parseToolCalls(text: string): readonly ParsedToolCall[] {
   const calls: ParsedToolCall[] = [];
@@ -217,14 +229,47 @@ function parseToolCalls(text: string): readonly ParsedToolCall[] {
       // Skip malformed JSON
     }
   }
+
+  // Fallback: detect bare JSON tool calls without <tool_call> tags.
+  // Only if no tagged calls were found and the entire text is a JSON object.
+  if (calls.length === 0) {
+    const trimmed = text.trim();
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed.name && typeof parsed.name === "string") {
+          calls.push({
+            name: parsed.name,
+            args: extractArgs(parsed),
+          });
+        }
+      } catch {
+        // Not valid JSON
+      }
+    }
+  }
+
   return calls;
 }
 
 /**
  * Strip tool_call blocks from text to get the "clean" response.
+ * Only removes blocks that contain valid JSON with a "name" key
+ * (i.e. actual tool calls). Preserves content from malformed blocks
+ * to avoid accidentally stripping the model's response.
  */
 function stripToolCalls(text: string): string {
-  return text.replace(/<tool_call>\s*[\s\S]*?\s*<\/tool_call>/g, "").trim();
+  return text.replace(/<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g, (_match, inner: string) => {
+    try {
+      const parsed = JSON.parse(inner);
+      if (parsed && typeof parsed.name === "string") {
+        return ""; // Valid tool call — strip it
+      }
+    } catch {
+      // Not valid JSON — preserve inner content
+    }
+    return inner;
+  }).trim();
 }
 
 /**
@@ -251,8 +296,18 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   const systemPromptSections = config.systemPromptSections ?? [];
   const planManager = config.planManager;
   const emit = config.onEvent ?? (() => {});
+  const debug = config.debug ?? false;
   const histories = new Map<string, HistoryEntry[]>();
   const compactor: Compactor = createCompactor(config.compactorConfig);
+
+  /** Log to stderr when debug mode is enabled. */
+  function debugLog(label: string, data: unknown): void {
+    if (!debug) return;
+    const ts = new Date().toISOString().slice(11, 23);
+    const str = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+    const preview = str.length > 500 ? str.slice(0, 500) + `… [${str.length} chars]` : str;
+    console.error(`[orch ${ts}] ${label}: ${preview}`);
+  }
 
   async function processMessage(
     options: ProcessMessageOptions,
@@ -327,6 +382,8 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
     // 4. Agent loop — call LLM, parse tool calls, execute, repeat
     let iterations = 0;
+    let emptyNudgeCount = 0; // Track empty-response recovery attempts
+    const MAX_EMPTY_NUDGES = 2;
     while (iterations < MAX_TOOL_ITERATIONS) {
       iterations++;
 
@@ -343,16 +400,28 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
         ...history,
       ];
 
+      debugLog(`iter${iterations} sending`, `${messages.length} msgs, sysPrompt=${systemPrompt.length}chars, history=${history.length} entries`);
+      if (debug && iterations === 1) {
+        for (const h of history) {
+          const preview = typeof h.content === "string" ? h.content.slice(0, 100) : "(non-string)";
+          console.error(`[orch] history ${h.role}: ${preview}`);
+        }
+      }
+
       // Call LLM provider (no native tools — we use prompt-based tools)
       const completion = await provider.complete(messages, [], {
         ...(signal ? { signal } : {}),
       });
+
+      debugLog(`iter${iterations} raw`, completion.content);
 
       // Parse tool calls from the response text
       const hasTools = (tools.length > 0 && toolExecutor) || planManager;
       const parsedCalls = hasTools
         ? parseToolCalls(completion.content)
         : [];
+
+      debugLog(`iter${iterations} parsedCalls`, parsedCalls.length);
 
       emit({
         type: "llm_complete",
@@ -363,12 +432,42 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       if (parsedCalls.length === 0) {
         // No tool calls — this is the final response
         const finalText = stripToolCalls(completion.content);
+        debugLog(`iter${iterations} finalText`, finalText || "(EMPTY)");
+
+        // Recovery: if the model returned empty text, bare JSON gibberish,
+        // or leaked tool intent (e.g. "We need to search web"), retry with
+        // a nudge (up to MAX_EMPTY_NUDGES). Catches unreliable models.
+        const isEmptyOrJunk = finalText.length === 0 ||
+          (finalText.length < 200 && finalText.startsWith("{") && finalText.endsWith("}"));
+        const isLeakedIntent = hasTools && finalText.length < 300 &&
+          LEAKED_INTENT_PATTERN.test(finalText);
+        if ((isEmptyOrJunk || isLeakedIntent) && emptyNudgeCount < MAX_EMPTY_NUDGES && iterations < MAX_TOOL_ITERATIONS) {
+          emptyNudgeCount++;
+          debugLog(`iter${iterations}`, `${isLeakedIntent ? "leaked intent" : "junk/empty"} (${finalText.length} chars) — nudge ${emptyNudgeCount}/${MAX_EMPTY_NUDGES}`);
+          // Don't push empty assistant messages into history
+          if (completion.content.trim().length > 0) {
+            history.push({ role: "assistant", content: completion.content });
+          }
+          const nudge = isLeakedIntent
+            ? "[SYSTEM] You described your intent but didn't use a tool. Do not narrate — use the tool directly by outputting a <tool_call> block. For web searches, use: <tool_call>{\"name\": \"web_search\", \"args\": {\"query\": \"your search terms\"}}</tool_call>"
+            : (emptyNudgeCount === 1
+              ? "[SYSTEM] Your response was empty. Please respond to the user's message with a helpful answer. If the user asked you to search or look something up, use the web_search tool."
+              : "[SYSTEM] Your previous response was still empty. You MUST write a natural language response. Summarize what you know and answer the user directly.");
+          history.push({ role: "user", content: nudge });
+          continue;
+        }
+
+        // If the model returned empty/junk after exhausting nudges, provide a fallback
+        const isJunkFinal = finalText.length === 0 || isEmptyOrJunk || isLeakedIntent;
+        const responseText = isJunkFinal && emptyNudgeCount >= MAX_EMPTY_NUDGES
+          ? "I'm sorry, I wasn't able to generate a response. The language model returned empty or malformed output. This may be a temporary issue — please try again, or consider switching to a more capable model (e.g. google/gemini-2.0-flash-001)."
+          : finalText;
 
         // Fire PRE_OUTPUT hook
         const preOutputResult = await hookRunner.run("PRE_OUTPUT", {
           session,
           input: {
-            content: finalText,
+            content: responseText,
             target_classification: targetClassification,
           },
         });
@@ -380,14 +479,14 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           };
         }
 
-        emit({ type: "response", text: finalText });
+        emit({ type: "response", text: responseText });
 
         // Add assistant response to history
-        history.push({ role: "assistant", content: completion.content });
+        history.push({ role: "assistant", content: responseText.length > 0 ? responseText : completion.content });
 
         return {
           ok: true,
-          value: { response: finalText },
+          value: { response: responseText },
         };
       }
 

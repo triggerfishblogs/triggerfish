@@ -21,16 +21,16 @@ export function getWebToolDefinitions(): readonly ToolDefinition[] {
     {
       name: "web_search",
       description:
-        "Search the web using a search engine. Returns a list of results with titles, URLs, and snippets.",
+        "Search the web. Returns titles, URLs, and snippets. Use the URLs to fetch full page content with web_fetch.",
       parameters: {
         query: {
           type: "string",
-          description: "The search query",
+          description: "Search query. Be specific — include relevant keywords, names, or dates for better results.",
           required: true,
         },
         max_results: {
           type: "number",
-          description: "Maximum number of results to return (default: 5, max: 20)",
+          description: "Maximum results to return (default: 5, max: 20). Use more for broad topics.",
           required: false,
         },
       },
@@ -38,17 +38,17 @@ export function getWebToolDefinitions(): readonly ToolDefinition[] {
     {
       name: "web_fetch",
       description:
-        "Fetch and extract content from a web page URL. By default uses Readability to extract article text. Use mode 'raw' for full HTML.",
+        "Fetch and extract readable content from a URL. Returns article text by default. If the result is very short or empty, retry with mode 'raw' or try a different URL.",
       parameters: {
         url: {
           type: "string",
-          description: "The URL to fetch",
+          description: "The URL to fetch. Use URLs from web_search results.",
           required: true,
         },
         mode: {
           type: "string",
           description:
-            "Content extraction mode: 'readability' (default) or 'raw'",
+            "Extraction mode: 'readability' (default, article text) or 'raw' (full HTML). Use 'raw' if readability returns too little content.",
           required: false,
         },
       },
@@ -63,11 +63,11 @@ export const WEB_TOOLS_SYSTEM_PROMPT = `## Web Access
 
 You have access to the internet via web_search and web_fetch tools.
 
-- Use web_search to find information, news, documentation, or answers to questions.
-- Use web_fetch to read the full content of a specific URL.
-- web_fetch uses Readability by default to extract the main article content. Use mode "raw" if you need the full HTML.
-- Some domains may be blocked by policy. If a fetch fails, try a different source.
-- Search results include titles, URLs, and snippets — use these to decide which pages to fetch.`;
+- Use web_search to find information, then use web_fetch to read relevant pages before answering.
+- web_fetch extracts article text by default. If extraction returns very little, retry with mode "raw".
+- If a fetch fails or returns an error, try a different URL from the search results rather than giving up.
+- When answering with web information, cite the source URLs inline so they are visible in all channels (e.g. Telegram, Slack).
+- Never narrate your intent to search or fetch — just use the tools directly.`;
 
 // ─── Executor ───────────────────────────────────────────────────────────────
 

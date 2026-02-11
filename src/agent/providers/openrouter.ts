@@ -55,6 +55,7 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       const signal = options.signal as AbortSignal | undefined;
+      const debug = Deno.env.get("TRIGGERFISH_DEBUG") === "1";
       const openaiMessages = messages.map((m) => ({
         role: m.role,
         content: typeof m.content === "string"
@@ -62,37 +63,92 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
           : JSON.stringify(m.content),
       }));
 
-      const response = await fetch(OPENROUTER_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-          "HTTP-Referer": "https://triggerfish.sh",
-          "X-Title": "Triggerfish",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: maxTokens,
-          messages: openaiMessages,
-        }),
-        ...(signal ? { signal } : {}),
+      const requestBody = JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        messages: openaiMessages,
       });
 
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`OpenRouter request failed (${response.status}): ${body}`);
+      if (debug) {
+        console.error(`[openrouter] model=${model} msgs=${openaiMessages.length} body=${requestBody.length}chars`);
+        for (const m of openaiMessages) {
+          const preview = typeof m.content === "string"
+            ? m.content.slice(0, 120)
+            : "(non-string)";
+          console.error(`[openrouter]   ${m.role}: ${preview}…`);
+        }
       }
 
-      const data = await response.json();
+      // Retry loop for transient errors (HTTP 502/503/429 or API-level errors)
+      const MAX_RETRIES = 2;
+      let lastError: string | undefined;
 
-      return {
-        content: data.choices?.[0]?.message?.content ?? "",
-        toolCalls: data.choices?.[0]?.message?.tool_calls ?? [],
-        usage: {
-          inputTokens: data.usage?.prompt_tokens ?? 0,
-          outputTokens: data.usage?.completion_tokens ?? 0,
-        },
-      };
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+          const delayMs = 1000 * Math.pow(2, attempt - 1); // 1s, 2s
+          if (debug) console.error(`[openrouter] retry ${attempt}/${MAX_RETRIES} after ${delayMs}ms`);
+          await new Promise((r) => setTimeout(r, delayMs));
+        }
+
+        const response = await fetch(OPENROUTER_API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`,
+            "HTTP-Referer": "https://triggerfish.sh",
+            "X-Title": "Triggerfish",
+          },
+          body: requestBody,
+          ...(signal ? { signal } : {}),
+        });
+
+        // HTTP-level transient error
+        if (!response.ok) {
+          const body = await response.text();
+          if ((response.status === 502 || response.status === 503 || response.status === 429) && attempt < MAX_RETRIES) {
+            if (debug) console.error(`[openrouter] HTTP ${response.status}: ${body.slice(0, 200)}`);
+            lastError = `HTTP ${response.status}: ${body.slice(0, 200)}`;
+            continue;
+          }
+          throw new Error(`OpenRouter request failed (${response.status}): ${body}`);
+        }
+
+        const rawText = await response.text();
+        if (debug) {
+          console.error(`[openrouter] status=${response.status} rawLen=${rawText.length}`);
+          const preview = rawText.length > 500 ? rawText.slice(0, 500) + "…" : rawText;
+          console.error(`[openrouter] raw: ${preview}`);
+        }
+
+        const data = JSON.parse(rawText);
+
+        // API-level error inside 200 response (OpenRouter wraps upstream errors)
+        if (data.error) {
+          const code = data.error.code;
+          if ((code === 502 || code === 503 || code === 429) && attempt < MAX_RETRIES) {
+            if (debug) console.error(`[openrouter] API error ${code}: ${JSON.stringify(data.error).slice(0, 200)}`);
+            lastError = `API ${code}: ${JSON.stringify(data.error).slice(0, 200)}`;
+            continue;
+          }
+          throw new Error(`OpenRouter API error: ${JSON.stringify(data.error)}`);
+        }
+
+        const content = data.choices?.[0]?.message?.content ?? "";
+        if (debug && content.length === 0) {
+          console.error(`[openrouter] WARNING: empty content! choices=${JSON.stringify(data.choices?.length)} full=${rawText.slice(0, 300)}`);
+        }
+
+        return {
+          content,
+          toolCalls: data.choices?.[0]?.message?.tool_calls ?? [],
+          usage: {
+            inputTokens: data.usage?.prompt_tokens ?? 0,
+            outputTokens: data.usage?.completion_tokens ?? 0,
+          },
+        };
+      }
+
+      throw new Error(`OpenRouter request failed after ${MAX_RETRIES} retries: ${lastError ?? "unknown"}`);
     },
 
     async *stream(

@@ -282,17 +282,10 @@ export function createMemoryToolExecutor(
  */
 export const MEMORY_SYSTEM_PROMPT = `## Cross-Session Memory
 
-You have access to persistent memory tools (memory_save, memory_get, memory_search, memory_list, memory_delete) for remembering information across sessions.
+You have persistent memory tools (memory_save, memory_get, memory_search, memory_list, memory_delete) for remembering information across sessions.
 
-**Auto-extraction:** Proactively save important facts the user shares:
-- Personal details (name, preferences, important dates)
-- Project context (goals, constraints, decisions)
-- Recurring instructions or preferences
-- Key facts that would be useful in future sessions
+Save important facts the user shares (personal details, project context, preferences) using descriptive keys like 'user-name', 'project-deadline'. Use tags for categorization.
 
-Use descriptive keys like 'user-name', 'project-deadline', 'preferred-language'.
-Use tags for categorization: ['personal'], ['project'], ['preference'], etc.
+Do NOT proactively search or list memories unless the user asks about something you previously discussed, or you need context to answer their question. Focus on the current request first.
 
-**Important:** You cannot choose the security classification of memories — it is automatically set based on the current session's security level. Higher-security sessions can read lower-security memories, but not vice versa.
-
-At the start of a session, use memory_search or memory_list to recall relevant context from previous sessions.`;
+Classification is automatic based on the current session's security level.`;

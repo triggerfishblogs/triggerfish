@@ -368,6 +368,78 @@ function isPlanExitTool(name: string): boolean {
   return name === "plan.exit";
 }
 
+/** Check whether a tool name is a web tool (web_search or web_fetch). */
+function isWebTool(name: string): boolean {
+  return name === "web_search" || name === "web_fetch";
+}
+
+/** Human-readable display names for known tools. */
+const TOOL_DISPLAY_NAMES: Readonly<Record<string, string>> = {
+  web_search: "Web Search",
+  web_fetch: "Fetch",
+  read_file: "Read",
+  write_file: "Write",
+  list_directory: "List",
+  run_command: "Run",
+};
+
+/**
+ * Format result metadata for the ● display style.
+ * Each tool type gets a human-readable summary line.
+ */
+function formatResultMeta(name: string, result: string): string {
+  if (name === "web_search") {
+    const count = (result.match(/^\d+\.\s/gm) ?? []).length;
+    return count > 0 ? `${count} result${count !== 1 ? "s" : ""}` : "no results";
+  }
+  if (name === "web_fetch") {
+    const byteLen = new TextEncoder().encode(result).length;
+    return `Received ${formatBytes(byteLen)}`;
+  }
+  if (name === "read_file") {
+    if (result.startsWith("Error")) return truncate(result, 60);
+    const lineCount = result.split("\n").length;
+    return `${lineCount} line${lineCount !== 1 ? "s" : ""}`;
+  }
+  // Generic: byte count for large results, truncated preview for small
+  const byteLen = new TextEncoder().encode(result).length;
+  if (byteLen > 200) return formatBytes(byteLen);
+  return truncate(result, 50);
+}
+
+/**
+ * Format a tool call + result in the ● compact style.
+ *
+ * Examples:
+ *   ● Web Search("query")
+ *   │  5 results
+ *
+ *   ● Fetch(https://example.com/...)
+ *   │  Received 166.1KB
+ *
+ *   ● Read(/workspace/file.txt)
+ *   │  42 lines
+ */
+export function formatToolCompact(
+  name: string,
+  args: Record<string, unknown>,
+  result: string,
+  blocked: boolean,
+): string {
+  const displayName = TOOL_DISPLAY_NAMES[name] ?? name;
+  const primary = getPrimaryArg(args);
+  const argStr = primary.length > 0
+    ? (name === "web_search" ? `${DIM}("${truncate(primary, 60)}")${RESET}` : `${DIM}(${truncate(primary, 60)})${RESET}`)
+    : "";
+
+  if (blocked) {
+    return `  ${RED}●${RESET} ${BOLD}${displayName}${RESET}${argStr}\n  ${DIM}│${RESET}  ${RED}blocked${RESET}`;
+  }
+
+  const meta = formatResultMeta(name, result);
+  return `  ${CYAN}●${RESET} ${BOLD}${displayName}${RESET}${argStr}\n  ${DIM}│${RESET}  ${DIM}${meta}${RESET}`;
+}
+
 /**
  * Format plan markdown for terminal display with ANSI colors.
  *
@@ -417,6 +489,8 @@ function formatPlanMarkdown(result: string): string {
 export function createEventHandler(): EventCallback {
   let spinner: Spinner | null = null;
   let pendingTodoArgs: Record<string, unknown> | null = null;
+  let pendingTool: { name: string; args: Record<string, unknown> } | null =
+    null;
 
   return (event: OrchestratorEvent) => {
     switch (event.type) {
@@ -439,7 +513,8 @@ export function createEventHandler(): EventCallback {
         if (isTodoTool(event.name)) {
           pendingTodoArgs = event.args;
         } else {
-          renderToolCall(event.name, event.args);
+          // Buffer all tool calls — render with ● style when result arrives
+          pendingTool = { name: event.name, args: event.args };
         }
         break;
 
@@ -454,6 +529,16 @@ export function createEventHandler(): EventCallback {
             writeln(formatTodoListAnsi(todos));
             writeln();
           }
+        } else if (pendingTool) {
+          writeln(
+            formatToolCompact(
+              pendingTool.name,
+              pendingTool.args,
+              event.result,
+              event.blocked,
+            ),
+          );
+          pendingTool = null;
         } else {
           renderToolResult(event.name, event.result, event.blocked);
         }
@@ -516,7 +601,7 @@ export function createScreenEventHandler(
           // Buffer — render formatted output when result arrives
           pendingToolCall = { name: event.name, args: event.args };
         } else if (getDisplayMode() === "compact") {
-          // Buffer the tool call — render when result arrives
+          // Buffer all tool calls in compact mode — render with ● style when result arrives
           pendingToolCall = { name: event.name, args: event.args };
         } else {
           screen.writeOutput(formatToolCallExpanded(event.name, event.args));
@@ -544,7 +629,7 @@ export function createScreenEventHandler(
           }
         } else if (getDisplayMode() === "compact" && pendingToolCall) {
           screen.writeOutput(
-            formatToolCallCompact(
+            formatToolCompact(
               pendingToolCall.name,
               pendingToolCall.args,
               event.result,
