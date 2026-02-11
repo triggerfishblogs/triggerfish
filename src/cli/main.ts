@@ -66,6 +66,19 @@ import {
   TODO_SYSTEM_PROMPT,
 } from "../tools/mod.ts";
 import type { TodoManager } from "../tools/mod.ts";
+import {
+  createBraveSearchProvider,
+  createDomainPolicy,
+  createWebFetcher,
+  createWebToolExecutor,
+  getWebToolDefinitions,
+  WEB_TOOLS_SYSTEM_PROMPT,
+} from "../web/mod.ts";
+import type {
+  DomainSecurityConfig,
+  SearchProvider,
+  WebFetcher,
+} from "../web/mod.ts";
 // Plan mode disabled — will re-enable after fixing blank response bug
 // import { createPlanManager } from "../agent/plan.ts";
 // import { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "../agent/plan_tools.ts";
@@ -110,6 +123,28 @@ export interface TriggerFishConfig {
   readonly channels: Readonly<Record<string, unknown>>;
   readonly classification: {
     readonly mode: string;
+  };
+  readonly web?: {
+    readonly search?: {
+      readonly provider?: string;
+      readonly api_key?: string;
+      readonly max_results?: number;
+      readonly safe_search?: string;
+    };
+    readonly fetch?: {
+      readonly rate_limit?: number;
+      readonly max_content_length?: number;
+      readonly timeout?: number;
+      readonly default_mode?: string;
+    };
+    readonly domains?: {
+      readonly denylist?: readonly string[];
+      readonly allowlist?: readonly string[];
+      readonly classifications?: readonly {
+        readonly pattern: string;
+        readonly classification: string;
+      }[];
+    };
   };
   readonly scheduler?: {
     readonly trigger?: {
@@ -467,6 +502,53 @@ async function runPatrol(): Promise<void> {
 }
 
 /**
+ * Build web search/fetch infrastructure from config.
+ *
+ * Returns a SearchProvider (if configured) and a WebFetcher.
+ */
+function buildWebTools(
+  config: TriggerFishConfig,
+): { searchProvider: SearchProvider | undefined; webFetcher: WebFetcher } {
+  const webConfig = config.web;
+
+  // Build domain security config
+  const domainSecConfig: DomainSecurityConfig = {
+    allowlist: webConfig?.domains?.allowlist ?? [],
+    denylist: webConfig?.domains?.denylist ?? [],
+    classificationMap: (webConfig?.domains?.classifications ?? []).map((c) => ({
+      pattern: c.pattern,
+      classification: c.classification as ClassificationLevel,
+    })),
+  };
+
+  const domainPolicy = createDomainPolicy(domainSecConfig);
+  const webFetcher = createWebFetcher(domainPolicy);
+
+  // Build search provider
+  let searchProvider: SearchProvider | undefined;
+  const searchConfig = webConfig?.search;
+
+  if (searchConfig?.provider === "brave" && searchConfig.api_key) {
+    searchProvider = createBraveSearchProvider({
+      apiKey: searchConfig.api_key,
+    });
+  } else if (searchConfig?.api_key) {
+    // Default to Brave if an API key is provided without explicit provider
+    searchProvider = createBraveSearchProvider({
+      apiKey: searchConfig.api_key,
+    });
+  } else {
+    // Check environment variable as fallback
+    const envKey = Deno.env.get("BRAVE_API_KEY");
+    if (envKey) {
+      searchProvider = createBraveSearchProvider({ apiKey: envKey });
+    }
+  }
+
+  return { searchProvider, webFetcher };
+}
+
+/**
  * Create an OrchestratorFactory from config.
  *
  * The factory captures shared infrastructure (provider registry, policy
@@ -490,6 +572,7 @@ function createOrchestratorFactory(
 
   const spinePath = `${baseDir}/SPINE.md`;
   const toolDefs = getToolDefinitions();
+  const { searchProvider, webFetcher } = buildWebTools(config);
 
   return {
     async create(channelId: string) {
@@ -510,14 +593,15 @@ function createOrchestratorFactory(
 
       const execTools = createExecTools(workspace);
       const todoManager = storage ? createTodoManager({ storage, agentId }) : undefined;
-      const toolExecutor = createToolExecutor(execTools, cronManager, todoManager);
+      const toolExecutor = createToolExecutor(execTools, cronManager, todoManager, searchProvider, webFetcher);
+      const systemPromptSections = [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT];
       const orchestrator = createOrchestrator({
         hookRunner,
         providerRegistry: registry,
         spinePath,
         tools: toolDefs,
         toolExecutor,
-        systemPromptSections: [TODO_SYSTEM_PROMPT],
+        systemPromptSections,
       });
 
       const session = createSession({
@@ -651,7 +735,8 @@ async function runStart(): Promise<void> {
 
   const execTools = createExecTools(mainWorkspace);
   const todoManager = createTodoManager({ storage, agentId: "main-session" });
-  const toolExecutor = createToolExecutor(execTools, cronManager, todoManager);
+  const { searchProvider, webFetcher } = buildWebTools(config);
+  const toolExecutor = createToolExecutor(execTools, cronManager, todoManager, searchProvider, webFetcher);
   const session = createSession({
     userId: "owner" as UserId,
     channelId: "daemon" as ChannelId,
@@ -663,7 +748,7 @@ async function runStart(): Promise<void> {
     spinePath,
     tools: getToolDefinitions(),
     toolExecutor,
-    systemPromptSections: [TODO_SYSTEM_PROMPT],
+    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT],
     session,
   });
 
@@ -1157,6 +1242,7 @@ async function runUpdate(): Promise<void> {
 function getToolDefinitions(): readonly ToolDefinition[] {
   return [
     ...getTodoToolDefinitions(),
+    ...getWebToolDefinitions(),
     // ...getPlanToolDefinitions(),  // Plan mode disabled
     {
       name: "read_file",
@@ -1239,8 +1325,11 @@ function createToolExecutor(
   execTools: ReturnType<typeof createExecTools>,
   cronManager?: CronManager,
   todoManager?: TodoManager,
+  searchProvider?: SearchProvider,
+  webFetcher?: WebFetcher,
 ): ToolExecutor {
   const todoExecutor = todoManager ? createTodoToolExecutor(todoManager) : null;
+  const webExecutor = createWebToolExecutor(searchProvider, webFetcher);
 
   return async (name: string, input: Record<string, unknown>): Promise<string> => {
     // Try todo tools first (returns null if not a todo tool)
@@ -1248,6 +1337,10 @@ function createToolExecutor(
       const todoResult = await todoExecutor(name, input);
       if (todoResult !== null) return todoResult;
     }
+
+    // Try web tools (returns null if not a web tool)
+    const webResult = await webExecutor(name, input);
+    if (webResult !== null) return webResult;
 
     switch (name) {
       case "read_file": {
