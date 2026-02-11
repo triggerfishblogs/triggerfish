@@ -6,7 +6,8 @@
  * @module
  */
 
-import { parse as parseYaml } from "@std/yaml";
+import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
+import { Confirm, Input, Select } from "@cliffy/prompt";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { createGatewayServer } from "../gateway/server.ts";
 import { createChatSession } from "../gateway/chat.ts";
@@ -185,7 +186,11 @@ export function parseCommand(
 
   // Commands with subcommands
   if (command === "config" && positional.length > 1) {
-    return { command, subcommand: positional[1], flags };
+    const sub = positional[1];
+    if (sub === "add-channel" && positional.length > 2) {
+      flags["channel_type"] = positional[2];
+    }
+    return { command, subcommand: sub, flags };
   }
   if (command === "cron" && positional.length > 1) {
     // Capture remaining positional args as flags for cron subcommands
@@ -263,6 +268,7 @@ USAGE:
 
 COMMANDS:
   chat        Start an interactive chat session
+  config      Manage configuration (add channels, etc.)
   cron        Manage scheduled cron jobs
   dive        First-run setup wizard (creates triggerfish.yaml)
   run         Run the gateway server in foreground
@@ -274,6 +280,9 @@ COMMANDS:
   update      Pull latest code, recompile, and restart
   help        Show this help message
   version     Show version information
+
+CONFIG SUBCOMMANDS:
+  config add-channel [type]                Add a channel (telegram, slack, discord, etc.)
 
 CRON SUBCOMMANDS:
   cron list                              List all cron jobs
@@ -287,6 +296,8 @@ EXAMPLES:
   triggerfish cron list                             # Show all cron jobs
   triggerfish cron delete <uuid>                    # Remove a job
   triggerfish cron history <uuid>                   # View execution log
+  triggerfish config add-channel telegram             # Add Telegram channel
+  triggerfish config add-channel                      # Interactive channel selection
   triggerfish dive                                  # Interactive setup
   triggerfish run                                   # Run gateway in foreground
   triggerfish start                                 # Install and start daemon
@@ -769,6 +780,313 @@ async function runDaemonStop(): Promise<void> {
   } else {
     console.log("✗", result.message);
     Deno.exit(1);
+  }
+}
+
+// ─── Channel type definitions for config add-channel ─────────────────────────
+
+/** Supported channel types for add-channel. */
+const CHANNEL_TYPES = [
+  "telegram",
+  "slack",
+  "discord",
+  "whatsapp",
+  "webchat",
+  "email",
+] as const;
+
+type ChannelType = typeof CHANNEL_TYPES[number];
+
+/** Prompt for channel-specific config fields and return the config object. */
+async function promptChannelConfig(
+  channelType: ChannelType,
+): Promise<Record<string, unknown>> {
+  const config: Record<string, unknown> = {};
+
+  switch (channelType) {
+    case "telegram": {
+      config.botToken = await Input.prompt({
+        message: "Bot token (from @BotFather)",
+      });
+      const ownerId = await Input.prompt({
+        message: "Your Telegram user ID (optional, for owner detection)",
+        default: "",
+      });
+      if (ownerId.length > 0) {
+        config.ownerId = parseInt(ownerId, 10) || 0;
+      }
+      config.classification = await Select.prompt({
+        message: "Classification level",
+        options: ["INTERNAL", "PUBLIC", "CONFIDENTIAL", "RESTRICTED"],
+        default: "INTERNAL",
+      });
+      break;
+    }
+
+    case "slack": {
+      config.botToken = await Input.prompt({
+        message: "Bot token (xoxb-...)",
+      });
+      config.appToken = await Input.prompt({
+        message: "App token (xapp-... for Socket Mode)",
+      });
+      config.signingSecret = await Input.prompt({
+        message: "Signing secret",
+      });
+      const slackOwner = await Input.prompt({
+        message: "Your Slack user ID (optional, e.g. U012ABC3DEF)",
+        default: "",
+      });
+      if (slackOwner.length > 0) {
+        config.ownerId = slackOwner;
+      }
+      config.classification = await Select.prompt({
+        message: "Classification level",
+        options: ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"],
+        default: "PUBLIC",
+      });
+      break;
+    }
+
+    case "discord": {
+      config.botToken = await Input.prompt({
+        message: "Bot token",
+      });
+      const discordOwner = await Input.prompt({
+        message: "Your Discord user ID (optional, snowflake)",
+        default: "",
+      });
+      if (discordOwner.length > 0) {
+        config.ownerId = discordOwner;
+      }
+      config.classification = await Select.prompt({
+        message: "Classification level",
+        options: ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"],
+        default: "PUBLIC",
+      });
+      break;
+    }
+
+    case "whatsapp": {
+      config.accessToken = await Input.prompt({
+        message: "Meta Business API access token",
+      });
+      config.phoneNumberId = await Input.prompt({
+        message: "Phone number ID",
+      });
+      config.verifyToken = await Input.prompt({
+        message: "Webhook verify token",
+      });
+      const webhookPort = await Input.prompt({
+        message: "Webhook port",
+        default: "8443",
+      });
+      config.webhookPort = parseInt(webhookPort, 10) || 8443;
+      const ownerPhone = await Input.prompt({
+        message: "Owner phone number (optional, for owner detection)",
+        default: "",
+      });
+      if (ownerPhone.length > 0) {
+        config.ownerPhone = ownerPhone;
+      }
+      config.classification = await Select.prompt({
+        message: "Classification level",
+        options: ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"],
+        default: "PUBLIC",
+      });
+      break;
+    }
+
+    case "webchat": {
+      const port = await Input.prompt({
+        message: "WebChat port",
+        default: "8765",
+      });
+      config.port = parseInt(port, 10) || 8765;
+      config.classification = await Select.prompt({
+        message: "Classification level",
+        options: ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"],
+        default: "PUBLIC",
+      });
+      break;
+    }
+
+    case "email": {
+      config.smtpApiUrl = await Input.prompt({
+        message: "SMTP relay API URL (e.g. SendGrid, Mailgun endpoint)",
+      });
+      config.smtpApiKey = await Input.prompt({
+        message: "SMTP relay API key",
+      });
+      config.imapHost = await Input.prompt({
+        message: "IMAP server hostname",
+      });
+      const imapPort = await Input.prompt({
+        message: "IMAP port",
+        default: "993",
+      });
+      config.imapPort = parseInt(imapPort, 10) || 993;
+      config.imapUser = await Input.prompt({
+        message: "IMAP username (email address)",
+      });
+      config.imapPassword = await Input.prompt({
+        message: "IMAP password",
+      });
+      config.fromAddress = await Input.prompt({
+        message: "From address for outgoing mail",
+      });
+      const pollInterval = await Input.prompt({
+        message: "Poll interval (ms)",
+        default: "30000",
+      });
+      config.pollInterval = parseInt(pollInterval, 10) || 30000;
+      const ownerEmail = await Input.prompt({
+        message: "Owner email (optional, for owner detection)",
+        default: "",
+      });
+      if (ownerEmail.length > 0) {
+        config.ownerEmail = ownerEmail;
+      }
+      config.classification = await Select.prompt({
+        message: "Classification level",
+        options: ["CONFIDENTIAL", "PUBLIC", "INTERNAL", "RESTRICTED"],
+        default: "CONFIDENTIAL",
+      });
+      break;
+    }
+  }
+
+  return config;
+}
+
+/**
+ * Add a channel to triggerfish.yaml interactively.
+ */
+async function runConfigAddChannel(
+  flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+
+  // Require interactive terminal
+  if (!Deno.stdin.isTerminal()) {
+    console.error("Error: add-channel requires an interactive terminal.");
+    Deno.exit(1);
+  }
+
+  // Determine channel type
+  let channelType: ChannelType;
+  const flagType = flags.channel_type as string | undefined;
+
+  if (flagType && CHANNEL_TYPES.includes(flagType as ChannelType)) {
+    channelType = flagType as ChannelType;
+  } else {
+    if (flagType) {
+      console.log(`Unknown channel type: ${flagType}\n`);
+    }
+    channelType = (await Select.prompt({
+      message: "Channel type",
+      options: [
+        { name: "Telegram", value: "telegram" },
+        { name: "Slack", value: "slack" },
+        { name: "Discord", value: "discord" },
+        { name: "WhatsApp", value: "whatsapp" },
+        { name: "WebChat (browser-based)", value: "webchat" },
+        { name: "Email (IMAP + SMTP relay)", value: "email" },
+      ],
+    })) as ChannelType;
+  }
+
+  // Load existing config
+  let rawYaml: string;
+  try {
+    rawYaml = await Deno.readTextFile(configPath);
+  } catch {
+    console.error(`Config not found at ${configPath}`);
+    console.error("Run 'triggerfish dive' to create initial config.");
+    Deno.exit(1);
+  }
+
+  const parsed = parseYaml(rawYaml) as Record<string, unknown>;
+  const channels = (parsed.channels ?? {}) as Record<string, unknown>;
+
+  // Check if channel already exists
+  if (channels[channelType]) {
+    const overwrite = await Confirm.prompt({
+      message: `${channelType} is already configured. Overwrite?`,
+      default: false,
+    });
+    if (!overwrite) {
+      console.log("Cancelled.");
+      return;
+    }
+  }
+
+  console.log(`\nConfiguring ${channelType}...\n`);
+
+  // Prompt for channel-specific fields
+  const channelConfig = await promptChannelConfig(channelType);
+
+  // Merge into config
+  channels[channelType] = channelConfig;
+  parsed.channels = channels;
+
+  // Write back
+  const yaml = stringifyYaml(parsed);
+  const content = `# Triggerfish Configuration\n# Generated by triggerfish dive\n\n${yaml}`;
+  await Deno.writeTextFile(configPath, content);
+
+  console.log(`\n✓ ${channelType} added to triggerfish.yaml`);
+
+  // Offer daemon restart
+  const status = await getDaemonStatus();
+  if (status.running) {
+    const restart = await Confirm.prompt({
+      message: "Restart daemon to apply?",
+      default: true,
+    });
+    if (restart) {
+      const stopResult = await stopDaemon();
+      if (!stopResult.ok) {
+        console.log(`✗ Failed to stop daemon: ${stopResult.message}`);
+        return;
+      }
+      const startResult = await installAndStartDaemon(Deno.execPath());
+      if (startResult.ok) {
+        console.log("✓ Daemon restarted");
+      } else {
+        console.log(`✗ ${startResult.message}`);
+      }
+    }
+  } else {
+    console.log("Daemon is not running. Start it with: triggerfish start");
+  }
+}
+
+/**
+ * Config command dispatcher.
+ */
+async function runConfig(
+  subcommand: string | undefined,
+  flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  switch (subcommand) {
+    case "add-channel":
+      await runConfigAddChannel(flags);
+      break;
+    default:
+      console.log(`
+CONFIG USAGE:
+  triggerfish config add-channel [type]   Add a channel interactively
+
+CHANNEL TYPES:
+  telegram, slack, discord, whatsapp, webchat, email
+
+EXAMPLES:
+  triggerfish config add-channel              # Select channel type interactively
+  triggerfish config add-channel telegram     # Add Telegram channel
+  triggerfish config add-channel webchat      # Add WebChat channel
+`);
+      break;
   }
 }
 
@@ -1751,6 +2069,9 @@ async function main(): Promise<void> {
   switch (parsed.command) {
     case "chat":
       await runChat();
+      break;
+    case "config":
+      await runConfig(parsed.subcommand, parsed.flags);
       break;
     case "cron":
       await runCron(parsed.subcommand, parsed.flags);
