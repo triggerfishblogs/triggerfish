@@ -18,6 +18,9 @@ import type { HookRunner } from "../core/policy/hooks.ts";
 import type { LlmProviderRegistry, LlmMessage } from "./llm.ts";
 import { createCompactor } from "./compactor.ts";
 import type { Compactor, CompactorConfig } from "./compactor.ts";
+import type { PlanManager } from "./plan.ts";
+import { createPlanToolExecutor } from "./plan.ts";
+import { buildPlanModePrompt, buildAwaitingApprovalPrompt, buildPlanExecutionPrompt } from "./plan_prompt.ts";
 
 /** Default system prompt used when no SPINE.md is found. */
 const DEFAULT_SYSTEM_PROMPT =
@@ -66,6 +69,8 @@ export interface OrchestratorConfig {
    * the foundation — these sections layer platform behaviour on top.
    */
   readonly systemPromptSections?: readonly string[];
+  /** Plan manager for plan mode state tracking and tool execution. */
+  readonly planManager?: PlanManager;
 }
 
 /** Options for processing a single message. */
@@ -244,6 +249,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   const tools = config.tools ?? [];
   const toolExecutor = config.toolExecutor;
   const systemPromptSections = config.systemPromptSections ?? [];
+  const planManager = config.planManager;
   const emit = config.onEvent ?? (() => {});
   const histories = new Map<string, HistoryEntry[]>();
   const compactor: Compactor = createCompactor(config.compactorConfig);
@@ -266,6 +272,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       };
     }
 
+    // Session key for history and plan state lookups
+    const sessionKey = session.id as string;
+
     // 2. Get the default LLM provider
     const provider = providerRegistry.getDefault();
     if (!provider) {
@@ -286,8 +295,21 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       systemPrompt += "\n\n" + section;
     }
 
+    // Inject plan mode context based on current session plan state
+    if (planManager) {
+      const planState = planManager.getState(sessionKey);
+      if (planState.mode === "plan" && planState.goal) {
+        systemPrompt += "\n\n" + buildPlanModePrompt(planState.goal, planState.scope);
+      }
+      if (planState.mode === "awaiting_approval") {
+        systemPrompt += "\n\n" + buildAwaitingApprovalPrompt();
+      }
+      if (planState.activePlan) {
+        systemPrompt += "\n\n" + buildPlanExecutionPrompt(planState.activePlan);
+      }
+    }
+
     // Get or create conversation history for this session
-    const sessionKey = session.id as string;
     if (!histories.has(sessionKey)) {
       histories.set(sessionKey, []);
     }
@@ -327,7 +349,8 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       });
 
       // Parse tool calls from the response text
-      const parsedCalls = (tools.length > 0 && toolExecutor)
+      const hasTools = (tools.length > 0 && toolExecutor) || planManager;
+      const parsedCalls = hasTools
         ? parseToolCalls(completion.content)
         : [];
 
@@ -393,24 +416,52 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
         emit({ type: "tool_call", name: call.name, args: call.args });
 
-        // Fire PRE_TOOL_CALL hook
-        const preToolResult = await hookRunner.run("PRE_TOOL_CALL", {
-          session,
-          input: { tool_call: call },
-        });
-
         let resultText: string;
-        if (!preToolResult.allowed) {
-          resultText = `Tool call blocked by policy: ${preToolResult.message ?? "denied"}`;
+        let blocked = false;
+
+        // Plan mode tool blocking (defense-in-depth)
+        if (planManager && planManager.isToolBlocked(sessionKey, call.name)) {
+          resultText = `Tool "${call.name}" is blocked in plan mode. ` +
+            `Use plan.exit to present your implementation plan first.`;
+          blocked = true;
+        } else if (planManager) {
+          // Try plan tools first (returns null if not a plan tool)
+          const planExecutor = createPlanToolExecutor(planManager, sessionKey);
+          const planResult = await planExecutor(call.name, call.args);
+          if (planResult !== null) {
+            resultText = planResult;
+          } else {
+            // Not a plan tool — fire PRE_TOOL_CALL hook then external executor
+            const preToolResult = await hookRunner.run("PRE_TOOL_CALL", {
+              session,
+              input: { tool_call: call },
+            });
+            if (!preToolResult.allowed) {
+              resultText = `Tool call blocked by policy: ${preToolResult.message ?? "denied"}`;
+              blocked = true;
+            } else {
+              resultText = await toolExecutor!(call.name, call.args);
+            }
+          }
         } else {
-          resultText = await toolExecutor!(call.name, call.args);
+          // No plan manager — original behavior
+          const preToolResult = await hookRunner.run("PRE_TOOL_CALL", {
+            session,
+            input: { tool_call: call },
+          });
+          if (!preToolResult.allowed) {
+            resultText = `Tool call blocked by policy: ${preToolResult.message ?? "denied"}`;
+            blocked = true;
+          } else {
+            resultText = await toolExecutor!(call.name, call.args);
+          }
         }
 
         emit({
           type: "tool_result",
           name: call.name,
           result: resultText,
-          blocked: !preToolResult.allowed,
+          blocked,
         });
         resultParts.push(`<tool_result name="${call.name}">\n${resultText}\n</tool_result>`);
       }

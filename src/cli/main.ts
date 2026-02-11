@@ -66,6 +66,8 @@ import {
   TODO_SYSTEM_PROMPT,
 } from "../tools/mod.ts";
 import type { TodoManager } from "../tools/mod.ts";
+import { createPlanManager } from "../agent/plan.ts";
+import { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "../agent/plan_tools.ts";
 import { createTelegramChannel } from "../channels/telegram/adapter.ts";
 import type { ChatEventSender } from "../gateway/chat.ts";
 
@@ -508,6 +510,9 @@ function createOrchestratorFactory(
       const execTools = createExecTools(workspace);
       const todoManager = storage ? createTodoManager({ storage, agentId }) : undefined;
       const toolExecutor = createToolExecutor(execTools, cronManager, todoManager);
+      const factoryPlanManager = createPlanManager({
+        plansDir: `${workspace.path}/plans`,
+      });
 
       const orchestrator = createOrchestrator({
         hookRunner,
@@ -515,7 +520,8 @@ function createOrchestratorFactory(
         spinePath,
         tools: toolDefs,
         toolExecutor,
-        systemPromptSections: [TODO_SYSTEM_PROMPT],
+        systemPromptSections: [TODO_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT],
+        planManager: factoryPlanManager,
       });
 
       const session = createSession({
@@ -650,6 +656,9 @@ async function runStart(): Promise<void> {
   const execTools = createExecTools(mainWorkspace);
   const todoManager = createTodoManager({ storage, agentId: "main-session" });
   const toolExecutor = createToolExecutor(execTools, cronManager, todoManager);
+  const planManager = createPlanManager({
+    plansDir: `${mainWorkspace.path}/plans`,
+  });
 
   const session = createSession({
     userId: "owner" as UserId,
@@ -662,8 +671,9 @@ async function runStart(): Promise<void> {
     spinePath,
     tools: getToolDefinitions(),
     toolExecutor,
-    systemPromptSections: [TODO_SYSTEM_PROMPT],
+    systemPromptSections: [TODO_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT],
     session,
+    planManager,
   });
 
   console.log("  Main session created");
@@ -1156,6 +1166,7 @@ async function runUpdate(): Promise<void> {
 function getToolDefinitions(): readonly ToolDefinition[] {
   return [
     ...getTodoToolDefinitions(),
+    ...getPlanToolDefinitions(),
     {
       name: "read_file",
       description: "Read the contents of a file at an absolute path.",

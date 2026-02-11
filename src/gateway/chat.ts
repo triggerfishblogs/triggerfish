@@ -17,6 +17,7 @@ import type {
   ToolExecutor,
 } from "../agent/orchestrator.ts";
 import type { LlmProviderRegistry } from "../agent/llm.ts";
+import type { PlanManager } from "../agent/plan.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { SessionState } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
@@ -64,6 +65,8 @@ export interface ChatSessionConfig {
   readonly compactorConfig?: Partial<CompactorConfig>;
   readonly session: SessionState;
   readonly targetClassification?: ClassificationLevel;
+  /** Plan manager for plan mode state tracking. */
+  readonly planManager?: PlanManager;
 }
 
 /** Shared chat session that serializes access to the orchestrator. */
@@ -106,6 +109,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     onEvent,
     compactorConfig: config.compactorConfig,
     systemPromptSections: config.systemPromptSections,
+    planManager: config.planManager,
   });
 
   const session = config.session;
