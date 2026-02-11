@@ -335,6 +335,7 @@ COMMANDS:
 CONFIG SUBCOMMANDS:
   config set <key> <value>                 Set a config value (dotted YAML path)
   config get <key>                         Get a config value
+  config validate                          Validate configuration
   config add-channel [type]                Add a channel (telegram, slack, discord, etc.)
 
 CRON SUBCOMMANDS:
@@ -1228,6 +1229,70 @@ function runConfigGet(
 }
 
 /**
+ * Validate triggerfish.yaml and report errors.
+ */
+function runConfigValidate(): void {
+  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+
+  let rawYaml: string;
+  try {
+    rawYaml = Deno.readTextFileSync(configPath);
+  } catch {
+    console.error(`Config not found at ${configPath}`);
+    console.error("Run 'triggerfish dive' to create initial config.");
+    Deno.exit(1);
+  }
+
+  // Check YAML parses
+  let parsed: unknown;
+  try {
+    parsed = parseYaml(rawYaml);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`\n  YAML parse error: ${message}\n`);
+    Deno.exit(1);
+  }
+
+  if (typeof parsed !== "object" || parsed === null) {
+    console.error("\n  Config file did not parse to an object.\n");
+    Deno.exit(1);
+  }
+
+  // Run structural validation
+  const result = validateConfig(parsed as Record<string, unknown>);
+  if (!result.ok) {
+    console.error(`\n  Validation error: ${result.error}\n`);
+    Deno.exit(1);
+  }
+
+  // Additional warnings (non-fatal)
+  const config = parsed as Record<string, unknown>;
+  const warnings: string[] = [];
+
+  const models = config.models as Record<string, unknown> | undefined;
+  if (models?.providers) {
+    const providers = models.providers as Record<string, unknown>;
+    if (Object.keys(providers).length === 0) {
+      warnings.push("No LLM providers configured under models.providers");
+    }
+  }
+
+  const channels = config.channels as Record<string, unknown> | undefined;
+  if (!channels || Object.keys(channels).length === 0) {
+    warnings.push("No channels configured");
+  }
+
+  console.log(`\n  Configuration valid: ${configPath}`);
+  if (warnings.length > 0) {
+    console.log("\n  Warnings:");
+    for (const w of warnings) {
+      console.log(`    - ${w}`);
+    }
+  }
+  console.log();
+}
+
+/**
  * Add a channel to triggerfish.yaml interactively.
  */
 async function runConfigAddChannel(
@@ -1347,11 +1412,15 @@ async function runConfig(
     case "get":
       runConfigGet(flags);
       break;
+    case "validate":
+      runConfigValidate();
+      break;
     default:
       console.log(`
 CONFIG USAGE:
   triggerfish config set <key> <value>    Set a configuration value
   triggerfish config get <key>            Get a configuration value
+  triggerfish config validate             Validate configuration
   triggerfish config add-channel [type]   Add a channel interactively
 
 KEYS use dotted paths into triggerfish.yaml:
