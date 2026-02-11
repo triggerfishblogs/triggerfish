@@ -66,6 +66,14 @@ import {
   TODO_SYSTEM_PROMPT,
 } from "../tools/mod.ts";
 import type { TodoManager } from "../tools/mod.ts";
+import {
+  createMemoryStore,
+  createMemoryToolExecutor,
+  createFts5SearchProvider,
+  getMemoryToolDefinitions,
+  MEMORY_SYSTEM_PROMPT,
+} from "../memory/mod.ts";
+import type { MemoryStore, MemorySearchProvider } from "../memory/mod.ts";
 // Plan mode disabled — will re-enable after fixing blank response bug
 // import { createPlanManager } from "../agent/plan.ts";
 // import { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "../agent/plan_tools.ts";
@@ -510,19 +518,31 @@ function createOrchestratorFactory(
 
       const execTools = createExecTools(workspace);
       const todoManager = storage ? createTodoManager({ storage, agentId }) : undefined;
-      const toolExecutor = createToolExecutor(execTools, cronManager, todoManager);
+      const session = createSession({
+        userId: "owner" as UserId,
+        channelId: channelId as ChannelId,
+      });
+
+      // Memory for scheduler agents (uses storage-backed store, no FTS5)
+      let schedulerMemoryExecutor: ((name: string, input: Record<string, unknown>) => Promise<string | null>) | undefined;
+      if (storage) {
+        const schedulerMemoryStore = createMemoryStore({ storage });
+        schedulerMemoryExecutor = createMemoryToolExecutor({
+          store: schedulerMemoryStore,
+          agentId,
+          sessionTaint: session.taint,
+          sourceSessionId: session.id,
+        });
+      }
+
+      const toolExecutor = createToolExecutor(execTools, cronManager, todoManager, schedulerMemoryExecutor);
       const orchestrator = createOrchestrator({
         hookRunner,
         providerRegistry: registry,
         spinePath,
         tools: toolDefs,
         toolExecutor,
-        systemPromptSections: [TODO_SYSTEM_PROMPT],
-      });
-
-      const session = createSession({
-        userId: "owner" as UserId,
-        channelId: channelId as ChannelId,
+        systemPromptSections: [TODO_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT],
       });
 
       return { orchestrator, session };
@@ -651,11 +671,26 @@ async function runStart(): Promise<void> {
 
   const execTools = createExecTools(mainWorkspace);
   const todoManager = createTodoManager({ storage, agentId: "main-session" });
-  const toolExecutor = createToolExecutor(execTools, cronManager, todoManager);
+
+  // Initialize memory system with FTS5 search
+  const { Database } = await import("@db/sqlite");
+  const memoryDb = new Database(`${dataDir}/triggerfish.db`);
+  memoryDb.exec("PRAGMA journal_mode=WAL");
+  const memorySearchProvider = createFts5SearchProvider(memoryDb);
+  const memoryStore = createMemoryStore({ storage, searchProvider: memorySearchProvider });
   const session = createSession({
     userId: "owner" as UserId,
     channelId: "daemon" as ChannelId,
   });
+  const memoryExecutor = createMemoryToolExecutor({
+    store: memoryStore,
+    searchProvider: memorySearchProvider,
+    agentId: "main-session",
+    sessionTaint: session.taint,
+    sourceSessionId: session.id,
+  });
+
+  const toolExecutor = createToolExecutor(execTools, cronManager, todoManager, memoryExecutor);
 
   const chatSession = createChatSession({
     hookRunner,
@@ -663,7 +698,7 @@ async function runStart(): Promise<void> {
     spinePath,
     tools: getToolDefinitions(),
     toolExecutor,
-    systemPromptSections: [TODO_SYSTEM_PROMPT],
+    systemPromptSections: [TODO_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT],
     session,
   });
 
@@ -1157,6 +1192,7 @@ async function runUpdate(): Promise<void> {
 function getToolDefinitions(): readonly ToolDefinition[] {
   return [
     ...getTodoToolDefinitions(),
+    ...getMemoryToolDefinitions(),
     // ...getPlanToolDefinitions(),  // Plan mode disabled
     {
       name: "read_file",
@@ -1239,6 +1275,7 @@ function createToolExecutor(
   execTools: ReturnType<typeof createExecTools>,
   cronManager?: CronManager,
   todoManager?: TodoManager,
+  memoryExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>,
 ): ToolExecutor {
   const todoExecutor = todoManager ? createTodoToolExecutor(todoManager) : null;
 
@@ -1247,6 +1284,12 @@ function createToolExecutor(
     if (todoExecutor) {
       const todoResult = await todoExecutor(name, input);
       if (todoResult !== null) return todoResult;
+    }
+
+    // Try memory tools (returns null if not a memory tool)
+    if (memoryExecutor) {
+      const memoryResult = await memoryExecutor(name, input);
+      if (memoryResult !== null) return memoryResult;
     }
 
     switch (name) {
