@@ -363,6 +363,47 @@ function isTodoTool(name: string): boolean {
   return name === "todo_read" || name === "todo_write";
 }
 
+/** Check whether a tool name is plan.exit (requires full display). */
+function isPlanExitTool(name: string): boolean {
+  return name === "plan.exit";
+}
+
+/**
+ * Format plan markdown for terminal display with ANSI colors.
+ *
+ * Extracts the markdown portion from a plan.exit tool result
+ * (after the JSON + "---" separator) and applies ANSI formatting.
+ */
+function formatPlanMarkdown(result: string): string {
+  // Extract markdown after the JSON + --- separator
+  const separator = "\n\n---\n\n";
+  const sepIdx = result.indexOf(separator);
+  const markdown = sepIdx >= 0 ? result.slice(sepIdx + separator.length) : result;
+
+  const lines: string[] = [""];
+  for (const line of markdown.split("\n")) {
+    if (line.startsWith("# ")) {
+      lines.push(`  ${CYAN}${BOLD}${line.slice(2)}${RESET}`);
+    } else if (line.startsWith("## ")) {
+      lines.push(`  ${YELLOW}${BOLD}${line.slice(3)}${RESET}`);
+    } else if (line.startsWith("### ")) {
+      lines.push(`  ${BOLD}${line.slice(4)}${RESET}`);
+    } else if (line.startsWith("- [ ] ")) {
+      lines.push(`  ${DIM}☐${RESET}  ${line.slice(6)}`);
+    } else if (line.startsWith("- [x] ")) {
+      lines.push(`  ${GREEN}☑${RESET}  ${DIM}${line.slice(6)}${RESET}`);
+    } else if (line.startsWith("- ")) {
+      lines.push(`  ${DIM}•${RESET} ${line.slice(2)}`);
+    } else if (line.startsWith("**Status:**")) {
+      lines.push(`  ${YELLOW}${line}${RESET}`);
+    } else {
+      lines.push(`  ${line}`);
+    }
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
 /**
  * Create a UI event handler that renders orchestrator events
  * to the terminal in real time.
@@ -471,8 +512,8 @@ export function createScreenEventHandler(
         break;
 
       case "tool_call":
-        if (isTodoTool(event.name)) {
-          // Buffer todo args — render formatted list when result arrives
+        if (isTodoTool(event.name) || isPlanExitTool(event.name)) {
+          // Buffer — render formatted output when result arrives
           pendingToolCall = { name: event.name, args: event.args };
         } else if (getDisplayMode() === "compact") {
           // Buffer the tool call — render when result arrives
@@ -491,6 +532,15 @@ export function createScreenEventHandler(
           pendingToolCall = null;
           if (todos) {
             screen.writeOutput(formatTodoListAnsi(todos) + "\n");
+          }
+        } else if (isPlanExitTool(event.name)) {
+          pendingToolCall = null;
+          if (!event.blocked) {
+            screen.writeOutput(formatPlanMarkdown(event.result));
+          } else {
+            screen.writeOutput(
+              `  ${YELLOW}⚡${RESET} plan.exit  ${RED}✗${RESET} ${DIM}blocked${RESET}`,
+            );
           }
         } else if (getDisplayMode() === "compact" && pendingToolCall) {
           screen.writeOutput(

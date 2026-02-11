@@ -1535,6 +1535,9 @@ async function runChat(): Promise<void> {
 
       // Forward all other events (llm_start, llm_complete, tool_call, tool_result)
       eventHandler(evt as OrchestratorEvent);
+      if (isTty) {
+        screen.redrawInput(editor);
+      }
     } catch {
       // Ignore parse errors
     }
