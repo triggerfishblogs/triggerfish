@@ -357,7 +357,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
       message: "Telegram bot token (from @BotFather)",
     });
     telegramOwnerId = await Input.prompt({
-      message: "Your Telegram user ID (optional, for owner detection)",
+      message: "Your Telegram user ID (numeric, message @getmyid_bot for your ID number)",
     });
     if (telegramBotToken.length > 0) {
       console.log(

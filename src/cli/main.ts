@@ -683,10 +683,21 @@ async function runStart(): Promise<void> {
     });
 
     telegramAdapter.onMessage((msg) => {
+      // Handle /start — greet the owner on first contact
+      if (msg.content === "/start") {
+        telegramAdapter.send({
+          content: "Triggerfish connected. You can chat with me here.",
+          sessionId: msg.sessionId,
+        }).catch((err) => console.error("Telegram send error:", err));
+        return;
+      }
+
       let typingInterval: number | undefined;
 
       const sendEvent: ChatEventSender = (event) => {
         if (event.type === "llm_start") {
+          // Clear any existing interval to prevent leaks across tool-loop iterations
+          clearInterval(typingInterval);
           telegramAdapter.sendTyping(msg.sessionId ?? "").catch(() => {});
           typingInterval = setInterval(() => {
             telegramAdapter.sendTyping(msg.sessionId ?? "").catch(() => {});
@@ -695,6 +706,7 @@ async function runStart(): Promise<void> {
 
         if (event.type === "response") {
           clearInterval(typingInterval);
+          typingInterval = undefined;
           telegramAdapter.send({
             content: event.text,
             sessionId: msg.sessionId,
@@ -703,6 +715,7 @@ async function runStart(): Promise<void> {
 
         if (event.type === "error") {
           clearInterval(typingInterval);
+          typingInterval = undefined;
           telegramAdapter.send({
             content: `Error: ${event.message}`,
             sessionId: msg.sessionId,
@@ -713,7 +726,10 @@ async function runStart(): Promise<void> {
       };
 
       chatSession.processMessage(msg.content, sendEvent)
-        .catch((err) => console.error("Telegram message processing error:", err));
+        .catch((err) => {
+          clearInterval(typingInterval);
+          console.error("Telegram message processing error:", err);
+        });
     });
 
     await telegramAdapter.connect();
@@ -809,17 +825,15 @@ async function promptChannelConfig(
         message: "Bot token (from @BotFather)",
       });
       const ownerId = await Input.prompt({
-        message: "Your Telegram user ID (optional, for owner detection)",
-        default: "",
+        message: "Your Telegram user ID (numeric, message @getmyid_bot for your ID number)",
       });
-      if (ownerId.length > 0) {
-        config.ownerId = parseInt(ownerId, 10) || 0;
-      }
+      config.ownerId = parseInt(ownerId, 10) || 0;
       config.classification = await Select.prompt({
         message: "Classification level",
         options: ["INTERNAL", "PUBLIC", "CONFIDENTIAL", "RESTRICTED"],
         default: "INTERNAL",
       });
+
       break;
     }
 
