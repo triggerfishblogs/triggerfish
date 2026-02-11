@@ -236,6 +236,77 @@ These shortcuts work in the CLI chat interface:
 The ESC interrupt sends an abort signal through the entire chain -- from the orchestrator through to the LLM provider. The response stops cleanly and you can continue the conversation.
 :::
 
+## Debug Output
+
+Triggerfish includes detailed debug logging for diagnosing LLM provider issues, tool call parsing, and agent loop behavior. Enable it by setting the `TRIGGERFISH_DEBUG` environment variable to `1`.
+
+### Foreground Mode
+
+```bash
+TRIGGERFISH_DEBUG=1 triggerfish run
+```
+
+Or for a chat session:
+
+```bash
+TRIGGERFISH_DEBUG=1 triggerfish chat
+```
+
+### Daemon Mode (systemd)
+
+Add the environment variable to your systemd service unit:
+
+```bash
+systemctl --user edit triggerfish.service
+```
+
+Add under `[Service]`:
+
+```ini
+[Service]
+Environment=TRIGGERFISH_DEBUG=1
+```
+
+Then restart:
+
+```bash
+systemctl --user daemon-reload
+triggerfish stop && triggerfish start
+```
+
+View debug output with:
+
+```bash
+journalctl --user -u triggerfish.service -f
+```
+
+### What Gets Logged
+
+When debug mode is enabled, the following is written to stderr:
+
+| Component | Log Prefix | Details |
+|-----------|-----------|---------|
+| Orchestrator | `[orch]` | Each iteration: system prompt length, history entry count, message roles/sizes, parsed tool call count, final response text |
+| OpenRouter | `[openrouter]` | Full request payload (model, message count, tool count), raw response body, content length, finish reason, token usage |
+| Other providers | `[provider]` | Request/response summaries (varies by provider) |
+
+Example debug output:
+
+```
+[orch] iter1 sysPrompt=4521chars history=3 entries
+[orch]   [0] system 4521chars
+[orch]   [1] user 42chars
+[orch]   [2] assistant 0chars
+[orch] iter1 raw: <tool_call>{"name":"web_search","arguments":{"query":"best fish tacos austin"}}...
+[orch] iter1 parsedCalls: 1
+[openrouter] request: model=openrouter/aurora-alpha messages=5 tools=12
+[openrouter] response: content=1284chars finish=stop tokens=342
+```
+
+::: warning
+Debug output includes full LLM request and response payloads. Do not leave it enabled in production as it may log sensitive conversation content to stderr/journal.
+:::
+
 ## Quick Reference
 
 ```bash

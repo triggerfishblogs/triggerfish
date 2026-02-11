@@ -67,6 +67,8 @@ export interface ChatSessionConfig {
   readonly targetClassification?: ClassificationLevel;
   /** Plan manager for plan mode state tracking. */
   readonly planManager?: PlanManager;
+  /** Enable verbose logging of LLM responses to stderr. */
+  readonly debug?: boolean;
 }
 
 /** Shared chat session that serializes access to the orchestrator. */
@@ -110,6 +112,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     compactorConfig: config.compactorConfig,
     systemPromptSections: config.systemPromptSections,
     planManager: config.planManager,
+    debug: config.debug,
   });
 
   const session = config.session;

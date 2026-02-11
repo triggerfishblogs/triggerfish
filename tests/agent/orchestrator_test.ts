@@ -9,7 +9,7 @@ import {
   type LlmProviderRegistry,
   createProviderRegistry,
 } from "../../src/agent/llm.ts";
-import { createOrchestrator } from "../../src/agent/orchestrator.ts";
+import { createOrchestrator, LEAKED_INTENT_PATTERN } from "../../src/agent/orchestrator.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
 import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks.ts";
 import { createSession } from "../../src/core/types/session.ts";
@@ -361,3 +361,44 @@ Deno.test("Orchestrator: uses default prompt when SPINE.md absent", async () => 
   });
   assertEquals(result.ok, true);
 });
+
+// --- LEAKED_INTENT_PATTERN tests ---
+
+Deno.test("LEAKED_INTENT_PATTERN: matches common leaked-intent phrases", () => {
+  const positives = [
+    "I'll search for restaurants in Austin.",
+    "Let me fetch that page for you.",
+    "I need to look up the details.",
+    "I should search for more information.",
+    "I will fetch the content now.",
+    "Let me find the best results.",
+    "I can search for that.",
+    "I am going to fetch the page.",
+    "We need to fetch details.",
+    "I need to retrieve the data.",
+    "Let me browse the web for that.",
+    "Let me use web_search to find it.",
+  ];
+  for (const phrase of positives) {
+    assert(LEAKED_INTENT_PATTERN.test(phrase), `Should match: "${phrase}"`);
+  }
+});
+
+Deno.test("LEAKED_INTENT_PATTERN: does not match normal response text", () => {
+  const negatives = [
+    "Based on my search of the documents, here are the results.",
+    "The search engine returned 5 results.",
+    "Here are the best fried fish restaurants in South Austin.",
+    "I found 3 great options for you.",
+    "The fetched data shows interesting trends.",
+    "According to the website, the restaurant opens at 11am.",
+    "Search results indicate several options.",
+  ];
+  for (const phrase of negatives) {
+    assert(!LEAKED_INTENT_PATTERN.test(phrase), `Should NOT match: "${phrase}"`);
+  }
+});
+
+// Note: The leaked-intent guard was removed from the orchestrator because it
+// caused blank responses with some LLM providers. The LEAKED_INTENT_PATTERN
+// regex is still exported and tested above for potential future use.

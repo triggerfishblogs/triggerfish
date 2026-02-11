@@ -54,6 +54,7 @@ export type { ScreenManager } from "./screen.ts";
 export {
   formatBanner,
   formatToolCallCompact,
+  formatToolCompact,
   formatToolCallExpanded,
   formatToolResultExpanded,
   formatResponse,

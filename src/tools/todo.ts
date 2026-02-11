@@ -351,12 +351,9 @@ export function extractTodosFromEvent(
  */
 export const TODO_SYSTEM_PROMPT = `## Task Planning
 
-You have access to a todo list (todo_read / todo_write) for tracking your work. Use it proactively:
+You have a todo list (todo_read / todo_write) for tracking multi-step work.
 
-- Before starting complex or multi-step tasks, plan by creating todos first.
-- Mark each task as in_progress before you begin working on it.
-- Mark tasks completed immediately when done — do not batch completions.
-- Keep exactly one task in_progress at a time.
-- Break large tasks into specific, actionable items.
-- Update the list as you discover new sub-tasks during implementation.
-- Read the todo list at the start of a session to resume where you left off.`;
+- Only use todos for genuinely complex tasks (3+ distinct steps). Simple questions and lookups do not need todos.
+- Do NOT create todos for the current request unless it is clearly multi-step.
+- Do NOT read the todo list unless the user asks about previous tasks or you need to resume work.
+- When you do use todos: keep one task in_progress at a time, mark completed immediately when done.`;

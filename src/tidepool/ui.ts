@@ -54,6 +54,16 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
   .tool.done::before { content: "\\2713"; color: var(--green); }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* Web tool calls (styled) */
+  .tool-web { padding: 6px 14px; font-size: 13px; color: var(--fg2); }
+  .tool-web .tool-icon { color: var(--accent); font-size: 14px; margin-right: 4px; }
+  .tool-web .tool-name { font-weight: 600; color: var(--fg); }
+  .tool-web .tool-arg { color: var(--fg3); font-size: 12px; }
+  .tool-web .tool-meta { color: var(--fg3); font-size: 12px; padding-left: 22px; margin-top: 2px; }
+  .tool-web .tool-meta .spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid var(--fg3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 4px; }
+  .tool-web.done .tool-meta .spinner { display: none; }
+  .tool-web.done .tool-meta::before { content: "\\2713 "; color: var(--green); }
+
   /* Todo list */
   .todo-list { padding: 10px 14px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; max-width: 85%; font-size: 13px; line-height: 1.8; }
   .todo-list .todo-header { font-size: 13px; color: var(--fg2); margin-bottom: 4px; }
@@ -202,15 +212,35 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
     return name === "todo_read" || name === "todo_write";
   }
 
+  function isWebTool(name) {
+    return name === "web_search" || name === "web_fetch";
+  }
+
+  var WEB_TOOL_NAMES = { web_search: "Web Search", web_fetch: "Fetch" };
+
   function addTool(name, args) {
     if (isTodoTool(name)) {
       pendingTodoArgs = args;
       return;
     }
     var el = document.createElement("div");
-    el.className = "tool";
-    var argStr = Object.keys(args || {}).map(function(k) { return args[k]; }).join(" ");
-    el.innerHTML = '<span class="spinner"></span> ' + escapeHtml(name) + " " + escapeHtml(argStr.slice(0, 60));
+
+    if (isWebTool(name)) {
+      el.className = "tool-web";
+      var displayName = WEB_TOOL_NAMES[name] || name;
+      var argStr = name === "web_search"
+        ? '("' + escapeHtml(String(args.query || "")).slice(0, 60) + '")'
+        : "(" + escapeHtml(String(args.url || "").slice(0, 60)) + ")";
+      el.innerHTML = '<span class="tool-icon">\\u25cf</span>'
+        + '<span class="tool-name">' + escapeHtml(displayName) + '</span> '
+        + '<span class="tool-arg">' + argStr + '</span>'
+        + '<div class="tool-meta"><span class="spinner"></span> Loading\\u2026</div>';
+    } else {
+      el.className = "tool";
+      var argValues = Object.keys(args || {}).map(function(k) { return args[k]; }).join(" ");
+      el.innerHTML = '<span class="spinner"></span> ' + escapeHtml(name) + " " + escapeHtml(argValues.slice(0, 60));
+    }
+
     messages.appendChild(el);
     messages.scrollTop = messages.scrollHeight;
     activeTools[name] = el;
@@ -226,7 +256,21 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
       return;
     }
     if (activeTools[name]) {
-      activeTools[name].className = "tool done";
+      if (isWebTool(name)) {
+        var metaEl = activeTools[name].querySelector(".tool-meta");
+        if (metaEl) {
+          if (name === "web_search") {
+            var count = (result.match(/^\\d+\\.\\s/gm) || []).length;
+            metaEl.textContent = count > 0 ? count + " result" + (count !== 1 ? "s" : "") : "no results";
+          } else {
+            var kb = (new TextEncoder().encode(result).length / 1024).toFixed(1);
+            metaEl.textContent = "Received " + kb + "KB";
+          }
+        }
+        activeTools[name].className = "tool-web done";
+      } else {
+        activeTools[name].className = "tool done";
+      }
       delete activeTools[name];
     }
   }
