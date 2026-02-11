@@ -167,7 +167,8 @@ export function createWebFetcher(
 
       if (mode === "readability" && contentType.includes("text/html")) {
         try {
-          const { document } = parseHTML(rawBody);
+          // deno-lint-ignore no-explicit-any
+          const { document } = parseHTML(rawBody) as any;
           const reader = new Readability(document);
           const article = reader.parse();
 
