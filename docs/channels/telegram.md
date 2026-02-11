@@ -2,10 +2,6 @@
 
 Connect your Triggerfish agent to Telegram so you can interact with it from any device where you use Telegram. The adapter uses the [grammY](https://grammy.dev/) framework to communicate with the Telegram Bot API.
 
-## Default Classification
-
-Telegram defaults to `INTERNAL` classification. This means your agent can share internal-level data through Telegram when you are the verified owner.
-
 ## Setup
 
 ### Step 1: Create a Bot
@@ -17,75 +13,81 @@ Telegram defaults to `INTERNAL` classification. This means your agent can share 
 5. BotFather will reply with your **bot token** -- copy it
 
 ::: warning Keep Your Token Secret
-Your bot token grants full control of your bot. Never commit it to source control or share it publicly. Store it as an environment variable or in your OS keychain.
+Your bot token grants full control of your bot. Never commit it to source control or share it publicly. Triggerfish stores it in your `triggerfish.yaml` config file.
 :::
 
 ### Step 2: Get Your Telegram User ID
 
-You need your numeric Telegram user ID so Triggerfish can verify that messages from you are owner commands. To find it:
+Triggerfish needs your numeric user ID to verify that messages are from you. Telegram usernames can be changed and are not reliable for identity -- the numeric ID is permanent and assigned by Telegram's servers, so it cannot be spoofed.
 
-1. Search for [@userinfobot](https://t.me/userinfobot) on Telegram
+1. Search for [@getmyid_bot](https://t.me/getmyid_bot) on Telegram
 2. Send it any message
-3. It replies with your user ID (a number like `483291057`)
+3. It replies with your user ID (a number like `8019881968`)
 
-### Step 3: Configure Triggerfish
+### Step 3: Add the Channel
 
-Add the Telegram channel to your `triggerfish.yaml`:
+Run the interactive setup:
+
+```bash
+triggerfish config add-channel telegram
+```
+
+This prompts for your bot token, user ID, and classification level, then writes the config to `triggerfish.yaml` and offers to restart the daemon.
+
+You can also add it manually:
 
 ```yaml
 channels:
   telegram:
     botToken: "your-bot-token-from-botfather"
-    ownerId: 483291057
+    ownerId: 8019881968
+    classification: INTERNAL
 ```
 
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
 | `botToken` | string | Yes | Bot API token from @BotFather |
-| `ownerId` | number | Recommended | Your Telegram user ID for owner verification |
-| `classification` | string | No | Classification level (default: `INTERNAL`) |
+| `ownerId` | number | Yes | Your numeric Telegram user ID |
+| `classification` | string | No | Classification ceiling (default: `INTERNAL`) |
 
-### Step 4: Start Triggerfish
+### Step 4: Start Chatting
 
-Restart the daemon or run in foreground:
+After the daemon restarts, open your bot in Telegram and send `/start`. The bot will greet you to confirm the connection is live. You can then chat with your agent directly.
 
-```bash
-triggerfish stop && triggerfish start
-# or
-triggerfish run
-```
+## Classification Behavior
 
-Your bot is now live. Send it a message on Telegram to confirm the connection.
+The `classification` setting is a **ceiling** -- it controls the maximum sensitivity of data that can flow through this channel for **owner** conversations. It does not apply uniformly to all users.
 
-## Pairing Flow
+**How it works per message:**
 
-For additional security, Triggerfish supports a one-time pairing code flow:
+- **You message the bot** (your user ID matches `ownerId`): The session uses the channel ceiling. With the default `INTERNAL`, your agent can share internal-level data with you.
+- **Someone else messages the bot**: Their session is automatically tainted `PUBLIC` regardless of the channel classification. The no-write-down rule prevents any internal data from reaching their session.
 
-1. Open the Triggerfish app or CLI
-2. Select "Add Telegram channel"
-3. A short code is displayed (e.g., `A7X9`)
-4. Send that code to your bot on Telegram
-5. The code matches -- your Telegram user ID is linked to your account
-6. All future messages from that ID are treated as owner commands
+This means a single Telegram bot safely handles both owner and non-owner conversations. The identity check happens in code before the LLM sees the message -- the LLM cannot influence it.
 
-The pairing code expires after 5 minutes and can only be used once.
+| Channel Classification | Owner Messages | Non-Owner Messages |
+|------------------------|:--------------:|:------------------:|
+| `PUBLIC` | PUBLIC | PUBLIC |
+| `INTERNAL` (default) | Up to INTERNAL | PUBLIC |
+| `CONFIDENTIAL` | Up to CONFIDENTIAL | PUBLIC |
+| `RESTRICTED` | Up to RESTRICTED | PUBLIC |
+
+See [Classification System](/architecture/classification) for the full model and [Sessions & Taint](/architecture/taint-and-sessions) for how taint escalation works.
 
 ## Owner Identity
 
-Triggerfish determines owner status by comparing the sender's Telegram user ID against the configured `ownerId`. This check happens in code **before** the LLM sees the message:
+Triggerfish determines owner status by comparing the sender's numeric Telegram user ID against the configured `ownerId`. This check happens in code **before** the LLM sees the message:
 
-- **Match** -- The message is tagged as `source: "owner"` and can be treated as a command
-- **No match** -- The message is tagged as `source: "external"` with `PUBLIC` taint, and treated as input only
+- **Match** -- The message is tagged as owner and can access data up to the channel's classification ceiling
+- **No match** -- The message is tagged with `PUBLIC` taint, and the no-write-down rule prevents any classified data from flowing to that session
 
-If no `ownerId` is configured, all messages are treated as coming from the owner. This is convenient for personal use but not recommended if others may message your bot.
-
-::: tip Set Your Owner ID
-Always configure `ownerId` if your bot username is discoverable. Without it, anyone who finds your bot can issue commands.
+::: danger Always Set Your Owner ID
+Without `ownerId`, Triggerfish treats **all** senders as the owner. Anyone who finds your bot can access your data up to the channel's classification level. This field is required during setup for this reason.
 :::
 
 ## Message Chunking
 
-Telegram has a 4,096-character message limit. When your agent generates a response longer than this, Triggerfish automatically splits it into multiple messages. The chunker splits on newlines or spaces to preserve readability -- it avoids cutting words or sentences in half.
+Telegram has a 4,096-character message limit. When your agent generates a response longer than this, Triggerfish automatically splits it into multiple messages. The chunker splits on newlines or spaces for readability -- it avoids cutting words or sentences in half.
 
 ## Supported Message Types
 
@@ -96,18 +98,27 @@ The Telegram adapter currently handles:
 
 ## Typing Indicators
 
-Triggerfish sends and receives typing indicators on Telegram. When your agent is processing a request, the bot shows "typing..." in the chat. When you are typing, the agent is aware of it.
+When your agent is processing a request, the bot shows "typing..." in the Telegram chat. The indicator runs while the LLM is generating a response and clears when the reply is sent.
 
 ## Changing Classification
 
-To change the Telegram channel's classification level:
+To raise or lower the classification ceiling:
+
+```bash
+triggerfish config add-channel telegram
+# Select to overwrite existing config when prompted
+```
+
+Or edit `triggerfish.yaml` directly:
 
 ```yaml
 channels:
   telegram:
     botToken: "your-bot-token"
-    ownerId: 483291057
+    ownerId: 8019881968
     classification: CONFIDENTIAL
 ```
 
 Valid levels: `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`.
+
+Restart the daemon after changing: `triggerfish stop && triggerfish start`
