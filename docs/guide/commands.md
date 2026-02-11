@@ -132,14 +132,31 @@ Patrol checks:
 
 ### `triggerfish config`
 
-Manage your configuration file.
+Manage your configuration file. Uses dotted paths into `triggerfish.yaml`.
 
 ```bash
-# Open config in your default editor
-triggerfish config edit
+# Set any config value
+triggerfish config set <key> <value>
 
-# Validate config syntax and values
+# Read any config value
+triggerfish config get <key>
+
+# Validate config syntax and structure
 triggerfish config validate
+
+# Add a channel interactively
+triggerfish config add-channel [type]
+```
+
+Examples:
+
+```bash
+triggerfish config set models.primary anthropic
+triggerfish config set web.search.provider brave
+triggerfish config set web.search.api_key sk-abc123
+triggerfish config set scheduler.trigger.enabled true
+triggerfish config get models.primary
+triggerfish config add-channel telegram
 ```
 
 ### `triggerfish update`
@@ -229,7 +246,9 @@ triggerfish stop              # Stop daemon
 triggerfish status            # Check status
 triggerfish logs --tail       # Stream logs
 triggerfish patrol            # Health check
-triggerfish config edit       # Edit config
+triggerfish config set <k> <v> # Set config value
+triggerfish config get <key>  # Read config value
+triggerfish config add-channel # Add a channel
 triggerfish update            # Check for updates
 triggerfish version           # Show version
 

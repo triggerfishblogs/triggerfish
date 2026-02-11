@@ -8,13 +8,16 @@ Triggerfish is configured through a single YAML file at `~/.triggerfish/triggerf
 ~/.triggerfish/triggerfish.yaml
 ```
 
-You can also open it directly with:
+You can set individual values from the command line using dotted paths:
 
 ```bash
-triggerfish config edit
+triggerfish config set <key> <value>
+triggerfish config get <key>
 ```
 
-And validate your changes with:
+Boolean and integer values are auto-coerced. Secrets are masked in output.
+
+Validate your configuration with:
 
 ```bash
 triggerfish config validate
@@ -204,6 +207,42 @@ policy:
 
 ::: info
 The core security rules -- no write-down, session taint escalation, audit logging -- are always enforced and cannot be disabled. Custom policy rules add additional controls on top of these fixed protections.
+:::
+
+## Web Search & Fetch
+
+The `web` section configures web search and content fetching, including domain security controls.
+
+```yaml
+web:
+  search:
+    provider: brave        # Search backend (brave is currently supported)
+    api_key: "${BRAVE_API_KEY}"
+    max_results: 10
+    safe_search: moderate  # off, moderate, strict
+  fetch:
+    rate_limit: 10         # Requests per minute
+    max_content_length: 50000
+    timeout: 30000
+    default_mode: readability  # readability or raw
+  domains:
+    denylist:
+      - "*.malware-site.com"
+    allowlist: []          # Empty = allow all (minus denylist)
+    classifications:
+      - pattern: "*.internal.corp"
+        classification: CONFIDENTIAL
+```
+
+Set up search from the command line:
+
+```bash
+triggerfish config set web.search.provider brave
+triggerfish config set web.search.api_key YOUR_BRAVE_API_KEY
+```
+
+::: tip
+Get a Brave Search API key at [brave.com/search/api](https://brave.com/search/api/). The free tier includes 2,000 queries/month.
 :::
 
 ## Cron Jobs
