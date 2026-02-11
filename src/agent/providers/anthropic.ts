@@ -1,8 +1,7 @@
 /**
  * Anthropic LLM provider implementation.
  *
- * Supports both OAuth token auth (Claude Pro/Max subscription) and
- * API key auth. OAuth is preferred when available.
+ * Uses API key authentication for all Anthropic models.
  *
  * @module
  */
@@ -13,9 +12,7 @@ import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } fro
 
 /** Configuration for the Anthropic provider. */
 export interface AnthropicConfig {
-  /** OAuth token from Claude Code (Pro/Max subscription). */
-  readonly authToken?: string;
-  /** API key auth (fallback when no OAuth token). */
+  /** Anthropic API key. Falls back to ANTHROPIC_API_KEY env var. */
   readonly apiKey?: string;
   /** Model to use. Default: claude-sonnet-4-5-20250929 */
   readonly model?: string;
@@ -23,19 +20,8 @@ export interface AnthropicConfig {
   readonly maxTokens?: number;
 }
 
-/** Detect whether a credential is an OAuth token by prefix. */
-function isOAuthToken(key: string): boolean {
-  return key.includes("sk-ant-oat");
-}
-
 /**
  * Create an Anthropic LLM provider.
- *
- * Auth priority: config.authToken > env CLAUDE_CODE_OAUTH_TOKEN > config.apiKey > env ANTHROPIC_API_KEY
- *
- * For OAuth tokens (sk-ant-oat*), the provider mimics Claude Code's
- * request format: required beta headers, user-agent, and system prompt
- * prefix. This allows Pro/Max subscription tokens to work.
  *
  * @param config - Provider configuration
  * @returns An LlmProvider backed by the Anthropic API
@@ -47,39 +33,20 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
   // Defer client creation to first use — avoids throwing during
   // provider registration when credentials aren't yet available.
   let client: Anthropic | undefined;
-  let usingOAuth = false;
 
   function getClient(): Anthropic {
     if (!client) {
-      // OAuth is primary — CLAUDE_CODE_OAUTH_TOKEN from ~/.bashrc
-      const authToken = config.authToken
-        ?? Deno.env.get("CLAUDE_CODE_OAUTH_TOKEN")
-        ?? Deno.env.get("ANTHROPIC_AUTH_TOKEN");
       const apiKey = config.apiKey ?? Deno.env.get("ANTHROPIC_API_KEY");
 
-      if (authToken && isOAuthToken(authToken)) {
-        usingOAuth = true;
-        client = new Anthropic({
-          apiKey: null,
-          authToken,
-          defaultHeaders: {
-            "accept": "application/json",
-            "anthropic-dangerous-direct-browser-access": "true",
-            "anthropic-beta":
-              "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14",
-            "user-agent": "claude-cli/2.1.2 (external, cli)",
-            "x-app": "cli",
-          },
-          dangerouslyAllowBrowser: true,
-        } as ConstructorParameters<typeof Anthropic>[0]);
-      } else if (apiKey) {
-        usingOAuth = false;
-        client = new Anthropic({ apiKey });
-      } else {
+      if (!apiKey) {
         throw new Error(
-          "No Anthropic credentials found. Set CLAUDE_CODE_OAUTH_TOKEN (OAuth) or ANTHROPIC_API_KEY.",
+          "Anthropic API key not configured. " +
+          "Set apiKey in triggerfish.yaml under models.providers.anthropic, " +
+          "or run 'triggerfish dive' to reconfigure.",
         );
       }
+
+      client = new Anthropic({ apiKey });
     }
     return client;
   }
@@ -98,7 +65,7 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
 
       // Extract system prompt from messages
       const systemMessage = messages.find((m) => m.role === "system");
-      const userSystemPrompt = systemMessage
+      const systemPrompt = systemMessage
         ? (typeof systemMessage.content === "string"
           ? systemMessage.content
           : JSON.stringify(systemMessage.content))
@@ -113,33 +80,11 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
           content: m.content as MessageParam["content"],
         }));
 
-      // Build system prompt — OAuth requires Claude Code identity prefix
-      let systemParam: unknown;
-      if (usingOAuth) {
-        const systemBlocks: { type: string; text: string; cache_control: { type: string } }[] = [
-          {
-            type: "text",
-            text: "You are Claude Code, Anthropic's official CLI for Claude.",
-            cache_control: { type: "ephemeral" },
-          },
-        ];
-        if (userSystemPrompt) {
-          systemBlocks.push({
-            type: "text",
-            text: userSystemPrompt,
-            cache_control: { type: "ephemeral" },
-          });
-        }
-        systemParam = systemBlocks;
-      } else {
-        systemParam = userSystemPrompt;
-      }
-
       const requestParams: MessageCreateParamsNonStreaming = {
         model,
         max_tokens: maxTokens,
         messages: anthropicMessages,
-        ...(systemParam ? { system: systemParam as MessageCreateParamsNonStreaming["system"] } : {}),
+        ...(systemPrompt ? { system: systemPrompt } : {}),
       };
 
       const response = await anthropicClient.messages.create(
@@ -173,7 +118,7 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
       const signal = options.signal as AbortSignal | undefined;
 
       const systemMessage = messages.find((m) => m.role === "system");
-      const userSystemPrompt = systemMessage
+      const systemPrompt = systemMessage
         ? (typeof systemMessage.content === "string"
           ? systemMessage.content
           : JSON.stringify(systemMessage.content))
@@ -186,32 +131,11 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
           content: m.content as MessageParam["content"],
         }));
 
-      let systemParam: unknown;
-      if (usingOAuth) {
-        const systemBlocks: { type: string; text: string; cache_control: { type: string } }[] = [
-          {
-            type: "text",
-            text: "You are Claude Code, Anthropic's official CLI for Claude.",
-            cache_control: { type: "ephemeral" },
-          },
-        ];
-        if (userSystemPrompt) {
-          systemBlocks.push({
-            type: "text",
-            text: userSystemPrompt,
-            cache_control: { type: "ephemeral" },
-          });
-        }
-        systemParam = systemBlocks;
-      } else {
-        systemParam = userSystemPrompt;
-      }
-
       const stream = anthropicClient.messages.stream({
         model,
         max_tokens: maxTokens,
         messages: anthropicMessages,
-        ...(systemParam ? { system: systemParam as MessageCreateParamsNonStreaming["system"] } : {}),
+        ...(systemPrompt ? { system: systemPrompt } : {}),
       }, signal ? { signal } : undefined);
 
       for await (const event of stream) {

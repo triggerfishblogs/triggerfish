@@ -7,6 +7,7 @@
  */
 
 import { parse as parseYaml } from "@std/yaml";
+import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { createGatewayServer } from "../gateway/server.ts";
 import { createChatSession } from "../gateway/chat.ts";
 import type { ChatEvent } from "../gateway/chat.ts";
@@ -100,7 +101,7 @@ export interface ParsedCommand {
 export interface TriggerFishConfig {
   readonly models: {
     readonly primary: string;
-    readonly providers: Readonly<Record<string, { readonly model: string }>>;
+    readonly providers: Readonly<Record<string, { readonly model: string; readonly apiKey?: string }>>;
   };
   readonly channels: Readonly<Record<string, unknown>>;
   readonly classification: {
@@ -483,6 +484,16 @@ function createOrchestratorFactory(
         agentId,
         basePath: `${baseDir}/workspaces`,
       });
+
+      // Symlink SPINE.md into workspace so the agent can read AND edit its identity
+      try {
+        const workspaceSpine = join(workspace.path, "SPINE.md");
+        try { await Deno.remove(workspaceSpine); } catch { /* doesn't exist yet */ }
+        await Deno.symlink(spinePath, workspaceSpine);
+      } catch {
+        // SPINE.md may not exist yet — not fatal
+      }
+
       const execTools = createExecTools(workspace);
       const todoManager = storage ? createTodoManager({ storage, agentId }) : undefined;
       const toolExecutor = createToolExecutor(execTools, cronManager, todoManager);
@@ -615,6 +626,16 @@ async function runStart(): Promise<void> {
     agentId: "main-session",
     basePath: `${baseDir}/workspaces`,
   });
+
+  // Symlink SPINE.md into workspace so the agent can read AND edit its identity
+  try {
+    const workspaceSpine = join(mainWorkspace.path, "SPINE.md");
+    try { await Deno.remove(workspaceSpine); } catch { /* doesn't exist yet */ }
+    await Deno.symlink(spinePath, workspaceSpine);
+  } catch {
+    // SPINE.md may not exist yet — not fatal
+  }
+
   const execTools = createExecTools(mainWorkspace);
   const todoManager = createTodoManager({ storage, agentId: "main-session" });
   const toolExecutor = createToolExecutor(execTools, cronManager, todoManager);
@@ -1142,6 +1163,7 @@ async function runChat(): Promise<void> {
 
       if (evt.type === "error") {
         if (isTty) {
+          screen.stopSpinner();
           screen.writeOutput(formatError(evt.message));
           screen.writeOutput("");
           screen.redrawInput(editor);

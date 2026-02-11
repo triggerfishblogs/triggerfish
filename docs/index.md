@@ -74,7 +74,7 @@ This installs the runtime, compiles Triggerfish, runs the setup wizard, and star
             +-----+-----+          +-----+-----+
             |     |     |          |     |     |
           Hooks Taint  Audit    Claude  GPT  Gemini
-                Track   Log    OAuth   API   API
+                Track   Log    API    API   API
 ```
 
 Every message passes through deterministic policy hooks before and after the LLM sees it. The AI requests actions — the policy layer decides. [Learn more about the architecture.](/architecture/)

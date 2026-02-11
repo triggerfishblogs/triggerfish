@@ -32,7 +32,7 @@ models:
   providers:
     anthropic:
       model: claude-sonnet-4-5-20250929
-      # Uses CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY from environment
+      # Auth: apiKey field or ANTHROPIC_API_KEY env var
 
     openai:
       model: gpt-4o
@@ -56,15 +56,12 @@ models:
     - google
 ```
 
-::: tip
-If you have a Claude Pro or Max subscription, set the `CLAUDE_CODE_OAUTH_TOKEN` environment variable. Triggerfish detects OAuth tokens automatically -- no API key needed.
-:::
 
 ### Provider Authentication
 
 | Provider | Environment Variable | Notes |
 |----------|---------------------|-------|
-| Anthropic | `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` | OAuth token preferred for Pro/Max subscribers |
+| Anthropic | `apiKey` in YAML or `ANTHROPIC_API_KEY` env var | Standard API key |
 | OpenAI | `OPENAI_API_KEY` | Standard API key |
 | Google | `GOOGLE_API_KEY` | Gemini API key |
 | Local | None | Connects to local OpenAI-compatible endpoint |

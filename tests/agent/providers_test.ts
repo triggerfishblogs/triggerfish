@@ -131,7 +131,7 @@ Deno.test("loadProvidersFromConfig: resolves openrouter from model with slash", 
   loadProvidersFromConfig({
     primary: "anthropic/claude-3.5-sonnet",
     providers: {
-      openrouter: { model: "anthropic/claude-3.5-sonnet" },
+      openrouter: { model: "anthropic/claude-3.5-sonnet", apiKey: "sk-or-test-key" },
     },
   }, registry);
 
@@ -156,26 +156,6 @@ Deno.test("LocalProvider: throws on non-200 response", async () => {
 });
 
 // --- Integration tests (skip if no credentials) ---
-// OAuth (CLAUDE_CODE_OAUTH_TOKEN) is the primary auth method for Pro/Max users.
-
-Deno.test({
-  name: "AnthropicProvider: real API call with OAuth (integration)",
-  ignore: !Deno.env.get("CLAUDE_CODE_OAUTH_TOKEN"),
-  sanitizeResources: false,
-  sanitizeOps: false,
-  async fn() {
-    const provider = createAnthropicProvider({});
-    const result = await provider.complete(
-      [{ role: "user", content: "Say just the word 'hello'" }],
-      [],
-      {},
-    );
-
-    assert(result.content.length > 0, "Should get non-empty response");
-    assert(result.usage.inputTokens > 0, "Should report input tokens");
-    assert(result.usage.outputTokens > 0, "Should report output tokens");
-  },
-});
 
 Deno.test({
   name: "AnthropicProvider: real API call with API key (integration)",

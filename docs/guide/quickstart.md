@@ -25,9 +25,6 @@ Step 1/6: Choose your LLM provider
 
 Select a provider and enter your credentials. Triggerfish supports multiple providers with automatic failover.
 
-::: tip
-If you have a Claude Pro or Max subscription, Triggerfish can use your existing `CLAUDE_CODE_OAUTH_TOKEN` -- no separate API key needed.
-:::
 
 ### Step 2: Name Your Agent
 

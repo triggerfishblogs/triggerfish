@@ -37,6 +37,14 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
   const model = config.model;
   const maxTokens = config.maxTokens ?? 4096;
 
+  if (!apiKey) {
+    throw new Error(
+      "OpenRouter API key not configured. " +
+      "Set apiKey in triggerfish.yaml under models.providers.openrouter, " +
+      "or run 'triggerfish dive' to reconfigure.",
+    );
+  }
+
   return {
     name: "openrouter",
     supportsStreaming: true,

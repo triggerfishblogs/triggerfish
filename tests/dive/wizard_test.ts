@@ -62,18 +62,6 @@ Deno.test("Wizard: generateConfig sets correct primary model for Anthropic", () 
   assertEquals(models.primary, "claude-sonnet-4-5");
 });
 
-Deno.test("Wizard: generateConfig sets oauth auth for Anthropic OAuth", () => {
-  const answers = makeAnswers({
-    provider: "anthropic",
-    authMethod: "oauth",
-  });
-  const yaml = generateConfig(answers);
-  const parsed = parseYaml(yaml) as Record<string, unknown>;
-  const models = parsed.models as Record<string, unknown>;
-  const providers = models.providers as Record<string, Record<string, string>>;
-  assertEquals(providers.anthropic.auth, "oauth");
-});
-
 Deno.test("Wizard: generateConfig sets correct model for OpenAI", () => {
   const answers = makeAnswers({
     provider: "openai",

@@ -80,7 +80,7 @@ irm https://raw.githubusercontent.com/greghavens/triggerfish/master/scripts/inst
             +-----+-----+          +-----+-----+
             |     |     |          |     |     |
           Hooks Taint  Audit    Claude  GPT  Gemini
-                Track   Log    OAuth   API   API
+                Track   Log     API   API   API
 ```
 
 ---
@@ -152,13 +152,11 @@ Switch between providers or configure failover chains.
 
 | Provider | Auth | Models |
 |----------|------|--------|
-| 🟠 **Anthropic** | OAuth token (Claude Pro/Max) or API key | Claude Opus, Sonnet, Haiku |
+| 🟠 **Anthropic** | API key | Claude Opus, Sonnet, Haiku |
 | 🟢 **OpenAI** | API key | GPT-4o, o1, o3 |
 | 🔵 **Google** | API key | Gemini Pro, Flash |
 | 🏠 **Local** | None (OpenAI-compatible) | Llama, Mistral, etc. via Ollama |
 | 🌐 **OpenRouter** | API key | Any model on OpenRouter |
-
-> **💡 Tip:** If you have a Claude Pro or Max subscription, Triggerfish uses your existing `CLAUDE_CODE_OAUTH_TOKEN` — no separate API key needed.
 
 ---
 
