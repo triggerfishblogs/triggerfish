@@ -20,7 +20,7 @@ models:
   providers:
     anthropic:
       model: claude-sonnet-4-5
-      # Auth: ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN env var
+      # Auth: apiKey field or ANTHROPIC_API_KEY env var
 
     openai:
       model: gpt-4o

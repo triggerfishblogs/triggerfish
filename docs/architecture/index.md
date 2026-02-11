@@ -40,7 +40,7 @@ This page provides the big picture of how Triggerfish works. Each major componen
        |     +-----+-----+    +------+------+------+
        |     |     |     |    |      |      |      |
        |   Hooks Taint  Audit Claude  GPT  Gemini  Local
-       |         Track   Log  OAuth   API   API   Ollama
+       |         Track   Log  API    API   API   Ollama
        |
   StorageProvider
   (SQLite / Memory / Enterprise)

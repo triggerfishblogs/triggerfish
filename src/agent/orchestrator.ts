@@ -7,7 +7,7 @@
  *
  * Uses prompt-based tool calling: tool definitions are embedded in the
  * system prompt and the LLM outputs structured JSON tool invocations.
- * This works universally with both OAuth and API key authentication.
+ * This works universally across all LLM providers.
  *
  * @module
  */

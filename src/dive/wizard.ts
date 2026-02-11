@@ -47,7 +47,6 @@ export interface WizardAnswers {
   readonly provider: ProviderChoice;
   readonly providerModel: string;
   readonly apiKey: string;
-  readonly authMethod: "oauth" | "api_key";
   readonly agentName: string;
   readonly mission: string;
   readonly tone: ToneChoice;
@@ -90,8 +89,8 @@ export function generateConfig(answers: WizardAnswers): string {
     const anthropicConfig: Record<string, string> = {
       model: answers.providerModel,
     };
-    if (answers.authMethod === "oauth") {
-      anthropicConfig["auth"] = "oauth";
+    if (answers.apiKey.length > 0) {
+      anthropicConfig["apiKey"] = answers.apiKey;
     }
     providers["anthropic"] = anthropicConfig;
   } else if (answers.provider === "local") {
@@ -100,9 +99,13 @@ export function generateConfig(answers: WizardAnswers): string {
       endpoint: "http://localhost:11434",
     };
   } else {
-    providers[answers.provider] = {
+    const providerConfig: Record<string, string> = {
       model: answers.providerModel,
     };
+    if (answers.apiKey.length > 0) {
+      providerConfig["apiKey"] = answers.apiKey;
+    }
+    providers[answers.provider] = providerConfig;
   }
 
   // Build channels section
@@ -260,29 +263,12 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
     default: DEFAULT_MODELS[provider],
   });
 
-  // Determine auth method for Anthropic
-  let authMethod: "oauth" | "api_key" = "api_key";
   let apiKey = "";
 
   if (provider === "anthropic") {
-    const oauthToken = Deno.env.get("CLAUDE_CODE_OAUTH_TOKEN") ?? "";
-    if (oauthToken.length > 0) {
-      console.log(
-        "  ✓ Detected CLAUDE_CODE_OAUTH_TOKEN — using OAuth authentication",
-      );
-      authMethod = "oauth";
-    } else {
-      const hasApiKey = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
-      if (hasApiKey.length > 0) {
-        console.log("  ✓ Detected ANTHROPIC_API_KEY in environment");
-        authMethod = "api_key";
-      } else {
-        apiKey = await Input.prompt({
-          message:
-            "Anthropic API key (or press Enter to set ANTHROPIC_API_KEY later)",
-        });
-      }
-    }
+    apiKey = await Input.prompt({
+      message: "Anthropic API key (or press Enter to configure later)",
+    });
   } else if (provider === "local") {
     // No API key needed for local
     console.log("  ✓ Local provider — no API key needed");
@@ -449,7 +435,6 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
     provider,
     providerModel,
     apiKey,
-    authMethod,
     agentName,
     mission,
     tone,
@@ -476,26 +461,8 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
   await Deno.writeTextFile(spinePath, spineContent);
   console.log(`  ✓ Created: ${spinePath}`);
 
-  // Store API key hint
   if (apiKey.length > 0) {
-    const envVarName = provider === "anthropic"
-      ? "ANTHROPIC_API_KEY"
-      : provider === "openai"
-      ? "OPENAI_API_KEY"
-      : provider === "google"
-      ? "GOOGLE_API_KEY"
-      : "OPENROUTER_API_KEY";
-    console.log("");
-    console.log(`  ! Remember to set your API key:`);
-    console.log(`    export ${envVarName}="${apiKey}"`);
-    console.log(`    Add this to your shell profile (~/.bashrc or ~/.zshrc)`);
-  }
-
-  // Store Telegram token hint
-  if (telegramBotToken.length > 0) {
-    console.log("");
-    console.log(`  ! Remember to set your Telegram bot token:`);
-    console.log(`    export TELEGRAM_BOT_TOKEN="${telegramBotToken}"`);
+    console.log(`  ✓ API key saved to triggerfish.yaml`);
   }
 
   console.log("");

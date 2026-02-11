@@ -6,15 +6,12 @@ Triggerfish supports multiple LLM providers with automatic failover, per-agent m
 
 | Provider | Auth | Models | Notes |
 |----------|------|--------|-------|
-| Anthropic | OAuth token (Claude Pro/Max) or API key | Claude Opus, Sonnet, Haiku | OAuth uses your existing subscription |
+| Anthropic | API key | Claude Opus, Sonnet, Haiku | Standard Anthropic API |
 | OpenAI | API key | GPT-4o, o1, o3 | Standard OpenAI API |
 | Google | API key | Gemini Pro, Flash | Google AI Studio API |
 | Local | None | Llama, Mistral, etc. | Ollama-compatible, OpenAI format |
 | OpenRouter | API key | Any model on OpenRouter | Unified access to many providers |
 
-::: tip
-If you have a Claude Pro or Max subscription, Triggerfish uses your existing `CLAUDE_CODE_OAUTH_TOKEN` -- no separate API key needed. Set the environment variable and Triggerfish detects it automatically.
-:::
 
 ## LlmProvider Interface
 
@@ -56,7 +53,7 @@ models:
   providers:
     anthropic:
       model: claude-sonnet-4-5
-      # Auth: set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN env var
+      # Auth: apiKey field or ANTHROPIC_API_KEY env var
     openai:
       model: gpt-4o
       # Auth: set OPENAI_API_KEY env var
@@ -120,12 +117,6 @@ agents:
 ## Session-Level Model Switching
 
 The agent can switch models mid-session for cost optimization. Use a fast model for simple queries and escalate to a more capable model for complex reasoning. This is available through the `session_status` tool.
-
-## Anthropic OAuth
-
-For Claude Pro and Max subscribers, Triggerfish supports OAuth authentication using the `CLAUDE_CODE_OAUTH_TOKEN` environment variable. This lets you use your existing subscription without a separate API key.
-
-The token is detected automatically by its `sk-ant-oat` prefix. When using OAuth, Triggerfish sends the required authentication headers for the Anthropic API.
 
 ::: info
 API keys are never stored in configuration files. Set credentials as environment variables or use your OS keychain. See the [Security Model](/security/) for details on secrets management.
