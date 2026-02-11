@@ -25,7 +25,7 @@ export { createRippleManager } from "./ripple.ts";
 export type { GroupMode, GroupConfig, OwnerContext, GroupManager } from "./groups.ts";
 export { createGroupManager } from "./groups.ts";
 
-export type { TelegramConfig } from "./telegram/adapter.ts";
+export type { TelegramConfig, TelegramChannelAdapter } from "./telegram/adapter.ts";
 export { createTelegramChannel } from "./telegram/adapter.ts";
 export { chunkMessage } from "./telegram/adapter.ts";
 

@@ -60,6 +60,27 @@ Deno.test("Telegram: registers message handler", async () => {
   assertEquals(called, false);
 });
 
+Deno.test("Telegram: sendTyping method exists on adapter", async () => {
+  const { createTelegramChannel } = await import("../../src/channels/telegram/adapter.ts");
+  const adapter = createTelegramChannel({ botToken: "fake:token" });
+  assertExists(adapter.sendTyping);
+  assertEquals(typeof adapter.sendTyping, "function");
+});
+
+Deno.test("Telegram: sendTyping returns early for empty sessionId", async () => {
+  const { createTelegramChannel } = await import("../../src/channels/telegram/adapter.ts");
+  const adapter = createTelegramChannel({ botToken: "fake:token" });
+  // Should not throw — returns early for empty/invalid sessionId
+  await adapter.sendTyping("");
+});
+
+Deno.test("Telegram: sendTyping returns early for invalid sessionId", async () => {
+  const { createTelegramChannel } = await import("../../src/channels/telegram/adapter.ts");
+  const adapter = createTelegramChannel({ botToken: "fake:token" });
+  // "telegram-notanumber" → NaN → returns early
+  await adapter.sendTyping("telegram-notanumber");
+});
+
 // --- Slack ---
 
 Deno.test({
