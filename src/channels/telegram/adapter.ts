@@ -30,6 +30,12 @@ export interface TelegramConfig {
   readonly ownerId?: number;
 }
 
+/** Extended Telegram adapter with typing indicator support. */
+export interface TelegramChannelAdapter extends ChannelAdapter {
+  /** Send a "typing..." chat action to the given Telegram chat. */
+  sendTyping(sessionId: string): Promise<void>;
+}
+
 /**
  * Create a Telegram channel adapter.
  *
@@ -37,9 +43,9 @@ export interface TelegramConfig {
  * text messages and forwards them to the registered message handler.
  *
  * @param config - Telegram bot configuration.
- * @returns A ChannelAdapter wired to Telegram.
+ * @returns A TelegramChannelAdapter wired to Telegram.
  */
-export function createTelegramChannel(config: TelegramConfig): ChannelAdapter {
+export function createTelegramChannel(config: TelegramConfig): TelegramChannelAdapter {
   const bot = new Bot(config.botToken);
   const classification = (config.classification ?? "INTERNAL") as ClassificationLevel;
   const ownerId = config.ownerId;
@@ -99,6 +105,13 @@ export function createTelegramChannel(config: TelegramConfig): ChannelAdapter {
         connected,
         channelType: "telegram",
       };
+    },
+
+    async sendTyping(sessionId: string): Promise<void> {
+      if (!sessionId) return;
+      const chatId = parseInt(sessionId.replace("telegram-", ""), 10);
+      if (isNaN(chatId)) return;
+      await bot.api.sendChatAction(chatId, "typing");
     },
   };
 }

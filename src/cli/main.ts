@@ -64,6 +64,8 @@ import {
   TODO_SYSTEM_PROMPT,
 } from "../tools/mod.ts";
 import type { TodoManager } from "../tools/mod.ts";
+import { createTelegramChannel } from "../channels/telegram/adapter.ts";
+import type { ChatEventSender } from "../gateway/chat.ts";
 
 /** Known CLI commands. */
 const KNOWN_COMMANDS = new Set([
@@ -633,6 +635,58 @@ async function runStart(): Promise<void> {
   });
 
   console.log("  Main session created");
+
+  // --- Telegram channel wiring ---
+  const telegramConfig = config.channels?.telegram as {
+    botToken?: string;
+    ownerId?: number;
+    classification?: string;
+  } | undefined;
+
+  if (telegramConfig?.botToken) {
+    const telegramAdapter = createTelegramChannel({
+      botToken: telegramConfig.botToken,
+      ownerId: telegramConfig.ownerId,
+      classification: (telegramConfig.classification ?? "INTERNAL") as ClassificationLevel,
+    });
+
+    telegramAdapter.onMessage((msg) => {
+      let typingInterval: number | undefined;
+
+      const sendEvent: ChatEventSender = (event) => {
+        if (event.type === "llm_start") {
+          telegramAdapter.sendTyping(msg.sessionId ?? "").catch(() => {});
+          typingInterval = setInterval(() => {
+            telegramAdapter.sendTyping(msg.sessionId ?? "").catch(() => {});
+          }, 4000) as unknown as number;
+        }
+
+        if (event.type === "response") {
+          clearInterval(typingInterval);
+          telegramAdapter.send({
+            content: event.text,
+            sessionId: msg.sessionId,
+          }).catch((err) => console.error("Telegram send error:", err));
+        }
+
+        if (event.type === "error") {
+          clearInterval(typingInterval);
+          telegramAdapter.send({
+            content: `Error: ${event.message}`,
+            sessionId: msg.sessionId,
+          }).catch((err) => console.error("Telegram send error:", err));
+        }
+
+        // tool_call, tool_result, llm_complete → muted for Telegram
+      };
+
+      chatSession.processMessage(msg.content, sendEvent)
+        .catch((err) => console.error("Telegram message processing error:", err));
+    });
+
+    await telegramAdapter.connect();
+    console.log("  Telegram channel connected");
+  }
 
   // Create and start Tidepool host with chat support
   const tidepoolHost = createA2UIHost({ chatSession });
