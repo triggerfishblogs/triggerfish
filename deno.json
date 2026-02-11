@@ -22,7 +22,9 @@
     "@slack/bolt": "npm:@slack/bolt@^3.17.0",
     "discord.js": "npm:discord.js@^14.14.0",
     "@cliffy/prompt": "jsr:@cliffy/prompt@^1.0.0-rc.7",
-    "puppeteer-core": "npm:puppeteer-core@^24.0.0"
+    "puppeteer-core": "npm:puppeteer-core@^24.0.0",
+    "@mozilla/readability": "npm:@mozilla/readability@^0.5.0",
+    "linkedom": "npm:linkedom@^0.18.0"
   },
   "exclude": [
     "test-seeds/",
