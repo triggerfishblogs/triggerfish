@@ -14,6 +14,7 @@ import { createOpenAiProvider } from "../../src/agent/providers/openai.ts";
 import { createGoogleProvider } from "../../src/agent/providers/google.ts";
 import { createLocalProvider } from "../../src/agent/providers/local.ts";
 import { createOpenRouterProvider } from "../../src/agent/providers/openrouter.ts";
+import { createZenMuxProvider } from "../../src/agent/providers/zenmux.ts";
 import { loadProvidersFromConfig } from "../../src/agent/providers/config.ts";
 
 // --- Factory function tests (no API calls) ---
@@ -48,6 +49,15 @@ Deno.test("OpenRouterProvider: factory creates provider with correct name", () =
     model: "anthropic/claude-3.5-sonnet",
   });
   assertEquals(provider.name, "openrouter");
+  assertEquals(provider.supportsStreaming, true);
+});
+
+Deno.test("ZenMuxProvider: factory creates provider with correct name", () => {
+  const provider = createZenMuxProvider({
+    apiKey: "test-key",
+    model: "openai/gpt-5",
+  });
+  assertEquals(provider.name, "zenmux");
   assertEquals(provider.supportsStreaming, true);
 });
 
@@ -140,6 +150,24 @@ Deno.test("loadProvidersFromConfig: resolves openrouter from model with slash", 
   assertEquals(defaultProvider!.name, "openrouter");
 });
 
+Deno.test("loadProvidersFromConfig: registers zenmux provider", () => {
+  const registry = createProviderRegistry();
+  loadProvidersFromConfig({
+    primary: "zenmux",
+    providers: {
+      zenmux: { model: "openai/gpt-5", apiKey: "zm-test-key" },
+    },
+  }, registry);
+
+  const provider = registry.get("zenmux");
+  assertExists(provider);
+  assertEquals(provider!.name, "zenmux");
+
+  const defaultProvider = registry.getDefault();
+  assertExists(defaultProvider);
+  assertEquals(defaultProvider!.name, "zenmux");
+});
+
 // --- LocalProvider: HTTP error handling ---
 
 Deno.test("LocalProvider: throws on non-200 response", async () => {
@@ -212,6 +240,25 @@ Deno.test({
 });
 
 Deno.test({
+  name: "ZenMuxProvider: real API call (integration)",
+  ignore: !Deno.env.get("ZENMUX_API_KEY"),
+  async fn() {
+    const provider = createZenMuxProvider({
+      model: "openai/gpt-4o",
+    });
+    const result = await provider.complete(
+      [{ role: "user", content: "Say just the word 'hello'" }],
+      [],
+      {},
+    );
+
+    assert(result.content.length > 0, "Should get non-empty response");
+    assert(result.usage.inputTokens > 0, "Should report input tokens");
+    assert(result.usage.outputTokens > 0, "Should report output tokens");
+  },
+});
+
+Deno.test({
   name: "Providers: all conform to LlmProvider interface",
   fn() {
     // Verify all providers satisfy the interface at compile time
@@ -221,9 +268,10 @@ Deno.test({
       createGoogleProvider({ apiKey: "test" }),
       createLocalProvider({ model: "test" }),
       createOpenRouterProvider({ apiKey: "test", model: "test" }),
+      createZenMuxProvider({ apiKey: "test", model: "test" }),
     ];
 
-    assertEquals(providers.length, 5);
+    assertEquals(providers.length, 6);
     for (const p of providers) {
       assertExists(p.name);
       assertExists(p.complete);

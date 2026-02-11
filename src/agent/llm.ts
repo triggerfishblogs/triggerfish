@@ -40,7 +40,7 @@ export interface LlmStreamChunk {
  * Interface for LLM completion providers.
  *
  * Each provider normalizes to/from the common message format.
- * Implementations exist per provider (Anthropic, OpenAI, Google, Local, OpenRouter).
+ * Implementations exist per provider (Anthropic, OpenAI, Google, Local, OpenRouter, ZenMux).
  */
 export interface LlmProvider {
   /** Provider name identifier. */
