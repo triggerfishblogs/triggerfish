@@ -283,7 +283,7 @@ export function createFts5SearchProvider(
 
       // FTS5 query — fetch more than needed to account for classification filtering
       const fetchLimit = maxResults * 4;
-      const rows = stmtSearch.all<FtsSearchRow>(query, agentId, fetchLimit);
+      const rows = stmtSearch.all(query, agentId, fetchLimit) as FtsSearchRow[];
 
       // Post-filter by classification gating and non-expired
       const visible: MemorySearchResult[] = [];
