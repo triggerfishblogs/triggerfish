@@ -13,6 +13,7 @@ import { createOpenAiProvider } from "./openai.ts";
 import { createGoogleProvider } from "./google.ts";
 import { createLocalProvider } from "./local.ts";
 import { createOpenRouterProvider } from "./openrouter.ts";
+import { createZenMuxProvider } from "./zenmux.ts";
 
 /** Provider block from triggerfish.yaml. */
 export interface ProvidersConfig {
@@ -21,6 +22,7 @@ export interface ProvidersConfig {
   readonly google?: { readonly model?: string; readonly apiKey?: string };
   readonly local?: { readonly endpoint?: string; readonly model: string };
   readonly openrouter?: { readonly model: string; readonly apiKey?: string };
+  readonly zenmux?: { readonly model: string; readonly apiKey?: string };
 }
 
 /** Full models section from triggerfish.yaml. */
@@ -83,6 +85,13 @@ export function loadProvidersFromConfig(
     }));
   }
 
+  if (providers.zenmux) {
+    registry.register(createZenMuxProvider({
+      model: providers.zenmux.model,
+      apiKey: providers.zenmux.apiKey,
+    }));
+  }
+
   // Resolve default provider from models.primary model name
   const primary = modelsConfig.primary.toLowerCase();
   const defaultProvider = resolveProviderName(primary);
@@ -106,7 +115,7 @@ function resolveProviderName(modelName: string): string | undefined {
   if (modelName.includes("/")) return "openrouter"; // e.g. "anthropic/claude-3.5-sonnet"
 
   // Check for explicit provider names
-  const knownProviders = ["anthropic", "openai", "google", "local", "openrouter"];
+  const knownProviders = ["anthropic", "openai", "google", "local", "openrouter", "zenmux"];
   if (knownProviders.includes(modelName)) return modelName;
 
   return undefined;

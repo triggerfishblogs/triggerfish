@@ -21,3 +21,6 @@ export type { LocalConfig } from "./local.ts";
 
 export { createOpenRouterProvider } from "./openrouter.ts";
 export type { OpenRouterConfig } from "./openrouter.ts";
+
+export { createZenMuxProvider } from "./zenmux.ts";
+export type { ZenMuxConfig } from "./zenmux.ts";
