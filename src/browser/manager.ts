@@ -1,45 +1,78 @@
 /**
- * Chromium lifecycle management for browser automation.
+ * Multi-agent Chromium lifecycle management for browser automation.
  *
- * Manages launching, connecting to, and shutting down Chromium instances
- * with isolated profiles per agent. No access to host browser cookies/sessions.
+ * Each agent gets an isolated browser profile with classification-aware
+ * watermarking. A lower-tainted session cannot reuse a profile that has
+ * been used at a higher classification level.
  *
  * @module
  */
 
 import puppeteer from "puppeteer-core";
 import type { Browser, Page } from "puppeteer-core";
+import type { ClassificationLevel, Result } from "../core/types/classification.ts";
+import type { StorageProvider } from "../core/storage/provider.ts";
 import type { DomainPolicy } from "./domains.ts";
+import {
+  canAccessProfile,
+  escalateWatermark,
+  getWatermark,
+} from "./watermark.ts";
 
-/** Browser instance state. */
-export type BrowserState = "disconnected" | "connecting" | "connected" | "error";
+/** A running browser instance for a specific agent. */
+export interface BrowserInstance {
+  /** The agent this instance belongs to. */
+  readonly agentId: string;
+  /** Filesystem path to the isolated profile directory. */
+  readonly profilePath: string;
+  /** Classification watermark after launch. */
+  readonly watermark: ClassificationLevel;
+  /** The puppeteer Page (opaque to consumers outside this module). */
+  readonly page: unknown;
+}
 
-/** Configuration for the browser manager. */
+/** Configuration for the multi-agent browser manager. */
 export interface BrowserManagerConfig {
   /** Path to Chromium executable. If not set, auto-detected. */
   readonly chromiumPath?: string;
-  /** Isolated profile directory for this agent. */
-  readonly profileDir: string;
+  /** Base directory for per-agent browser profiles. */
+  readonly profileBaseDir: string;
   /** Domain classification policy. */
   readonly domainPolicy: DomainPolicy;
+  /** Storage provider for watermark persistence. */
+  readonly storage: StorageProvider;
+  /** Run headless (default true). */
+  readonly headless?: boolean;
+  /** Viewport dimensions. */
+  readonly viewport?: { readonly width: number; readonly height: number };
+  /** Extra Chromium launch arguments. */
+  readonly launchArgs?: readonly string[];
   /** Whether credential autofill is enabled. Defaults to false. */
   readonly credentialAutofill?: boolean;
-  /** Maximum concurrent pages. Defaults to 5. */
-  readonly maxPages?: number;
 }
 
-/** Browser manager interface for Chromium lifecycle control. */
+/** Multi-agent browser manager interface. */
 export interface BrowserManager {
-  /** Current browser state. */
-  readonly state: BrowserState;
-  /** Launch a new Chromium instance with isolated profile. */
-  launch(): Promise<void>;
-  /** Shut down the Chromium instance. */
-  shutdown(): Promise<void>;
-  /** Get the domain policy. */
+  /** Launch (or reuse) a browser for an agent, checking watermark access. */
+  launch(
+    agentId: string,
+    sessionTaint: ClassificationLevel,
+  ): Promise<Result<BrowserInstance, string>>;
+  /** Close the browser for a specific agent. */
+  close(agentId: string): Promise<void>;
+  /** Check whether an agent currently has a running browser. */
+  isRunning(agentId: string): boolean;
+  /** Read the stored profile watermark for an agent (returns a Promise). */
+  getProfileWatermark(agentId: string): Promise<ClassificationLevel | null>;
+  /** The domain security policy. */
   readonly domainPolicy: DomainPolicy;
-  /** Get the active page instance (opaque — cast to Page in tools). */
-  getPage(): unknown;
+}
+
+/** Internal state for a running browser instance. */
+interface RunningBrowser {
+  readonly browser: Browser;
+  readonly page: Page;
+  readonly instance: BrowserInstance;
 }
 
 /**
@@ -96,49 +129,70 @@ async function detectChromiumPath(): Promise<string | undefined> {
 }
 
 /**
- * Create a browser manager for Chromium lifecycle control.
+ * Create a multi-agent browser manager.
  *
- * Uses puppeteer-core to launch a real Chromium instance with CDP.
- * The browser runs headless with an isolated user profile.
+ * Each agent gets an isolated Chromium profile under `profileBaseDir/<agentId>/profile/`.
+ * Profile watermarks are persisted via StorageProvider and enforce escalation-only access.
  *
  * @param config - Browser manager configuration
  * @returns A BrowserManager instance
  */
 export function createBrowserManager(config: BrowserManagerConfig): BrowserManager {
-  let state: BrowserState = "disconnected";
-  let browser: Browser | undefined;
-  let page: Page | undefined;
+  const instances = new Map<string, RunningBrowser>();
 
   return {
-    get state(): BrowserState {
-      return state;
-    },
-
     get domainPolicy(): DomainPolicy {
       return config.domainPolicy;
     },
 
-    getPage(): unknown {
-      return page;
-    },
+    async launch(
+      agentId: string,
+      sessionTaint: ClassificationLevel,
+    ): Promise<Result<BrowserInstance, string>> {
+      // Check watermark access
+      const currentWatermark = await getWatermark(config.storage, agentId);
+      if (
+        currentWatermark !== null &&
+        !canAccessProfile(currentWatermark, sessionTaint)
+      ) {
+        return {
+          ok: false,
+          error:
+            `Profile watermark ${currentWatermark} exceeds session taint ${sessionTaint}`,
+        };
+      }
 
-    async launch(): Promise<void> {
-      if (state === "connected") return;
-      state = "connecting";
+      // Escalate watermark
+      const watermark = await escalateWatermark(
+        config.storage,
+        agentId,
+        sessionTaint,
+      );
 
+      // Return existing instance if already running
+      const existing = instances.get(agentId);
+      if (existing) {
+        return { ok: true, value: existing.instance };
+      }
+
+      // Launch new browser
       try {
-        const executablePath = config.chromiumPath ?? await detectChromiumPath();
+        const executablePath = config.chromiumPath ??
+          await detectChromiumPath();
         if (!executablePath) {
-          state = "error";
-          throw new Error(
-            "No Chromium executable found. Set chromiumPath in config or install Chromium/Chrome.",
-          );
+          return {
+            ok: false,
+            error:
+              "No Chromium executable found. Set chromiumPath in config or install Chromium/Chrome.",
+          };
         }
 
-        browser = await puppeteer.launch({
+        const profilePath = `${config.profileBaseDir}/${agentId}/profile`;
+
+        const browser = await puppeteer.launch({
           executablePath,
-          headless: true,
-          userDataDir: config.profileDir,
+          headless: config.headless !== false,
+          userDataDir: profilePath,
           args: [
             "--no-first-run",
             "--disable-default-apps",
@@ -148,30 +202,60 @@ export function createBrowserManager(config: BrowserManagerConfig): BrowserManag
             ...(config.credentialAutofill === true
               ? []
               : ["--disable-save-password-bubble"]),
+            ...(config.launchArgs ?? []),
           ],
         });
 
         const pages = await browser.pages();
-        page = pages[0] ?? await browser.newPage();
+        const page = pages[0] ?? await browser.newPage();
 
-        state = "connected";
+        if (config.viewport) {
+          await page.setViewport({
+            width: config.viewport.width,
+            height: config.viewport.height,
+          });
+        }
+
+        const instance: BrowserInstance = {
+          agentId,
+          profilePath,
+          watermark,
+          page,
+        };
+
+        instances.set(agentId, { browser, page, instance });
+
+        return { ok: true, value: instance };
       } catch (err) {
-        if (state !== "error") state = "error";
-        throw err;
+        return {
+          ok: false,
+          error: `Browser launch failed: ${
+            (err as Error).message
+          }`,
+        };
       }
     },
 
-    async shutdown(): Promise<void> {
-      if (browser) {
-        try {
-          await browser.close();
-        } catch {
-          // ignore close errors
-        }
-        browser = undefined;
-        page = undefined;
+    async close(agentId: string): Promise<void> {
+      const running = instances.get(agentId);
+      if (!running) return;
+
+      try {
+        await running.browser.close();
+      } catch {
+        // ignore close errors
       }
-      state = "disconnected";
+      instances.delete(agentId);
+    },
+
+    isRunning(agentId: string): boolean {
+      return instances.has(agentId);
+    },
+
+    getProfileWatermark(
+      agentId: string,
+    ): Promise<ClassificationLevel | null> {
+      return getWatermark(config.storage, agentId);
     },
   };
 }

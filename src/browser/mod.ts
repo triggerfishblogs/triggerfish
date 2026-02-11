@@ -1,8 +1,9 @@
 /**
  * Browser automation module for Chromium CDP control.
  *
- * Provides domain classification policy, browser lifecycle management,
- * and page interaction tools with security enforcement.
+ * Provides domain classification policy, multi-agent browser lifecycle
+ * management with watermarking, and page interaction tools with SSRF
+ * prevention and security enforcement.
  *
  * @module
  */
@@ -15,13 +16,28 @@ export {
 
 export {
   createBrowserManager,
+  type BrowserInstance,
   type BrowserManager,
   type BrowserManagerConfig,
-  type BrowserState,
 } from "./manager.ts";
 
 export {
+  BROWSER_TOOLS_SYSTEM_PROMPT,
+  createBrowserToolExecutor,
   createBrowserTools,
-  type BrowserToolResult,
   type BrowserTools,
+  type BrowserToolsConfig,
+  type DnsChecker,
+  getBrowserToolDefinitions,
+  type NavigateResult,
+  type ScrollDirection,
+  type SnapshotResult,
 } from "./tools.ts";
+
+export {
+  canAccessProfile,
+  escalateWatermark,
+  getWatermark,
+  type ProfileWatermark,
+  watermarkKey,
+} from "./watermark.ts";
