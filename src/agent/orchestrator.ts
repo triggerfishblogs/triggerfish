@@ -92,6 +92,14 @@ export interface OrchestratorConfig {
   readonly getSessionTaint?: () => ClassificationLevel;
   /** Escalate session taint after tool dispatch (upward only via maxClassification). */
   readonly escalateTaint?: (level: ClassificationLevel, reason: string) => void;
+  /** Whether the active session belongs to the owner. */
+  readonly isOwnerSession?: () => boolean;
+  /**
+   * Classification ceiling for the active non-owner session.
+   * null = no explicit classification → all tools blocked.
+   * Non-null = tools classified at or below this level are allowed.
+   */
+  readonly getNonOwnerCeiling?: () => ClassificationLevel | null;
 }
 
 /** Config shape for building integration/plugin/channel classification map. */
@@ -372,6 +380,34 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   // Matched integrations: escalate taint on entry, block write-down via canFlowTo.
   const toolExecutor: ToolExecutor | undefined = rawToolExecutor
     ? async (name: string, input: Record<string, unknown>): Promise<string> => {
+        // Non-owner tool access enforcement.
+        if (config.isOwnerSession && !config.isOwnerSession()) {
+          const ceiling = config.getNonOwnerCeiling?.() ?? null;
+
+          // No explicit classification → all tools blocked.
+          if (ceiling === null) {
+            return `Error: Tool calls are not available in this session.`;
+          }
+
+          // Has explicit classification → only classified tools at or below ceiling.
+          if (config.toolClassifications) {
+            let matched = false;
+            for (const [prefix, level] of config.toolClassifications) {
+              if (name.startsWith(prefix)) {
+                matched = true;
+                if (!canFlowTo(level, ceiling)) {
+                  return `Error: ${name} (classified ${level}) exceeds session ceiling ${ceiling}. Access denied.`;
+                }
+                break;
+              }
+            }
+            // Unclassified tools (built-ins) are never available to non-owners.
+            if (!matched) {
+              return `Error: Tool calls are not available in this session.`;
+            }
+          }
+        }
+
         if (config.toolClassifications && config.getSessionTaint) {
           for (const [prefix, level] of config.toolClassifications) {
             if (name.startsWith(prefix)) {

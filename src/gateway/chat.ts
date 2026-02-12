@@ -5,6 +5,10 @@
  * mutex. Both CLI (via gateway WebSocket) and Tidepool (via browser
  * WebSocket) call into the same ChatSession instance.
  *
+ * Channels register via `registerChannel` and route messages through
+ * `handleChannelMessage`. Owner messages use the main daemon session;
+ * non-owner messages get independent per-user sessions managed here.
+ *
  * @module
  */
 
@@ -20,9 +24,16 @@ import type { LlmProviderRegistry, LlmProvider } from "../agent/llm.ts";
 import type { PlanManager } from "../agent/plan.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { SessionState } from "../core/types/session.ts";
+import { updateTaint } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import type { CompactorConfig } from "../agent/compactor.ts";
 import type { MessageContent } from "../image/content.ts";
+import type { ChannelMessage } from "../channels/types.ts";
+import {
+  createUserSessionManager,
+  parseUserOverrides,
+} from "../channels/user_sessions.ts";
+import type { UserSessionManager } from "../channels/user_sessions.ts";
 
 /** Events sent over the chat wire protocol. */
 export type ChatEvent =
@@ -58,6 +69,14 @@ export type ChatClientMessage =
 /** Callback to send a chat event to a specific client. */
 export type ChatEventSender = (event: ChatEvent) => void;
 
+/** Per-channel classification config for non-owner user sessions. */
+export interface ChannelClassificationConfig {
+  /** Default classification ceiling for non-owner users on this channel. */
+  readonly classification: ClassificationLevel;
+  /** Optional per-user classification overrides keyed by platform-native ID. */
+  readonly userClassifications?: Record<string, string>;
+}
+
 /** Configuration for creating a ChatSession. */
 export interface ChatSessionConfig {
   readonly hookRunner: HookRunner;
@@ -87,9 +106,28 @@ export interface ChatSessionConfig {
 
 /** Shared chat session that serializes access to the orchestrator. */
 export interface ChatSession {
-  /** Process a message through the orchestrator, sending events to the caller. */
+  /** Process an owner message through the orchestrator. */
   processMessage(
     content: MessageContent,
+    sendEvent: ChatEventSender,
+    signal?: AbortSignal,
+  ): Promise<void>;
+  /**
+   * Register a channel's classification config for per-user session management.
+   *
+   * Must be called before `handleChannelMessage` for a given channel type.
+   */
+  registerChannel(channelType: string, config: ChannelClassificationConfig): void;
+  /**
+   * Route a channel message to the correct session.
+   *
+   * Owner messages (`msg.isOwner !== false`) use the main daemon session.
+   * Non-owner messages get independent per-user sessions with classification
+   * ceilings derived from the registered channel config.
+   */
+  handleChannelMessage(
+    msg: ChannelMessage,
+    channelType: string,
     sendEvent: ChatEventSender,
     signal?: AbortSignal,
   ): Promise<void>;
@@ -107,10 +145,50 @@ export interface ChatSession {
  * The orchestrator's `onEvent` callback forwards events to whichever
  * client is currently being served. A promise-chain mutex ensures only
  * one message is processed at a time.
+ *
+ * Taint closures are session-aware: an `activeSessionId` ref determines
+ * which session's taint is read/written. For owner messages it points to
+ * the owner session; for non-owner messages it points to the user session.
+ * The mutex guarantees no concurrent access.
  */
 export function createChatSession(config: ChatSessionConfig): ChatSession {
   // Mutable ref: set per-message, cleared after
   let activeSend: ChatEventSender | null = null;
+
+  // --- Session-aware taint and classification tracking ---
+  const ownerSessionId = config.session.id as string;
+  let activeSessionId: string = ownerSessionId;
+  const ownerTargetClassification = config.targetClassification ?? "INTERNAL" as ClassificationLevel;
+  // Non-owner tool ceiling: null = no explicit classification = all tools blocked.
+  let activeNonOwnerCeiling: ClassificationLevel | null = null;
+
+  // Track all session states. Owner session is always present.
+  const sessionStates = new Map<string, SessionState>();
+  sessionStates.set(ownerSessionId, config.session);
+
+  // Per-channel UserSessionManagers, keyed by channelType.
+  const channelUserSessions = new Map<string, UserSessionManager>();
+
+  const ownerGetTaint = config.getSessionTaint;
+  const ownerEscalateTaint = config.escalateTaint;
+
+  function getSessionTaint(): ClassificationLevel {
+    if (activeSessionId === ownerSessionId && ownerGetTaint) {
+      return ownerGetTaint();
+    }
+    return sessionStates.get(activeSessionId)?.taint ?? "PUBLIC";
+  }
+
+  function escalateTaint(level: ClassificationLevel, reason: string): void {
+    if (activeSessionId === ownerSessionId && ownerEscalateTaint) {
+      ownerEscalateTaint(level, reason);
+      return;
+    }
+    const s = sessionStates.get(activeSessionId);
+    if (s) {
+      sessionStates.set(activeSessionId, updateTaint(s, level, reason));
+    }
+  }
 
   const onEvent: OrchestratorEventCallback = (event: OrchestratorEvent) => {
     if (activeSend) {
@@ -131,12 +209,13 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     debug: config.debug,
     visionProvider: config.visionProvider,
     toolClassifications: config.toolClassifications,
-    getSessionTaint: config.getSessionTaint,
-    escalateTaint: config.escalateTaint,
+    getSessionTaint,
+    escalateTaint,
+    isOwnerSession: () => activeSessionId === ownerSessionId,
+    getNonOwnerCeiling: () => activeNonOwnerCeiling,
   });
 
   const session = config.session;
-  const targetClassification = config.targetClassification ?? "INTERNAL" as ClassificationLevel;
 
   const providerName = config.providerRegistry.getDefault()?.name ?? "unknown";
   const modelName = config.providerRegistry.getDefault()?.name ?? "unknown";
@@ -149,7 +228,6 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     sendEvent: ChatEventSender,
     signal?: AbortSignal,
   ): Promise<void> {
-    // Chain onto the mutex so only one message processes at a time
     const prev = mutex;
     let resolve: () => void;
     mutex = new Promise<void>((r) => {
@@ -159,23 +237,99 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     await prev;
 
     activeSend = sendEvent;
+    activeSessionId = ownerSessionId;
+
     try {
       const result = await orchestrator.processMessage({
         session,
         message: content,
-        targetClassification,
+        targetClassification: ownerTargetClassification,
         signal,
       });
 
       if (!result.ok) {
         sendEvent({ type: "error", message: result.error });
       }
-      // Note: successful responses are already emitted via onEvent "response"
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       sendEvent({ type: "error", message: msg });
     } finally {
       activeSend = null;
+      activeSessionId = ownerSessionId;
+  
+      resolve!();
+    }
+  }
+
+  function registerChannel(channelType: string, channelConfig: ChannelClassificationConfig): void {
+    const mgr = createUserSessionManager({
+      channelDefault: channelConfig.classification,
+      userOverrides: parseUserOverrides(channelConfig.userClassifications),
+    });
+    channelUserSessions.set(channelType, mgr);
+  }
+
+  async function handleChannelMessage(
+    msg: ChannelMessage,
+    channelType: string,
+    sendEvent: ChatEventSender,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    // Owner messages → main daemon session
+    if (msg.isOwner !== false) {
+      return processMessage(msg.content, sendEvent, signal);
+    }
+
+    // Non-owner messages → per-user session
+    const userSessions = channelUserSessions.get(channelType);
+    if (!userSessions) {
+      sendEvent({ type: "error", message: `No channel config registered for ${channelType}` });
+      return;
+    }
+
+    const senderId = msg.senderId ?? "unknown";
+    const userSession = userSessions.getOrCreate(channelType, senderId);
+    const userCls = userSessions.getClassification(senderId);
+
+    const prev = mutex;
+    let resolve: () => void;
+    mutex = new Promise<void>((r) => {
+      resolve = r;
+    });
+
+    await prev;
+
+    const userSessionId = userSession.id as string;
+    sessionStates.set(userSessionId, userSession);
+    activeSend = sendEvent;
+    activeSessionId = userSessionId;
+    activeNonOwnerCeiling = userSessions.hasExplicitClassification(senderId)
+      ? userSessions.getClassification(senderId)
+      : null;
+
+    try {
+      const result = await orchestrator.processMessage({
+        session: userSession,
+        message: msg.content,
+        targetClassification: userCls,
+        signal,
+      });
+
+      if (!result.ok) {
+        sendEvent({ type: "error", message: result.error });
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      sendEvent({ type: "error", message: errMsg });
+    } finally {
+      // Persist potentially-escalated session back to the UserSessionManager
+      const updated = sessionStates.get(userSessionId);
+      if (updated) {
+        userSessions.updateSession(channelType, senderId, updated);
+      }
+      activeSend = null;
+      activeSessionId = ownerSessionId;
+      activeNonOwnerCeiling = null;
       resolve!();
     }
   }
@@ -189,6 +343,8 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
 
   return {
     processMessage,
+    registerChannel,
+    handleChannelMessage,
     clear,
     get providerName() {
       return providerName;

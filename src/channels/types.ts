@@ -14,6 +14,10 @@ export interface ChannelMessage {
   readonly content: string;
   readonly sessionId?: string;
   readonly sessionTaint?: ClassificationLevel;
+  /** Platform-native user identifier (Telegram numeric ID, Discord snowflake, etc.). */
+  readonly senderId?: string;
+  /** Whether the sender is the configured channel owner. */
+  readonly isOwner?: boolean;
 }
 
 /** Status information for a channel adapter. */

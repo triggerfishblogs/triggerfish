@@ -63,6 +63,8 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
     handler({
       content: ctx.message.text,
       sessionId: `telegram-${ctx.chat.id}`,
+      senderId: String(ctx.from.id),
+      isOwner,
       sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
     });
   });

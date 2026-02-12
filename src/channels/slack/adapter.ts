@@ -70,6 +70,8 @@ export function createSlackChannel(config: SlackConfig): ChannelAdapter {
     handler({
       content: msg.text,
       sessionId: `slack-${msg.channel}`,
+      senderId: msg.user,
+      isOwner,
       sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
     });
   });

@@ -72,6 +72,8 @@ export function createDiscordChannel(config: DiscordConfig): ChannelAdapter {
     handler({
       content: message.content,
       sessionId: `discord-${message.channelId}`,
+      senderId: message.author.id,
+      isOwner,
       sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
     });
   });

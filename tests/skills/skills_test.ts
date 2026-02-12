@@ -58,8 +58,8 @@ Deno.test("SkillLoader: discovers all bundled skills", async () => {
   });
   const skills = await loader.discover();
 
-  // Should find all 8 bundled skills
-  assertEquals(skills.length, 8);
+  // Should find all 9 bundled skills
+  assertEquals(skills.length, 9);
 
   const names = skills.map((s) => s.name).sort();
   assertEquals(names, [
@@ -69,6 +69,7 @@ Deno.test("SkillLoader: discovers all bundled skills", async () => {
     "integration-builder",
     "mastering-python",
     "mastering-typescript",
+    "obsidian",
     "skill-builder",
     "tdd",
   ]);

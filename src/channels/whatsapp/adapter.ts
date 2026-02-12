@@ -166,6 +166,8 @@ export function createWhatsAppChannel(config: WhatsAppConfig): ChannelAdapter {
           handler({
             content: textObj.body,
             sessionId: `whatsapp-${from}`,
+            senderId: from,
+            isOwner,
             sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
           });
         }
