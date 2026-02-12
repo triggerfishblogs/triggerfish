@@ -149,6 +149,18 @@ Deno.test("Wizard: generateConfig for Google provider", () => {
   assertEquals(providers.google.model, "gemini-2.0-flash");
 });
 
+Deno.test("Wizard: generateConfig for Z.AI provider", () => {
+  const answers = makeAnswers({
+    provider: "zai",
+    providerModel: "glm-4.7",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const models = parsed.models as Record<string, unknown>;
+  const providers = models.providers as Record<string, Record<string, string>>;
+  assertEquals(providers.zai.model, "glm-4.7");
+});
+
 Deno.test("Wizard: generateConfig for OpenRouter provider", () => {
   const answers = makeAnswers({
     provider: "openrouter",

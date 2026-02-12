@@ -11,6 +11,7 @@ Triggerfish supports multiple LLM providers with automatic failover, per-agent m
 | Google | API key | Gemini Pro, Flash | Google AI Studio API |
 | Local | None | Llama, Mistral, etc. | Ollama-compatible, OpenAI format |
 | OpenRouter | API key | Any model on OpenRouter | Unified access to many providers |
+| Z.AI | API key | GLM-4.7, GLM-4.5, GLM-5 | Z.AI Coding Plan, OpenAI-compatible |
 
 
 ## LlmProvider Interface
@@ -66,6 +67,9 @@ models:
     openrouter:
       model: anthropic/claude-sonnet-4-5
       # Auth: set OPENROUTER_API_KEY env var
+    zai:
+      model: glm-4.7
+      # Auth: set ZAI_API_KEY env var
 ```
 
 ### Failover Chain

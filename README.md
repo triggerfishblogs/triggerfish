@@ -157,6 +157,7 @@ Switch between providers or configure failover chains.
 | 🔵 **Google** | API key | Gemini Pro, Flash |
 | 🏠 **Local** | None (OpenAI-compatible) | Llama, Mistral, etc. via Ollama |
 | 🌐 **OpenRouter** | API key | Any model on OpenRouter |
+| 🤖 **Z.AI** | API key | GLM-4.7, GLM-4.5, GLM-5 |
 
 ---
 
