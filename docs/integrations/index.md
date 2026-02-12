@@ -15,6 +15,7 @@ Triggerfish offers five distinct ways to extend the platform. Each serves a diff
 | [Browser Automation](./browser) | Control a browser instance via CDP | Web research, form filling, scraping, automated web workflows |
 | [Webhooks](./webhooks) | Receive inbound events from external services | Real-time reactions to emails, alerts, CI/CD events, calendar changes |
 | [GitHub](./github) | Full GitHub workflow integration | PR review loops, issue triage, branch management via webhooks + exec + skills |
+| [Google Workspace](./google-workspace) | Connect Gmail, Calendar, Tasks, Drive, Sheets | Bundled OAuth2 integration with 14 tools for Google Workspace |
 
 ## Security Model
 
