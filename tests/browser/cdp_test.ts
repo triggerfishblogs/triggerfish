@@ -323,7 +323,7 @@ Deno.test("navigate: multiple denied domains are all blocked", async () => {
 // Tool definitions and executor
 // ---------------------------------------------------------------------------
 
-Deno.test("getBrowserToolDefinitions: returns 7 tool definitions", () => {
+Deno.test("getBrowserToolDefinitions: returns 8 tool definitions", () => {
   // Import inline to avoid polluting the test module scope
   const { getBrowserToolDefinitions } = createMockTools();
   // Actually we need to import from the module

@@ -10,10 +10,12 @@
  */
 
 import type { Page } from "puppeteer-core";
-import type { Result } from "../core/types/classification.ts";
+import type { ClassificationLevel, Result } from "../core/types/classification.ts";
 import type { DomainPolicy } from "./domains.ts";
 import type { ToolDefinition } from "../agent/orchestrator.ts";
 import { resolveAndCheck } from "../web/domains.ts";
+import type { BrowserManager } from "./manager.ts";
+import type { LlmProvider } from "../agent/llm.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -385,6 +387,19 @@ export function getBrowserToolDefinitions(): readonly ToolDefinition[] {
         },
       },
     },
+    {
+      name: "browser_describe",
+      description:
+        "Send the latest browser screenshot to a vision model for a detailed visual description. Takes a fresh screenshot if none is cached. Use after browser_snapshot when you need to understand the visual layout.",
+      parameters: {
+        prompt: {
+          type: "string",
+          description:
+            "Optional prompt to guide the description (e.g., 'What error is shown?')",
+          required: false,
+        },
+      },
+    },
   ];
 }
 
@@ -393,17 +408,21 @@ export function getBrowserToolDefinitions(): readonly ToolDefinition[] {
 /** System prompt section explaining browser tools to the LLM. */
 export const BROWSER_TOOLS_SYSTEM_PROMPT = `## Browser Automation
 
-You have access to a Chromium browser via CDP for web interaction.
+You have browser automation tools (browser_navigate, browser_snapshot, browser_click, browser_type, browser_select, browser_scroll, browser_wait, browser_describe). The browser auto-launches on first use — just call the tools directly.
 
-- Use browser_navigate to go to a URL. Only http/https URLs are allowed. SSRF protection blocks private/reserved IPs.
-- Use browser_snapshot to take a screenshot and extract visible text from the page.
-- Use browser_click, browser_type, and browser_select to interact with page elements using CSS selectors.
-- Use browser_scroll to scroll the page (directions: up, down, left, right).
-- Use browser_wait to wait for an element to appear or pause for a duration.
-- Some domains may be blocked by policy. If navigation fails, try a different approach.
-- The browser profile is classification-aware. Accessing classified domains escalates the profile watermark.`;
+When the user asks to open or go to a website, call browser_navigate immediately. Use browser_snapshot after navigating to see the page. Use browser_describe if you need a visual description of the screenshot. Read the browser-automation skill for detailed usage patterns.`;
 
 // ─── Executor ────────────────────────────────────────────────────────────────
+
+/** Options for the browser tool executor. */
+export interface BrowserToolExecutorOptions {
+  /** BrowserTools instance, or undefined if browser is not connected. */
+  readonly tools: BrowserTools | undefined;
+  /** Vision-capable LLM provider for describing screenshots. */
+  readonly visionProvider?: LlmProvider;
+  /** Primary LLM provider — fallback for screenshot description when no vision provider. */
+  readonly primaryProvider?: LlmProvider;
+}
 
 /**
  * Create a tool executor for browser tools.
@@ -411,12 +430,28 @@ You have access to a Chromium browser via CDP for web interaction.
  * Returns null for unknown tool names (allowing chaining with other executors).
  * Returns an error string if tools are not available (browser not connected).
  *
- * @param tools - BrowserTools instance, or undefined if browser is not connected
+ * browser_snapshot returns extracted text instantly. browser_describe sends
+ * the last screenshot to the vision (or primary) LLM for a visual description.
+ *
+ * @param optsOrTools - Options object, or BrowserTools for backwards compatibility
  * @returns An executor function: (name, input) => Promise<string | null>
  */
 export function createBrowserToolExecutor(
-  tools: BrowserTools | undefined,
+  optsOrTools: BrowserToolExecutorOptions | BrowserTools | undefined,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
+  // Backwards compatibility: bare BrowserTools or undefined
+  const opts: BrowserToolExecutorOptions =
+    optsOrTools === undefined || optsOrTools === null
+      ? { tools: undefined }
+      : "navigate" in optsOrTools
+        ? { tools: optsOrTools as BrowserTools }
+        : optsOrTools as BrowserToolExecutorOptions;
+
+  const tools = opts.tools;
+
+  // Last screenshot stored for browser_describe
+  let lastScreenshot: string | undefined;
+
   return async (
     name: string,
     input: Record<string, unknown>,
@@ -436,14 +471,58 @@ export function createBrowserToolExecutor(
         }
         const result = await tools.navigate(url);
         if (!result.ok) return `Navigation error: ${result.error}`;
+        lastScreenshot = undefined;
         return JSON.stringify(result.value);
       }
 
       case "browser_snapshot": {
         const result = await tools.snapshot();
         if (!result.ok) return `Snapshot error: ${result.error}`;
-        // Return text content (screenshot is for vision models)
-        return `[Screenshot captured]\n\n${result.value.textContent}`;
+        lastScreenshot = result.value.screenshot;
+        return result.value.textContent;
+      }
+
+      case "browser_describe": {
+        const provider = opts.visionProvider ?? opts.primaryProvider;
+        if (!provider) {
+          return "No vision model available for screenshot description.";
+        }
+
+        // Take a fresh screenshot if we don't have one
+        if (!lastScreenshot) {
+          const snap = await tools.snapshot();
+          if (!snap.ok) return `Snapshot error: ${snap.error}`;
+          lastScreenshot = snap.value.screenshot;
+        }
+
+        try {
+          // deno-lint-ignore no-explicit-any
+          const messages: any[] = [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: "image/png",
+                    data: lastScreenshot,
+                  },
+                },
+                {
+                  type: "text",
+                  text: typeof input.prompt === "string" && input.prompt.length > 0
+                    ? input.prompt
+                    : "Describe this browser screenshot. Focus on the page layout, visible text, interactive elements (buttons, links, forms), and any errors or notable content. Be concise.",
+                },
+              ],
+            },
+          ];
+          const result = await provider.complete(messages, [], {});
+          return result.content;
+        } catch (err) {
+          return `Vision error: ${(err as Error).message}`;
+        }
       }
 
       case "browser_click": {
@@ -519,4 +598,91 @@ export function createBrowserToolExecutor(
         return null;
     }
   };
+}
+
+// ─── Auto-launch Browser Executor ─────────────────────────────────────────────
+
+/** Configuration for the auto-launching browser tool executor. */
+export interface AutoLaunchBrowserConfig {
+  /** The browser manager that handles Chrome lifecycle. */
+  readonly manager: BrowserManager;
+  /** Agent ID for browser profile isolation. */
+  readonly agentId: string;
+  /** Read current session taint for watermark checks. */
+  readonly getSessionTaint: () => ClassificationLevel;
+  /** Vision-capable LLM provider for describing screenshots. */
+  readonly visionProvider?: LlmProvider;
+  /** Primary LLM provider — used for screenshots when no dedicated vision provider is set. */
+  readonly primaryProvider?: LlmProvider;
+}
+
+/** Handle returned by createAutoLaunchBrowserExecutor for lifecycle management. */
+export interface BrowserExecutorHandle {
+  /** The tool executor function — route browser_* tool calls through this. */
+  readonly executor: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  /** Close the browser and reset state. Call on session reset. */
+  readonly close: () => Promise<void>;
+}
+
+/**
+ * Create a browser tool executor that auto-launches Chrome on first use.
+ *
+ * This is the primary entry point for wiring browser tools into any
+ * orchestrator or channel. The browser is launched lazily on the first
+ * `browser_*` tool call, using the BrowserManager for detection and
+ * lifecycle. Subsequent calls reuse the existing connection.
+ *
+ * @param config - Manager, agent ID, and taint accessor
+ * @returns Handle with the executor function and a close() for cleanup
+ */
+export function createAutoLaunchBrowserExecutor(
+  config: AutoLaunchBrowserConfig,
+): BrowserExecutorHandle {
+  let tools: BrowserTools | undefined;
+  let inner: ((name: string, input: Record<string, unknown>) => Promise<string | null>) | undefined;
+
+  const ensureLaunched = async (): Promise<string | null> => {
+    if (tools) return null;
+
+    const result = await config.manager.launch(
+      config.agentId,
+      config.getSessionTaint(),
+    );
+    if (!result.ok) {
+      return `Browser launch failed: ${result.error}`;
+    }
+
+    tools = createBrowserTools({
+      page: result.value.page,
+      domainPolicy: config.manager.domainPolicy,
+    });
+    inner = createBrowserToolExecutor({
+      tools,
+      visionProvider: config.visionProvider,
+      primaryProvider: config.primaryProvider,
+    });
+    return null;
+  };
+
+  const executor = async (
+    name: string,
+    input: Record<string, unknown>,
+  ): Promise<string | null> => {
+    if (!name.startsWith("browser_")) return null;
+
+    const launchError = await ensureLaunched();
+    if (launchError) return launchError;
+
+    return inner!(name, input);
+  };
+
+  const close = async (): Promise<void> => {
+    if (tools || config.manager.isRunning(config.agentId)) {
+      await config.manager.close(config.agentId);
+    }
+    tools = undefined;
+    inner = undefined;
+  };
+
+  return { executor, close };
 }

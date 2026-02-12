@@ -105,7 +105,9 @@ import { createPlanManager, createPlanToolExecutor } from "../agent/plan.ts";
 import { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "../agent/plan_tools.ts";
 import {
   getBrowserToolDefinitions,
-  createBrowserToolExecutor,
+  createAutoLaunchBrowserExecutor,
+  createBrowserManager,
+  createDomainPolicy as createBrowserDomainPolicy,
   BROWSER_TOOLS_SYSTEM_PROMPT,
 } from "../browser/mod.ts";
 import {
@@ -1016,14 +1018,33 @@ async function runStart(): Promise<void> {
   const mainPlanManager = createPlanManager({ plansDir: `${mainWorkspace.path}/plans` });
   const mainPlanExecutor = createPlanToolExecutor(mainPlanManager, session.id);
 
-  // Browser tools (graceful degrade if not configured)
-  const browserExecutor = createBrowserToolExecutor(undefined);
+  // Vision provider for image fallback and browser screenshots (optional)
+  const visionProvider = resolveVisionProvider(config.models as ModelsConfig);
+
+  // Browser tools — auto-launch Chrome on first browser_* call
+  const browserDomainPolicy = createBrowserDomainPolicy({
+    allowList: (config.web?.domains?.allowlist ?? []) as string[],
+    denyList: (config.web?.domains?.denylist ?? []) as string[],
+    classifications: Object.fromEntries(
+      (config.web?.domains?.classifications ?? []).map((c) => [c.pattern, c.classification]),
+    ),
+  });
+  const browserHandle = createAutoLaunchBrowserExecutor({
+    manager: createBrowserManager({
+      profileBaseDir: `${dataDir}/browser-profiles`,
+      domainPolicy: browserDomainPolicy,
+      storage,
+      headless: false,
+    }),
+    agentId: "main-session",
+    getSessionTaint: () => session.taint,
+    visionProvider,
+    primaryProvider: registry.getDefault(),
+  });
+  const browserExecutor = browserHandle.executor;
 
   // Tidepool tools (graceful degrade — host created after chatSession)
   const tidepoolExecutor = createTidepoolToolExecutor(undefined);
-
-  // Vision provider for image fallback (optional)
-  const visionProvider = resolveVisionProvider(config.models as ModelsConfig);
 
   // Image analysis tools
   const imageExecutor = createImageToolExecutor(registry, visionProvider);
@@ -1149,6 +1170,8 @@ async function runStart(): Promise<void> {
         userId: "owner" as UserId,
         channelId: "daemon" as ChannelId,
       });
+      // Close browser so next session gets a fresh launch
+      browserHandle.close().catch(() => {});
     },
   });
 

@@ -23,8 +23,12 @@ export {
 
 export {
   BROWSER_TOOLS_SYSTEM_PROMPT,
+  createAutoLaunchBrowserExecutor,
   createBrowserToolExecutor,
   createBrowserTools,
+  type AutoLaunchBrowserConfig,
+  type BrowserExecutorHandle,
+  type BrowserToolExecutorOptions,
   type BrowserTools,
   type BrowserToolsConfig,
   type DnsChecker,
