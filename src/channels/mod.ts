@@ -43,3 +43,6 @@ export { createWebChatChannel } from "./webchat/adapter.ts";
 
 export type { EmailConfig } from "./email/adapter.ts";
 export { createEmailChannel } from "./email/adapter.ts";
+
+export type { UserClassificationConfig, UserSessionManager } from "./user_sessions.ts";
+export { createUserSessionManager, parseUserOverrides } from "./user_sessions.ts";

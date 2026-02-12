@@ -80,6 +80,8 @@ export function createWebChatChannel(config: WebChatConfig = {}): ChannelAdapter
                 handler({
                   content: frame.content,
                   sessionId,
+                  senderId: sessionId,
+                  isOwner: false,
                   sessionTaint: "PUBLIC" as ClassificationLevel,
                 });
               }

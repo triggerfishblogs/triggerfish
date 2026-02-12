@@ -141,9 +141,16 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
 
       for (const msg of messages) {
         const sessionId = `email-${msg.from}`;
+        const isOwner = config.ownerEmail !== undefined
+          ? msg.from === config.ownerEmail
+          : true;
+
         handler({
           content: msg.body || msg.subject,
           sessionId,
+          senderId: msg.from,
+          isOwner,
+          sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
         });
       }
     } catch {

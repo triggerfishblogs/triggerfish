@@ -151,7 +151,9 @@ import {
 } from "../github/mod.ts";
 import { createKeychain } from "../secrets/keychain.ts";
 import { createTelegramChannel } from "../channels/telegram/adapter.ts";
+import type { TelegramChannelAdapter } from "../channels/telegram/adapter.ts";
 import type { ChatEventSender } from "../gateway/chat.ts";
+import type { ChannelMessage } from "../channels/types.ts";
 
 /** Known CLI commands. */
 const KNOWN_COMMANDS = new Set([
@@ -1157,6 +1159,7 @@ async function runStart(): Promise<void> {
     botToken?: string;
     ownerId?: number;
     classification?: string;
+    user_classifications?: Record<string, string>;
   } | undefined;
 
   if (telegramConfig?.botToken) {
@@ -1166,8 +1169,13 @@ async function runStart(): Promise<void> {
       classification: (telegramConfig.classification ?? "INTERNAL") as ClassificationLevel,
     });
 
+    chatSession.registerChannel("telegram", {
+      classification: "PUBLIC" as ClassificationLevel,
+      userClassifications: telegramConfig.user_classifications,
+    });
+
     telegramAdapter.onMessage((msg) => {
-      // Handle /start — greet the owner on first contact
+      // Handle /start — greet the user on first contact
       if (msg.content === "/start") {
         telegramAdapter.send({
           content: "Triggerfish connected. You can chat with me here.",
@@ -1176,49 +1184,9 @@ async function runStart(): Promise<void> {
         return;
       }
 
-      let typingInterval: number | undefined;
-
-      const sendEvent: ChatEventSender = (event) => {
-        if (event.type === "llm_start") {
-          // Clear any existing interval to prevent leaks across tool-loop iterations
-          clearInterval(typingInterval);
-          telegramAdapter.sendTyping(msg.sessionId ?? "").catch(() => {});
-          typingInterval = setInterval(() => {
-            telegramAdapter.sendTyping(msg.sessionId ?? "").catch(() => {});
-          }, 4000) as unknown as number;
-        }
-
-        if (event.type === "response") {
-          clearInterval(typingInterval);
-          typingInterval = undefined;
-          const text = event.text.trim();
-          if (text.length > 0) {
-            telegramAdapter.send({
-              content: text,
-              sessionId: msg.sessionId,
-            }).catch((err) => console.error("Telegram send error:", err));
-          } else {
-            console.error("Telegram: skipping empty response (LLM returned no text)");
-          }
-        }
-
-        if (event.type === "error") {
-          clearInterval(typingInterval);
-          typingInterval = undefined;
-          telegramAdapter.send({
-            content: `Error: ${event.message}`,
-            sessionId: msg.sessionId,
-          }).catch((err) => console.error("Telegram send error:", err));
-        }
-
-        // tool_call, tool_result, llm_complete → muted for Telegram
-      };
-
-      chatSession.processMessage(msg.content, sendEvent)
-        .catch((err) => {
-          clearInterval(typingInterval);
-          console.error("Telegram message processing error:", err);
-        });
+      const sendEvent = buildTelegramSendEvent(telegramAdapter, msg);
+      chatSession.handleChannelMessage(msg, "telegram", sendEvent)
+        .catch((err) => console.error("Telegram message processing error:", err));
     });
 
     await telegramAdapter.connect();
@@ -1253,6 +1221,51 @@ async function runStart(): Promise<void> {
 
   // Keep running until interrupted
   await new Promise(() => {}); // Never resolves
+}
+
+/**
+ * Build a ChatEventSender for Telegram that handles typing indicators,
+ * response sending, and error delivery. Extracted to share between
+ * owner and non-owner message paths.
+ */
+function buildTelegramSendEvent(
+  adapter: TelegramChannelAdapter,
+  msg: ChannelMessage,
+): ChatEventSender {
+  let typingInterval: number | undefined;
+
+  return (event) => {
+    if (event.type === "llm_start") {
+      clearInterval(typingInterval);
+      adapter.sendTyping(msg.sessionId ?? "").catch(() => {});
+      typingInterval = setInterval(() => {
+        adapter.sendTyping(msg.sessionId ?? "").catch(() => {});
+      }, 4000) as unknown as number;
+    }
+
+    if (event.type === "response") {
+      clearInterval(typingInterval);
+      typingInterval = undefined;
+      const text = event.text.trim();
+      if (text.length > 0) {
+        adapter.send({
+          content: text,
+          sessionId: msg.sessionId,
+        }).catch((err) => console.error("Telegram send error:", err));
+      } else {
+        console.error("Telegram: skipping empty response (LLM returned no text)");
+      }
+    }
+
+    if (event.type === "error") {
+      clearInterval(typingInterval);
+      typingInterval = undefined;
+      adapter.send({
+        content: `Error: ${event.message}`,
+        sessionId: msg.sessionId,
+      }).catch((err) => console.error("Telegram send error:", err));
+    }
+  };
 }
 
 /**
