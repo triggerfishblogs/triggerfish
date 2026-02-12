@@ -8,6 +8,8 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import type { ContentBlock } from "../../image/content.ts";
+import { extractText } from "../../image/content.ts";
 
 /** Configuration for the Google provider. */
 export interface GoogleConfig {
@@ -31,6 +33,26 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
   const genAI = new GoogleGenerativeAI(apiKey);
   const modelName = config.model ?? "gemini-2.0-flash";
   const maxTokens = config.maxTokens ?? 4096;
+
+  /** Convert content to Gemini parts format. */
+  function toGeminiParts(content: string | unknown): { text: string }[] | { inlineData: { mimeType: string; data: string } }[] | ({ text: string } | { inlineData: { mimeType: string; data: string } })[] {
+    if (typeof content === "string") return [{ text: content }];
+    if (!Array.isArray(content)) return [{ text: JSON.stringify(content) }];
+    const parts: ({ text: string } | { inlineData: { mimeType: string; data: string } })[] = [];
+    for (const block of content as ContentBlock[]) {
+      if (block.type === "text") {
+        parts.push({ text: block.text });
+      } else if (block.type === "image") {
+        parts.push({
+          inlineData: {
+            mimeType: block.source.media_type,
+            data: block.source.data,
+          },
+        });
+      }
+    }
+    return parts.length > 0 ? parts : [{ text: "" }];
+  }
 
   return {
     name: "google",
@@ -68,25 +90,17 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
         .slice(0, -1) // All but last (which is the current user message)
         .map((m) => ({
           role: m.role === "assistant" ? "model" : "user",
-          parts: [{
-            text: typeof m.content === "string"
-              ? m.content
-              : JSON.stringify(m.content),
-          }],
+          parts: toGeminiParts(m.content),
         }));
 
       // Get the last user message
       const lastMessage = messages.filter((m) => m.role !== "system").at(-1);
-      const userContent = lastMessage
-        ? (typeof lastMessage.content === "string"
-          ? lastMessage.content
-          : JSON.stringify(lastMessage.content))
-        : "";
+      const userParts = lastMessage ? toGeminiParts(lastMessage.content) : [{ text: "" }];
 
       const chat = model.startChat({ history });
 
       // Google SDK doesn't natively support AbortSignal — use Promise.race
-      const sendPromise = chat.sendMessage(userContent);
+      const sendPromise = chat.sendMessage(userParts);
       let result;
       if (signal) {
         const abortPromise = new Promise<never>((_resolve, reject) => {
@@ -147,22 +161,14 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
         .slice(0, -1)
         .map((m) => ({
           role: m.role === "assistant" ? "model" : "user",
-          parts: [{
-            text: typeof m.content === "string"
-              ? m.content
-              : JSON.stringify(m.content),
-          }],
+          parts: toGeminiParts(m.content),
         }));
 
       const lastMessage = messages.filter((m) => m.role !== "system").at(-1);
-      const userContent = lastMessage
-        ? (typeof lastMessage.content === "string"
-          ? lastMessage.content
-          : JSON.stringify(lastMessage.content))
-        : "";
+      const userParts = lastMessage ? toGeminiParts(lastMessage.content) : [{ text: "" }];
 
       const chat = model.startChat({ history });
-      const streamResult = await chat.sendMessageStream(userContent);
+      const streamResult = await chat.sendMessageStream(userParts);
 
       // Check abort before iterating
       if (signal?.aborted) {

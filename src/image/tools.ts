@@ -9,7 +9,7 @@
  */
 
 import type { ToolDefinition } from "../agent/orchestrator.ts";
-import type { LlmProviderRegistry } from "../agent/llm.ts";
+import type { LlmProviderRegistry, LlmProvider } from "../agent/llm.ts";
 
 /** MIME type mapping for common image extensions. */
 const MIME_TYPES: Readonly<Record<string, string>> = {
@@ -66,6 +66,7 @@ You can analyze images using the image_analyze tool.
  */
 export function createImageToolExecutor(
   registry: LlmProviderRegistry | undefined,
+  visionProvider?: LlmProvider,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
   return async (
     name: string,
@@ -109,8 +110,8 @@ export function createImageToolExecutor(
       return `Error reading image: ${err instanceof Error ? err.message : String(err)}`;
     }
 
-    // Send to vision-capable provider
-    const provider = registry.getDefault();
+    // Send to vision-capable provider: prefer dedicated vision provider
+    const provider = visionProvider ?? registry.getDefault();
     if (!provider) {
       return "Error: No LLM provider available for image analysis.";
     }

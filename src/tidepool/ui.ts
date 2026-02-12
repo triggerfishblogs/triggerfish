@@ -84,6 +84,13 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
   #send { background: var(--accent); color: #1a1b26; border: none; border-radius: 6px; padding: 10px 20px; font-weight: 600; cursor: pointer; font-size: 14px; }
   #send:hover { opacity: 0.9; }
   #send:disabled { opacity: 0.4; cursor: default; }
+
+  /* Image paste indicator */
+  #paste-indicator { display: none; padding: 4px 16px; background: var(--bg2); border-top: 1px solid var(--border); font-size: 12px; color: var(--fg3); align-items: center; gap: 6px; }
+  #paste-indicator.visible { display: flex; }
+  #paste-indicator .paste-icon { color: var(--accent); }
+  #paste-indicator .paste-dismiss { cursor: pointer; color: var(--fg3); margin-left: auto; }
+  #paste-indicator .paste-dismiss:hover { color: var(--red); }
 </style>
 </head>
 <body>
@@ -96,6 +103,7 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
 
 <div id="messages"></div>
 
+<div id="paste-indicator"><span class="paste-icon">\\u{1F4CE}</span> <span id="paste-text">Image pasted</span> <span class="paste-dismiss" id="paste-dismiss">\\u2715</span></div>
 <div id="input-bar">
   <textarea id="input" rows="1" placeholder="Type a message..." autocomplete="off"></textarea>
   <button id="send" disabled>Send</button>
@@ -109,11 +117,16 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
   const dot = document.getElementById("dot");
   const providerInfo = document.getElementById("provider-info");
 
+  const pasteIndicator = document.getElementById("paste-indicator");
+  const pasteText = document.getElementById("paste-text");
+  const pasteDismiss = document.getElementById("paste-dismiss");
+
   let ws = null;
   let processing = false;
   let currentAssistantEl = null;
   let currentAssistantText = "";
   let reconnectDelay = 1000;
+  var pendingImages = [];
 
   function connect() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -181,6 +194,18 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
         processing = false;
         sendBtn.disabled = false;
         input.focus();
+        break;
+      case "vision_start":
+        if (!currentAssistantEl) {
+          currentAssistantEl = addMessage("assistant", "");
+          currentAssistantText = "";
+        }
+        currentAssistantEl.classList.add("thinking");
+        currentAssistantEl.innerHTML = '<span class="thinking-label"><span class="thinking-spinner"></span> Analyzing ' +
+          (evt.imageCount === 1 ? 'image' : evt.imageCount + ' images') + '\\u2026</span>';
+        break;
+      case "vision_complete":
+        // Spinner will be replaced by llm_start shortly after
         break;
       case "error":
         if (currentAssistantEl) currentAssistantEl.classList.remove("thinking");
@@ -338,7 +363,15 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
     var text = input.value.trim();
     if (!text || !ws || ws.readyState !== WebSocket.OPEN || processing) return;
     addMessage("user", text);
-    ws.send(JSON.stringify({ type: "message", content: text }));
+    var content;
+    if (pendingImages.length > 0) {
+      content = pendingImages.concat([{ type: "text", text: text }]);
+      pendingImages = [];
+      pasteIndicator.className = "";
+    } else {
+      content = text;
+    }
+    ws.send(JSON.stringify({ type: "message", content: content }));
     input.value = "";
     input.style.height = "auto";
     processing = true;
@@ -357,6 +390,42 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
   input.addEventListener("input", function() {
     this.style.height = "auto";
     this.style.height = Math.min(this.scrollHeight, 120) + "px";
+  });
+
+  // Image paste handler
+  input.addEventListener("paste", function(e) {
+    var items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        e.preventDefault();
+        var blob = items[i].getAsFile();
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          var dataUrl = ev.target.result;
+          var parts = dataUrl.split(",");
+          var mimeMatch = parts[0].match(/:(.*?);/);
+          var mime = mimeMatch ? mimeMatch[1] : "image/png";
+          var base64 = parts[1];
+          pendingImages.push({
+            type: "image",
+            source: { type: "base64", media_type: mime, data: base64 }
+          });
+          var count = pendingImages.length;
+          pasteText.textContent = count === 1
+            ? "Image pasted \\u2014 will send with next message"
+            : count + " images pasted \\u2014 will send with next message";
+          pasteIndicator.className = "visible";
+        };
+        reader.readAsDataURL(blob);
+        break;
+      }
+    }
+  });
+
+  // Dismiss pasted images
+  pasteDismiss.addEventListener("click", function() {
+    pendingImages = [];
+    pasteIndicator.className = "";
   });
 
   connect();

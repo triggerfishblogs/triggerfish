@@ -15,9 +15,11 @@
 import type { Result, ClassificationLevel } from "../core/types/classification.ts";
 import type { SessionState, SessionId } from "../core/types/session.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
-import type { LlmProviderRegistry, LlmMessage } from "./llm.ts";
+import type { LlmProviderRegistry, LlmMessage, LlmProvider } from "./llm.ts";
 import { createCompactor } from "./compactor.ts";
 import type { Compactor, CompactorConfig } from "./compactor.ts";
+import type { MessageContent, ImageContentBlock, ContentBlock } from "../image/content.ts";
+import { extractText, hasImages, normalizeContent } from "../image/content.ts";
 import type { PlanManager } from "./plan.ts";
 import { createPlanToolExecutor } from "./plan.ts";
 import { buildPlanModePrompt, buildAwaitingApprovalPrompt, buildPlanExecutionPrompt } from "./plan_prompt.ts";
@@ -81,12 +83,14 @@ export interface OrchestratorConfig {
   readonly planManager?: PlanManager;
   /** Enable verbose logging of LLM responses and tool calls to stderr. */
   readonly debug?: boolean;
+  /** Vision-capable LLM provider for describing images when the primary model lacks vision. */
+  readonly visionProvider?: LlmProvider;
 }
 
 /** Options for processing a single message. */
 export interface ProcessMessageOptions {
   readonly session: SessionState;
-  readonly message: string;
+  readonly message: MessageContent;
   readonly targetClassification: ClassificationLevel;
   /** Optional signal to abort the operation. */
   readonly signal?: AbortSignal;
@@ -100,7 +104,7 @@ export interface ProcessMessageResult {
 /** A conversation history entry. */
 export interface HistoryEntry {
   readonly role: string;
-  readonly content: string;
+  readonly content: MessageContent;
 }
 
 /** The orchestrator interface for processing messages. */
@@ -132,7 +136,9 @@ export type OrchestratorEvent =
     readonly result: string;
     readonly blocked: boolean;
   }
-  | { readonly type: "response"; readonly text: string };
+  | { readonly type: "response"; readonly text: string }
+  | { readonly type: "vision_start"; readonly imageCount: number }
+  | { readonly type: "vision_complete"; readonly imageCount: number };
 
 /** Callback for real-time orchestrator event reporting. */
 export type OrchestratorEventCallback = (event: OrchestratorEvent) => void;
@@ -311,6 +317,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   const toolExecutor = config.toolExecutor;
   const systemPromptSections = config.systemPromptSections ?? [];
   const planManager = config.planManager;
+  const visionProvider = config.visionProvider;
   const emit = config.onEvent ?? (() => {});
   const debug = config.debug ?? false;
   const histories = new Map<string, HistoryEntry[]>();
@@ -325,6 +332,38 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     console.error(`[orch ${ts}] ${label}: ${preview}`);
   }
 
+  /**
+   * Describe images using the vision provider.
+   * Returns a text description for each image block.
+   */
+  async function describeImages(
+    images: readonly ImageContentBlock[],
+    signal?: AbortSignal,
+  ): Promise<readonly string[]> {
+    const descriptions: string[] = [];
+    for (const image of images) {
+      const messages: LlmMessage[] = [
+        {
+          role: "user",
+          content: [
+            { type: "image", source: image.source },
+            { type: "text", text: "Describe this image in detail. Be specific about what you see." },
+          ],
+        },
+      ];
+      try {
+        const result = await visionProvider!.complete(messages, [], {
+          ...(signal ? { signal } : {}),
+        });
+        descriptions.push(result.content);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        descriptions.push(`[Image description unavailable: ${msg}]`);
+      }
+    }
+    return descriptions;
+  }
+
   async function processMessage(
     options: ProcessMessageOptions,
   ): Promise<Result<ProcessMessageResult, string>> {
@@ -333,7 +372,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     // 1. Fire PRE_CONTEXT_INJECTION hook
     const preContextResult = await hookRunner.run("PRE_CONTEXT_INJECTION", {
       session,
-      input: { content: message, source_type: "OWNER" },
+      input: { content: extractText(message), source_type: "OWNER" },
     });
 
     if (!preContextResult.allowed) {
@@ -388,6 +427,45 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
     // Add user message to history
     history.push({ role: "user", content: message });
+
+    // Vision fallback: describe images for non-vision primary models
+    if (visionProvider && typeof message !== "string" && hasImages(message as readonly ContentBlock[])) {
+      const blocks = normalizeContent(message);
+      const images = blocks.filter(
+        (b): b is ImageContentBlock => b.type === "image",
+      );
+
+      emit({ type: "vision_start", imageCount: images.length });
+      debugLog("vision", `describing ${images.length} image(s) via vision provider`);
+
+      const descriptions = await describeImages(images, signal);
+
+      emit({ type: "vision_complete", imageCount: images.length });
+
+      // Build text-only message: inline descriptions where images were
+      const parts: string[] = [];
+      let descIdx = 0;
+      for (const block of blocks) {
+        if (block.type === "image") {
+          parts.push(
+            `[The user shared an image. A vision model described it as follows: ${descriptions[descIdx++]}]`,
+          );
+        } else {
+          parts.push(block.text);
+        }
+      }
+      const textOnlyMessage = parts.join("\n\n");
+
+      // Replace the last history entry with the text-only version
+      history[history.length - 1] = { role: "user", content: textOnlyMessage };
+
+      // Tell the LLM that image descriptions are already provided
+      systemPrompt += "\n\n## Image Descriptions\n" +
+        "The user's message may contain image descriptions provided by a vision model " +
+        "in brackets like [The user shared an image. A vision model described it as follows: ...]. " +
+        "Treat these descriptions as if you can see the images yourself. " +
+        "Do NOT use image_analyze or any other tool to re-examine these images — the descriptions are already complete.";
+    }
 
     // Auto-compact history if approaching context limits
     const compacted = compactor.compact(history);

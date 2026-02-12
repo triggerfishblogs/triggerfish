@@ -16,12 +16,13 @@ import type {
   ToolDefinition,
   ToolExecutor,
 } from "../agent/orchestrator.ts";
-import type { LlmProviderRegistry } from "../agent/llm.ts";
+import type { LlmProviderRegistry, LlmProvider } from "../agent/llm.ts";
 import type { PlanManager } from "../agent/plan.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { SessionState } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import type { CompactorConfig } from "../agent/compactor.ts";
+import type { MessageContent } from "../image/content.ts";
 
 /** Events sent over the chat wire protocol. */
 export type ChatEvent =
@@ -44,11 +45,13 @@ export type ChatEvent =
     readonly blocked: boolean;
   }
   | { readonly type: "response"; readonly text: string }
-  | { readonly type: "error"; readonly message: string };
+  | { readonly type: "error"; readonly message: string }
+  | { readonly type: "vision_start"; readonly imageCount: number }
+  | { readonly type: "vision_complete"; readonly imageCount: number };
 
 /** Messages the client can send. */
 export type ChatClientMessage =
-  | { readonly type: "message"; readonly content: string }
+  | { readonly type: "message"; readonly content: MessageContent }
   | { readonly type: "cancel" };
 
 /** Callback to send a chat event to a specific client. */
@@ -69,13 +72,15 @@ export interface ChatSessionConfig {
   readonly planManager?: PlanManager;
   /** Enable verbose logging of LLM responses to stderr. */
   readonly debug?: boolean;
+  /** Vision-capable LLM provider for image fallback. */
+  readonly visionProvider?: LlmProvider;
 }
 
 /** Shared chat session that serializes access to the orchestrator. */
 export interface ChatSession {
   /** Process a message through the orchestrator, sending events to the caller. */
   processMessage(
-    content: string,
+    content: MessageContent,
     sendEvent: ChatEventSender,
     signal?: AbortSignal,
   ): Promise<void>;
@@ -113,6 +118,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     systemPromptSections: config.systemPromptSections,
     planManager: config.planManager,
     debug: config.debug,
+    visionProvider: config.visionProvider,
   });
 
   const session = config.session;
@@ -125,7 +131,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
   let mutex: Promise<void> = Promise.resolve();
 
   async function processMessage(
-    content: string,
+    content: MessageContent,
     sendEvent: ChatEventSender,
     signal?: AbortSignal,
   ): Promise<void> {
