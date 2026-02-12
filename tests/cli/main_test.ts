@@ -87,6 +87,29 @@ Deno.test("CLI: --version flag shows version", async () => {
   assertEquals(cmd.command, "version");
 });
 
+// --- Connect / Disconnect ---
+
+Deno.test("CLI: parses 'connect google' subcommand", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["connect", "google"]);
+  assertEquals(cmd.command, "connect");
+  assertEquals(cmd.subcommand, "google");
+});
+
+Deno.test("CLI: parses 'disconnect google' subcommand", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["disconnect", "google"]);
+  assertEquals(cmd.command, "disconnect");
+  assertEquals(cmd.subcommand, "google");
+});
+
+Deno.test("CLI: 'connect' without subcommand has no subcommand", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["connect"]);
+  assertEquals(cmd.command, "connect");
+  assertEquals(cmd.subcommand, undefined);
+});
+
 // --- Config ---
 
 Deno.test("Config: loads valid triggerfish.yaml", async () => {
