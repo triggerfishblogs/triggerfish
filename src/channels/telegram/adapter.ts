@@ -34,6 +34,8 @@ export interface TelegramConfig {
 export interface TelegramChannelAdapter extends ChannelAdapter {
   /** Send a "typing..." chat action to the given Telegram chat. */
   sendTyping(sessionId: string): Promise<void>;
+  /** Delete all tracked messages in a chat (both bot and user messages). */
+  clearChat(sessionId: string): Promise<void>;
 }
 
 /**
@@ -52,6 +54,18 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
   let connected = false;
   let handler: MessageHandler | null = null;
 
+  // Track message IDs per chat for clearChat
+  const chatMessageIds = new Map<number, number[]>();
+
+  function trackMessage(chatId: number, messageId: number): void {
+    let ids = chatMessageIds.get(chatId);
+    if (!ids) {
+      ids = [];
+      chatMessageIds.set(chatId, ids);
+    }
+    ids.push(messageId);
+  }
+
   // Wire up incoming message handler
   bot.on("message:text", (ctx) => {
     if (!handler) return;
@@ -59,6 +73,8 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
     const isOwner = ownerId !== undefined
       ? ctx.from.id === ownerId
       : true; // If no ownerId configured, treat all as owner
+
+    trackMessage(ctx.chat.id, ctx.message.message_id);
 
     handler({
       content: ctx.message.text,
@@ -94,7 +110,8 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
       // Chunk messages that exceed Telegram's limit
       const chunks = chunkMessage(message.content, MAX_MESSAGE_LENGTH);
       for (const chunk of chunks) {
-        await bot.api.sendMessage(chatId, chunk);
+        const sent = await bot.api.sendMessage(chatId, chunk);
+        trackMessage(chatId, sent.message_id);
       }
     },
 
@@ -114,6 +131,26 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
       const chatId = parseInt(sessionId.replace("telegram-", ""), 10);
       if (isNaN(chatId)) return;
       await bot.api.sendChatAction(chatId, "typing");
+    },
+
+    async clearChat(sessionId: string): Promise<void> {
+      if (!sessionId) return;
+      const chatId = parseInt(sessionId.replace("telegram-", ""), 10);
+      if (isNaN(chatId)) return;
+
+      const ids = chatMessageIds.get(chatId);
+      if (!ids || ids.length === 0) return;
+
+      // deleteMessages handles up to 100 at a time
+      while (ids.length > 0) {
+        const batch = ids.splice(0, 100);
+        try {
+          await bot.api.deleteMessages(chatId, batch);
+        } catch {
+          // Best-effort: some messages may already be deleted or >48h old
+        }
+      }
+      chatMessageIds.delete(chatId);
     },
   };
 }
