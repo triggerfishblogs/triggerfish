@@ -36,7 +36,7 @@ import {
   tailLogs,
   updateTriggerfish,
 } from "./daemon.ts";
-import { createOrchestrator } from "../agent/orchestrator.ts";
+import { createOrchestrator, buildToolClassifications } from "../agent/orchestrator.ts";
 import type { ToolDefinition, ToolExecutor, OrchestratorEvent } from "../agent/orchestrator.ts";
 import { createProviderRegistry } from "../agent/llm.ts";
 import type { LlmProviderRegistry } from "../agent/llm.ts";
@@ -44,7 +44,7 @@ import { loadProvidersFromConfig, resolveVisionProvider } from "../agent/provide
 import type { ModelsConfig } from "../agent/providers/config.ts";
 import { createPolicyEngine } from "../core/policy/engine.ts";
 import { createHookRunner, createDefaultRules } from "../core/policy/hooks.ts";
-import { createSession } from "../core/types/session.ts";
+import { createSession, updateTaint } from "../core/types/session.ts";
 import type { UserId, ChannelId, SessionId } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import { createWorkspace } from "../exec/workspace.ts";
@@ -108,6 +108,15 @@ import {
   createBrowserToolExecutor,
   BROWSER_TOOLS_SYSTEM_PROMPT,
 } from "../browser/mod.ts";
+import {
+  getObsidianToolDefinitions,
+  createObsidianToolExecutor,
+  createVaultContext,
+  createNoteStore,
+  createDailyNoteManager,
+  createLinkResolver,
+  OBSIDIAN_SYSTEM_PROMPT,
+} from "../obsidian/mod.ts";
 import {
   getImageToolDefinitions,
   createImageToolExecutor,
@@ -208,9 +217,13 @@ export interface TriggerFishConfig {
       }[];
     };
   };
+  readonly google?: {
+    readonly classification?: string;
+  };
   readonly github?: {
     readonly token?: string;
     readonly base_url?: string;
+    readonly classification?: string;
     readonly classification_overrides?: Readonly<Record<string, string>>;
   };
   readonly scheduler?: {
@@ -228,6 +241,20 @@ export interface TriggerFishConfig {
         readonly secret: string;
         readonly classification: string;
       }>>;
+    };
+  };
+  readonly plugins?: {
+    readonly obsidian?: {
+      readonly enabled?: boolean;
+      readonly vault_path?: string;
+      readonly classification?: string;
+      readonly daily_notes?: {
+        readonly folder?: string;
+        readonly date_format?: string;
+        readonly template?: string;
+      };
+      readonly exclude_folders?: readonly string[];
+      readonly folder_classifications?: Readonly<Record<string, string>>;
     };
   };
 }
@@ -294,6 +321,8 @@ export function parseCommand(
     const sub = positional[1];
     if (sub === "add-channel" && positional.length > 2) {
       flags["channel_type"] = positional[2];
+    } else if (sub === "add-plugin" && positional.length > 2) {
+      flags["plugin_type"] = positional[2];
     } else if (sub === "set" && positional.length >= 4) {
       flags["config_key"] = positional[2];
       flags["config_value"] = positional.slice(3).join(" ");
@@ -407,6 +436,7 @@ CONFIG SUBCOMMANDS:
   config get <key>                         Get a config value
   config validate                          Validate configuration
   config add-channel [type]                Add a channel (telegram, slack, discord, etc.)
+  config add-plugin [name]                 Add a plugin (obsidian)
   config set-secret <key> <value>          Store a secret in OS keychain
   config get-secret <key>                  Retrieve a secret from OS keychain
 
@@ -432,6 +462,8 @@ EXAMPLES:
   triggerfish config get <key>                          # Read any config value
   triggerfish config add-channel telegram              # Add Telegram channel
   triggerfish config add-channel                       # Interactive channel selection
+  triggerfish config add-plugin obsidian              # Add Obsidian vault plugin
+  triggerfish config add-plugin                       # Interactive plugin selection
   triggerfish dive                                  # Interactive setup
   triggerfish run                                   # Run gateway in foreground
   triggerfish start                                 # Install and start daemon
@@ -690,6 +722,9 @@ function createOrchestratorFactory(
   const { searchProvider, webFetcher } = buildWebTools(config);
   const schedulerKeychain = createKeychain();
 
+  // Shared by all scheduler orchestrators — same config-driven map
+  const schedulerToolClassifications = buildToolClassifications(config);
+
   return {
     async create(channelId: string) {
       const agentId = `scheduler-${channelId}-${Date.now()}`;
@@ -709,7 +744,7 @@ function createOrchestratorFactory(
 
       const execTools = createExecTools(workspace);
       const todoManager = storage ? createTodoManager({ storage, agentId }) : undefined;
-      const session = createSession({
+      let session = createSession({
         userId: "owner" as UserId,
         channelId: channelId as ChannelId,
       });
@@ -780,6 +815,11 @@ function createOrchestratorFactory(
         toolExecutor,
         systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT],
         visionProvider: schedulerVisionProvider,
+        toolClassifications: schedulerToolClassifications,
+        getSessionTaint: () => session.taint,
+        escalateTaint: (level: ClassificationLevel, reason: string) => {
+          session = updateTaint(session, level, reason);
+        },
       });
 
       return { orchestrator, session };
@@ -958,7 +998,7 @@ async function runStart(): Promise<void> {
   memoryDb.exec("PRAGMA journal_mode=WAL");
   const memorySearchProvider = createFts5SearchProvider(memoryDb);
   const memoryStore = createMemoryStore({ storage, searchProvider: memorySearchProvider });
-  const session = createSession({
+  let session = createSession({
     userId: "owner" as UserId,
     channelId: "daemon" as ChannelId,
   });
@@ -1011,6 +1051,9 @@ async function runStart(): Promise<void> {
     },
   );
 
+  // Integration/plugin/channel classification map. Built-in tools pass through.
+  const toolClassifications = buildToolClassifications(config);
+
   // GitHub tools — resolve token from OS keychain
   const keychain = createKeychain();
   const githubTokenResult = await resolveGitHubToken({ secretStore: keychain });
@@ -1029,6 +1072,40 @@ async function runStart(): Promise<void> {
         }
       : undefined,
   );
+  // GitHub classification is set by buildToolClassifications from config
+
+  // Obsidian vault tools (graceful degrade if not configured)
+  let obsidianExecutor: ((name: string, input: Record<string, unknown>) => Promise<string | null>) | undefined;
+  const obsVaultPath = config.plugins?.obsidian?.vault_path;
+  if (config.plugins?.obsidian?.enabled && obsVaultPath) {
+    const obsCfg = config.plugins.obsidian;
+    const vaultResult = await createVaultContext({
+      vaultPath: obsVaultPath,
+      classification: (obsCfg.classification ?? "INTERNAL") as ClassificationLevel,
+      dailyNotes: obsCfg.daily_notes ? {
+        folder: obsCfg.daily_notes.folder ?? "daily",
+        dateFormat: obsCfg.daily_notes.date_format ?? "YYYY-MM-DD",
+        template: obsCfg.daily_notes.template,
+      } : undefined,
+      excludeFolders: obsCfg.exclude_folders as string[] | undefined,
+      folderClassifications: obsCfg.folder_classifications as Record<string, ClassificationLevel> | undefined,
+    });
+    if (vaultResult.ok) {
+      const noteStore = createNoteStore(vaultResult.value);
+      obsidianExecutor = createObsidianToolExecutor({
+        vaultContext: vaultResult.value,
+        noteStore,
+        dailyNoteManager: createDailyNoteManager(vaultResult.value, noteStore),
+        linkResolver: createLinkResolver(vaultResult.value),
+        getSessionTaint: () => session.taint,
+        sessionId: session.id,
+      });
+      // Obsidian classification is set by buildToolClassifications from config
+      console.log(`  Obsidian vault connected: ${obsCfg.vault_path}`);
+    } else {
+      console.error(`  Obsidian vault error: ${vaultResult.error}`);
+    }
+  }
 
   const toolExecutor = createToolExecutor({
     execTools,
@@ -1045,6 +1122,7 @@ async function runStart(): Promise<void> {
     exploreExecutor,
     googleExecutor: buildGoogleExecutor(session.taint, session.id),
     githubExecutor,
+    obsidianExecutor,
     subagentFactory,
     providerRegistry: registry,
   });
@@ -1055,10 +1133,21 @@ async function runStart(): Promise<void> {
     spinePath,
     tools: getToolDefinitions(),
     toolExecutor,
-    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT],
+    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT, OBSIDIAN_SYSTEM_PROMPT],
     session,
     debug: Deno.env.get("TRIGGERFISH_DEBUG") === "1",
     visionProvider,
+    toolClassifications,
+    getSessionTaint: () => session.taint,
+    escalateTaint: (level: ClassificationLevel, reason: string) => {
+      session = updateTaint(session, level, reason);
+    },
+    resetSession: () => {
+      session = createSession({
+        userId: "owner" as UserId,
+        channelId: "daemon" as ChannelId,
+      });
+    },
   });
 
   console.log("  Main session created");
@@ -1214,6 +1303,12 @@ const CHANNEL_TYPES = [
 
 type ChannelType = typeof CHANNEL_TYPES[number];
 
+const PLUGIN_TYPES = [
+  "obsidian",
+] as const;
+
+type PluginType = typeof PLUGIN_TYPES[number];
+
 /** Prompt for channel-specific config fields and return the config object. */
 async function promptChannelConfig(
   channelType: ChannelType,
@@ -1367,6 +1462,66 @@ async function promptChannelConfig(
         options: ["CONFIDENTIAL", "PUBLIC", "INTERNAL", "RESTRICTED"],
         default: "CONFIDENTIAL",
       });
+      break;
+    }
+  }
+
+  return config;
+}
+
+/** Prompt for plugin-specific config fields and return the config object. */
+async function promptPluginConfig(
+  pluginType: PluginType,
+): Promise<Record<string, unknown>> {
+  const config: Record<string, unknown> = {};
+
+  switch (pluginType) {
+    case "obsidian": {
+      // Vault path with validation
+      let vaultPath = "";
+      while (true) {
+        vaultPath = await Input.prompt({
+          message: "Path to your Obsidian vault",
+        });
+        if (vaultPath.length === 0) {
+          console.log("  Vault path is required.");
+          continue;
+        }
+        // Expand ~ to home directory
+        if (vaultPath.startsWith("~")) {
+          const home = Deno.env.get("HOME") ?? "";
+          vaultPath = home + vaultPath.slice(1);
+        }
+        // Validate .obsidian/ marker
+        try {
+          await Deno.stat(`${vaultPath}/.obsidian`);
+          break;
+        } catch {
+          console.log(`  Not a valid Obsidian vault (no .obsidian/ folder found at ${vaultPath})`);
+          console.log("  Please enter the root folder of your Obsidian vault.");
+        }
+      }
+      config.enabled = true;
+      config.vault_path = vaultPath;
+
+      config.classification = await Select.prompt({
+        message: "Vault classification level",
+        options: ["INTERNAL", "PUBLIC", "CONFIDENTIAL", "RESTRICTED"],
+        default: "INTERNAL",
+      });
+
+      const enableDaily = await Confirm.prompt({
+        message: "Enable daily notes?",
+        default: true,
+      });
+      if (enableDaily) {
+        config.daily_notes = {
+          folder: "daily",
+          date_format: "YYYY-MM-DD",
+        };
+      }
+
+      console.log("  ✓ Obsidian vault configured");
       break;
     }
   }
@@ -1714,6 +1869,104 @@ async function runConfigAddChannel(
 }
 
 /**
+ * Add a plugin to triggerfish.yaml interactively.
+ */
+async function runConfigAddPlugin(
+  flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+
+  // Require interactive terminal
+  if (!Deno.stdin.isTerminal()) {
+    console.error("Error: add-plugin requires an interactive terminal.");
+    Deno.exit(1);
+  }
+
+  // Determine plugin type
+  let pluginType: PluginType;
+  const flagType = flags.plugin_type as string | undefined;
+
+  if (flagType && PLUGIN_TYPES.includes(flagType as PluginType)) {
+    pluginType = flagType as PluginType;
+  } else {
+    if (flagType) {
+      console.log(`Unknown plugin type: ${flagType}\n`);
+    }
+    pluginType = (await Select.prompt({
+      message: "Plugin type",
+      options: [
+        { name: "Obsidian (local vault integration)", value: "obsidian" },
+      ],
+    })) as PluginType;
+  }
+
+  // Load existing config
+  let rawYaml: string;
+  try {
+    rawYaml = await Deno.readTextFile(configPath);
+  } catch {
+    console.error(`Config not found at ${configPath}`);
+    console.error("Run 'triggerfish dive' to create initial config.");
+    Deno.exit(1);
+  }
+
+  const parsed = parseYaml(rawYaml) as Record<string, unknown>;
+  const plugins = (parsed.plugins ?? {}) as Record<string, unknown>;
+
+  // Check if plugin already exists
+  if (plugins[pluginType]) {
+    const overwrite = await Confirm.prompt({
+      message: `${pluginType} is already configured. Overwrite?`,
+      default: false,
+    });
+    if (!overwrite) {
+      console.log("Cancelled.");
+      return;
+    }
+  }
+
+  console.log(`\nConfiguring ${pluginType}...\n`);
+
+  // Prompt for plugin-specific fields
+  const pluginConfig = await promptPluginConfig(pluginType);
+
+  // Merge into config
+  plugins[pluginType] = pluginConfig;
+  parsed.plugins = plugins;
+
+  // Write back
+  const yaml = stringifyYaml(parsed);
+  const content = `# Triggerfish Configuration\n# Generated by triggerfish dive\n\n${yaml}`;
+  await Deno.writeTextFile(configPath, content);
+
+  console.log(`\n✓ ${pluginType} plugin added to triggerfish.yaml`);
+
+  // Offer daemon restart
+  const status = await getDaemonStatus();
+  if (status.running) {
+    const restart = await Confirm.prompt({
+      message: "Restart daemon to apply?",
+      default: true,
+    });
+    if (restart) {
+      const stopResult = await stopDaemon();
+      if (!stopResult.ok) {
+        console.log(`✗ Failed to stop daemon: ${stopResult.message}`);
+        return;
+      }
+      const startResult = await installAndStartDaemon(Deno.execPath());
+      if (startResult.ok) {
+        console.log("✓ Daemon restarted");
+      } else {
+        console.log(`✗ ${startResult.message}`);
+      }
+    }
+  } else {
+    console.log("Daemon is not running. Start it with: triggerfish start");
+  }
+}
+
+/**
  * Config command dispatcher.
  */
 async function runConfig(
@@ -1723,6 +1976,9 @@ async function runConfig(
   switch (subcommand) {
     case "add-channel":
       await runConfigAddChannel(flags);
+      break;
+    case "add-plugin":
+      await runConfigAddPlugin(flags);
       break;
     case "set":
       await runConfigSet(flags);
@@ -1746,6 +2002,7 @@ CONFIG USAGE:
   triggerfish config get <key>            Get a configuration value
   triggerfish config validate             Validate configuration
   triggerfish config add-channel [type]   Add a channel interactively
+  triggerfish config add-plugin [name]    Add a plugin interactively
   triggerfish config set-secret <key> <value>  Store a secret in OS keychain
   triggerfish config get-secret <key>          Retrieve a secret from OS keychain
 
@@ -1755,9 +2012,14 @@ KEYS use dotted paths into triggerfish.yaml:
   models.primary                   Primary model name
   models.providers.<name>.apiKey   Provider API key
   scheduler.trigger.enabled        Enable trigger wakeups
+  plugins.obsidian.vault_path      Obsidian vault path
+  plugins.obsidian.classification  Vault classification level
 
 CHANNEL TYPES:
   telegram, slack, discord, whatsapp, webchat, email
+
+PLUGIN TYPES:
+  obsidian
 
 EXAMPLES:
   triggerfish config set models.primary claude-sonnet
@@ -1766,6 +2028,7 @@ EXAMPLES:
   triggerfish config set scheduler.trigger.enabled true
   triggerfish config get models.primary
   triggerfish config add-channel telegram
+  triggerfish config add-plugin obsidian
   triggerfish config set-secret github-pat ghp_...
   triggerfish config get-secret github-pat
 `);
@@ -1821,6 +2084,8 @@ async function runUpdate(): Promise<void> {
   }
 }
 
+
+
 /** Tool definitions for the agent. */
 function getToolDefinitions(): readonly ToolDefinition[] {
   return [
@@ -1835,6 +2100,7 @@ function getToolDefinitions(): readonly ToolDefinition[] {
     ...getExploreToolDefinitions(),
     ...getGoogleToolDefinitions(),
     ...getGitHubToolDefinitions(),
+    ...getObsidianToolDefinitions(),
     {
       name: "read_file",
       description: "Read the contents of a file at an absolute path.",
@@ -1952,6 +2218,7 @@ interface ToolExecutorOptions {
   readonly exploreExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
   readonly googleExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
   readonly githubExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly obsidianExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
   readonly subagentFactory?: (task: string, tools?: string) => Promise<string>;
 }
 
@@ -1968,7 +2235,8 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
   const todoExecutor = opts.todoManager ? createTodoToolExecutor(opts.todoManager) : null;
   const webExecutor = createWebToolExecutor(searchProvider, webFetcher);
 
-  return async (name: string, input: Record<string, unknown>): Promise<string> => {
+  // Inner dispatch — routes tool calls to the appropriate handler.
+  const dispatch = async (name: string, input: Record<string, unknown>): Promise<string> => {
     // Try todo tools first (returns null if not a todo tool)
     if (todoExecutor) {
       const todoResult = await todoExecutor(name, input);
@@ -2027,6 +2295,12 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
     if (opts.githubExecutor) {
       const githubResult = await opts.githubExecutor(name, input);
       if (githubResult !== null) return githubResult;
+    }
+
+    // Try obsidian tools (returns null if not an obsidian tool)
+    if (opts.obsidianExecutor) {
+      const obsidianResult = await opts.obsidianExecutor(name, input);
+      if (obsidianResult !== null) return obsidianResult;
     }
 
     // Try web tools (returns null if not a web tool)
@@ -2261,6 +2535,8 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
         return `Unknown tool: ${name}`;
     }
   };
+
+  return dispatch;
 }
 
 /**
@@ -2551,6 +2827,7 @@ async function runChat(): Promise<void> {
           }
 
           if (text === "/clear") {
+            ws.send(JSON.stringify({ type: "clear" }));
             screen.cleanup();
             screen.init();
             screen.writeOutput(formatBanner(providerName, config.models.primary, ""));
@@ -2805,6 +3082,7 @@ async function runSimpleWsRepl(
       }
 
       if (line === "/clear") {
+        ws.send(JSON.stringify({ type: "clear" }));
         console.log("\x1b[2J\x1b[H");
         printBanner(providerName, config.models.primary, "");
         renderPrompt();

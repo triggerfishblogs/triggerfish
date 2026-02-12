@@ -47,6 +47,7 @@ Triggerfish is a secure, multi-channel AI agent platform with deterministic poli
 6. **Session isolation** — Each session tracks taint independently. Background sessions spawn with fresh PUBLIC taint. Agent workspaces are fully isolated.
 7. **SSRF prevention** — All outbound HTTP (web_fetch, browser.navigate) resolves DNS first and checks against a hardcoded IP denylist. Private/reserved ranges always blocked. Not configurable.
 8. **Memory classification gating** — Cross-session memory writes are forced to session taint level. Reads filtered by `canFlowTo`. The LLM cannot choose what classification a memory is stored at.
+9. **Default deny** — Integrations, plugins, and channels must have a classification level configured or they are rejected. Built-in tools are ungated. External data sources are never silently allowed without classification.
 
 ## Testing Requirements
 
@@ -87,6 +88,7 @@ Triggerfish is a secure, multi-channel AI agent platform with deterministic poli
 | 20 | `deno task test tests/skills/` |
 | 21 | `deno task test tests/routing/ tests/models/ tests/dive/` |
 | B1 | `deno task test tests/google/` |
+| B3 | `deno task test tests/obsidian/` |
 
 ## File Organization
 
@@ -110,6 +112,7 @@ src/
 ├── browser/         # [A3] BrowserManager (CDP), profile watermarking, browser tools
 │                    #       imports domain security from src/web/domains.ts — no duplication
 ├── google/          # [B1] Google Workspace — OAuth2 auth, Gmail, Calendar, Tasks, Drive, Sheets
+├── obsidian/        # [B3] Obsidian vault integration — note CRUD, wikilinks, daily notes
 ├── mcp/client/      # MCP protocol client
 ├── mcp/gateway/     # Policy-enforced MCP proxy
 ├── plugin/          # Plugin SDK and sandbox
@@ -196,3 +199,6 @@ When using Claude Code on this project, configure these MCP servers:
 - Never let the LLM choose memory classification — always force to `session.taint` in PRE_TOOL_CALL
 - Never allow memory reads above session taint — filter by `canFlowTo` in every query
 - Never skip DNS resolution before outbound HTTP — SSRF prevention requires checking resolved IP, not just hostname
+- Never default to ALLOW — if a tool, integration, or path has no classification or permission configured, the default must always be DENY. Silently allowing unclassified operations is a security violation
+- Never hardcode plugin or integration names in core code — integrations are loaded by config. Core code uses generic dispatch (prefix maps, executor chains), not per-integration if-blocks
+- Never put session management (taint escalation, classification enforcement) inside plugins — enforcement belongs in the centralized orchestrator tool executor wrapper, not in individual tool handlers
