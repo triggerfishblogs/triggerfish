@@ -12,6 +12,40 @@ Schedule recurring tasks with standard cron expressions and define proactive mon
 
 A first-class notification delivery service that routes messages across all connected channels with priority levels, offline queuing, and deduplication. Replaces ad-hoc notification patterns with a unified abstraction.
 
+## Agent Tools
+
+### [Web Search and Fetch](./web-search)
+
+Search the web and fetch page content. The agent uses `web_search` to find information and `web_fetch` to read web pages, with SSRF prevention and policy enforcement on all outbound requests.
+
+### [Persistent Memory](./memory)
+
+Cross-session memory with classification gating. The agent saves and recalls facts, preferences, and context across conversations. Memory classification is forced to session taint -- the LLM cannot choose the level.
+
+### [Image Analysis and Vision](./image-vision)
+
+Paste images from your clipboard (Ctrl+V in CLI, browser paste in Tidepool) and analyze image files on disk. Configure a separate vision model to automatically describe images when the primary model does not support vision.
+
+### [Codebase Exploration](./explore)
+
+Structured codebase understanding via parallel sub-agents. The `explore` tool maps directory trees, detects coding patterns, traces imports, and analyzes git history -- all concurrently.
+
+### [Session Management](./sessions)
+
+Inspect, communicate with, and spawn sessions. The agent can delegate background tasks, send cross-session messages, and reach out across channels -- all under write-down enforcement.
+
+### [Plan Mode and Task Tracking](./planning)
+
+Structured planning before implementation (plan mode) and persistent task tracking (todos) across sessions. Plan mode constrains the agent to read-only exploration until the user approves the plan.
+
+### [Filesystem and Shell](./filesystem)
+
+Read, write, search, and execute commands. The foundational tools for file operations, with workspace scoping and command denylist enforcement.
+
+### [Sub-Agents and LLM Tasks](./subagents)
+
+Delegate work to autonomous sub-agents or run isolated LLM prompts for summarization, classification, and focused reasoning without polluting the main conversation.
+
 ## Rich Interaction
 
 ### [Voice Pipeline](./voice)

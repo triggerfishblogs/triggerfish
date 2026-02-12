@@ -228,6 +228,7 @@ These shortcuts work in the CLI chat interface:
 | Shortcut | Action |
 |----------|--------|
 | ESC | Interrupt the current LLM response |
+| Ctrl+V | Paste image from clipboard (see [Image and Vision](/features/image-vision)) |
 | Ctrl+O | Toggle compact/expanded tool call display |
 | Ctrl+C | Exit the chat session |
 | Up/Down | Navigate input history |

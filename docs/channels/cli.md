@@ -93,6 +93,7 @@ The CLI channel works out of the box. You do not need to configure anything to s
 |----------|--------|
 | Enter | Send message |
 | Up / Down | Navigate input history |
+| Ctrl+V | Paste image from clipboard (sent as multimodal content) |
 | Ctrl+O | Toggle compact/expanded tool display |
 | ESC | Interrupt current operation |
 | Ctrl+C | Exit the CLI |
