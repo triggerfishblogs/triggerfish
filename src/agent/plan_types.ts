@@ -83,6 +83,7 @@ export const PLAN_BLOCKED_TOOLS: readonly string[] = [
 
 /** Tools allowed during plan mode. */
 export const PLAN_ALLOWED_TOOLS: readonly string[] = [
+  "explore",
   "read_file",
   "run_command",
   "list_directory",

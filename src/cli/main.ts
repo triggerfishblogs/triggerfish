@@ -10,9 +10,22 @@ import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
 import { Confirm, Input, Select } from "@cliffy/prompt";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { createGatewayServer } from "../gateway/server.ts";
+import {
+  getSessionToolDefinitions,
+  createSessionToolExecutor,
+  SESSION_TOOLS_SYSTEM_PROMPT,
+} from "../gateway/tools.ts";
+import { createEnhancedSessionManager } from "../gateway/sessions.ts";
+import type { EnhancedSessionManager } from "../gateway/sessions.ts";
+import { createSessionManager } from "../core/session/manager.ts";
 import { createChatSession } from "../gateway/chat.ts";
 import type { ChatEvent } from "../gateway/chat.ts";
 import { createA2UIHost } from "../tidepool/host.ts";
+import {
+  getTidepoolToolDefinitions,
+  createTidepoolToolExecutor,
+  TIDEPOOL_SYSTEM_PROMPT,
+} from "../tidepool/mod.ts";
 import { createPatrolCheck } from "../dive/patrol.ts";
 import type { PatrolInput } from "../dive/patrol.ts";
 import { runWizard } from "../dive/wizard.ts";
@@ -26,6 +39,7 @@ import {
 import { createOrchestrator } from "../agent/orchestrator.ts";
 import type { ToolDefinition, ToolExecutor, OrchestratorEvent } from "../agent/orchestrator.ts";
 import { createProviderRegistry } from "../agent/llm.ts";
+import type { LlmProviderRegistry } from "../agent/llm.ts";
 import { loadProvidersFromConfig } from "../agent/providers/config.ts";
 import type { ModelsConfig } from "../agent/providers/config.ts";
 import { createPolicyEngine } from "../core/policy/engine.ts";
@@ -87,9 +101,23 @@ import type {
   SearchProvider,
   WebFetcher,
 } from "../web/mod.ts";
-// Plan mode disabled — will re-enable after fixing blank response bug
-// import { createPlanManager } from "../agent/plan.ts";
-// import { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "../agent/plan_tools.ts";
+import { createPlanManager, createPlanToolExecutor } from "../agent/plan.ts";
+import { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "../agent/plan_tools.ts";
+import {
+  getBrowserToolDefinitions,
+  createBrowserToolExecutor,
+  BROWSER_TOOLS_SYSTEM_PROMPT,
+} from "../browser/mod.ts";
+import {
+  getImageToolDefinitions,
+  createImageToolExecutor,
+  IMAGE_TOOLS_SYSTEM_PROMPT,
+} from "../image/mod.ts";
+import {
+  getExploreToolDefinitions,
+  createExploreToolExecutor,
+  EXPLORE_SYSTEM_PROMPT,
+} from "../explore/mod.ts";
 import { createTelegramChannel } from "../channels/telegram/adapter.ts";
 import type { ChatEventSender } from "../gateway/chat.ts";
 
@@ -561,6 +589,27 @@ function buildWebTools(
 }
 
 /**
+ * Build a subagent factory that uses OrchestratorFactory to spawn isolated agents.
+ *
+ * Each call creates a fresh orchestrator + session and processes the task prompt,
+ * returning the agent's text response.
+ */
+function buildSubagentFactory(
+  orchFactory: OrchestratorFactory,
+): (task: string, tools?: string) => Promise<string> {
+  return async (task: string, _tools?: string): Promise<string> => {
+    const { orchestrator, session } = await orchFactory.create("subagent");
+    const result = await orchestrator.processMessage({
+      session,
+      message: task,
+      targetClassification: session.taint,
+    });
+    if (!result.ok) return `Sub-agent error: ${result.error}`;
+    return result.value.response;
+  };
+}
+
+/**
  * Create an OrchestratorFactory from config.
  *
  * The factory captures shared infrastructure (provider registry, policy
@@ -572,6 +621,7 @@ function createOrchestratorFactory(
   baseDir: string,
   cronManager?: CronManager,
   storage?: StorageProvider,
+  enhancedSessionManager?: EnhancedSessionManager,
 ): OrchestratorFactory {
   const registry = createProviderRegistry();
   loadProvidersFromConfig(config.models as ModelsConfig, registry);
@@ -622,14 +672,37 @@ function createOrchestratorFactory(
         });
       }
 
-      const toolExecutor = createToolExecutor(execTools, cronManager, todoManager, searchProvider, webFetcher, schedulerMemoryExecutor);
+      // Plan manager for scheduler agents
+      const planManager = createPlanManager({ plansDir: `${workspace.path}/plans` });
+      const planExecutor = createPlanToolExecutor(planManager, session.id);
+
+      // Session tools for scheduler agents (if session manager is available)
+      const sessionExecutor = enhancedSessionManager
+        ? createSessionToolExecutor({
+          sessionManager: enhancedSessionManager,
+          callerSessionId: session.id,
+          callerTaint: session.taint,
+        })
+        : undefined;
+
+      const toolExecutor = createToolExecutor({
+        execTools,
+        cronManager,
+        todoManager,
+        searchProvider,
+        webFetcher,
+        memoryExecutor: schedulerMemoryExecutor,
+        planExecutor,
+        sessionExecutor,
+        providerRegistry: registry,
+      });
       const orchestrator = createOrchestrator({
         hookRunner,
         providerRegistry: registry,
         spinePath,
         tools: toolDefs,
         toolExecutor,
-        systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT],
+        systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT],
       });
 
       return { orchestrator, session };
@@ -718,8 +791,12 @@ async function runStart(): Promise<void> {
     console.log(`  Loaded ${existingJobs.length} persistent cron job(s)`);
   }
 
+  // Create session manager (shared by orchestrator factory, main session, and gateway)
+  const baseSessionManager = createSessionManager(storage);
+  const enhancedSessionManager = createEnhancedSessionManager(baseSessionManager);
+
   // Build orchestrator factory and scheduler with persistent cron manager
-  const factory = createOrchestratorFactory(config, baseDir, cronManager, storage);
+  const factory = createOrchestratorFactory(config, baseDir, cronManager, storage, enhancedSessionManager);
   const schedulerConfig = buildSchedulerConfig(config, baseDir, factory);
   const schedulerService = createSchedulerService({
     ...schedulerConfig,
@@ -778,7 +855,60 @@ async function runStart(): Promise<void> {
     sourceSessionId: session.id,
   });
 
-  const toolExecutor = createToolExecutor(execTools, cronManager, todoManager, searchProvider, webFetcher, memoryExecutor);
+  // Plan manager for main session
+  const mainPlanManager = createPlanManager({ plansDir: `${mainWorkspace.path}/plans` });
+  const mainPlanExecutor = createPlanToolExecutor(mainPlanManager, session.id);
+
+  // Browser tools (graceful degrade if not configured)
+  const browserExecutor = createBrowserToolExecutor(undefined);
+
+  // Tidepool tools (graceful degrade — host created after chatSession)
+  const tidepoolExecutor = createTidepoolToolExecutor(undefined);
+
+  // Image analysis tools
+  const imageExecutor = createImageToolExecutor(registry);
+
+  // Session management tools — uses shared EnhancedSessionManager created earlier
+  const sessionExecutor = createSessionToolExecutor({
+    sessionManager: enhancedSessionManager,
+    callerSessionId: session.id,
+    callerTaint: session.taint,
+  });
+
+  // Sub-agent factory — bridges OrchestratorFactory to the subagent tool
+  const subagentFactory = buildSubagentFactory(factory);
+
+  // Explore tool — uses subagent factory for parallel codebase exploration
+  const exploreExecutor = createExploreToolExecutor(
+    subagentFactory,
+    async (prompt: string) => {
+      const provider = registry.getDefault();
+      if (!provider) return prompt;
+      const result = await provider.complete(
+        [{ role: "user", content: prompt }],
+        [],
+        {},
+      );
+      return result.content;
+    },
+  );
+
+  const toolExecutor = createToolExecutor({
+    execTools,
+    cronManager,
+    todoManager,
+    searchProvider,
+    webFetcher,
+    memoryExecutor,
+    planExecutor: mainPlanExecutor,
+    browserExecutor,
+    tidepoolExecutor,
+    imageExecutor,
+    sessionExecutor,
+    exploreExecutor,
+    subagentFactory,
+    providerRegistry: registry,
+  });
 
   const chatSession = createChatSession({
     hookRunner,
@@ -786,7 +916,7 @@ async function runStart(): Promise<void> {
     spinePath,
     tools: getToolDefinitions(),
     toolExecutor,
-    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT],
+    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT],
     session,
     debug: Deno.env.get("TRIGGERFISH_DEBUG") === "1",
   });
@@ -872,11 +1002,12 @@ async function runStart(): Promise<void> {
   await tidepoolHost.start(tidepoolPort);
   console.log(`  Tidepool listening on http://127.0.0.1:${tidepoolPort}`);
 
-  // Create and start gateway server with scheduler + chat session
+  // Create and start gateway server with scheduler + chat session + session manager
   const server = createGatewayServer({
     port: 18789,
     schedulerService,
     chatSession,
+    sessionManager: enhancedSessionManager,
   });
   const addr = await server.start();
 
@@ -1499,7 +1630,12 @@ function getToolDefinitions(): readonly ToolDefinition[] {
     ...getTodoToolDefinitions(),
     ...getMemoryToolDefinitions(),
     ...getWebToolDefinitions(),
-    // ...getPlanToolDefinitions(),  // Plan mode disabled
+    ...getPlanToolDefinitions(),
+    ...getBrowserToolDefinitions(),
+    ...getTidepoolToolDefinitions(),
+    ...getSessionToolDefinitions(),
+    ...getImageToolDefinitions(),
+    ...getExploreToolDefinitions(),
     {
       name: "read_file",
       description: "Read the contents of a file at an absolute path.",
@@ -1539,6 +1675,37 @@ function getToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
+      name: "edit_file",
+      description: "Replace a unique string in a file. old_text must appear exactly once in the file.",
+      parameters: {
+        path: { type: "string", description: "Absolute file path to edit", required: true },
+        old_text: { type: "string", description: "Exact text to find (must be unique in file)", required: true },
+        new_text: { type: "string", description: "Replacement text", required: true },
+      },
+    },
+    {
+      name: "llm_task",
+      description: "Run a one-shot LLM prompt for isolated reasoning (summarization, classification, data extraction). Does not pollute main conversation context.",
+      parameters: {
+        prompt: { type: "string", description: "The prompt to send", required: true },
+        system: { type: "string", description: "Optional system prompt", required: false },
+        model: { type: "string", description: "Optional model/provider name override", required: false },
+      },
+    },
+    {
+      name: "subagent",
+      description: "Spawn a sub-agent for an autonomous multi-step task. Returns the result when complete.",
+      parameters: {
+        task: { type: "string", description: "What the sub-agent should accomplish", required: true },
+        tools: { type: "string", description: "Comma-separated tool whitelist (default: read-only tools)", required: false },
+      },
+    },
+    {
+      name: "agents_list",
+      description: "List configured LLM providers/agents.",
+      parameters: {},
+    },
+    {
       name: "cron_create",
       description: "Create a scheduled cron job. The task runs on the given cron schedule.",
       parameters: {
@@ -1569,23 +1736,35 @@ function getToolDefinitions(): readonly ToolDefinition[] {
   ];
 }
 
+/** Options for creating a tool executor. */
+interface ToolExecutorOptions {
+  readonly execTools: ReturnType<typeof createExecTools>;
+  readonly cronManager?: CronManager;
+  readonly todoManager?: TodoManager;
+  readonly searchProvider?: SearchProvider;
+  readonly webFetcher?: WebFetcher;
+  readonly memoryExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly planExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly browserExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly tidepoolExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly providerRegistry?: LlmProviderRegistry;
+  readonly sessionExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly imageExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly exploreExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly subagentFactory?: (task: string, tools?: string) => Promise<string>;
+}
+
 /**
  * Create a tool executor backed by ExecTools, direct filesystem access,
- * and an optional CronManager for scheduling tools.
+ * and optional subsystem executors for scheduling, planning, browser, etc.
  *
  * Tools that operate on absolute paths (read_file, list_directory, search_files)
  * use Deno APIs directly. Tools that operate on the workspace (write_file,
  * run_command) use ExecTools for sandboxing. Cron tools delegate to CronManager.
  */
-function createToolExecutor(
-  execTools: ReturnType<typeof createExecTools>,
-  cronManager?: CronManager,
-  todoManager?: TodoManager,
-  searchProvider?: SearchProvider,
-  webFetcher?: WebFetcher,
-  memoryExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>,
-): ToolExecutor {
-  const todoExecutor = todoManager ? createTodoToolExecutor(todoManager) : null;
+function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
+  const { execTools, cronManager, searchProvider, webFetcher } = opts;
+  const todoExecutor = opts.todoManager ? createTodoToolExecutor(opts.todoManager) : null;
   const webExecutor = createWebToolExecutor(searchProvider, webFetcher);
 
   return async (name: string, input: Record<string, unknown>): Promise<string> => {
@@ -1596,9 +1775,45 @@ function createToolExecutor(
     }
 
     // Try memory tools (returns null if not a memory tool)
-    if (memoryExecutor) {
-      const memoryResult = await memoryExecutor(name, input);
+    if (opts.memoryExecutor) {
+      const memoryResult = await opts.memoryExecutor(name, input);
       if (memoryResult !== null) return memoryResult;
+    }
+
+    // Try plan tools (returns null if not a plan tool)
+    if (opts.planExecutor) {
+      const planResult = await opts.planExecutor(name, input);
+      if (planResult !== null) return planResult;
+    }
+
+    // Try browser tools (returns null if not a browser tool)
+    if (opts.browserExecutor) {
+      const browserResult = await opts.browserExecutor(name, input);
+      if (browserResult !== null) return browserResult;
+    }
+
+    // Try tidepool tools (returns null if not a tidepool tool)
+    if (opts.tidepoolExecutor) {
+      const tidepoolResult = await opts.tidepoolExecutor(name, input);
+      if (tidepoolResult !== null) return tidepoolResult;
+    }
+
+    // Try session tools (returns null if not a session tool)
+    if (opts.sessionExecutor) {
+      const sessionResult = await opts.sessionExecutor(name, input);
+      if (sessionResult !== null) return sessionResult;
+    }
+
+    // Try image tools (returns null if not an image tool)
+    if (opts.imageExecutor) {
+      const imageResult = await opts.imageExecutor(name, input);
+      if (imageResult !== null) return imageResult;
+    }
+
+    // Try explore tools (returns null if not an explore tool)
+    if (opts.exploreExecutor) {
+      const exploreResult = await opts.exploreExecutor(name, input);
+      if (exploreResult !== null) return exploreResult;
     }
 
     // Try web tools (returns null if not a web tool)
@@ -1701,6 +1916,91 @@ function createToolExecutor(
         } catch (err) {
           return `Error searching: ${err instanceof Error ? err.message : String(err)}`;
         }
+      }
+
+      case "edit_file": {
+        const path = input.path;
+        const oldText = input.old_text;
+        const newText = input.new_text;
+        if (typeof path !== "string" || path.length === 0) {
+          return "Error: edit_file requires a 'path' argument (string).";
+        }
+        if (typeof oldText !== "string" || oldText.length === 0) {
+          return "Error: edit_file requires a non-empty 'old_text' argument (string).";
+        }
+        if (typeof newText !== "string") {
+          return "Error: edit_file requires a 'new_text' argument (string).";
+        }
+        try {
+          const content = await Deno.readTextFile(path);
+          const count = content.split(oldText).length - 1;
+          if (count === 0) {
+            return "Error: old_text not found in file.";
+          }
+          if (count > 1) {
+            return `Error: old_text appears ${count} times (must be exactly 1). Provide a larger unique snippet.`;
+          }
+          const updated = content.replace(oldText, newText);
+          await Deno.writeTextFile(path, updated);
+          return `Edited ${path} (${updated.length} bytes written)`;
+        } catch (err) {
+          return `Error editing file: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }
+
+      case "llm_task": {
+        if (!opts.providerRegistry) {
+          return "LLM task is not available (no provider registry).";
+        }
+        const prompt = input.prompt;
+        if (typeof prompt !== "string" || prompt.length === 0) {
+          return "Error: llm_task requires a non-empty 'prompt' argument (string).";
+        }
+        const modelName = typeof input.model === "string" ? input.model : undefined;
+        const provider = modelName
+          ? opts.providerRegistry.get(modelName) ?? opts.providerRegistry.getDefault()
+          : opts.providerRegistry.getDefault();
+        if (!provider) {
+          return "Error: No LLM provider available.";
+        }
+        const messages: { role: string; content: string }[] = [];
+        if (typeof input.system === "string" && input.system.length > 0) {
+          messages.push({ role: "system", content: input.system });
+        }
+        messages.push({ role: "user", content: prompt });
+        try {
+          const result = await provider.complete(messages, [], {});
+          return result.content;
+        } catch (err) {
+          return `Error in llm_task: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }
+
+      case "subagent": {
+        if (!opts.subagentFactory) {
+          return "Sub-agent spawning is not available in this context.";
+        }
+        const task = input.task;
+        if (typeof task !== "string" || task.length === 0) {
+          return "Error: subagent requires a non-empty 'task' argument (string).";
+        }
+        const toolsArg = typeof input.tools === "string" ? input.tools : undefined;
+        try {
+          return await opts.subagentFactory(task, toolsArg);
+        } catch (err) {
+          return `Error spawning sub-agent: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }
+
+      case "agents_list": {
+        if (!opts.providerRegistry) {
+          return "No provider registry available.";
+        }
+        const defaultProvider = opts.providerRegistry.getDefault();
+        return JSON.stringify({
+          default: defaultProvider?.name ?? "none",
+          note: "Use 'llm_task' with 'model' parameter to target a specific provider.",
+        });
       }
 
       case "cron_create": {
