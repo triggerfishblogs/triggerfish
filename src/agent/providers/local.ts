@@ -4,11 +4,35 @@
  * Connects to any OpenAI-compatible local endpoint such as Ollama,
  * LM Studio, or llama.cpp server. No authentication required.
  *
+ * Multimodal content (images) is passed through in OpenAI format.
+ * Whether it works depends on the local model — vision models
+ * (LLaVA, Qwen-VL, etc.) will handle it; text-only models will
+ * return an error from the local server.
+ *
  * @module
  */
 
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
 import { parseSseStream } from "./sse.ts";
+import type { ContentBlock } from "../../image/content.ts";
+
+/** Convert content blocks to OpenAI-compatible multimodal format. */
+function toOpenAiContent(content: string | unknown): string | unknown[] {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return JSON.stringify(content);
+  return (content as ContentBlock[]).map((block) => {
+    if (block.type === "text") return { type: "text", text: block.text };
+    if (block.type === "image") {
+      return {
+        type: "image_url",
+        image_url: {
+          url: `data:${block.source.media_type};base64,${block.source.data}`,
+        },
+      };
+    }
+    return block;
+  });
+}
 
 /** Configuration for the local LLM provider. */
 export interface LocalConfig {
@@ -46,9 +70,7 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
       const signal = options.signal as AbortSignal | undefined;
       const openaiMessages = messages.map((m) => ({
         role: m.role,
-        content: typeof m.content === "string"
-          ? m.content
-          : JSON.stringify(m.content),
+        content: toOpenAiContent(m.content),
       }));
 
       const response = await fetch(`${endpoint}/v1/chat/completions`, {
@@ -87,9 +109,7 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
       const signal = options.signal as AbortSignal | undefined;
       const openaiMessages = messages.map((m) => ({
         role: m.role,
-        content: typeof m.content === "string"
-          ? m.content
-          : JSON.stringify(m.content),
+        content: toOpenAiContent(m.content),
       }));
 
       const response = await fetch(`${endpoint}/v1/chat/completions`, {

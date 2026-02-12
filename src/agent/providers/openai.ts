@@ -8,6 +8,7 @@
 
 import OpenAI from "openai";
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import type { ContentBlock } from "../../image/content.ts";
 
 /** Configuration for the OpenAI provider. */
 export interface OpenAiConfig {
@@ -41,6 +42,24 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
     return client;
   }
 
+  /** Convert content blocks to OpenAI's multimodal format. */
+  function toOpenAiContent(content: string | unknown): string | unknown[] {
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return JSON.stringify(content);
+    return (content as ContentBlock[]).map((block) => {
+      if (block.type === "text") return { type: "text", text: block.text };
+      if (block.type === "image") {
+        return {
+          type: "image_url",
+          image_url: {
+            url: `data:${block.source.media_type};base64,${block.source.data}`,
+          },
+        };
+      }
+      return block;
+    });
+  }
+
   return {
     name: "openai",
     supportsStreaming: true,
@@ -54,11 +73,10 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
       const signal = options.signal as AbortSignal | undefined;
 
       // Convert messages to OpenAI format
-      const openaiMessages = messages.map((m) => ({
+      // deno-lint-ignore no-explicit-any
+      const openaiMessages: any[] = messages.map((m) => ({
         role: m.role as "system" | "user" | "assistant",
-        content: typeof m.content === "string"
-          ? m.content
-          : JSON.stringify(m.content),
+        content: toOpenAiContent(m.content),
       }));
 
       const response = await openaiClient.chat.completions.create(
@@ -90,11 +108,10 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
       const openaiClient = getClient();
       const signal = options.signal as AbortSignal | undefined;
 
-      const openaiMessages = messages.map((m) => ({
+      // deno-lint-ignore no-explicit-any
+      const openaiMessages: any[] = messages.map((m) => ({
         role: m.role as "system" | "user" | "assistant",
-        content: typeof m.content === "string"
-          ? m.content
-          : JSON.stringify(m.content),
+        content: toOpenAiContent(m.content),
       }));
 
       const stream = await openaiClient.chat.completions.create(

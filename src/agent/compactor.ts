@@ -9,6 +9,7 @@
 
 import type { HistoryEntry } from "./orchestrator.ts";
 import type { LlmProvider, LlmMessage } from "./llm.ts";
+import { extractText, hasImages } from "../image/content.ts";
 
 /** Configuration for the conversation compactor. */
 export interface CompactorConfig {
@@ -46,6 +47,25 @@ export function estimateTokens(text: string): number {
 }
 
 /**
+ * Estimate tokens for a single content entry (string or content blocks).
+ * Images are estimated at ~1000 tokens each.
+ */
+function estimateContentTokens(content: HistoryEntry["content"]): number {
+  if (typeof content === "string") {
+    return estimateTokens(content);
+  }
+  let tokens = 0;
+  for (const block of content) {
+    if (block.type === "text") {
+      tokens += estimateTokens(block.text);
+    } else if (block.type === "image") {
+      tokens += 1000; // Approximate token cost per image
+    }
+  }
+  return tokens;
+}
+
+/**
  * Estimate total tokens for a conversation history.
  *
  * @param history - Conversation history entries
@@ -55,7 +75,7 @@ export function estimateHistoryTokens(
   history: readonly HistoryEntry[],
 ): number {
   return history.reduce(
-    (sum, entry) => sum + estimateTokens(entry.content),
+    (sum, entry) => sum + estimateContentTokens(entry.content),
     0,
   );
 }
@@ -84,10 +104,12 @@ function extractKeywords(messages: readonly HistoryEntry[]): readonly string[] {
 
   for (const msg of messages) {
     if (msg.role !== "user") continue;
+    // Extract text from content (skip non-string/multimodal)
+    const text = extractText(msg.content);
     // Skip system-injected messages
-    if (msg.content.startsWith("[")) continue;
+    if (text.startsWith("[")) continue;
 
-    const words = msg.content
+    const words = text
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, "")
       .split(/\s+/)
@@ -165,7 +187,7 @@ export function createCompactor(
 
     // Build summarization prompt
     const conversationText = toSummarize
-      .map((e) => `${e.role}: ${e.content}`)
+      .map((e) => `${e.role}: ${extractText(e.content)}`)
       .join("\n\n");
 
     const messages: LlmMessage[] = [

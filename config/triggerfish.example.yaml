@@ -2,18 +2,18 @@
 # Copy to ~/.triggerfish/triggerfish.yaml and edit.
 
 models:
-  primary: anthropic
+  primary: claude-sonnet-4-5-20250929
+  # vision: glm-4.5v  # Optional: separate vision model for image description
   providers:
     anthropic:
       model: claude-sonnet-4-5-20250929
+    # zai:
+    #   model: glm-4.7
 
 channels:
   cli:
     enabled: true
     classification: INTERNAL
-
-    # zai:
-    #   model: glm-4.7
 
 policy:
   default_action: ALLOW

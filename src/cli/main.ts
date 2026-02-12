@@ -40,7 +40,7 @@ import { createOrchestrator } from "../agent/orchestrator.ts";
 import type { ToolDefinition, ToolExecutor, OrchestratorEvent } from "../agent/orchestrator.ts";
 import { createProviderRegistry } from "../agent/llm.ts";
 import type { LlmProviderRegistry } from "../agent/llm.ts";
-import { loadProvidersFromConfig } from "../agent/providers/config.ts";
+import { loadProvidersFromConfig, resolveVisionProvider } from "../agent/providers/config.ts";
 import type { ModelsConfig } from "../agent/providers/config.ts";
 import { createPolicyEngine } from "../core/policy/engine.ts";
 import { createHookRunner, createDefaultRules } from "../core/policy/hooks.ts";
@@ -113,6 +113,8 @@ import {
   createImageToolExecutor,
   IMAGE_TOOLS_SYSTEM_PROMPT,
 } from "../image/mod.ts";
+import { readClipboardImage, imageBlock } from "../image/mod.ts";
+import type { ImageContentBlock, ContentBlock, MessageContent } from "../image/mod.ts";
 import {
   getExploreToolDefinitions,
   createExploreToolExecutor,
@@ -154,6 +156,7 @@ export interface ParsedCommand {
 export interface TriggerFishConfig {
   readonly models: {
     readonly primary: string;
+    readonly vision?: string;
     readonly providers: Readonly<Record<string, { readonly model: string; readonly apiKey?: string }>>;
   };
   readonly channels: Readonly<Record<string, unknown>>;
@@ -625,6 +628,7 @@ function createOrchestratorFactory(
 ): OrchestratorFactory {
   const registry = createProviderRegistry();
   loadProvidersFromConfig(config.models as ModelsConfig, registry);
+  const schedulerVisionProvider = resolveVisionProvider(config.models as ModelsConfig);
 
   const engine = createPolicyEngine();
   for (const rule of createDefaultRules()) {
@@ -703,6 +707,7 @@ function createOrchestratorFactory(
         tools: toolDefs,
         toolExecutor,
         systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT],
+        visionProvider: schedulerVisionProvider,
       });
 
       return { orchestrator, session };
@@ -865,8 +870,11 @@ async function runStart(): Promise<void> {
   // Tidepool tools (graceful degrade — host created after chatSession)
   const tidepoolExecutor = createTidepoolToolExecutor(undefined);
 
+  // Vision provider for image fallback (optional)
+  const visionProvider = resolveVisionProvider(config.models as ModelsConfig);
+
   // Image analysis tools
-  const imageExecutor = createImageToolExecutor(registry);
+  const imageExecutor = createImageToolExecutor(registry, visionProvider);
 
   // Session management tools — uses shared EnhancedSessionManager created earlier
   const sessionExecutor = createSessionToolExecutor({
@@ -919,6 +927,7 @@ async function runStart(): Promise<void> {
     systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT],
     session,
     debug: Deno.env.get("TRIGGERFISH_DEBUG") === "1",
+    visionProvider,
   });
 
   console.log("  Main session created");
@@ -2237,6 +2246,7 @@ async function runChat(): Promise<void> {
   const keypressReader = createKeypressReader();
   let editor: LineEditor = createLineEditor();
   let stashedInput = ""; // Stash current input when entering history navigation
+  let pendingImages: ImageContentBlock[] = []; // Images pasted with Ctrl+V, sent with next message
 
   // Cleanup function — must run on exit
   function cleanup(): void {
@@ -2352,6 +2362,7 @@ async function runChat(): Promise<void> {
               "    /compact             — Summarize conversation history\n" +
               "    /verbose             — Toggle tool display detail\n" +
               "    /help                — Show this help\n" +
+              "    Ctrl+V               — Paste image from clipboard\n" +
               "    Ctrl+O               — Toggle tool display mode\n" +
               "    ESC                  — Interrupt current operation\n" +
               "    Shift+Enter          — New line in message\n" +
@@ -2373,10 +2384,21 @@ async function runChat(): Promise<void> {
             break;
           }
 
+          // Build message content — multimodal if images are pending
+          let messageContent: MessageContent = text;
+          if (pendingImages.length > 0) {
+            const blocks: ContentBlock[] = [
+              ...pendingImages,
+              { type: "text" as const, text },
+            ];
+            messageContent = blocks;
+            pendingImages = [];
+          }
+
           // Send message to daemon via WebSocket
           state.isProcessing = true;
           try {
-            ws.send(JSON.stringify({ type: "message", content: text }));
+            ws.send(JSON.stringify({ type: "message", content: messageContent }));
           } catch {
             screen.writeOutput(formatError("Lost connection to daemon"));
             state.isProcessing = false;
@@ -2460,6 +2482,22 @@ async function runChat(): Promise<void> {
         editor = editor.acceptSuggestion();
         screen.redrawInput(editor);
         break;
+
+      case "ctrl+v": {
+        // Paste image from clipboard
+        const clipResult = await readClipboardImage();
+        if (clipResult.ok) {
+          const img = imageBlock(clipResult.value.data, clipResult.value.mimeType);
+          pendingImages.push(img);
+          const sizeKb = (clipResult.value.data.length / 1024).toFixed(1);
+          screen.setStatus(`Image pasted (${clipResult.value.mimeType}, ${sizeKb}KB) — will send with next message`);
+          setTimeout(() => screen.clearStatus(), 3000);
+        } else {
+          screen.setStatus(clipResult.error);
+          setTimeout(() => screen.clearStatus(), 3000);
+        }
+        break;
+      }
 
       case "ctrl+o":
         displayMode = displayMode === "compact" ? "expanded" : "compact";

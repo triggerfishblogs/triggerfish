@@ -9,6 +9,25 @@
 
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
 import { parseSseStream } from "./sse.ts";
+import type { ContentBlock } from "../../image/content.ts";
+
+/** Convert content blocks to OpenAI-compatible multimodal format. */
+function toOpenAiContent(content: string | unknown): string | unknown[] {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return JSON.stringify(content);
+  return (content as ContentBlock[]).map((block) => {
+    if (block.type === "text") return { type: "text", text: block.text };
+    if (block.type === "image") {
+      return {
+        type: "image_url",
+        image_url: {
+          url: `data:${block.source.media_type};base64,${block.source.data}`,
+        },
+      };
+    }
+    return block;
+  });
+}
 
 /** Configuration for the ZenMux provider. */
 export interface ZenMuxConfig {
@@ -57,9 +76,7 @@ export function createZenMuxProvider(config: ZenMuxConfig): LlmProvider {
       const signal = options.signal as AbortSignal | undefined;
       const openaiMessages = messages.map((m) => ({
         role: m.role,
-        content: typeof m.content === "string"
-          ? m.content
-          : JSON.stringify(m.content),
+        content: toOpenAiContent(m.content),
       }));
 
       const response = await fetch(ZENMUX_API_URL, {
@@ -101,9 +118,7 @@ export function createZenMuxProvider(config: ZenMuxConfig): LlmProvider {
       const signal = options.signal as AbortSignal | undefined;
       const openaiMessages = messages.map((m) => ({
         role: m.role,
-        content: typeof m.content === "string"
-          ? m.content
-          : JSON.stringify(m.content),
+        content: toOpenAiContent(m.content),
       }));
 
       const response = await fetch(ZENMUX_API_URL, {

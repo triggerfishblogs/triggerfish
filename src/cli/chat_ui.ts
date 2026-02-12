@@ -544,6 +544,21 @@ export function createEventHandler(): EventCallback {
         }
         break;
 
+      case "vision_start":
+        spinner = createSpinner(
+          event.imageCount === 1
+            ? "Analyzing image…"
+            : `Analyzing ${event.imageCount} images…`,
+        );
+        break;
+
+      case "vision_complete":
+        if (spinner) {
+          spinner.stop();
+          spinner = null;
+        }
+        break;
+
       case "response":
         renderResponse(event.text);
         break;
@@ -641,6 +656,31 @@ export function createScreenEventHandler(
           screen.writeOutput(
             formatToolResultExpanded(event.result, event.blocked),
           );
+        }
+        break;
+
+      case "vision_start":
+        if (screen.isTty) {
+          screen.startSpinner(
+            event.imageCount === 1
+              ? "Analyzing image"
+              : `Analyzing ${event.imageCount} images`,
+          );
+        } else {
+          spinner = createSpinner(
+            event.imageCount === 1
+              ? "Analyzing image…"
+              : `Analyzing ${event.imageCount} images…`,
+          );
+        }
+        break;
+
+      case "vision_complete":
+        if (screen.isTty) {
+          screen.stopSpinner();
+        } else if (spinner) {
+          spinner.stop();
+          spinner = null;
         }
         break;
 

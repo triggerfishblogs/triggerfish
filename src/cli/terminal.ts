@@ -33,6 +33,7 @@ const CTRL_KEYS: Readonly<Record<number, string>> = {
   0x0F: "ctrl+o",
   0x12: "ctrl+r",
   0x15: "ctrl+u",
+  0x16: "ctrl+v",
   0x17: "ctrl+w",
 };
 
