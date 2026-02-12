@@ -40,6 +40,13 @@ export type {
   ConfigWatcher,
 } from "./config_watcher.ts";
 
+export {
+  getSessionToolDefinitions,
+  createSessionToolExecutor,
+  SESSION_TOOLS_SYSTEM_PROMPT,
+} from "./tools.ts";
+export type { SessionToolContext } from "./tools.ts";
+
 export { createChatSession } from "./chat.ts";
 export type {
   ChatEvent,

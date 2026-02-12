@@ -22,12 +22,15 @@ export function buildPlanModePrompt(goal: string, scope?: string): string {
 You are in plan mode. Focus on exploring the codebase and designing an implementation approach.
 
 In plan mode, you MUST:
-1. Use read_file, list_directory, search_files to explore the codebase thoroughly
-2. Identify existing patterns, interfaces, and architectural conventions
-3. Find similar features and understand how they were implemented
-4. Consider multiple approaches and their trade-offs
+1. Use explore to understand the codebase structure, patterns, and conventions
+2. Use explore with focus to investigate specific areas relevant to your goal
+3. Use read_file for targeted deep-reads of specific files explore identified
+4. Use search_files for specific pattern searches explore didn't cover
 5. Use run_command for read-only commands (grep, find, wc, cat, head, etc.)
-6. Design a concrete, step-by-step implementation strategy
+6. Design a concrete, step-by-step implementation strategy based on what you found
+
+Start broad (explore the root or relevant module), then narrow (explore + focus
+on specific concerns).
 
 You MUST NOT:
 - Write or edit any files (write_file is blocked)

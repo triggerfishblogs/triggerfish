@@ -25,7 +25,12 @@ export { TIDEPOOL_HTML } from "./ui.ts";
 
 // A2UI tools (Result-based, component tree)
 export type { TidePoolTools } from "./tools.ts";
-export { createTidePoolTools } from "./tools.ts";
+export {
+  createTidePoolTools,
+  getTidepoolToolDefinitions,
+  createTidepoolToolExecutor,
+  TIDEPOOL_SYSTEM_PROMPT,
+} from "./tools.ts";
 
 // Legacy callback-based host and tools (backward compatibility)
 export type { TidepoolHost, TidepoolHostOptions } from "./host.ts";
