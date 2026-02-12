@@ -52,7 +52,8 @@ export type ChatEvent =
 /** Messages the client can send. */
 export type ChatClientMessage =
   | { readonly type: "message"; readonly content: MessageContent }
-  | { readonly type: "cancel" };
+  | { readonly type: "cancel" }
+  | { readonly type: "clear" };
 
 /** Callback to send a chat event to a specific client. */
 export type ChatEventSender = (event: ChatEvent) => void;
@@ -74,6 +75,14 @@ export interface ChatSessionConfig {
   readonly debug?: boolean;
   /** Vision-capable LLM provider for image fallback. */
   readonly visionProvider?: LlmProvider;
+  /** Tool prefix → classification level. Enforced before every tool dispatch. */
+  readonly toolClassifications?: ReadonlyMap<string, ClassificationLevel>;
+  /** Read current session taint for canFlowTo checks. */
+  readonly getSessionTaint?: () => ClassificationLevel;
+  /** Escalate session taint after tool dispatch. */
+  readonly escalateTaint?: (level: ClassificationLevel, reason: string) => void;
+  /** Reset session state (taint back to PUBLIC). Called on /clear. */
+  readonly resetSession?: () => void;
 }
 
 /** Shared chat session that serializes access to the orchestrator. */
@@ -84,6 +93,8 @@ export interface ChatSession {
     sendEvent: ChatEventSender,
     signal?: AbortSignal,
   ): Promise<void>;
+  /** Clear conversation history and reset session state. */
+  clear(): void;
   /** The name of the default LLM provider. */
   readonly providerName: string;
   /** The primary model identifier from config. */
@@ -119,6 +130,9 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     planManager: config.planManager,
     debug: config.debug,
     visionProvider: config.visionProvider,
+    toolClassifications: config.toolClassifications,
+    getSessionTaint: config.getSessionTaint,
+    escalateTaint: config.escalateTaint,
   });
 
   const session = config.session;
@@ -166,8 +180,16 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     }
   }
 
+  function clear(): void {
+    orchestrator.clearHistory(session.id);
+    if (config.resetSession) {
+      config.resetSession();
+    }
+  }
+
   return {
     processMessage,
+    clear,
     get providerName() {
       return providerName;
     },

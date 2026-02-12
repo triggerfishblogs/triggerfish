@@ -36,7 +36,12 @@ function makeAnswers(
     telegramOwnerId: "",
     webchatPort: 8765,
     classificationMode: "standard",
-    skills: [],
+    selectedPlugins: [],
+    obsidianVaultPath: "",
+    obsidianClassification: "INTERNAL",
+    searchProvider: "skip",
+    searchApiKey: "",
+    searxngUrl: "",
     installDaemon: false,
     ...overrides,
   };
@@ -171,6 +176,27 @@ Deno.test("Wizard: generateConfig for OpenRouter provider", () => {
   const models = parsed.models as Record<string, unknown>;
   const providers = models.providers as Record<string, Record<string, string>>;
   assertEquals(providers.openrouter.model, "anthropic/claude-sonnet-4-5");
+});
+
+Deno.test("Wizard: generateConfig includes obsidian plugin when selected", () => {
+  const answers = makeAnswers({
+    selectedPlugins: ["obsidian"],
+    obsidianVaultPath: "/home/user/vault",
+    obsidianClassification: "CONFIDENTIAL",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const plugins = parsed.plugins as Record<string, Record<string, unknown>>;
+  assertEquals(plugins.obsidian.enabled, true);
+  assertEquals(plugins.obsidian.vault_path, "/home/user/vault");
+  assertEquals(plugins.obsidian.classification, "CONFIDENTIAL");
+});
+
+Deno.test("Wizard: generateConfig omits plugins when none selected", () => {
+  const answers = makeAnswers({ selectedPlugins: [] });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  assertEquals(parsed.plugins, undefined);
 });
 
 // ─── generateSpine tests ─────────────────────────────────────────────────────

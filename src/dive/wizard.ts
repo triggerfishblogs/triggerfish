@@ -6,7 +6,7 @@
  * 2. Name agent + personality → generates SPINE.md
  * 3. Connect first channel (CLI, WebChat, Telegram)
  * 4. Classification preference
- * 5. Recommended skills (aspirational)
+ * 5. Optional plugins (Obsidian, etc.)
  * 6. Connect Google Workspace (optional)
  * 7. Connect GitHub (optional)
  * 8. Search provider (Brave, SearXNG, skip)
@@ -64,7 +64,9 @@ export interface WizardAnswers {
   readonly telegramOwnerId: string;
   readonly webchatPort: number;
   readonly classificationMode: ClassificationMode;
-  readonly skills: ReadonlyArray<string>;
+  readonly selectedPlugins: ReadonlyArray<string>;
+  readonly obsidianVaultPath: string;
+  readonly obsidianClassification: string;
   readonly searchProvider: SearchProviderChoice;
   readonly searchApiKey: string;
   readonly searxngUrl: string;
@@ -181,6 +183,18 @@ export function generateConfig(answers: WizardAnswers): string {
 
   if (Object.keys(web).length > 0) {
     config["web"] = web;
+  }
+
+  // Build plugins section
+  if (answers.selectedPlugins.includes("obsidian") && answers.obsidianVaultPath.length > 0) {
+    config["plugins"] = {
+      obsidian: {
+        enabled: true,
+        vault_path: answers.obsidianVaultPath,
+        classification: answers.obsidianClassification || "INTERNAL",
+        daily_notes: { folder: "daily", date_format: "YYYY-MM-DD" },
+      },
+    };
   }
 
   // Generate YAML with a header comment
@@ -434,24 +448,56 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   console.log("");
 
-  // ── Step 5: Recommended Skills ─────────────────────────────────────────────
+  // ── Step 5: Optional Plugins ──────────────────────────────────────────────
 
-  console.log("  Step 5/9: Install recommended skills");
+  console.log("  Step 5/9: Configure optional plugins");
   console.log("");
 
-  const skills = await Checkbox.prompt({
-    message: "Select skills to enable (coming soon)",
+  const selectedPlugins = await Checkbox.prompt({
+    message: "Which plugins would you like to configure?",
     options: [
-      { name: "Morning Briefing", value: "morning-briefing" },
-      { name: "Calendar Integration", value: "calendar" },
-      { name: "Email Summary", value: "email-summary" },
+      { name: "Obsidian (local vault integration)", value: "obsidian" },
     ],
   });
 
-  if (skills.length > 0) {
-    console.log(
-      `  → ${skills.length} skill(s) noted — will be available when The Reef launches`,
-    );
+  let obsidianVaultPath = "";
+  let obsidianClassification = "INTERNAL";
+
+  if (selectedPlugins.includes("obsidian")) {
+    // Validate vault path
+    while (true) {
+      obsidianVaultPath = await Input.prompt({
+        message: "Path to your Obsidian vault",
+      });
+      if (obsidianVaultPath.length === 0) {
+        console.log("  Vault path is required for Obsidian plugin.");
+        continue;
+      }
+      // Expand ~ to home directory
+      if (obsidianVaultPath.startsWith("~")) {
+        const home = Deno.env.get("HOME") ?? "";
+        obsidianVaultPath = home + obsidianVaultPath.slice(1);
+      }
+      try {
+        await Deno.stat(`${obsidianVaultPath}/.obsidian`);
+        break;
+      } catch {
+        console.log(`  Not a valid Obsidian vault (no .obsidian/ folder found at ${obsidianVaultPath})`);
+        console.log("  Please enter the root folder of your Obsidian vault.");
+      }
+    }
+
+    obsidianClassification = await Select.prompt({
+      message: "Vault classification level",
+      options: ["INTERNAL", "PUBLIC", "CONFIDENTIAL", "RESTRICTED"],
+      default: "INTERNAL",
+    });
+
+    console.log("  ✓ Obsidian vault configured");
+  }
+
+  if (selectedPlugins.length === 0) {
+    console.log("  No plugins selected — add later with: triggerfish config add-plugin");
   }
 
   console.log("");
@@ -662,7 +708,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
     telegramOwnerId,
     webchatPort,
     classificationMode,
-    skills,
+    selectedPlugins,
+    obsidianVaultPath,
+    obsidianClassification,
     searchProvider,
     searchApiKey,
     searxngUrl,

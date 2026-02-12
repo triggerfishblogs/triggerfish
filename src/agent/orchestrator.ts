@@ -13,6 +13,7 @@
  */
 
 import type { Result, ClassificationLevel } from "../core/types/classification.ts";
+import { canFlowTo } from "../core/types/classification.ts";
 import type { SessionState, SessionId } from "../core/types/session.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { LlmProviderRegistry, LlmMessage, LlmProvider } from "./llm.ts";
@@ -85,6 +86,53 @@ export interface OrchestratorConfig {
   readonly debug?: boolean;
   /** Vision-capable LLM provider for describing images when the primary model lacks vision. */
   readonly visionProvider?: LlmProvider;
+  /** Tool prefix → classification level. Enforced before every tool dispatch. */
+  readonly toolClassifications?: ReadonlyMap<string, ClassificationLevel>;
+  /** Read current session taint for canFlowTo checks. */
+  readonly getSessionTaint?: () => ClassificationLevel;
+  /** Escalate session taint after tool dispatch (upward only via maxClassification). */
+  readonly escalateTaint?: (level: ClassificationLevel, reason: string) => void;
+}
+
+/** Config shape for building integration/plugin/channel classification map. */
+export interface ClassificationMapConfig {
+  /** Google Workspace classification. */
+  readonly google?: { readonly classification?: string };
+  /** GitHub integration classification. */
+  readonly github?: { readonly classification?: string };
+  /** Plugins keyed by name — each with enabled + classification. */
+  readonly plugins?: Readonly<Record<string, { readonly enabled?: boolean; readonly classification?: string } | undefined>>;
+}
+
+/**
+ * Build tool prefix → classification map for integrations, plugins, and channels.
+ *
+ * Built-in tools are not in this map and pass through ungated.
+ * Only external integrations, plugins, and channels are classified.
+ */
+export function buildToolClassifications(config: ClassificationMapConfig): Map<string, ClassificationLevel> {
+  const m = new Map<string, ClassificationLevel>();
+
+  // Google Workspace — gmail_, calendar_, drive_, sheets_, tasks_
+  const googleClassification = (config.google?.classification ?? "PUBLIC") as ClassificationLevel;
+  for (const prefix of ["gmail_", "calendar_", "drive_", "sheets_", "tasks_"]) {
+    m.set(prefix, googleClassification);
+  }
+
+  // GitHub — all tools start with github_
+  m.set("github_", (config.github?.classification ?? "PUBLIC") as ClassificationLevel);
+
+  // Plugins — each plugin's tools use {pluginName}. prefix convention
+  if (config.plugins) {
+    for (const [name, pluginConfig] of Object.entries(config.plugins)) {
+      const cfg = pluginConfig as { enabled?: boolean; classification?: string } | undefined;
+      if (cfg?.enabled) {
+        m.set(`${name}.`, (cfg.classification ?? "INTERNAL") as ClassificationLevel);
+      }
+    }
+  }
+
+  return m;
 }
 
 /** Options for processing a single message. */
@@ -115,6 +163,8 @@ export interface Orchestrator {
   ): Promise<Result<ProcessMessageResult, string>>;
   /** Get conversation history for a session. */
   getHistory(sessionId: SessionId): readonly HistoryEntry[];
+  /** Clear conversation history for a session. */
+  clearHistory(sessionId: SessionId): void;
 }
 
 /** Events emitted by the orchestrator during message processing. */
@@ -314,7 +364,50 @@ function stripToolCalls(text: string): string {
 export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   const { hookRunner, providerRegistry, spinePath } = config;
   const tools = config.tools ?? [];
-  const toolExecutor = config.toolExecutor;
+  const rawToolExecutor = config.toolExecutor;
+
+  // Wrap tool executor with classification enforcement for integrations.
+  // Only tools whose name matches a prefix in toolClassifications are gated.
+  // Built-in tools (read_file, todo_, plan., etc.) have no entry and pass through.
+  // Matched integrations: escalate taint on entry, block write-down via canFlowTo.
+  const toolExecutor: ToolExecutor | undefined = rawToolExecutor
+    ? async (name: string, input: Record<string, unknown>): Promise<string> => {
+        if (config.toolClassifications && config.getSessionTaint) {
+          for (const [prefix, level] of config.toolClassifications) {
+            if (name.startsWith(prefix)) {
+              // Write-down check: session taint must flow to integration level
+              const currentTaint = config.getSessionTaint();
+              if (!canFlowTo(currentTaint, level)) {
+                return `Error: Session taint ${currentTaint} cannot flow to ${name} (classified ${level}). ` +
+                  `Accessing a lower-classified tool from a higher-tainted session risks data leakage. ` +
+                  `Use /clear to reset your session context and taint before using ${level}-classified tools.`;
+              }
+              // Escalate session taint to integration level
+              if (config.escalateTaint) {
+                config.escalateTaint(level, `Tool call: ${name}`);
+              }
+              break;
+            }
+          }
+        }
+
+        const result = await rawToolExecutor(name, input);
+
+        // Post-call: escalate based on response-level classification
+        // (e.g. GitHub per-repo classification in _classification field)
+        if (config.escalateTaint) {
+          try {
+            const parsed = JSON.parse(result);
+            const cls = parsed._classification;
+            if (typeof cls === "string") {
+              config.escalateTaint(cls as ClassificationLevel, `Tool response: ${name}`);
+            }
+          } catch { /* not JSON or no classification field */ }
+        }
+
+        return result;
+      }
+    : undefined;
   const systemPromptSections = config.systemPromptSections ?? [];
   const planManager = config.planManager;
   const visionProvider = config.visionProvider;
@@ -727,5 +820,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     return histories.get(sessionKey) ?? [];
   }
 
-  return { processMessage, getHistory };
+  function clearHistory(sessionId: SessionId): void {
+    histories.delete(sessionId as string);
+  }
+
+  return { processMessage, getHistory, clearHistory };
 }

@@ -261,6 +261,11 @@ function handleChatWebSocket(
         return;
       }
 
+      if (msg.type === "clear") {
+        chat.clear();
+        return;
+      }
+
       if (msg.type === "message" && (typeof msg.content === "string" || (Array.isArray(msg.content) && msg.content.length > 0))) {
         abortController = new AbortController();
         const signal = abortController.signal;
