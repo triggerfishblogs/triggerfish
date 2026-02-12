@@ -172,17 +172,17 @@ function buildToolPrompt(tools: readonly ToolDefinition[]): string {
 
   return `## Available Tools
 
-You have access to the following tools. To use a tool, output a JSON block wrapped in <tool_call> tags. You may use multiple tools in a single response. After all tool results are returned, continue your response.
+You have access to the following tools. To use a tool, output a JSON block wrapped in [TOOL_CALL] and [/TOOL_CALL] markers. You may use multiple tools in a single response. After all tool results are returned, continue your response.
 
 Format:
-<tool_call>
+[TOOL_CALL]
 {"name": "tool_name", "args": {"param1": "value1"}}
-</tool_call>
+[/TOOL_CALL]
 
 Tools:
 ${toolDescs}
 
-Important: Use tools when the user asks you to interact with the filesystem, run commands, or search for files. After using tools, provide your answer based on the results. Never narrate your intent before using a tool — just emit the <tool_call> block directly.`;
+Important: Use tools when the user asks you to interact with the filesystem, run commands, or search for files. After using tools, provide your answer based on the results. Never narrate your intent before using a tool — just emit the [TOOL_CALL] block directly.`;
 }
 
 /**
@@ -208,29 +208,38 @@ function extractArgs(parsed: Record<string, unknown>): Record<string, unknown> {
 
 /**
  * Parse tool calls from LLM text output.
- * Looks for <tool_call>...</tool_call> blocks containing JSON.
+ * Looks for [TOOL_CALL]...[/TOOL_CALL] blocks containing JSON.
+ * Also accepts legacy <tool_call>...</tool_call> XML tags for backwards compat.
  * Falls back to detecting bare JSON objects with a "name" field
- * (some models forget the XML tags).
+ * (some models forget the tags).
  */
 function parseToolCalls(text: string): readonly ParsedToolCall[] {
   const calls: ParsedToolCall[] = [];
-  const regex = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    try {
-      const parsed = JSON.parse(match[1]);
-      if (parsed.name && typeof parsed.name === "string") {
-        calls.push({
-          name: parsed.name,
-          args: extractArgs(parsed),
-        });
+
+  // Match [TOOL_CALL]...[/TOOL_CALL] (primary) and <tool_call>...</tool_call> (legacy)
+  const patterns = [
+    /\[TOOL_CALL\]\s*([\s\S]*?)\s*\[\/TOOL_CALL\]/g,
+    /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g,
+  ];
+
+  for (const regex of patterns) {
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      try {
+        const parsed = JSON.parse(match[1]);
+        if (parsed.name && typeof parsed.name === "string") {
+          calls.push({
+            name: parsed.name,
+            args: extractArgs(parsed),
+          });
+        }
+      } catch {
+        // Skip malformed JSON
       }
-    } catch {
-      // Skip malformed JSON
     }
   }
 
-  // Fallback: detect bare JSON tool calls without <tool_call> tags.
+  // Fallback: detect bare JSON tool calls without tags.
   // Only if no tagged calls were found and the entire text is a JSON object.
   if (calls.length === 0) {
     const trimmed = text.trim();
@@ -259,17 +268,24 @@ function parseToolCalls(text: string): readonly ParsedToolCall[] {
  * to avoid accidentally stripping the model's response.
  */
 function stripToolCalls(text: string): string {
-  return text.replace(/<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g, (_match, inner: string) => {
-    try {
-      const parsed = JSON.parse(inner);
-      if (parsed && typeof parsed.name === "string") {
-        return ""; // Valid tool call — strip it
+  // Strip both [TOOL_CALL] and legacy <tool_call> formats
+  const stripPattern = (t: string, re: RegExp): string =>
+    t.replace(re, (_match, inner: string) => {
+      try {
+        const parsed = JSON.parse(inner);
+        if (parsed && typeof parsed.name === "string") {
+          return ""; // Valid tool call — strip it
+        }
+      } catch {
+        // Not valid JSON — preserve inner content
       }
-    } catch {
-      // Not valid JSON — preserve inner content
-    }
-    return inner;
-  }).trim();
+      return inner;
+    });
+
+  let result = text;
+  result = stripPattern(result, /\[TOOL_CALL\]\s*([\s\S]*?)\s*\[\/TOOL_CALL\]/g);
+  result = stripPattern(result, /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g);
+  return result.trim();
 }
 
 /**
@@ -408,18 +424,63 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
         }
       }
 
-      // Call LLM provider (no native tools — we use prompt-based tools)
-      const completion = await provider.complete(messages, [], {
+      // Call LLM provider — pass native tool definitions for providers that support them
+      const nativeTools = (tools.length > 0 && toolExecutor)
+        ? tools.map((t) => ({
+            type: "function" as const,
+            function: {
+              name: t.name,
+              description: t.description,
+              parameters: {
+                type: "object" as const,
+                properties: Object.fromEntries(
+                  Object.entries(t.parameters).map(([k, v]) => [k, {
+                    type: v.type,
+                    description: v.description,
+                  }]),
+                ),
+                required: Object.entries(t.parameters)
+                  .filter(([_, v]) => v.required !== false)
+                  .map(([k]) => k),
+              },
+            },
+          }))
+        : [];
+
+      const completion = await provider.complete(messages, nativeTools, {
         ...(signal ? { signal } : {}),
       });
 
       debugLog(`iter${iterations} raw`, completion.content);
 
-      // Parse tool calls from the response text
+      // Parse tool calls: check native tool_calls first, then text-based
       const hasTools = (tools.length > 0 && toolExecutor) || planManager;
-      const parsedCalls = hasTools
-        ? parseToolCalls(completion.content)
-        : [];
+      let parsedCalls: readonly ParsedToolCall[] = [];
+
+      // Check for native tool calls from provider (OpenAI-compatible format)
+      if (hasTools && Array.isArray(completion.toolCalls) && completion.toolCalls.length > 0) {
+        parsedCalls = completion.toolCalls
+          .filter((tc: unknown): tc is { function: { name: string; arguments: string } } => {
+            const t = tc as Record<string, unknown>;
+            return t !== null && typeof t === "object" &&
+              typeof (t as { function?: unknown }).function === "object";
+          })
+          .map((tc) => {
+            let args: Record<string, unknown> = {};
+            try {
+              args = JSON.parse(tc.function.arguments);
+            } catch {
+              // Malformed arguments
+            }
+            return { name: tc.function.name, args };
+          });
+        debugLog(`iter${iterations} nativeToolCalls`, parsedCalls.length);
+      }
+
+      // Fall back to text-based parsing if no native tool calls
+      if (parsedCalls.length === 0 && hasTools) {
+        parsedCalls = parseToolCalls(completion.content);
+      }
 
       debugLog(`iter${iterations} parsedCalls`, parsedCalls.length);
 
@@ -449,7 +510,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
             history.push({ role: "assistant", content: completion.content });
           }
           const nudge = isLeakedIntent
-            ? "[SYSTEM] You described your intent but didn't use a tool. Do not narrate — use the tool directly by outputting a <tool_call> block. For web searches, use: <tool_call>{\"name\": \"web_search\", \"args\": {\"query\": \"your search terms\"}}</tool_call>"
+            ? "[SYSTEM] You described your intent but didn't use a tool. Do not narrate — use the tool directly by outputting a [TOOL_CALL] block. For web searches, use: [TOOL_CALL]{\"name\": \"web_search\", \"args\": {\"query\": \"your search terms\"}}[/TOOL_CALL]"
             : (emptyNudgeCount === 1
               ? "[SYSTEM] Your response was empty. Please respond to the user's message with a helpful answer. If the user asked you to search or look something up, use the web_search tool."
               : "[SYSTEM] Your previous response was still empty. You MUST write a natural language response. Summarize what you know and answer the user directly.");
@@ -491,7 +552,14 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       }
 
       // Tool calls found — add assistant message to history
-      history.push({ role: "assistant", content: completion.content });
+      // If the model used native tool calls and content is empty, synthesize
+      // a text-based representation so the history stays coherent
+      const assistantContent = completion.content.trim().length > 0
+        ? completion.content
+        : parsedCalls.map((c) =>
+            `[TOOL_CALL]\n${JSON.stringify({ name: c.name, args: c.args })}\n[/TOOL_CALL]`
+          ).join("\n");
+      history.push({ role: "assistant", content: assistantContent });
 
       // Inject soft limit warning to help the LLM wrap up
       if (iterations === SOFT_LIMIT_ITERATIONS) {
@@ -562,7 +630,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           result: resultText,
           blocked,
         });
-        resultParts.push(`<tool_result name="${call.name}">\n${resultText}\n</tool_result>`);
+        resultParts.push(`[TOOL_RESULT name="${call.name}"]\n${resultText}\n[/TOOL_RESULT]`);
       }
 
       // Add tool results as a user message

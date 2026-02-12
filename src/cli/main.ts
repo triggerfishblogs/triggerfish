@@ -555,12 +555,6 @@ function buildWebTools(
     searchProvider = createBraveSearchProvider({
       apiKey: searchConfig.api_key,
     });
-  } else {
-    // Check environment variable as fallback
-    const envKey = Deno.env.get("BRAVE_API_KEY");
-    if (envKey) {
-      searchProvider = createBraveSearchProvider({ apiKey: envKey });
-    }
   }
 
   return { searchProvider, webFetcher };

@@ -51,7 +51,7 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
 
     async complete(
       messages: readonly LlmMessage[],
-      _tools: readonly unknown[],
+      tools: readonly unknown[],
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       const signal = options.signal as AbortSignal | undefined;
@@ -63,11 +63,17 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
           : JSON.stringify(m.content),
       }));
 
-      const requestBody = JSON.stringify({
+      // Build request body — include tools if provided
+      const body: Record<string, unknown> = {
         model,
         max_tokens: maxTokens,
         messages: openaiMessages,
-      });
+      };
+      if (Array.isArray(tools) && tools.length > 0) {
+        body.tools = tools;
+      }
+
+      const requestBody = JSON.stringify(body);
 
       if (debug) {
         console.error(`[openrouter] model=${model} msgs=${openaiMessages.length} body=${requestBody.length}chars`);
