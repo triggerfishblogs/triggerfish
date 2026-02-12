@@ -10,12 +10,12 @@ If you used the one-command installer, the wizard already ran during installatio
 triggerfish dive
 ```
 
-The wizard walks you through six steps:
+The wizard walks you through nine steps:
 
 ### Step 1: Choose Your LLM Provider
 
 ```
-Step 1/6: Choose your LLM provider
+Step 1/9: Choose your LLM provider
   > Anthropic (Claude) — recommended
     OpenAI
     Google (Gemini)
@@ -29,7 +29,7 @@ Select a provider and enter your credentials. Triggerfish supports multiple prov
 ### Step 2: Name Your Agent
 
 ```
-Step 2/6: Name your agent and set its personality
+Step 2/9: Name your agent and set its personality
   Agent name: Reef
   Mission (one sentence): Help me stay organized and informed
   Tone: > Professional  Casual  Terse  Custom
@@ -40,7 +40,7 @@ This generates your `SPINE.md` file -- the foundation of your agent's system pro
 ### Step 3: Connect a Channel
 
 ```
-Step 3/6: Connect your first channel
+Step 3/9: Connect your first channel
   > WhatsApp (scan QR)
     Telegram (enter bot token)
     Slack (OAuth)
@@ -53,7 +53,7 @@ Pick a messaging platform or skip this step to start with just the CLI. You can 
 ### Step 4: Set Classification Mode
 
 ```
-Step 4/6: Set your classification preference
+Step 4/9: Set your classification preference
   > Standard (4 levels: PUBLIC > PERSONAL > PRIVATE > SENSITIVE)
     Simple (2 levels: PUBLIC / PRIVATE)
     Custom
@@ -64,7 +64,7 @@ This controls how Triggerfish classifies and protects your data. For most person
 ### Step 5: Install Starter Skills
 
 ```
-Step 5/6: Install recommended skills
+Step 5/9: Install recommended skills
   > Morning Briefing
   > Calendar Integration
   > Email Summary
@@ -73,10 +73,22 @@ Step 5/6: Install recommended skills
 
 Skills give your agent new capabilities. You can install more later from The Reef marketplace.
 
-### Step 6: Start the Daemon
+### Step 6: Connect Google Workspace (optional)
+
+Connect your Google account for Gmail, Calendar, Tasks, Drive, and Sheets via OAuth2. You can skip this and connect later with `triggerfish connect google`.
+
+### Step 7: Connect GitHub (optional)
+
+Connect GitHub by pasting a Personal Access Token. Gives the agent tools for repos, PRs, issues, and Actions. You can skip this and connect later with `triggerfish connect github`.
+
+### Step 8: Set Up Web Search
+
+Choose a search engine (Brave Search or self-hosted SearXNG) for your agent to use, or skip for now.
+
+### Step 9: Start the Daemon
 
 ```
-Step 6/6: Install as daemon?
+Step 9/9: Install as daemon?
   > Yes (start on login, runs in background)
     No (manual start only)
 ```
@@ -148,5 +160,6 @@ Overall: HEALTHY
 
 - **Customize your agent** -- edit `~/.triggerfish/SPINE.md` to refine your agent's personality and capabilities. See [SPINE and Triggers](./spine-and-triggers).
 - **Add more channels** -- connect Telegram, Slack, Discord, or WhatsApp in your `triggerfish.yaml`. See [Configuration](./configuration).
+- **Connect integrations** -- `triggerfish connect google` for Google Workspace, `triggerfish connect github` for GitHub. See [Integrations](/integrations/).
 - **Set up proactive behavior** -- create a `~/.triggerfish/TRIGGER.md` to tell your agent what to monitor. See [SPINE and Triggers](./spine-and-triggers).
 - **Explore commands** -- learn all available CLI and in-chat commands. See [CLI Commands](./commands).

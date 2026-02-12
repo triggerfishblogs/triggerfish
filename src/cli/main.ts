@@ -133,6 +133,13 @@ import {
   GOOGLE_TOOLS_SYSTEM_PROMPT,
 } from "../google/mod.ts";
 import type { GoogleAuthConfig } from "../google/mod.ts";
+import {
+  getGitHubToolDefinitions,
+  createGitHubToolExecutor,
+  createGitHubClient,
+  resolveGitHubToken,
+  GITHUB_TOOLS_SYSTEM_PROMPT,
+} from "../github/mod.ts";
 import { createKeychain } from "../secrets/keychain.ts";
 import { createTelegramChannel } from "../channels/telegram/adapter.ts";
 import type { ChatEventSender } from "../gateway/chat.ts";
@@ -200,6 +207,11 @@ export interface TriggerFishConfig {
         readonly classification: string;
       }[];
     };
+  };
+  readonly github?: {
+    readonly token?: string;
+    readonly base_url?: string;
+    readonly classification_overrides?: Readonly<Record<string, string>>;
   };
   readonly scheduler?: {
     readonly trigger?: {
@@ -287,6 +299,11 @@ export function parseCommand(
       flags["config_value"] = positional.slice(3).join(" ");
     } else if (sub === "get" && positional.length >= 3) {
       flags["config_key"] = positional[2];
+    } else if (sub === "set-secret" && positional.length >= 4) {
+      flags["secret_key"] = positional[2];
+      flags["secret_value"] = positional.slice(3).join(" ");
+    } else if (sub === "get-secret" && positional.length >= 3) {
+      flags["secret_key"] = positional[2];
     }
     return { command, subcommand: sub, flags };
   }
@@ -390,6 +407,8 @@ CONFIG SUBCOMMANDS:
   config get <key>                         Get a config value
   config validate                          Validate configuration
   config add-channel [type]                Add a channel (telegram, slack, discord, etc.)
+  config set-secret <key> <value>          Store a secret in OS keychain
+  config get-secret <key>                  Retrieve a secret from OS keychain
 
 CRON SUBCOMMANDS:
   cron list                              List all cron jobs
@@ -397,9 +416,11 @@ CRON SUBCOMMANDS:
   cron delete <job_id>                   Delete a cron job
   cron history <job_id>                  Show execution history
 
-GOOGLE WORKSPACE:
+INTEGRATIONS:
   connect google                         Authenticate with Google Workspace
+  connect github                         Authenticate with GitHub
   disconnect google                      Remove Google authentication
+  disconnect github                      Remove GitHub authentication
 
 EXAMPLES:
   triggerfish chat                                  # Start chatting with your agent
@@ -667,6 +688,7 @@ function createOrchestratorFactory(
   const spinePath = `${baseDir}/SPINE.md`;
   const toolDefs = getToolDefinitions();
   const { searchProvider, webFetcher } = buildWebTools(config);
+  const schedulerKeychain = createKeychain();
 
   return {
     async create(channelId: string) {
@@ -717,6 +739,26 @@ function createOrchestratorFactory(
         })
         : undefined;
 
+      // GitHub tools for scheduler agents
+      const schedulerGithubTokenResult = await resolveGitHubToken({
+        secretStore: schedulerKeychain,
+      });
+      const schedulerGithubExecutor = createGitHubToolExecutor(
+        schedulerGithubTokenResult.ok
+          ? {
+              client: createGitHubClient({
+                token: schedulerGithubTokenResult.value,
+                baseUrl: config.github?.base_url,
+                classificationConfig: config.github?.classification_overrides
+                  ? { overrides: config.github.classification_overrides as Readonly<Record<string, ClassificationLevel>> }
+                  : undefined,
+              }),
+              sessionTaint: session.taint,
+              sourceSessionId: session.id,
+            }
+          : undefined,
+      );
+
       const toolExecutor = createToolExecutor({
         execTools,
         cronManager,
@@ -727,6 +769,7 @@ function createOrchestratorFactory(
         planExecutor,
         sessionExecutor,
         googleExecutor: buildGoogleExecutor(session.taint, session.id),
+        githubExecutor: schedulerGithubExecutor,
         providerRegistry: registry,
       });
       const orchestrator = createOrchestrator({
@@ -735,7 +778,7 @@ function createOrchestratorFactory(
         spinePath,
         tools: toolDefs,
         toolExecutor,
-        systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT],
+        systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT],
         visionProvider: schedulerVisionProvider,
       });
 
@@ -968,6 +1011,25 @@ async function runStart(): Promise<void> {
     },
   );
 
+  // GitHub tools — resolve token from OS keychain
+  const keychain = createKeychain();
+  const githubTokenResult = await resolveGitHubToken({ secretStore: keychain });
+  const githubExecutor = createGitHubToolExecutor(
+    githubTokenResult.ok
+      ? {
+          client: createGitHubClient({
+            token: githubTokenResult.value,
+            baseUrl: config.github?.base_url,
+            classificationConfig: config.github?.classification_overrides
+              ? { overrides: config.github.classification_overrides as Readonly<Record<string, ClassificationLevel>> }
+              : undefined,
+          }),
+          sessionTaint: session.taint,
+          sourceSessionId: session.id,
+        }
+      : undefined,
+  );
+
   const toolExecutor = createToolExecutor({
     execTools,
     cronManager,
@@ -982,6 +1044,7 @@ async function runStart(): Promise<void> {
     sessionExecutor,
     exploreExecutor,
     googleExecutor: buildGoogleExecutor(session.taint, session.id),
+    githubExecutor,
     subagentFactory,
     providerRegistry: registry,
   });
@@ -992,7 +1055,7 @@ async function runStart(): Promise<void> {
     spinePath,
     tools: getToolDefinitions(),
     toolExecutor,
-    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT],
+    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT],
     session,
     debug: Deno.env.get("TRIGGERFISH_DEBUG") === "1",
     visionProvider,
@@ -1501,6 +1564,53 @@ function runConfigValidate(): void {
 }
 
 /**
+ * Store a secret in the OS keychain.
+ */
+async function runConfigSetSecret(
+  flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  const key = flags["secret_key"] as string | undefined;
+  const value = flags["secret_value"] as string | undefined;
+
+  if (!key || value === undefined) {
+    console.error("Usage: triggerfish config set-secret <key> <value>");
+    Deno.exit(1);
+  }
+
+  const store = createKeychain();
+  const result = await store.setSecret(key, value);
+  if (result.ok) {
+    console.log(`Secret "${key}" stored in keychain.`);
+  } else {
+    console.error(`Failed to store secret: ${result.error}`);
+    Deno.exit(1);
+  }
+}
+
+/**
+ * Retrieve a secret from the OS keychain.
+ */
+async function runConfigGetSecret(
+  flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  const key = flags["secret_key"] as string | undefined;
+
+  if (!key) {
+    console.error("Usage: triggerfish config get-secret <key>");
+    Deno.exit(1);
+  }
+
+  const store = createKeychain();
+  const result = await store.getSecret(key);
+  if (result.ok) {
+    console.log(result.value);
+  } else {
+    console.error(`Secret "${key}" not found in keychain.`);
+    Deno.exit(1);
+  }
+}
+
+/**
  * Add a channel to triggerfish.yaml interactively.
  */
 async function runConfigAddChannel(
@@ -1623,6 +1733,12 @@ async function runConfig(
     case "validate":
       runConfigValidate();
       break;
+    case "set-secret":
+      await runConfigSetSecret(flags);
+      break;
+    case "get-secret":
+      await runConfigGetSecret(flags);
+      break;
     default:
       console.log(`
 CONFIG USAGE:
@@ -1630,6 +1746,8 @@ CONFIG USAGE:
   triggerfish config get <key>            Get a configuration value
   triggerfish config validate             Validate configuration
   triggerfish config add-channel [type]   Add a channel interactively
+  triggerfish config set-secret <key> <value>  Store a secret in OS keychain
+  triggerfish config get-secret <key>          Retrieve a secret from OS keychain
 
 KEYS use dotted paths into triggerfish.yaml:
   web.search.provider              Search provider (brave)
@@ -1648,6 +1766,8 @@ EXAMPLES:
   triggerfish config set scheduler.trigger.enabled true
   triggerfish config get models.primary
   triggerfish config add-channel telegram
+  triggerfish config set-secret github-pat ghp_...
+  triggerfish config get-secret github-pat
 `);
       break;
   }
@@ -1714,6 +1834,7 @@ function getToolDefinitions(): readonly ToolDefinition[] {
     ...getImageToolDefinitions(),
     ...getExploreToolDefinitions(),
     ...getGoogleToolDefinitions(),
+    ...getGitHubToolDefinitions(),
     {
       name: "read_file",
       description: "Read the contents of a file at an absolute path.",
@@ -1830,6 +1951,7 @@ interface ToolExecutorOptions {
   readonly imageExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
   readonly exploreExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
   readonly googleExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly githubExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
   readonly subagentFactory?: (task: string, tools?: string) => Promise<string>;
 }
 
@@ -1899,6 +2021,12 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
     if (opts.googleExecutor) {
       const googleResult = await opts.googleExecutor(name, input);
       if (googleResult !== null) return googleResult;
+    }
+
+    // Try GitHub tools (returns null if not a github tool)
+    if (opts.githubExecutor) {
+      const githubResult = await opts.githubExecutor(name, input);
+      if (githubResult !== null) return githubResult;
     }
 
     // Try web tools (returns null if not a web tool)
@@ -2850,10 +2978,14 @@ async function runConnect(
     case "google":
       await runConnectGoogle();
       break;
+    case "github":
+      await runConnectGithub();
+      break;
     default:
       console.log(`
 CONNECT USAGE:
   triggerfish connect google    Authenticate with Google Workspace
+  triggerfish connect github    Authenticate with GitHub
 `);
       break;
   }
@@ -3030,6 +3162,72 @@ async function runConnectGoogle(): Promise<void> {
 }
 
 /**
+ * Interactive GitHub PAT setup flow.
+ */
+async function runConnectGithub(): Promise<void> {
+  console.log("Connect GitHub\n");
+  console.log("This will connect your GitHub account for repos, PRs, issues, and Actions.\n");
+  console.log("You need a Personal Access Token (PAT) from GitHub.\n");
+  console.log("  Quick setup:");
+  console.log("    1. Go to https://github.com/settings/tokens?type=beta");
+  console.log('    2. Click "Generate new token"');
+  console.log('    3. Name it "triggerfish"');
+  console.log("    4. Under Repository access, select the repos you want");
+  console.log("    5. Under Permissions, grant:");
+  console.log("       - Contents: Read and Write");
+  console.log("       - Issues: Read and Write");
+  console.log("       - Pull requests: Read and Write");
+  console.log("       - Actions: Read-only");
+  console.log("    6. Click Generate token and copy it\n");
+
+  const token = await Input.prompt({ message: "Paste your token" });
+  if (!token.trim()) {
+    console.log("No token provided. Aborted.");
+    return;
+  }
+
+  const trimmed = token.trim();
+  if (!trimmed.startsWith("ghp_") && !trimmed.startsWith("github_pat_")) {
+    console.log("Warning: token doesn't look like a GitHub PAT (expected ghp_... or github_pat_...)");
+    console.log("Continuing anyway...\n");
+  }
+
+  // Verify the token works
+  console.log("Verifying token...");
+  try {
+    const resp = await fetch("https://api.github.com/user", {
+      headers: {
+        "Authorization": `Bearer ${trimmed}`,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      console.log(`\nToken verification failed (${resp.status}): ${(body as Record<string, string>).message ?? "Unknown error"}`);
+      console.log("Check that your token is correct and has the required permissions.");
+      return;
+    }
+    const user = await resp.json();
+    console.log(`\nAuthenticated as: ${(user as Record<string, string>).login}`);
+  } catch (err: unknown) {
+    console.log(`\nCould not reach GitHub API: ${err instanceof Error ? err.message : String(err)}`);
+    console.log("Check your network connection and try again.");
+    return;
+  }
+
+  // Store in keychain
+  const secretStore = createKeychain();
+  const result = await secretStore.setSecret("github-pat", trimmed);
+  if (!result.ok) {
+    console.log(`\nFailed to store token: ${result.error}`);
+    return;
+  }
+
+  console.log("GitHub connected. Your agent can now use repos, PRs, issues, and Actions.");
+}
+
+/**
  * Handle `triggerfish disconnect <service>`.
  */
 async function runDisconnect(
@@ -3049,10 +3247,21 @@ async function runDisconnect(
       }
       break;
     }
+    case "github": {
+      const secretStore = createKeychain();
+      const result = await secretStore.deleteSecret("github-pat");
+      if (result.ok) {
+        console.log("GitHub disconnected. Token removed from keychain.");
+      } else {
+        console.log("No GitHub account was connected.");
+      }
+      break;
+    }
     default:
       console.log(`
 DISCONNECT USAGE:
   triggerfish disconnect google    Remove Google authentication
+  triggerfish disconnect github    Remove GitHub authentication
 `);
       break;
   }
