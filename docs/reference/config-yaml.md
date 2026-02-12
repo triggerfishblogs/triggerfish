@@ -16,6 +16,11 @@ models:
   # The primary model used for agent completions
   primary: claude-sonnet-4-5
 
+  # Optional: separate vision model for image description
+  # When the primary model doesn't support vision, images are automatically
+  # described by this model before reaching the primary.
+  # vision: glm-4.5v
+
   # Provider-specific configuration
   providers:
     anthropic:
@@ -265,6 +270,17 @@ groups:
 # ---------------------------------------------------------------------------
 # Remote: Remote access (optional)
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Web: Search and fetch configuration
+# ---------------------------------------------------------------------------
+web:
+  search:
+    provider: brave                        # Search backend (brave is the default)
+    api_key: "${BRAVE_SEARCH_API_KEY}"     # Brave Search API key
+
+# ---------------------------------------------------------------------------
+# Remote: Remote access (optional)
+# ---------------------------------------------------------------------------
 remote:
   tailscale:
     serve: true
@@ -282,6 +298,7 @@ remote:
 | Key | Type | Description |
 |-----|------|-------------|
 | `primary` | string | Model identifier used for agent completions |
+| `vision` | string | Optional vision model for automatic image description (see [Image and Vision](/features/image-vision)) |
 | `providers` | object | Provider-specific configuration (see below) |
 | `failover` | string[] | Ordered list of fallback models |
 | `failover_config.max_retries` | number | Retries per provider before failover |
@@ -317,6 +334,15 @@ Cron job definitions and trigger timing. See [Cron and Triggers](/features/cron-
 ### `notifications`
 
 Notification delivery preferences. See [Notifications](/features/notifications) for details.
+
+### `web`
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `web.search.provider` | string | Search backend for `web_search` tool (currently: `brave`) |
+| `web.search.api_key` | string | API key for the search provider |
+
+See [Web Search and Fetch](/features/web-search) for details.
 
 ### `github`
 

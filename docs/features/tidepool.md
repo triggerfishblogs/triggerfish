@@ -24,14 +24,26 @@ A2UI (Agent-to-UI) is the protocol that powers the Tide Pool. It defines how the
 
 The agent uses the `tide_pool` tool to push content to the Tide Pool Host running in the Gateway. The Host relays updates over WebSocket to any connected Tide Pool Renderer on a supported platform.
 
-## Tide Pool Actions
+## Tide Pool Tools
 
-| Action | Description | Use Case |
-|--------|-------------|----------|
-| `push` | Push HTML/JS content to the Tide Pool | Dashboards, forms, visualizations |
-| `eval` | Execute JavaScript in the Tide Pool context | Dynamic updates, data binding |
-| `reset` | Clear all Tide Pool content | Session transitions, starting fresh |
-| `snapshot` | Capture the Tide Pool as an image | Sharing, audit records |
+The agent interacts with the Tide Pool through these tools:
+
+| Tool | Description | Use Case |
+|------|-------------|----------|
+| `tidepool.render` | Render a component tree in the workspace | Dashboards, forms, visualizations, rich content |
+| `tidepool.update` | Update a single component's props by ID | Incremental updates without replacing the whole view |
+| `tidepool.clear` | Clear the workspace, removing all components | Session transitions, starting fresh |
+
+### Legacy Actions
+
+The underlying host also supports lower-level actions for backward compatibility:
+
+| Action | Description |
+|--------|-------------|
+| `push` | Push raw HTML/JS content |
+| `eval` | Execute JavaScript in the sandbox |
+| `reset` | Clear all content |
+| `snapshot` | Capture as an image |
 
 ## Use Cases
 
