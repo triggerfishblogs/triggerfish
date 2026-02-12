@@ -164,20 +164,24 @@ triggerfish config add-channel telegram
 Connect an external service to Triggerfish.
 
 ```bash
-triggerfish connect google
+triggerfish connect google    # Google Workspace (OAuth2 flow)
+triggerfish connect github    # GitHub (Personal Access Token)
 ```
 
-Starts the Google Workspace OAuth2 flow. Prompts for your Google Cloud OAuth Client ID and Client Secret, opens a browser for authorization, and stores tokens securely in the OS keychain. See [Google Workspace](/integrations/google-workspace) for full setup instructions including how to create credentials.
+**Google Workspace** -- Starts the OAuth2 flow. Prompts for your Google Cloud OAuth Client ID and Client Secret, opens a browser for authorization, and stores tokens securely in the OS keychain. See [Google Workspace](/integrations/google-workspace) for full setup instructions including how to create credentials.
+
+**GitHub** -- Walks you through creating a fine-grained Personal Access Token, validates it against the GitHub API, and stores it in the OS keychain. See [GitHub](/integrations/github) for details.
 
 ### `triggerfish disconnect`
 
 Remove authentication for an external service.
 
 ```bash
-triggerfish disconnect google
+triggerfish disconnect google    # Remove Google tokens
+triggerfish disconnect github    # Remove GitHub token
 ```
 
-Removes all Google tokens from the keychain. You can reconnect at any time.
+Removes all stored tokens from the keychain. You can reconnect at any time.
 
 ### `triggerfish update`
 

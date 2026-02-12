@@ -1,6 +1,22 @@
 # GitHub Integration
 
-Triggerfish integrates with GitHub through three composable pieces:
+Triggerfish integrates with GitHub through two complementary approaches:
+
+## Quick Setup: REST API Tools
+
+The fastest way to connect GitHub. Gives the agent 14 built-in tools for repos, PRs, issues, Actions, and code search -- all with classification-aware taint propagation.
+
+```bash
+triggerfish connect github
+```
+
+This walks you through creating a fine-grained Personal Access Token, validates it, and stores it in the OS keychain. That's it -- your agent can now use all `github_*` tools.
+
+See the [GitHub skill documentation](/skills/bundled/github/SKILL.md) for the full tool reference.
+
+## Advanced: `gh` CLI + Webhooks
+
+For the full development feedback loop (agent creates branches, opens PRs, responds to code review), Triggerfish also supports the `gh` CLI via exec and webhook-driven review delivery. This uses three composable pieces:
 
 1. **`gh` CLI via exec** -- perform all GitHub actions (create PRs, read reviews, comment, merge)
 2. **Review delivery** -- two modes: **webhook events** (instant, requires public endpoint) or **trigger-based polling** via `gh pr view` (works behind firewalls)
@@ -8,9 +24,9 @@ Triggerfish integrates with GitHub through three composable pieces:
 
 Together, these create a full development feedback loop: the agent creates branches, commits code, opens PRs, and responds to reviewer feedback -- no custom GitHub API code required.
 
-## Prerequisites
+### Prerequisites
 
-### gh CLI
+#### gh CLI
 
 The GitHub CLI (`gh`) must be installed and authenticated in the environment where Triggerfish runs.
 
@@ -290,7 +306,7 @@ Auto-merge is disabled by default for safety. Only enable it if you trust the ag
 
 ## Optional: GitHub MCP Server
 
-For richer GitHub API access beyond what `gh` CLI provides, you can also configure the GitHub MCP server:
+For richer GitHub API access beyond what `gh` CLI and the built-in tools provide, you can also configure the GitHub MCP server:
 
 ```yaml
 mcp_servers:
@@ -302,7 +318,7 @@ mcp_servers:
     classification: CONFIDENTIAL
 ```
 
-This is not required for the branch management workflow -- `gh` CLI covers all necessary operations. The MCP server is useful for advanced queries (searching across repos, analyzing contributor graphs, etc.).
+This is not required for most workflows -- the built-in `github_*` tools (set up via `triggerfish connect github`) and `gh` CLI cover all common operations. The MCP server is useful for advanced queries not covered by the built-in tools.
 
 ## Security Considerations
 

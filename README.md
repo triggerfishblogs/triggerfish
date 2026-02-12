@@ -163,15 +163,24 @@ Switch between providers or configure failover chains.
 
 ## 🔗 GitHub Integration
 
-Triggerfish includes a built-in GitHub development workflow. The agent creates feature branches, commits atomically, opens PRs via `gh` CLI, and responds to code review feedback -- all driven by webhooks, with no polling.
+Connect GitHub with a single command:
+
+```bash
+triggerfish connect github
+```
+
+This gives the agent 14 built-in tools for repos, PRs, issues, Actions, and code search -- all with classification-aware taint propagation (public repos = PUBLIC, private = CONFIDENTIAL).
+
+For the full development feedback loop (agent creates branches, opens PRs, responds to code review), Triggerfish also supports webhooks and the `gh` CLI:
 
 | Component | Role |
 |-----------|------|
+| **Built-in `github_*` tools** | REST API access to repos, PRs, issues, Actions, search |
 | **Webhooks** | Receive PR review events from GitHub in real time |
 | **`gh` CLI via exec** | Create PRs, comment, merge from the agent |
 | **git-branch-management skill** | Teaches the agent the full branch/PR/review workflow |
 
-Configure GitHub webhooks in `triggerfish.yaml` to enable the review feedback loop. See the docs for setup instructions.
+See the [GitHub integration docs](docs/integrations/github.md) for full setup instructions.
 
 ---
 

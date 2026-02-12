@@ -1,15 +1,16 @@
 /**
  * Interactive dive wizard for first-time Triggerfish setup.
  *
- * Walks the user through an 8-step onboarding flow:
+ * Walks the user through a 9-step onboarding flow:
  * 1. Choose LLM provider
  * 2. Name agent + personality → generates SPINE.md
  * 3. Connect first channel (CLI, WebChat, Telegram)
  * 4. Classification preference
  * 5. Recommended skills (aspirational)
  * 6. Connect Google Workspace (optional)
- * 7. Search provider (Brave, SearXNG, skip)
- * 8. Install as daemon?
+ * 7. Connect GitHub (optional)
+ * 8. Search provider (Brave, SearXNG, skip)
+ * 9. Install as daemon?
  *
  * @module
  */
@@ -251,7 +252,7 @@ export async function createDirectoryTree(baseDir: string): Promise<void> {
 
 // ─── Interactive wizard (uses cliffy prompts) ────────────────────────────────
 
-/** Run the full 6-step interactive dive wizard. */
+/** Run the full 9-step interactive dive wizard. */
 export async function runWizard(baseDir: string): Promise<DiveResult> {
   const configPath = `${baseDir}/triggerfish.yaml`;
   const spinePath = `${baseDir}/SPINE.md`;
@@ -276,7 +277,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 1: LLM Provider ──────────────────────────────────────────────────
 
-  console.log("  Step 1/8: Choose your LLM provider");
+  console.log("  Step 1/9: Choose your LLM provider");
   console.log("");
 
   const provider = (await Select.prompt({
@@ -332,7 +333,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 2: Agent Name & Personality ───────────────────────────────────────
 
-  console.log("  Step 2/8: Name your agent and set its personality");
+  console.log("  Step 2/9: Name your agent and set its personality");
   console.log("");
 
   const agentName = await Input.prompt({
@@ -367,7 +368,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 3: Connect First Channel ──────────────────────────────────────────
 
-  console.log("  Step 3/8: Connect your first channel");
+  console.log("  Step 3/9: Connect your first channel");
   console.log("  (CLI is always available)");
   console.log("");
 
@@ -416,7 +417,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 4: Classification Preference ──────────────────────────────────────
 
-  console.log("  Step 4/8: Set your classification preference");
+  console.log("  Step 4/9: Set your classification preference");
   console.log("");
 
   const classificationMode = (await Select.prompt({
@@ -435,7 +436,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 5: Recommended Skills ─────────────────────────────────────────────
 
-  console.log("  Step 5/8: Install recommended skills");
+  console.log("  Step 5/9: Install recommended skills");
   console.log("");
 
   const skills = await Checkbox.prompt({
@@ -457,7 +458,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 6: Google Workspace ─────────────────────────────────────────────
 
-  console.log("  Step 6/8: Connect Google Workspace (optional)");
+  console.log("  Step 6/9: Connect Google Workspace (optional)");
   console.log("");
 
   const connectGoogle = await Confirm.prompt({
@@ -518,9 +519,89 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   console.log("");
 
-  // ── Step 7: Search Provider ──────────────────────────────────────────────
+  // ── Step 7: GitHub ─────────────────────────────────────────────────────
 
-  console.log("  Step 7/8: Set up web search");
+  console.log("  Step 7/9: Connect GitHub (optional)");
+  console.log("");
+
+  const connectGitHub = await Confirm.prompt({
+    message: "Connect a GitHub account for repos, PRs, issues, and Actions?",
+    default: false,
+  });
+
+  if (connectGitHub) {
+    console.log("");
+    console.log("  To connect GitHub, you need a Personal Access Token (fine-grained).");
+    console.log("");
+    console.log("  Quick setup:");
+    console.log("    1. Go to https://github.com/settings/tokens?type=beta");
+    console.log('    2. Click "Generate new token"');
+    console.log('    3. Name it "triggerfish"');
+    console.log("    4. Under Repository access, select the repos you want");
+    console.log("    5. Under Permissions, grant:");
+    console.log("       - Contents: Read and Write");
+    console.log("       - Issues: Read and Write");
+    console.log("       - Pull requests: Read and Write");
+    console.log("       - Actions: Read-only");
+    console.log("    6. Click Generate token and copy it");
+    console.log("");
+
+    const readyGitHub = await Confirm.prompt({
+      message: "Have your token ready? Connect now?",
+      default: false,
+    });
+
+    if (readyGitHub) {
+      console.log("");
+      const token = await Input.prompt({ message: "Paste your GitHub token" });
+      const trimmed = token.trim();
+
+      if (trimmed.length > 0) {
+        // Validate against GitHub API
+        console.log("  Verifying token...");
+        try {
+          const resp = await fetch("https://api.github.com/user", {
+            headers: {
+              "Authorization": `Bearer ${trimmed}`,
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+            },
+          });
+          if (resp.ok) {
+            const user = await resp.json();
+            // Store in keychain
+            const { createKeychain } = await import("../secrets/keychain.ts");
+            const store = createKeychain();
+            const storeResult = await store.setSecret("github-pat", trimmed);
+            if (storeResult.ok) {
+              console.log(`  → GitHub connected as ${(user as Record<string, string>).login}!`);
+            } else {
+              console.log(`  → Token valid but failed to store: ${storeResult.error}`);
+              console.log("  → Try again later with: triggerfish connect github");
+            }
+          } else {
+            console.log("  → Token verification failed. Check permissions and try again.");
+            console.log("  → Connect later with: triggerfish connect github");
+          }
+        } catch {
+          console.log("  → Could not reach GitHub API. Check your network.");
+          console.log("  → Connect later with: triggerfish connect github");
+        }
+      } else {
+        console.log("  → No token provided. Connect later with: triggerfish connect github");
+      }
+    } else {
+      console.log("  → Connect later with: triggerfish connect github");
+    }
+  } else {
+    console.log("  → Skipped. Connect later with: triggerfish connect github");
+  }
+
+  console.log("");
+
+  // ── Step 8: Search Provider ──────────────────────────────────────────────
+
+  console.log("  Step 8/9: Set up web search");
   console.log("");
 
   const searchProvider = (await Select.prompt({
@@ -556,7 +637,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 8: Daemon Installation ────────────────────────────────────────────
 
-  console.log("  Step 8/8: Install as daemon?");
+  console.log("  Step 9/9: Install as daemon?");
   console.log("");
 
   const installDaemon = await Confirm.prompt({
@@ -621,6 +702,8 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
   console.log(`  Edit your agent's identity: ${spinePath}`);
   console.log(`  Edit configuration:         ${configPath}`);
   console.log("  Run health check:           triggerfish patrol");
+  console.log("  Connect integrations:       triggerfish connect google");
+  console.log("                              triggerfish connect github");
   console.log("");
 
   return {
