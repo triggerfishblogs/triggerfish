@@ -155,7 +155,7 @@ export function generateConfig(answers: WizardAnswers): string {
   if (answers.searchProvider === "brave" && answers.searchApiKey.length > 0) {
     web["search"] = {
       provider: "brave",
-      api_key: "${BRAVE_API_KEY}",
+      api_key: answers.searchApiKey,
     };
   } else if (answers.searchProvider === "searxng" && answers.searxngUrl.length > 0) {
     web["search"] = {
@@ -475,18 +475,11 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
   let searxngUrl = "";
 
   if (searchProvider === "brave") {
-    const existingKey = Deno.env.get("BRAVE_API_KEY") ?? "";
-    if (existingKey.length > 0) {
-      console.log("  ✓ Detected BRAVE_API_KEY in environment");
-    } else {
-      searchApiKey = await Input.prompt({
-        message: "Brave API key (or press Enter to set BRAVE_API_KEY later)",
-      });
-      if (searchApiKey.length > 0) {
-        console.log(
-          "  ✓ Set BRAVE_API_KEY in your environment before starting",
-        );
-      }
+    searchApiKey = await Input.prompt({
+      message: "Brave Search API key",
+    });
+    if (searchApiKey.length > 0) {
+      console.log("  ✓ API key saved to config");
     }
   } else if (searchProvider === "searxng") {
     searxngUrl = await Input.prompt({

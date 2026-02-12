@@ -51,7 +51,7 @@ export function createZaiProvider(config: ZaiConfig): LlmProvider {
 
     async complete(
       messages: readonly LlmMessage[],
-      _tools: readonly unknown[],
+      tools: readonly unknown[],
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       const signal = options.signal as AbortSignal | undefined;
@@ -62,17 +62,23 @@ export function createZaiProvider(config: ZaiConfig): LlmProvider {
           : JSON.stringify(m.content),
       }));
 
+      // Build request body — include tools if provided
+      const body: Record<string, unknown> = {
+        model,
+        max_tokens: maxTokens,
+        messages: openaiMessages,
+      };
+      if (Array.isArray(tools) && tools.length > 0) {
+        body.tools = tools;
+      }
+
       const response = await fetch(ZAI_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({
-          model,
-          max_tokens: maxTokens,
-          messages: openaiMessages,
-        }),
+        body: JSON.stringify(body),
         ...(signal ? { signal } : {}),
       });
 
