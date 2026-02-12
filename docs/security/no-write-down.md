@@ -8,24 +8,13 @@ This single rule prevents an entire class of data leakage scenarios, from accide
 
 ## How Classification Flows
 
-Triggerfish uses four classification levels for enterprise deployments and four for personal deployments. The no-write-down rule applies identically to both.
-
-**Enterprise levels** (highest to lowest):
+Triggerfish uses four classification levels (highest to lowest):
 
 ```
-RESTRICTED  -->  RESTRICTED only
+RESTRICTED    -->  RESTRICTED only
 CONFIDENTIAL  -->  CONFIDENTIAL or RESTRICTED
-INTERNAL  -->  INTERNAL, CONFIDENTIAL, or RESTRICTED
-PUBLIC  -->  Anywhere
-```
-
-**Personal levels** (highest to lowest):
-
-```
-SENSITIVE  -->  SENSITIVE only
-PRIVATE  -->  PRIVATE or SENSITIVE
-PERSONAL  -->  PERSONAL, PRIVATE, or SENSITIVE
-PUBLIC  -->  Anywhere
+INTERNAL      -->  INTERNAL, CONFIDENTIAL, or RESTRICTED
+PUBLIC        -->  Anywhere
 ```
 
 Data classified at a given level can flow to that level or any level above it. It can never flow downward. This is the no-write-down rule.

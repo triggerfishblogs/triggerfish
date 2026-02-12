@@ -54,12 +54,12 @@ Pick a messaging platform or skip this step to start with just the CLI. You can 
 
 ```
 Step 4/9: Set your classification preference
-  > Standard (4 levels: PUBLIC > PERSONAL > PRIVATE > SENSITIVE)
-    Simple (2 levels: PUBLIC / PRIVATE)
+  > Standard (4 levels: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED)
+    Simple (2 levels: PUBLIC, INTERNAL)
     Custom
 ```
 
-This controls how Triggerfish classifies and protects your data. For most personal users, Standard mode works well. Enterprise users can configure the full four-level enterprise classification system.
+This controls how Triggerfish classifies and protects your data. Standard mode works well for most users, providing four levels from PUBLIC up to RESTRICTED.
 
 ### Step 5: Install Starter Skills
 
