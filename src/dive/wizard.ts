@@ -1,14 +1,15 @@
 /**
  * Interactive dive wizard for first-time Triggerfish setup.
  *
- * Walks the user through a 7-step onboarding flow:
+ * Walks the user through an 8-step onboarding flow:
  * 1. Choose LLM provider
  * 2. Name agent + personality → generates SPINE.md
  * 3. Connect first channel (CLI, WebChat, Telegram)
  * 4. Classification preference
  * 5. Recommended skills (aspirational)
- * 6. Search provider (Brave, SearXNG, skip)
- * 7. Install as daemon?
+ * 6. Connect Google Workspace (optional)
+ * 7. Search provider (Brave, SearXNG, skip)
+ * 8. Install as daemon?
  *
  * @module
  */
@@ -275,7 +276,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 1: LLM Provider ──────────────────────────────────────────────────
 
-  console.log("  Step 1/7: Choose your LLM provider");
+  console.log("  Step 1/8: Choose your LLM provider");
   console.log("");
 
   const provider = (await Select.prompt({
@@ -331,7 +332,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 2: Agent Name & Personality ───────────────────────────────────────
 
-  console.log("  Step 2/7: Name your agent and set its personality");
+  console.log("  Step 2/8: Name your agent and set its personality");
   console.log("");
 
   const agentName = await Input.prompt({
@@ -366,7 +367,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 3: Connect First Channel ──────────────────────────────────────────
 
-  console.log("  Step 3/7: Connect your first channel");
+  console.log("  Step 3/8: Connect your first channel");
   console.log("  (CLI is always available)");
   console.log("");
 
@@ -415,7 +416,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 4: Classification Preference ──────────────────────────────────────
 
-  console.log("  Step 4/7: Set your classification preference");
+  console.log("  Step 4/8: Set your classification preference");
   console.log("");
 
   const classificationMode = (await Select.prompt({
@@ -434,7 +435,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 5: Recommended Skills ─────────────────────────────────────────────
 
-  console.log("  Step 5/7: Install recommended skills");
+  console.log("  Step 5/8: Install recommended skills");
   console.log("");
 
   const skills = await Checkbox.prompt({
@@ -454,9 +455,72 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   console.log("");
 
-  // ── Step 6: Search Provider ──────────────────────────────────────────────
+  // ── Step 6: Google Workspace ─────────────────────────────────────────────
 
-  console.log("  Step 6/7: Set up web search");
+  console.log("  Step 6/8: Connect Google Workspace (optional)");
+  console.log("");
+
+  const connectGoogle = await Confirm.prompt({
+    message: "Connect a Google account for Gmail, Calendar, Tasks, Drive, and Sheets?",
+    default: false,
+  });
+
+  if (connectGoogle) {
+    console.log("");
+    console.log("  To connect Google Workspace, you need OAuth2 credentials from Google Cloud Console.");
+    console.log("");
+    console.log("  Quick setup:");
+    console.log("    1. Go to https://console.cloud.google.com ");
+    console.log("    2. Create a project (or select an existing one)");
+    console.log('    3. Navigate to "APIs & Services" → "Credentials"');
+    console.log('    4. Click "+ CREATE CREDENTIALS" and select "OAuth client ID"');
+    console.log("    5. If prompted, configure the OAuth consent screen first");
+    console.log("       IMPORTANT: Add yourself as a test user on the consent screen,");
+    console.log('       or you\'ll get "Access blocked" when authorizing.');
+    console.log("       Full walkthrough: https://triggerfish.dev/integrations/google-workspace");
+    console.log('    6. On the Create OAuth client ID screen, select "Desktop app" from');
+    console.log("       the Application type dropdown");
+    console.log('    7. Name it "Triggerfish" (or anything you like)');
+    console.log("    8. Click Create, then copy the Client ID and Client Secret");
+    console.log("");
+    console.log("  You also need to enable these APIs in your project:");
+    console.log("    - Gmail API");
+    console.log("    - Google Calendar API");
+    console.log("    - Google Tasks API");
+    console.log("    - Google Drive API");
+    console.log("    - Google Sheets API");
+    console.log("");
+    console.log("  Enable them at: https://console.cloud.google.com/apis/library");
+    console.log("");
+
+    const readyNow = await Confirm.prompt({
+      message: "Have your credentials ready? Connect now?",
+      default: false,
+    });
+
+    if (readyNow) {
+      console.log("");
+      const { performGoogleOAuth } = await import("../cli/main.ts");
+      const success = await performGoogleOAuth();
+      if (success) {
+        console.log("");
+        console.log("  → Google Workspace connected!");
+      } else {
+        console.log("");
+        console.log("  → Connection failed. Try again later with: triggerfish connect google");
+      }
+    } else {
+      console.log("  → Connect later with: triggerfish connect google");
+    }
+  } else {
+    console.log("  → Skipped. Connect later with: triggerfish connect google");
+  }
+
+  console.log("");
+
+  // ── Step 7: Search Provider ──────────────────────────────────────────────
+
+  console.log("  Step 7/8: Set up web search");
   console.log("");
 
   const searchProvider = (await Select.prompt({
@@ -490,9 +554,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   console.log("");
 
-  // ── Step 7: Daemon Installation ────────────────────────────────────────────
+  // ── Step 8: Daemon Installation ────────────────────────────────────────────
 
-  console.log("  Step 7/7: Install as daemon?");
+  console.log("  Step 8/8: Install as daemon?");
   console.log("");
 
   const installDaemon = await Confirm.prompt({

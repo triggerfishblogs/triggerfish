@@ -12,7 +12,7 @@ Run the interactive setup wizard. This is the first command you run after instal
 triggerfish dive
 ```
 
-The wizard walks through 6 steps: LLM provider, agent name/personality, channel setup, classification mode, skill installation, and daemon installation. See [Quick Start](./quickstart) for a full walkthrough.
+The wizard walks through 8 steps: LLM provider, agent name/personality, channel setup, classification mode, skill installation, Google Workspace connection, search provider, and daemon installation. See [Quick Start](./quickstart) for a full walkthrough.
 
 ### `triggerfish chat`
 
@@ -158,6 +158,26 @@ triggerfish config set scheduler.trigger.enabled true
 triggerfish config get models.primary
 triggerfish config add-channel telegram
 ```
+
+### `triggerfish connect`
+
+Connect an external service to Triggerfish.
+
+```bash
+triggerfish connect google
+```
+
+Starts the Google Workspace OAuth2 flow. Prompts for your Google Cloud OAuth Client ID and Client Secret, opens a browser for authorization, and stores tokens securely in the OS keychain. See [Google Workspace](/integrations/google-workspace) for full setup instructions including how to create credentials.
+
+### `triggerfish disconnect`
+
+Remove authentication for an external service.
+
+```bash
+triggerfish disconnect google
+```
+
+Removes all Google tokens from the keychain. You can reconnect at any time.
 
 ### `triggerfish update`
 
