@@ -4,29 +4,14 @@ The data classification system is the foundation of Triggerfish's security model
 
 ## Classification Levels
 
-Triggerfish supports two label sets depending on deployment context. Both use the same four-tier ordered hierarchy.
-
-### Enterprise Labels
+Triggerfish uses a single four-tier ordered hierarchy for all deployments.
 
 | Level | Rank | Description | Examples |
 |-------|------|-------------|----------|
-| `RESTRICTED` | 4 (highest) | Most sensitive data requiring maximum protection | M&A documents, board materials, PII |
-| `CONFIDENTIAL` | 3 | Business-sensitive information | CRM data, financials, HRIS records |
-| `INTERNAL` | 2 | Company-wide data not meant for external sharing | Internal wikis, team documents, internal tooling |
-| `PUBLIC` | 1 (lowest) | Safe for external sharing | Marketing materials, public documentation |
-
-### Personal Labels
-
-| Level | Rank | Description | Examples |
-|-------|------|-------------|----------|
-| `SENSITIVE` | 4 (highest) | Highest-protection personal data | Bank accounts, medical records, legal documents |
-| `PRIVATE` | 3 | Personal business matters | Personal finances, contracts, tax records |
-| `PERSONAL` | 2 | General personal information | Personal notes, contacts, calendars |
-| `PUBLIC` | 1 (lowest) | Safe for anyone to see | Public information, general web content |
-
-::: tip
-The two label sets map directly to each other by rank. `RESTRICTED` corresponds to `SENSITIVE`, `CONFIDENTIAL` to `PRIVATE`, and so on. Personal tier uses personal labels; enterprise tier uses enterprise labels.
-:::
+| `RESTRICTED` | 4 (highest) | Most sensitive data requiring maximum protection | M&A documents, board materials, PII, bank accounts, medical records |
+| `CONFIDENTIAL` | 3 | Business-sensitive or personal-sensitive information | CRM data, financials, HR records, contracts, tax records |
+| `INTERNAL` | 2 | Not meant for external sharing | Internal wikis, team documents, personal notes, contacts |
+| `PUBLIC` | 1 (lowest) | Safe for anyone to see | Marketing materials, public documentation, general web content |
 
 ## The No Write-Down Rule
 

@@ -104,9 +104,8 @@ channels:
 # Classification: Data sensitivity model
 # ---------------------------------------------------------------------------
 classification:
-  mode: personal                 # "personal" or "enterprise"
-  # Personal levels: SENSITIVE > PRIVATE > PERSONAL > PUBLIC
-  # Enterprise levels: RESTRICTED > CONFIDENTIAL > INTERNAL > PUBLIC
+  mode: personal                 # "personal" or "enterprise" (coming soon)
+  # Levels: RESTRICTED > CONFIDENTIAL > INTERNAL > PUBLIC
 
 # ---------------------------------------------------------------------------
 # Policy: Custom enforcement rules (enterprise escape hatch)
@@ -317,7 +316,7 @@ Secrets (tokens, passwords) should be referenced as environment variables using 
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `mode` | `"personal"` or `"enterprise"` | Which classification label set to use |
+| `mode` | `"personal"` or `"enterprise"` | Deployment mode (coming soon — currently both use the same classification levels) |
 
 ### `policy`
 

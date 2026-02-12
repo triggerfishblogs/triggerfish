@@ -159,28 +159,17 @@ The `classification` section controls how Triggerfish classifies and protects da
 
 ```yaml
 classification:
-  # "personal" uses: SENSITIVE > PRIVATE > PERSONAL > PUBLIC
-  # "enterprise" uses: RESTRICTED > CONFIDENTIAL > INTERNAL > PUBLIC
-  mode: personal
+  mode: personal                 # "personal" or "enterprise" (coming soon)
 ```
 
-**Personal mode labels:**
+**Classification levels:**
 
 | Level | Description | Examples |
 |-------|-------------|---------|
-| `SENSITIVE` | Highest protection | Bank accounts, medical records, legal documents |
-| `PRIVATE` | Personal business | Personal finances, contracts |
-| `PERSONAL` | General personal | Notes, contacts |
-| `PUBLIC` | Safe for anyone | General web info, public content |
-
-**Enterprise mode labels:**
-
-| Level | Description | Examples |
-|-------|-------------|---------|
-| `RESTRICTED` | Most sensitive | M&A documents, board materials, PII |
-| `CONFIDENTIAL` | Business sensitive | CRM data, financials, HR records |
-| `INTERNAL` | Company-wide | Internal wikis, team documents |
-| `PUBLIC` | Safe externally | Marketing materials, public info |
+| `RESTRICTED` | Most sensitive | M&A documents, PII, bank accounts, medical records |
+| `CONFIDENTIAL` | Sensitive | CRM data, financials, contracts, tax records |
+| `INTERNAL` | Internal only | Internal wikis, personal notes, contacts |
+| `PUBLIC` | Safe for anyone | Marketing materials, public info, general web content |
 
 ## Policy
 

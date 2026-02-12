@@ -438,10 +438,10 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
     message: "Classification mode",
     options: [
       {
-        name: "Standard (4 levels: PUBLIC, PERSONAL, PRIVATE, SENSITIVE)",
+        name: "Standard (4 levels: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED)",
         value: "standard",
       },
-      { name: "Simple (2 levels: PUBLIC, PRIVATE)", value: "simple" },
+      { name: "Simple (2 levels: PUBLIC, INTERNAL)", value: "simple" },
       { name: "Custom (configure later)", value: "custom" },
     ],
   })) as ClassificationMode;

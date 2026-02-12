@@ -88,7 +88,7 @@ At every enforcement point, the decision is deterministic -- the same input alwa
 
 ### Classification System
 
-Data flows through four ordered levels (enterprise: `RESTRICTED > CONFIDENTIAL > INTERNAL > PUBLIC`; personal: `SENSITIVE > PRIVATE > PERSONAL > PUBLIC`). The core rule is **no write-down**: data can only flow to equal or higher classification. A `CONFIDENTIAL` session cannot send data to a `PUBLIC` channel. No exceptions. No LLM override.
+Data flows through four ordered levels: `RESTRICTED > CONFIDENTIAL > INTERNAL > PUBLIC`. The core rule is **no write-down**: data can only flow to equal or higher classification. A `CONFIDENTIAL` session cannot send data to a `PUBLIC` channel. No exceptions. No LLM override.
 
 [Read more about the Classification System.](./classification)
 
