@@ -1184,9 +1184,31 @@ async function runStart(): Promise<void> {
         return;
       }
 
+      // /clear must call chatSession.clear() — same as the CLI/gateway path.
+      // Without this, "/clear" is just sent as text to the LLM which responds
+      // with "session cleared" but never actually resets the session taint.
+      if (msg.content === "/clear" && msg.isOwner !== false) {
+        chatSession.clear();
+        telegramAdapter.clearChat(msg.sessionId ?? "")
+          .then(() => telegramAdapter.send({
+            content: "Session cleared. Your context and taint level have been reset to PUBLIC.\n\nWhat would you like to do?",
+            sessionId: msg.sessionId,
+          }))
+          .catch((err) => console.error("Telegram clear error:", err));
+        return;
+      }
+
       const sendEvent = buildTelegramSendEvent(telegramAdapter, msg);
-      chatSession.handleChannelMessage(msg, "telegram", sendEvent)
-        .catch((err) => console.error("Telegram message processing error:", err));
+
+      // Owner uses the same processMessage path as the CLI.
+      // Only non-owner messages need handleChannelMessage for per-user sessions.
+      if (msg.isOwner !== false) {
+        chatSession.processMessage(msg.content, sendEvent)
+          .catch((err) => console.error("Telegram message processing error:", err));
+      } else {
+        chatSession.handleChannelMessage(msg, "telegram", sendEvent)
+          .catch((err) => console.error("Telegram message processing error:", err));
+      }
     });
 
     await telegramAdapter.connect();
