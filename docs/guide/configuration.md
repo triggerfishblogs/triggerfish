@@ -53,6 +53,10 @@ models:
       model: anthropic/claude-sonnet-4-5
       # Uses OPENROUTER_API_KEY from environment
 
+    zai:
+      model: glm-4.7
+      # Uses ZAI_API_KEY from environment
+
   # Failover chain: if primary fails, try these in order
   failover:
     - openai
@@ -69,6 +73,7 @@ models:
 | Google | `GOOGLE_API_KEY` | Gemini API key |
 | Local | None | Connects to local OpenAI-compatible endpoint |
 | OpenRouter | `OPENROUTER_API_KEY` | Access any model on OpenRouter |
+| Z.AI | `ZAI_API_KEY` | Z.AI Coding Plan (GLM models) |
 
 ::: warning
 Never put API keys directly in your `triggerfish.yaml`. Use environment variables or the OS keychain. Triggerfish reads secrets from the environment at startup.

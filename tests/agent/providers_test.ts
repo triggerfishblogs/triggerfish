@@ -15,6 +15,7 @@ import { createGoogleProvider } from "../../src/agent/providers/google.ts";
 import { createLocalProvider } from "../../src/agent/providers/local.ts";
 import { createOpenRouterProvider } from "../../src/agent/providers/openrouter.ts";
 import { createZenMuxProvider } from "../../src/agent/providers/zenmux.ts";
+import { createZaiProvider } from "../../src/agent/providers/zai.ts";
 import { loadProvidersFromConfig } from "../../src/agent/providers/config.ts";
 
 // --- Factory function tests (no API calls) ---
@@ -58,6 +59,15 @@ Deno.test("ZenMuxProvider: factory creates provider with correct name", () => {
     model: "openai/gpt-5",
   });
   assertEquals(provider.name, "zenmux");
+  assertEquals(provider.supportsStreaming, true);
+});
+
+Deno.test("ZaiProvider: factory creates provider with correct name", () => {
+  const provider = createZaiProvider({
+    apiKey: "test-key",
+    model: "glm-4.7",
+  });
+  assertEquals(provider.name, "zai");
   assertEquals(provider.supportsStreaming, true);
 });
 
@@ -148,6 +158,38 @@ Deno.test("loadProvidersFromConfig: resolves openrouter from model with slash", 
   const defaultProvider = registry.getDefault();
   assertExists(defaultProvider);
   assertEquals(defaultProvider!.name, "openrouter");
+});
+
+Deno.test("loadProvidersFromConfig: registers zai provider and sets default", () => {
+  const registry = createProviderRegistry();
+  loadProvidersFromConfig({
+    primary: "glm-4.7",
+    providers: {
+      zai: { model: "glm-4.7", apiKey: "zai-test-key" },
+    },
+  }, registry);
+
+  const provider = registry.get("zai");
+  assertExists(provider);
+  assertEquals(provider!.name, "zai");
+
+  const defaultProvider = registry.getDefault();
+  assertExists(defaultProvider);
+  assertEquals(defaultProvider!.name, "zai");
+});
+
+Deno.test("loadProvidersFromConfig: resolves glm model name to zai", () => {
+  const registry = createProviderRegistry();
+  loadProvidersFromConfig({
+    primary: "glm-4.5",
+    providers: {
+      zai: { model: "glm-4.5", apiKey: "zai-test-key" },
+    },
+  }, registry);
+
+  const defaultProvider = registry.getDefault();
+  assertExists(defaultProvider);
+  assertEquals(defaultProvider!.name, "zai");
 });
 
 Deno.test("loadProvidersFromConfig: registers zenmux provider", () => {
@@ -259,6 +301,25 @@ Deno.test({
 });
 
 Deno.test({
+  name: "ZaiProvider: real API call (integration)",
+  ignore: !Deno.env.get("ZAI_API_KEY"),
+  async fn() {
+    const provider = createZaiProvider({
+      model: "glm-4.7",
+    });
+    const result = await provider.complete(
+      [{ role: "user", content: "Say just the word 'hello'" }],
+      [],
+      {},
+    );
+
+    assert(result.content.length > 0, "Should get non-empty response");
+    assert(result.usage.inputTokens > 0, "Should report input tokens");
+    assert(result.usage.outputTokens > 0, "Should report output tokens");
+  },
+});
+
+Deno.test({
   name: "Providers: all conform to LlmProvider interface",
   fn() {
     // Verify all providers satisfy the interface at compile time
@@ -269,9 +330,10 @@ Deno.test({
       createLocalProvider({ model: "test" }),
       createOpenRouterProvider({ apiKey: "test", model: "test" }),
       createZenMuxProvider({ apiKey: "test", model: "test" }),
+      createZaiProvider({ apiKey: "test", model: "test" }),
     ];
 
-    assertEquals(providers.length, 6);
+    assertEquals(providers.length, 7);
     for (const p of providers) {
       assertExists(p.name);
       assertExists(p.complete);

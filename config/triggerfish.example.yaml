@@ -12,5 +12,8 @@ channels:
     enabled: true
     classification: INTERNAL
 
+    # zai:
+    #   model: glm-4.7
+
 policy:
   default_action: ALLOW

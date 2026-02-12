@@ -33,7 +33,8 @@ export type ProviderChoice =
   | "google"
   | "local"
   | "openrouter"
-  | "zenmux";
+  | "zenmux"
+  | "zai";
 
 /** Classification mode. */
 export type ClassificationMode = "standard" | "simple" | "custom";
@@ -77,6 +78,7 @@ const DEFAULT_MODELS: Readonly<Record<ProviderChoice, string>> = {
   local: "llama3",
   openrouter: "anthropic/claude-sonnet-4-5",
   zenmux: "openai/gpt-5",
+  zai: "glm-4.7",
 };
 
 const PROVIDER_LABELS: Readonly<Record<ProviderChoice, string>> = {
@@ -86,6 +88,7 @@ const PROVIDER_LABELS: Readonly<Record<ProviderChoice, string>> = {
   local: "Local (Ollama)",
   openrouter: "OpenRouter",
   zenmux: "ZenMux",
+  zai: "Z.AI Coding Plan (GLM)",
 };
 
 // ─── Config generation (pure, testable) ──────────────────────────────────────
@@ -284,6 +287,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
       { name: PROVIDER_LABELS.local, value: "local" },
       { name: PROVIDER_LABELS.openrouter, value: "openrouter" },
       { name: PROVIDER_LABELS.zenmux, value: "zenmux" },
+      { name: PROVIDER_LABELS.zai, value: "zai" },
     ],
   })) as ProviderChoice;
 
@@ -309,6 +313,8 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
       ? "GOOGLE_API_KEY"
       : provider === "zenmux"
       ? "ZENMUX_API_KEY"
+      : provider === "zai"
+      ? "ZAI_API_KEY"
       : "OPENROUTER_API_KEY";
 
     const existingKey = Deno.env.get(envVarName) ?? "";

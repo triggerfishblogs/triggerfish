@@ -31,6 +31,7 @@ export {
   createGoogleProvider,
   createLocalProvider,
   createOpenRouterProvider,
+  createZaiProvider,
 } from "./providers/mod.ts";
 
 export type {
@@ -39,6 +40,7 @@ export type {
   GoogleConfig,
   LocalConfig,
   OpenRouterConfig,
+  ZaiConfig,
 } from "./providers/mod.ts";
 
 export { loadProvidersFromConfig } from "./providers/config.ts";

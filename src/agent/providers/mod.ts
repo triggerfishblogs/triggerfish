@@ -24,3 +24,6 @@ export type { OpenRouterConfig } from "./openrouter.ts";
 
 export { createZenMuxProvider } from "./zenmux.ts";
 export type { ZenMuxConfig } from "./zenmux.ts";
+
+export { createZaiProvider } from "./zai.ts";
+export type { ZaiConfig } from "./zai.ts";

@@ -38,6 +38,10 @@ models:
       model: anthropic/claude-sonnet-4-5
       # Auth: OPENROUTER_API_KEY env var
 
+    zai:
+      model: glm-4.7
+      # Auth: ZAI_API_KEY env var
+
   # Ordered failover chain -- tried in sequence when primary fails
   failover:
     - claude-haiku-4-5         # First fallback
