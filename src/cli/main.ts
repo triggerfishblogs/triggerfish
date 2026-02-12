@@ -45,7 +45,7 @@ import type { ModelsConfig } from "../agent/providers/config.ts";
 import { createPolicyEngine } from "../core/policy/engine.ts";
 import { createHookRunner, createDefaultRules } from "../core/policy/hooks.ts";
 import { createSession } from "../core/types/session.ts";
-import type { UserId, ChannelId } from "../core/types/session.ts";
+import type { UserId, ChannelId, SessionId } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import { createWorkspace } from "../exec/workspace.ts";
 import { createExecTools } from "../exec/tools.ts";
@@ -120,13 +120,29 @@ import {
   createExploreToolExecutor,
   EXPLORE_SYSTEM_PROMPT,
 } from "../explore/mod.ts";
+import {
+  getGoogleToolDefinitions,
+  createGoogleToolExecutor,
+  createGoogleAuthManager,
+  createGoogleApiClient,
+  createGmailService,
+  createCalendarService,
+  createTasksService,
+  createDriveService,
+  createSheetsService,
+  GOOGLE_TOOLS_SYSTEM_PROMPT,
+} from "../google/mod.ts";
+import type { GoogleAuthConfig } from "../google/mod.ts";
+import { createKeychain } from "../secrets/keychain.ts";
 import { createTelegramChannel } from "../channels/telegram/adapter.ts";
 import type { ChatEventSender } from "../gateway/chat.ts";
 
 /** Known CLI commands. */
 const KNOWN_COMMANDS = new Set([
   "chat",
+  "connect",
   "cron",
+  "disconnect",
   "run",
   "start",
   "stop",
@@ -285,6 +301,10 @@ export function parseCommand(
     }
     return { command, subcommand: sub, flags };
   }
+  if ((command === "connect" || command === "disconnect") && positional.length > 1) {
+    const sub = positional[1];
+    return { command, subcommand: sub, flags };
+  }
 
   return { command, flags };
 }
@@ -351,7 +371,9 @@ USAGE:
 COMMANDS:
   chat        Start an interactive chat session
   config      Manage configuration (add channels, etc.)
+  connect     Connect an external service (e.g. Google)
   cron        Manage scheduled cron jobs
+  disconnect  Disconnect an external service
   dive        First-run setup wizard (creates triggerfish.yaml)
   run         Run the gateway server in foreground
   start       Install and start the daemon
@@ -375,6 +397,10 @@ CRON SUBCOMMANDS:
   cron delete <job_id>                   Delete a cron job
   cron history <job_id>                  Show execution history
 
+GOOGLE WORKSPACE:
+  connect google                         Authenticate with Google Workspace
+  disconnect google                      Remove Google authentication
+
 EXAMPLES:
   triggerfish chat                                  # Start chatting with your agent
   triggerfish cron add "0 9 * * *" morning briefing # Daily 9am task
@@ -391,6 +417,8 @@ EXAMPLES:
   triggerfish stop                                  # Stop the daemon
   triggerfish status                                # Check daemon status
   triggerfish logs --tail                           # Follow daemon logs
+  triggerfish connect google                          # Link Google account
+  triggerfish disconnect google                       # Remove Google account
   triggerfish patrol                                # Health check
   triggerfish update                                # Update to latest version
 
@@ -698,6 +726,7 @@ function createOrchestratorFactory(
         memoryExecutor: schedulerMemoryExecutor,
         planExecutor,
         sessionExecutor,
+        googleExecutor: buildGoogleExecutor(session.taint, session.id),
         providerRegistry: registry,
       });
       const orchestrator = createOrchestrator({
@@ -706,7 +735,7 @@ function createOrchestratorFactory(
         spinePath,
         tools: toolDefs,
         toolExecutor,
-        systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT],
+        systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT],
         visionProvider: schedulerVisionProvider,
       });
 
@@ -754,6 +783,44 @@ function buildSchedulerConfig(
       sources,
     },
   };
+}
+
+/** Google OAuth2 scopes for all Workspace services. */
+const GOOGLE_SCOPES: readonly string[] = [
+  "https://www.googleapis.com/auth/gmail.modify",
+  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/tasks",
+  "https://www.googleapis.com/auth/drive.readonly",
+  "https://www.googleapis.com/auth/spreadsheets",
+];
+
+/**
+ * Build Google Workspace tool executor.
+ *
+ * Creates the full auth → client → services → executor chain.
+ * Auth failures are lazy — if tokens don't exist, the user gets a
+ * clear error at tool-call time, not at startup.
+ */
+function buildGoogleExecutor(
+  sessionTaint: ClassificationLevel,
+  sourceSessionId: SessionId,
+): ((name: string, input: Record<string, unknown>) => Promise<string | null>) | undefined {
+  try {
+    const secretStore = createKeychain();
+    const authManager = createGoogleAuthManager(secretStore);
+    const apiClient = createGoogleApiClient(authManager);
+    return createGoogleToolExecutor({
+      gmail: createGmailService(apiClient),
+      calendar: createCalendarService(apiClient),
+      tasks: createTasksService(apiClient),
+      drive: createDriveService(apiClient),
+      sheets: createSheetsService(apiClient),
+      sessionTaint,
+      sourceSessionId,
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -914,6 +981,7 @@ async function runStart(): Promise<void> {
     imageExecutor,
     sessionExecutor,
     exploreExecutor,
+    googleExecutor: buildGoogleExecutor(session.taint, session.id),
     subagentFactory,
     providerRegistry: registry,
   });
@@ -924,7 +992,7 @@ async function runStart(): Promise<void> {
     spinePath,
     tools: getToolDefinitions(),
     toolExecutor,
-    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT],
+    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT],
     session,
     debug: Deno.env.get("TRIGGERFISH_DEBUG") === "1",
     visionProvider,
@@ -1645,6 +1713,7 @@ function getToolDefinitions(): readonly ToolDefinition[] {
     ...getSessionToolDefinitions(),
     ...getImageToolDefinitions(),
     ...getExploreToolDefinitions(),
+    ...getGoogleToolDefinitions(),
     {
       name: "read_file",
       description: "Read the contents of a file at an absolute path.",
@@ -1760,6 +1829,7 @@ interface ToolExecutorOptions {
   readonly sessionExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
   readonly imageExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
   readonly exploreExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly googleExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
   readonly subagentFactory?: (task: string, tools?: string) => Promise<string>;
 }
 
@@ -1823,6 +1893,12 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
     if (opts.exploreExecutor) {
       const exploreResult = await opts.exploreExecutor(name, input);
       if (exploreResult !== null) return exploreResult;
+    }
+
+    // Try Google Workspace tools (returns null if not a Google tool)
+    if (opts.googleExecutor) {
+      const googleResult = await opts.googleExecutor(name, input);
+      if (googleResult !== null) return googleResult;
     }
 
     // Try web tools (returns null if not a web tool)
@@ -2761,6 +2837,227 @@ async function runCron(
   }
 }
 
+// ─── Google Workspace connect / disconnect ──────────────────────────────────
+
+/**
+ * Handle `triggerfish connect <service>`.
+ */
+async function runConnect(
+  subcommand: string | undefined,
+  _flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  switch (subcommand) {
+    case "google":
+      await runConnectGoogle();
+      break;
+    default:
+      console.log(`
+CONNECT USAGE:
+  triggerfish connect google    Authenticate with Google Workspace
+`);
+      break;
+  }
+}
+
+/** HTML page shown after successful OAuth callback. */
+const OAUTH_SUCCESS_HTML = `<!DOCTYPE html>
+<html><head><title>Triggerfish</title>
+<style>body{font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#f5f5f5}
+.card{text-align:center;padding:2rem;background:white;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+h1{color:#22c55e;margin-bottom:0.5rem}p{color:#666}</style></head>
+<body><div class="card"><h1>Connected</h1><p>Google account linked to Triggerfish.<br>You can close this window.</p></div></body></html>`;
+
+/**
+ * Create a temporary localhost server that captures the OAuth callback code.
+ *
+ * Returns the server, its port, and a promise that resolves with the auth code.
+ */
+function createOAuthCallbackServer(): {
+  server: Deno.HttpServer;
+  port: number;
+  codePromise: Promise<string>;
+} {
+  let resolveCode: (code: string) => void;
+  let rejectCode: (err: Error) => void;
+  const codePromise = new Promise<string>((resolve, reject) => {
+    resolveCode = resolve;
+    rejectCode = reject;
+  });
+
+  const server = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, (req) => {
+    const url = new URL(req.url);
+    const code = url.searchParams.get("code");
+    const error = url.searchParams.get("error");
+
+    if (error) {
+      rejectCode(new Error(`Google returned error: ${error}`));
+      return new Response("Authorization failed. You can close this window.", {
+        status: 400,
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+
+    if (code) {
+      resolveCode(code);
+      return new Response(OAUTH_SUCCESS_HTML, {
+        headers: { "Content-Type": "text/html" },
+      });
+    }
+
+    return new Response("Waiting for OAuth callback...", {
+      headers: { "Content-Type": "text/plain" },
+    });
+  });
+
+  const addr = server.addr as Deno.NetAddr;
+
+  // 5-minute timeout
+  const timeout = setTimeout(() => {
+    rejectCode(new Error("OAuth callback timed out after 5 minutes"));
+  }, 5 * 60 * 1000);
+
+  // Clean up timeout when code is received
+  codePromise.finally(() => clearTimeout(timeout));
+
+  return { server, port: addr.port, codePromise };
+}
+
+/**
+ * Run the Google OAuth2 flow: prompt for credentials, open browser, exchange code.
+ *
+ * Shared by both `triggerfish connect google` and the dive wizard.
+ *
+ * @param secretStore - Where to store tokens (defaults to OS keychain)
+ */
+export async function performGoogleOAuth(
+  secretStore?: import("../secrets/keychain.ts").SecretStore,
+): Promise<boolean> {
+  const clientId = await Input.prompt({
+    message: "Google OAuth Client ID",
+  });
+  if (!clientId.trim()) {
+    console.log("Client ID is required.");
+    return false;
+  }
+
+  const clientSecret = await Input.prompt({
+    message: "Google OAuth Client Secret",
+  });
+  if (!clientSecret.trim()) {
+    console.log("Client Secret is required.");
+    return false;
+  }
+
+  const store = secretStore ?? createKeychain();
+  const authManager = createGoogleAuthManager(store);
+
+  // Start localhost callback server
+  const { server, port, codePromise } = createOAuthCallbackServer();
+
+  // Keep-alive interval to prevent the Deno event loop from exiting
+  // while waiting for the browser OAuth redirect
+  const keepAlive = setInterval(() => {}, 60_000);
+
+  try {
+    const config: GoogleAuthConfig = {
+      clientId: clientId.trim(),
+      clientSecret: clientSecret.trim(),
+      redirectUri: `http://127.0.0.1:${port}`,
+      scopes: GOOGLE_SCOPES,
+    };
+
+    const consentUrl = authManager.getConsentUrl(config);
+    console.log("\nOpen this URL in your browser to authorize Triggerfish:\n");
+    console.log(`  ${consentUrl}\n`);
+    console.log("Waiting for authorization...\n");
+
+    // Race the code promise against server.finished to keep the process alive.
+    // Deno may exit if no refs keep the event loop running; server.finished
+    // ensures the HTTP server ref keeps the process alive until we shut it down.
+    const code = await Promise.race([
+      codePromise,
+      server.finished.then(() => {
+        throw new Error("OAuth callback server stopped unexpectedly");
+      }),
+    ]);
+
+    console.log("Authorization received. Exchanging code for tokens...");
+    const result = await authManager.exchangeCode(code, config);
+
+    if (result.ok) {
+      console.log("\nGoogle account connected successfully.");
+      console.log("Your agent can now use Gmail, Calendar, Tasks, Drive, and Sheets.");
+      return true;
+    } else {
+      console.log(`\nFailed to connect: ${result.error.message}`);
+      console.log("Please verify your Client ID and Client Secret, then try again.");
+      return false;
+    }
+  } finally {
+    clearInterval(keepAlive);
+    await server.shutdown();
+  }
+}
+
+/**
+ * Interactive Google OAuth2 authentication flow.
+ */
+async function runConnectGoogle(): Promise<void> {
+  console.log("Connect Google Workspace\n");
+  console.log("This will connect your Google account for Gmail, Calendar, Tasks, Drive, and Sheets.\n");
+  console.log("You'll need OAuth2 credentials from Google Cloud Console.\n");
+  console.log("  Quick setup:");
+  console.log("    1. Go to https://console.cloud.google.com ");
+  console.log("    2. Create a project (or select an existing one)");
+  console.log('    3. Navigate to "APIs & Services" → "Credentials"');
+  console.log('    4. Click "+ CREATE CREDENTIALS" and select "OAuth client ID"');
+  console.log("    5. If prompted, configure the OAuth consent screen first");
+  console.log("       IMPORTANT: Add yourself as a test user on the consent screen,");
+  console.log("       or you'll get \"Access blocked\" when authorizing.");
+  console.log("       Full walkthrough: https://triggerfish.dev/integrations/google-workspace");
+  console.log('    6. On the Create OAuth client ID screen, select "Desktop app" from');
+  console.log("       the Application type dropdown");
+  console.log('    7. Name it "Triggerfish" (or anything you like)');
+  console.log("    8. Click Create, then copy the Client ID and Client Secret\n");
+  console.log("  You'll also need to enable these APIs in your project:");
+  console.log("    • Gmail API");
+  console.log("    • Google Calendar API");
+  console.log("    • Google Tasks API");
+  console.log("    • Google Drive API");
+  console.log("    • Google Sheets API");
+  console.log("  Enable them at: https://console.cloud.google.com/apis/library\n");
+  await performGoogleOAuth();
+}
+
+/**
+ * Handle `triggerfish disconnect <service>`.
+ */
+async function runDisconnect(
+  subcommand: string | undefined,
+  _flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  switch (subcommand) {
+    case "google": {
+      const secretStore = createKeychain();
+      const authManager = createGoogleAuthManager(secretStore);
+      const hadTokens = await authManager.hasTokens();
+      await authManager.clearTokens();
+      if (hadTokens) {
+        console.log("Google account disconnected. Tokens removed from keychain.");
+      } else {
+        console.log("No Google account was connected.");
+      }
+      break;
+    }
+    default:
+      console.log(`
+DISCONNECT USAGE:
+  triggerfish disconnect google    Remove Google authentication
+`);
+      break;
+  }
+}
+
 /**
  * Main CLI entry point.
  */
@@ -2786,8 +3083,14 @@ async function main(): Promise<void> {
     case "config":
       await runConfig(parsed.subcommand, parsed.flags);
       break;
+    case "connect":
+      await runConnect(parsed.subcommand, parsed.flags);
+      break;
     case "cron":
       await runCron(parsed.subcommand, parsed.flags);
+      break;
+    case "disconnect":
+      await runDisconnect(parsed.subcommand, parsed.flags);
       break;
     case "dive":
       await runDive(parsed.flags);
