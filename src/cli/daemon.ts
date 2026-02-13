@@ -412,77 +412,72 @@ export interface UpdateResult {
   readonly newVersion?: string;
 }
 
+const GITHUB_REPO = "greghavens/triggerfish";
+const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}`;
+
 /**
- * Update Triggerfish to the latest version from the master branch.
+ * Resolve the platform-specific asset name for the current OS and architecture.
+ */
+function resolveAssetName(): string {
+  const os = Deno.build.os === "darwin" ? "macos" : Deno.build.os;
+  const arch = Deno.build.arch === "aarch64" ? "arm64" : "x64";
+  const ext = Deno.build.os === "windows" ? ".exe" : "";
+  return `triggerfish-${os}-${arch}${ext}`;
+}
+
+/**
+ * Update Triggerfish to the latest tagged release.
  *
- * Pulls the latest source from git, recompiles the binary,
+ * Downloads the platform binary from the latest GitHub release,
  * stops the running daemon, replaces the binary, and restarts.
  *
- * @param branch - Git branch to pull from. Default: "master".
  * @returns Result indicating success or failure.
  */
-export async function updateTriggerfish(
-  branch = "master",
-): Promise<UpdateResult> {
-  const srcDir = `${Deno.env.get("HOME")}/.triggerfish/src`;
-
-  // Check source directory exists
+export async function updateTriggerfish(): Promise<UpdateResult> {
+  // Fetch latest release tag
+  console.log("Checking for updates...");
+  let latestTag: string;
+  let downloadUrl: string;
   try {
-    await Deno.stat(`${srcDir}/.git`);
-  } catch {
-    return {
-      ok: false,
-      message:
-        "Source directory not found. Run the install script first:\n" +
-        "  curl -sSL https://raw.githubusercontent.com/greghavens/triggerfish/master/scripts/install.sh | bash",
+    const resp = await fetch(`${GITHUB_API}/releases/latest`);
+    if (!resp.ok) {
+      return { ok: false, message: `Failed to check for updates: HTTP ${resp.status}` };
+    }
+    const release = await resp.json() as {
+      tag_name: string;
+      assets: readonly { name: string; browser_download_url: string }[];
     };
+    latestTag = release.tag_name;
+
+    const assetName = resolveAssetName();
+    const asset = release.assets.find((a) => a.name === assetName);
+    if (!asset) {
+      return {
+        ok: false,
+        message: `No binary for this platform (${assetName}) in release ${latestTag}`,
+      };
+    }
+    downloadUrl = asset.browser_download_url;
+  } catch (e) {
+    return { ok: false, message: `Failed to check for updates: ${e}` };
   }
 
-  // Get current commit hash for version tracking
-  const oldHash = await runCommand("git", ["-C", srcDir, "rev-parse", "--short", "HEAD"]);
+  console.log(`  Updating to ${latestTag}`);
 
-  // Pull latest code
-  const fetch = await runCommand("git", ["-C", srcDir, "fetch", "origin"]);
-  if (!fetch.success) {
-    return { ok: false, message: `Failed to fetch updates: ${fetch.stderr}` };
-  }
-
-  const checkout = await runCommand("git", ["-C", srcDir, "checkout", branch]);
-  if (!checkout.success) {
-    return { ok: false, message: `Failed to checkout ${branch}: ${checkout.stderr}` };
-  }
-
-  const pull = await runCommand("git", ["-C", srcDir, "pull", "origin", branch]);
-  if (!pull.success) {
-    return { ok: false, message: `Failed to pull latest code: ${pull.stderr}` };
-  }
-
-  // Check if there were actual changes
-  const newHash = await runCommand("git", ["-C", srcDir, "rev-parse", "--short", "HEAD"]);
-  if (oldHash.stdout === newHash.stdout) {
-    return {
-      ok: true,
-      message: "Already up to date",
-      previousVersion: oldHash.stdout,
-      newVersion: newHash.stdout,
-    };
-  }
-
-  // Find deno binary
-  const denoPath = await findDeno();
-  if (!denoPath) {
-    return { ok: false, message: "Deno not found. Install Deno first." };
-  }
-
-  // Compile new binary
-  const compile = await runCommand(denoPath, [
-    "compile",
-    "--allow-all",
-    `--output=${srcDir}/triggerfish`,
-    `${srcDir}/src/cli/main.ts`,
-  ]);
-  if (!compile.success) {
-    return { ok: false, message: `Compilation failed: ${compile.stderr}` };
+  // Download new binary to temp file
+  const tmpPath = `${Deno.env.get("HOME")}/.triggerfish/.update-tmp`;
+  console.log("Downloading...");
+  try {
+    const resp = await fetch(downloadUrl);
+    if (!resp.ok || !resp.body) {
+      return { ok: false, message: `Download failed: HTTP ${resp.status}` };
+    }
+    const file = await Deno.open(tmpPath, { write: true, create: true, truncate: true });
+    await resp.body.pipeTo(file.writable);
+    await Deno.chmod(tmpPath, 0o755);
+  } catch (e) {
+    try { await Deno.remove(tmpPath); } catch { /* */ }
+    return { ok: false, message: `Download failed: ${e}` };
   }
 
   // Find where the current binary is installed
@@ -497,14 +492,13 @@ export async function updateTriggerfish(
   //   2. Stop the daemon
   //   3. Replace the binary
   //   4. Restart the daemon if it was running
-  const newBinary = `${srcDir}/triggerfish`;
-
   if (Deno.build.os === "windows") {
     const ps = [
       `Start-Sleep 1`,
       `Stop-Process -Name triggerfish -Force -ErrorAction SilentlyContinue`,
       `Start-Sleep 1`,
-      `Copy-Item '${newBinary}' '${binaryPath}' -Force`,
+      `Copy-Item '${tmpPath}' '${binaryPath}' -Force`,
+      `Remove-Item '${tmpPath}' -Force`,
       ...(wasRunning
         ? [`& '${binaryPath}' start`]
         : []),
@@ -532,7 +526,7 @@ export async function updateTriggerfish(
       `sleep 1`,
       stopCmd,
       `rm -f '${binaryPath}'`,
-      `cp '${newBinary}' '${binaryPath}'`,
+      `mv '${tmpPath}' '${binaryPath}'`,
       `chmod 755 '${binaryPath}'`,
       startCmd,
     ].filter(Boolean).join(" && ");
@@ -545,39 +539,9 @@ export async function updateTriggerfish(
     cmd.spawn().unref();
   }
 
-  console.log(`\n✓ Update ${oldHash.stdout} → ${newHash.stdout} in progress.`);
+  console.log(`\n✓ Update to ${latestTag} in progress.`);
   console.log("  Binary will be replaced momentarily after this process exits.");
   Deno.exit(0);
-}
-
-/**
- * Find the deno binary, checking common locations.
- */
-async function findDeno(): Promise<string | null> {
-  // Try which/command -v first
-  const which = await runCommand("which", ["deno"]);
-  if (which.success && which.stdout.length > 0) {
-    return which.stdout;
-  }
-
-  // Check common install locations
-  const home = Deno.env.get("HOME") ?? "";
-  const candidates = [
-    `${home}/.deno/bin/deno`,
-    "/usr/local/bin/deno",
-    "/usr/bin/deno",
-  ];
-
-  for (const path of candidates) {
-    try {
-      await Deno.stat(path);
-      return path;
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
 }
 
 /**

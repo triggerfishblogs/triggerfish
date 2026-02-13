@@ -57,7 +57,7 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
 
     async complete(
       messages: readonly LlmMessage[],
-      _tools: readonly unknown[],
+      tools: readonly unknown[],
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       const anthropicClient = getClient();
@@ -80,11 +80,15 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
           content: m.content as MessageParam["content"],
         }));
 
+      // Convert OpenAI-format tool definitions to Anthropic format
+      const anthropicTools = convertToolsToAnthropicFormat(tools);
+
       const requestParams: MessageCreateParamsNonStreaming = {
         model,
         max_tokens: maxTokens,
         messages: anthropicMessages,
         ...(systemPrompt ? { system: systemPrompt } : {}),
+        ...(anthropicTools.length > 0 ? { tools: anthropicTools } : {}),
       };
 
       const response = await anthropicClient.messages.create(
@@ -111,7 +115,7 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
 
     async *stream(
       messages: readonly LlmMessage[],
-      _tools: readonly unknown[],
+      tools: readonly unknown[],
       options: Record<string, unknown>,
     ): AsyncIterable<LlmStreamChunk> {
       const anthropicClient = getClient();
@@ -131,11 +135,14 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
           content: m.content as MessageParam["content"],
         }));
 
+      const anthropicTools = convertToolsToAnthropicFormat(tools);
+
       const stream = anthropicClient.messages.stream({
         model,
         max_tokens: maxTokens,
         messages: anthropicMessages,
         ...(systemPrompt ? { system: systemPrompt } : {}),
+        ...(anthropicTools.length > 0 ? { tools: anthropicTools } : {}),
       }, signal ? { signal } : undefined);
 
       for await (const event of stream) {
@@ -158,4 +165,33 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
       };
     },
   };
+}
+
+/** OpenAI-format tool definition shape. */
+interface OpenAiToolDef {
+  readonly type: string;
+  readonly function: {
+    readonly name: string;
+    readonly description: string;
+    readonly parameters: Record<string, unknown>;
+  };
+}
+
+/** Convert OpenAI-format tool definitions to Anthropic's native format. */
+function convertToolsToAnthropicFormat(
+  tools: readonly unknown[],
+  // deno-lint-ignore no-explicit-any
+): any[] {
+  if (!Array.isArray(tools) || tools.length === 0) return [];
+  return tools
+    .filter((t): t is OpenAiToolDef => {
+      const td = t as Record<string, unknown>;
+      return td !== null && typeof td === "object" &&
+        typeof td.function === "object";
+    })
+    .map((t) => ({
+      name: t.function.name,
+      description: t.function.description,
+      input_schema: t.function.parameters,
+    }));
 }

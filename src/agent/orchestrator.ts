@@ -625,6 +625,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
       debugLog(`iter${iterations} sending`, `${messages.length} msgs, sysPrompt=${systemPrompt.length}chars, history=${history.length} entries`);
       if (debug && iterations === 1) {
+        console.error(`[orch] === SYSTEM PROMPT ===\n${systemPrompt}\n[orch] === END SYSTEM PROMPT ===`);
         for (const h of history) {
           const preview = typeof h.content === "string" ? h.content.slice(0, 100) : "(non-string)";
           console.error(`[orch] history ${h.role}: ${preview}`);
@@ -664,23 +665,34 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       const hasTools = (tools.length > 0 && toolExecutor) || planManager;
       let parsedCalls: readonly ParsedToolCall[] = [];
 
-      // Check for native tool calls from provider (OpenAI-compatible format)
+      // Check for native tool calls from provider (OpenAI or Anthropic/Gemini format)
       if (hasTools && Array.isArray(completion.toolCalls) && completion.toolCalls.length > 0) {
         parsedCalls = completion.toolCalls
-          .filter((tc: unknown): tc is { function: { name: string; arguments: string } } => {
+          .map((tc: unknown): ParsedToolCall | null => {
             const t = tc as Record<string, unknown>;
-            return t !== null && typeof t === "object" &&
-              typeof (t as { function?: unknown }).function === "object";
-          })
-          .map((tc) => {
-            let args: Record<string, unknown> = {};
-            try {
-              args = JSON.parse(tc.function.arguments);
-            } catch {
-              // Malformed arguments
+            if (t === null || typeof t !== "object") return null;
+
+            // OpenAI format: { function: { name, arguments } }
+            if (typeof (t as { function?: unknown }).function === "object") {
+              const fn = (t as { function: { name: string; arguments: string } }).function;
+              let args: Record<string, unknown> = {};
+              try {
+                args = JSON.parse(fn.arguments);
+              } catch {
+                // Malformed arguments
+              }
+              return { name: fn.name, args };
             }
-            return { name: tc.function.name, args };
-          });
+
+            // Anthropic format: { type: "tool_use", name, input }
+            if (t.type === "tool_use" && typeof t.name === "string") {
+              const input = (t.input ?? {}) as Record<string, unknown>;
+              return { name: t.name as string, args: input };
+            }
+
+            return null;
+          })
+          .filter((tc): tc is ParsedToolCall => tc !== null);
         debugLog(`iter${iterations} nativeToolCalls`, parsedCalls.length);
       }
 

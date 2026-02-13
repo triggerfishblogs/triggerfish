@@ -66,7 +66,7 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
 
     async complete(
       messages: readonly LlmMessage[],
-      _tools: readonly unknown[],
+      tools: readonly unknown[],
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       const openaiClient = getClient();
@@ -79,11 +79,15 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
         content: toOpenAiContent(m.content),
       }));
 
+      // deno-lint-ignore no-explicit-any
+      const toolsParam = (Array.isArray(tools) && tools.length > 0) ? { tools: tools as any[] } : {};
+
       const response = await openaiClient.chat.completions.create(
         {
           model,
           max_tokens: maxTokens,
           messages: openaiMessages,
+          ...toolsParam,
         },
         signal ? { signal } : undefined,
       );
@@ -102,7 +106,7 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
 
     async *stream(
       messages: readonly LlmMessage[],
-      _tools: readonly unknown[],
+      tools: readonly unknown[],
       options: Record<string, unknown>,
     ): AsyncIterable<LlmStreamChunk> {
       const openaiClient = getClient();
@@ -114,6 +118,9 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
         content: toOpenAiContent(m.content),
       }));
 
+      // deno-lint-ignore no-explicit-any
+      const toolsParam = (Array.isArray(tools) && tools.length > 0) ? { tools: tools as any[] } : {};
+
       const stream = await openaiClient.chat.completions.create(
         {
           model,
@@ -121,6 +128,7 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
           messages: openaiMessages,
           stream: true,
           stream_options: { include_usage: true },
+          ...toolsParam,
         },
         signal ? { signal } : undefined,
       );

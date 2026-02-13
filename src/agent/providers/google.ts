@@ -60,7 +60,7 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
 
     async complete(
       messages: readonly LlmMessage[],
-      _tools: readonly unknown[],
+      tools: readonly unknown[],
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       const signal = options.signal as AbortSignal | undefined;
@@ -72,10 +72,16 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
           : JSON.stringify(systemMessage.content))
         : undefined;
 
-      // Get the generative model with optional system instruction
+      // Get the generative model with optional system instruction and tools
       const modelConfig: Record<string, unknown> = {};
       if (systemInstruction) {
         modelConfig.systemInstruction = systemInstruction;
+      }
+
+      // Convert OpenAI-format tools to Gemini functionDeclarations
+      const geminiTools = convertToolsToGeminiFormat(tools);
+      if (geminiTools.length > 0) {
+        modelConfig.tools = [{ functionDeclarations: geminiTools }];
       }
 
       const model = genAI.getGenerativeModel({
@@ -121,9 +127,20 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
       // Estimate token usage from response metadata
       const usageMetadata = response.usageMetadata;
 
+      // Extract function calls from Gemini response
+      const geminiToolCalls = extractGeminiFunctionCalls(response);
+
+      // Extract text — response.text() throws if there are only function call parts
+      let textContent = "";
+      try {
+        textContent = response.text();
+      } catch {
+        // No text content (function-call-only response)
+      }
+
       return {
-        content: response.text(),
-        toolCalls: [],
+        content: textContent,
+        toolCalls: geminiToolCalls,
         usage: {
           inputTokens: usageMetadata?.promptTokenCount ?? 0,
           outputTokens: usageMetadata?.candidatesTokenCount ?? 0,
@@ -133,7 +150,7 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
 
     async *stream(
       messages: readonly LlmMessage[],
-      _tools: readonly unknown[],
+      tools: readonly unknown[],
       options: Record<string, unknown>,
     ): AsyncIterable<LlmStreamChunk> {
       const signal = options.signal as AbortSignal | undefined;
@@ -148,6 +165,11 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
       const modelConfig: Record<string, unknown> = {};
       if (systemInstruction) {
         modelConfig.systemInstruction = systemInstruction;
+      }
+
+      const geminiTools = convertToolsToGeminiFormat(tools);
+      if (geminiTools.length > 0) {
+        modelConfig.tools = [{ functionDeclarations: geminiTools }];
       }
 
       const model = genAI.getGenerativeModel({
@@ -198,4 +220,57 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
       };
     },
   };
+}
+
+/** OpenAI-format tool definition shape. */
+interface OpenAiToolDef {
+  readonly type: string;
+  readonly function: {
+    readonly name: string;
+    readonly description: string;
+    readonly parameters: Record<string, unknown>;
+  };
+}
+
+/** Convert OpenAI-format tool definitions to Gemini functionDeclarations format. */
+function convertToolsToGeminiFormat(
+  tools: readonly unknown[],
+): Record<string, unknown>[] {
+  if (!Array.isArray(tools) || tools.length === 0) return [];
+  return tools
+    .filter((t): t is OpenAiToolDef => {
+      const td = t as Record<string, unknown>;
+      return td !== null && typeof td === "object" &&
+        typeof td.function === "object";
+    })
+    .map((t) => ({
+      name: t.function.name,
+      description: t.function.description,
+      parameters: t.function.parameters,
+    }));
+}
+
+/**
+ * Extract function calls from a Gemini response.
+ *
+ * Returns them in Anthropic tool_use format: `{ type: "tool_use", id, name, input }`
+ * so the orchestrator's native tool call parser can handle them uniformly.
+ */
+// deno-lint-ignore no-explicit-any
+function extractGeminiFunctionCalls(response: any): unknown[] {
+  const calls: unknown[] = [];
+  for (const candidate of response.candidates ?? []) {
+    for (const part of candidate.content?.parts ?? []) {
+      const fc = part.functionCall as { name: string; args: Record<string, unknown> } | undefined;
+      if (fc) {
+        calls.push({
+          type: "tool_use",
+          id: `gemini_${crypto.randomUUID().slice(0, 8)}`,
+          name: fc.name,
+          input: fc.args ?? {},
+        });
+      }
+    }
+  }
+  return calls;
 }

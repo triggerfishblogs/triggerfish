@@ -160,6 +160,8 @@ import type { ChatEventSender } from "../gateway/chat.ts";
 import type { ChannelMessage } from "../channels/types.ts";
 import { createNotificationService } from "../gateway/notifications.ts";
 import { parseClassification } from "../core/types/classification.ts";
+import { createSkillLoader } from "../skills/loader.ts";
+import type { Skill } from "../skills/loader.ts";
 
 /** Known CLI commands. */
 const KNOWN_COMMANDS = new Set([
@@ -265,6 +267,7 @@ export interface TriggerFishConfig {
       readonly folder_classifications?: Readonly<Record<string, string>>;
     };
   };
+  readonly debug?: boolean;
 }
 
 /** Success result. */
@@ -650,6 +653,32 @@ async function runPatrol(): Promise<void> {
  *
  * Returns a SearchProvider (if configured) and a WebFetcher.
  */
+/** Build a system prompt section listing discovered skills. */
+function buildSkillsSystemPrompt(skills: readonly Skill[]): string {
+  if (skills.length === 0) return "";
+
+  const rows = skills.map((s) =>
+    `| ${s.name} | ${s.description} | ${s.path}/SKILL.md |`
+  ).join("\n");
+
+  return `## Available Skills
+
+You have the following skills available. To use a skill, read its SKILL.md file with read_file for detailed instructions. Do NOT search for skill files — the paths below are exact.
+
+| Skill | Description | Path |
+|-------|-------------|------|
+${rows}
+
+When a task matches a skill, use read_file to load the skill's SKILL.md for detailed guidance before proceeding.`;
+}
+
+/** Build a system prompt section about TRIGGER.md awareness. */
+function buildTriggersSystemPrompt(baseDir: string): string {
+  return `## Triggers (Proactive Monitoring)
+
+Your TRIGGER.md file is at ${baseDir}/TRIGGER.md. It defines what you proactively monitor and act on during periodic trigger wakeups. Use read_file to see current triggers, and edit_file/write_file to modify them. For full documentation on the TRIGGER.md format, read the "triggers" skill.`;
+}
+
 function buildWebTools(
   config: TriggerFishConfig,
 ): { searchProvider: SearchProvider | undefined; webFetcher: WebFetcher } {
@@ -739,8 +768,33 @@ function createOrchestratorFactory(
   // Shared by all scheduler orchestrators — same config-driven map
   const schedulerToolClassifications = buildToolClassifications(config);
 
+  // Discover skills for scheduler agents (same directories as main session)
+  const factoryBundledSkillsDir = join(import.meta.dirname ?? ".", "..", "..", "skills", "bundled");
+  const factoryManagedSkillsDir = `${baseDir}/skills`;
+  const factoryWorkspaceSkillsDir = `${baseDir}/workspaces/main/skills`;
+  const factorySkillLoader = createSkillLoader({
+    directories: [factoryBundledSkillsDir, factoryManagedSkillsDir, factoryWorkspaceSkillsDir],
+    dirTypes: {
+      [factoryBundledSkillsDir]: "bundled",
+      [factoryManagedSkillsDir]: "managed",
+      [factoryWorkspaceSkillsDir]: "workspace",
+    },
+  });
+  let factorySkillsPrompt = "";
+  // Discover is async — do it lazily on first create()
+  let factorySkillsDiscovered = false;
+
   return {
     async create(channelId: string) {
+      if (!factorySkillsDiscovered) {
+        factorySkillsDiscovered = true;
+        try {
+          const skills = await factorySkillLoader.discover();
+          factorySkillsPrompt = buildSkillsSystemPrompt(skills);
+        } catch {
+          // Non-fatal
+        }
+      }
       const agentId = `scheduler-${channelId}-${Date.now()}`;
       const workspace = await createWorkspace({
         agentId,
@@ -827,7 +881,7 @@ function createOrchestratorFactory(
         spinePath,
         tools: toolDefs,
         toolExecutor,
-        systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT],
+        systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT, factorySkillsPrompt],
         visionProvider: schedulerVisionProvider,
         toolClassifications: schedulerToolClassifications,
         getSessionTaint: () => session.taint,
@@ -1160,6 +1214,30 @@ async function runStart(): Promise<void> {
     }
   }
 
+  // Discover skills from bundled, managed, and workspace directories
+  const bundledSkillsDir = join(import.meta.dirname ?? ".", "..", "..", "skills", "bundled");
+  const managedSkillsDir = `${baseDir}/skills`;
+  const workspaceSkillsDir = `${baseDir}/workspaces/main/skills`;
+  const skillLoader = createSkillLoader({
+    directories: [bundledSkillsDir, managedSkillsDir, workspaceSkillsDir],
+    dirTypes: {
+      [bundledSkillsDir]: "bundled",
+      [managedSkillsDir]: "managed",
+      [workspaceSkillsDir]: "workspace",
+    },
+  });
+  let discoveredSkills: readonly Skill[] = [];
+  try {
+    discoveredSkills = await skillLoader.discover();
+    if (discoveredSkills.length > 0) {
+      console.log(`  Discovered ${discoveredSkills.length} skill(s)`);
+    }
+  } catch {
+    // Skill discovery failure is non-fatal
+  }
+  const SKILLS_SYSTEM_PROMPT = buildSkillsSystemPrompt(discoveredSkills);
+  const TRIGGERS_SYSTEM_PROMPT = buildTriggersSystemPrompt(baseDir);
+
   const toolExecutor = createToolExecutor({
     execTools,
     cronManager,
@@ -1186,9 +1264,9 @@ async function runStart(): Promise<void> {
     spinePath,
     tools: getToolDefinitions(),
     toolExecutor,
-    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT, OBSIDIAN_SYSTEM_PROMPT],
+    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT, OBSIDIAN_SYSTEM_PROMPT, SKILLS_SYSTEM_PROMPT, TRIGGERS_SYSTEM_PROMPT],
     session,
-    debug: Deno.env.get("TRIGGERFISH_DEBUG") === "1",
+    debug: config.debug === true || Deno.env.get("TRIGGERFISH_DEBUG") === "1",
     visionProvider,
     toolClassifications,
     getSessionTaint: () => session.taint,
