@@ -80,6 +80,15 @@ import {
   createTodoToolExecutor,
   getTodoToolDefinitions,
   TODO_SYSTEM_PROMPT,
+  createLlmTaskToolExecutor,
+  getLlmTaskToolDefinitions,
+  LLM_TASK_SYSTEM_PROMPT,
+  createSummarizeToolExecutor,
+  getSummarizeToolDefinitions,
+  SUMMARIZE_SYSTEM_PROMPT,
+  createHealthcheckToolExecutor,
+  getHealthcheckToolDefinitions,
+  HEALTHCHECK_SYSTEM_PROMPT,
 } from "../tools/mod.ts";
 import type { TodoManager } from "../tools/mod.ts";
 import {
@@ -873,6 +882,12 @@ function createOrchestratorFactory(
         sessionExecutor,
         googleExecutor: buildGoogleExecutor(session.taint, session.id),
         githubExecutor: schedulerGithubExecutor,
+        llmTaskExecutor: registry ? createLlmTaskToolExecutor(registry) : undefined,
+        summarizeExecutor: registry ? createSummarizeToolExecutor(registry) : undefined,
+        healthcheckExecutor: createHealthcheckToolExecutor({
+          providerRegistry: registry,
+          storageProvider: storage,
+        }),
         providerRegistry: registry,
       });
       const orchestrator = createOrchestrator({
@@ -881,7 +896,7 @@ function createOrchestratorFactory(
         spinePath,
         tools: toolDefs,
         toolExecutor,
-        systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT, factorySkillsPrompt],
+        systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT, LLM_TASK_SYSTEM_PROMPT, SUMMARIZE_SYSTEM_PROMPT, HEALTHCHECK_SYSTEM_PROMPT, factorySkillsPrompt],
         visionProvider: schedulerVisionProvider,
         toolClassifications: schedulerToolClassifications,
         getSessionTaint: () => session.taint,
@@ -1254,6 +1269,12 @@ async function runStart(): Promise<void> {
     googleExecutor: buildGoogleExecutor(session.taint, session.id),
     githubExecutor,
     obsidianExecutor,
+    llmTaskExecutor: registry ? createLlmTaskToolExecutor(registry) : undefined,
+    summarizeExecutor: registry ? createSummarizeToolExecutor(registry) : undefined,
+    healthcheckExecutor: createHealthcheckToolExecutor({
+      providerRegistry: registry,
+      storageProvider: storage,
+    }),
     subagentFactory,
     providerRegistry: registry,
   });
@@ -1264,7 +1285,7 @@ async function runStart(): Promise<void> {
     spinePath,
     tools: getToolDefinitions(),
     toolExecutor,
-    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT, OBSIDIAN_SYSTEM_PROMPT, SKILLS_SYSTEM_PROMPT, TRIGGERS_SYSTEM_PROMPT],
+    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT, OBSIDIAN_SYSTEM_PROMPT, SKILLS_SYSTEM_PROMPT, TRIGGERS_SYSTEM_PROMPT, LLM_TASK_SYSTEM_PROMPT, SUMMARIZE_SYSTEM_PROMPT, HEALTHCHECK_SYSTEM_PROMPT],
     session,
     debug: config.debug === true || Deno.env.get("TRIGGERFISH_DEBUG") === "1",
     visionProvider,
@@ -2278,6 +2299,9 @@ function getToolDefinitions(): readonly ToolDefinition[] {
     ...getGoogleToolDefinitions(),
     ...getGitHubToolDefinitions(),
     ...getObsidianToolDefinitions(),
+    ...getLlmTaskToolDefinitions(),
+    ...getSummarizeToolDefinitions(),
+    ...getHealthcheckToolDefinitions(),
     {
       name: "read_file",
       description: "Read the contents of a file at an absolute path.",
@@ -2323,15 +2347,6 @@ function getToolDefinitions(): readonly ToolDefinition[] {
         path: { type: "string", description: "Absolute file path to edit", required: true },
         old_text: { type: "string", description: "Exact text to find (must be unique in file)", required: true },
         new_text: { type: "string", description: "Replacement text", required: true },
-      },
-    },
-    {
-      name: "llm_task",
-      description: "Run a one-shot LLM prompt for isolated reasoning (summarization, classification, data extraction). Does not pollute main conversation context.",
-      parameters: {
-        prompt: { type: "string", description: "The prompt to send", required: true },
-        system: { type: "string", description: "Optional system prompt", required: false },
-        model: { type: "string", description: "Optional model/provider name override", required: false },
       },
     },
     {
@@ -2396,6 +2411,9 @@ interface ToolExecutorOptions {
   readonly googleExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
   readonly githubExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
   readonly obsidianExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly llmTaskExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly summarizeExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly healthcheckExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
   readonly subagentFactory?: (task: string, tools?: string) => Promise<string>;
 }
 
@@ -2478,6 +2496,24 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
     if (opts.obsidianExecutor) {
       const obsidianResult = await opts.obsidianExecutor(name, input);
       if (obsidianResult !== null) return obsidianResult;
+    }
+
+    // Try llm_task tool (returns null if not llm_task)
+    if (opts.llmTaskExecutor) {
+      const llmTaskResult = await opts.llmTaskExecutor(name, input);
+      if (llmTaskResult !== null) return llmTaskResult;
+    }
+
+    // Try summarize tool (returns null if not summarize)
+    if (opts.summarizeExecutor) {
+      const summarizeResult = await opts.summarizeExecutor(name, input);
+      if (summarizeResult !== null) return summarizeResult;
+    }
+
+    // Try healthcheck tool (returns null if not healthcheck)
+    if (opts.healthcheckExecutor) {
+      const healthcheckResult = await opts.healthcheckExecutor(name, input);
+      if (healthcheckResult !== null) return healthcheckResult;
     }
 
     // Try web tools (returns null if not a web tool)
@@ -2609,34 +2645,6 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
           return `Edited ${path} (${updated.length} bytes written)`;
         } catch (err) {
           return `Error editing file: ${err instanceof Error ? err.message : String(err)}`;
-        }
-      }
-
-      case "llm_task": {
-        if (!opts.providerRegistry) {
-          return "LLM task is not available (no provider registry).";
-        }
-        const prompt = input.prompt;
-        if (typeof prompt !== "string" || prompt.length === 0) {
-          return "Error: llm_task requires a non-empty 'prompt' argument (string).";
-        }
-        const modelName = typeof input.model === "string" ? input.model : undefined;
-        const provider = modelName
-          ? opts.providerRegistry.get(modelName) ?? opts.providerRegistry.getDefault()
-          : opts.providerRegistry.getDefault();
-        if (!provider) {
-          return "Error: No LLM provider available.";
-        }
-        const messages: { role: string; content: string }[] = [];
-        if (typeof input.system === "string" && input.system.length > 0) {
-          messages.push({ role: "system", content: input.system });
-        }
-        messages.push({ role: "user", content: prompt });
-        try {
-          const result = await provider.complete(messages, [], {});
-          return result.content;
-        } catch (err) {
-          return `Error in llm_task: ${err instanceof Error ? err.message : String(err)}`;
         }
       }
 
