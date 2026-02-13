@@ -1,0 +1,16 @@
+services:
+  triggerfish:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    ports:
+      - "18789:18789"
+      - "18790:18790"
+    volumes:
+      - triggerfish-data:/data
+      # Mount your config file with secrets included
+      - ./triggerfish.yaml:/data/triggerfish.yaml:ro
+    restart: unless-stopped
+
+volumes:
+  triggerfish-data:

@@ -1,64 +1,102 @@
 #!/bin/bash
-# Triggerfish Install Script
+# Triggerfish Binary Installer
 #
-# Installs Deno (if needed), clones the repo, compiles, and runs first-time setup.
+# Downloads a pre-built binary from GitHub Releases, verifies its checksum,
+# and installs it. No Deno or git required.
+#
 # Usage: curl -sSL https://raw.githubusercontent.com/greghavens/triggerfish/master/scripts/install.sh | bash
 set -e
 
-REPO_URL="https://github.com/greghavens/triggerfish.git"
-SRC_DIR="${HOME}/.triggerfish/src"
-BRANCH="${TRIGGERFISH_BRANCH:-master}"
+REPO="greghavens/triggerfish"
+INSTALL_NAME="triggerfish"
 
 echo ""
 echo "  Triggerfish Installer"
 echo "  ====================="
 echo ""
 
-# --- Step 1: Ensure Deno is installed ---
+# --- Step 1: Detect OS and architecture ---
 
-if command -v deno &>/dev/null; then
-  echo "[ok] Deno found: $(deno --version | head -1)"
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+
+case "${OS}" in
+  Linux)  PLATFORM="linux" ;;
+  Darwin) PLATFORM="macos" ;;
+  *)
+    echo "[error] Unsupported OS: ${OS}"
+    exit 1
+    ;;
+esac
+
+case "${ARCH}" in
+  x86_64|amd64) ARCH_SUFFIX="x64" ;;
+  aarch64|arm64) ARCH_SUFFIX="arm64" ;;
+  *)
+    echo "[error] Unsupported architecture: ${ARCH}"
+    exit 1
+    ;;
+esac
+
+BINARY_NAME="${INSTALL_NAME}-${PLATFORM}-${ARCH_SUFFIX}"
+echo "[ok] Detected platform: ${PLATFORM}-${ARCH_SUFFIX}"
+
+# --- Step 2: Determine latest version ---
+
+if [ -n "${TRIGGERFISH_VERSION}" ]; then
+  VERSION="${TRIGGERFISH_VERSION}"
+  echo "[ok] Using specified version: ${VERSION}"
 else
-  echo "Installing Deno..."
-  curl -fsSL https://deno.land/install.sh | sh
-  export DENO_INSTALL="${HOME}/.deno"
-  export PATH="${DENO_INSTALL}/bin:${PATH}"
+  echo "Fetching latest version..."
+  VERSION="$(curl -sSL -H "Accept: application/vnd.github.v3+json" \
+    "https://api.github.com/repos/${REPO}/releases/latest" \
+    | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
 
-  if ! command -v deno &>/dev/null; then
-    echo "[error] Deno installation failed."
+  if [ -z "${VERSION}" ]; then
+    echo "[error] Could not determine latest version."
     exit 1
   fi
-  echo "[ok] Deno installed: $(deno --version | head -1)"
+  echo "[ok] Latest version: ${VERSION}"
 fi
 
-# --- Step 2: Ensure git is available ---
+# --- Step 3: Download binary and checksum ---
 
-if ! command -v git &>/dev/null; then
-  echo "[error] git is required. Install it and try again."
+BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
+
+echo "Downloading ${BINARY_NAME}..."
+curl -sSL -o "/tmp/${BINARY_NAME}" "${BASE_URL}/${BINARY_NAME}"
+
+echo "Downloading checksums..."
+curl -sSL -o "/tmp/SHA256SUMS.txt" "${BASE_URL}/SHA256SUMS.txt"
+
+# --- Step 4: Verify checksum ---
+
+echo "Verifying checksum..."
+EXPECTED="$(grep "${BINARY_NAME}" /tmp/SHA256SUMS.txt | awk '{print $1}')"
+
+if [ -z "${EXPECTED}" ]; then
+  echo "[error] Binary '${BINARY_NAME}' not found in SHA256SUMS.txt"
+  rm -f "/tmp/${BINARY_NAME}" "/tmp/SHA256SUMS.txt"
   exit 1
 fi
 
-# --- Step 3: Clone or update source ---
-
-if [ -d "${SRC_DIR}/.git" ]; then
-  echo "Updating source..."
-  git -C "${SRC_DIR}" fetch origin
-  git -C "${SRC_DIR}" checkout "${BRANCH}"
-  git -C "${SRC_DIR}" pull origin "${BRANCH}"
-  echo "[ok] Source updated"
+if command -v sha256sum &>/dev/null; then
+  ACTUAL="$(sha256sum "/tmp/${BINARY_NAME}" | awk '{print $1}')"
+elif command -v shasum &>/dev/null; then
+  ACTUAL="$(shasum -a 256 "/tmp/${BINARY_NAME}" | awk '{print $1}')"
 else
-  echo "Cloning triggerfish..."
-  mkdir -p "$(dirname "${SRC_DIR}")"
-  git clone --branch "${BRANCH}" "${REPO_URL}" "${SRC_DIR}"
-  echo "[ok] Source cloned to ${SRC_DIR}"
+  echo "[warn] No sha256sum or shasum found, skipping verification"
+  ACTUAL="${EXPECTED}"
 fi
 
-# --- Step 4: Compile ---
-
-echo "Compiling (this may take a minute)..."
-cd "${SRC_DIR}"
-deno compile --allow-all --output=triggerfish src/cli/main.ts
-echo "[ok] Compiled successfully"
+if [ "${ACTUAL}" != "${EXPECTED}" ]; then
+  echo "[error] Checksum mismatch!"
+  echo "  Expected: ${EXPECTED}"
+  echo "  Got:      ${ACTUAL}"
+  rm -f "/tmp/${BINARY_NAME}" "/tmp/SHA256SUMS.txt"
+  exit 1
+fi
+echo "[ok] Checksum verified"
 
 # --- Step 5: Install binary ---
 
@@ -69,14 +107,15 @@ else
   mkdir -p "${INSTALL_DIR}"
 fi
 
-cp "${SRC_DIR}/triggerfish" "${INSTALL_DIR}/triggerfish"
-chmod +x "${INSTALL_DIR}/triggerfish"
-echo "[ok] Installed to ${INSTALL_DIR}/triggerfish"
+mv "/tmp/${BINARY_NAME}" "${INSTALL_DIR}/${INSTALL_NAME}"
+chmod +x "${INSTALL_DIR}/${INSTALL_NAME}"
+rm -f "/tmp/SHA256SUMS.txt"
 
-# Ensure it's on PATH for the rest of this script
+echo "[ok] Installed to ${INSTALL_DIR}/${INSTALL_NAME}"
+
+# Ensure it's on PATH
 export PATH="${INSTALL_DIR}:${PATH}"
 
-# Check if install dir is in user's PATH
 case ":${PATH}:" in
   *":${INSTALL_DIR}:"*) ;;
   *)
@@ -88,15 +127,10 @@ case ":${PATH}:" in
     ;;
 esac
 
-# --- Step 6: First-time setup + optional daemon install ---
-# The dive wizard asks the user whether to install the daemon (step 6/6).
-# When --install-daemon is passed, dive will auto-start the daemon if the
-# user says yes during the wizard.
+# --- Step 6: First-time setup ---
 
-# When piped via curl|bash, stdin is the pipe — not the terminal.
-# Redirect from /dev/tty so the interactive wizard can read user input.
 echo ""
-"${INSTALL_DIR}/triggerfish" dive --install-daemon </dev/tty
+"${INSTALL_DIR}/${INSTALL_NAME}" dive --install-daemon </dev/tty
 
 echo ""
 echo "  triggerfish status    # Check daemon status"
