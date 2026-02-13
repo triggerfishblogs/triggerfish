@@ -24,7 +24,8 @@
     "@cliffy/prompt": "jsr:@cliffy/prompt@^1.0.0-rc.7",
     "puppeteer-core": "npm:puppeteer-core@^24.0.0",
     "@mozilla/readability": "npm:@mozilla/readability@^0.5.0",
-    "linkedom": "npm:linkedom@^0.18.0"
+    "linkedom": "npm:linkedom@^0.18.0",
+    "gpt-tokenizer": "npm:gpt-tokenizer@^2"
   },
   "exclude": [
     "test-seeds/",

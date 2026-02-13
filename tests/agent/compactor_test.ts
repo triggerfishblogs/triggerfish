@@ -1,8 +1,9 @@
 /**
  * Tests for conversation compactor.
  *
- * Covers token estimation, sliding window compaction,
- * LLM-based summarization, and edge cases.
+ * Covers token counting (cl100k_base), budget-aware auto-compaction,
+ * LLM-based summarization to a single message, budget updates, and
+ * edge cases.
  *
  * @module
  */
@@ -11,32 +12,49 @@ import { assertEquals, assertGreater, assertLessOrEqual } from "@std/assert";
 import {
   createCompactor,
   estimateTokens,
+  countTokens,
   estimateHistoryTokens,
 } from "../../src/agent/compactor.ts";
 import type { HistoryEntry } from "../../src/agent/orchestrator.ts";
 
-// ─── Token estimation ──────────────────────────────────────────
+// ─── Token counting ──────────────────────────────────────────
 
-Deno.test("estimateTokens returns ~4 chars per token", () => {
-  assertEquals(estimateTokens(""), 0);
-  assertEquals(estimateTokens("hello"), 2); // ceil(5/4) = 2
-  assertEquals(estimateTokens("a".repeat(100)), 25);
-  assertEquals(estimateTokens("a".repeat(101)), 26);
+Deno.test("countTokens returns 0 for empty string", () => {
+  assertEquals(countTokens(""), 0);
+});
+
+Deno.test("countTokens returns accurate count for English text", () => {
+  // "hello world" is 2 tokens in cl100k_base
+  assertEquals(countTokens("hello world"), 2);
+});
+
+Deno.test("countTokens returns reasonable count for longer text", () => {
+  const text = "The quick brown fox jumps over the lazy dog";
+  const tokens = countTokens(text);
+  assertGreater(tokens, 5);
+  assertLessOrEqual(tokens, 15);
+});
+
+Deno.test("estimateTokens is an alias for countTokens", () => {
+  const text = "Hello, how are you doing today?";
+  assertEquals(estimateTokens(text), countTokens(text));
 });
 
 Deno.test("estimateHistoryTokens sums all entries", () => {
   const history: HistoryEntry[] = [
-    { role: "user", content: "a".repeat(40) },     // 10 tokens
-    { role: "assistant", content: "b".repeat(80) }, // 20 tokens
+    { role: "user", content: "Hello world" },
+    { role: "assistant", content: "Hi there, how can I help?" },
   ];
-  assertEquals(estimateHistoryTokens(history), 30);
+  const total = estimateHistoryTokens(history);
+  assertGreater(total, 0);
+  assertEquals(total, countTokens("Hello world") + countTokens("Hi there, how can I help?"));
 });
 
 Deno.test("estimateHistoryTokens returns 0 for empty history", () => {
   assertEquals(estimateHistoryTokens([]), 0);
 });
 
-// ─── Sliding window compaction ──────────────────────────────────
+// ─── Auto-compaction (budget-aware) ─────────────────────────────
 
 Deno.test("compact returns history unchanged when under budget", () => {
   const history: HistoryEntry[] = [
@@ -45,84 +63,68 @@ Deno.test("compact returns history unchanged when under budget", () => {
     { role: "user", content: "How are you?" },
     { role: "assistant", content: "I'm doing well." },
   ];
-  const compactor = createCompactor({ contextBudget: 100000 });
+  const compactor = createCompactor({ contextBudget: 100_000 });
   const result = compactor.compact(history);
   assertEquals(result, history);
 });
 
-Deno.test("compact triggers when tokens exceed 70% of budget", () => {
-  // Create history that exceeds threshold
-  // Budget: 100 tokens → threshold: 70 tokens → 280 chars
+Deno.test("compact produces single summary message when over budget", () => {
   const history: HistoryEntry[] = [];
   for (let i = 0; i < 20; i++) {
-    history.push({ role: "user", content: `Message ${i}: ${"x".repeat(20)}` });
-    history.push({ role: "assistant", content: `Response ${i}: ${"y".repeat(20)}` });
+    history.push({ role: "user", content: `Message ${i}: ${"x".repeat(100)}` });
+    history.push({ role: "assistant", content: `Response ${i}: ${"y".repeat(100)}` });
   }
-  // 40 messages * ~30 chars each = ~300 tokens, well over 70
 
-  const compactor = createCompactor({
-    contextBudget: 100,
-    preserveRecentTurns: 3,
-  });
+  const compactor = createCompactor({ contextBudget: 200 });
   const result = compactor.compact(history);
 
-  // Should be shorter than original
-  assertGreater(history.length, result.length);
-
-  // Last 6 messages (3 turns) should be preserved verbatim
-  const lastOriginal = history.slice(-6);
-  const lastCompacted = result.slice(-6);
-  assertEquals(lastCompacted, lastOriginal);
+  // Should be compacted to exactly 1 summary message
+  assertEquals(result.length, 1);
+  assertEquals(result[0].role, "user");
+  assertEquals((result[0].content as string).startsWith("[Conversation context:"), true);
 });
 
-Deno.test("compact preserves first 2 messages as context", () => {
+Deno.test("compact summary includes message count", () => {
   const history: HistoryEntry[] = [];
-  for (let i = 0; i < 30; i++) {
-    history.push({ role: "user", content: `Msg ${i}: ${"x".repeat(20)}` });
-    history.push({ role: "assistant", content: `Reply ${i}: ${"y".repeat(20)}` });
+  for (let i = 0; i < 10; i++) {
+    history.push({ role: "user", content: `Question ${i}: ${"x".repeat(100)}` });
+    history.push({ role: "assistant", content: `Answer ${i}: ${"y".repeat(100)}` });
   }
 
-  const compactor = createCompactor({
-    contextBudget: 100,
-    preserveRecentTurns: 3,
-  });
+  const compactor = createCompactor({ contextBudget: 200 });
   const result = compactor.compact(history);
+  const summary = result[0].content as string;
 
-  // First 2 messages should be original context
-  assertEquals(result[0], history[0]);
-  assertEquals(result[1], history[1]);
+  assertEquals(summary.includes("20 messages"), true);
 });
 
-Deno.test("compact inserts summary message for dropped messages", () => {
-  const history: HistoryEntry[] = [];
-  for (let i = 0; i < 20; i++) {
-    history.push({ role: "user", content: `Topic ${i}: ${"x".repeat(20)}` });
-    history.push({ role: "assistant", content: `Answer ${i}: ${"y".repeat(20)}` });
-  }
-
-  const compactor = createCompactor({
-    contextBudget: 100,
-    preserveRecentTurns: 3,
-  });
-  const result = compactor.compact(history);
-
-  // Third message should be the summary placeholder
-  assertEquals(result[2].role, "user");
-  assertEquals(result[2].content.startsWith("[Previous conversation:"), true);
-});
-
-Deno.test("compact handles history shorter than preserve window", () => {
+Deno.test("compact summary captures last user message", () => {
   const history: HistoryEntry[] = [
-    { role: "user", content: "Hello" },
-    { role: "assistant", content: "Hi!" },
+    { role: "user", content: "First question" + "x".repeat(200) },
+    { role: "assistant", content: "First answer" + "y".repeat(200) },
+    { role: "user", content: "What about TypeScript generics?" },
+    { role: "assistant", content: "Generics let you parameterize types..." + "z".repeat(200) },
   ];
-  const compactor = createCompactor({
-    contextBudget: 1, // Very low budget
-    preserveRecentTurns: 10,
-  });
+
+  const compactor = createCompactor({ contextBudget: 50 });
   const result = compactor.compact(history);
-  // Can't compact below the preserve window — return as-is
-  assertEquals(result, history);
+
+  const summary = result[0].content as string;
+  assertEquals(summary.includes("TypeScript generics"), true);
+});
+
+Deno.test("compact summary captures last assistant response", () => {
+  const history: HistoryEntry[] = [
+    { role: "user", content: "x".repeat(200) },
+    { role: "assistant", content: "The deployment completed successfully" + "y".repeat(200) },
+    { role: "user", content: "Great, what's next?" + "z".repeat(200) },
+  ];
+
+  const compactor = createCompactor({ contextBudget: 50 });
+  const result = compactor.compact(history);
+
+  const summary = result[0].content as string;
+  assertEquals(summary.includes("deployment completed"), true);
 });
 
 Deno.test("compact handles empty history", () => {
@@ -131,9 +133,38 @@ Deno.test("compact handles empty history", () => {
   assertEquals(result, []);
 });
 
-// ─── LLM summarization ─────────────────────────────────────────
+Deno.test("compact preserves tiny history even if over budget", () => {
+  // Only 2 messages — too few to summarize meaningfully
+  const history: HistoryEntry[] = [
+    { role: "user", content: "Hello" },
+    { role: "assistant", content: "Hi!" },
+  ];
+  const compactor = createCompactor({ contextBudget: 1 });
+  const result = compactor.compact(history);
+  assertEquals(result, history);
+});
 
-Deno.test("summarize calls provider and replaces old messages", async () => {
+Deno.test("compact handles single giant message", () => {
+  // One huge tool result that fills the context
+  const history: HistoryEntry[] = [
+    { role: "user", content: "Read the file" },
+    { role: "assistant", content: "Here's the content..." },
+    { role: "user", content: "[TOOL_RESULT]\n" + "x".repeat(50000) + "\n[/TOOL_RESULT]" },
+    { role: "assistant", content: "The file contains..." },
+    { role: "user", content: "Now summarize it" },
+  ];
+
+  const compactor = createCompactor({ contextBudget: 1000 });
+  const result = compactor.compact(history);
+
+  // Should compact to 1 message even with the giant entry
+  assertEquals(result.length, 1);
+  assertEquals((result[0].content as string).includes("5 messages"), true);
+});
+
+// ─── LLM summarization (/compact) ──────────────────────────────
+
+Deno.test("summarize produces single summary message via LLM", async () => {
   const history: HistoryEntry[] = [
     { role: "user", content: "What is TypeScript?" },
     { role: "assistant", content: "TypeScript is a typed superset of JavaScript." },
@@ -141,37 +172,29 @@ Deno.test("summarize calls provider and replaces old messages", async () => {
     { role: "assistant", content: "Define them with the interface keyword." },
     { role: "user", content: "What about generics?" },
     { role: "assistant", content: "Use angle brackets for type parameters." },
-    { role: "user", content: "Thanks!" },
-    { role: "assistant", content: "You're welcome!" },
   ];
 
-  // Mock LLM provider
   const mockProvider = {
     name: "mock",
     supportsStreaming: false,
     complete: async () => ({
-      content: "User asked about TypeScript features: interfaces and generics.",
+      content: "The user asked about TypeScript fundamentals. You explained interfaces and generics. The user's last question was about generics.",
       toolCalls: [],
-      usage: { inputTokens: 100, outputTokens: 20 },
+      usage: { inputTokens: 100, outputTokens: 30 },
     }),
   };
 
-  const compactor = createCompactor({ preserveRecentTurns: 2 });
+  const compactor = createCompactor();
   const result = await compactor.summarize(history, mockProvider);
 
-  // Should have: summary + last 4 messages (2 turns)
-  assertEquals(result.length, 5);
+  // Should be exactly 1 summary message
+  assertEquals(result.length, 1);
   assertEquals(result[0].role, "user");
-  assertEquals(result[0].content.includes("TypeScript features"), true);
-
-  // Last 4 messages preserved
-  assertEquals(result[1], history[4]);
-  assertEquals(result[2], history[5]);
-  assertEquals(result[3], history[6]);
-  assertEquals(result[4], history[7]);
+  assertEquals((result[0].content as string).startsWith("[Conversation summary"), true);
+  assertEquals((result[0].content as string).includes("TypeScript fundamentals"), true);
 });
 
-Deno.test("summarize preserves all messages when history too short", async () => {
+Deno.test("summarize preserves tiny history unchanged", async () => {
   const history: HistoryEntry[] = [
     { role: "user", content: "Hello" },
     { role: "assistant", content: "Hi!" },
@@ -187,50 +210,86 @@ Deno.test("summarize preserves all messages when history too short", async () =>
     }),
   };
 
-  const compactor = createCompactor({ preserveRecentTurns: 2 });
+  const compactor = createCompactor();
   const result = await compactor.summarize(history, mockProvider);
   assertEquals(result, history);
 });
 
-// ─── estimateTokens utility ─────────────────────────────────────
-
-Deno.test("compactor.estimateTokens matches standalone function", () => {
+Deno.test("summarize truncates giant messages in digest", async () => {
   const history: HistoryEntry[] = [
-    { role: "user", content: "a".repeat(400) },
+    { role: "user", content: "Read this file" },
+    { role: "assistant", content: "x".repeat(100000) }, // 100k chars
+    { role: "user", content: "Now explain it" },
+  ];
+
+  let receivedPrompt = "";
+  const mockProvider = {
+    name: "mock",
+    supportsStreaming: false,
+    complete: async (msgs: readonly { role: string; content: string | unknown }[]) => {
+      receivedPrompt = msgs[1].content as string;
+      return {
+        content: "Summary of conversation.",
+        toolCalls: [],
+        usage: { inputTokens: 100, outputTokens: 10 },
+      };
+    },
+  };
+
+  const compactor = createCompactor({ contextBudget: 10000 });
+  await compactor.summarize(history, mockProvider);
+
+  // The digest sent to the LLM should contain "[truncated]" not the full 100k
+  assertEquals(receivedPrompt.includes("truncated"), true);
+  // And be much smaller than the original
+  assertGreater(100000, receivedPrompt.length);
+});
+
+// ─── getTokenEstimate ────────────────────────────────────────────
+
+Deno.test("compactor.getTokenEstimate matches standalone function", () => {
+  const history: HistoryEntry[] = [
+    { role: "user", content: "Hello world, this is a test message." },
   ];
   const compactor = createCompactor();
   assertEquals(compactor.getTokenEstimate(history), estimateHistoryTokens(history));
 });
 
-// ─── Keyword extraction from dropped messages ────────────────────
+// ─── updateBudget ────────────────────────────────────────────────
 
-Deno.test("compact summary includes keywords from dropped user messages", () => {
+Deno.test("updateBudget changes the compaction threshold", () => {
+  const compactor = createCompactor({ contextBudget: 1_000_000 });
+
   const history: HistoryEntry[] = [];
-  // Create messages with distinct topics
+  for (let i = 0; i < 20; i++) {
+    history.push({ role: "user", content: `Message ${i}: ${"x".repeat(100)}` });
+    history.push({ role: "assistant", content: `Response ${i}: ${"y".repeat(100)}` });
+  }
+
+  // With a huge budget, no compaction
+  assertEquals(compactor.compact(history).length, history.length);
+
+  // Lower the budget — now it should compact to 1 message
+  compactor.updateBudget(100);
+  const compacted = compactor.compact(history);
+  assertEquals(compacted.length, 1);
+});
+
+// ─── Keyword extraction ──────────────────────────────────────────
+
+Deno.test("compact summary includes topic keywords", () => {
+  const history: HistoryEntry[] = [];
   const topics = ["authentication", "database", "routing", "deployment"];
   for (const topic of topics) {
-    history.push({ role: "user", content: `Tell me about ${topic} patterns` });
-    history.push({ role: "assistant", content: `Here's info about ${topic}...` });
-  }
-  // Add more recent messages
-  for (let i = 0; i < 4; i++) {
-    history.push({ role: "user", content: `Recent question ${i}` });
-    history.push({ role: "assistant", content: `Recent answer ${i}` });
+    history.push({ role: "user", content: `Tell me about ${topic} patterns ${"x".repeat(100)}` });
+    history.push({ role: "assistant", content: `Here's info about ${topic}... ${"y".repeat(100)}` });
   }
 
-  const compactor = createCompactor({
-    contextBudget: 50,
-    preserveRecentTurns: 2,
-  });
+  const compactor = createCompactor({ contextBudget: 100 });
   const result = compactor.compact(history);
+  const summary = result[0].content as string;
 
-  // Find the summary message
-  const summary = result.find((e) =>
-    e.content.startsWith("[Previous conversation:")
-  );
-  if (summary) {
-    // Should contain at least some of the topic keywords
-    const hasKeywords = topics.some((t) => summary.content.includes(t));
-    assertEquals(hasKeywords, true);
-  }
+  // Should contain at least some topic keywords
+  const hasKeywords = topics.some((t) => summary.includes(t));
+  assertEquals(hasKeywords, true);
 });

@@ -13,6 +13,7 @@
  */
 
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import { getModelInfo } from "../models.ts";
 import { parseSseStream } from "./sse.ts";
 import type { ContentBlock } from "../../image/content.ts";
 
@@ -61,6 +62,7 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
   return {
     name: "local",
     supportsStreaming: true,
+    contextWindow: getModelInfo(model).contextWindow,
 
     async complete(
       messages: readonly LlmMessage[],

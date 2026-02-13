@@ -2840,6 +2840,29 @@ async function runChat(): Promise<void> {
         return;
       }
 
+      if (evt.type === "compact_start") {
+        if (isTty) {
+          screen.startSpinner("Summarizing history...");
+        } else {
+          console.log("  Summarizing history...");
+        }
+        return;
+      }
+
+      if (evt.type === "compact_complete") {
+        const saved = evt.tokensBefore - evt.tokensAfter;
+        const msg = `  Compacted: ${evt.messagesBefore} → ${evt.messagesAfter} messages (saved ~${saved} tokens)`;
+        if (isTty) {
+          screen.stopSpinner();
+          screen.writeOutput(msg);
+          screen.redrawInput(editor);
+        } else {
+          console.log(msg);
+          renderPrompt();
+        }
+        return;
+      }
+
       if (evt.type === "response") {
         // The event handler will render the response text
         eventHandler(evt as OrchestratorEvent);
@@ -3046,7 +3069,7 @@ async function runChat(): Promise<void> {
 
           if (text === "/compact") {
             screen.writeOutput("  Compacting conversation history...");
-            screen.writeOutput("  History will be compacted on next message.");
+            ws.send(JSON.stringify({ type: "compact" }));
             break;
           }
 
@@ -3270,6 +3293,14 @@ async function runSimpleWsRepl(
         ws.send(JSON.stringify({ type: "clear" }));
         console.log("\x1b[2J\x1b[H");
         printBanner(providerName, config.models.primary, "");
+        renderPrompt();
+        continue;
+      }
+
+      if (line === "/compact") {
+        console.log("  Compacting conversation history...");
+        ws.send(JSON.stringify({ type: "compact" }));
+        // compact_start/compact_complete handled by the main event handler
         renderPrompt();
         continue;
       }

@@ -1,63 +1,98 @@
 /**
  * Conversation compactor — manages context window usage.
  *
- * Provides token estimation, automatic sliding-window compaction,
- * and optional LLM-based summarization for long conversations.
+ * Provides token counting (via gpt-tokenizer cl100k_base), automatic
+ * budget-aware compaction, and LLM-based summarization.
+ *
+ * Compaction strategy: the entire conversation history is summarized
+ * into ONE message — a comprehensive briefing the LLM reads after its
+ * system prompt to pick up exactly where it left off. No arbitrary
+ * "keep last N turns" — the summary IS the context.
+ *
+ * - Auto-compact (fires at 70% budget): keyword-based placeholder summary
+ * - /compact (explicit): LLM generates a real summary of the full history
+ *
+ * Both produce a single summary message. The system prompt (SPINE.md,
+ * tools, platform sections) is handled by the orchestrator and is
+ * always present — the compactor only manages conversation history.
  *
  * @module
  */
 
 import type { HistoryEntry } from "./orchestrator.ts";
 import type { LlmProvider, LlmMessage } from "./llm.ts";
-import { extractText, hasImages } from "../image/content.ts";
+import { extractText } from "../image/content.ts";
+import { encode } from "gpt-tokenizer";
 
 /** Configuration for the conversation compactor. */
 export interface CompactorConfig {
-  /** Maximum token budget before auto-compacting. Default: 100000 */
+  /** Maximum token budget (model context window). Default: 100000 */
   readonly contextBudget: number;
-  /** Number of recent turns to always preserve. Default: 10 */
-  readonly preserveRecentTurns: number;
+}
+
+/** Result returned by an explicit compactHistory call. */
+export interface CompactResult {
+  /** Number of messages before compaction. */
+  readonly messagesBefore: number;
+  /** Number of messages after compaction. */
+  readonly messagesAfter: number;
+  /** Estimated tokens before compaction. */
+  readonly tokensBefore: number;
+  /** Estimated tokens after compaction. */
+  readonly tokensAfter: number;
 }
 
 /** The compactor interface for managing conversation history size. */
 export interface Compactor {
   /** Auto-compact history if tokens exceed threshold. Returns new history. */
   compact(history: readonly HistoryEntry[]): readonly HistoryEntry[];
-  /** Force LLM-based summarization. Returns new history. */
+  /** Force LLM-based summarization. Returns new history (single summary message). */
   summarize(
     history: readonly HistoryEntry[],
     provider: LlmProvider,
   ): Promise<readonly HistoryEntry[]>;
-  /** Get estimated token count for a history. */
+  /** Get token count for a history. */
   getTokenEstimate(history: readonly HistoryEntry[]): number;
+  /** Update the context budget (e.g. when switching models). */
+  updateBudget(budget: number): void;
+}
+
+/**
+ * Count tokens in a string using cl100k_base tokenizer.
+ *
+ * Uses the gpt-tokenizer library which implements cl100k_base encoding.
+ * Accurate within ~5% for Claude, GPT-4, and GPT-4o models.
+ *
+ * @param text - Text to count tokens for
+ * @returns Exact token count
+ */
+export function countTokens(text: string): number {
+  if (text.length === 0) return 0;
+  return encode(text).length;
 }
 
 /**
  * Estimate token count for a string.
  *
- * Uses ~4 characters per token heuristic. Conservative for
- * English text — over-estimating is safer than under-estimating.
- *
- * @param text - Text to estimate tokens for
- * @returns Estimated token count
+ * @deprecated Use {@link countTokens} for accurate counts. This alias
+ * remains for backward compatibility.
  */
 export function estimateTokens(text: string): number {
-  if (text.length === 0) return 0;
-  return Math.ceil(text.length / 4);
+  return countTokens(text);
 }
 
 /**
- * Estimate tokens for a single content entry (string or content blocks).
- * Images are estimated at ~1000 tokens each.
+ * Count tokens for a single content entry (string or content blocks).
+ * Images are estimated at ~1000 tokens each (no tokenizer for images).
  */
-function estimateContentTokens(content: HistoryEntry["content"]): number {
+function countContentTokens(content: HistoryEntry["content"]): number {
   if (typeof content === "string") {
-    return estimateTokens(content);
+    return countTokens(content);
   }
   let tokens = 0;
   for (const block of content) {
     if (block.type === "text") {
-      tokens += estimateTokens(block.text);
+      tokens += countTokens(block.text);
     } else if (block.type === "image") {
       tokens += 1000; // Approximate token cost per image
     }
@@ -66,28 +101,22 @@ function estimateContentTokens(content: HistoryEntry["content"]): number {
 }
 
 /**
- * Estimate total tokens for a conversation history.
+ * Count total tokens for a conversation history.
  *
  * @param history - Conversation history entries
- * @returns Sum of estimated tokens across all entries
+ * @returns Sum of tokens across all entries
  */
 export function estimateHistoryTokens(
   history: readonly HistoryEntry[],
 ): number {
   return history.reduce(
-    (sum, entry) => sum + estimateContentTokens(entry.content),
+    (sum, entry) => sum + countContentTokens(entry.content),
     0,
   );
 }
 
 /**
- * Extract topic keywords from user messages.
- *
- * Takes the first few meaningful words from each user message
- * to create a brief topic summary for the compaction placeholder.
- *
- * @param messages - Messages to extract keywords from
- * @returns Deduplicated keyword list
+ * Extract topic keywords from user messages for the auto-compact placeholder.
  */
 function extractKeywords(messages: readonly HistoryEntry[]): readonly string[] {
   const stopWords = new Set([
@@ -104,9 +133,7 @@ function extractKeywords(messages: readonly HistoryEntry[]): readonly string[] {
 
   for (const msg of messages) {
     if (msg.role !== "user") continue;
-    // Extract text from content (skip non-string/multimodal)
     const text = extractText(msg.content);
-    // Skip system-injected messages
     if (text.startsWith("[")) continue;
 
     const words = text
@@ -127,6 +154,35 @@ function extractKeywords(messages: readonly HistoryEntry[]): readonly string[] {
 }
 
 /**
+ * Build a brief text-only digest of the conversation for the LLM
+ * summarizer prompt. Truncates individual messages to keep the prompt
+ * manageable even when some entries are massive tool results.
+ */
+function buildDigest(
+  history: readonly HistoryEntry[],
+  maxTokens: number,
+): string {
+  const parts: string[] = [];
+  let tokens = 0;
+
+  for (const entry of history) {
+    const text = extractText(entry.content);
+    // Truncate individual messages — the summarizer doesn't need
+    // every byte of a 50k tool result, just the gist.
+    const truncated = text.length > 2000
+      ? text.slice(0, 2000) + "… [truncated]"
+      : text;
+    const line = `${entry.role}: ${truncated}`;
+    const lineTokens = countTokens(line);
+    if (tokens + lineTokens > maxTokens) break;
+    tokens += lineTokens;
+    parts.push(line);
+  }
+
+  return parts.join("\n\n");
+}
+
+/**
  * Create a conversation compactor.
  *
  * @param config - Optional partial configuration (defaults applied)
@@ -135,78 +191,110 @@ function extractKeywords(messages: readonly HistoryEntry[]): readonly string[] {
 export function createCompactor(
   config?: Partial<CompactorConfig>,
 ): Compactor {
-  const contextBudget = config?.contextBudget ?? 100000;
-  const preserveRecentTurns = config?.preserveRecentTurns ?? 10;
-  const threshold = Math.floor(contextBudget * 0.7);
-  const preserveMessages = preserveRecentTurns * 2;
+  let contextBudget = config?.contextBudget ?? 100_000;
+  /** Auto-compact triggers at 70% of context budget. */
+  let autoTriggerThreshold = Math.floor(contextBudget * 0.7);
 
   function compact(
     history: readonly HistoryEntry[],
   ): readonly HistoryEntry[] {
     if (history.length === 0) return history;
 
-    const tokens = estimateHistoryTokens(history);
-    if (tokens <= threshold) return history;
+    const totalTokens = estimateHistoryTokens(history);
+    if (totalTokens <= autoTriggerThreshold) return history;
 
-    // Not enough messages to compact
-    if (history.length <= preserveMessages) return history;
+    // Need at least something to compact
+    if (history.length <= 2) return history;
 
-    // Keep first 2 messages (initial context) and last N messages (recent turns)
-    const keepFirst = Math.min(2, history.length);
-    const keepLast = Math.min(preserveMessages, history.length - keepFirst);
-
-    if (keepFirst + keepLast >= history.length) return history;
-
-    const firstMessages = history.slice(0, keepFirst);
-    const droppedMessages = history.slice(keepFirst, history.length - keepLast);
-    const lastMessages = history.slice(history.length - keepLast);
-
-    // Build summary placeholder with keywords
-    const keywords = extractKeywords(droppedMessages);
+    // Build a keyword-based placeholder summary of the ENTIRE history
+    const keywords = extractKeywords(history);
     const topicStr = keywords.length > 0
-      ? ` about ${keywords.join(", ")}`
+      ? ` Topics discussed: ${keywords.join(", ")}.`
       : "";
+
+    // Extract the last user message to capture what was being asked
+    let lastUserContent = "";
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].role === "user") {
+        const text = extractText(history[i].content);
+        if (!text.startsWith("[")) {
+          lastUserContent = text.length > 500
+            ? text.slice(0, 500) + "…"
+            : text;
+          break;
+        }
+      }
+    }
+
+    // Extract the last assistant message to capture where we left off
+    let lastAssistantContent = "";
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].role === "assistant") {
+        const text = extractText(history[i].content);
+        lastAssistantContent = text.length > 500
+          ? text.slice(0, 500) + "…"
+          : text;
+        break;
+      }
+    }
+
+    const parts = [
+      `[Conversation context: ${history.length} messages were exchanged.${topicStr}`,
+    ];
+    if (lastUserContent) {
+      parts.push(`The user last said: "${lastUserContent}"`);
+    }
+    if (lastAssistantContent) {
+      parts.push(`You last responded: "${lastAssistantContent}"`);
+    }
+    parts.push("Continue the conversation from here.]");
+
     const summary: HistoryEntry = {
       role: "user",
-      content:
-        `[Previous conversation: ${droppedMessages.length} messages were exchanged${topicStr}]`,
+      content: parts.join(" "),
     };
 
-    return [...firstMessages, summary, ...lastMessages];
+    return [summary];
   }
 
   async function summarize(
     history: readonly HistoryEntry[],
     provider: LlmProvider,
   ): Promise<readonly HistoryEntry[]> {
-    // Need at least more messages than the preserve window to summarize
-    if (history.length <= preserveMessages) return history;
+    // Nothing to summarize
+    if (history.length <= 2) return history;
 
-    const toSummarize = history.slice(0, history.length - preserveMessages);
-    const toKeep = history.slice(history.length - preserveMessages);
-
-    // Build summarization prompt
-    const conversationText = toSummarize
-      .map((e) => `${e.role}: ${extractText(e.content)}`)
-      .join("\n\n");
+    // Build a digest of the conversation, capped so we don't blow
+    // the summarizer's own context window. Use ~25% of budget for the
+    // digest — the summarizer is a separate call, not the main context.
+    const digestBudget = Math.floor(contextBudget * 0.25);
+    const digest = buildDigest(history, digestBudget);
 
     const messages: LlmMessage[] = [
       {
         role: "system",
         content:
-          "You are a conversation summarizer. Summarize the key facts, decisions, and context from the following conversation in 200 words or fewer. Be concise and focus on information that would be needed to continue the conversation.",
+          "You are a conversation summarizer. Your job is to write a concise briefing that lets an AI assistant continue this conversation seamlessly.\n\n" +
+          "Include:\n" +
+          "- Key facts, decisions, and agreements made\n" +
+          "- What the user is currently working on or asking about\n" +
+          "- Any pending tasks, unanswered questions, or next steps\n" +
+          "- Important context the assistant needs to give a good next response\n\n" +
+          "Write in second person (\"The user asked you to...\", \"You suggested...\").\n" +
+          "Be concise but complete — this summary replaces the entire conversation history.\n" +
+          "Maximum 300 words.",
       },
-      { role: "user", content: conversationText },
+      { role: "user", content: digest },
     ];
 
     const result = await provider.complete(messages, [], {});
 
     const summaryEntry: HistoryEntry = {
       role: "user",
-      content: `[Conversation summary]: ${result.content}`,
+      content: `[Conversation summary — continue from here]: ${result.content}`,
     };
 
-    return [summaryEntry, ...toKeep];
+    return [summaryEntry];
   }
 
   function getTokenEstimate(
@@ -215,5 +303,10 @@ export function createCompactor(
     return estimateHistoryTokens(history);
   }
 
-  return { compact, summarize, getTokenEstimate };
+  function updateBudget(budget: number): void {
+    contextBudget = budget;
+    autoTriggerThreshold = Math.floor(contextBudget * 0.7);
+  }
+
+  return { compact, summarize, getTokenEstimate, updateBudget };
 }

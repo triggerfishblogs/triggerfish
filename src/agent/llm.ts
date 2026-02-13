@@ -47,6 +47,8 @@ export interface LlmProvider {
   readonly name: string;
   /** Whether this provider supports streaming responses. */
   readonly supportsStreaming: boolean;
+  /** Model context window size in tokens, if known. */
+  readonly contextWindow?: number;
   /** Send messages to the LLM and receive a completion response. */
   complete(
     messages: readonly LlmMessage[],

@@ -8,6 +8,7 @@
  */
 
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import { getModelInfo } from "../models.ts";
 import { parseSseStream } from "./sse.ts";
 import type { ContentBlock } from "../../image/content.ts";
 
@@ -67,6 +68,7 @@ export function createZenMuxProvider(config: ZenMuxConfig): LlmProvider {
   return {
     name: "zenmux",
     supportsStreaming: true,
+    contextWindow: getModelInfo(model).contextWindow,
 
     async complete(
       messages: readonly LlmMessage[],

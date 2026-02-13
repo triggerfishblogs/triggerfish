@@ -17,8 +17,8 @@ import { canFlowTo } from "../core/types/classification.ts";
 import type { SessionState, SessionId } from "../core/types/session.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { LlmProviderRegistry, LlmMessage, LlmProvider } from "./llm.ts";
-import { createCompactor } from "./compactor.ts";
-import type { Compactor, CompactorConfig } from "./compactor.ts";
+import { createCompactor, estimateHistoryTokens } from "./compactor.ts";
+import type { Compactor, CompactorConfig, CompactResult } from "./compactor.ts";
 import type { MessageContent, ImageContentBlock, ContentBlock } from "../image/content.ts";
 import { extractText, hasImages, normalizeContent } from "../image/content.ts";
 import type { PlanManager } from "./plan.ts";
@@ -173,6 +173,8 @@ export interface Orchestrator {
   getHistory(sessionId: SessionId): readonly HistoryEntry[];
   /** Clear conversation history for a session. */
   clearHistory(sessionId: SessionId): void;
+  /** Force LLM-based summarization of a session's history. */
+  compactHistory(sessionId: SessionId): Promise<CompactResult>;
 }
 
 /** Events emitted by the orchestrator during message processing. */
@@ -450,7 +452,16 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   const emit = config.onEvent ?? (() => {});
   const debug = config.debug ?? false;
   const histories = new Map<string, HistoryEntry[]>();
-  const compactor: Compactor = createCompactor(config.compactorConfig);
+
+  // Derive effective budget: explicit config > provider contextWindow > 100k default
+  const provider0 = providerRegistry.getDefault();
+  const effectiveBudget = config.compactorConfig?.contextBudget
+    ?? provider0?.contextWindow
+    ?? 100_000;
+  const compactor: Compactor = createCompactor({
+    ...config.compactorConfig,
+    contextBudget: effectiveBudget,
+  });
 
   /** Log to stderr when debug mode is enabled. */
   function debugLog(label: string, data: unknown): void {
@@ -872,5 +883,32 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     histories.delete(sessionId as string);
   }
 
-  return { processMessage, getHistory, clearHistory };
+  async function compactHistory(sessionId: SessionId): Promise<CompactResult> {
+    const sessionKey = sessionId as string;
+    const history = histories.get(sessionKey) ?? [];
+    const messagesBefore = history.length;
+    const tokensBefore = estimateHistoryTokens(history);
+
+    if (history.length === 0) {
+      return { messagesBefore: 0, messagesAfter: 0, tokensBefore: 0, tokensAfter: 0 };
+    }
+
+    const provider = providerRegistry.getDefault();
+    if (!provider) {
+      // Fall back to sliding-window compaction
+      const compacted = [...compactor.compact(history)];
+      history.length = 0;
+      history.push(...compacted);
+      const tokensAfter = estimateHistoryTokens(history);
+      return { messagesBefore, messagesAfter: history.length, tokensBefore, tokensAfter };
+    }
+
+    const summarized = [...await compactor.summarize(history, provider)];
+    history.length = 0;
+    history.push(...summarized);
+    const tokensAfter = estimateHistoryTokens(history);
+    return { messagesBefore, messagesAfter: history.length, tokensBefore, tokensAfter };
+  }
+
+  return { processMessage, getHistory, clearHistory, compactHistory };
 }

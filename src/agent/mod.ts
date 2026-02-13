@@ -14,6 +14,9 @@ export type {
 
 export { createProviderRegistry } from "./llm.ts";
 
+export type { ModelInfo } from "./models.ts";
+export { getModelInfo } from "./models.ts";
+
 export type {
   Orchestrator,
   OrchestratorConfig,
@@ -21,6 +24,8 @@ export type {
   ProcessMessageResult,
   HistoryEntry,
 } from "./orchestrator.ts";
+
+export type { CompactorConfig, CompactResult } from "./compactor.ts";
 
 export { createOrchestrator } from "./orchestrator.ts";
 

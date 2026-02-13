@@ -8,6 +8,7 @@
  */
 
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import { getModelInfo } from "../models.ts";
 import { parseSseStream } from "./sse.ts";
 import type { ContentBlock } from "../../image/content.ts";
 
@@ -67,6 +68,7 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
   return {
     name: "openrouter",
     supportsStreaming: true,
+    contextWindow: getModelInfo(model).contextWindow,
 
     async complete(
       messages: readonly LlmMessage[],

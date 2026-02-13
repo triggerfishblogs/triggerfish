@@ -12,6 +12,7 @@
  */
 
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import { getModelInfo } from "../models.ts";
 import { parseSseStream } from "./sse.ts";
 import type { ContentBlock } from "../../image/content.ts";
 import { hasImages } from "../../image/content.ts";
@@ -77,6 +78,7 @@ export function createZaiProvider(config: ZaiConfig): LlmProvider {
   return {
     name: "zai",
     supportsStreaming: true,
+    contextWindow: getModelInfo(model).contextWindow,
 
     async complete(
       messages: readonly LlmMessage[],
