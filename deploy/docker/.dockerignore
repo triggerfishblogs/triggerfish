@@ -1,0 +1,13 @@
+.git
+.github
+tests
+docs
+build-logs
+.claude
+test-seeds
+deploy/
+scripts/
+*.md
+!README.md
+Makefile
+.gitignore

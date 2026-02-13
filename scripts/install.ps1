@@ -1,70 +1,88 @@
-# Triggerfish Install Script for Windows
+# Triggerfish Binary Installer for Windows
 #
-# Installs Deno (if needed), clones the repo, compiles, and runs first-time setup.
+# Downloads a pre-built binary from GitHub Releases, verifies its checksum,
+# and installs it. No Deno or git required.
+#
 # Usage: irm https://raw.githubusercontent.com/greghavens/triggerfish/master/scripts/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
-$RepoUrl = "https://github.com/greghavens/triggerfish.git"
-$SrcDir = Join-Path $env:USERPROFILE ".triggerfish\src"
-$Branch = if ($env:TRIGGERFISH_BRANCH) { $env:TRIGGERFISH_BRANCH } else { "master" }
+$Repo = "greghavens/triggerfish"
+$InstallName = "triggerfish"
 
 Write-Host ""
 Write-Host "  Triggerfish Installer" -ForegroundColor Cyan
 Write-Host "  ====================="
 Write-Host ""
 
-# --- Step 1: Ensure Deno is installed ---
+# --- Step 1: Detect architecture ---
 
-$denoCmd = Get-Command deno -ErrorAction SilentlyContinue
-if ($denoCmd) {
-    Write-Host "[ok] Deno found" -ForegroundColor Green
-} else {
-    Write-Host "Installing Deno..."
-    irm https://deno.land/install.ps1 | iex
-    $env:PATH = "$env:USERPROFILE\.deno\bin;$env:PATH"
-
-    $denoCmd = Get-Command deno -ErrorAction SilentlyContinue
-    if (-not $denoCmd) {
-        Write-Host "[error] Deno installation failed." -ForegroundColor Red
+$Arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+switch ($Arch) {
+    "X64"   { $ArchSuffix = "x64" }
+    "Arm64" { $ArchSuffix = "arm64" }
+    default {
+        Write-Host "[error] Unsupported architecture: $Arch" -ForegroundColor Red
         exit 1
     }
-    Write-Host "[ok] Deno installed" -ForegroundColor Green
 }
 
-# --- Step 2: Ensure git is available ---
+$BinaryName = "${InstallName}-windows-${ArchSuffix}.exe"
+Write-Host "[ok] Detected platform: windows-${ArchSuffix}" -ForegroundColor Green
 
-$gitCmd = Get-Command git -ErrorAction SilentlyContinue
-if (-not $gitCmd) {
-    Write-Host "[error] git is required. Install it and try again." -ForegroundColor Red
+# --- Step 2: Determine latest version ---
+
+if ($env:TRIGGERFISH_VERSION) {
+    $Version = $env:TRIGGERFISH_VERSION
+    Write-Host "[ok] Using specified version: $Version" -ForegroundColor Green
+} else {
+    Write-Host "Fetching latest version..."
+    $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
+    $Version = $Release.tag_name
+
+    if (-not $Version) {
+        Write-Host "[error] Could not determine latest version." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "[ok] Latest version: $Version" -ForegroundColor Green
+}
+
+# --- Step 3: Download binary and checksum ---
+
+$BaseUrl = "https://github.com/$Repo/releases/download/$Version"
+$TempDir = Join-Path $env:TEMP "triggerfish-install"
+New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
+
+$BinaryPath = Join-Path $TempDir $BinaryName
+$ChecksumPath = Join-Path $TempDir "SHA256SUMS.txt"
+
+Write-Host "Downloading $BinaryName..."
+Invoke-WebRequest -Uri "$BaseUrl/$BinaryName" -OutFile $BinaryPath
+
+Write-Host "Downloading checksums..."
+Invoke-WebRequest -Uri "$BaseUrl/SHA256SUMS.txt" -OutFile $ChecksumPath
+
+# --- Step 4: Verify checksum ---
+
+Write-Host "Verifying checksum..."
+$Expected = (Get-Content $ChecksumPath | Where-Object { $_ -match $BinaryName } | ForEach-Object { ($_ -split '\s+')[0] })
+
+if (-not $Expected) {
+    Write-Host "[error] Binary '$BinaryName' not found in SHA256SUMS.txt" -ForegroundColor Red
+    Remove-Item -Recurse -Force $TempDir
     exit 1
 }
 
-# --- Step 3: Clone or update source ---
+$Actual = (Get-FileHash -Path $BinaryPath -Algorithm SHA256).Hash.ToLower()
 
-if (Test-Path (Join-Path $SrcDir ".git")) {
-    Write-Host "Updating source..."
-    git -C $SrcDir fetch origin
-    git -C $SrcDir checkout $Branch
-    git -C $SrcDir pull origin $Branch
-    Write-Host "[ok] Source updated" -ForegroundColor Green
-} else {
-    Write-Host "Cloning triggerfish..."
-    $parentDir = Split-Path $SrcDir -Parent
-    if (-not (Test-Path $parentDir)) {
-        New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
-    }
-    git clone --branch $Branch $RepoUrl $SrcDir
-    Write-Host "[ok] Source cloned to $SrcDir" -ForegroundColor Green
+if ($Actual -ne $Expected) {
+    Write-Host "[error] Checksum mismatch!" -ForegroundColor Red
+    Write-Host "  Expected: $Expected"
+    Write-Host "  Got:      $Actual"
+    Remove-Item -Recurse -Force $TempDir
+    exit 1
 }
-
-# --- Step 4: Compile ---
-
-Write-Host "Compiling (this may take a minute)..."
-Push-Location $SrcDir
-deno compile --allow-all --output=triggerfish src/cli/main.ts
-Pop-Location
-Write-Host "[ok] Compiled successfully" -ForegroundColor Green
+Write-Host "[ok] Checksum verified" -ForegroundColor Green
 
 # --- Step 5: Install binary ---
 
@@ -73,8 +91,10 @@ if (-not (Test-Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 }
 
-$InstallPath = Join-Path $InstallDir "triggerfish.exe"
-Copy-Item (Join-Path $SrcDir "triggerfish.exe") $InstallPath -Force
+$InstallPath = Join-Path $InstallDir "${InstallName}.exe"
+Move-Item -Path $BinaryPath -Destination $InstallPath -Force
+Remove-Item -Recurse -Force $TempDir
+
 Write-Host "[ok] Installed to $InstallPath" -ForegroundColor Green
 
 # Add to PATH if not already present

@@ -1,4 +1,4 @@
-.PHONY: build install release test lint fmt check
+.PHONY: build install release test lint fmt check clean docker
 
 build:
 	deno task compile
@@ -8,11 +8,7 @@ install: build
 	cp triggerfish $(HOME)/.local/bin/triggerfish
 
 release:
-	deno compile --allow-all --target x86_64-unknown-linux-gnu --output=dist/triggerfish-linux-x64 src/cli/main.ts
-	deno compile --allow-all --target aarch64-unknown-linux-gnu --output=dist/triggerfish-linux-arm64 src/cli/main.ts
-	deno compile --allow-all --target x86_64-apple-darwin --output=dist/triggerfish-macos-x64 src/cli/main.ts
-	deno compile --allow-all --target aarch64-apple-darwin --output=dist/triggerfish-macos-arm64 src/cli/main.ts
-	deno compile --allow-all --target x86_64-pc-windows-msvc --output=dist/triggerfish-windows-x64.exe src/cli/main.ts
+	./deploy/scripts/build.sh
 
 test:
 	deno task test
@@ -25,3 +21,10 @@ fmt:
 
 check:
 	deno task check
+
+clean:
+	rm -rf dist/
+	rm -f triggerfish
+
+docker:
+	docker build -f deploy/docker/Dockerfile -t triggerfish:local .
