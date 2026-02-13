@@ -1,0 +1,38 @@
+# Runtime-only image — uses pre-built binaries from CI pipeline.
+# For local builds, use Dockerfile instead.
+#
+# Expects build context to contain:
+#   triggerfish-linux-amd64   (for linux/amd64)
+#   triggerfish-linux-arm64   (for linux/arm64)
+#
+# buildx sets TARGETARCH automatically per platform.
+
+FROM docker.io/debian:trixie-slim
+
+ARG TARGETARCH
+
+# Install tini + create nonroot user
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tini \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -r nonroot && useradd -r -g nonroot -d /data -s /sbin/nologin nonroot \
+    && mkdir -p /data && chown nonroot:nonroot /data
+
+# Copy pre-built binary (selected by target platform)
+COPY triggerfish-linux-${TARGETARCH} /usr/local/bin/triggerfish
+RUN chmod +x /usr/local/bin/triggerfish
+
+# Environment
+ENV TRIGGERFISH_DATA_DIR=/data
+ENV TRIGGERFISH_DOCKER=true
+
+# Ports: gateway HTTP + WebSocket
+EXPOSE 18789 18790
+
+# Data volume mount point
+VOLUME /data
+
+USER nonroot
+
+ENTRYPOINT ["tini", "--", "/usr/local/bin/triggerfish"]
+CMD ["run"]
