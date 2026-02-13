@@ -9,6 +9,8 @@
 import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
 import { Confirm, Input, Select } from "@cliffy/prompt";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { resolveBaseDir, resolveConfigPath } from "./paths.ts";
+import { isDockerEnvironment } from "../core/env.ts";
 import { createGatewayServer } from "../gateway/server.ts";
 import {
   getSessionToolDefinitions,
@@ -507,8 +509,8 @@ function showVersion(): void {
 async function runDive(
   flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
-  const baseDir = `${Deno.env.get("HOME")}/.triggerfish`;
-  const configPath = `${baseDir}/triggerfish.yaml`;
+  const baseDir = resolveBaseDir();
+  const configPath = resolveConfigPath(baseDir);
 
   // Check if config already exists (skip check if --force)
   if (flags["force"] !== true) {
@@ -555,7 +557,7 @@ async function probeGateway(port = 18789): Promise<boolean> {
  * Count configured channels from the config file.
  */
 function countConfiguredChannels(): number {
-  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+  const configPath = resolveConfigPath();
   try {
     const raw = Deno.readTextFileSync(configPath);
     const parsed = parseYaml(raw) as Record<string, unknown>;
@@ -573,7 +575,7 @@ function countConfiguredChannels(): number {
  * Count installed skills in ~/.triggerfish/skills/.
  */
 function countInstalledSkills(): number {
-  const skillsDir = `${Deno.env.get("HOME")}/.triggerfish/skills`;
+  const skillsDir = `${resolveBaseDir()}/skills`;
   try {
     let count = 0;
     for (const entry of Deno.readDirSync(skillsDir)) {
@@ -924,15 +926,31 @@ function buildGoogleExecutor(
 async function runStart(): Promise<void> {
   console.log("Starting Triggerfish gateway...\n");
 
-  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+  const baseDir = resolveBaseDir();
+  const configPath = resolveConfigPath(baseDir);
 
   // Check if config exists
   try {
     await Deno.stat(configPath);
   } catch {
-    console.log("Configuration not found.");
-    console.log("Run 'triggerfish dive' to set up your agent.\n");
+    if (isDockerEnvironment()) {
+      console.error(`No configuration found at ${configPath}\n`);
+      console.error("Option 1: Mount your config file:");
+      console.error("  docker run -v ./triggerfish.yaml:/data/triggerfish.yaml triggerfish/triggerfish\n");
+      console.error("Option 2: Run the setup wizard interactively:");
+      console.error("  docker run -it -v triggerfish-data:/data triggerfish/triggerfish dive\n");
+    } else {
+      console.log("Configuration not found.");
+      console.log("Run 'triggerfish dive' to set up your agent.\n");
+    }
     Deno.exit(1);
+  }
+
+  // Create default directories on first run
+  if (isDockerEnvironment()) {
+    for (const sub of ["workspace", "skills", "logs"]) {
+      await Deno.mkdir(`${baseDir}/${sub}`, { recursive: true });
+    }
   }
 
   // Load config
@@ -943,7 +961,6 @@ async function runStart(): Promise<void> {
   }
 
   const config = configResult.value;
-  const baseDir = `${Deno.env.get("HOME")}/.triggerfish`;
 
   console.log("  Configuration loaded");
 
@@ -1666,7 +1683,7 @@ async function runConfigSet(
     Deno.exit(1);
   }
 
-  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+  const configPath = resolveConfigPath();
 
   let rawYaml: string;
   try {
@@ -1712,7 +1729,7 @@ function runConfigGet(
     Deno.exit(1);
   }
 
-  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+  const configPath = resolveConfigPath();
 
   let rawYaml: string;
   try {
@@ -1740,7 +1757,7 @@ function runConfigGet(
  * Validate triggerfish.yaml and report errors.
  */
 function runConfigValidate(): void {
-  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+  const configPath = resolveConfigPath();
 
   let rawYaml: string;
   try {
@@ -1853,7 +1870,7 @@ async function runConfigGetSecret(
 async function runConfigAddChannel(
   flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
-  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+  const configPath = resolveConfigPath();
 
   // Require interactive terminal
   if (!Deno.stdin.isTerminal()) {
@@ -1956,7 +1973,7 @@ async function runConfigAddChannel(
 async function runConfigAddPlugin(
   flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
-  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+  const configPath = resolveConfigPath();
 
   // Require interactive terminal
   if (!Deno.stdin.isTerminal()) {
@@ -2630,7 +2647,7 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
  * The daemon owns the session, orchestrator, and policy engine.
  */
 async function runChat(): Promise<void> {
-  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+  const configPath = resolveConfigPath();
 
   // Load config (for banner display only)
   const configResult = loadConfig(configPath);
@@ -2640,7 +2657,7 @@ async function runChat(): Promise<void> {
   }
 
   const config = configResult.value;
-  const baseDir = `${Deno.env.get("HOME")}/.triggerfish`;
+  const baseDir = resolveBaseDir();
   const dataDir = `${baseDir}/data`;
   await Deno.mkdir(dataDir, { recursive: true });
 
@@ -3215,7 +3232,7 @@ async function runCron(
   subcommand: string | undefined,
   flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
-  const baseDir = `${Deno.env.get("HOME")}/.triggerfish`;
+  const baseDir = resolveBaseDir();
   const dataDir = `${baseDir}/data`;
   await Deno.mkdir(dataDir, { recursive: true });
   const storage = createSqliteStorage(`${dataDir}/triggerfish.db`);
@@ -3642,7 +3659,7 @@ async function main(): Promise<void> {
   const args = Deno.args;
 
   // Check if config exists for default command detection
-  const configPath = `${Deno.env.get("HOME")}/.triggerfish/triggerfish.yaml`;
+  const configPath = resolveConfigPath();
   let configExists = false;
   try {
     await Deno.stat(configPath);
