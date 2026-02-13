@@ -11,7 +11,7 @@ COPY deno.json deno.lock* ./
 COPY src/ src/
 
 # Cache dependencies
-RUN deno install --allow-scripts=npm:puppeteer-core --entrypoint src/cli/main.ts
+RUN deno cache src/cli/main.ts
 
 # Copy bundled assets
 COPY config/ config/
