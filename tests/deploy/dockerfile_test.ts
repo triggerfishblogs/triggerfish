@@ -11,7 +11,7 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 
 const DOCKERFILE_PATH = "deploy/docker/Dockerfile";
 const COMPOSE_PATH = "deploy/docker/docker-compose.yml";
-const DOCKERIGNORE_PATH = "deploy/docker/.dockerignore";
+const DOCKERIGNORE_PATH = ".dockerignore";
 
 // --- Dockerfile ---
 
