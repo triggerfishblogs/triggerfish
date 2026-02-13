@@ -8,7 +8,7 @@
 
 import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
 import { Confirm, Input, Select } from "@cliffy/prompt";
-import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { join } from "@std/path";
 import { resolveBaseDir, resolveConfigPath } from "./paths.ts";
 import { isDockerEnvironment } from "../core/env.ts";
 import { createGatewayServer } from "../gateway/server.ts";
@@ -98,7 +98,6 @@ import {
   getMemoryToolDefinitions,
   MEMORY_SYSTEM_PROMPT,
 } from "../memory/mod.ts";
-import type { MemoryStore, MemorySearchProvider } from "../memory/mod.ts";
 import {
   createBraveSearchProvider,
   createDomainPolicy,
@@ -2763,7 +2762,7 @@ async function runChat(): Promise<void> {
 
   // Wait for connection + connected event
   let providerName = "unknown";
-  let modelName = "";
+  let _modelName = "";
   const connected = Promise.withResolvers<void>();
 
   ws.addEventListener("error", () => {
@@ -2822,7 +2821,7 @@ async function runChat(): Promise<void> {
 
       if (evt.type === "connected") {
         providerName = evt.provider;
-        modelName = evt.model;
+        _modelName = evt.model;
         connected.resolve();
         return;
       }
@@ -3211,7 +3210,7 @@ async function runChat(): Promise<void> {
 
       case "ctrl+w": {
         // Delete word backwards
-        let text = editor.text;
+        const text = editor.text;
         let cursor = editor.cursor;
         // Skip trailing spaces
         while (cursor > 0 && text[cursor - 1] === " ") cursor--;
@@ -3772,9 +3771,45 @@ DISCONNECT USAGE:
 }
 
 /**
+ * Enable ANSI escape sequence processing on Windows.
+ *
+ * Windows PowerShell 5.1 and legacy conhost do not interpret ANSI escape
+ * codes by default. This calls SetConsoleMode with
+ * ENABLE_VIRTUAL_TERMINAL_PROCESSING to enable them. Silently ignored on
+ * non-Windows platforms or if the call fails.
+ */
+function enableWindowsAnsi(): void {
+  if (Deno.build.os !== "windows") return;
+
+  try {
+    const kernel32 = Deno.dlopen("kernel32.dll", {
+      GetStdHandle: { parameters: ["i32"], result: "pointer" },
+      GetConsoleMode: { parameters: ["pointer", "buffer"], result: "i32" },
+      SetConsoleMode: { parameters: ["pointer", "u32"], result: "i32" },
+    });
+
+    const STD_OUTPUT_HANDLE = -11;
+    const ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
+
+    const handle = kernel32.symbols.GetStdHandle(STD_OUTPUT_HANDLE);
+    const modeBuffer = new Uint32Array(1);
+    kernel32.symbols.GetConsoleMode(handle, modeBuffer);
+    kernel32.symbols.SetConsoleMode(
+      handle,
+      modeBuffer[0] | ENABLE_VIRTUAL_TERMINAL_PROCESSING,
+    );
+    kernel32.close();
+  } catch {
+    // VT processing not available — colors will degrade gracefully
+  }
+}
+
+/**
  * Main CLI entry point.
  */
 async function main(): Promise<void> {
+  enableWindowsAnsi();
+
   const args = Deno.args;
 
   // Check if config exists for default command detection

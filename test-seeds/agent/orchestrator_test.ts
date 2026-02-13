@@ -3,7 +3,7 @@
  * Tests MUST FAIL until orchestrator.ts and llm.ts are implemented.
  * Tests LlmProvider interface, provider registry, orchestrator loop.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import {
   type LlmProvider,
   type LlmProviderRegistry,

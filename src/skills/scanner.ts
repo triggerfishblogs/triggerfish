@@ -65,6 +65,7 @@ const INJECTION_PATTERNS: readonly { readonly pattern: RegExp; readonly message:
  */
 export function createSkillScanner(): SkillScanner {
   return {
+    // deno-lint-ignore require-await
     async scan(content: string): Promise<ScanResult> {
       const warnings: string[] = [];
 

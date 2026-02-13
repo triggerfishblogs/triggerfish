@@ -177,6 +177,7 @@ Deno.test("summarize produces single summary message via LLM", async () => {
   const mockProvider = {
     name: "mock",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     complete: async () => ({
       content: "The user asked about TypeScript fundamentals. You explained interfaces and generics. The user's last question was about generics.",
       toolCalls: [],
@@ -203,6 +204,7 @@ Deno.test("summarize preserves tiny history unchanged", async () => {
   const mockProvider = {
     name: "mock",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     complete: async () => ({
       content: "Should not be called",
       toolCalls: [],
@@ -226,6 +228,7 @@ Deno.test("summarize truncates giant messages in digest", async () => {
   const mockProvider = {
     name: "mock",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     complete: async (msgs: readonly { role: string; content: string | unknown }[]) => {
       receivedPrompt = msgs[1].content as string;
       return {

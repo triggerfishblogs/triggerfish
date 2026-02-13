@@ -4,7 +4,7 @@
  * Verifies Ed25519 keypair generation, certificate signing/verification,
  * and full chain validation including expiry and linkage checks.
  */
-import { assert, assertEquals } from "jsr:@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import {
   createDelegationService,

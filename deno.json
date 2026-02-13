@@ -13,6 +13,7 @@
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@^1",
+    "@std/path": "jsr:@std/path@^1",
     "@std/yaml": "jsr:@std/yaml@^1",
     "@db/sqlite": "jsr:@db/sqlite@^0.13",
     "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@^0.39.0",
@@ -25,7 +26,8 @@
     "puppeteer-core": "npm:puppeteer-core@^24.0.0",
     "@mozilla/readability": "npm:@mozilla/readability@^0.5.0",
     "linkedom": "npm:linkedom@^0.18.0",
-    "gpt-tokenizer": "npm:gpt-tokenizer@^2"
+    "gpt-tokenizer": "npm:gpt-tokenizer@^2",
+    "pyodide": "https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.mjs"
   },
   "exclude": [
     "test-seeds/",

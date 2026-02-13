@@ -1,7 +1,7 @@
 /**
  * Tests for LLM streaming interface and SSE parsing.
  */
-import { assertEquals, assert } from "jsr:@std/assert";
+import { assertEquals, assert } from "@std/assert";
 import type { LlmStreamChunk } from "../../src/agent/llm.ts";
 import { parseSseStream } from "../../src/agent/providers/sse.ts";
 

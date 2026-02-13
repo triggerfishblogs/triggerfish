@@ -3,7 +3,7 @@
  * Tests MUST FAIL until lineage.ts is implemented.
  * Tests record creation, forward/backward trace, export.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import { createLineageStore } from "../../src/core/session/lineage.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import type { SessionId } from "../../src/core/types/session.ts";

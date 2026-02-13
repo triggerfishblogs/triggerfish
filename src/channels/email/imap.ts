@@ -246,14 +246,17 @@ export function createMockImapClient(
   let fetched = false;
 
   return {
+    // deno-lint-ignore require-await
     async connect(): Promise<void> {
       connected = true;
     },
 
+    // deno-lint-ignore require-await
     async disconnect(): Promise<void> {
       connected = false;
     },
 
+    // deno-lint-ignore require-await
     async fetchUnseen(): Promise<readonly ImapMessage[]> {
       if (!connected) throw new Error("Not connected");
       if (fetched) return []; // Only return messages once (they get marked read)

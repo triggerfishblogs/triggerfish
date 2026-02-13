@@ -2,7 +2,7 @@
  * Phase 19: Voice Pipeline & Canvas/A2UI
  * Tests MUST FAIL until voice and tide pool modules are implemented.
  */
-import { assertEquals, assertExists } from "jsr:@std/assert";
+import { assertEquals, assertExists } from "@std/assert";
 import type { SttProvider, TtsProvider } from "../../src/voice/mod.ts";
 import { createTidepoolHost, createTidepoolTools } from "../../src/tidepool/mod.ts";
 

@@ -3,7 +3,7 @@
  * Tests MUST FAIL until sandbox.ts and sdk.ts are implemented.
  * Tests isolation, capability enforcement, auto-tainting.
  */
-import { assertEquals, assertExists, assertRejects } from "jsr:@std/assert";
+import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import { createSandbox } from "../../src/plugin/sandbox.ts";
 import { createPluginSdk } from "../../src/plugin/sdk.ts";
 

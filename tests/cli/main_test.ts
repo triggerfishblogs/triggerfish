@@ -3,7 +3,7 @@
  * Tests MUST FAIL until cli/main.ts, cli/daemon.ts, and build system are implemented.
  * Aligned with design doc Section 29: standalone binary, OS-native daemons.
  */
-import { assertEquals, assertExists, assert, assertStringIncludes } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert, assertStringIncludes } from "@std/assert";
 
 // --- Command parsing ---
 

@@ -10,7 +10,6 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
 import { getModelInfo } from "../models.ts";
 import type { ContentBlock } from "../../image/content.ts";
-import { extractText } from "../../image/content.ts";
 
 /** Configuration for the Google provider. */
 export interface GoogleConfig {

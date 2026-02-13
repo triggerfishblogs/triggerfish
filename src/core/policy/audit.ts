@@ -56,7 +56,7 @@ const GENESIS_HASH =
  */
 async function importHmacKey(secret: string): Promise<CryptoKey> {
   const encoder = new TextEncoder();
-  return crypto.subtle.importKey(
+  return await crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),
     { name: "HMAC", hash: "SHA-256" },

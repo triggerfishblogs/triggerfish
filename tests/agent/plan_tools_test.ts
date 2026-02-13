@@ -4,7 +4,7 @@
  * Tests individual plan tool calls via createPlanToolExecutor,
  * including validation of untrusted LLM input.
  */
-import { assertEquals, assert, assertStringIncludes } from "jsr:@std/assert";
+import { assertEquals, assert, assertStringIncludes } from "@std/assert";
 import { createPlanManager, createPlanToolExecutor } from "../../src/agent/plan.ts";
 import type { PlanManager } from "../../src/agent/plan.ts";
 

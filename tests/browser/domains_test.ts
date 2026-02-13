@@ -2,7 +2,7 @@
  * Phase 18: Browser Automation (CDP)
  * Tests MUST FAIL until browser manager, tools, and domain policy are implemented.
  */
-import { assertEquals, assertExists } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import { createDomainPolicy } from "../../src/browser/domains.ts";
 
 // Note: Full browser tests require Chromium — these test the policy layer which is pure logic.

@@ -10,7 +10,6 @@
 
 import type { UserId } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
-import { canFlowTo } from "../core/types/classification.ts";
 import type { StorageProvider } from "../core/storage/provider.ts";
 
 /** Notification priority levels. */

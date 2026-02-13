@@ -3,9 +3,8 @@
  * Tests MUST FAIL until classification.ts is implemented.
  * Tests the exact interfaces and behaviors from triggerfish-build-plan.md Phase 1.
  */
-import { assertEquals, assertExists } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import {
-  type ClassificationLevel,
   CLASSIFICATION_ORDER,
   canFlowTo,
   compareClassification,

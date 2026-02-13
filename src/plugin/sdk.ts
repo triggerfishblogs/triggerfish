@@ -192,6 +192,7 @@ export function createPluginSdk(config: PluginSdkConfig): PluginSdk {
       return result.value;
     },
 
+    // deno-lint-ignore require-await
     async queryAsUserSafe(
       query: string,
     ): Promise<Result<QueryResult, string>> {

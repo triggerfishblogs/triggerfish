@@ -2,7 +2,7 @@
  * Phase 20: Skills Platform & The Reef
  * Tests MUST FAIL until skills loader, registry, author, and scanner are implemented.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import { createSkillLoader } from "../../src/skills/loader.ts";
 import { createSkillScanner } from "../../src/skills/scanner.ts";
 

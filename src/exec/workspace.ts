@@ -8,7 +8,7 @@
  * @module
  */
 
-import { join, resolve } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { join, resolve } from "@std/path";
 
 /** Options for creating a new workspace. */
 export interface WorkspaceOptions {

@@ -3,10 +3,9 @@
  * Tests MUST FAIL until orchestrator.ts and llm.ts are implemented.
  * Tests LlmProvider interface, provider registry, orchestrator loop.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import {
   type LlmProvider,
-  type LlmProviderRegistry,
   createProviderRegistry,
 } from "../../src/agent/llm.ts";
 import { createOrchestrator, LEAKED_INTENT_PATTERN } from "../../src/agent/orchestrator.ts";
@@ -21,7 +20,8 @@ function createMockProvider(name: string, response = "mock response"): LlmProvid
   return {
     name,
     supportsStreaming: false,
-    async complete(messages, _tools, _options) {
+    // deno-lint-ignore require-await
+    async complete(_messages, _tools, _options) {
       return {
         content: response,
         toolCalls: [],
@@ -165,6 +165,7 @@ Deno.test("Orchestrator: loads SPINE.md as system prompt foundation", async () =
   const trackingProvider: LlmProvider = {
     name: "tracking",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete(messages, _tools, _options) {
       const system = messages.find((m) => m.role === "system");
       if (system) receivedSystemPrompt = system.content as string;
@@ -201,6 +202,7 @@ Deno.test("Orchestrator: parses tool calls with 'args' key", async () => {
   const toolProvider: LlmProvider = {
     name: "tool-test",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete(_messages, _tools, _options) {
       callCount++;
       if (callCount === 1) {
@@ -221,6 +223,7 @@ Deno.test("Orchestrator: parses tool calls with 'args' key", async () => {
     hookRunner: runner,
     providerRegistry: registry,
     tools: [{ name: "read_file", description: "Read a file", parameters: { path: { type: "string", description: "path", required: true } } }],
+    // deno-lint-ignore require-await
     toolExecutor: async (_name, input) => { executedArgs = input; return "file content"; },
   });
 
@@ -238,6 +241,7 @@ Deno.test("Orchestrator: parses tool calls with 'input' key", async () => {
   const toolProvider: LlmProvider = {
     name: "tool-test",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete(_messages, _tools, _options) {
       callCount++;
       if (callCount === 1) {
@@ -258,6 +262,7 @@ Deno.test("Orchestrator: parses tool calls with 'input' key", async () => {
     hookRunner: runner,
     providerRegistry: registry,
     tools: [{ name: "run_command", description: "Run command", parameters: { command: { type: "string", description: "cmd", required: true } } }],
+    // deno-lint-ignore require-await
     toolExecutor: async (_name, input) => { executedArgs = input; return "output"; },
   });
 
@@ -275,6 +280,7 @@ Deno.test("Orchestrator: parses tool calls with 'parameters' key", async () => {
   const toolProvider: LlmProvider = {
     name: "tool-test",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete(_messages, _tools, _options) {
       callCount++;
       if (callCount === 1) {
@@ -295,6 +301,7 @@ Deno.test("Orchestrator: parses tool calls with 'parameters' key", async () => {
     hookRunner: runner,
     providerRegistry: registry,
     tools: [{ name: "list_directory", description: "List dir", parameters: { path: { type: "string", description: "path", required: true } } }],
+    // deno-lint-ignore require-await
     toolExecutor: async (_name, input) => { executedArgs = input; return "/home/venom"; },
   });
 
@@ -312,6 +319,7 @@ Deno.test("Orchestrator: parses tool calls with flat args format", async () => {
   const toolProvider: LlmProvider = {
     name: "tool-test",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete(_messages, _tools, _options) {
       callCount++;
       if (callCount === 1) {
@@ -332,6 +340,7 @@ Deno.test("Orchestrator: parses tool calls with flat args format", async () => {
     hookRunner: runner,
     providerRegistry: registry,
     tools: [{ name: "run_command", description: "Run command", parameters: { command: { type: "string", description: "cmd", required: true } } }],
+    // deno-lint-ignore require-await
     toolExecutor: async (_name, input) => { executedArgs = input; return "hello"; },
   });
 

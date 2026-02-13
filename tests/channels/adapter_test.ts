@@ -2,7 +2,7 @@
  * Phases 15-16: Channel Adapters, Ripple & Groups
  * Tests MUST FAIL until adapters, ripple, and group chat are implemented.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists } from "@std/assert";
 import type { ChannelAdapter } from "../../src/channels/types.ts";
 import { createChannelRouter } from "../../src/channels/router.ts";
 import { createRippleManager } from "../../src/channels/ripple.ts";
@@ -29,7 +29,7 @@ Deno.test("ChannelRouter: dispatches to correct adapter by channel config", () =
 
 // --- Ripple ---
 
-Deno.test("PresenceManager: tracks typing state", async () => {
+Deno.test("PresenceManager: tracks typing state", () => {
   const ripple = createRippleManager();
   ripple.setTyping("channel-1", true);
   assertEquals(ripple.isTyping("channel-1"), true);

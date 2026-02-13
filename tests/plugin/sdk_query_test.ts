@@ -2,7 +2,7 @@
  * Phase 9a: Plugin SDK queryAsUserSafe with capabilities validation.
  * Tests capability-based query validation, query handlers, and backward compatibility.
  */
-import { assertEquals, assertExists, assertRejects } from "jsr:@std/assert";
+import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import { createPluginSdk } from "../../src/plugin/sdk.ts";
 import type { PluginCapability, QueryHandler } from "../../src/plugin/sdk.ts";
 
@@ -45,6 +45,7 @@ Deno.test("queryAsUserSafe: returns error when no capability matches", async () 
 });
 
 Deno.test("queryAsUserSafe: uses queryHandler when provided", async () => {
+  // deno-lint-ignore require-await
   const handler: QueryHandler = async (query, _pluginName) => {
     return {
       data: { results: [`row for ${query}`] },
@@ -69,6 +70,7 @@ Deno.test("queryAsUserSafe: uses queryHandler when provided", async () => {
 });
 
 Deno.test("queryAsUserSafe: validates handler result does not exceed ceiling", async () => {
+  // deno-lint-ignore require-await
   const handler: QueryHandler = async (_query, _pluginName) => {
     return {
       data: { secret: "classified" },
@@ -185,6 +187,7 @@ Deno.test("queryAsUser: throws on capability violation with capabilities configu
 });
 
 Deno.test("queryAsUserSafe: handler at exactly max classification succeeds", async () => {
+  // deno-lint-ignore require-await
   const handler: QueryHandler = async (_query, _pluginName) => {
     return {
       data: { internal: "data" },

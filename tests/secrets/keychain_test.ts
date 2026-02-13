@@ -5,7 +5,7 @@
  * requiring an actual OS keychain / secret service.
  */
 
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import { createMemorySecretStore } from "../../src/secrets/keychain.ts";
 
 // --- Set and get a secret ---

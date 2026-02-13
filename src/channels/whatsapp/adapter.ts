@@ -58,6 +58,7 @@ export function createWhatsAppChannel(config: WhatsAppConfig): ChannelAdapter {
     classification,
     isOwner: true,
 
+    // deno-lint-ignore require-await
     async connect(): Promise<void> {
       // Start webhook server for incoming messages
       server = Deno.serve({ port: webhookPort }, async (req) => {

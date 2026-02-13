@@ -5,7 +5,7 @@
  * Filesystem watching is tested with a real temp file.
  */
 
-import { assertEquals, assertExists } from "jsr:@std/assert";
+import { assertEquals, assertExists } from "@std/assert";
 import { createConfigWatcher } from "../../src/gateway/config_watcher.ts";
 
 Deno.test("onChange: registers and invokes callback on file change", async () => {

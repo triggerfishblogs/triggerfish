@@ -5,7 +5,7 @@
  * result assembly, token budget truncation, focus parameter handling,
  * LLM summary vs template fallback, and plan mode integration.
  */
-import { assertEquals, assert, assertStringIncludes } from "jsr:@std/assert";
+import { assertEquals, assert, assertStringIncludes } from "@std/assert";
 import {
   getExploreToolDefinitions,
   createExploreToolExecutor,
@@ -34,12 +34,14 @@ Deno.test("getExploreToolDefinitions returns correct tool definition", () => {
 // ─── Executor: chain behavior ──────────────────────────────────
 
 Deno.test("createExploreToolExecutor returns null for non-explore tool names", async () => {
+  // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => "");
   const result = await executor("read_file", { path: "/tmp" });
   assertEquals(result, null);
 });
 
 Deno.test("createExploreToolExecutor returns null for unknown tool names", async () => {
+  // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => "");
   const result = await executor("some_other_tool", { foo: "bar" });
   assertEquals(result, null);
@@ -48,6 +50,7 @@ Deno.test("createExploreToolExecutor returns null for unknown tool names", async
 // ─── Executor: validation ──────────────────────────────────────
 
 Deno.test("Executor validates required path parameter", async () => {
+  // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => "response");
   const result = await executor("explore", {});
   assert(result !== null);
@@ -56,6 +59,7 @@ Deno.test("Executor validates required path parameter", async () => {
 });
 
 Deno.test("Executor validates empty path parameter", async () => {
+  // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => "response");
   const result = await executor("explore", { path: "" });
   assert(result !== null);
@@ -64,6 +68,7 @@ Deno.test("Executor validates empty path parameter", async () => {
 
 Deno.test("Executor defaults depth to standard when not provided", async () => {
   const calls: string[] = [];
+  // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async (task) => {
     calls.push(task);
     return "agent response";
@@ -78,6 +83,7 @@ Deno.test("Executor defaults depth to standard when not provided", async () => {
 
 Deno.test("Shallow depth spawns 2 sub-agents", async () => {
   let callCount = 0;
+  // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => {
     callCount++;
     return "response";
@@ -88,6 +94,7 @@ Deno.test("Shallow depth spawns 2 sub-agents", async () => {
 
 Deno.test("Standard depth spawns 3 sub-agents (no focus)", async () => {
   let callCount = 0;
+  // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => {
     callCount++;
     return "response";
@@ -98,6 +105,7 @@ Deno.test("Standard depth spawns 3 sub-agents (no focus)", async () => {
 
 Deno.test("Standard depth spawns 4 sub-agents (with focus)", async () => {
   let callCount = 0;
+  // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => {
     callCount++;
     return "response";
@@ -112,6 +120,7 @@ Deno.test("Standard depth spawns 4 sub-agents (with focus)", async () => {
 
 Deno.test("Deep depth spawns 5 sub-agents (no focus)", async () => {
   let callCount = 0;
+  // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => {
     callCount++;
     return "response";
@@ -122,6 +131,7 @@ Deno.test("Deep depth spawns 5 sub-agents (no focus)", async () => {
 
 Deno.test("Deep depth spawns 6 sub-agents (with focus)", async () => {
   let callCount = 0;
+  // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => {
     callCount++;
     return "response";
@@ -293,7 +303,9 @@ Deno.test("tree truncated when too long", () => {
 
 Deno.test("llmTask used for summary when available", async () => {
   const executor = createExploreToolExecutor(
+    // deno-lint-ignore require-await
     async () => "agent response",
+    // deno-lint-ignore require-await
     async (_prompt: string) => "LLM-generated summary of the codebase.",
   );
 
@@ -304,6 +316,7 @@ Deno.test("llmTask used for summary when available", async () => {
 });
 
 Deno.test("Template fallback when llmTask not provided", async () => {
+  // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => "agent response");
   const result = await executor("explore", { path: "/tmp" });
   assert(result !== null);
@@ -314,7 +327,9 @@ Deno.test("Template fallback when llmTask not provided", async () => {
 
 Deno.test("Template fallback when llmTask throws", async () => {
   const executor = createExploreToolExecutor(
+    // deno-lint-ignore require-await
     async () => "agent response",
+    // deno-lint-ignore require-await
     async () => {
       throw new Error("LLM unavailable");
     },
@@ -329,6 +344,7 @@ Deno.test("Template fallback when llmTask throws", async () => {
 // ─── Error handling ────────────────────────────────────────────
 
 Deno.test("Executor handles sub-agent errors gracefully", async () => {
+  // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => {
     throw new Error("spawn failed");
   });
@@ -356,6 +372,7 @@ Deno.test("EXPLORE_SYSTEM_PROMPT is non-empty and mentions explore", () => {
 
 Deno.test("Invalid depth defaults to standard", async () => {
   let callCount = 0;
+  // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => {
     callCount++;
     return "response";

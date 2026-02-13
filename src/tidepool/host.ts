@@ -106,7 +106,7 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
   const chatSession = options?.chatSession;
   let server: Deno.HttpServer | null = null;
   let currentTree: ComponentTree | null = null;
-  let resolvedPort = 0;
+  let _resolvedPort = 0;
 
   const host: A2UIHost = {
     async start(port: number): Promise<void> {
@@ -117,7 +117,7 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
           port,
           hostname: "127.0.0.1",
           onListen(addr) {
-            resolvedPort = addr.port;
+            _resolvedPort = addr.port;
             ready.resolve();
           },
         },
@@ -225,7 +225,7 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
         await server.shutdown();
         server = null;
       }
-      resolvedPort = 0;
+      _resolvedPort = 0;
       currentTree = null;
     },
 

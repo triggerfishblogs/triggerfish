@@ -3,7 +3,7 @@
  * These tests MUST FAIL until Phase 0 implementation is complete.
  * They validate: deno.json tasks, directory structure, mod.ts exports.
  */
-import { assertEquals, assertExists, assertMatch } from "jsr:@std/assert";
+import { assertEquals, assertExists, assertMatch } from "@std/assert";
 
 Deno.test("src/mod.ts exports VERSION matching semver", async () => {
   const mod = await import("../src/mod.ts");

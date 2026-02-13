@@ -2,7 +2,7 @@
  * Phase 21: Multi-Agent, Failover & Onboarding
  * Tests MUST FAIL until routing, failover, and dive setup are implemented.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import { createAgentRouter } from "../../src/routing/router.ts";
 import { createFailoverChain } from "../../src/models/failover.ts";
 import { createPatrolCheck } from "../../src/dive/patrol.ts";

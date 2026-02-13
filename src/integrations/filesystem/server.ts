@@ -8,7 +8,7 @@
  * @module
  */
 
-import { resolve, normalize } from "jsr:@std/path";
+import { resolve, normalize } from "@std/path";
 import type { Result, ClassificationLevel } from "../../core/types/classification.ts";
 
 /** A directory entry returned by list_directory. */

@@ -4,7 +4,7 @@
  * Verifies that the cryptographic chain correctly links entries,
  * detects tampering, and handles edge cases.
  */
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import {
   createAuditChain,
   verifyAuditChain,

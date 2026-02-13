@@ -10,7 +10,7 @@
 
 import type { Result } from "../core/types/classification.ts";
 import type { Workspace } from "./workspace.ts";
-import { join, resolve } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { join, resolve } from "@std/path";
 
 /** Result of writing a file. */
 export interface WriteResult {

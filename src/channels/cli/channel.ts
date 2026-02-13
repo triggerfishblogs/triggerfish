@@ -48,14 +48,17 @@ export function createCliChannel(config: CliChannelConfig): CliChannel {
     classification: "INTERNAL" as ClassificationLevel,
     isOwner: true,
 
+    // deno-lint-ignore require-await
     async connect(): Promise<void> {
       connected = true;
     },
 
+    // deno-lint-ignore require-await
     async disconnect(): Promise<void> {
       connected = false;
     },
 
+    // deno-lint-ignore require-await
     async send(message: ChannelMessage): Promise<void> {
       let output = message.content;
       if (showTaint && message.sessionTaint) {

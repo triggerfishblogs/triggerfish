@@ -5,7 +5,7 @@
  * even when the LLM hallucinates write tool calls. Also verifies that
  * read tools remain available in plan mode.
  */
-import { assertEquals, assert, assertStringIncludes } from "jsr:@std/assert";
+import { assertEquals, assert, assertStringIncludes } from "@std/assert";
 import type { LlmProvider } from "../../src/agent/llm.ts";
 import { createProviderRegistry } from "../../src/agent/llm.ts";
 import { createOrchestrator } from "../../src/agent/orchestrator.ts";
@@ -25,6 +25,7 @@ function createMockProvider(responses: string[]): LlmProvider {
   return {
     name: "mock",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete(_messages, _tools, _options) {
       const content = responses[callIndex] ?? "No more responses";
       callIndex++;
@@ -82,6 +83,7 @@ function createTestOrchestrator(
     hookRunner,
     providerRegistry: registry,
     tools,
+    // deno-lint-ignore require-await
     toolExecutor: async (name, _input) => {
       externalToolCalled = true;
       return `Executed ${name}`;
@@ -254,6 +256,7 @@ Deno.test("Blocking: cron_create blocked in plan mode", async () => {
   registry.register({
     name: "mock",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete() {
       const content = responses[callIdx] ?? "done";
       callIdx++;
@@ -280,6 +283,7 @@ Deno.test("Blocking: cron_create blocked in plan mode", async () => {
         },
       },
     ],
+    // deno-lint-ignore require-await
     toolExecutor: async () => "executed",
     planManager: pm,
     onEvent: (e) => {

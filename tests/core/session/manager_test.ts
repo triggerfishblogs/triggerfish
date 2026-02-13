@@ -3,12 +3,12 @@
  * Tests MUST FAIL until session manager is implemented.
  * Tests CRUD, taint propagation, reset, StorageProvider integration.
  */
-import { assertEquals, assertExists, assertNotEquals, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assertNotEquals } from "@std/assert";
 import { createSessionManager } from "../../src/core/session/manager.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
-import type { UserId, ChannelId } from "../../src/core/types/session.ts";
+import type { UserId, ChannelId, SessionId } from "../../src/core/types/session.ts";
 
-async function makeManager() {
+function makeManager() {
   const storage = createMemoryStorage();
   return createSessionManager(storage);
 }
@@ -30,7 +30,7 @@ Deno.test("SessionManager: get retrieves created session", async () => {
 
 Deno.test("SessionManager: get returns null for nonexistent ID", async () => {
   const mgr = await makeManager();
-  const result = await mgr.get("nonexistent" as any);
+  const result = await mgr.get("nonexistent" as SessionId);
   assertEquals(result, null);
 });
 

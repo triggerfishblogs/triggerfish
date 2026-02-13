@@ -63,17 +63,20 @@ export function createReefRegistry(options?: ReefRegistryOptions): ReefRegistry 
   const _baseUrl = options?.baseUrl ?? "https://reef.triggerfish.dev/api/v1";
 
   return {
+    // deno-lint-ignore require-await
     async search(searchOptions: ReefSearchOptions): Promise<Result<readonly ReefSkillListing[], string>> {
       // Registry is not yet deployed; return empty results
       void searchOptions;
       return { ok: true, value: [] };
     },
 
+    // deno-lint-ignore require-await
     async install(name: string, targetDir: string): Promise<Result<string, string>> {
       void targetDir;
       return { ok: false, error: `Skill "${name}" not found in The Reef` };
     },
 
+    // deno-lint-ignore require-await
     async checkUpdates(
       installedSkills: readonly { readonly name: string; readonly version?: string }[],
     ): Promise<Result<readonly string[], string>> {
@@ -81,6 +84,7 @@ export function createReefRegistry(options?: ReefRegistryOptions): ReefRegistry 
       return { ok: true, value: [] };
     },
 
+    // deno-lint-ignore require-await
     async publish(skillPath: string): Promise<Result<string, string>> {
       void skillPath;
       return { ok: false, error: "The Reef publishing is not yet available" };

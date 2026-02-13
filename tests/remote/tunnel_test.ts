@@ -8,7 +8,7 @@ import {
   assert,
   assertEquals,
   assertStringIncludes,
-} from "jsr:@std/assert";
+} from "@std/assert";
 import { createTunnelService } from "../../src/remote/tunnel.ts";
 import type {
   CommandResult,
@@ -40,6 +40,7 @@ function createMockCommandRunner(
     get calls() {
       return calls;
     },
+    // deno-lint-ignore require-await
     async run(cmd: string, args: readonly string[]): Promise<CommandResult> {
       calls.push({ cmd, args });
       const key = [cmd, ...args].join(" ");

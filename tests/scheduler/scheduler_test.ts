@@ -1,7 +1,7 @@
 /**
  * Phase 17: Cron, Triggers & Webhooks — full test suite.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import {
   parseCronExpression,
   createCronManager,
@@ -150,6 +150,7 @@ Deno.test("Trigger: fires callback at interval", async () => {
   let fired = 0;
   const hb = createTrigger({
     intervalMs: 50,
+    // deno-lint-ignore require-await
     callback: async () => { fired++; },
     classificationCeiling: "PUBLIC",
   });
@@ -163,6 +164,7 @@ Deno.test("Trigger: respects quiet hours", async () => {
   let fired = 0;
   const hb = createTrigger({
     intervalMs: 50,
+    // deno-lint-ignore require-await
     callback: async () => { fired++; },
     classificationCeiling: "PUBLIC",
     quietHours: { start: 0, end: 24 }, // All hours are quiet
@@ -228,6 +230,7 @@ Deno.test("computeHmac: returns sha256= prefixed hex", async () => {
 Deno.test("WebhookHandler: routes events to handlers", async () => {
   const handler = createWebhookHandler();
   let received: unknown = null;
+  // deno-lint-ignore require-await
   handler.on("push", async (event) => { received = event; });
   await handler.handle({ event: "push", data: { ref: "main" } });
   assertExists(received);
@@ -236,6 +239,7 @@ Deno.test("WebhookHandler: routes events to handlers", async () => {
 Deno.test("WebhookHandler: ignores unregistered event types", async () => {
   const handler = createWebhookHandler();
   let called = false;
+  // deno-lint-ignore require-await
   handler.on("push", async () => { called = true; });
   await handler.handle({ event: "release", data: {} });
   assertEquals(called, false);
@@ -250,10 +254,12 @@ function createMockFactory(): {
 } {
   const calls: string[] = [];
   const factory: OrchestratorFactory = {
+    // deno-lint-ignore require-await
     async create(channelId: string) {
       calls.push(channelId);
       return {
         orchestrator: {
+          // deno-lint-ignore require-await
           processMessage: async () => ({ ok: true as const, value: { response: "done" } }),
         // deno-lint-ignore no-explicit-any
         } as any,
@@ -354,6 +360,7 @@ Deno.test("SchedulerService: webhook dispatches to event handler", async () => {
   const svc = createSchedulerService(createTestConfig(factory));
 
   let receivedEvent: unknown = null;
+  // deno-lint-ignore require-await
   svc.webhookHandler.on("push", async (evt) => { receivedEvent = evt; });
 
   const body = '{"event":"push","data":{"ref":"main"}}';
@@ -486,7 +493,6 @@ Deno.test("PersistentCronManager: records execution history to storage", async (
 // ── Notification delivery wiring ─────────────────────────────────────
 
 import { createNotificationService } from "../../src/gateway/notifications.ts";
-import type { NotificationService } from "../../src/gateway/notifications.ts";
 import type { UserId } from "../../src/core/types/session.ts";
 
 Deno.test("SchedulerService: webhook output delivered via notificationService", async () => {
@@ -521,6 +527,7 @@ Deno.test("SchedulerService: delivery failure does not crash scheduler", async (
   // Register a failing channel — delivery should fail gracefully
   notificationService.registerChannel({
     name: "broken",
+    // deno-lint-ignore require-await
     send: async () => { throw new Error("delivery boom"); },
   });
   const ownerId = "test-owner" as UserId;

@@ -2,7 +2,7 @@
  * Phases 15-16: Channel Adapters, Ripple & Groups
  * Tests MUST FAIL until adapters, ripple, and group chat are implemented.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import type { ChannelAdapter } from "../../src/channels/types.ts";
 import { createChannelRouter } from "../../src/channels/router.ts";
 import { createRippleManager } from "../../src/channels/ripple.ts";

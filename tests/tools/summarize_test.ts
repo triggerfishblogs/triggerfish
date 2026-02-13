@@ -4,7 +4,7 @@
  * Covers: default length/style, all length variants, all style variants,
  * empty text validation, null-return chain, prompt construction.
  */
-import { assertEquals, assertStringIncludes } from "jsr:@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import {
   buildSummarizePrompt,
   createSummarizeToolExecutor,

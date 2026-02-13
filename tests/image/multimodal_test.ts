@@ -3,8 +3,7 @@
  * @module
  */
 
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/assert_equals.ts";
-import { assert } from "https://deno.land/std@0.224.0/assert/assert.ts";
+import { assertEquals, assert } from "@std/assert";
 import {
   estimateTokens,
   estimateHistoryTokens,
