@@ -25,9 +25,9 @@ Deno.test("Dockerfile uses denoland/deno base image", async () => {
   assertStringIncludes(content, "denoland/deno:");
 });
 
-Deno.test("Dockerfile uses distroless runtime (not alpine)", async () => {
+Deno.test("Dockerfile uses slim runtime (not alpine)", async () => {
   const content = await Deno.readTextFile(DOCKERFILE_PATH);
-  assertStringIncludes(content, "gcr.io/distroless/cc");
+  assertStringIncludes(content, "trixie-slim");
   assertEquals(content.includes("alpine"), false, "Should not use alpine");
 });
 
