@@ -12,7 +12,7 @@ triggerfish connect github
 
 This walks you through creating a fine-grained Personal Access Token, validates it, and stores it in the OS keychain. That's it -- your agent can now use all `github_*` tools.
 
-See the [GitHub skill documentation](/skills/bundled/github/SKILL.md) for the full tool reference.
+See the [Skills documentation](/integrations/skills) for more on how skills work, or run `triggerfish skills list` to see all available tools.
 
 ## Advanced: `gh` CLI + Webhooks
 
