@@ -57,7 +57,7 @@ fi
 
 echo "Compiling (this may take a minute)..."
 cd "${SRC_DIR}"
-deno compile --allow-all --output=triggerfish src/cli/main.ts
+deno compile --allow-all --include config/ --include skills/ --output=triggerfish src/cli/main.ts
 echo "[ok] Compiled successfully"
 
 # --- Step 5: Install binary ---

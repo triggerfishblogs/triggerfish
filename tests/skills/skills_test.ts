@@ -58,8 +58,8 @@ Deno.test("SkillLoader: discovers all bundled skills", async () => {
   });
   const skills = await loader.discover();
 
-  // Should find all 10 bundled skills
-  assertEquals(skills.length, 10);
+  // Should find all 11 bundled skills
+  assertEquals(skills.length, 11);
 
   const names = skills.map((s) => s.name).sort();
   assertEquals(names, [
@@ -73,6 +73,7 @@ Deno.test("SkillLoader: discovers all bundled skills", async () => {
     "obsidian",
     "skill-builder",
     "tdd",
+    "triggers",
   ]);
 
   // All should be bundled source

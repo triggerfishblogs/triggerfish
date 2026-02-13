@@ -64,7 +64,7 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
 
     async complete(
       messages: readonly LlmMessage[],
-      _tools: readonly unknown[],
+      tools: readonly unknown[],
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       const signal = options.signal as AbortSignal | undefined;
@@ -73,14 +73,19 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
         content: toOpenAiContent(m.content),
       }));
 
+      const body: Record<string, unknown> = {
+        model,
+        max_tokens: maxTokens,
+        messages: openaiMessages,
+      };
+      if (Array.isArray(tools) && tools.length > 0) {
+        body.tools = tools;
+      }
+
       const response = await fetch(`${endpoint}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          max_tokens: maxTokens,
-          messages: openaiMessages,
-        }),
+        body: JSON.stringify(body),
         ...(signal ? { signal } : {}),
       });
 
@@ -103,7 +108,7 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
 
     async *stream(
       messages: readonly LlmMessage[],
-      _tools: readonly unknown[],
+      tools: readonly unknown[],
       options: Record<string, unknown>,
     ): AsyncIterable<LlmStreamChunk> {
       const signal = options.signal as AbortSignal | undefined;
@@ -112,15 +117,20 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
         content: toOpenAiContent(m.content),
       }));
 
+      const body: Record<string, unknown> = {
+        model,
+        max_tokens: maxTokens,
+        messages: openaiMessages,
+        stream: true,
+      };
+      if (Array.isArray(tools) && tools.length > 0) {
+        body.tools = tools;
+      }
+
       const response = await fetch(`${endpoint}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          max_tokens: maxTokens,
-          messages: openaiMessages,
-          stream: true,
-        }),
+        body: JSON.stringify(body),
         ...(signal ? { signal } : {}),
       });
 

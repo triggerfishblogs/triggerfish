@@ -105,53 +105,51 @@ export function createSkillLoader(options: SkillLoaderOptions): SkillLoader {
 
       for (const dir of options.directories) {
         const source = getSourceType(dir);
-        let entries: AsyncIterable<Deno.DirEntry>;
         try {
-          entries = Deno.readDir(dir);
+          for await (const entry of Deno.readDir(dir)) {
+            if (!entry.isDirectory) continue;
+
+            const skillDir = `${dir}/${entry.name}`;
+            const skillMdPath = `${skillDir}/SKILL.md`;
+
+            let content: string;
+            try {
+              content = await Deno.readTextFile(skillMdPath);
+            } catch {
+              continue;
+            }
+
+            const frontmatter = parseFrontmatter(content);
+            if (!frontmatter || !frontmatter.name) continue;
+
+            const classResult = parseClassification(
+              frontmatter.classification_ceiling ?? "PUBLIC",
+            );
+            const ceiling: ClassificationLevel = classResult.ok
+              ? classResult.value
+              : "PUBLIC";
+
+            const skill: Skill = {
+              name: frontmatter.name,
+              description: frontmatter.description ?? "",
+              classificationCeiling: ceiling,
+              requiresTools: frontmatter.requires_tools ?? [],
+              networkDomains: frontmatter.network_domains ?? [],
+              path: skillDir,
+              source,
+            };
+
+            const existing = skillsByName.get(skill.name);
+            if (
+              !existing ||
+              getPriority(source) < getPriority(existing.source)
+            ) {
+              skillsByName.set(skill.name, skill);
+            }
+          }
         } catch {
+          // Directory doesn't exist or isn't readable — skip
           continue;
-        }
-
-        for await (const entry of entries) {
-          if (!entry.isDirectory) continue;
-
-          const skillDir = `${dir}/${entry.name}`;
-          const skillMdPath = `${skillDir}/SKILL.md`;
-
-          let content: string;
-          try {
-            content = await Deno.readTextFile(skillMdPath);
-          } catch {
-            continue;
-          }
-
-          const frontmatter = parseFrontmatter(content);
-          if (!frontmatter || !frontmatter.name) continue;
-
-          const classResult = parseClassification(
-            frontmatter.classification_ceiling ?? "PUBLIC",
-          );
-          const ceiling: ClassificationLevel = classResult.ok
-            ? classResult.value
-            : "PUBLIC";
-
-          const skill: Skill = {
-            name: frontmatter.name,
-            description: frontmatter.description ?? "",
-            classificationCeiling: ceiling,
-            requiresTools: frontmatter.requires_tools ?? [],
-            networkDomains: frontmatter.network_domains ?? [],
-            path: skillDir,
-            source,
-          };
-
-          const existing = skillsByName.get(skill.name);
-          if (
-            !existing ||
-            getPriority(source) < getPriority(existing.source)
-          ) {
-            skillsByName.set(skill.name, skill);
-          }
         }
       }
 
