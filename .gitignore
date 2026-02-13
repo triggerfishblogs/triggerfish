@@ -18,3 +18,9 @@ ARCHITECTURE_REFERENCE.md
 
 # Claude skills (local only)
 .claude/skills/
+
+# Ralph Wiggum loop files
+PLAN_PROMPT.md
+BUILD_PROMPT.md
+ralph.sh
+IMPLEMENTATION_PLAN.md
