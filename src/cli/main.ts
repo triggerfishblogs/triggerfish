@@ -887,6 +887,7 @@ function createOrchestratorFactory(
         healthcheckExecutor: createHealthcheckToolExecutor({
           providerRegistry: registry,
           storageProvider: storage,
+          skillLoader: factorySkillLoader,
         }),
         providerRegistry: registry,
       });
@@ -1274,6 +1275,7 @@ async function runStart(): Promise<void> {
     healthcheckExecutor: createHealthcheckToolExecutor({
       providerRegistry: registry,
       storageProvider: storage,
+      skillLoader,
     }),
     subagentFactory,
     providerRegistry: registry,
