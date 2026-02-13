@@ -2,7 +2,7 @@
  * Phase 9b: Pyodide Python Sandbox tests.
  * Uses a mock Pyodide loader since real WASM binaries are not available in tests.
  */
-import { assertEquals, assertRejects } from "jsr:@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { createPythonSandbox } from "../../src/plugin/sandbox.ts";
 import type { PyodideInstance, PyodideLoader } from "../../src/plugin/sandbox.ts";
 import { createPluginSdk } from "../../src/plugin/sdk.ts";
@@ -98,6 +98,7 @@ function createMockPyodide(): PyodideInstance {
 
 /** Create a mock Pyodide loader for testing. */
 function createMockLoader(): PyodideLoader {
+  // deno-lint-ignore require-await
   return async () => createMockPyodide();
 }
 

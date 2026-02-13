@@ -2,7 +2,7 @@
  * Phase 14: Gateway WebSocket, Session Manager & Notifications
  * Tests MUST FAIL until gateway server, enhanced sessions, and notifications are implemented.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import { createGatewayServer } from "../../src/gateway/server.ts";
 import { createEnhancedSessionManager } from "../../src/gateway/sessions.ts";
 import { createNotificationService } from "../../src/gateway/notifications.ts";

@@ -4,7 +4,7 @@
  * @module
  */
 
-import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertNotEquals } from "@std/assert";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import { createMemoryStore } from "../../src/memory/store.ts";
 import { createInMemorySearchProvider } from "../../src/memory/search.ts";

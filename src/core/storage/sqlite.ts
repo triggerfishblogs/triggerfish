@@ -53,19 +53,23 @@ export function createSqliteStorage(dbPath: string): StorageProvider {
   );
 
   return {
+    // deno-lint-ignore require-await
     async set(key: string, value: string): Promise<void> {
       stmtSet.run(key, value);
     },
 
+    // deno-lint-ignore require-await
     async get(key: string): Promise<string | null> {
       const row = stmtGet.get<ValueRow>(key);
       return row ? row.value : null;
     },
 
+    // deno-lint-ignore require-await
     async delete(key: string): Promise<void> {
       stmtDel.run(key);
     },
 
+    // deno-lint-ignore require-await
     async list(prefix?: string): Promise<string[]> {
       if (prefix === undefined) {
         const rows = stmtListAll.all<KeyRow>();
@@ -75,6 +79,7 @@ export function createSqliteStorage(dbPath: string): StorageProvider {
       return rows.map((r) => r.key);
     },
 
+    // deno-lint-ignore require-await
     async close(): Promise<void> {
       stmtSet.finalize();
       stmtGet.finalize();

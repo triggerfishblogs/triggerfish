@@ -3,8 +3,7 @@
  * @module
  */
 
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/assert_equals.ts";
-import { assert } from "https://deno.land/std@0.224.0/assert/assert.ts";
+import { assertEquals } from "@std/assert";
 import {
   normalizeContent,
   extractText,
@@ -12,8 +11,6 @@ import {
   imageBlock,
 } from "../../src/image/content.ts";
 import type {
-  TextContentBlock,
-  ImageContentBlock,
   ContentBlock,
 } from "../../src/image/content.ts";
 

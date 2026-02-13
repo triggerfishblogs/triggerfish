@@ -56,6 +56,7 @@ export function createWebChatChannel(config: WebChatConfig = {}): ChannelAdapter
     classification,
     isOwner: false, // Web visitors are never the owner
 
+    // deno-lint-ignore require-await
     async connect(): Promise<void> {
       server = Deno.serve({ port }, (req) => {
         // WebSocket upgrade
@@ -122,6 +123,7 @@ export function createWebChatChannel(config: WebChatConfig = {}): ChannelAdapter
       connected = false;
     },
 
+    // deno-lint-ignore require-await
     async send(message: ChannelMessage): Promise<void> {
       if (!message.sessionId) return;
 

@@ -43,6 +43,7 @@ export interface Sandbox {
  * - Network access (only declared endpoints allowed)
  * - System calls (blocked)
  */
+// deno-lint-ignore require-await
 export async function createSandbox(config: SandboxConfig): Promise<Sandbox> {
   const allowedHosts = new Set<string>();
   for (const endpoint of config.declaredEndpoints) {
@@ -110,6 +111,7 @@ export async function createSandbox(config: SandboxConfig): Promise<Sandbox> {
       return await fn(restrictedFetch, restrictedDeno);
     },
 
+    // deno-lint-ignore require-await
     async destroy(): Promise<void> {
       destroyed = true;
     },
@@ -170,7 +172,7 @@ export interface PythonSandbox extends Sandbox {
  */
 async function defaultPyodideLoader(): Promise<PyodideInstance> {
   const pyodideModule = await import(
-    "https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.mjs"
+    "pyodide"
   );
   const pyodide = await pyodideModule.loadPyodide() as PyodideInstance;
   return pyodide;
@@ -223,6 +225,7 @@ export async function createPythonSandbox(
   const baseSandbox = await createSandbox(config);
 
   return {
+    // deno-lint-ignore require-await
     async execute(code: string): Promise<unknown> {
       if (destroyed) {
         throw new Error("Sandbox has been destroyed");
@@ -230,6 +233,7 @@ export async function createPythonSandbox(
       return baseSandbox.execute(code);
     },
 
+    // deno-lint-ignore require-await
     async executePython(code: string): Promise<unknown> {
       if (destroyed) {
         throw new Error("Sandbox has been destroyed");

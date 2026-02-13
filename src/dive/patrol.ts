@@ -52,6 +52,7 @@ export interface PatrolChecker {
  */
 export function createPatrolCheck(input: PatrolInput): PatrolChecker {
   return {
+    // deno-lint-ignore require-await
     async run(): Promise<PatrolReport> {
       const checks: PatrolCheckResult[] = [];
 

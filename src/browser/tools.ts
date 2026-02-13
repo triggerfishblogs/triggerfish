@@ -163,8 +163,8 @@ export function createBrowserTools(config: BrowserToolsConfig): BrowserTools {
         }
         const screenshot = btoa(chunks.join(""));
 
-        // deno-lint-ignore no-explicit-any
         const textContent: string = await page.evaluate(
+          // deno-lint-ignore no-explicit-any
           () => (globalThis as any).document?.body?.innerText ?? "",
         );
 
@@ -244,8 +244,8 @@ export function createBrowserTools(config: BrowserToolsConfig): BrowserTools {
 
       try {
         await page.evaluate(
-          // deno-lint-ignore no-explicit-any
           (scrollX: number, scrollY: number) =>
+            // deno-lint-ignore no-explicit-any
             (globalThis as any).scrollBy(scrollX, scrollY),
           dx,
           dy,

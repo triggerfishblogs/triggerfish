@@ -121,6 +121,28 @@ if ($UserPath -notlike "*$InstallDir*") {
 
 # --- Step 6: First-time setup ---
 
+# Enable ANSI escape sequences in the console so the dive wizard's
+# colored prompts (via Cliffy) render correctly on PowerShell 5.1.
+# Windows 10+ supports Virtual Terminal Processing but it must be
+# explicitly enabled on the console output handle.
+try {
+    Add-Type -MemberDefinition @"
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr GetStdHandle(int nStdHandle);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
+"@ -Namespace Win32 -Name NativeMethods -ErrorAction SilentlyContinue
+
+    $handle = [Win32.NativeMethods]::GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+    $mode = [uint32]0
+    [Win32.NativeMethods]::GetConsoleMode($handle, [ref]$mode) | Out-Null
+    [Win32.NativeMethods]::SetConsoleMode($handle, $mode -bor 0x0004) | Out-Null  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+} catch {
+    # Ignore — VT processing not available (very old Windows)
+}
+
 Write-Host ""
 & $InstallPath dive
 

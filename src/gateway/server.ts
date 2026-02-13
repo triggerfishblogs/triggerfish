@@ -333,6 +333,7 @@ export function createGatewayServer(
   let resolvedAddr: GatewayAddr | null = null;
 
   return {
+    // deno-lint-ignore require-await
     async start(): Promise<GatewayAddr> {
       const addrPromise = Promise.withResolvers<GatewayAddr>();
 

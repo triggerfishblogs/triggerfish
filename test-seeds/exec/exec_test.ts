@@ -3,7 +3,7 @@
  * Tests MUST FAIL until exec tools, workspace, and runner are implemented.
  * Tests write/run/read cycle, isolation, denied commands.
  */
-import { assertEquals, assertExists, assert, assertStringIncludes } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert, assertStringIncludes } from "@std/assert";
 import { createWorkspace } from "../../src/exec/workspace.ts";
 import { createExecTools } from "../../src/exec/tools.ts";
 import { createExecRunner } from "../../src/exec/runner.ts";

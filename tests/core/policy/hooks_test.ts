@@ -3,9 +3,8 @@
  * Tests MUST FAIL until hooks.ts is implemented.
  * Tests determinism, timeout=BLOCK, logging, write-down blocking, default rules.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import {
-  type HookResult,
   type HookLogEntry,
   createHookRunner,
   createDefaultRules,

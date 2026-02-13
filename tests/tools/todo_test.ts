@@ -5,7 +5,7 @@
  * persistence across sessions via StorageProvider, per-agent isolation,
  * validation of malformed input, and tool executor integration.
  */
-import { assertEquals, assert } from "jsr:@std/assert";
+import { assertEquals, assert } from "@std/assert";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import {
   createTodoManager,

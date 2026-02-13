@@ -5,7 +5,7 @@
  * and poll creation/voting/closing.
  */
 
-import { assertEquals, assertExists } from "jsr:@std/assert";
+import { assertEquals, assertExists } from "@std/assert";
 import { createGroupManager } from "../../src/channels/groups.ts";
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@
  * Notification service tests — classification, delivery channels, flush.
  */
 
-import { assertEquals, assert } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import { createNotificationService } from "../../src/gateway/notifications.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import type { UserId } from "../../src/core/types/session.ts";
@@ -99,6 +99,7 @@ Deno.test("deliver: sends to registered channel and auto-acknowledges", async ()
 
   svc.registerChannel({
     name: "test",
+    // deno-lint-ignore require-await
     send: async (msg) => { delivered.push(msg); },
   });
 
@@ -118,6 +119,7 @@ Deno.test("deliver: channel failure leaves notification pending", async () => {
 
   svc.registerChannel({
     name: "broken",
+    // deno-lint-ignore require-await
     send: async () => { throw new Error("send failed"); },
   });
 
@@ -134,7 +136,9 @@ Deno.test("deliver: fans out to multiple channels", async () => {
   const ch1: string[] = [];
   const ch2: string[] = [];
 
+  // deno-lint-ignore require-await
   svc.registerChannel({ name: "ch1", send: async (msg) => { ch1.push(msg); } });
+  // deno-lint-ignore require-await
   svc.registerChannel({ name: "ch2", send: async (msg) => { ch2.push(msg); } });
 
   await svc.deliver({ userId: USER, message: "broadcast", priority: "normal" });
@@ -157,6 +161,7 @@ Deno.test("flushPending: delivers queued notifications when channel becomes avai
 
   // Register a channel and flush
   const delivered: string[] = [];
+  // deno-lint-ignore require-await
   svc.registerChannel({ name: "late", send: async (msg) => { delivered.push(msg); } });
 
   const remaining = await svc.flushPending(USER);

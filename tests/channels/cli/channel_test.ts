@@ -3,8 +3,8 @@
  * Tests MUST FAIL until channel types and CLI adapter are implemented.
  * Tests ChannelAdapter interface, message routing, taint display.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
-import type { ChannelAdapter, ChannelMessage } from "../../src/channels/types.ts";
+import { assertEquals, assertExists, assert } from "@std/assert";
+import type { ChannelMessage } from "../../src/channels/types.ts";
 import { createCliChannel } from "../../src/channels/cli/channel.ts";
 
 // --- ChannelAdapter interface ---

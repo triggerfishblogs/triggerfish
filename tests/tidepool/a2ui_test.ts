@@ -4,7 +4,7 @@
  * Covers component constructors, A2UIHost WebSocket broadcasting,
  * and TidePoolTools render/update/clear operations.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import {
   card,
   table,

@@ -137,7 +137,7 @@ async function tryCommand(cmd: string[]): Promise<Uint8Array | null> {
 export async function readClipboardImage(): Promise<Result<ClipboardImage, string>> {
   const commands = getClipboardCommands();
 
-  for (const { cmd, label } of commands) {
+  for (const { cmd, label: _label } of commands) {
     const data = await tryCommand(cmd);
     if (!data) continue;
 

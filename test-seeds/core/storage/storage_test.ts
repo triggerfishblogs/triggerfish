@@ -3,7 +3,7 @@
  * Tests MUST FAIL until storage providers are implemented.
  * Tests both InMemory and SQLite backends against the same interface.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import type { StorageProvider } from "../../src/core/storage/provider.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import { createSqliteStorage } from "../../src/core/storage/sqlite.ts";

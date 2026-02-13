@@ -4,7 +4,7 @@
  * Covers: all components, single component, healthy state,
  * degraded/error state, default components, null-return chain.
  */
-import { assertEquals, assertStringIncludes } from "jsr:@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import {
   createHealthcheckToolExecutor,

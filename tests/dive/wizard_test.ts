@@ -7,7 +7,7 @@ import {
   assert,
   assertEquals,
   assertStringIncludes,
-} from "jsr:@std/assert";
+} from "@std/assert";
 import { parse as parseYaml } from "@std/yaml";
 
 import {

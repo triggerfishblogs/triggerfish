@@ -4,7 +4,7 @@
  * Covers: basic completion, system prompt passthrough, model override,
  * missing provider error, empty prompt validation, null-return chain.
  */
-import { assertEquals, assertStringIncludes } from "jsr:@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import {
   createLlmTaskToolExecutor,
   getLlmTaskToolDefinitions,

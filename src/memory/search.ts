@@ -120,6 +120,7 @@ export function createInMemorySearchProvider(): MemorySearchProvider {
   const records: MemoryRecord[] = [];
 
   return {
+    // deno-lint-ignore require-await
     async index(record: MemoryRecord): Promise<void> {
       // Upsert: remove existing entry with same (agentId, classification, key)
       const idx = records.findIndex(
@@ -134,6 +135,7 @@ export function createInMemorySearchProvider(): MemorySearchProvider {
       records.push(record);
     },
 
+    // deno-lint-ignore require-await
     async remove(
       agentId: string,
       classification: ClassificationLevel,
@@ -150,6 +152,7 @@ export function createInMemorySearchProvider(): MemorySearchProvider {
       }
     },
 
+    // deno-lint-ignore require-await
     async search(
       options: MemorySearchOptions,
     ): Promise<readonly MemorySearchResult[]> {
@@ -179,6 +182,7 @@ export function createInMemorySearchProvider(): MemorySearchProvider {
       return scored.slice(0, maxResults);
     },
 
+    // deno-lint-ignore require-await
     async close(): Promise<void> {
       records.length = 0;
     },
@@ -246,6 +250,7 @@ export function createFts5SearchProvider(
   `);
 
   return {
+    // deno-lint-ignore require-await
     async index(record: MemoryRecord): Promise<void> {
       const json = serialiseRecord(record);
       // Delete old FTS entry (FTS5 doesn't support UPDATE)
@@ -267,6 +272,7 @@ export function createFts5SearchProvider(
       );
     },
 
+    // deno-lint-ignore require-await
     async remove(
       agentId: string,
       classification: ClassificationLevel,
@@ -276,6 +282,7 @@ export function createFts5SearchProvider(
       stmtDeleteMeta.run(agentId, classification, key);
     },
 
+    // deno-lint-ignore require-await
     async search(
       options: MemorySearchOptions,
     ): Promise<readonly MemorySearchResult[]> {
@@ -308,6 +315,7 @@ export function createFts5SearchProvider(
       return results.slice(0, maxResults);
     },
 
+    // deno-lint-ignore require-await
     async close(): Promise<void> {
       stmtDeleteFts.finalize();
       stmtInsertFts.finalize();

@@ -3,7 +3,7 @@
  * Tests MUST FAIL until filesystem server and e2e pipeline are implemented.
  * Tests full flow: CLI -> agent -> MCP Gateway -> filesystem -> response with classification & lineage.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import { createFilesystemServer } from "../../src/integrations/filesystem/server.ts";
 import { createMcpGateway } from "../../src/mcp/gateway/gateway.ts";
 import { createOrchestrator } from "../../src/agent/orchestrator.ts";

@@ -1,7 +1,7 @@
 /**
  * Tests for Gateway JSON-RPC 2.0 handler.
  */
-import { assertEquals, assert } from "jsr:@std/assert";
+import { assertEquals, assert } from "@std/assert";
 import { createGatewayServer } from "../../src/gateway/server.ts";
 import { createEnhancedSessionManager } from "../../src/gateway/sessions.ts";
 import { createNotificationService } from "../../src/gateway/notifications.ts";

@@ -5,7 +5,7 @@
  * and per-channel configuration. Integration tests are gated behind
  * environment variables (BOT_TOKEN, etc.).
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 
 // --- Telegram ---
 
@@ -220,6 +220,7 @@ Deno.test("Router: sendWithRetry succeeds on first try", async () => {
     isOwner: true,
     connect: async () => {},
     disconnect: async () => {},
+    // deno-lint-ignore require-await
     send: async () => { sent = true; },
     onMessage: () => {},
     status: () => ({ connected: true, channelType: "mock" }),
@@ -248,6 +249,7 @@ Deno.test("Router: sendWithRetry retries on failure", async () => {
     isOwner: true,
     connect: async () => {},
     disconnect: async () => {},
+    // deno-lint-ignore require-await
     send: async () => {
       attempts++;
       if (attempts < 3) throw new Error("Transient failure");
@@ -271,6 +273,7 @@ Deno.test("Router: sendWithRetry gives up after max retries", async () => {
     isOwner: true,
     connect: async () => {},
     disconnect: async () => {},
+    // deno-lint-ignore require-await
     send: async () => { throw new Error("Permanent failure"); },
     onMessage: () => {},
     status: () => ({ connected: true, channelType: "mock" }),
@@ -289,6 +292,7 @@ Deno.test("Router: connectAll connects all adapters", async () => {
   const makeAdapter = (name: string) => ({
     classification: "INTERNAL" as const,
     isOwner: true,
+    // deno-lint-ignore require-await
     connect: async () => { connected.push(name); },
     disconnect: async () => {},
     send: async () => {},
@@ -314,6 +318,7 @@ Deno.test("Router: disconnectAll disconnects all adapters", async () => {
     classification: "INTERNAL" as const,
     isOwner: true,
     connect: async () => {},
+    // deno-lint-ignore require-await
     disconnect: async () => { disconnected.push(name); },
     send: async () => {},
     onMessage: () => {},

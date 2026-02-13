@@ -4,7 +4,7 @@
  * Unit tests for all provider factory functions and config loader.
  * Integration tests (real API calls) run only when credentials are set.
  */
-import { assertEquals, assertExists, assert, assertRejects } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert, assertRejects } from "@std/assert";
 import {
   createProviderRegistry,
   type LlmProvider,

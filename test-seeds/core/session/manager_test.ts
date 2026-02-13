@@ -3,7 +3,7 @@
  * Tests MUST FAIL until session manager is implemented.
  * Tests CRUD, taint propagation, reset, StorageProvider integration.
  */
-import { assertEquals, assertExists, assertNotEquals, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assertNotEquals, assert } from "@std/assert";
 import { createSessionManager } from "../../src/core/session/manager.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import type { UserId, ChannelId } from "../../src/core/types/session.ts";

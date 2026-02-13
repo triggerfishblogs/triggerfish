@@ -11,7 +11,6 @@
  */
 
 import type {
-  ActivePlan,
   ImplementationPlan,
   PlanComplexity,
   PlanModeState,

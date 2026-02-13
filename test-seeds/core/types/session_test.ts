@@ -3,7 +3,7 @@
  * Tests MUST FAIL until session.ts is implemented.
  * Tests branded IDs, SessionState, taint escalation, canOutput.
  */
-import { assertEquals, assertNotEquals, assertExists } from "jsr:@std/assert";
+import { assertEquals, assertNotEquals, assertExists } from "@std/assert";
 import {
   type SessionId,
   type UserId,

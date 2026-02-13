@@ -5,7 +5,7 @@
  * without requiring a real IMAP server.
  */
 
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import { createMockImapClient, type ImapMessage } from "../../../src/channels/email/imap.ts";
 import { createEmailChannel } from "../../../src/channels/email/adapter.ts";
 import type { ChannelMessage } from "../../../src/channels/types.ts";

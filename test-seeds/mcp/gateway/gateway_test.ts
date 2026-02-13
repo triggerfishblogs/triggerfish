@@ -3,7 +3,7 @@
  * Tests MUST FAIL until gateway.ts and classifier.ts are implemented.
  * Tests server classification, tool permissions, enforcement flow.
  */
-import { assertEquals, assertExists } from "jsr:@std/assert";
+import { assertEquals, assertExists } from "@std/assert";
 import {
   createMcpGateway,
   type ServerClassification,

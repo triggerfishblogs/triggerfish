@@ -2,7 +2,7 @@
  * Phase 2: Policy Engine Core
  * Tests MUST FAIL until engine.ts and rules.ts are implemented.
  */
-import { assertEquals, assertExists } from "jsr:@std/assert";
+import { assertEquals, assertExists } from "@std/assert";
 import {
   type PolicyRule,
   type PolicyAction,

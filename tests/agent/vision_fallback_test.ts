@@ -8,7 +8,7 @@
  * @module
  */
 
-import { assertEquals, assert, assertExists } from "jsr:@std/assert";
+import { assertEquals, assert, assertExists } from "@std/assert";
 import type { LlmProvider } from "../../src/agent/llm.ts";
 import { createProviderRegistry } from "../../src/agent/llm.ts";
 import { createOrchestrator } from "../../src/agent/orchestrator.ts";
@@ -27,6 +27,7 @@ function createMockProvider(name: string, response = "mock response"): LlmProvid
   return {
     name,
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete(_messages, _tools, _options) {
       return {
         content: response,
@@ -64,6 +65,7 @@ Deno.test("Vision fallback: describes images when visionProvider is configured",
   const primaryProvider: LlmProvider = {
     name: "text-only",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete(messages, _tools, _options) {
       const lastUser = messages.filter((m) => m.role === "user").pop();
       primaryReceivedContent = lastUser?.content;
@@ -78,6 +80,7 @@ Deno.test("Vision fallback: describes images when visionProvider is configured",
   const visionProvider: LlmProvider = {
     name: "vision",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete(_messages, _tools, _options) {
       return {
         content: "A red car parked on a street.",
@@ -121,6 +124,7 @@ Deno.test("Vision fallback: no fallback when visionProvider not configured", asy
   const provider: LlmProvider = {
     name: "multimodal",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete(messages, _tools, _options) {
       const lastUser = messages.filter((m) => m.role === "user").pop();
       primaryReceivedContent = lastUser?.content;
@@ -157,6 +161,7 @@ Deno.test("Vision fallback: emits vision_start and vision_complete events", asyn
   const visionProvider: LlmProvider = {
     name: "vision",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete() {
       return { content: "description", toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 } };
     },
@@ -198,6 +203,7 @@ Deno.test("Vision fallback: reports correct imageCount", async () => {
   const visionProvider: LlmProvider = {
     name: "vision",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete() {
       return { content: "image desc", toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 } };
     },
@@ -239,6 +245,7 @@ Deno.test("Vision fallback: handles vision provider error gracefully", async () 
   const visionProvider: LlmProvider = {
     name: "vision",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete() {
       throw new Error("Vision API unavailable");
     },
@@ -269,6 +276,7 @@ Deno.test("Vision fallback: skips for string-only messages", async () => {
   const visionProvider: LlmProvider = {
     name: "vision",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete() {
       visionCalled = true;
       return { content: "desc", toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 } };
@@ -299,6 +307,7 @@ Deno.test("Vision fallback: skips for text-only content blocks", async () => {
   const visionProvider: LlmProvider = {
     name: "vision",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete() {
       visionCalled = true;
       return { content: "desc", toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 } };

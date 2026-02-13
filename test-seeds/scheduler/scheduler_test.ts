@@ -2,7 +2,7 @@
  * Phase 17: Cron, Heartbeats & Webhooks
  * Tests MUST FAIL until scheduler components are implemented.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import { parseCronExpression, createCronManager } from "../../src/scheduler/cron.ts";
 import { createTrigger } from "../../src/scheduler/trigger.ts";
 import { createWebhookHandler, verifyHmac } from "../../src/scheduler/webhooks.ts";

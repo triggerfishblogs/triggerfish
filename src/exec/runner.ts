@@ -89,6 +89,7 @@ export function createExecRunner(
       return result;
     },
 
+    // deno-lint-ignore require-await
     async getHistory(): Promise<readonly ExecHistoryEntry[]> {
       return [...history];
     },

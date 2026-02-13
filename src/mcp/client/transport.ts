@@ -34,6 +34,7 @@ export class StdioTransport implements Transport {
     this.#args = args;
   }
 
+  // deno-lint-ignore require-await
   async connect(): Promise<void> {
     const cmd = new Deno.Command(this.#command, {
       args: [...this.#args],
@@ -73,6 +74,7 @@ export class StdioTransport implements Transport {
     readLoop();
   }
 
+  // deno-lint-ignore require-await
   async disconnect(): Promise<void> {
     if (this.#process) {
       try {
@@ -114,6 +116,7 @@ export class SSETransport implements Transport {
     this.#url = url;
   }
 
+  // deno-lint-ignore require-await
   async connect(): Promise<void> {
     // SSE connection for receiving messages
     this.#eventSource = new EventSource(this.#url);
@@ -124,6 +127,7 @@ export class SSETransport implements Transport {
     };
   }
 
+  // deno-lint-ignore require-await
   async disconnect(): Promise<void> {
     if (this.#eventSource) {
       this.#eventSource.close();

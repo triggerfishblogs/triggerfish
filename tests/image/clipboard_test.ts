@@ -3,7 +3,7 @@
  * @module
  */
 
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/assert_equals.ts";
+import { assertEquals } from "@std/assert";
 import { detectImageType } from "../../src/image/clipboard.ts";
 
 Deno.test("detectImageType — PNG magic bytes", () => {

@@ -3,7 +3,7 @@
  * Tests MUST FAIL until sandbox.ts and sdk.ts are implemented.
  * Tests isolation, capability enforcement, auto-tainting.
  */
-import { assertEquals, assertExists, assertRejects } from "jsr:@std/assert";
+import { assertEquals, assertExists } from "@std/assert";
 import { createSandbox } from "../../src/plugin/sandbox.ts";
 import { createPluginSdk } from "../../src/plugin/sdk.ts";
 
@@ -61,7 +61,7 @@ Deno.test("Sandbox: cannot access host filesystem", async () => {
 
 // --- Plugin SDK ---
 
-Deno.test("PluginSdk: emit_data requires classification label", async () => {
+Deno.test("PluginSdk: emit_data requires classification label", () => {
   const sdk = createPluginSdk({
     pluginName: "test",
     maxClassification: "INTERNAL",
@@ -71,7 +71,7 @@ Deno.test("PluginSdk: emit_data requires classification label", async () => {
   assertEquals(result.ok, false);
 });
 
-Deno.test("PluginSdk: emit_data with classification succeeds", async () => {
+Deno.test("PluginSdk: emit_data with classification succeeds", () => {
   const sdk = createPluginSdk({
     pluginName: "test",
     maxClassification: "INTERNAL",
@@ -83,7 +83,7 @@ Deno.test("PluginSdk: emit_data with classification succeeds", async () => {
   assertEquals(result.ok, true);
 });
 
-Deno.test("PluginSdk: emit_data rejects classification above ceiling", async () => {
+Deno.test("PluginSdk: emit_data rejects classification above ceiling", () => {
   const sdk = createPluginSdk({
     pluginName: "test",
     maxClassification: "INTERNAL",

@@ -89,6 +89,7 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
     classification,
     isOwner: true, // Determined per-message via ownerId check
 
+    // deno-lint-ignore require-await
     async connect(): Promise<void> {
       bot.start();
       connected = true;

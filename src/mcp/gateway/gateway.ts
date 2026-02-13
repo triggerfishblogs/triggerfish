@@ -13,7 +13,7 @@
 
 import type { Result, ClassificationLevel } from "../../core/types/classification.ts";
 import { maxClassification } from "../../core/types/classification.ts";
-import type { SessionState, SessionId } from "../../core/types/session.ts";
+import type { SessionState } from "../../core/types/session.ts";
 import type { HookRunner } from "../../core/policy/hooks.ts";
 import type { McpToolResult } from "../client/protocol.ts";
 import type { ServerStatus } from "./classifier.ts";

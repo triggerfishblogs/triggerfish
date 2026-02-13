@@ -15,7 +15,6 @@ import type {
   CreateSessionOptions,
   SessionId,
   SessionState,
-  UserId,
 } from "../core/types/session.ts";
 import type { SessionManager } from "../core/session/manager.ts";
 

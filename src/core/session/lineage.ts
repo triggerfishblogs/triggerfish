@@ -197,9 +197,9 @@ function sessionIndexKey(sessionId: SessionId, lineageId: string): string {
  * All records are persisted under the `lineage:` key namespace. Session-based
  * lookups use a secondary index under `lineage-session:`.
  */
-export async function createLineageStore(
+export function createLineageStore(
   storage: StorageProvider,
-): Promise<LineageStore> {
+): LineageStore {
   const store: LineageStore = {
     async create(input: LineageCreateInput): Promise<LineageRecord> {
       const lineageId = crypto.randomUUID();
@@ -283,6 +283,7 @@ export async function createLineageStore(
       return results;
     },
 
+    // deno-lint-ignore require-await
     async export(sessionId: SessionId): Promise<LineageRecord[]> {
       return store.getBySession(sessionId);
     },

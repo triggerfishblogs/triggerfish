@@ -58,6 +58,7 @@ export function createSlackChannel(config: SlackConfig): ChannelAdapter {
   });
 
   // Listen for messages
+  // deno-lint-ignore require-await
   app.message(async ({ message }) => {
     if (!handler) return;
 

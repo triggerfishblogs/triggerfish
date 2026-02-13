@@ -32,15 +32,19 @@ export interface TidepoolTools {
 /** Create legacy Tide Pool tools backed by a TidepoolHost. */
 export function createTidepoolTools(host: TidepoolHost): TidepoolTools {
   return {
+    // deno-lint-ignore require-await
     async push(html: string): Promise<void> {
       host.push(html);
     },
+    // deno-lint-ignore require-await
     async eval(js: string): Promise<void> {
       host.eval(js);
     },
+    // deno-lint-ignore require-await
     async reset(): Promise<void> {
       host.reset();
     },
+    // deno-lint-ignore require-await
     async snapshot(): Promise<string | undefined> {
       return host.snapshot();
     },
@@ -243,6 +247,7 @@ If Tidepool is not connected, the tools will return an error — fall back to te
 export function createTidepoolToolExecutor(
   tools: TidePoolTools | undefined,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
+  // deno-lint-ignore require-await
   return async (
     name: string,
     input: Record<string, unknown>,

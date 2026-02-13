@@ -14,7 +14,6 @@
 
 import { createOrchestrator } from "../agent/orchestrator.ts";
 import type {
-  OrchestratorConfig,
   OrchestratorEvent,
   OrchestratorEventCallback,
   ToolDefinition,

@@ -7,13 +7,12 @@
  * @module
  */
 
-import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { Database } from "@db/sqlite";
 import {
   createFts5SearchProvider,
   createInMemorySearchProvider,
 } from "../../src/memory/search.ts";
-import type { MemorySearchProvider } from "../../src/memory/search.ts";
 import type { MemoryRecord } from "../../src/memory/types.ts";
 import type { SessionId } from "../../src/core/types/session.ts";
 
@@ -48,7 +47,7 @@ function createTempDb(): { db: Database; path: string } {
   return { db, path };
 }
 
-async function cleanupDb(db: Database, path: string): Promise<void> {
+function cleanupDb(db: Database, path: string): void {
   db.close();
   try {
     Deno.removeSync(path);

@@ -2,7 +2,7 @@
  * Phase 20: Skills Platform & The Reef
  * Tests MUST FAIL until skills loader, registry, author, and scanner are implemented.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import { createSkillLoader } from "../../src/skills/loader.ts";
 import { createSkillScanner } from "../../src/skills/scanner.ts";
 
@@ -58,22 +58,26 @@ Deno.test("SkillLoader: discovers all bundled skills", async () => {
   });
   const skills = await loader.discover();
 
-  // Should find all 11 bundled skills
-  assertEquals(skills.length, 11);
+  // Should find all 15 bundled skills
+  assertEquals(skills.length, 15);
 
   const names = skills.map((s) => s.name).sort();
   assertEquals(names, [
     "browser-automation",
+    "deep-research",
     "git-branch-management",
     "github",
     "google-workspace",
     "integration-builder",
+    "maps",
     "mastering-python",
     "mastering-typescript",
     "obsidian",
+    "pdf",
     "skill-builder",
     "tdd",
     "triggers",
+    "weather",
   ]);
 
   // All should be bundled source

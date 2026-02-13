@@ -368,11 +368,6 @@ function isPlanExitTool(name: string): boolean {
   return name === "plan.exit";
 }
 
-/** Check whether a tool name is a web tool (web_search or web_fetch). */
-function isWebTool(name: string): boolean {
-  return name === "web_search" || name === "web_fetch";
-}
-
 /** Human-readable display names for known tools. */
 const TOOL_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   web_search: "Web Search",

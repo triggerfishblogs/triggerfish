@@ -3,10 +3,9 @@
  * Tests MUST FAIL until protocol.ts and transport.ts are implemented.
  * Tests JSON-RPC formatting, handshake, tool invocation.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import {
   formatRequest,
-  formatResponse,
   parseMessage,
   createMcpClient,
 } from "../../src/mcp/client/protocol.ts";
@@ -52,8 +51,9 @@ Deno.test("parseMessage: parses error response", () => {
 function createMockTransport(responses: Record<string, unknown>): Transport {
   const handlers: Array<(msg: string) => void> = [];
   return {
-    async connect() {},
-    async disconnect() {},
+    connect() {},
+    disconnect() {},
+    // deno-lint-ignore require-await
     async send(msg: string) {
       const parsed = JSON.parse(msg);
       const response = responses[parsed.method] ?? { error: { code: -32601, message: "Not found" } };

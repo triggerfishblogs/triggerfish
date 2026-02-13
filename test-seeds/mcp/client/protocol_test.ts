@@ -3,7 +3,7 @@
  * Tests MUST FAIL until protocol.ts and transport.ts are implemented.
  * Tests JSON-RPC formatting, handshake, tool invocation.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import {
   formatRequest,
   formatResponse,

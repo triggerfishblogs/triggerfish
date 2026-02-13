@@ -2,7 +2,7 @@
  * Phase 21: Multi-Agent, Failover & Onboarding
  * Tests MUST FAIL until routing, failover, and dive setup are implemented.
  */
-import { assertEquals, assertExists, assert } from "jsr:@std/assert";
+import { assertEquals, assertExists, assert } from "@std/assert";
 import { createAgentRouter } from "../../src/routing/router.ts";
 import { createFailoverChain } from "../../src/models/failover.ts";
 import { createPatrolCheck } from "../../src/dive/patrol.ts";
@@ -36,6 +36,7 @@ function mockProvider(name: string, shouldFail: boolean): LlmProvider {
   return {
     name,
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete() {
       if (shouldFail) throw new Error("rate_limited");
       return { content: `response from ${name}`, toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } };
