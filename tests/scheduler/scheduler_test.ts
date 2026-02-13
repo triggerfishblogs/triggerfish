@@ -254,7 +254,7 @@ function createMockFactory(): {
       calls.push(channelId);
       return {
         orchestrator: {
-          processMessage: async () => ({ ok: true as const, value: "done" }),
+          processMessage: async () => ({ ok: true as const, value: { response: "done" } }),
         // deno-lint-ignore no-explicit-any
         } as any,
         session: {
@@ -481,6 +481,78 @@ Deno.test("PersistentCronManager: records execution history to storage", async (
   assertEquals(hist.length, 1);
   assertEquals(hist[0].success, true);
   assertEquals(hist[0].durationMs, 500);
+});
+
+// ── Notification delivery wiring ─────────────────────────────────────
+
+import { createNotificationService } from "../../src/gateway/notifications.ts";
+import type { NotificationService } from "../../src/gateway/notifications.ts";
+import type { UserId } from "../../src/core/types/session.ts";
+
+Deno.test("SchedulerService: webhook output delivered via notificationService", async () => {
+  const storage = createMemoryStorage();
+  const notificationService = createNotificationService(storage);
+  const ownerId = "test-owner" as UserId;
+
+  const { factory, calls } = createMockFactory();
+  const svc = createSchedulerService({
+    ...createTestConfig(factory),
+    notificationService,
+    ownerId,
+  });
+
+  const body = '{"event":"push","data":{"ref":"main"}}';
+  const sig = await computeHmac(body, "gh-secret");
+  const result = await svc.handleWebhookRequest("github", body, sig);
+  assertEquals(result.ok, true);
+  assertEquals(calls.length, 1);
+
+  // Notification should be queued
+  const pending = await notificationService.getPending(ownerId);
+  assertEquals(pending.length, 1);
+  assert(pending[0].message.includes("[webhook:github]"));
+  assert(pending[0].message.includes("done"));
+  assertEquals(pending[0].classification, "PUBLIC"); // mock session taint
+});
+
+Deno.test("SchedulerService: delivery failure does not crash scheduler", async () => {
+  const storage = createMemoryStorage();
+  const notificationService = createNotificationService(storage);
+  // Register a failing channel — delivery should fail gracefully
+  notificationService.registerChannel({
+    name: "broken",
+    send: async () => { throw new Error("delivery boom"); },
+  });
+  const ownerId = "test-owner" as UserId;
+
+  const { factory } = createMockFactory();
+  const svc = createSchedulerService({
+    ...createTestConfig(factory),
+    notificationService,
+    ownerId,
+  });
+
+  const body = '{"event":"push","data":{"ref":"main"}}';
+  const sig = await computeHmac(body, "gh-secret");
+  // Should not throw
+  const result = await svc.handleWebhookRequest("github", body, sig);
+  assertEquals(result.ok, true);
+
+  // Notification should still be stored despite channel failure
+  const pending = await notificationService.getPending(ownerId);
+  assertEquals(pending.length, 1);
+});
+
+Deno.test("SchedulerService: no error when notificationService is absent", async () => {
+  const { factory, calls } = createMockFactory();
+  const svc = createSchedulerService(createTestConfig(factory));
+
+  const body = '{"event":"push","data":{"ref":"main"}}';
+  const sig = await computeHmac(body, "gh-secret");
+  // Should not throw even without notificationService
+  const result = await svc.handleWebhookRequest("github", body, sig);
+  assertEquals(result.ok, true);
+  assertEquals(calls.length, 1);
 });
 
 // ── CLI cron command parsing ─────────────────────────────────────────

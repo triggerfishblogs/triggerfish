@@ -22,6 +22,7 @@ export type {
 export { createNotificationService } from "./notifications.ts";
 export type {
   DeliverOptions,
+  DeliveryChannel,
   Notification,
   NotificationPriority,
   NotificationService,

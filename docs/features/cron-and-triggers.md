@@ -51,6 +51,20 @@ The agent can create and manage its own cron jobs through the `cron` tool:
 Cron job creation requires owner authentication. The agent cannot schedule jobs on behalf of external users or exceed the configured classification ceiling.
 :::
 
+### CLI Cron Management
+
+Cron jobs can also be managed directly from the command line:
+
+```bash
+triggerfish cron add "0 9 * * *" morning briefing
+triggerfish cron add "0 */4 * * *" check pipeline --classification=CONFIDENTIAL
+triggerfish cron list
+triggerfish cron history <job-id>
+triggerfish cron delete <job-id>
+```
+
+The `--classification` flag sets the classification ceiling for the job. Valid levels are `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, and `RESTRICTED`. If omitted, defaults to `INTERNAL`.
+
 ## Trigger System
 
 Triggers are periodic "check-in" loops where the agent wakes up to evaluate whether any proactive action is needed. Unlike cron jobs with fixed tasks, triggers give the agent discretion to decide what needs attention.
