@@ -168,6 +168,14 @@ import { createTelegramChannel } from "../channels/telegram/adapter.ts";
 import type { TelegramChannelAdapter } from "../channels/telegram/adapter.ts";
 import { createSignalChannel } from "../channels/signal/adapter.ts";
 import type { SignalChannelAdapter } from "../channels/signal/adapter.ts";
+import {
+  checkSignalCli,
+  startLinkProcess,
+  renderQrCode,
+  isDaemonRunning,
+  startDaemon,
+  waitForDaemon,
+} from "../channels/signal/setup.ts";
 import type { ChatEventSender } from "../gateway/chat.ts";
 import type { ChannelMessage } from "../channels/types.ts";
 import { createNotificationService } from "../gateway/notifications.ts";
@@ -1786,13 +1794,100 @@ async function promptChannelConfig(
     }
 
     case "signal": {
-      config.endpoint = await Input.prompt({
-        message: "signal-cli endpoint (e.g. tcp://localhost:7583 or unix:///tmp/signal-cli.sock)",
-        default: "tcp://localhost:7583",
-      });
+      // Step 1: Check signal-cli is installed
+      console.log("\nChecking for signal-cli...");
+      const cliCheck = await checkSignalCli();
+      if (!cliCheck.ok) {
+        console.error(`\n  signal-cli not found: ${cliCheck.error}`);
+        console.error("\n  Install signal-cli before continuing:");
+        console.error("    https://github.com/AsamK/signal-cli/releases\n");
+        console.error("  On Fedora/RHEL:  sudo dnf install signal-cli");
+        console.error("  On Debian/Ubuntu: download from GitHub releases");
+        console.error("  On macOS:         brew install signal-cli\n");
+        Deno.exit(1);
+      }
+      console.log(`  Found: ${cliCheck.value}`);
+
+      // Step 2: Get phone number
       config.account = await Input.prompt({
         message: "Your Signal phone number (E.164 format, e.g. +15551234567)",
       });
+
+      // Step 3: Link or skip
+      const setupMode = await Select.prompt({
+        message: "Device setup",
+        options: [
+          { name: "Link to existing Signal account (scan QR with phone)", value: "link" },
+          { name: "Already linked / manual setup", value: "skip" },
+        ],
+        default: "link",
+      });
+
+      const tcpPort = 7583;
+      const tcpHost = "localhost";
+
+      if (setupMode === "link") {
+        console.log("\nStarting device link...");
+        console.log("Open Signal on your phone: Settings > Linked Devices > Link New Device\n");
+
+        const linkResult = await startLinkProcess(
+          config.account as string,
+          "Triggerfish",
+        );
+
+        if (!linkResult.ok) {
+          console.error(`  Link failed: ${linkResult.error}`);
+          console.error("  You can link manually: signal-cli link -n Triggerfish");
+          Deno.exit(1);
+        }
+
+        // Display QR code
+        await renderQrCode(linkResult.value.uri);
+        console.log("Scan this QR code with Signal on your phone.");
+        console.log("Waiting for link to complete...\n");
+
+        // Wait for the link process to finish
+        const linkStatus = await linkResult.value.process.status;
+        if (!linkStatus.success) {
+          console.error("  Device linking failed. Check signal-cli output.");
+          Deno.exit(1);
+        }
+        console.log("  Device linked successfully!\n");
+      }
+
+      // Step 4: Start daemon or detect existing
+      const alreadyRunning = await isDaemonRunning(tcpHost, tcpPort);
+      if (alreadyRunning) {
+        console.log(`  signal-cli daemon already running on ${tcpHost}:${tcpPort}`);
+      } else {
+        const startIt = await Confirm.prompt({
+          message: `Start signal-cli daemon on tcp://${tcpHost}:${tcpPort}?`,
+          default: true,
+        });
+        if (startIt) {
+          console.log("  Starting signal-cli daemon...");
+          const daemonResult = startDaemon(config.account as string, tcpHost, tcpPort);
+          if (!daemonResult.ok) {
+            console.error(`  Failed: ${daemonResult.error}`);
+            console.error("  Start manually: signal-cli -a " + config.account + " daemon --tcp localhost:7583");
+          } else {
+            const ready = await waitForDaemon(tcpHost, tcpPort);
+            if (ready) {
+              console.log("  Daemon is running.");
+            } else {
+              console.error("  Daemon started but not reachable yet. It may still be initializing.");
+              console.error("  Check: signal-cli -a " + config.account + " daemon --tcp localhost:7583");
+            }
+          }
+        } else {
+          console.log("\n  Start it manually before running Triggerfish:");
+          console.log(`  signal-cli -a ${config.account} daemon --tcp ${tcpHost}:${tcpPort}\n`);
+        }
+      }
+
+      config.endpoint = `tcp://${tcpHost}:${tcpPort}`;
+
+      // Step 5: Policy config
       config.dmPolicy = await Select.prompt({
         message: "DM policy",
         options: [
