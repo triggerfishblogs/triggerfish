@@ -46,9 +46,15 @@ curl -sSL https://raw.githubusercontent.com/greghavens/triggerfish/master/script
 irm https://raw.githubusercontent.com/greghavens/triggerfish/master/scripts/install.ps1 | iex
 ```
 
+```bash [Docker]
+docker run -v ./triggerfish.yaml:/data/triggerfish.yaml \
+  -p 18789:18789 -p 18790:18790 \
+  ghcr.io/greghavens/triggerfish:latest
+```
+
 :::
 
-This installs the runtime, compiles Triggerfish, runs the setup wizard, and starts the background daemon.
+The binary installers download a pre-built release, verify its checksum, and run the setup wizard. See the [deployment guide](/guide/deployment) for Docker setup and configuration.
 
 ## How It Works
 
