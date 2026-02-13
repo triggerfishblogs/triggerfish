@@ -58,13 +58,22 @@ export type ChatEvent =
   | { readonly type: "response"; readonly text: string }
   | { readonly type: "error"; readonly message: string }
   | { readonly type: "vision_start"; readonly imageCount: number }
-  | { readonly type: "vision_complete"; readonly imageCount: number };
+  | { readonly type: "vision_complete"; readonly imageCount: number }
+  | { readonly type: "compact_start" }
+  | {
+    readonly type: "compact_complete";
+    readonly messagesBefore: number;
+    readonly messagesAfter: number;
+    readonly tokensBefore: number;
+    readonly tokensAfter: number;
+  };
 
 /** Messages the client can send. */
 export type ChatClientMessage =
   | { readonly type: "message"; readonly content: MessageContent }
   | { readonly type: "cancel" }
-  | { readonly type: "clear" };
+  | { readonly type: "clear" }
+  | { readonly type: "compact" };
 
 /** Callback to send a chat event to a specific client. */
 export type ChatEventSender = (event: ChatEvent) => void;
@@ -133,6 +142,8 @@ export interface ChatSession {
   ): Promise<void>;
   /** Clear conversation history and reset session state. */
   clear(): void;
+  /** Force LLM-based summarization of conversation history. */
+  compact(sendEvent: ChatEventSender): Promise<void>;
   /** The name of the default LLM provider. */
   readonly providerName: string;
   /** The primary model identifier from config. */
@@ -341,11 +352,29 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     }
   }
 
+  async function compact(sendEvent: ChatEventSender): Promise<void> {
+    sendEvent({ type: "compact_start" });
+    try {
+      const result = await orchestrator.compactHistory(session.id);
+      sendEvent({
+        type: "compact_complete",
+        messagesBefore: result.messagesBefore,
+        messagesAfter: result.messagesAfter,
+        tokensBefore: result.tokensBefore,
+        tokensAfter: result.tokensAfter,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      sendEvent({ type: "error", message: `Compact failed: ${msg}` });
+    }
+  }
+
   return {
     processMessage,
     registerChannel,
     handleChannelMessage,
     clear,
+    compact,
     get providerName() {
       return providerName;
     },

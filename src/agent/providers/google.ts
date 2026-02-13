@@ -8,6 +8,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import { getModelInfo } from "../models.ts";
 import type { ContentBlock } from "../../image/content.ts";
 import { extractText } from "../../image/content.ts";
 
@@ -57,6 +58,7 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
   return {
     name: "google",
     supportsStreaming: true,
+    contextWindow: getModelInfo(modelName).contextWindow,
 
     async complete(
       messages: readonly LlmMessage[],

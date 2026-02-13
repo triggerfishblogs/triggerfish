@@ -9,6 +9,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { MessageCreateParamsNonStreaming, MessageParam } from "@anthropic-ai/sdk/resources/messages.js";
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import { getModelInfo } from "../models.ts";
 
 /** Configuration for the Anthropic provider. */
 export interface AnthropicConfig {
@@ -54,6 +55,7 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
   return {
     name: "anthropic",
     supportsStreaming: true,
+    contextWindow: getModelInfo(model).contextWindow,
 
     async complete(
       messages: readonly LlmMessage[],
