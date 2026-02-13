@@ -156,6 +156,8 @@ import { createTelegramChannel } from "../channels/telegram/adapter.ts";
 import type { TelegramChannelAdapter } from "../channels/telegram/adapter.ts";
 import type { ChatEventSender } from "../gateway/chat.ts";
 import type { ChannelMessage } from "../channels/types.ts";
+import { createNotificationService } from "../gateway/notifications.ts";
+import { parseClassification } from "../core/types/classification.ts";
 
 /** Known CLI commands. */
 const KNOWN_COMMANDS = new Set([
@@ -296,12 +298,18 @@ export function parseCommand(
     return { command: "version", flags };
   }
 
-  // Extract flags from args
+  // Extract flags from args (supports --key and --key=value)
   const positional: string[] = [];
   for (const arg of args) {
     if (arg.startsWith("--")) {
-      const key = arg.slice(2);
-      flags[key] = true;
+      const eqIdx = arg.indexOf("=");
+      if (eqIdx !== -1) {
+        const key = arg.slice(2, eqIdx);
+        flags[key] = arg.slice(eqIdx + 1);
+      } else {
+        const key = arg.slice(2);
+        flags[key] = true;
+      }
     } else {
       positional.push(arg);
     }
@@ -954,12 +962,17 @@ async function runStart(): Promise<void> {
   const baseSessionManager = createSessionManager(storage);
   const enhancedSessionManager = createEnhancedSessionManager(baseSessionManager);
 
+  // Notification service for scheduler output delivery
+  const notificationService = createNotificationService(storage);
+
   // Build orchestrator factory and scheduler with persistent cron manager
   const factory = createOrchestratorFactory(config, baseDir, cronManager, storage, enhancedSessionManager);
   const schedulerConfig = buildSchedulerConfig(config, baseDir, factory);
   const schedulerService = createSchedulerService({
     ...schedulerConfig,
     cronManager,
+    notificationService,
+    ownerId: "owner" as UserId,
   });
 
   // Create the main session orchestrator — this is the daemon-owned session
@@ -1217,6 +1230,7 @@ async function runStart(): Promise<void> {
             content: "Session cleared. Your context and taint level have been reset to PUBLIC.\n\nWhat would you like to do?",
             sessionId: msg.sessionId,
           }))
+          .then(() => notificationService.flushPending("owner" as UserId))
           .catch((err) => console.error("Telegram clear error:", err));
         return;
       }
@@ -1234,6 +1248,15 @@ async function runStart(): Promise<void> {
       }
     });
 
+    // Register Telegram for notification delivery
+    const ownerChatId = telegramConfig.ownerId ? `telegram-${telegramConfig.ownerId}` : undefined;
+    if (ownerChatId) {
+      notificationService.registerChannel({
+        name: "telegram",
+        send: (msg) => telegramAdapter.send({ content: msg, sessionId: ownerChatId }),
+      });
+    }
+
     await telegramAdapter.connect();
     console.log("  Telegram channel connected");
   }
@@ -1250,6 +1273,7 @@ async function runStart(): Promise<void> {
     schedulerService,
     chatSession,
     sessionManager: enhancedSessionManager,
+    notificationService,
   });
   const addr = await server.start();
 
@@ -3207,11 +3231,19 @@ async function runCron(
           console.log('Example: triggerfish cron add "0 9 * * *" morning briefing');
           Deno.exit(1);
         }
-        const classification = (flags.classification as string) ?? "INTERNAL";
+        const rawClassification = typeof flags.classification === "string"
+          ? flags.classification
+          : "INTERNAL";
+        const parsedLevel = parseClassification(rawClassification);
+        if (!parsedLevel.ok) {
+          console.log(`Invalid classification: ${rawClassification}`);
+          console.log("Valid levels: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED");
+          Deno.exit(1);
+        }
         const result = cronManager.create({
           expression,
           task,
-          classificationCeiling: classification as ClassificationLevel,
+          classificationCeiling: parsedLevel.value,
         });
         if (!result.ok) {
           console.log(`Error: ${result.error}`);

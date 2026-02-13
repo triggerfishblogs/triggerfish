@@ -10,8 +10,9 @@
  */
 
 import type { ClassificationLevel, Result } from "../core/types/classification.ts";
-import type { SessionState } from "../core/types/session.ts";
+import type { SessionState, UserId } from "../core/types/session.ts";
 import type { Orchestrator } from "../agent/orchestrator.ts";
+import type { NotificationService } from "../gateway/notifications.ts";
 import {
   createCronManager,
   matchesNow,
@@ -67,6 +68,10 @@ export interface SchedulerServiceConfig {
   };
   /** Optional pre-created CronManager (e.g. persistent). */
   readonly cronManager?: CronManager;
+  /** Optional notification service for delivering scheduler output. */
+  readonly notificationService?: NotificationService;
+  /** Owner user ID for notification delivery. */
+  readonly ownerId?: UserId;
 }
 
 /** The scheduler service interface. */
@@ -105,6 +110,27 @@ export function createSchedulerService(
   let cronTickId: number | undefined;
   let trigger: Trigger | undefined;
 
+  /** Deliver orchestrator output as a notification. */
+  async function deliverOutput(
+    result: Result<{ readonly response: string }, string>,
+    sessionTaint: ClassificationLevel,
+    source: string,
+  ): Promise<void> {
+    if (!config.notificationService || !config.ownerId) return;
+    const text = result.ok ? result.value.response : result.error;
+    if (!text || text.trim().length === 0) return;
+    try {
+      await config.notificationService.deliver({
+        userId: config.ownerId,
+        message: `[${source}] ${text}`,
+        priority: "normal",
+        classification: sessionTaint,
+      });
+    } catch {
+      // Delivery failures never crash the scheduler
+    }
+  }
+
   /** Load TRIGGER.md content, returning null if not found. */
   async function loadTriggerMd(): Promise<string | null> {
     try {
@@ -126,6 +152,8 @@ export function createSchedulerService(
         message: job.task,
         targetClassification: job.classificationCeiling,
       });
+
+      await deliverOutput(result, session.taint, `cron:${job.id}`);
 
       cronManager.recordExecution({
         jobId: job.id,
@@ -171,11 +199,13 @@ export function createSchedulerService(
       const { orchestrator, session } =
         await config.orchestratorFactory.create("trigger");
 
-      await orchestrator.processMessage({
+      const result = await orchestrator.processMessage({
         session,
         message,
         targetClassification: config.trigger.classificationCeiling,
       });
+
+      await deliverOutput(result, session.taint, "trigger");
     } catch {
       // Trigger failures are non-fatal — silently continue
     }
@@ -254,11 +284,13 @@ export function createSchedulerService(
 
         const message =
           `Webhook event from ${sourceId}: ${event.event}\n\nPayload:\n${body}`;
-        await orchestrator.processMessage({
+        const result = await orchestrator.processMessage({
           session,
           message,
           targetClassification: source.classification,
         });
+
+        await deliverOutput(result, session.taint, `webhook:${sourceId}`);
       } catch {
         // Webhook processing failures are logged but don't fail the HTTP response
       }
