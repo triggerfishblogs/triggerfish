@@ -54,7 +54,7 @@ docker run -v ./triggerfish.yaml:/data/triggerfish.yaml \
 
 :::
 
-The binary installers download a pre-built release, verify its checksum, and run the setup wizard. See the [deployment guide](/guide/deployment) for Docker setup and configuration.
+The binary installers download a pre-built release, verify its checksum, and run the setup wizard. See the [installation guide](/guide/installation) for Docker setup, building from source, and the release process.
 
 ## How It Works
 

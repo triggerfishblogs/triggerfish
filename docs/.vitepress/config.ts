@@ -34,7 +34,7 @@ export default defineConfig({
           text: 'Getting Started',
           items: [
             { text: 'Overview', link: '/guide/' },
-            { text: 'Installation', link: '/guide/installation' },
+            { text: 'Installation & Deployment', link: '/guide/installation' },
             { text: 'Quick Start', link: '/guide/quickstart' },
             { text: 'Configuration', link: '/guide/configuration' },
             { text: 'SPINE & Triggers', link: '/guide/spine-and-triggers' },
