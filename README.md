@@ -41,7 +41,7 @@ docker run -v ./triggerfish.yaml:/data/triggerfish.yaml \
   ghcr.io/greghavens/triggerfish:latest
 ```
 
-The binary installers download a pre-built release, verify its checksum, and run the setup wizard. See [docs/deployment.md](docs/deployment.md) for Docker setup, building from source, and the release process.
+The binary installers download a pre-built release, verify its checksum, and run the setup wizard. See the [Installation & Deployment guide](https://greghavens.github.io/triggerfish/guide/installation) for Docker setup, building from source, and the release process.
 
 ---
 
