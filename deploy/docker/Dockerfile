@@ -6,9 +6,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends tini \
 
 WORKDIR /build
 
-# Copy source files
+# Copy dependency manifest first for caching
 COPY deno.json deno.lock* ./
 COPY src/ src/
+
+# Cache dependencies
+RUN deno install --allow-scripts=npm:puppeteer-core --entrypoint src/cli/main.ts
+
+# Copy bundled assets
 COPY config/ config/
 COPY skills/ skills/
 
