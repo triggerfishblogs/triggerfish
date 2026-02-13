@@ -44,5 +44,8 @@ export { createWebChatChannel } from "./webchat/adapter.ts";
 export type { EmailConfig } from "./email/adapter.ts";
 export { createEmailChannel } from "./email/adapter.ts";
 
+export type { SignalConfig, SignalChannelAdapter } from "./signal/mod.ts";
+export { createSignalChannel } from "./signal/mod.ts";
+
 export type { UserClassificationConfig, UserSessionManager } from "./user_sessions.ts";
 export { createUserSessionManager, parseUserOverrides } from "./user_sessions.ts";
