@@ -16,11 +16,24 @@ Write-Host "  ====================="
 Write-Host ""
 
 # --- Step 1: Detect architecture ---
+# RuntimeInformation.OSArchitecture requires .NET Core/.NET 5+.
+# Windows PowerShell 5.1 (ships with Windows) runs on .NET Framework 4.x
+# where this API is unavailable. Fall back to PROCESSOR_ARCHITECTURE env var.
 
-$Arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+$Arch = $null
+try {
+    $Arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+} catch {
+    # .NET Framework — API not available
+}
+
+if (-not $Arch) {
+    $Arch = $env:PROCESSOR_ARCHITECTURE  # AMD64, x86, ARM64
+}
+
 switch ($Arch) {
-    "X64"   { $ArchSuffix = "x64" }
-    "Arm64" { $ArchSuffix = "arm64" }
+    { $_ -in "X64", "AMD64" }  { $ArchSuffix = "x64" }
+    { $_ -in "Arm64", "ARM64" } { $ArchSuffix = "arm64" }
     default {
         Write-Host "[error] Unsupported architecture: $Arch" -ForegroundColor Red
         exit 1
