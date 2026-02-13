@@ -166,6 +166,8 @@ import {
 import { createKeychain } from "../secrets/keychain.ts";
 import { createTelegramChannel } from "../channels/telegram/adapter.ts";
 import type { TelegramChannelAdapter } from "../channels/telegram/adapter.ts";
+import { createSignalChannel } from "../channels/signal/adapter.ts";
+import type { SignalChannelAdapter } from "../channels/signal/adapter.ts";
 import type { ChatEventSender } from "../gateway/chat.ts";
 import type { ChannelMessage } from "../channels/types.ts";
 import { createNotificationService } from "../gateway/notifications.ts";
@@ -1395,6 +1397,63 @@ async function runStart(): Promise<void> {
     console.log("  Telegram channel connected");
   }
 
+  // --- Signal channel wiring ---
+  const signalConfig = config.channels?.signal as {
+    endpoint?: string;
+    account?: string;
+    ownerPhone?: string;
+    dmPolicy?: string;
+    classification?: string;
+    defaultGroupMode?: string;
+    allowFrom?: string[];
+    groups?: Record<string, { mode: string; classification?: string }>;
+  } | undefined;
+
+  if (signalConfig?.endpoint && signalConfig?.account) {
+    const signalAdapter = createSignalChannel({
+      endpoint: signalConfig.endpoint,
+      account: signalConfig.account,
+      ownerPhone: signalConfig.ownerPhone,
+      dmPolicy: (signalConfig.dmPolicy ?? "open") as "pairing" | "allowlist" | "open" | "owner-only",
+      classification: (signalConfig.classification ?? "INTERNAL") as ClassificationLevel,
+      defaultGroupMode: (signalConfig.defaultGroupMode ?? "always") as "always" | "mentioned-only" | "owner-only",
+      allowFrom: signalConfig.allowFrom,
+      groups: signalConfig.groups as Record<string, { readonly mode: "always" | "mentioned-only" | "owner-only"; readonly classification?: ClassificationLevel }> | undefined,
+    });
+
+    chatSession.registerChannel("signal", {
+      classification: "PUBLIC" as ClassificationLevel,
+    });
+
+    signalAdapter.onMessage((msg) => {
+      const sendEvent = buildSignalSendEvent(signalAdapter, msg);
+
+      // Signal adapter isOwner is always false — the adapter IS the owner's phone,
+      // so all inbound messages are from others. Route through handleChannelMessage.
+      chatSession.handleChannelMessage(msg, "signal", sendEvent)
+        .catch((err) => console.error("Signal message processing error:", err));
+    });
+
+    // Register Signal for notification delivery (send to owner's own number doesn't make sense,
+    // but if ownerPhone is set we can notify via a known contact)
+    if (signalConfig.ownerPhone) {
+      notificationService.registerChannel({
+        name: "signal",
+        send: (notifMsg) => signalAdapter.send({
+          content: notifMsg,
+          sessionId: `signal-${signalConfig.ownerPhone}`,
+        }),
+      });
+    }
+
+    try {
+      await signalAdapter.connect();
+      console.log("  Signal channel connected");
+    } catch (err) {
+      console.error(`  Signal channel failed to connect: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   // Create and start Tidepool host with chat support
   const tidepoolHost = createA2UIHost({ chatSession });
   const tidepoolPort = 18790;
@@ -1472,6 +1531,50 @@ function buildTelegramSendEvent(
 }
 
 /**
+ * Build a ChatEventSender for Signal that handles typing indicators,
+ * response sending, and error delivery.
+ */
+function buildSignalSendEvent(
+  adapter: SignalChannelAdapter,
+  msg: ChannelMessage,
+): ChatEventSender {
+  let typingInterval: number | undefined;
+
+  return (event) => {
+    if (event.type === "llm_start") {
+      clearInterval(typingInterval);
+      adapter.sendTyping(msg.sessionId ?? "").catch(() => {});
+      typingInterval = setInterval(() => {
+        adapter.sendTyping(msg.sessionId ?? "").catch(() => {});
+      }, 4000) as unknown as number;
+    }
+
+    if (event.type === "response") {
+      clearInterval(typingInterval);
+      typingInterval = undefined;
+      const text = event.text.trim();
+      if (text.length > 0) {
+        adapter.send({
+          content: text,
+          sessionId: msg.sessionId,
+        }).catch((err) => console.error("Signal send error:", err));
+      } else {
+        console.error("Signal: skipping empty response (LLM returned no text)");
+      }
+    }
+
+    if (event.type === "error") {
+      clearInterval(typingInterval);
+      typingInterval = undefined;
+      adapter.send({
+        content: `Error: ${event.message}`,
+        sessionId: msg.sessionId,
+      }).catch((err) => console.error("Signal send error:", err));
+    }
+  };
+}
+
+/**
  * Install and start the Triggerfish daemon.
  */
 async function runDaemonStart(): Promise<void> {
@@ -1515,6 +1618,7 @@ const CHANNEL_TYPES = [
   "whatsapp",
   "webchat",
   "email",
+  "signal",
 ] as const;
 
 type ChannelType = typeof CHANNEL_TYPES[number];
@@ -1677,6 +1781,49 @@ async function promptChannelConfig(
         message: "Classification level",
         options: ["CONFIDENTIAL", "PUBLIC", "INTERNAL", "RESTRICTED"],
         default: "CONFIDENTIAL",
+      });
+      break;
+    }
+
+    case "signal": {
+      config.endpoint = await Input.prompt({
+        message: "signal-cli endpoint (e.g. tcp://localhost:7583 or unix:///tmp/signal-cli.sock)",
+        default: "tcp://localhost:7583",
+      });
+      config.account = await Input.prompt({
+        message: "Your Signal phone number (E.164 format, e.g. +15551234567)",
+      });
+      config.dmPolicy = await Select.prompt({
+        message: "DM policy",
+        options: [
+          { name: "Open (anyone can message)", value: "open" },
+          { name: "Allowlist (only approved numbers)", value: "allowlist" },
+          { name: "Pairing (require pairing code)", value: "pairing" },
+        ],
+        default: "open",
+      });
+      if (config.dmPolicy === "allowlist") {
+        const allowFromStr = await Input.prompt({
+          message: "Allowed phone numbers (comma-separated, E.164 format)",
+          default: "",
+        });
+        if (allowFromStr.length > 0) {
+          config.allowFrom = allowFromStr.split(",").map((s: string) => s.trim());
+        }
+      }
+      config.defaultGroupMode = await Select.prompt({
+        message: "Default group chat mode",
+        options: [
+          { name: "Always respond", value: "always" },
+          { name: "Only when mentioned", value: "mentioned-only" },
+          { name: "Owner-only commands", value: "owner-only" },
+        ],
+        default: "always",
+      });
+      config.classification = await Select.prompt({
+        message: "Classification level",
+        options: ["INTERNAL", "PUBLIC", "CONFIDENTIAL", "RESTRICTED"],
+        default: "INTERNAL",
       });
       break;
     }
@@ -2009,6 +2156,7 @@ async function runConfigAddChannel(
       message: "Channel type",
       options: [
         { name: "Telegram", value: "telegram" },
+        { name: "Signal (via signal-cli)", value: "signal" },
         { name: "Slack", value: "slack" },
         { name: "Discord", value: "discord" },
         { name: "WhatsApp", value: "whatsapp" },
