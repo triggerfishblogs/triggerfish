@@ -1,7 +1,12 @@
 # Stage 1: Build — compile Triggerfish binary
-FROM denoland/deno:2.1.4 AS builder
+FROM docker.io/denoland/deno:2.6.8 AS builder
 
-RUN apt-get update && apt-get install -y --no-install-recommends tini \
+ARG TARGETARCH=amd64
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget ca-certificates \
+    && wget -qO /usr/bin/tini "https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-${TARGETARCH}" \
+    && chmod +x /usr/bin/tini \
+    && apt-get purge -y wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -25,8 +30,12 @@ RUN deno compile --allow-all \
     src/cli/main.ts
 
 
-# Stage 2: Runtime — distroless with tini
-FROM gcr.io/distroless/cc-debian12:nonroot
+# Stage 2: Runtime — minimal Debian matching builder glibc
+FROM docker.io/debian:trixie-slim
+
+# Create nonroot user
+RUN groupadd -r nonroot && useradd -r -g nonroot -d /data -s /sbin/nologin nonroot \
+    && mkdir -p /data && chown nonroot:nonroot /data
 
 # Copy tini from builder
 COPY --from=builder /usr/bin/tini /usr/bin/tini
