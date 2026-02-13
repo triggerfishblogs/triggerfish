@@ -24,20 +24,24 @@
 
 One command. That's it.
 
+**Linux / macOS:**
 ```bash
 curl -sSL https://raw.githubusercontent.com/greghavens/triggerfish/master/scripts/install.sh | bash
 ```
-
-This will:
-1. Install the runtime if not already present
-2. Clone and compile Triggerfish
-3. Run the setup wizard (`dive`)
-4. Install and start the background daemon
 
 **Windows:**
 ```powershell
 irm https://raw.githubusercontent.com/greghavens/triggerfish/master/scripts/install.ps1 | iex
 ```
+
+**Docker:**
+```bash
+docker run -v ./triggerfish.yaml:/data/triggerfish.yaml \
+  -p 18789:18789 -p 18790:18790 \
+  ghcr.io/greghavens/triggerfish:latest
+```
+
+The binary installers download a pre-built release, verify its checksum, and run the setup wizard. See [docs/deployment.md](docs/deployment.md) for Docker setup, building from source, and the release process.
 
 ---
 
