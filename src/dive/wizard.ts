@@ -300,13 +300,13 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
     message: "LLM provider",
     options: [
       { name: PROVIDER_LABELS.anthropic, value: "anthropic" },
-      { name: PROVIDER_LABELS.openai, value: "openai" },
       { name: PROVIDER_LABELS.google, value: "google" },
-      { name: PROVIDER_LABELS.ollama, value: "ollama" },
       { name: PROVIDER_LABELS.lmstudio, value: "lmstudio" },
+      { name: PROVIDER_LABELS.ollama, value: "ollama" },
+      { name: PROVIDER_LABELS.openai, value: "openai" },
       { name: PROVIDER_LABELS.openrouter, value: "openrouter" },
-      { name: PROVIDER_LABELS.zenmux, value: "zenmux" },
       { name: PROVIDER_LABELS.zai, value: "zai" },
+      { name: PROVIDER_LABELS.zenmux, value: "zenmux" },
     ],
   })) as ProviderChoice;
 
