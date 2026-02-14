@@ -170,6 +170,8 @@ import { createSignalChannel } from "../channels/signal/adapter.ts";
 import type { SignalChannelAdapter } from "../channels/signal/adapter.ts";
 import {
   checkSignalCli,
+  fetchLatestVersion,
+  downloadSignalCli,
   startLinkProcess,
   renderQrCode,
   isDaemonRunning,
@@ -1794,19 +1796,43 @@ async function promptChannelConfig(
     }
 
     case "signal": {
-      // Step 1: Check signal-cli is installed
+      // Step 1: Find or install signal-cli
       console.log("\nChecking for signal-cli...");
+      let signalCliPath = "signal-cli";
       const cliCheck = await checkSignalCli();
-      if (!cliCheck.ok) {
-        console.error(`\n  signal-cli not found: ${cliCheck.error}`);
-        console.error("\n  Install signal-cli before continuing:");
-        console.error("    https://github.com/AsamK/signal-cli/releases\n");
-        console.error("  On Fedora/RHEL:  sudo dnf install signal-cli");
-        console.error("  On Debian/Ubuntu: download from GitHub releases");
-        console.error("  On macOS:         brew install signal-cli\n");
-        Deno.exit(1);
+
+      if (cliCheck.ok) {
+        signalCliPath = cliCheck.value.path;
+        console.log(`  Found: ${cliCheck.value.version} (${signalCliPath})`);
+      } else {
+        // Not found — offer to download
+        console.log("  signal-cli not found on PATH or in ~/.triggerfish/bin/\n");
+        const installIt = await Confirm.prompt({
+          message: "Download and install signal-cli?",
+          default: true,
+        });
+
+        if (!installIt) {
+          console.error("\n  Install signal-cli manually before continuing:");
+          console.error("    https://github.com/AsamK/signal-cli/releases\n");
+          Deno.exit(1);
+        }
+
+        console.log("\n  Fetching latest release info...");
+        const releaseResult = await fetchLatestVersion();
+        if (!releaseResult.ok) {
+          console.error(`  Failed: ${releaseResult.error}`);
+          Deno.exit(1);
+        }
+
+        const installResult = await downloadSignalCli(releaseResult.value);
+        if (!installResult.ok) {
+          console.error(`  Installation failed: ${installResult.error}`);
+          Deno.exit(1);
+        }
+
+        signalCliPath = installResult.value;
       }
-      console.log(`  Found: ${cliCheck.value}`);
 
       // Step 2: Get phone number
       config.account = await Input.prompt({
@@ -1830,14 +1856,11 @@ async function promptChannelConfig(
         console.log("\nStarting device link...");
         console.log("Open Signal on your phone: Settings > Linked Devices > Link New Device\n");
 
-        const linkResult = await startLinkProcess(
-          config.account as string,
-          "Triggerfish",
-        );
+        const linkResult = await startLinkProcess("Triggerfish", signalCliPath);
 
         if (!linkResult.ok) {
           console.error(`  Link failed: ${linkResult.error}`);
-          console.error("  You can link manually: signal-cli link -n Triggerfish");
+          console.error(`  You can link manually: ${signalCliPath} link -n Triggerfish`);
           Deno.exit(1);
         }
 
@@ -1866,22 +1889,22 @@ async function promptChannelConfig(
         });
         if (startIt) {
           console.log("  Starting signal-cli daemon...");
-          const daemonResult = startDaemon(config.account as string, tcpHost, tcpPort);
+          const daemonResult = startDaemon(config.account as string, tcpHost, tcpPort, signalCliPath);
           if (!daemonResult.ok) {
             console.error(`  Failed: ${daemonResult.error}`);
-            console.error("  Start manually: signal-cli -a " + config.account + " daemon --tcp localhost:7583");
+            console.error(`  Start manually: ${signalCliPath} -a ${config.account} daemon --tcp localhost:7583`);
           } else {
             const ready = await waitForDaemon(tcpHost, tcpPort);
             if (ready) {
               console.log("  Daemon is running.");
             } else {
               console.error("  Daemon started but not reachable yet. It may still be initializing.");
-              console.error("  Check: signal-cli -a " + config.account + " daemon --tcp localhost:7583");
+              console.error(`  Check: ${signalCliPath} -a ${config.account} daemon --tcp localhost:7583`);
             }
           }
         } else {
           console.log("\n  Start it manually before running Triggerfish:");
-          console.log(`  signal-cli -a ${config.account} daemon --tcp ${tcpHost}:${tcpPort}\n`);
+          console.log(`  ${signalCliPath} -a ${config.account} daemon --tcp ${tcpHost}:${tcpPort}\n`);
         }
       }
 
