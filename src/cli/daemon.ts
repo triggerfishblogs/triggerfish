@@ -6,6 +6,8 @@
  * @module
  */
 
+import { resolveBaseDir } from "./paths.ts";
+
 /** Supported daemon manager types. */
 export type DaemonManagerType =
   | "launchd"
@@ -36,6 +38,7 @@ export interface DaemonStatus {
 /** Service name constants. */
 const LAUNCHD_LABEL = "dev.triggerfish.agent";
 const SYSTEMD_UNIT = "triggerfish.service";
+const SCHTASKS_TASK_NAME = "Triggerfish";
 
 /**
  * Detect the OS-native daemon manager on the current system.
@@ -74,7 +77,7 @@ function systemdUnitPath(): string {
  * Get the log directory path.
  */
 export function logDir(): string {
-  return `${Deno.env.get("HOME")}/.triggerfish/logs`;
+  return `${resolveBaseDir()}/logs`;
 }
 
 /**
@@ -136,6 +139,53 @@ Environment=DENO_DIR=%h/.cache/deno
 
 [Install]
 WantedBy=default.target
+`;
+}
+
+/**
+ * Generate a Windows Task Scheduler XML definition for the Triggerfish daemon.
+ *
+ * Uses `schtasks.exe`-compatible XML (not PowerShell cmdlets) for maximum
+ * compatibility across all Windows editions including Server Core.
+ *
+ * @param options - Daemon configuration including binary path.
+ * @returns Task Scheduler XML string.
+ */
+export function generateSchtasksXml(options: DaemonOptions): string {
+  const logFile = logFilePath();
+  return `<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Triggerfish AI Agent</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <RestartOnFailure>
+      <Interval>PT30S</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>cmd.exe</Command>
+      <Arguments>/c "${options.binaryPath}" run &gt;&gt; "${logFile}" 2&gt;&amp;1</Arguments>
+    </Exec>
+  </Actions>
+</Task>
 `;
 }
 
@@ -242,6 +292,37 @@ export async function installAndStartDaemon(
       : { ok: false, message: `Failed to start daemon: ${result.stderr}` };
   }
 
+  if (manager === "windows-service") {
+    const xml = generateSchtasksXml({ binaryPath });
+    const xmlPath = `${resolveBaseDir()}/triggerfish-task.xml`;
+
+    await Deno.writeTextFile(xmlPath, xml);
+
+    // Delete existing task (ignore errors if it doesn't exist)
+    await runCommand("schtasks", ["/delete", "/tn", SCHTASKS_TASK_NAME, "/f"]);
+
+    // Create the scheduled task from XML
+    const createResult = await runCommand("schtasks", [
+      "/create", "/tn", SCHTASKS_TASK_NAME, "/xml", xmlPath,
+    ]);
+
+    // Clean up temp XML file
+    try { await Deno.remove(xmlPath); } catch { /* */ }
+
+    if (!createResult.success) {
+      return { ok: false, message: `Failed to create scheduled task: ${createResult.stderr}` };
+    }
+
+    // Start the task immediately
+    const runResult = await runCommand("schtasks", [
+      "/run", "/tn", SCHTASKS_TASK_NAME,
+    ]);
+
+    return runResult.success
+      ? { ok: true, message: `Daemon installed and started (Task Scheduler: ${SCHTASKS_TASK_NAME})` }
+      : { ok: false, message: `Task created but failed to start: ${runResult.stderr}` };
+  }
+
   return { ok: false, message: `Unsupported daemon manager: ${manager}` };
 }
 
@@ -263,6 +344,15 @@ export async function stopDaemon(): Promise<DaemonResult> {
 
   if (manager === "systemd") {
     const result = await runCommand("systemctl", ["--user", "stop", SYSTEMD_UNIT]);
+    return result.success
+      ? { ok: true, message: "Daemon stopped" }
+      : { ok: false, message: `Failed to stop daemon: ${result.stderr}` };
+  }
+
+  if (manager === "windows-service") {
+    const result = await runCommand("schtasks", [
+      "/end", "/tn", SCHTASKS_TASK_NAME,
+    ]);
     return result.success
       ? { ok: true, message: "Daemon stopped" }
       : { ok: false, message: `Failed to stop daemon: ${result.stderr}` };
@@ -333,6 +423,39 @@ export async function getDaemonStatus(): Promise<DaemonStatus> {
     };
   }
 
+  if (manager === "windows-service") {
+    // Query task status via CSV for locale-independent parsing
+    const result = await runCommand("schtasks", [
+      "/query", "/tn", SCHTASKS_TASK_NAME, "/fo", "CSV", "/nh",
+    ]);
+
+    if (result.success && result.stdout.includes("Running")) {
+      // Get PID via tasklist
+      const tasklistResult = await runCommand("tasklist", [
+        "/fi", "imagename eq triggerfish.exe", "/fo", "CSV", "/nh",
+      ]);
+      let pid: number | undefined;
+      // CSV format: "triggerfish.exe","1234","Console","1","12,345 K"
+      const pidMatch = tasklistResult.stdout.match(/"triggerfish\.exe","(\d+)"/);
+      if (pidMatch) {
+        pid = parseInt(pidMatch[1], 10);
+      }
+
+      return {
+        running: true,
+        pid,
+        manager,
+        message: `Daemon is running (Task Scheduler: ${SCHTASKS_TASK_NAME})`,
+      };
+    }
+
+    return {
+      running: false,
+      manager,
+      message: "Daemon is not running",
+    };
+  }
+
   return {
     running: false,
     manager,
@@ -385,7 +508,19 @@ export async function tailLogs(
     return;
   }
 
-  if (follow) {
+  if (Deno.build.os === "windows") {
+    // PowerShell Get-Content is the Windows equivalent of tail
+    const psArgs = follow
+      ? `Get-Content -Path '${path}' -Tail ${lines} -Wait -Encoding UTF8`
+      : `Get-Content -Path '${path}' -Tail ${lines} -Encoding UTF8`;
+    const cmd = new Deno.Command("powershell", {
+      args: ["-NoProfile", "-Command", psArgs],
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+    const child = cmd.spawn();
+    await child.status;
+  } else if (follow) {
     const cmd = new Deno.Command("tail", {
       args: ["-f", `-n${lines}`, path],
       stdout: "inherit",
@@ -465,7 +600,7 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
   console.log(`  Updating to ${latestTag}`);
 
   // Download new binary to temp file
-  const tmpPath = `${Deno.env.get("HOME")}/.triggerfish/.update-tmp`;
+  const tmpPath = `${resolveBaseDir()}/.update-tmp`;
   console.log("Downloading...");
   try {
     const resp = await fetch(downloadUrl);
@@ -474,7 +609,9 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
     }
     const file = await Deno.open(tmpPath, { write: true, create: true, truncate: true });
     await resp.body.pipeTo(file.writable);
-    await Deno.chmod(tmpPath, 0o755);
+    if (Deno.build.os !== "windows") {
+      await Deno.chmod(tmpPath, 0o755);
+    }
   } catch (e) {
     try { await Deno.remove(tmpPath); } catch { /* */ }
     return { ok: false, message: `Download failed: ${e}` };
@@ -495,6 +632,7 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
   if (Deno.build.os === "windows") {
     const ps = [
       `Start-Sleep 1`,
+      `schtasks /end /tn '${SCHTASKS_TASK_NAME}' 2>$null`,
       `Stop-Process -Name triggerfish -Force -ErrorAction SilentlyContinue`,
       `Start-Sleep 1`,
       `Copy-Item '${tmpPath}' '${binaryPath}' -Force`,
@@ -549,11 +687,16 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
  */
 async function findInstalledBinary(): Promise<string> {
   // Check common locations in order of preference
-  const home = Deno.env.get("HOME") ?? "";
-  const candidates = [
-    "/usr/local/bin/triggerfish",
-    `${home}/.local/bin/triggerfish`,
-  ];
+  const candidates: string[] = [];
+
+  if (Deno.build.os === "windows") {
+    const localAppData = Deno.env.get("LOCALAPPDATA") ?? "";
+    candidates.push(`${localAppData}\\Triggerfish\\triggerfish.exe`);
+  } else {
+    const home = Deno.env.get("HOME") ?? "";
+    candidates.push("/usr/local/bin/triggerfish");
+    candidates.push(`${home}/.local/bin/triggerfish`);
+  }
 
   for (const path of candidates) {
     try {
@@ -564,7 +707,12 @@ async function findInstalledBinary(): Promise<string> {
     }
   }
 
-  // Default to ~/.local/bin
+  // Return platform-appropriate default
+  if (Deno.build.os === "windows") {
+    const localAppData = Deno.env.get("LOCALAPPDATA") ?? "";
+    return `${localAppData}\\Triggerfish\\triggerfish.exe`;
+  }
+  const home = Deno.env.get("HOME") ?? "";
   return `${home}/.local/bin/triggerfish`;
 }
 
@@ -606,6 +754,15 @@ export async function uninstallDaemon(): Promise<DaemonResult> {
     await runCommand("systemctl", ["--user", "daemon-reload"]);
 
     return { ok: true, message: "Daemon uninstalled" };
+  }
+
+  if (manager === "windows-service") {
+    const result = await runCommand("schtasks", [
+      "/delete", "/tn", SCHTASKS_TASK_NAME, "/f",
+    ]);
+    return result.success
+      ? { ok: true, message: "Daemon uninstalled" }
+      : { ok: false, message: `Failed to uninstall daemon: ${result.stderr}` };
   }
 
   return { ok: false, message: `Unsupported daemon manager: ${manager}` };

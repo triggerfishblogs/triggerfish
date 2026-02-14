@@ -21,6 +21,7 @@ export type {
 export {
   detectDaemonManager,
   generateLaunchdPlist,
+  generateSchtasksXml,
   generateSystemdUnit,
 } from "./daemon.ts";
 
