@@ -1465,7 +1465,7 @@ function buildTelegramSendEvent(
  * Install and start the Triggerfish daemon.
  */
 async function runDaemonStart(): Promise<void> {
-  console.log("Installing Triggerfish daemon...\n");
+  console.log("Starting Triggerfish daemon...\n");
 
   const binaryPath = Deno.execPath();
   const result = await installAndStartDaemon(binaryPath);

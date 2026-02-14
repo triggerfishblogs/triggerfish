@@ -21,11 +21,7 @@ export type {
 export {
   detectDaemonManager,
   generateLaunchdPlist,
-  generateSchtasksXml,
-  generateServiceInstallScript,
-  generateServiceSource,
   generateSystemdUnit,
-  generateWindowsTaskCommand,
 } from "./daemon.ts";
 
 export type { DaemonManagerType, DaemonOptions } from "./daemon.ts";

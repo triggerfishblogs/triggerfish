@@ -146,54 +146,6 @@ WantedBy=default.target
 }
 
 /**
- * Generate a Windows Task Scheduler XML definition for the Triggerfish daemon.
- *
- * @deprecated Use {@link generateWindowsTaskCommand} instead. The XML approach
- * fails due to MSXML encoding issues (`schtasks.exe` requires UTF-16LE with BOM,
- * which Deno cannot reliably produce). Kept for documentation only.
- *
- * @param options - Daemon configuration including binary path.
- * @returns Task Scheduler XML string.
- */
-export function generateSchtasksXml(options: DaemonOptions): string {
-  const logFile = logFilePath();
-  return `<?xml version="1.0"?>
-<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo>
-    <Description>Triggerfish AI Agent</Description>
-  </RegistrationInfo>
-  <Triggers>
-    <LogonTrigger>
-      <Enabled>true</Enabled>
-    </LogonTrigger>
-  </Triggers>
-  <Principals>
-    <Principal id="Author">
-      <LogonType>InteractiveToken</LogonType>
-      <RunLevel>LeastPrivilege</RunLevel>
-    </Principal>
-  </Principals>
-  <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
-    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
-    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
-    <RestartOnFailure>
-      <Interval>PT1M</Interval>
-      <Count>3</Count>
-    </RestartOnFailure>
-  </Settings>
-  <Actions Context="Author">
-    <Exec>
-      <Command>cmd.exe</Command>
-      <Arguments>/c "${options.binaryPath}" run &gt;&gt; "${logFile}" 2&gt;&amp;1</Arguments>
-    </Exec>
-  </Actions>
-</Task>
-`;
-}
-
-/**
  * Escape a string for use inside a PowerShell single-quoted string.
  *
  * PowerShell single-quoted strings only interpret `''` as a literal `'`.
@@ -203,38 +155,6 @@ export function generateSchtasksXml(options: DaemonOptions): string {
  */
 function psEscape(s: string): string {
   return s.replaceAll("'", "''");
-}
-
-/**
- * Generate a PowerShell command that registers a Windows Scheduled Task
- * for the Triggerfish daemon.
- *
- * Uses `Register-ScheduledTask` (available on Windows 8.1+ / PowerShell 5.1+)
- * to avoid the XML encoding issues with `schtasks /create /xml`.
- *
- * The `-Force` flag atomically overwrites any existing task with the same name,
- * so no separate delete step is needed.
- *
- * @param options - Daemon configuration including binary path.
- * @returns PowerShell command string suitable for `powershell -Command`.
- */
-export function generateWindowsTaskCommand(options: DaemonOptions): string {
-  const logFile = logFilePath();
-  const logDirectory = logDir();
-  const escapedBinary = psEscape(options.binaryPath);
-  const escapedLog = psEscape(logFile);
-  const escapedLogDir = psEscape(logDirectory);
-
-  // Double quotes pass through PowerShell single-quoted strings literally,
-  // and are what cmd.exe expects for path quoting. The mkdir ensures the log
-  // directory exists when the task fires (at logon, the dir may not exist yet).
-  return [
-    `$action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument '/c mkdir "${escapedLogDir}" 2>nul & "${escapedBinary}" run >> "${escapedLog}" 2>&1'`,
-    `$trigger = New-ScheduledTaskTrigger -AtLogon`,
-    `$principal = New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited`,
-    `$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)`,
-    `Register-ScheduledTask -TaskName '${SCHTASKS_TASK_NAME}' -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Triggerfish AI Agent' -Force`,
-  ].join("; ");
 }
 
 /**
@@ -256,131 +176,6 @@ function encodeUtf16Base64(command: string): string {
     binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
   }
   return btoa(binary);
-}
-
-/**
- * Escape a path for embedding in a C# verbatim string literal (@"...").
- * In C# verbatim strings, the only escape is "" for a literal double-quote.
- * Backslashes are literal. Forward slashes are normalized to backslashes.
- */
-function csEscape(path: string): string {
-  return path.replaceAll("/", "\\").replaceAll('"', '""');
-}
-
-/**
- * Generate C# source code for the Windows Service wrapper.
- *
- * The wrapper implements the SCM (Service Control Manager) protocol so Windows
- * can properly start/stop the daemon. It spawns triggerfish.exe as a child
- * process and redirects stdout/stderr to the log file.
- *
- * Runs as LocalSystem with TRIGGERFISH_DATA_DIR set to the user's data directory
- * so the config file is found correctly.
- *
- * @param binaryPath - Absolute path to triggerfish.exe
- * @param dataDir - Absolute path to the .triggerfish data directory
- * @param logDirectory - Absolute path to the logs directory
- * @returns C# source code string
- */
-export function generateServiceSource(
-  binaryPath: string,
-  dataDir: string,
-  logDirectory: string,
-): string {
-  const csBin = csEscape(binaryPath);
-  const csData = csEscape(dataDir);
-  const csLogDir = csEscape(logDirectory);
-
-  return `using System;
-using System.Diagnostics;
-using System.IO;
-using System.ServiceProcess;
-public class TriggerFishService : ServiceBase
-{
-    private Process _proc;
-    public TriggerFishService() { ServiceName = "${WINDOWS_SERVICE_NAME}"; CanStop = true; CanShutdown = true; }
-    protected override void OnStart(string[] args)
-    {
-        var logDir = @"${csLogDir}";
-        var logFile = Path.Combine(logDir, "triggerfish.log");
-        Directory.CreateDirectory(logDir);
-        _proc = new Process();
-        _proc.StartInfo.FileName = @"${csBin}";
-        _proc.StartInfo.Arguments = "run";
-        _proc.StartInfo.UseShellExecute = false;
-        _proc.StartInfo.RedirectStandardOutput = true;
-        _proc.StartInfo.RedirectStandardError = true;
-        _proc.StartInfo.CreateNoWindow = true;
-        _proc.StartInfo.EnvironmentVariables["TRIGGERFISH_DATA_DIR"] = @"${csData}";
-        var w = new StreamWriter(logFile, true) { AutoFlush = true };
-        _proc.OutputDataReceived += (s, e) => { if (e.Data != null) try { w.WriteLine(e.Data); } catch {} };
-        _proc.ErrorDataReceived += (s, e) => { if (e.Data != null) try { w.WriteLine(e.Data); } catch {} };
-        _proc.Start();
-        _proc.BeginOutputReadLine();
-        _proc.BeginErrorReadLine();
-    }
-    protected override void OnStop() { Kill(); }
-    protected override void OnShutdown() { Kill(); }
-    void Kill() { try { if (_proc != null && !_proc.HasExited) { _proc.Kill(); _proc.WaitForExit(5000); } } catch {} }
-    public static void Main() { ServiceBase.Run(new TriggerFishService()); }
-}`;
-}
-
-/**
- * Generate a PowerShell script that compiles the C# service wrapper,
- * installs it as a Windows Service, and starts it.
- *
- * The script is designed to run elevated (as Administrator) via UAC.
- *
- * @param binaryPath - Absolute path to triggerfish.exe
- * @returns PowerShell script string
- */
-export function generateServiceInstallScript(
-  binaryPath: string,
-  resultFile: string,
-): string {
-  const dataDir = resolveBaseDir();
-  const logDirectory = logDir();
-  const csSource = generateServiceSource(binaryPath, dataDir, logDirectory);
-
-  // Service wrapper .exe goes next to the triggerfish binary
-  const binDir = binaryPath.replace(/[/\\][^/\\]+$/, "");
-  const serviceExePath = `${binDir}\\TriggerFishService.exe`.replaceAll("/", "\\");
-  const psServiceExe = psEscape(serviceExePath);
-  const psResultFile = psEscape(resultFile);
-
-  // The script writes "OK" to resultFile on success, or "ERROR: <details>" on failure.
-  // This is the only reliable way to communicate results back from the elevated process.
-  return `$ErrorActionPreference = 'Stop'
-try {
-$svc = Get-Service -Name '${WINDOWS_SERVICE_NAME}' -ErrorAction SilentlyContinue
-if ($svc) {
-    Stop-Service -Name '${WINDOWS_SERVICE_NAME}' -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
-    sc.exe delete '${WINDOWS_SERVICE_NAME}' | Out-Null
-    Start-Sleep -Seconds 1
-}
-schtasks /delete /tn '${SCHTASKS_TASK_NAME}' /f 2>$null | Out-Null
-$csSource = @'
-${csSource}
-'@
-$tempCs = Join-Path $env:TEMP 'TriggerFishService.cs'
-Set-Content -Path $tempCs -Value $csSource -Encoding UTF8
-$csc = Join-Path $env:windir 'Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe'
-if (-not (Test-Path $csc)) { $csc = Join-Path $env:windir 'Microsoft.NET\\Framework\\v4.0.30319\\csc.exe' }
-if (-not (Test-Path $csc)) {
-    Add-Type -TypeDefinition $csSource -OutputAssembly '${psServiceExe}' -OutputType ConsoleApplication -ReferencedAssemblies System.ServiceProcess
-} else {
-    & $csc /nologo /target:exe /reference:System.ServiceProcess.dll /out:'${psServiceExe}' $tempCs 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'C# compiler exited with code $LASTEXITCODE' }
-}
-Remove-Item $tempCs -Force -ErrorAction SilentlyContinue
-New-Service -Name '${WINDOWS_SERVICE_NAME}' -BinaryPathName '${psServiceExe}' -DisplayName 'Triggerfish AI Agent' -Description 'Triggerfish AI Agent daemon' -StartupType Automatic
-Start-Service -Name '${WINDOWS_SERVICE_NAME}'
-'OK' | Out-File -FilePath '${psResultFile}' -Encoding UTF8
-} catch {
-    "ERROR: $_" | Out-File -FilePath '${psResultFile}' -Encoding UTF8
-}`;
 }
 
 /**
@@ -511,49 +306,32 @@ export async function installAndStartDaemon(
   }
 
   if (manager === "windows-service") {
-    // Use a result file so the elevated process can report errors back.
-    // Start-Process -Verb RunAs runs in a separate window — its stdout is lost.
-    const resultFile = join(
-      Deno.env.get("TEMP") ?? Deno.env.get("USERPROFILE") ?? ".",
-      "triggerfish-install-result.txt",
-    );
-    // Clean any stale result file
-    try { await Deno.remove(resultFile); } catch { /* */ }
+    // On Windows, the install script (install.ps1 / install-from-source.ps1)
+    // handles service compilation and registration. `triggerfish start` just
+    // starts the already-installed service.
+    const queryResult = await runCommand("sc", ["query", WINDOWS_SERVICE_NAME]);
+    if (!queryResult.success) {
+      return {
+        ok: false,
+        message: `Windows Service '${WINDOWS_SERVICE_NAME}' is not installed. Re-run the installer to set it up.`,
+      };
+    }
 
-    const installScript = generateServiceInstallScript(binaryPath, resultFile);
-    const encoded = encodeUtf16Base64(installScript);
+    if (queryResult.stdout.includes("RUNNING")) {
+      return { ok: true, message: `Daemon is already running (Windows Service: ${WINDOWS_SERVICE_NAME})` };
+    }
 
-    console.log("  Installing Windows Service...");
+    // Start the service (needs elevation)
+    const startScript = `Start-Service -Name '${WINDOWS_SERVICE_NAME}' -ErrorAction Stop`;
+    const encoded = encodeUtf16Base64(startScript);
     await runElevatedCommand(encoded);
 
-    // Read the result file written by the elevated script
-    let elevatedError = "";
-    try {
-      const result = (await Deno.readTextFile(resultFile)).trim();
-      if (result.startsWith("ERROR:")) {
-        elevatedError = result.substring(6).trim();
-      }
-    } catch {
-      elevatedError = "Elevated process produced no result (may have crashed or been denied)";
-    }
-    // Clean up
-    try { await Deno.remove(resultFile); } catch { /* */ }
-
-    if (elevatedError) {
-      return { ok: false, message: `Service installation failed: ${elevatedError}` };
-    }
-
-    // Verify the service was created and started
+    // Verify it started
     const verifyResult = await runCommand("sc", ["query", WINDOWS_SERVICE_NAME]);
-
-    if (!verifyResult.success) {
-      return { ok: false, message: "Service was not created. Check that .NET Framework is installed, or run from an admin terminal." };
-    }
-
-    const isRunning = verifyResult.stdout.includes("RUNNING");
+    const isRunning = verifyResult.success && verifyResult.stdout.includes("RUNNING");
     return isRunning
-      ? { ok: true, message: `Daemon installed and started (Windows Service: ${WINDOWS_SERVICE_NAME})` }
-      : { ok: false, message: "Service installed but failed to start. Check 'triggerfish logs' for details." };
+      ? { ok: true, message: `Daemon started (Windows Service: ${WINDOWS_SERVICE_NAME})` }
+      : { ok: false, message: "Failed to start service. Try running from an admin terminal." };
   }
 
   return { ok: false, message: `Unsupported daemon manager: ${manager}` };
