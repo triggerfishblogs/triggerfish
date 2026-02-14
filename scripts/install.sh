@@ -64,7 +64,7 @@ fi
 BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
 
 echo "Downloading ${BINARY_NAME}..."
-curl -fSL --progress-bar --connect-timeout 15 --retry 3 \
+curl -fL --connect-timeout 15 --retry 3 \
   -o "/tmp/${BINARY_NAME}" "${BASE_URL}/${BINARY_NAME}"
 
 echo "Downloading checksums..."
