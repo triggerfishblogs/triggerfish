@@ -34,6 +34,8 @@ export interface LlmStreamChunk {
   readonly done: boolean;
   /** Usage statistics, available on the final chunk. */
   readonly usage?: LlmUsage;
+  /** Tool calls from the LLM, available on the done:true chunk. */
+  readonly toolCalls?: readonly unknown[];
 }
 
 /**

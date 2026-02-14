@@ -157,6 +157,8 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
       }
 
       const finalMessage = await stream.finalMessage();
+      const toolUseBlocks = finalMessage.content
+        .filter((block: { type: string }) => block.type === "tool_use");
       yield {
         text: "",
         done: true,
@@ -164,6 +166,7 @@ export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvid
           inputTokens: finalMessage.usage.input_tokens,
           outputTokens: finalMessage.usage.output_tokens,
         },
+        ...(toolUseBlocks.length > 0 ? { toolCalls: toolUseBlocks } : {}),
       };
     },
   };

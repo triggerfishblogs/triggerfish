@@ -61,6 +61,11 @@ export interface ScreenManager {
   init(): void;
   /** Write a line of text into the scroll region (auto-scrolls). */
   writeOutput(text: string): void;
+  /**
+   * Write streaming text at the current scroll position without forced newline.
+   * Handles embedded newlines by scrolling as needed.
+   */
+  writeChunk(text: string): void;
   /** Redraw the input line at the bottom with current editor state. */
   redrawInput(editor: LineEditor): void;
   /** Show a status message in the status bar. */
@@ -150,6 +155,11 @@ function createTtyScreenManager(): ScreenManager {
   // which breaks when scroll region scrolling invalidates it.
   let knownCursorRow = 1;
   let knownCursorCol = 1;
+
+  // Track cursor position during active streaming (writeChunk).
+  // streamCursorRow=0 means "not actively streaming".
+  let streamCursorRow = 0;
+  let streamCursorCol = 1;
 
   function getStatusRow(): number {
     return size.rows;
@@ -245,6 +255,10 @@ function createTtyScreenManager(): ScreenManager {
     },
 
     writeOutput(text: string): void {
+      // Reset stream cursor — switching back to non-streaming output
+      streamCursorRow = 0;
+      streamCursorCol = 1;
+
       rawWrite(HIDE_CURSOR);
 
       // Move to the bottom of the scroll region — text will auto-scroll
@@ -258,6 +272,49 @@ function createTtyScreenManager(): ScreenManager {
 
       // Return cursor to its known position instead of using
       // SAVE/RESTORE which gets corrupted when the scroll region scrolls
+      rawWrite(moveTo(knownCursorRow, knownCursorCol));
+      rawWrite(SHOW_CURSOR);
+    },
+
+    writeChunk(text: string): void {
+      if (text.length === 0) return;
+
+      rawWrite(HIDE_CURSOR);
+
+      const scrollBottom = getScrollBottom();
+
+      if (streamCursorRow === 0) {
+        // First chunk — position at bottom of scroll region.
+        // writeOutput already scrolled to leave this row blank.
+        streamCursorRow = scrollBottom;
+        streamCursorCol = 1;
+      }
+
+      // Move to tracked stream position and write
+      rawWrite(moveTo(streamCursorRow, streamCursorCol));
+      rawWrite(text);
+
+      // Update tracked position based on characters written
+      for (const ch of text) {
+        if (ch === "\n") {
+          if (streamCursorRow < scrollBottom) {
+            streamCursorRow++;
+          }
+          // At scrollBottom, \n scrolls the region; row stays
+          streamCursorCol = 1;
+        } else {
+          streamCursorCol++;
+          if (streamCursorCol > size.columns) {
+            // Line wraps to next row
+            if (streamCursorRow < scrollBottom) {
+              streamCursorRow++;
+            }
+            streamCursorCol = 1;
+          }
+        }
+      }
+
+      // Restore cursor to input position
       rawWrite(moveTo(knownCursorRow, knownCursorCol));
       rawWrite(SHOW_CURSOR);
     },
@@ -354,6 +411,10 @@ function createDumbScreenManager(): ScreenManager {
 
     writeOutput(text: string): void {
       console.log(text);
+    },
+
+    writeChunk(text: string): void {
+      rawWrite(text);
     },
 
     redrawInput(_editor: LineEditor): void {

@@ -138,10 +138,31 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
       let inputTokens = 0;
       let outputTokens = 0;
 
+      // Accumulate streaming tool call deltas keyed by index
+      const toolCallAccum = new Map<number, { id?: string; name: string; arguments: string }>();
+
       for await (const chunk of stream) {
         const delta = chunk.choices?.[0]?.delta;
         if (delta?.content) {
           yield { text: delta.content, done: false };
+        }
+        // Accumulate tool_calls deltas
+        if (Array.isArray(delta?.tool_calls)) {
+          for (const tc of delta.tool_calls) {
+            const idx = tc.index ?? 0;
+            const existing = toolCallAccum.get(idx);
+            if (existing) {
+              if (tc.function?.arguments) {
+                existing.arguments += tc.function.arguments;
+              }
+            } else {
+              toolCallAccum.set(idx, {
+                id: tc.id ?? undefined,
+                name: tc.function?.name ?? "",
+                arguments: tc.function?.arguments ?? "",
+              });
+            }
+          }
         }
         if (chunk.usage) {
           inputTokens = chunk.usage.prompt_tokens ?? 0;
@@ -149,10 +170,24 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
         }
       }
 
+      // Assemble accumulated tool calls
+      const toolCalls: unknown[] = [];
+      for (const [_, tc] of [...toolCallAccum.entries()].sort((a, b) => a[0] - b[0])) {
+        toolCalls.push({
+          id: tc.id,
+          type: "function",
+          function: {
+            name: tc.name,
+            arguments: tc.arguments,
+          },
+        });
+      }
+
       yield {
         text: "",
         done: true,
         usage: { inputTokens, outputTokens },
+        ...(toolCalls.length > 0 ? { toolCalls } : {}),
       };
     },
   };

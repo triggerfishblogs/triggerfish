@@ -39,6 +39,8 @@ export interface ModelsConfig {
   readonly primary: PrimaryModelRef;
   /** Optional vision model for describing images when the primary model lacks vision. */
   readonly vision?: string;
+  /** Enable streaming responses from the LLM provider. Default: true. */
+  readonly streaming?: boolean;
   readonly providers: ProvidersConfig;
 }
 
