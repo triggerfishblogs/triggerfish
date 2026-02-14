@@ -35,6 +35,7 @@ export type ProviderChoice =
   | "openai"
   | "google"
   | "ollama"
+  | "lmstudio"
   | "openrouter"
   | "zenmux"
   | "zai";
@@ -78,6 +79,7 @@ const DEFAULT_MODELS: Readonly<Record<ProviderChoice, string>> = {
   openai: "gpt-4o",
   google: "gemini-2.0-flash",
   ollama: "llama3",
+  lmstudio: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
   openrouter: "anthropic/claude-sonnet-4-5",
   zenmux: "openai/gpt-5",
   zai: "glm-4.7",
@@ -88,6 +90,7 @@ const PROVIDER_LABELS: Readonly<Record<ProviderChoice, string>> = {
   openai: "OpenAI (GPT-4o)",
   google: "Google (Gemini)",
   ollama: "Ollama",
+  lmstudio: "LM Studio",
   openrouter: "OpenRouter",
   zenmux: "ZenMux",
   zai: "Z.AI Coding Plan (GLM)",
@@ -110,6 +113,11 @@ export function generateConfig(answers: WizardAnswers): string {
     providers["anthropic"] = anthropicConfig;
   } else if (answers.provider === "ollama") {
     providers["ollama"] = {
+      model: answers.providerModel,
+      endpoint: answers.localEndpoint,
+    };
+  } else if (answers.provider === "lmstudio") {
+    providers["lmstudio"] = {
       model: answers.providerModel,
       endpoint: answers.localEndpoint,
     };
@@ -295,6 +303,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
       { name: PROVIDER_LABELS.openai, value: "openai" },
       { name: PROVIDER_LABELS.google, value: "google" },
       { name: PROVIDER_LABELS.ollama, value: "ollama" },
+      { name: PROVIDER_LABELS.lmstudio, value: "lmstudio" },
       { name: PROVIDER_LABELS.openrouter, value: "openrouter" },
       { name: PROVIDER_LABELS.zenmux, value: "zenmux" },
       { name: PROVIDER_LABELS.zai, value: "zai" },
@@ -320,6 +329,13 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
       message: "Ollama endpoint",
       default: "http://localhost:11434",
     });
+  } else if (provider === "lmstudio") {
+    // No API key needed for local
+    console.log("  ✓ Local provider — no API key needed");
+    localEndpoint = await Input.prompt({
+      message: "LM Studio endpoint",
+      default: "http://localhost:1234",
+    });
   } else {
     const envVarName = provider === "openai"
       ? "OPENAI_API_KEY"
@@ -343,7 +359,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
   }
 
   // ── Verify provider connection ───────────────────────────────────────────
-  const shouldVerify = provider === "ollama" || apiKey.length > 0;
+  const shouldVerify = provider === "ollama" || provider === "lmstudio" || apiKey.length > 0;
 
   if (shouldVerify) {
     let verified = false;
@@ -354,7 +370,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
         provider,
         apiKey,
         providerModel,
-        provider === "ollama" ? localEndpoint : undefined,
+        provider === "ollama" || provider === "lmstudio" ? localEndpoint : undefined,
       );
 
       if (result.ok) {
@@ -365,7 +381,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
         console.log("");
 
         const retryOptions: Array<{ name: string; value: string }> = [];
-        if (provider === "ollama") {
+        if (provider === "ollama" || provider === "lmstudio") {
           retryOptions.push({ name: "Re-enter endpoint", value: "endpoint" });
         } else {
           retryOptions.push({ name: "Re-enter API key", value: "apikey" });

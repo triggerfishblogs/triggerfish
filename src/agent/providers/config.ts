@@ -22,6 +22,7 @@ export interface ProvidersConfig {
   readonly openai?: { readonly model?: string; readonly apiKey?: string };
   readonly google?: { readonly model?: string; readonly apiKey?: string };
   readonly ollama?: { readonly endpoint?: string; readonly model: string };
+  readonly lmstudio?: { readonly endpoint?: string; readonly model: string };
   readonly openrouter?: { readonly model: string; readonly apiKey?: string };
   readonly zenmux?: { readonly model: string; readonly apiKey?: string };
   readonly zai?: { readonly model: string; readonly apiKey?: string };
@@ -84,6 +85,14 @@ export function loadProvidersFromConfig(
     }));
   }
 
+  if (providers.lmstudio) {
+    registry.register(createLocalProvider({
+      name: "lmstudio",
+      endpoint: providers.lmstudio.endpoint ?? "http://localhost:1234",
+      model: providers.lmstudio.model,
+    }));
+  }
+
   if (providers.openrouter) {
     registry.register(createOpenRouterProvider({
       model: providers.openrouter.model,
@@ -141,6 +150,12 @@ function createProviderForVision(
       return createLocalProvider({
         model: visionModel,
         endpoint: providerConfig.endpoint as string | undefined,
+      });
+    case "lmstudio":
+      return createLocalProvider({
+        name: "lmstudio",
+        model: visionModel,
+        endpoint: providerConfig.endpoint as string | undefined ?? "http://localhost:1234",
       });
     default:
       return undefined;

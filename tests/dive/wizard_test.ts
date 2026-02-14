@@ -111,6 +111,34 @@ Deno.test("Wizard: generateConfig uses localEndpoint for Ollama provider", () =>
   assertEquals(providers.ollama.model, "llama3");
 });
 
+Deno.test("Wizard: generateConfig sets endpoint for LM Studio provider", () => {
+  const answers = makeAnswers({
+    provider: "lmstudio",
+    providerModel: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+    localEndpoint: "http://localhost:1234",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const models = parsed.models as Record<string, unknown>;
+  const providers = models.providers as Record<string, Record<string, string>>;
+  assertEquals(providers.lmstudio.endpoint, "http://localhost:1234");
+  assertEquals(providers.lmstudio.model, "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF");
+});
+
+Deno.test("Wizard: generateConfig uses localEndpoint for LM Studio provider", () => {
+  const answers = makeAnswers({
+    provider: "lmstudio",
+    providerModel: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+    localEndpoint: "http://192.168.1.50:1234",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const models = parsed.models as Record<string, unknown>;
+  const providers = models.providers as Record<string, Record<string, string>>;
+  assertEquals(providers.lmstudio.endpoint, "http://192.168.1.50:1234");
+  assertEquals(providers.lmstudio.model, "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF");
+});
+
 Deno.test("Wizard: generateConfig includes webchat channel config", () => {
   const answers = makeAnswers({
     channels: ["cli", "webchat"],
