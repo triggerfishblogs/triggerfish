@@ -340,20 +340,22 @@ export async function installAndStartDaemon(
   if (manager === "windows-service") {
     const psCommand = generateWindowsTaskCommand({ binaryPath });
 
-    // Write registration script to a temp file for UAC elevation
-    const scriptPath = `${Deno.env.get("TEMP") ?? logDir()}\\triggerfish-install.ps1`;
-    await Deno.writeTextFile(scriptPath, psCommand);
+    // Encode the registration command as UTF-16LE Base64 for -EncodedCommand.
+    // This avoids all escaping/quoting/temp-file issues with elevated PowerShell.
+    const utf16Bytes = new Uint8Array(psCommand.length * 2);
+    for (let i = 0; i < psCommand.length; i++) {
+      const code = psCommand.charCodeAt(i);
+      utf16Bytes[i * 2] = code & 0xFF;
+      utf16Bytes[i * 2 + 1] = (code >> 8) & 0xFF;
+    }
+    const encoded = btoa(String.fromCharCode(...utf16Bytes));
 
     // Register-ScheduledTask requires admin — elevate via UAC prompt
     console.log("  Requesting administrator privileges...");
-    const escapedScript = psEscape(scriptPath);
     await runCommand("powershell", [
       "-NoProfile", "-Command",
-      `Start-Process powershell -Verb RunAs -Wait -ArgumentList @('-ExecutionPolicy','Bypass','-NoProfile','-NonInteractive','-File','${escapedScript}')`,
+      `Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -NonInteractive -EncodedCommand ${encoded}'`,
     ]);
-
-    // Clean up temp script
-    try { await Deno.remove(scriptPath); } catch { /* already cleaned */ }
 
     // Verify the task was actually created (user may have declined UAC)
     const verifyResult = await runCommand("schtasks", [
