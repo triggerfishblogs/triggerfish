@@ -52,6 +52,8 @@ export interface ToolDefinition {
     readonly type: string;
     readonly description: string;
     readonly required?: boolean;
+    readonly items?: Readonly<Record<string, unknown>>;
+    readonly enum?: readonly string[];
   }>>;
 }
 
@@ -653,10 +655,15 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
               parameters: {
                 type: "object" as const,
                 properties: Object.fromEntries(
-                  Object.entries(t.parameters).map(([k, v]) => [k, {
-                    type: v.type,
-                    description: v.description,
-                  }]),
+                  Object.entries(t.parameters).map(([k, v]) => {
+                    const prop: Record<string, unknown> = {
+                      type: v.type,
+                      description: v.description,
+                    };
+                    if (v.items) prop.items = v.items;
+                    if (v.enum) prop.enum = v.enum;
+                    return [k, prop];
+                  }),
                 ),
                 required: Object.entries(t.parameters)
                   .filter(([_, v]) => v.required !== false)
