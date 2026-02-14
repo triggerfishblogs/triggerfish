@@ -122,6 +122,7 @@ ORIGINAL_PATH="${PATH}"
 export PATH="${INSTALL_DIR}:${PATH}"
 
 # Ensure install dir is in user's persistent PATH
+PATH_MODIFIED=""
 add_to_path() {
   local dir="$1"
   local line="export PATH=\"${dir}:\$PATH\""
@@ -162,6 +163,7 @@ add_to_path() {
   echo "# Added by Triggerfish installer" >> "${profile}"
   echo "${line}" >> "${profile}"
   echo "[ok] Added ${dir} to PATH in ${profile}"
+  PATH_MODIFIED="${profile}"
 }
 
 case ":${ORIGINAL_PATH}:" in
@@ -177,6 +179,10 @@ echo ""
 "${INSTALL_DIR}/${INSTALL_NAME}" dive --install-daemon </dev/tty
 
 echo ""
+if [ -n "${PATH_MODIFIED}" ]; then
+  echo "  Restart your terminal or run:  source ${PATH_MODIFIED}"
+  echo ""
+fi
 echo "  triggerfish status    # Check daemon status"
 echo "  triggerfish logs      # View logs"
 echo "  triggerfish patrol    # Run health check"
