@@ -14,7 +14,9 @@ Triggerfish is configured through `triggerfish.yaml`, located at `~/.triggerfish
 # ---------------------------------------------------------------------------
 models:
   # The primary model used for agent completions
-  primary: claude-sonnet-4-5
+  primary:
+    provider: anthropic
+    model: claude-sonnet-4-5
 
   # Optional: separate vision model for image description
   # When the primary model doesn't support vision, images are automatically
@@ -296,7 +298,9 @@ remote:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `primary` | string | Model identifier used for agent completions |
+| `primary` | object | Primary model reference with `provider` and `model` fields |
+| `primary.provider` | string | Provider name (e.g. `anthropic`, `openai`, `ollama`) |
+| `primary.model` | string | Model identifier used for agent completions |
 | `vision` | string | Optional vision model for automatic image description (see [Image and Vision](/features/image-vision)) |
 | `providers` | object | Provider-specific configuration (see below) |
 | `failover` | string[] | Ordered list of fallback models |

@@ -35,13 +35,13 @@ function makeAnswers(
     telegramBotToken: "",
     telegramOwnerId: "",
     webchatPort: 8765,
-    classificationMode: "standard",
     selectedPlugins: [],
     obsidianVaultPath: "",
     obsidianClassification: "INTERNAL",
     searchProvider: "skip",
     searchApiKey: "",
     searxngUrl: "",
+    localEndpoint: "http://localhost:11434",
     installDaemon: false,
     ...overrides,
   };
@@ -64,7 +64,9 @@ Deno.test("Wizard: generateConfig sets correct primary model for Anthropic", () 
   const yaml = generateConfig(answers);
   const parsed = parseYaml(yaml) as Record<string, unknown>;
   const models = parsed.models as Record<string, unknown>;
-  assertEquals(models.primary, "claude-sonnet-4-5");
+  const primary = models.primary as Record<string, string>;
+  assertEquals(primary.provider, "anthropic");
+  assertEquals(primary.model, "claude-sonnet-4-5");
 });
 
 Deno.test("Wizard: generateConfig sets correct model for OpenAI", () => {
@@ -75,22 +77,38 @@ Deno.test("Wizard: generateConfig sets correct model for OpenAI", () => {
   const yaml = generateConfig(answers);
   const parsed = parseYaml(yaml) as Record<string, unknown>;
   const models = parsed.models as Record<string, unknown>;
-  assertEquals(models.primary, "gpt-4o");
+  const primary = models.primary as Record<string, string>;
+  assertEquals(primary.provider, "openai");
+  assertEquals(primary.model, "gpt-4o");
   const providers = models.providers as Record<string, Record<string, string>>;
   assertEquals(providers.openai.model, "gpt-4o");
 });
 
-Deno.test("Wizard: generateConfig sets endpoint for local provider", () => {
+Deno.test("Wizard: generateConfig sets endpoint for Ollama provider", () => {
   const answers = makeAnswers({
-    provider: "local",
+    provider: "ollama",
     providerModel: "llama3",
   });
   const yaml = generateConfig(answers);
   const parsed = parseYaml(yaml) as Record<string, unknown>;
   const models = parsed.models as Record<string, unknown>;
   const providers = models.providers as Record<string, Record<string, string>>;
-  assertEquals(providers.local.endpoint, "http://localhost:11434");
-  assertEquals(providers.local.model, "llama3");
+  assertEquals(providers.ollama.endpoint, "http://localhost:11434");
+  assertEquals(providers.ollama.model, "llama3");
+});
+
+Deno.test("Wizard: generateConfig uses localEndpoint for Ollama provider", () => {
+  const answers = makeAnswers({
+    provider: "ollama",
+    providerModel: "llama3",
+    localEndpoint: "http://192.168.1.50:11434",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const models = parsed.models as Record<string, unknown>;
+  const providers = models.providers as Record<string, Record<string, string>>;
+  assertEquals(providers.ollama.endpoint, "http://192.168.1.50:11434");
+  assertEquals(providers.ollama.model, "llama3");
 });
 
 Deno.test("Wizard: generateConfig includes webchat channel config", () => {
@@ -128,18 +146,11 @@ Deno.test("Wizard: generateConfig has empty channels when only CLI selected", ()
   assertEquals(Object.keys(channels).length, 0);
 });
 
-Deno.test("Wizard: generateConfig sets classification levels", () => {
-  const standard = makeAnswers({ classificationMode: "standard" });
-  const simple = makeAnswers({ classificationMode: "simple" });
-
-  const stdParsed = parseYaml(generateConfig(standard)) as Record<string, unknown>;
-  const simpParsed = parseYaml(generateConfig(simple)) as Record<string, unknown>;
-
-  const stdClass = stdParsed.classification as Record<string, string>;
-  const simpClass = simpParsed.classification as Record<string, string>;
-
-  assertEquals(stdClass.levels, "standard");
-  assertEquals(simpClass.levels, "simple");
+Deno.test("Wizard: generateConfig sets classification to standard", () => {
+  const answers = makeAnswers();
+  const parsed = parseYaml(generateConfig(answers)) as Record<string, unknown>;
+  const classification = parsed.classification as Record<string, string>;
+  assertEquals(classification.levels, "standard");
 });
 
 Deno.test("Wizard: generateConfig for Google provider", () => {
@@ -275,7 +286,8 @@ Deno.test("Wizard: generated config loads via loadConfig", async () => {
   const result = loadConfig(configPath);
   assertEquals(result.ok, true);
   if (result.ok) {
-    assertEquals(result.value.models.primary, "claude-sonnet-4-5");
+    assertEquals(result.value.models.primary.provider, "anthropic");
+    assertEquals(result.value.models.primary.model, "claude-sonnet-4-5");
   }
   await Deno.remove(tmpDir, { recursive: true });
 });

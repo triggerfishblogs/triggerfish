@@ -60,7 +60,7 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
   const maxTokens = config.maxTokens ?? 4096;
 
   return {
-    name: "local",
+    name: "ollama",
     supportsStreaming: true,
     contextWindow: getModelInfo(model).contextWindow,
 

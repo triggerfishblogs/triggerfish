@@ -183,6 +183,10 @@ When using Claude Code on this project, configure these MCP servers:
 - ESLint — linting integration
 - Deno executor — run Deno commands
 
+## Git Rules
+
+- When asked to stash files, stash ALL FILES THAT HAVE CHANGED. Not just ones you think you changed. Always use `git stash push -u` to catch everything including untracked files.
+
 ## What NOT to Do
 
 - Never use `any` types

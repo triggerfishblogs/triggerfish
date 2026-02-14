@@ -29,8 +29,10 @@ The `models` section configures your LLM providers and failover behavior.
 
 ```yaml
 models:
-  # Which provider to use by default
-  primary: anthropic
+  # Which provider and model to use by default
+  primary:
+    provider: anthropic
+    model: claude-sonnet-4-5-20250929
 
   providers:
     anthropic:
@@ -309,7 +311,9 @@ Here is a complete example configuration with comments:
 
 # --- LLM Providers ---
 models:
-  primary: anthropic
+  primary:
+    provider: anthropic
+    model: claude-sonnet-4-5-20250929
   providers:
     anthropic:
       model: claude-sonnet-4-5-20250929

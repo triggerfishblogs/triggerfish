@@ -117,7 +117,9 @@ Deno.test("Config: loads valid triggerfish.yaml", async () => {
   const tmpDir = await Deno.makeTempDir();
   await Deno.writeTextFile(`${tmpDir}/triggerfish.yaml`, `
 models:
-  primary: anthropic
+  primary:
+    provider: anthropic
+    model: claude-sonnet-4-20250514
   providers:
     anthropic:
       model: claude-sonnet-4-20250514
@@ -128,7 +130,8 @@ classification:
   const result = loadConfig(`${tmpDir}/triggerfish.yaml`);
   assertEquals(result.ok, true);
   if (result.ok) {
-    assertEquals(result.value.models.primary, "anthropic");
+    assertEquals(result.value.models.primary.provider, "anthropic");
+    assertEquals(result.value.models.primary.model, "claude-sonnet-4-20250514");
   }
   await Deno.remove(tmpDir, { recursive: true });
 });

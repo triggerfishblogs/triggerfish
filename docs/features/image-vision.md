@@ -51,15 +51,17 @@ Add a `vision` field to your models config:
 
 ```yaml
 models:
-  primary: glm-5            # Non-vision primary model
-  vision: glm-4.5v          # Vision model for image description
+  primary:
+    provider: zai
+    model: glm-5             # Non-vision primary model
+  vision: glm-4.5v           # Vision model for image description
   providers:
     zai:
       model: glm-5
       apiKey: your-api-key
 ```
 
-The `vision` field is a model name (not a provider name), just like `primary`. Triggerfish resolves the model name to the correct provider using the same logic as the primary model. In this example, `glm-4.5v` resolves to the `zai` provider and reuses the same API key.
+The `vision` model reuses credentials from the primary provider's config block. In this example, the primary provider is `zai`, so `glm-4.5v` uses the same API key from the `zai` provider block.
 
 | Key | Type | Description |
 |-----|------|-------------|
