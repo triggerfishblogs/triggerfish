@@ -145,8 +145,9 @@ WantedBy=default.target
 /**
  * Generate a Windows Task Scheduler XML definition for the Triggerfish daemon.
  *
- * Uses `schtasks.exe`-compatible XML (not PowerShell cmdlets) for maximum
- * compatibility across all Windows editions including Server Core.
+ * @deprecated Use {@link generateWindowsTaskCommand} instead. The XML approach
+ * fails due to MSXML encoding issues (`schtasks.exe` requires UTF-16LE with BOM,
+ * which Deno cannot reliably produce). Kept for documentation only.
  *
  * @param options - Daemon configuration including binary path.
  * @returns Task Scheduler XML string.
@@ -187,6 +188,45 @@ export function generateSchtasksXml(options: DaemonOptions): string {
   </Actions>
 </Task>
 `;
+}
+
+/**
+ * Escape a string for use inside a PowerShell single-quoted string.
+ *
+ * PowerShell single-quoted strings only interpret `''` as a literal `'`.
+ *
+ * @param s - Raw string to escape.
+ * @returns Escaped string safe for embedding in `'...'`.
+ */
+function psEscape(s: string): string {
+  return s.replaceAll("'", "''");
+}
+
+/**
+ * Generate a PowerShell command that registers a Windows Scheduled Task
+ * for the Triggerfish daemon.
+ *
+ * Uses `Register-ScheduledTask` (available on Windows 8.1+ / PowerShell 5.1+)
+ * to avoid the XML encoding issues with `schtasks /create /xml`.
+ *
+ * The `-Force` flag atomically overwrites any existing task with the same name,
+ * so no separate delete step is needed.
+ *
+ * @param options - Daemon configuration including binary path.
+ * @returns PowerShell command string suitable for `powershell -Command`.
+ */
+export function generateWindowsTaskCommand(options: DaemonOptions): string {
+  const logFile = logFilePath();
+  const escapedBinary = psEscape(options.binaryPath);
+  const escapedLog = psEscape(logFile);
+
+  return [
+    `$action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument '/c "''${escapedBinary}''" run >> "''${escapedLog}''" 2>&1'`,
+    `$trigger = New-ScheduledTaskTrigger -AtLogon`,
+    `$principal = New-ScheduledTaskPrincipal -LogonType Interactive -RunLevel Limited`,
+    `$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)`,
+    `Register-ScheduledTask -TaskName '${SCHTASKS_TASK_NAME}' -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Triggerfish AI Agent' -Force`,
+  ].join("; ");
 }
 
 /**
@@ -293,22 +333,12 @@ export async function installAndStartDaemon(
   }
 
   if (manager === "windows-service") {
-    const xml = generateSchtasksXml({ binaryPath });
-    const xmlPath = `${resolveBaseDir()}/triggerfish-task.xml`;
+    const psCommand = generateWindowsTaskCommand({ binaryPath });
 
-    // UTF-8 BOM ensures MSXML (used by schtasks) detects encoding correctly
-    await Deno.writeTextFile(xmlPath, "\uFEFF" + xml);
-
-    // Delete existing task (ignore errors if it doesn't exist)
-    await runCommand("schtasks", ["/delete", "/tn", SCHTASKS_TASK_NAME, "/f"]);
-
-    // Create the scheduled task from XML
-    const createResult = await runCommand("schtasks", [
-      "/create", "/tn", SCHTASKS_TASK_NAME, "/xml", xmlPath,
+    // Register-ScheduledTask with -Force atomically creates or overwrites
+    const createResult = await runCommand("powershell", [
+      "-NoProfile", "-NonInteractive", "-Command", psCommand,
     ]);
-
-    // Clean up temp XML file
-    try { await Deno.remove(xmlPath); } catch { /* */ }
 
     if (!createResult.success) {
       return { ok: false, message: `Failed to create scheduled task: ${createResult.stderr}` };

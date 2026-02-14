@@ -23,6 +23,7 @@ export {
   generateLaunchdPlist,
   generateSchtasksXml,
   generateSystemdUnit,
+  generateWindowsTaskCommand,
 } from "./daemon.ts";
 
 export type { DaemonManagerType, DaemonOptions } from "./daemon.ts";
