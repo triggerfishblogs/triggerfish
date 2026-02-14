@@ -217,11 +217,16 @@ function psEscape(s: string): string {
  */
 export function generateWindowsTaskCommand(options: DaemonOptions): string {
   const logFile = logFilePath();
+  const logDirectory = logDir();
   const escapedBinary = psEscape(options.binaryPath);
   const escapedLog = psEscape(logFile);
+  const escapedLogDir = psEscape(logDirectory);
 
+  // Double quotes pass through PowerShell single-quoted strings literally,
+  // and are what cmd.exe expects for path quoting. The mkdir ensures the log
+  // directory exists when the task fires (at logon, the dir may not exist yet).
   return [
-    `$action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument '/c "''${escapedBinary}''" run >> "''${escapedLog}''" 2>&1'`,
+    `$action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument '/c mkdir "${escapedLogDir}" 2>nul & "${escapedBinary}" run >> "${escapedLog}" 2>&1'`,
     `$trigger = New-ScheduledTaskTrigger -AtLogon`,
     `$principal = New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited`,
     `$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)`,
@@ -335,13 +340,28 @@ export async function installAndStartDaemon(
   if (manager === "windows-service") {
     const psCommand = generateWindowsTaskCommand({ binaryPath });
 
-    // Register-ScheduledTask with -Force atomically creates or overwrites
-    const createResult = await runCommand("powershell", [
-      "-NoProfile", "-NonInteractive", "-Command", psCommand,
+    // Write registration script to a temp file for UAC elevation
+    const scriptPath = `${Deno.env.get("TEMP") ?? logDir()}\\triggerfish-install.ps1`;
+    await Deno.writeTextFile(scriptPath, psCommand);
+
+    // Register-ScheduledTask requires admin — elevate via UAC prompt
+    console.log("  Requesting administrator privileges...");
+    const escapedScript = psEscape(scriptPath);
+    await runCommand("powershell", [
+      "-NoProfile", "-Command",
+      `Start-Process powershell -Verb RunAs -Wait -ArgumentList @('-ExecutionPolicy','Bypass','-NoProfile','-NonInteractive','-File','${escapedScript}')`,
     ]);
 
-    if (!createResult.success) {
-      return { ok: false, message: `Failed to create scheduled task: ${createResult.stderr}` };
+    // Clean up temp script
+    try { await Deno.remove(scriptPath); } catch { /* already cleaned */ }
+
+    // Verify the task was actually created (user may have declined UAC)
+    const verifyResult = await runCommand("schtasks", [
+      "/query", "/tn", SCHTASKS_TASK_NAME,
+    ]);
+
+    if (!verifyResult.success) {
+      return { ok: false, message: "Failed to create scheduled task. Administrator privileges are required." };
     }
 
     // Start the task immediately
