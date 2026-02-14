@@ -281,3 +281,48 @@ Deno.test("Verify: local provider sends no auth headers", async () => {
   assertEquals(captured.headers["Authorization"], undefined);
   assertEquals(captured.headers["x-api-key"], undefined);
 });
+
+// ─── LM Studio ──────────────────────────────────────────────────────────────
+
+Deno.test("Verify: LM Studio exact model match works", async () => {
+  const result = await verifyProvider(
+    "lmstudio", "", "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF", "http://localhost:1234",
+    modelFetcher(["lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF", "TheBloke/Mistral-7B-v0.1-GGUF"]),
+  );
+  assertEquals(result.ok, true);
+});
+
+Deno.test("Verify: LM Studio model not found returns error", async () => {
+  const result = await verifyProvider(
+    "lmstudio", "", "nonexistent/model", "http://localhost:1234",
+    modelFetcher(["lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF"]),
+  );
+  assertEquals(result.ok, false);
+  assertStringIncludes(result.error!, "nonexistent/model");
+  assertStringIncludes(result.error!, "was not found");
+});
+
+Deno.test("Verify: LM Studio uses custom endpoint URL", async () => {
+  const { fetcher, captured } = capturingFetcher("lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF");
+  await verifyProvider("lmstudio", "", "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF", "http://192.168.1.50:1234", fetcher);
+  assertEquals(captured.url, "http://192.168.1.50:1234/v1/models");
+});
+
+Deno.test("Verify: LM Studio network error shows endpoint in message", async () => {
+  const result = await verifyProvider(
+    "lmstudio", "", "some-model", "http://192.168.1.50:1234",
+    networkErrorFetcher(),
+  );
+  assertEquals(result.ok, false);
+  assertEquals(
+    result.error,
+    "Could not reach http://192.168.1.50:1234. Check the address and your internet connection.",
+  );
+});
+
+Deno.test("Verify: LM Studio sends no auth headers", async () => {
+  const { fetcher, captured } = capturingFetcher("lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF");
+  await verifyProvider("lmstudio", "", "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF", "http://localhost:1234", fetcher);
+  assertEquals(captured.headers["Authorization"], undefined);
+  assertEquals(captured.headers["x-api-key"], undefined);
+});

@@ -341,7 +341,13 @@ export const TIDEPOOL_HTML = `<!DOCTYPE html>
 
   function renderMarkdown(text) {
     if (!text) return "";
-    var html = escapeHtml(text);
+    // Hide <think>/<thinking> blocks from display
+    var cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
+    cleaned = cleaned.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "");
+    cleaned = cleaned.replace(/<think(?:ing)?>[\s\S]*$/gi, "");
+    cleaned = cleaned.replace(/^[\s\S]*?<\/think(?:ing)?>/gi, "");
+    cleaned = cleaned.trim();
+    var html = escapeHtml(cleaned);
     // Code blocks
     html = html.replace(/\`\`\`(\\w*)?\\n([\\s\\S]*?)\`\`\`/g, "<pre><code>$2</code></pre>");
     // Inline code

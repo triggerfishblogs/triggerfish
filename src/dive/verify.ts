@@ -45,6 +45,10 @@ const PROVIDER_ENDPOINTS: Readonly<Record<ProviderChoice, ProviderEndpoint>> = {
     url: (_apiKey, endpoint) => `${endpoint}/v1/models`,
     headers: () => ({}),
   },
+  lmstudio: {
+    url: (_apiKey, endpoint) => `${endpoint}/v1/models`,
+    headers: () => ({}),
+  },
   openrouter: {
     url: () => "https://openrouter.ai/api/v1/models",
     headers: (apiKey) => ({ "Authorization": `Bearer ${apiKey}` }),
@@ -172,7 +176,7 @@ export async function verifyProvider(
 
     return { ok: true };
   } catch (err: unknown) {
-    const displayUrl = provider === "ollama" ? (endpoint ?? url) : url;
+    const displayUrl = provider === "ollama" || provider === "lmstudio" ? (endpoint ?? url) : url;
 
     if (err instanceof DOMException && err.name === "TimeoutError") {
       return {

@@ -320,11 +320,25 @@ export function formatToolResultExpanded(
   return `  ${YELLOW}└─${RESET} ${GREEN}✓${RESET} ${DIM}${preview}${RESET}\n`;
 }
 
+/** Hide `<think>`/`<thinking>` blocks from display text. */
+function hideThinkingBlocks(text: string): string {
+  let result = text;
+  // Matched pairs
+  result = result.replace(/<think>[\s\S]*?<\/think>/gi, "");
+  result = result.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "");
+  // Opening tag with no close (truncated mid-thought)
+  result = result.replace(/<think(?:ing)?>[\s\S]*$/gi, "");
+  // Bare closing tag with no opener — strip everything up to and including it
+  result = result.replace(/^[\s\S]*?<\/think(?:ing)?>/gi, "");
+  return result.trim();
+}
+
 /** Render the assistant's final response. */
 export function renderResponse(text: string): void {
+  const display = hideThinkingBlocks(text);
   writeln(`  ${GREEN}${BOLD}triggerfish${RESET}`);
   writeln();
-  for (const line of text.split("\n")) {
+  for (const line of display.split("\n")) {
     writeln(`  ${line}`);
   }
   writeln();
@@ -332,10 +346,11 @@ export function renderResponse(text: string): void {
 
 /** Format the assistant's response as a string. */
 export function formatResponse(text: string): string {
+  const display = hideThinkingBlocks(text);
   const lines: string[] = [];
   lines.push(`  ${GREEN}${BOLD}triggerfish${RESET}`);
   lines.push("");
-  for (const line of text.split("\n")) {
+  for (const line of display.split("\n")) {
     lines.push(`  ${line}`);
   }
   lines.push("");

@@ -37,7 +37,9 @@ function toOpenAiContent(content: string | unknown): string | unknown[] {
 
 /** Configuration for the local LLM provider. */
 export interface LocalConfig {
-  /** Endpoint URL. Default: http://localhost:11434 (Ollama) */
+  /** Provider name. Default: "ollama". Use "lmstudio" for LM Studio. */
+  readonly name?: string;
+  /** Endpoint URL. Default: http://localhost:11434 (Ollama). LM Studio uses http://localhost:1234. */
   readonly endpoint?: string;
   /** Model name. e.g. "llama3", "mistral", "codellama" */
   readonly model: string;
@@ -60,7 +62,7 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
   const maxTokens = config.maxTokens ?? 4096;
 
   return {
-    name: "ollama",
+    name: config.name ?? "ollama",
     supportsStreaming: true,
     contextWindow: getModelInfo(model).contextWindow,
 

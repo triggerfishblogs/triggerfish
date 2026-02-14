@@ -44,6 +44,12 @@ Deno.test("LocalProvider: factory creates provider with correct name", () => {
   assertEquals(provider.supportsStreaming, true);
 });
 
+Deno.test("LocalProvider: name override creates provider with lmstudio name", () => {
+  const provider = createLocalProvider({ model: "test", name: "lmstudio" });
+  assertEquals(provider.name, "lmstudio");
+  assertEquals(provider.supportsStreaming, true);
+});
+
 Deno.test("OpenRouterProvider: factory creates provider with correct name", () => {
   const provider = createOpenRouterProvider({
     apiKey: "test-key",
@@ -192,6 +198,39 @@ Deno.test("loadProvidersFromConfig: sets zai as default with different model", (
   assertEquals(defaultProvider!.name, "zai");
 });
 
+Deno.test("loadProvidersFromConfig: registers lmstudio provider", () => {
+  const registry = createProviderRegistry();
+  loadProvidersFromConfig({
+    primary: { provider: "lmstudio", model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF" },
+    providers: {
+      lmstudio: { model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF" },
+    },
+  }, registry);
+
+  const provider = registry.get("lmstudio");
+  assertExists(provider);
+  assertEquals(provider!.name, "lmstudio");
+
+  const defaultProvider = registry.getDefault();
+  assertExists(defaultProvider);
+  assertEquals(defaultProvider!.name, "lmstudio");
+});
+
+Deno.test("loadProvidersFromConfig: registers lmstudio with multiple providers", () => {
+  const registry = createProviderRegistry();
+  loadProvidersFromConfig({
+    primary: { provider: "anthropic", model: "claude-sonnet-4-5" },
+    providers: {
+      anthropic: { model: "claude-sonnet-4-5" },
+      lmstudio: { model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF" },
+    },
+  }, registry);
+
+  assertExists(registry.get("anthropic"));
+  assertExists(registry.get("lmstudio"));
+  assertEquals(registry.getDefault()!.name, "anthropic");
+});
+
 Deno.test("loadProvidersFromConfig: registers zenmux provider", () => {
   const registry = createProviderRegistry();
   loadProvidersFromConfig({
@@ -328,12 +367,13 @@ Deno.test({
       createOpenAiProvider({ apiKey: "test" }),
       createGoogleProvider({ apiKey: "test" }),
       createLocalProvider({ model: "test" }),
+      createLocalProvider({ model: "test", name: "lmstudio" }),
       createOpenRouterProvider({ apiKey: "test", model: "test" }),
       createZenMuxProvider({ apiKey: "test", model: "test" }),
       createZaiProvider({ apiKey: "test", model: "test" }),
     ];
 
-    assertEquals(providers.length, 7);
+    assertEquals(providers.length, 8);
     for (const p of providers) {
       assertExists(p.name);
       assertExists(p.complete);
