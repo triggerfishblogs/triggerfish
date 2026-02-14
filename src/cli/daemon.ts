@@ -223,7 +223,7 @@ export function generateWindowsTaskCommand(options: DaemonOptions): string {
   return [
     `$action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument '/c "''${escapedBinary}''" run >> "''${escapedLog}''" 2>&1'`,
     `$trigger = New-ScheduledTaskTrigger -AtLogon`,
-    `$principal = New-ScheduledTaskPrincipal -LogonType Interactive -RunLevel Limited`,
+    `$principal = New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited`,
     `$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)`,
     `Register-ScheduledTask -TaskName '${SCHTASKS_TASK_NAME}' -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Triggerfish AI Agent' -Force`,
   ].join("; ");
