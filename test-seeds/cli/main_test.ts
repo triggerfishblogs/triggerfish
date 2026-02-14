@@ -144,6 +144,23 @@ Deno.test("Daemon: generates systemd unit content", async () => {
   assertStringIncludes(unit, "Restart=");
 });
 
+Deno.test("Daemon: generates schtasks XML content", async () => {
+  const { generateSchtasksXml } = await import("../../src/cli/daemon.ts");
+  const xml = generateSchtasksXml({
+    binaryPath: "C:\\Users\\test\\AppData\\Local\\Triggerfish\\triggerfish.exe",
+  });
+  assertStringIncludes(xml, "Triggerfish AI Agent");
+  assertStringIncludes(xml, "C:\\Users\\test\\AppData\\Local\\Triggerfish\\triggerfish.exe");
+  assertStringIncludes(xml, "<LogonTrigger>");
+  assertStringIncludes(xml, "RestartOnFailure");
+});
+
+Deno.test("Daemon: logDir does not contain undefined", async () => {
+  const { logDir } = await import("../../src/cli/daemon.ts");
+  const dir = logDir();
+  assert(!dir.includes("undefined"), `logDir() should not contain 'undefined', got: ${dir}`);
+});
+
 // --- Binary compilation (compile target exists) ---
 
 Deno.test("deno.json: has compile task for standalone binary", async () => {
