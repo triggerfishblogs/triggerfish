@@ -42,6 +42,7 @@ export function getHealthcheckToolDefinitions(): readonly ToolDefinition[] {
           description:
             "Components to check: providers, storage, skills, config, all. Default: all.",
           required: false,
+          items: { type: "string" },
         },
       },
     },

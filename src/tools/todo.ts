@@ -183,6 +183,17 @@ export function getTodoToolDefinitions(): readonly ToolDefinition[] {
           description:
             "The complete list of todo items. Each item: {id, content, status, priority, created_at, updated_at}",
           required: true,
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              content: { type: "string" },
+              status: { type: "string" },
+              priority: { type: "string" },
+              created_at: { type: "string" },
+              updated_at: { type: "string" },
+            },
+          },
         },
       },
     },

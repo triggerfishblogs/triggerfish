@@ -98,6 +98,7 @@ export function getPlanToolDefinitions(): readonly ToolDefinition[] {
           type: "array",
           description: "Any changes from the original plan",
           required: false,
+          items: { type: "string" },
         },
       },
     },
@@ -125,6 +126,7 @@ export function getPlanToolDefinitions(): readonly ToolDefinition[] {
           type: "array",
           description: "Updated file list (optional)",
           required: false,
+          items: { type: "string" },
         },
         new_verification: {
           type: "string",

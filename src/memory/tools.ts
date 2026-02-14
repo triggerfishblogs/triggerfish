@@ -50,6 +50,7 @@ export function getMemoryToolDefinitions(): readonly ToolDefinition[] {
         tags: {
           type: "array",
           description: "Optional tags for categorization (e.g. ['personal', 'preference'])",
+          items: { type: "string" },
         },
       },
     },

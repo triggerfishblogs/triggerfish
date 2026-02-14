@@ -107,6 +107,7 @@ export function getObsidianToolDefinitions(): readonly ToolDefinition[] {
         tags: {
           type: "array",
           description: "Filter by tags (notes must have all specified tags)",
+          items: { type: "string" },
         },
         max_results: {
           type: "number",
@@ -127,6 +128,7 @@ export function getObsidianToolDefinitions(): readonly ToolDefinition[] {
         tags: {
           type: "array",
           description: "Filter by tags",
+          items: { type: "string" },
         },
         sort_by: {
           type: "string",
