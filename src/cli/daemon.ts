@@ -6,8 +6,9 @@
  * @module
  */
 
-import { join } from "@std/path";
+import { join, dirname } from "@std/path";
 import { resolveBaseDir } from "./paths.ts";
+import { VERSION } from "./version.ts";
 
 /** Supported daemon manager types. */
 export type DaemonManagerType =
@@ -574,20 +575,127 @@ function resolveAssetName(): string {
 }
 
 /**
+ * Compute SHA256 hex digest of a file.
+ *
+ * @param path - Absolute path to the file.
+ * @returns Lowercase hex string of the SHA-256 hash.
+ */
+async function sha256File(path: string): Promise<string> {
+  const file = await Deno.open(path, { read: true });
+  try {
+    const buf = await new Response(file.readable).arrayBuffer();
+    const hash = await crypto.subtle.digest("SHA-256", buf);
+    return [...new Uint8Array(hash)]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  } catch (e) {
+    // readable stream consumed — file auto-closed
+    throw e;
+  }
+}
+
+/**
+ * Check whether we can write to a directory.
+ *
+ * @param dir - Directory path to check.
+ * @returns true if the current process can create files in the directory.
+ */
+async function canWriteToDir(dir: string): Promise<boolean> {
+  const probe = join(dir, `.triggerfish-write-test-${Date.now()}`);
+  try {
+    await Deno.writeTextFile(probe, "");
+    await Deno.remove(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Replace the binary file, handling cross-device moves and permission issues.
+ *
+ * On Unix: attempts atomic rename, falls back to copy+remove for cross-device.
+ * If the target directory isn't writable, attempts via sudo.
+ *
+ * On Windows: renames current binary to .old, then moves new binary into place.
+ *
+ * @param tmpPath - Path to the downloaded replacement binary.
+ * @param binaryPath - Path where the installed binary lives.
+ */
+async function replaceBinary(tmpPath: string, binaryPath: string): Promise<void> {
+  const targetDir = dirname(binaryPath);
+
+  if (Deno.build.os === "windows") {
+    // Windows: rename current → .old, then move new → current
+    const oldPath = `${binaryPath}.old`;
+    try { await Deno.remove(oldPath); } catch { /* no old file */ }
+    try {
+      await Deno.rename(binaryPath, oldPath);
+    } catch {
+      // Binary may not exist yet (fresh install path)
+    }
+    await Deno.rename(tmpPath, binaryPath);
+    return;
+  }
+
+  // Unix path
+  const writable = await canWriteToDir(targetDir);
+
+  if (writable) {
+    // Try atomic rename (works when same filesystem)
+    try {
+      await Deno.rename(tmpPath, binaryPath);
+    } catch {
+      // Cross-device: copy + remove + chmod
+      await Deno.copyFile(tmpPath, binaryPath);
+      await Deno.remove(tmpPath);
+    }
+    await Deno.chmod(binaryPath, 0o755);
+  } else {
+    // Need elevated permissions
+    console.log(`  Binary directory (${targetDir}) requires elevated permissions.`);
+    console.log("  You may be prompted for your password.\n");
+    const mv = new Deno.Command("sudo", {
+      args: ["mv", tmpPath, binaryPath],
+      stdin: "inherit",
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+    const mvResult = await mv.output();
+    if (!mvResult.success) {
+      throw new Error("Failed to move binary with sudo. Check permissions and try again.");
+    }
+    const chmod = new Deno.Command("sudo", {
+      args: ["chmod", "755", binaryPath],
+      stdin: "inherit",
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+    await chmod.output();
+  }
+}
+
+/**
  * Update Triggerfish to the latest tagged release.
  *
- * Downloads the platform binary from the latest GitHub release,
- * stops the running daemon, replaces the binary, and restarts.
+ * Downloads the platform binary from the latest GitHub release, verifies
+ * its SHA256 checksum, stops the running daemon, replaces the binary
+ * in-process (no detached child), and restarts the daemon if it was running.
  *
- * @returns Result indicating success or failure.
+ * @returns Result indicating success or failure with version information.
  */
 export async function updateTriggerfish(): Promise<UpdateResult> {
-  // Fetch latest release tag
+  const currentVersion = VERSION;
+
+  // 1. Fetch latest release metadata
   console.log("Checking for updates...");
   let latestTag: string;
   let downloadUrl: string;
+  let checksumsUrl: string | undefined;
   try {
-    const resp = await fetch(`${GITHUB_API}/releases/latest`);
+    const resp = await fetch(`${GITHUB_API}/releases/latest`, {
+      headers: { "User-Agent": "triggerfish-updater" },
+    });
     if (!resp.ok) {
       return { ok: false, message: `Failed to check for updates: HTTP ${resp.status}` };
     }
@@ -606,15 +714,31 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
       };
     }
     downloadUrl = asset.browser_download_url;
+
+    const checksumsAsset = release.assets.find((a) => a.name === "SHA256SUMS.txt");
+    if (checksumsAsset) {
+      checksumsUrl = checksumsAsset.browser_download_url;
+    }
   } catch (e) {
     return { ok: false, message: `Failed to check for updates: ${e}` };
   }
 
-  console.log(`  Updating to ${latestTag}`);
+  // 2. Compare versions — skip if already on latest (unless dev build)
+  if (currentVersion !== "dev" && currentVersion === latestTag) {
+    return {
+      ok: true,
+      message: `Already up to date (${currentVersion})`,
+      previousVersion: currentVersion,
+      newVersion: latestTag,
+    };
+  }
 
-  // Download new binary to temp file
+  console.log(`  Current: ${currentVersion}`);
+  console.log(`  Latest:  ${latestTag}`);
+
+  // 3. Download new binary to temp file
   const tmpPath = join(resolveBaseDir(), ".update-tmp");
-  console.log("Downloading...");
+  console.log("  Downloading...");
   try {
     const resp = await fetch(downloadUrl);
     if (!resp.ok || !resp.body) {
@@ -630,69 +754,82 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
     return { ok: false, message: `Download failed: ${e}` };
   }
 
-  // Find where the current binary is installed
-  const binaryPath = await findInstalledBinary();
+  // 4. Verify SHA256 checksum
+  if (checksumsUrl) {
+    console.log("  Verifying checksum...");
+    try {
+      const resp = await fetch(checksumsUrl);
+      if (resp.ok) {
+        const checksumsText = await resp.text();
+        const assetName = resolveAssetName();
+        const actualHash = await sha256File(tmpPath);
 
-  // Check daemon state before we exit
-  const status = await getDaemonStatus();
-  const wasRunning = status.running;
+        // SHA256SUMS.txt format: "<hash>  <filename>" (two spaces)
+        const expectedLine = checksumsText
+          .split("\n")
+          .find((line) => line.includes(assetName));
 
-  // Spawn a detached child process to:
-  //   1. Wait for this process to exit
-  //   2. Stop the daemon
-  //   3. Replace the binary
-  //   4. Restart the daemon if it was running
-  if (Deno.build.os === "windows") {
-    const ps = [
-      `Start-Sleep 1`,
-      `Stop-Service -Name '${WINDOWS_SERVICE_NAME}' -Force -ErrorAction SilentlyContinue`,
-      `Stop-Process -Name triggerfish -Force -ErrorAction SilentlyContinue`,
-      `Start-Sleep 1`,
-      `Copy-Item '${tmpPath}' '${binaryPath}' -Force`,
-      `Remove-Item '${tmpPath}' -Force`,
-      ...(wasRunning
-        ? [`& '${binaryPath}' start`]
-        : []),
-      `Write-Host 'Update complete.'`,
-    ].join("; ");
-    const cmd = new Deno.Command("powershell", {
-      args: ["-NoProfile", "-Command", ps],
-      stdin: "null",
-      stdout: "null",
-      stderr: "null",
-    });
-    cmd.spawn().unref();
+        if (expectedLine) {
+          const expectedHash = expectedLine.split(/\s+/)[0].toLowerCase();
+          if (actualHash !== expectedHash) {
+            try { await Deno.remove(tmpPath); } catch { /* */ }
+            return {
+              ok: false,
+              message: `Checksum verification failed.\n  Expected: ${expectedHash}\n  Got:      ${actualHash}`,
+            };
+          }
+          console.log("  Checksum verified.");
+        } else {
+          console.log("  Warning: asset not found in SHA256SUMS.txt, skipping verification.");
+        }
+      } else {
+        console.log("  Warning: could not download checksums, skipping verification.");
+      }
+    } catch {
+      console.log("  Warning: checksum verification failed, skipping.");
+    }
   } else {
-    const stopCmd = wasRunning
-      ? detectDaemonManager() === "systemd"
-        ? `systemctl --user stop ${SYSTEMD_UNIT};`
-        : `launchctl unload '${launchdPlistPath()}';`
-      : "";
-    const startCmd = wasRunning
-      ? detectDaemonManager() === "systemd"
-        ? `systemctl --user daemon-reload; systemctl --user start ${SYSTEMD_UNIT};`
-        : `launchctl load '${launchdPlistPath()}';`
-      : "";
-    const sh = [
-      `sleep 1`,
-      stopCmd,
-      `rm -f '${binaryPath}'`,
-      `mv '${tmpPath}' '${binaryPath}'`,
-      `chmod 755 '${binaryPath}'`,
-      startCmd,
-    ].filter(Boolean).join(" && ");
-    const cmd = new Deno.Command("sh", {
-      args: ["-c", sh],
-      stdin: "null",
-      stdout: "null",
-      stderr: "null",
-    });
-    cmd.spawn().unref();
+    console.log("  Warning: no SHA256SUMS.txt in release, skipping checksum verification.");
   }
 
-  console.log(`\n✓ Update to ${latestTag} in progress.`);
-  console.log("  Binary will be replaced momentarily after this process exits.");
-  Deno.exit(0);
+  // 5. Find where the current binary is installed
+  const binaryPath = await findInstalledBinary();
+
+  // 6. Stop daemon if running
+  const status = await getDaemonStatus();
+  const wasRunning = status.running;
+  if (wasRunning) {
+    console.log("  Stopping daemon...");
+    await stopDaemon();
+  }
+
+  // 7. Replace binary
+  console.log("  Replacing binary...");
+  try {
+    await replaceBinary(tmpPath, binaryPath);
+  } catch (e) {
+    // Attempt to restart daemon even if replacement failed
+    if (wasRunning) {
+      console.log("  Restarting daemon with old binary...");
+      await installAndStartDaemon(binaryPath);
+    }
+    try { await Deno.remove(tmpPath); } catch { /* */ }
+    return { ok: false, message: `Failed to replace binary: ${e}` };
+  }
+
+  // 8. Restart daemon if it was running
+  if (wasRunning) {
+    console.log("  Restarting daemon...");
+    await installAndStartDaemon(binaryPath);
+  }
+
+  // 9. Return result
+  return {
+    ok: true,
+    message: `Updated from ${currentVersion} to ${latestTag}`,
+    previousVersion: currentVersion,
+    newVersion: latestTag,
+  };
 }
 
 /**
@@ -801,4 +938,22 @@ export async function uninstallDaemon(): Promise<DaemonResult> {
   }
 
   return { ok: false, message: `Unsupported daemon manager: ${manager}` };
+}
+
+/**
+ * Clean up leftover `.old` binary from a previous Windows update.
+ *
+ * On Windows, the update process renames the running binary to `{path}.old`
+ * before placing the new one. This function removes the `.old` file if present.
+ * Safe to call on any platform — no-ops on Unix.
+ */
+export async function cleanupOldBinary(): Promise<void> {
+  if (Deno.build.os !== "windows") return;
+  try {
+    const execPath = Deno.execPath();
+    const oldPath = `${execPath}.old`;
+    await Deno.remove(oldPath);
+  } catch {
+    // No .old file or can't remove — that's fine
+  }
 }
