@@ -517,7 +517,7 @@ EXAMPLES:
   triggerfish patrol                                # Health check
   triggerfish update                                # Update to latest version
 
-For more information, visit: https://triggerfish.sh/docs
+For more information, visit: https://trigger.fish/docs
 `);
 }
 

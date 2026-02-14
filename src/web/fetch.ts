@@ -51,7 +51,7 @@ export interface WebFetcher {
 const DEFAULT_MAX_CONTENT_LENGTH = 512 * 1024; // 512 KB
 const DEFAULT_TIMEOUT = 30_000; // 30 seconds
 const DEFAULT_USER_AGENT =
-  "Triggerfish/1.0 (Web Fetch; +https://triggerfish.sh)";
+  "Triggerfish/1.0 (Web Fetch; +https://trigger.fish)";
 const MIN_READABILITY_LENGTH = 100;
 
 // ─── Implementation ─────────────────────────────────────────────────────────
