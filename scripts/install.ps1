@@ -99,9 +99,38 @@ Write-Host "[ok] Checksum verified" -ForegroundColor Green
 
 # --- Step 5: Install binary ---
 
-$InstallDir = Join-Path $env:LOCALAPPDATA "Triggerfish"
-if (-not (Test-Path $InstallDir)) {
-    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+$DefaultDir = Join-Path $env:LOCALAPPDATA "Triggerfish"
+
+# Allow TRIGGERFISH_INSTALL_DIR env var to pre-set the directory (for silent installs)
+if ($env:TRIGGERFISH_INSTALL_DIR) {
+    $InstallDir = $env:TRIGGERFISH_INSTALL_DIR
+} else {
+    Write-Host ""
+    Write-Host "Where should Triggerfish be installed?"
+    Write-Host "  Default: $DefaultDir"
+    Write-Host ""
+    $UserInput = Read-Host "  Install directory (press Enter for default)"
+
+    if ([string]::IsNullOrWhiteSpace($UserInput)) {
+        $InstallDir = $DefaultDir
+    } else {
+        $InstallDir = $UserInput.Trim()
+    }
+}
+
+# Create directory if needed, then verify we can write to it
+try {
+    if (-not (Test-Path $InstallDir)) {
+        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+    }
+    $TestFile = Join-Path $InstallDir ".triggerfish-write-test"
+    [IO.File]::WriteAllText($TestFile, "test")
+    Remove-Item -Path $TestFile -Force
+} catch {
+    Write-Host "[error] Cannot write to $InstallDir" -ForegroundColor Red
+    Write-Host "  Choose a different directory or run as Administrator."
+    Remove-Item -Recurse -Force $TempDir
+    exit 1
 }
 
 $InstallPath = Join-Path $InstallDir "${InstallName}.exe"
