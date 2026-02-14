@@ -205,7 +205,7 @@ export interface ParsedCommand {
 /** Triggerfish YAML configuration shape. */
 export interface TriggerFishConfig {
   readonly models: {
-    readonly primary: string;
+    readonly primary: { readonly provider: string; readonly model: string };
     readonly vision?: string;
     readonly providers: Readonly<Record<string, { readonly model: string; readonly apiKey?: string }>>;
   };
@@ -422,8 +422,15 @@ export function validateConfig(
   }
 
   const models = obj.models as Record<string, unknown>;
-  if (typeof models.primary !== "string" || models.primary.length === 0) {
-    return { ok: false, error: "Missing required field: models.primary" };
+  if (typeof models.primary !== "object" || models.primary === null) {
+    return { ok: false, error: "models.primary must be an object with provider and model" };
+  }
+  const primary = models.primary as Record<string, unknown>;
+  if (typeof primary.provider !== "string" || primary.provider.length === 0) {
+    return { ok: false, error: "Missing required field: models.primary.provider" };
+  }
+  if (typeof primary.model !== "string" || primary.model.length === 0) {
+    return { ok: false, error: "Missing required field: models.primary.model" };
   }
 
   return { ok: true, value: undefined };
@@ -2208,7 +2215,8 @@ CONFIG USAGE:
 KEYS use dotted paths into triggerfish.yaml:
   web.search.provider              Search provider (brave)
   web.search.api_key               Search API key
-  models.primary                   Primary model name
+  models.primary.provider          Primary provider name
+  models.primary.model             Primary model name
   models.providers.<name>.apiKey   Provider API key
   scheduler.trigger.enabled        Enable trigger wakeups
   plugins.obsidian.vault_path      Obsidian vault path
@@ -2221,11 +2229,11 @@ PLUGIN TYPES:
   obsidian
 
 EXAMPLES:
-  triggerfish config set models.primary claude-sonnet
+  triggerfish config set models.primary.model claude-sonnet
   triggerfish config set web.search.provider brave
   triggerfish config set web.search.api_key sk-abc123
   triggerfish config set scheduler.trigger.enabled true
-  triggerfish config get models.primary
+  triggerfish config get models.primary.model
   triggerfish config add-channel telegram
   triggerfish config add-plugin obsidian
   triggerfish config set-secret github-pat ghp_...
@@ -2920,7 +2928,7 @@ async function runChat(): Promise<void> {
 
   // If not a TTY, fall back to the simple line-buffered REPL
   if (!isTty) {
-    printBanner(providerName, config.models.primary, "");
+    printBanner(providerName, config.models.primary.model, "");
     await runSimpleWsRepl(ws, providerName, config);
     return;
   }
@@ -2929,7 +2937,7 @@ async function runChat(): Promise<void> {
 
   // Print banner via screen manager
   screen.init();
-  screen.writeOutput(formatBanner(providerName, config.models.primary, ""));
+  screen.writeOutput(formatBanner(providerName, config.models.primary.model, ""));
 
   // Create keypress reader and line editor
   const keypressReader = createKeypressReader();
@@ -3039,7 +3047,7 @@ async function runChat(): Promise<void> {
             ws.send(JSON.stringify({ type: "clear" }));
             screen.cleanup();
             screen.init();
-            screen.writeOutput(formatBanner(providerName, config.models.primary, ""));
+            screen.writeOutput(formatBanner(providerName, config.models.primary.model, ""));
             screen.redrawInput(editor);
             break;
           }
@@ -3293,7 +3301,7 @@ async function runSimpleWsRepl(
       if (line === "/clear") {
         ws.send(JSON.stringify({ type: "clear" }));
         console.log("\x1b[2J\x1b[H");
-        printBanner(providerName, config.models.primary, "");
+        printBanner(providerName, config.models.primary.model, "");
         renderPrompt();
         continue;
       }

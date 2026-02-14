@@ -40,7 +40,7 @@ Deno.test("GoogleProvider: factory creates provider with correct name", () => {
 
 Deno.test("LocalProvider: factory creates provider with correct name", () => {
   const provider = createLocalProvider({ model: "llama3" });
-  assertEquals(provider.name, "local");
+  assertEquals(provider.name, "ollama");
   assertEquals(provider.supportsStreaming, true);
 });
 
@@ -76,7 +76,7 @@ Deno.test("ZaiProvider: factory creates provider with correct name", () => {
 Deno.test("loadProvidersFromConfig: registers anthropic provider", () => {
   const registry = createProviderRegistry();
   loadProvidersFromConfig({
-    primary: "claude-sonnet-4-5",
+    primary: { provider: "anthropic", model: "claude-sonnet-4-5" },
     providers: {
       anthropic: { model: "claude-sonnet-4-5" },
     },
@@ -87,10 +87,10 @@ Deno.test("loadProvidersFromConfig: registers anthropic provider", () => {
   assertEquals(provider!.name, "anthropic");
 });
 
-Deno.test("loadProvidersFromConfig: sets default from primary model name", () => {
+Deno.test("loadProvidersFromConfig: sets default from primary provider", () => {
   const registry = createProviderRegistry();
   loadProvidersFromConfig({
-    primary: "claude-sonnet-4-5",
+    primary: { provider: "anthropic", model: "claude-sonnet-4-5" },
     providers: {
       anthropic: { model: "claude-sonnet-4-5" },
     },
@@ -101,10 +101,10 @@ Deno.test("loadProvidersFromConfig: sets default from primary model name", () =>
   assertEquals(defaultProvider!.name, "anthropic");
 });
 
-Deno.test("loadProvidersFromConfig: resolves openai from gpt model name", () => {
+Deno.test("loadProvidersFromConfig: resolves openai as default", () => {
   const registry = createProviderRegistry();
   loadProvidersFromConfig({
-    primary: "gpt-4o",
+    primary: { provider: "openai", model: "gpt-4o" },
     providers: {
       openai: { model: "gpt-4o" },
     },
@@ -115,10 +115,10 @@ Deno.test("loadProvidersFromConfig: resolves openai from gpt model name", () => 
   assertEquals(defaultProvider!.name, "openai");
 });
 
-Deno.test("loadProvidersFromConfig: resolves google from gemini model name", () => {
+Deno.test("loadProvidersFromConfig: resolves google as default", () => {
   const registry = createProviderRegistry();
   loadProvidersFromConfig({
-    primary: "gemini-2.0-flash",
+    primary: { provider: "google", model: "gemini-2.0-flash" },
     providers: {
       google: { model: "gemini-2.0-flash" },
     },
@@ -132,24 +132,24 @@ Deno.test("loadProvidersFromConfig: resolves google from gemini model name", () 
 Deno.test("loadProvidersFromConfig: registers multiple providers", () => {
   const registry = createProviderRegistry();
   loadProvidersFromConfig({
-    primary: "claude-sonnet-4-5",
+    primary: { provider: "anthropic", model: "claude-sonnet-4-5" },
     providers: {
       anthropic: { model: "claude-sonnet-4-5" },
       openai: { model: "gpt-4o" },
-      local: { model: "llama3", endpoint: "http://localhost:11434" },
+      ollama: { model: "llama3", endpoint: "http://localhost:11434" },
     },
   }, registry);
 
   assertExists(registry.get("anthropic"));
   assertExists(registry.get("openai"));
-  assertExists(registry.get("local"));
+  assertExists(registry.get("ollama"));
   assertEquals(registry.getDefault()!.name, "anthropic");
 });
 
-Deno.test("loadProvidersFromConfig: resolves openrouter from model with slash", () => {
+Deno.test("loadProvidersFromConfig: resolves openrouter as default", () => {
   const registry = createProviderRegistry();
   loadProvidersFromConfig({
-    primary: "anthropic/claude-3.5-sonnet",
+    primary: { provider: "openrouter", model: "anthropic/claude-3.5-sonnet" },
     providers: {
       openrouter: { model: "anthropic/claude-3.5-sonnet", apiKey: "sk-or-test-key" },
     },
@@ -163,7 +163,7 @@ Deno.test("loadProvidersFromConfig: resolves openrouter from model with slash", 
 Deno.test("loadProvidersFromConfig: registers zai provider and sets default", () => {
   const registry = createProviderRegistry();
   loadProvidersFromConfig({
-    primary: "glm-4.7",
+    primary: { provider: "zai", model: "glm-4.7" },
     providers: {
       zai: { model: "glm-4.7", apiKey: "zai-test-key" },
     },
@@ -178,10 +178,10 @@ Deno.test("loadProvidersFromConfig: registers zai provider and sets default", ()
   assertEquals(defaultProvider!.name, "zai");
 });
 
-Deno.test("loadProvidersFromConfig: resolves glm model name to zai", () => {
+Deno.test("loadProvidersFromConfig: sets zai as default with different model", () => {
   const registry = createProviderRegistry();
   loadProvidersFromConfig({
-    primary: "glm-4.5",
+    primary: { provider: "zai", model: "glm-4.5" },
     providers: {
       zai: { model: "glm-4.5", apiKey: "zai-test-key" },
     },
@@ -195,7 +195,7 @@ Deno.test("loadProvidersFromConfig: resolves glm model name to zai", () => {
 Deno.test("loadProvidersFromConfig: registers zenmux provider", () => {
   const registry = createProviderRegistry();
   loadProvidersFromConfig({
-    primary: "zenmux",
+    primary: { provider: "zenmux", model: "openai/gpt-5" },
     providers: {
       zenmux: { model: "openai/gpt-5", apiKey: "zm-test-key" },
     },

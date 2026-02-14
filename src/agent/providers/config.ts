@@ -21,15 +21,21 @@ export interface ProvidersConfig {
   readonly anthropic?: { readonly model?: string; readonly apiKey?: string };
   readonly openai?: { readonly model?: string; readonly apiKey?: string };
   readonly google?: { readonly model?: string; readonly apiKey?: string };
-  readonly local?: { readonly endpoint?: string; readonly model: string };
+  readonly ollama?: { readonly endpoint?: string; readonly model: string };
   readonly openrouter?: { readonly model: string; readonly apiKey?: string };
   readonly zenmux?: { readonly model: string; readonly apiKey?: string };
   readonly zai?: { readonly model: string; readonly apiKey?: string };
 }
 
+/** Explicit provider + model pair for the primary model. */
+export interface PrimaryModelRef {
+  readonly provider: string;
+  readonly model: string;
+}
+
 /** Full models section from triggerfish.yaml. */
 export interface ModelsConfig {
-  readonly primary: string;
+  readonly primary: PrimaryModelRef;
   /** Optional vision model for describing images when the primary model lacks vision. */
   readonly vision?: string;
   readonly providers: ProvidersConfig;
@@ -39,11 +45,7 @@ export interface ModelsConfig {
  * Load providers from config and register them in the registry.
  *
  * Instantiates each configured provider and sets the default based
- * on models.primary. The primary field maps to a provider name:
- * - Starts with "claude" → anthropic
- * - Starts with "gpt" or "o1" or "o3" → openai
- * - Starts with "gemini" → google
- * - Otherwise checks explicit provider names
+ * on models.primary.provider — the provider is explicit, no heuristics needed.
  *
  * @param modelsConfig - The models section from triggerfish.yaml
  * @param registry - The provider registry to populate
@@ -75,10 +77,10 @@ export function loadProvidersFromConfig(
     }));
   }
 
-  if (providers.local) {
+  if (providers.ollama) {
     registry.register(createLocalProvider({
-      endpoint: providers.local.endpoint,
-      model: providers.local.model,
+      endpoint: providers.ollama.endpoint,
+      model: providers.ollama.model,
     }));
   }
 
@@ -103,34 +105,11 @@ export function loadProvidersFromConfig(
     }));
   }
 
-  // Resolve default provider from models.primary model name
-  const primary = modelsConfig.primary.toLowerCase();
-  const defaultProvider = resolveProviderName(primary);
+  // Set default provider directly from models.primary.provider
+  const defaultProvider = modelsConfig.primary.provider;
   if (defaultProvider && registry.get(defaultProvider)) {
     registry.setDefault(defaultProvider);
   }
-}
-
-/**
- * Resolve a model name to its provider name.
- *
- * @param modelName - The model identifier (e.g. "claude-sonnet-4-5")
- * @returns The provider name, or undefined if unrecognized
- */
-export function resolveProviderName(modelName: string): string | undefined {
-  if (modelName.startsWith("claude")) return "anthropic";
-  if (modelName.startsWith("gpt") || modelName.startsWith("o1") || modelName.startsWith("o3")) {
-    return "openai";
-  }
-  if (modelName.startsWith("gemini")) return "google";
-  if (modelName.startsWith("glm")) return "zai";
-  if (modelName.includes("/")) return "openrouter"; // e.g. "anthropic/claude-3.5-sonnet"
-
-  // Check for explicit provider names
-  const knownProviders = ["anthropic", "openai", "google", "local", "openrouter", "zenmux", "zai"];
-  if (knownProviders.includes(modelName)) return modelName;
-
-  return undefined;
 }
 
 /**
@@ -158,7 +137,7 @@ function createProviderForVision(
       return createOpenRouterProvider({ model: visionModel, apiKey });
     case "zenmux":
       return createZenMuxProvider({ model: visionModel, apiKey });
-    case "local":
+    case "ollama":
       return createLocalProvider({
         model: visionModel,
         endpoint: providerConfig.endpoint as string | undefined,
@@ -172,8 +151,8 @@ function createProviderForVision(
  * Resolve the vision provider from config.
  *
  * Creates a dedicated LlmProvider configured with the vision model,
- * reusing credentials from the matching provider block. Returns
- * undefined if no vision model is configured.
+ * reusing credentials from the primary provider's config block.
+ * Returns undefined if no vision model is configured.
  *
  * @param modelsConfig - The models section from triggerfish.yaml
  * @returns An LlmProvider for vision, or undefined
@@ -184,8 +163,7 @@ export function resolveVisionProvider(
   if (!modelsConfig.vision) return undefined;
 
   const visionModel = modelsConfig.vision;
-  const providerName = resolveProviderName(visionModel.toLowerCase());
-  if (!providerName) return undefined;
+  const providerName = modelsConfig.primary.provider;
 
   // Look up the provider config block for credentials
   const providerConfig = modelsConfig.providers[

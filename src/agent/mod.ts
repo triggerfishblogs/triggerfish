@@ -49,7 +49,7 @@ export type {
 } from "./providers/mod.ts";
 
 export { loadProvidersFromConfig } from "./providers/config.ts";
-export type { ProvidersConfig, ModelsConfig } from "./providers/config.ts";
+export type { ProvidersConfig, ModelsConfig, PrimaryModelRef } from "./providers/config.ts";
 
 // Plan mode
 export type {

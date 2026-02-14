@@ -1,22 +1,23 @@
 /**
  * Interactive dive wizard for first-time Triggerfish setup.
  *
- * Walks the user through a 9-step onboarding flow:
+ * Walks the user through an 8-step onboarding flow:
  * 1. Choose LLM provider
  * 2. Name agent + personality → generates SPINE.md
  * 3. Connect first channel (CLI, WebChat, Telegram)
- * 4. Classification preference
- * 5. Optional plugins (Obsidian, etc.)
- * 6. Connect Google Workspace (optional)
- * 7. Connect GitHub (optional)
- * 8. Search provider (Brave, SearXNG, skip)
- * 9. Install as daemon?
+ * 4. Optional plugins (Obsidian, etc.)
+ * 5. Connect Google Workspace (optional)
+ * 6. Connect GitHub (optional)
+ * 7. Search provider (Brave, SearXNG, skip)
+ * 8. Install as daemon?
  *
  * @module
  */
 
 import { Checkbox, Confirm, Input, Select } from "@cliffy/prompt";
 import { stringify as stringifyYaml } from "@std/yaml";
+
+import { verifyProvider } from "./verify.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -33,13 +34,10 @@ export type ProviderChoice =
   | "anthropic"
   | "openai"
   | "google"
-  | "local"
+  | "ollama"
   | "openrouter"
   | "zenmux"
   | "zai";
-
-/** Classification mode. */
-export type ClassificationMode = "standard" | "simple" | "custom";
 
 /** Tone choice for SPINE.md. */
 export type ToneChoice = "professional" | "casual" | "terse" | "custom";
@@ -63,13 +61,13 @@ export interface WizardAnswers {
   readonly telegramBotToken: string;
   readonly telegramOwnerId: string;
   readonly webchatPort: number;
-  readonly classificationMode: ClassificationMode;
   readonly selectedPlugins: ReadonlyArray<string>;
   readonly obsidianVaultPath: string;
   readonly obsidianClassification: string;
   readonly searchProvider: SearchProviderChoice;
   readonly searchApiKey: string;
   readonly searxngUrl: string;
+  readonly localEndpoint: string;
   readonly installDaemon: boolean;
 }
 
@@ -79,7 +77,7 @@ const DEFAULT_MODELS: Readonly<Record<ProviderChoice, string>> = {
   anthropic: "claude-sonnet-4-5",
   openai: "gpt-4o",
   google: "gemini-2.0-flash",
-  local: "llama3",
+  ollama: "llama3",
   openrouter: "anthropic/claude-sonnet-4-5",
   zenmux: "openai/gpt-5",
   zai: "glm-4.7",
@@ -89,7 +87,7 @@ const PROVIDER_LABELS: Readonly<Record<ProviderChoice, string>> = {
   anthropic: "Anthropic (Claude) — recommended",
   openai: "OpenAI (GPT-4o)",
   google: "Google (Gemini)",
-  local: "Local (Ollama)",
+  ollama: "Ollama",
   openrouter: "OpenRouter",
   zenmux: "ZenMux",
   zai: "Z.AI Coding Plan (GLM)",
@@ -110,10 +108,10 @@ export function generateConfig(answers: WizardAnswers): string {
       anthropicConfig["apiKey"] = answers.apiKey;
     }
     providers["anthropic"] = anthropicConfig;
-  } else if (answers.provider === "local") {
-    providers["local"] = {
+  } else if (answers.provider === "ollama") {
+    providers["ollama"] = {
       model: answers.providerModel,
-      endpoint: "http://localhost:11434",
+      endpoint: answers.localEndpoint,
     };
   } else {
     const providerConfig: Record<string, string> = {
@@ -147,13 +145,6 @@ export function generateConfig(answers: WizardAnswers): string {
     // CLI is always available, no config needed
   }
 
-  // Build classification section
-  const classificationLevel = answers.classificationMode === "simple"
-    ? "simple"
-    : answers.classificationMode === "custom"
-    ? "custom"
-    : "standard";
-
   // Build web section (if search provider selected)
   const web: Record<string, unknown> = {};
   if (answers.searchProvider === "brave" && answers.searchApiKey.length > 0) {
@@ -171,13 +162,16 @@ export function generateConfig(answers: WizardAnswers): string {
   // Build full config object
   const config: Record<string, unknown> = {
     models: {
-      primary: answers.providerModel,
+      primary: {
+        provider: answers.provider,
+        model: answers.providerModel,
+      },
       providers,
     },
     channels: Object.keys(channels).length > 0 ? channels : {},
     classification: {
       mode: "personal",
-      levels: classificationLevel,
+      levels: "standard",
     },
   };
 
@@ -291,7 +285,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 1: LLM Provider ──────────────────────────────────────────────────
 
-  console.log("  Step 1/9: Choose your LLM provider");
+  console.log("  Step 1/8: Choose your LLM provider");
   console.log("");
 
   const provider = (await Select.prompt({
@@ -300,28 +294,32 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
       { name: PROVIDER_LABELS.anthropic, value: "anthropic" },
       { name: PROVIDER_LABELS.openai, value: "openai" },
       { name: PROVIDER_LABELS.google, value: "google" },
-      { name: PROVIDER_LABELS.local, value: "local" },
+      { name: PROVIDER_LABELS.ollama, value: "ollama" },
       { name: PROVIDER_LABELS.openrouter, value: "openrouter" },
       { name: PROVIDER_LABELS.zenmux, value: "zenmux" },
       { name: PROVIDER_LABELS.zai, value: "zai" },
     ],
   })) as ProviderChoice;
 
-  const providerModel = await Input.prompt({
+  let providerModel = await Input.prompt({
     message: "Model name",
     default: DEFAULT_MODELS[provider],
   });
 
   let apiKey = "";
+  let localEndpoint = "http://localhost:11434";
 
   if (provider === "anthropic") {
     apiKey = await Input.prompt({
       message: "Anthropic API key (or press Enter to configure later)",
     });
-  } else if (provider === "local") {
+  } else if (provider === "ollama") {
     // No API key needed for local
     console.log("  ✓ Local provider — no API key needed");
-    console.log("    Make sure Ollama is running: ollama serve");
+    localEndpoint = await Input.prompt({
+      message: "Ollama endpoint",
+      default: "http://localhost:11434",
+    });
   } else {
     const envVarName = provider === "openai"
       ? "OPENAI_API_KEY"
@@ -336,6 +334,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
     const existingKey = Deno.env.get(envVarName) ?? "";
     if (existingKey.length > 0) {
       console.log(`  ✓ Detected ${envVarName} in environment`);
+      apiKey = existingKey;
     } else {
       apiKey = await Input.prompt({
         message: `API key (or press Enter to set ${envVarName} later)`,
@@ -343,11 +342,70 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
     }
   }
 
+  // ── Verify provider connection ───────────────────────────────────────────
+  const shouldVerify = provider === "ollama" || apiKey.length > 0;
+
+  if (shouldVerify) {
+    let verified = false;
+    while (!verified) {
+      console.log("");
+      console.log("  Verifying connection...");
+      const result = await verifyProvider(
+        provider,
+        apiKey,
+        providerModel,
+        provider === "ollama" ? localEndpoint : undefined,
+      );
+
+      if (result.ok) {
+        console.log("  ✓ Connection verified");
+        verified = true;
+      } else {
+        console.log(`  ✗ ${result.error}`);
+        console.log("");
+
+        const retryOptions: Array<{ name: string; value: string }> = [];
+        if (provider === "ollama") {
+          retryOptions.push({ name: "Re-enter endpoint", value: "endpoint" });
+        } else {
+          retryOptions.push({ name: "Re-enter API key", value: "apikey" });
+        }
+        retryOptions.push({ name: "Re-enter model name", value: "model" });
+        retryOptions.push({ name: "Keep this setting anyway", value: "keep" });
+
+        const action = await Select.prompt({
+          message: "What would you like to do?",
+          options: retryOptions,
+        });
+
+        if (action === "keep") {
+          verified = true;
+        } else if (action === "endpoint") {
+          localEndpoint = await Input.prompt({
+            message: "Endpoint URL",
+            default: localEndpoint,
+          });
+        } else if (action === "model") {
+          providerModel = await Input.prompt({
+            message: "Model name",
+            default: providerModel,
+          });
+        } else {
+          apiKey = await Input.prompt({
+            message: provider === "anthropic"
+              ? "Anthropic API key"
+              : "API key",
+          });
+        }
+      }
+    }
+  }
+
   console.log("");
 
   // ── Step 2: Agent Name & Personality ───────────────────────────────────────
 
-  console.log("  Step 2/9: Name your agent and set its personality");
+  console.log("  Step 2/8: Name your agent and set its personality");
   console.log("");
 
   const agentName = await Input.prompt({
@@ -382,7 +440,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   // ── Step 3: Connect First Channel ──────────────────────────────────────────
 
-  console.log("  Step 3/9: Connect your first channel");
+  console.log("  Step 3/8: Connect your first channel");
   console.log("  (CLI is always available)");
   console.log("");
 
@@ -429,28 +487,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   console.log("");
 
-  // ── Step 4: Classification Preference ──────────────────────────────────────
+  // ── Step 4: Optional Plugins ──────────────────────────────────────────────
 
-  console.log("  Step 4/9: Set your classification preference");
-  console.log("");
-
-  const classificationMode = (await Select.prompt({
-    message: "Classification mode",
-    options: [
-      {
-        name: "Standard (4 levels: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED)",
-        value: "standard",
-      },
-      { name: "Simple (2 levels: PUBLIC, INTERNAL)", value: "simple" },
-      { name: "Custom (configure later)", value: "custom" },
-    ],
-  })) as ClassificationMode;
-
-  console.log("");
-
-  // ── Step 5: Optional Plugins ──────────────────────────────────────────────
-
-  console.log("  Step 5/9: Configure optional plugins");
+  console.log("  Step 4/8: Configure optional plugins");
   console.log("");
 
   const selectedPlugins = await Checkbox.prompt({
@@ -502,9 +541,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   console.log("");
 
-  // ── Step 6: Google Workspace ─────────────────────────────────────────────
+  // ── Step 5: Google Workspace ─────────────────────────────────────────────
 
-  console.log("  Step 6/9: Connect Google Workspace (optional)");
+  console.log("  Step 5/8: Connect Google Workspace (optional)");
   console.log("");
 
   const connectGoogle = await Confirm.prompt({
@@ -565,9 +604,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   console.log("");
 
-  // ── Step 7: GitHub ─────────────────────────────────────────────────────
+  // ── Step 6: GitHub ─────────────────────────────────────────────────────
 
-  console.log("  Step 7/9: Connect GitHub (optional)");
+  console.log("  Step 6/8: Connect GitHub (optional)");
   console.log("");
 
   const connectGitHub = await Confirm.prompt({
@@ -645,9 +684,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   console.log("");
 
-  // ── Step 8: Search Provider ──────────────────────────────────────────────
+  // ── Step 7: Search Provider ──────────────────────────────────────────────
 
-  console.log("  Step 8/9: Set up web search");
+  console.log("  Step 7/8: Set up web search");
   console.log("");
 
   const searchProvider = (await Select.prompt({
@@ -667,10 +706,12 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   if (searchProvider === "brave") {
     searchApiKey = await Input.prompt({
-      message: "Brave Search API key",
+      message: "Brave Search API key (or press Enter to configure later)",
     });
     if (searchApiKey.length > 0) {
       console.log("  ✓ API key saved to config");
+    } else {
+      console.log("  → Skipped. Set later with: triggerfish config set web.search.api_key <key>");
     }
   } else if (searchProvider === "searxng") {
     searxngUrl = await Input.prompt({
@@ -681,9 +722,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   console.log("");
 
-  // ── Step 8: Daemon Installation ────────────────────────────────────────────
+  // ── Step 8: Daemon Installation ──────────────────────────────────────────
 
-  console.log("  Step 9/9: Install as daemon?");
+  console.log("  Step 8/8: Install as daemon?");
   console.log("");
 
   const installDaemon = await Confirm.prompt({
@@ -707,13 +748,13 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
     telegramBotToken,
     telegramOwnerId,
     webchatPort,
-    classificationMode,
     selectedPlugins,
     obsidianVaultPath,
     obsidianClassification,
     searchProvider,
     searchApiKey,
     searxngUrl,
+    localEndpoint,
     installDaemon,
   };
 

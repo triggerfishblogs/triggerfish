@@ -15,9 +15,10 @@ export {
   type PatrolReport,
 } from "./patrol.ts";
 
+export { type VerifyResult, verifyProvider } from "./verify.ts";
+
 export {
   type ChannelChoice,
-  type ClassificationMode,
   createDirectoryTree,
   type DiveResult,
   generateConfig,

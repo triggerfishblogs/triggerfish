@@ -18,7 +18,7 @@ import { createHookRunner, createDefaultRules } from "../../src/core/policy/hook
 import { createSession } from "../../src/core/types/session.ts";
 import type { UserId, ChannelId } from "../../src/core/types/session.ts";
 import type { ContentBlock } from "../../src/image/content.ts";
-import { resolveVisionProvider, resolveProviderName } from "../../src/agent/providers/config.ts";
+import { resolveVisionProvider } from "../../src/agent/providers/config.ts";
 import type { ModelsConfig } from "../../src/agent/providers/config.ts";
 
 // --- Helpers ---
@@ -340,26 +340,9 @@ Deno.test("Vision fallback: skips for text-only content blocks", async () => {
 
 // --- Config Tests ---
 
-Deno.test("resolveProviderName: maps glm to zai", () => {
-  assertEquals(resolveProviderName("glm-4.5v"), "zai");
-  assertEquals(resolveProviderName("glm-5"), "zai");
-});
-
-Deno.test("resolveProviderName: maps claude to anthropic", () => {
-  assertEquals(resolveProviderName("claude-sonnet-4-5"), "anthropic");
-});
-
-Deno.test("resolveProviderName: maps gpt to openai", () => {
-  assertEquals(resolveProviderName("gpt-4o"), "openai");
-});
-
-Deno.test("resolveProviderName: maps gemini to google", () => {
-  assertEquals(resolveProviderName("gemini-pro"), "google");
-});
-
 Deno.test("resolveVisionProvider: returns undefined when no vision model", () => {
   const config: ModelsConfig = {
-    primary: "glm-5",
+    primary: { provider: "zai", model: "glm-5" },
     providers: { zai: { model: "glm-5", apiKey: "test" } },
   };
   const result = resolveVisionProvider(config);
@@ -368,7 +351,7 @@ Deno.test("resolveVisionProvider: returns undefined when no vision model", () =>
 
 Deno.test("resolveVisionProvider: returns undefined when provider not in config", () => {
   const config: ModelsConfig = {
-    primary: "glm-5",
+    primary: { provider: "google", model: "gemini-pro" },
     vision: "gemini-pro-vision",
     providers: { zai: { model: "glm-5", apiKey: "test" } },
   };

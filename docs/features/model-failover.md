@@ -50,7 +50,9 @@ Configure your primary model and provider credentials in `triggerfish.yaml`:
 
 ```yaml
 models:
-  primary: claude-sonnet-4-5
+  primary:
+    provider: anthropic
+    model: claude-sonnet-4-5
   providers:
     anthropic:
       model: claude-sonnet-4-5
@@ -78,7 +80,9 @@ The FailoverChain provides automatic fallback when a provider is unavailable. Co
 
 ```yaml
 models:
-  primary: claude-opus-4-5
+  primary:
+    provider: anthropic
+    model: claude-opus-4-5
   failover:
     - claude-sonnet-4-5      # First fallback
     - gpt-4o                  # Second fallback

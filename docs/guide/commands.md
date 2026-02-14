@@ -151,11 +151,12 @@ triggerfish config add-channel [type]
 Examples:
 
 ```bash
-triggerfish config set models.primary anthropic
+triggerfish config set models.primary.provider anthropic
+triggerfish config set models.primary.model claude-sonnet-4-5
 triggerfish config set web.search.provider brave
 triggerfish config set web.search.api_key sk-abc123
 triggerfish config set scheduler.trigger.enabled true
-triggerfish config get models.primary
+triggerfish config get models.primary.model
 triggerfish config add-channel telegram
 ```
 
