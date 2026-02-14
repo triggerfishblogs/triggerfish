@@ -422,15 +422,23 @@ export function validateConfig(
   }
 
   const models = obj.models as Record<string, unknown>;
-  if (typeof models.primary !== "object" || models.primary === null) {
-    return { ok: false, error: "models.primary must be an object with provider and model" };
-  }
-  const primary = models.primary as Record<string, unknown>;
-  if (typeof primary.provider !== "string" || primary.provider.length === 0) {
-    return { ok: false, error: "Missing required field: models.primary.provider" };
-  }
-  if (typeof primary.model !== "string" || primary.model.length === 0) {
-    return { ok: false, error: "Missing required field: models.primary.model" };
+  // Accept both legacy string format (primary: "model-name") and
+  // structured format (primary: { provider: "...", model: "..." })
+  if (typeof models.primary === "string") {
+    // Legacy format — valid as long as it's non-empty
+    if (models.primary.length === 0) {
+      return { ok: false, error: "models.primary must not be empty" };
+    }
+  } else if (typeof models.primary === "object" && models.primary !== null) {
+    const primary = models.primary as Record<string, unknown>;
+    if (typeof primary.provider !== "string" || primary.provider.length === 0) {
+      return { ok: false, error: "Missing required field: models.primary.provider" };
+    }
+    if (typeof primary.model !== "string" || primary.model.length === 0) {
+      return { ok: false, error: "Missing required field: models.primary.model" };
+    }
+  } else {
+    return { ok: false, error: "models.primary must be a string or object with provider and model" };
   }
 
   return { ok: true, value: undefined };
@@ -2747,7 +2755,8 @@ async function runChat(): Promise<void> {
   // Load config (for banner display only)
   const configResult = loadConfig(configPath);
   if (!configResult.ok) {
-    console.log("No configuration found. Run 'triggerfish dive' first.\n");
+    console.log(`Configuration error: ${configResult.error}`);
+    console.log("Run 'triggerfish dive' to fix your configuration.\n");
     Deno.exit(1);
   }
 
