@@ -1297,6 +1297,11 @@ async function runStart(): Promise<void> {
     providerRegistry: registry,
   });
 
+  // Read streaming preference from config. When not set, let the orchestrator
+  // default to true. Users can disable with `streaming: false` in triggerfish.yaml.
+  const modelsConfig = config.models as Record<string, unknown> | undefined;
+  const streamingPref = modelsConfig?.streaming;
+
   const chatSession = createChatSession({
     hookRunner,
     providerRegistry: registry,
@@ -1305,6 +1310,7 @@ async function runStart(): Promise<void> {
     toolExecutor,
     systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT, OBSIDIAN_SYSTEM_PROMPT, SKILLS_SYSTEM_PROMPT, TRIGGERS_SYSTEM_PROMPT, LLM_TASK_SYSTEM_PROMPT, SUMMARIZE_SYSTEM_PROMPT, HEALTHCHECK_SYSTEM_PROMPT],
     session,
+    ...(streamingPref !== undefined ? { enableStreaming: streamingPref === true } : {}),
     debug: config.debug === true || Deno.env.get("TRIGGERFISH_DEBUG") === "1",
     visionProvider,
     toolClassifications,
@@ -2883,6 +2889,12 @@ async function runChat(): Promise<void> {
         return;
       }
 
+      if (evt.type === "response_chunk") {
+        eventHandler(evt as OrchestratorEvent);
+        if (isTty) screen.redrawInput(editor);
+        return;
+      }
+
       if (evt.type === "response") {
         // The event handler will render the response text
         eventHandler(evt as OrchestratorEvent);
@@ -3220,7 +3232,7 @@ async function runChat(): Promise<void> {
 
       case "ctrl+o":
         displayMode = displayMode === "compact" ? "expanded" : "compact";
-        screen.setStatus(`Tool display: ${displayMode}`);
+        screen.setStatus(`Display: ${displayMode}`);
         setTimeout(() => screen.clearStatus(), 1500);
         break;
 
