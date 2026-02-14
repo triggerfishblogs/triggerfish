@@ -44,6 +44,22 @@ export interface OpenRouterConfig {
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 /**
+ * If the error body mentions "data policy", return a hint telling the user
+ * how to fix their OpenRouter privacy settings. Otherwise return empty string.
+ */
+function formatDataPolicyHint(body: string): string {
+  if (body.includes("data policy")) {
+    return (
+      "\n\n→ Your OpenRouter privacy settings are blocking this model's endpoints.\n" +
+      "  Fix: visit https://openrouter.ai/settings/privacy and under\n" +
+      "  \"Privacy and Guardrails\" adjust your settings to allow the\n" +
+      "  providers your model requires."
+    );
+  }
+  return "";
+}
+
+/**
  * Create an OpenRouter LLM provider.
  *
  * OpenRouter provides a unified API for many different LLM providers.
@@ -135,7 +151,7 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
             lastError = `HTTP ${response.status}: ${body.slice(0, 200)}`;
             continue;
           }
-          throw new Error(`OpenRouter request failed (${response.status}): ${body}`);
+          throw new Error(`OpenRouter request failed (${response.status}): ${body}${formatDataPolicyHint(body)}`);
         }
 
         const rawText = await response.text();
@@ -206,7 +222,7 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
 
       if (!response.ok) {
         const body = await response.text();
-        throw new Error(`OpenRouter stream failed (${response.status}): ${body}`);
+        throw new Error(`OpenRouter stream failed (${response.status}): ${body}${formatDataPolicyHint(body)}`);
       }
 
       if (!response.body) {
