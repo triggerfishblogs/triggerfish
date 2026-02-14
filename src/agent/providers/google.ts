@@ -109,19 +109,23 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
       // Google SDK doesn't natively support AbortSignal — use Promise.race
       const sendPromise = chat.sendMessage(userParts);
       let result;
-      if (signal) {
-        const abortPromise = new Promise<never>((_resolve, reject) => {
-          if (signal.aborted) {
-            reject(new DOMException("Operation cancelled", "AbortError"));
-            return;
-          }
-          signal.addEventListener("abort", () => {
-            reject(new DOMException("Operation cancelled", "AbortError"));
-          }, { once: true });
-        });
-        result = await Promise.race([sendPromise, abortPromise]);
-      } else {
-        result = await sendPromise;
+      try {
+        if (signal) {
+          const abortPromise = new Promise<never>((_resolve, reject) => {
+            if (signal.aborted) {
+              reject(new DOMException("Operation cancelled", "AbortError"));
+              return;
+            }
+            signal.addEventListener("abort", () => {
+              reject(new DOMException("Operation cancelled", "AbortError"));
+            }, { once: true });
+          });
+          result = await Promise.race([sendPromise, abortPromise]);
+        } else {
+          result = await sendPromise;
+        }
+      } catch (err) {
+        throw wrapGoogleError(err, modelName);
       }
       const response = result.response;
 
@@ -191,21 +195,31 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
       const userParts = lastMessage ? toGeminiParts(lastMessage.content) : [{ text: "" }];
 
       const chat = model.startChat({ history });
-      const streamResult = await chat.sendMessageStream(userParts);
+      let streamResult;
+      try {
+        streamResult = await chat.sendMessageStream(userParts);
+      } catch (err) {
+        throw wrapGoogleError(err, modelName);
+      }
 
       // Check abort before iterating
       if (signal?.aborted) {
         throw new DOMException("Operation cancelled", "AbortError");
       }
 
-      for await (const chunk of streamResult.stream) {
-        if (signal?.aborted) {
-          throw new DOMException("Operation cancelled", "AbortError");
+      try {
+        for await (const chunk of streamResult.stream) {
+          if (signal?.aborted) {
+            throw new DOMException("Operation cancelled", "AbortError");
+          }
+          const text = chunk.text();
+          if (text) {
+            yield { text, done: false };
+          }
         }
-        const text = chunk.text();
-        if (text) {
-          yield { text, done: false };
-        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") throw err;
+        throw wrapGoogleError(err, modelName);
       }
 
       const finalResponse = await streamResult.response;
@@ -249,6 +263,49 @@ function convertToolsToGeminiFormat(
       description: t.function.description,
       parameters: t.function.parameters,
     }));
+}
+
+/**
+ * Wrap Google API errors with user-friendly messages.
+ *
+ * Detects common error patterns (quota exceeded, invalid key, etc.)
+ * and prepends a clear explanation before the raw error.
+ */
+function wrapGoogleError(err: unknown, modelName: string): Error {
+  const msg = err instanceof Error ? err.message : String(err);
+
+  // 429 / quota exceeded / limit: 0
+  if (msg.includes("429") || msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED")) {
+    if (msg.includes("limit: 0") || msg.includes("limit:0")) {
+      return new Error(
+        `Google API key has zero quota for ${modelName}. ` +
+        `Your key may be on the free tier without access to this model, or billing is not enabled. ` +
+        `Enable billing at https://console.cloud.google.com/billing or use a different model.\n\n${msg}`,
+      );
+    }
+    return new Error(
+      `Google API rate limit exceeded for ${modelName}. ` +
+      `Wait a moment and try again, or check your quota at https://console.cloud.google.com/apis/dashboard\n\n${msg}`,
+    );
+  }
+
+  // 401 / 403 — bad key or permissions
+  if (msg.includes("401") || msg.includes("403") || msg.includes("API_KEY_INVALID") || msg.includes("PERMISSION_DENIED")) {
+    return new Error(
+      `Google API key is invalid or lacks permission for ${modelName}. ` +
+      `Check your key at https://aistudio.google.com/apikey\n\n${msg}`,
+    );
+  }
+
+  // 404 — model not found
+  if (msg.includes("404") || msg.includes("not found")) {
+    return new Error(
+      `Model '${modelName}' not found. Check available models at https://ai.google.dev/gemini-api/docs/models\n\n${msg}`,
+    );
+  }
+
+  // Pass through anything else
+  return err instanceof Error ? err : new Error(msg);
 }
 
 /**

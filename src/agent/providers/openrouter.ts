@@ -136,7 +136,7 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${apiKey}`,
-            "HTTP-Referer": "https://triggerfish.sh",
+            "HTTP-Referer": "https://trigger.fish",
             "X-Title": "Triggerfish",
           },
           body: requestBody,
@@ -208,7 +208,7 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`,
-          "HTTP-Referer": "https://triggerfish.sh",
+          "HTTP-Referer": "https://trigger.fish",
           "X-Title": "Triggerfish",
         },
         body: JSON.stringify({
