@@ -37,7 +37,9 @@ import {
   getDaemonStatus,
   tailLogs,
   updateTriggerfish,
+  cleanupOldBinary,
 } from "./daemon.ts";
+import { VERSION } from "./version.ts";
 import { createOrchestrator, buildToolClassifications } from "../agent/orchestrator.ts";
 import type { ToolDefinition, ToolExecutor, OrchestratorEvent } from "../agent/orchestrator.ts";
 import { createProviderRegistry } from "../agent/llm.ts";
@@ -523,7 +525,7 @@ For more information, visit: https://triggerfish.sh/docs
  * Display version information.
  */
 function showVersion(): void {
-  console.log("Triggerfish");
+  console.log(`Triggerfish ${VERSION}`);
 }
 
 /**
@@ -2279,7 +2281,7 @@ async function runDaemonLogs(
 }
 
 /**
- * Pull latest code, recompile, and restart the daemon.
+ * Download and install the latest release binary.
  */
 async function runUpdate(): Promise<void> {
   console.log("Updating Triggerfish...\n");
@@ -3826,6 +3828,9 @@ function enableWindowsAnsi(): void {
  */
 async function main(): Promise<void> {
   enableWindowsAnsi();
+
+  // Clean up leftover .old binary from a previous Windows update
+  await cleanupOldBinary();
 
   const args = Deno.args;
 

@@ -8,6 +8,7 @@ set -e
 DIST_DIR="dist"
 ENTRY="src/cli/main.ts"
 INCLUDE_FLAGS="--include config/ --include skills/"
+VERSION_TAG="${1:-dev}"
 
 TARGETS=(
   "x86_64-unknown-linux-gnu:triggerfish-linux-x64"
@@ -17,8 +18,11 @@ TARGETS=(
   "x86_64-pc-windows-msvc:triggerfish-windows-x64.exe"
 )
 
-echo "Building Triggerfish binaries..."
+echo "Building Triggerfish binaries (version: ${VERSION_TAG})..."
 echo ""
+
+# Stamp version into source before compilation
+echo "export const VERSION = \"${VERSION_TAG}\";" > src/cli/version.ts
 
 mkdir -p "${DIST_DIR}"
 

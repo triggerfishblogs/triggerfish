@@ -37,6 +37,11 @@ jobs:
         with:
           deno-version: v2.x
 
+      - name: Stamp version
+        shell: bash
+        run: |
+          echo 'export const VERSION = "${{ github.ref_name }}";' > src/cli/version.ts
+
       - name: Compile binary
         run: >
           deno compile --allow-all
