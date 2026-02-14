@@ -39,12 +39,6 @@ const SHOW_CURSOR = `${CSI}?25h`;
 /** Hide cursor. */
 const HIDE_CURSOR = `${CSI}?25l`;
 
-/** Save cursor position. */
-const SAVE_CURSOR = `${ESC}7`;
-
-/** Restore cursor position. */
-const RESTORE_CURSOR = `${ESC}8`;
-
 // ─── ANSI color codes ───────────────────────────────────────────
 
 const RESET = "\x1b[0m";
@@ -151,6 +145,12 @@ function createTtyScreenManager(): ScreenManager {
   let spinnerLabel = "";
   let spinnerVerbIdx = 0;
 
+  // Track the last known cursor position so we never rely on
+  // the terminal's single-slot SAVE_CURSOR / RESTORE_CURSOR,
+  // which breaks when scroll region scrolling invalidates it.
+  let knownCursorRow = 1;
+  let knownCursorCol = 1;
+
   function getStatusRow(): number {
     return size.rows;
   }
@@ -205,19 +205,24 @@ function createTtyScreenManager(): ScreenManager {
 
     const cursorRow = firstInputRow + cursorLineIdx;
     const cursorCol = prefixLen + cursorColInLine + 1;
+    knownCursorRow = cursorRow;
+    knownCursorCol = cursorCol;
     rawWrite(moveTo(cursorRow, cursorCol));
     rawWrite(SHOW_CURSOR);
   }
 
   function drawStatusBar(): void {
     const statusRow = getStatusRow();
-    rawWrite(SAVE_CURSOR);
+    rawWrite(HIDE_CURSOR);
     rawWrite(moveTo(statusRow, 1));
     rawWrite(CLEAR_LINE);
     if (statusText.length > 0) {
       rawWrite(`  ${statusText}${RESET}`);
     }
-    rawWrite(RESTORE_CURSOR);
+    // Return cursor to its known position instead of using
+    // SAVE/RESTORE which is a single slot and breaks during scrolling
+    rawWrite(moveTo(knownCursorRow, knownCursorCol));
+    rawWrite(SHOW_CURSOR);
   }
 
   return {
@@ -240,8 +245,7 @@ function createTtyScreenManager(): ScreenManager {
     },
 
     writeOutput(text: string): void {
-      // Save cursor, move to bottom of scroll region, write output
-      rawWrite(SAVE_CURSOR);
+      rawWrite(HIDE_CURSOR);
 
       // Move to the bottom of the scroll region — text will auto-scroll
       rawWrite(moveTo(getScrollBottom(), 1));
@@ -252,7 +256,10 @@ function createTtyScreenManager(): ScreenManager {
         rawWrite(`${line}${CLEAR_LINE}\n`);
       }
 
-      rawWrite(RESTORE_CURSOR);
+      // Return cursor to its known position instead of using
+      // SAVE/RESTORE which gets corrupted when the scroll region scrolls
+      rawWrite(moveTo(knownCursorRow, knownCursorCol));
+      rawWrite(SHOW_CURSOR);
     },
 
     redrawInput(editor: LineEditor): void {
