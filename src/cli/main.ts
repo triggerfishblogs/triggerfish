@@ -38,6 +38,7 @@ import {
   tailLogs,
   updateTriggerfish,
 } from "./daemon.ts";
+import { VERSION } from "../version.ts";
 import { createOrchestrator, buildToolClassifications } from "../agent/orchestrator.ts";
 import type { ToolDefinition, ToolExecutor, OrchestratorEvent } from "../agent/orchestrator.ts";
 import { createProviderRegistry } from "../agent/llm.ts";
@@ -515,7 +516,7 @@ For more information, visit: https://triggerfish.sh/docs
  * Display version information.
  */
 function showVersion(): void {
-  console.log("Triggerfish v0.1.0-alpha");
+  console.log(`Triggerfish v${VERSION}`);
 }
 
 /**
