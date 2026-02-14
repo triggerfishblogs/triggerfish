@@ -7,6 +7,7 @@
  * @module
  */
 
+import { join } from "@std/path";
 import type { ClassificationLevel, Result } from "../core/types/classification.ts";
 import { CLASSIFICATION_ORDER } from "../core/types/classification.ts";
 
@@ -77,7 +78,7 @@ export function createSkillAuthor(options: SkillAuthorOptions): SkillAuthor {
         };
       }
 
-      const skillDir = `${options.skillsDir}/${name}`;
+      const skillDir = join(options.skillsDir, name);
 
       try {
         await Deno.mkdir(skillDir, { recursive: true });
@@ -99,7 +100,7 @@ export function createSkillAuthor(options: SkillAuthorOptions): SkillAuthor {
       const skillMd = `${frontmatter}\n${content}`;
 
       try {
-        await Deno.writeTextFile(`${skillDir}/SKILL.md`, skillMd);
+        await Deno.writeTextFile(join(skillDir, "SKILL.md"), skillMd);
       } catch {
         return { ok: false, error: `Failed to write SKILL.md` };
       }

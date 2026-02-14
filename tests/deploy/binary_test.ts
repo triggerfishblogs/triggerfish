@@ -10,6 +10,7 @@
 import { assertStringIncludes } from "@std/assert";
 
 const BUILD_SH_PATH = "deploy/scripts/build.sh";
+const INSTALL_FROM_SOURCE_PS1_PATH = "deploy/scripts/install-from-source.ps1";
 const MAKEFILE_PATH = "Makefile";
 const DENO_JSON_PATH = "deno.json";
 
@@ -39,6 +40,14 @@ Deno.test("build.sh generates SHA256SUMS.txt", async () => {
 Deno.test("build.sh outputs to dist/ directory", async () => {
   const content = await Deno.readTextFile(BUILD_SH_PATH);
   assertStringIncludes(content, "dist");
+});
+
+// --- install-from-source.ps1 ---
+
+Deno.test("install-from-source.ps1 includes config and skills in compile", async () => {
+  const content = await Deno.readTextFile(INSTALL_FROM_SOURCE_PS1_PATH);
+  assertStringIncludes(content, "--include config/");
+  assertStringIncludes(content, "--include skills/");
 });
 
 // --- Makefile ---

@@ -62,7 +62,7 @@ if (Test-Path (Join-Path $SrcDir ".git")) {
 
 Write-Host "Compiling (this may take a minute)..."
 Push-Location $SrcDir
-deno compile --allow-all --output=triggerfish src/cli/main.ts
+deno compile --allow-all --include config/ --include skills/ --output=triggerfish src/cli/main.ts
 Pop-Location
 Write-Host "[ok] Compiled successfully" -ForegroundColor Green
 
@@ -89,7 +89,7 @@ if ($UserPath -notlike "*$InstallDir*") {
 # --- Step 6: First-time setup ---
 
 Write-Host ""
-& $InstallPath dive
+& $InstallPath dive --install-daemon
 
 Write-Host ""
 Write-Host "Triggerfish is ready!" -ForegroundColor Cyan

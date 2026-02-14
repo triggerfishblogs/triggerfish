@@ -173,7 +173,7 @@ try {
 }
 
 Write-Host ""
-& $InstallPath dive
+& $InstallPath dive --install-daemon
 
 Write-Host ""
 Write-Host "Triggerfish is ready!" -ForegroundColor Cyan
