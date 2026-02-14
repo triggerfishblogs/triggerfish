@@ -40,7 +40,7 @@ jobs:
       - name: Stamp version
         shell: bash
         run: |
-          echo 'export const VERSION = "${{ github.ref_name }}";' > src/cli/version.ts
+          echo 'export const VERSION: string = "${{ github.ref_name }}";' > src/cli/version.ts
 
       - name: Compile binary
         run: >

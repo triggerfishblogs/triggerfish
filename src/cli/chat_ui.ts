@@ -16,6 +16,7 @@
 import type { OrchestratorEvent } from "../agent/orchestrator.ts";
 import type { ScreenManager } from "./screen.ts";
 import { extractTodosFromEvent, formatTodoListAnsi } from "../tools/todo.ts";
+import { VERSION } from "./version.ts";
 
 // ─── ANSI escape codes ─────────────────────────────────────────
 
@@ -74,8 +75,10 @@ export function printBanner(
   writeln(
     `  ${CYAN}${BOLD}│${RESET}                                                  ${CYAN}${BOLD}│${RESET}`,
   );
+  const tagline = `Secure Multi-Channel AI Agent  ${VERSION}`;
+  const tagPad = " ".repeat(Math.max(0, 47 - tagline.length));
   writeln(
-    `  ${CYAN}${BOLD}│${RESET}   ${DIM}Secure Multi-Channel AI Agent${RESET}                    ${CYAN}${BOLD}│${RESET}`,
+    `  ${CYAN}${BOLD}│${RESET}   ${DIM}${tagline}${RESET}${tagPad}${CYAN}${BOLD}│${RESET}`,
   );
   writeln(
     `  ${CYAN}${BOLD}│${RESET}                                                  ${CYAN}${BOLD}│${RESET}`,
@@ -120,8 +123,10 @@ export function formatBanner(
   lines.push(
     `  ${CYAN}${BOLD}│${RESET}                                                  ${CYAN}${BOLD}│${RESET}`,
   );
+  const tagline = `Secure Multi-Channel AI Agent  ${VERSION}`;
+  const tagPad = " ".repeat(Math.max(0, 47 - tagline.length));
   lines.push(
-    `  ${CYAN}${BOLD}│${RESET}   ${DIM}Secure Multi-Channel AI Agent${RESET}                    ${CYAN}${BOLD}│${RESET}`,
+    `  ${CYAN}${BOLD}│${RESET}   ${DIM}${tagline}${RESET}${tagPad}${CYAN}${BOLD}│${RESET}`,
   );
   lines.push(
     `  ${CYAN}${BOLD}│${RESET}                                                  ${CYAN}${BOLD}│${RESET}`,
