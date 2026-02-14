@@ -307,7 +307,16 @@ function createTtyScreenManager(): ScreenManager {
     },
 
     handleResize(): void {
+      const oldRows = size.rows;
       size = getTermSize();
+      // Clear old input/status rows that are now mispositioned
+      const oldFirstInput = oldRows - inputLineCount;
+      for (let r = oldFirstInput; r <= oldRows; r++) {
+        if (r >= 1 && r <= size.rows) {
+          rawWrite(moveTo(r, 1));
+          rawWrite(CLEAR_LINE);
+        }
+      }
       setupScrollRegion();
       drawStatusBar();
     },

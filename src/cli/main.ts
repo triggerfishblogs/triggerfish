@@ -2979,6 +2979,16 @@ async function runChat(): Promise<void> {
     // Signal listeners may not be supported on all platforms
   }
 
+  // Handle SIGWINCH (terminal resize)
+  try {
+    Deno.addSignalListener("SIGWINCH", () => {
+      screen.handleResize();
+      screen.redrawInput(editor);
+    });
+  } catch {
+    // SIGWINCH not supported on all platforms (e.g. Windows)
+  }
+
   // Draw initial input prompt
   screen.redrawInput(editor);
 
