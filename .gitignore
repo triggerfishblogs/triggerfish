@@ -1,9 +1,6 @@
 # Compiled binary
 triggerfish
 
-# Build-stamped version (generated from git tag)
-src/_version.gen.ts
-
 # Lock file (generated, not committed)
 deno.lock
 
