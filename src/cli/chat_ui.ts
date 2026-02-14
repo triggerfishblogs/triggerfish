@@ -16,7 +16,6 @@
 import type { OrchestratorEvent } from "../agent/orchestrator.ts";
 import type { ScreenManager } from "./screen.ts";
 import { extractTodosFromEvent, formatTodoListAnsi } from "../tools/todo.ts";
-import { VERSION } from "../version.ts";
 
 // ─── ANSI escape codes ─────────────────────────────────────────
 
@@ -75,15 +74,11 @@ export function printBanner(
   writeln(
     `  ${CYAN}${BOLD}│${RESET}                                                  ${CYAN}${BOLD}│${RESET}`,
   );
-  const subtitle = `Secure Multi-Channel AI Agent    v${VERSION}`;
-  const pad = 50 - subtitle.length - 6; // 3 leading + 3 trailing minimum
-  const lpad = 3;
-  const rpad = Math.max(3, pad + 3);
   writeln(
-    `  ${CYAN}${BOLD}│${RESET}${" ".repeat(lpad)}${DIM}${subtitle}${RESET}${" ".repeat(rpad)}${CYAN}${BOLD}│${RESET}`,
+    `  ${CYAN}${BOLD}│${RESET}   ${DIM}Secure Multi-Channel AI Agent${RESET}                    ${CYAN}${BOLD}│${RESET}`,
   );
   writeln(
-    `  ${CYAN}${BOLD}│${RESET}${" ".repeat(50)}${CYAN}${BOLD}│${RESET}`,
+    `  ${CYAN}${BOLD}│${RESET}                                                  ${CYAN}${BOLD}│${RESET}`,
   );
   writeln(
     `  ${CYAN}${BOLD}╰──────────────────────────────────────────────────╯${RESET}`,
@@ -125,14 +120,11 @@ export function formatBanner(
   lines.push(
     `  ${CYAN}${BOLD}│${RESET}                                                  ${CYAN}${BOLD}│${RESET}`,
   );
-  const subtitle2 = `Secure Multi-Channel AI Agent    v${VERSION}`;
-  const pad2 = 50 - subtitle2.length - 6;
-  const rpad2 = Math.max(3, pad2 + 3);
   lines.push(
-    `  ${CYAN}${BOLD}│${RESET}${" ".repeat(3)}${DIM}${subtitle2}${RESET}${" ".repeat(rpad2)}${CYAN}${BOLD}│${RESET}`,
+    `  ${CYAN}${BOLD}│${RESET}   ${DIM}Secure Multi-Channel AI Agent${RESET}                    ${CYAN}${BOLD}│${RESET}`,
   );
   lines.push(
-    `  ${CYAN}${BOLD}│${RESET}${" ".repeat(50)}${CYAN}${BOLD}│${RESET}`,
+    `  ${CYAN}${BOLD}│${RESET}                                                  ${CYAN}${BOLD}│${RESET}`,
   );
   lines.push(
     `  ${CYAN}${BOLD}╰──────────────────────────────────────────────────╯${RESET}`,
