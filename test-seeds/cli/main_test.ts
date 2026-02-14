@@ -144,32 +144,44 @@ Deno.test("Daemon: generates systemd unit content", async () => {
   assertStringIncludes(unit, "Restart=");
 });
 
-Deno.test("Daemon: generates PowerShell Register-ScheduledTask command", async () => {
-  const { generateWindowsTaskCommand } = await import("../../src/cli/daemon.ts");
-  const cmd = generateWindowsTaskCommand({
-    binaryPath: "C:\\Users\\test\\AppData\\Local\\Triggerfish\\triggerfish.exe",
-  });
-  assertStringIncludes(cmd, "Register-ScheduledTask");
-  assertStringIncludes(cmd, "Triggerfish AI Agent");
-  assertStringIncludes(cmd, "C:\\Users\\test\\AppData\\Local\\Triggerfish\\triggerfish.exe");
-  assertStringIncludes(cmd, "New-ScheduledTaskTrigger -AtLogon");
-  assertStringIncludes(cmd, "-UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)");
-  assertStringIncludes(cmd, "-LogonType Interactive -RunLevel Limited");
-  assertStringIncludes(cmd, "-MultipleInstances IgnoreNew");
-  assertStringIncludes(cmd, "-AllowStartIfOnBatteries");
-  assertStringIncludes(cmd, "-DontStopIfGoingOnBatteries");
-  assertStringIncludes(cmd, "-ExecutionTimeLimit (New-TimeSpan)");
-  assertStringIncludes(cmd, "-RestartCount 3");
-  assertStringIncludes(cmd, "-RestartInterval (New-TimeSpan -Minutes 1)");
-  assertStringIncludes(cmd, "-Force");
+Deno.test("Daemon: generates Windows Service install script", async () => {
+  const { generateServiceInstallScript } = await import("../../src/cli/daemon.ts");
+  const script = generateServiceInstallScript(
+    "C:\\Users\\test\\AppData\\Local\\Triggerfish\\triggerfish.exe",
+  );
+  assertStringIncludes(script, "New-Service");
+  assertStringIncludes(script, "Start-Service");
+  assertStringIncludes(script, "Triggerfish AI Agent");
+  assertStringIncludes(script, "-StartupType Automatic");
+  assertStringIncludes(script, "csc.exe");
+  assertStringIncludes(script, "System.ServiceProcess");
+  assertStringIncludes(script, "ServiceBase");
+  assertStringIncludes(script, "C:\\Users\\test\\AppData\\Local\\Triggerfish\\triggerfish.exe");
+  assertStringIncludes(script, "schtasks /delete");
 });
 
-Deno.test("Daemon: PowerShell command escapes single quotes in paths", async () => {
-  const { generateWindowsTaskCommand } = await import("../../src/cli/daemon.ts");
-  const cmd = generateWindowsTaskCommand({
-    binaryPath: "C:\\Users\\O'Brien\\triggerfish.exe",
-  });
-  assertStringIncludes(cmd, "O''Brien");
+Deno.test("Daemon: generates C# service source with correct paths", async () => {
+  const { generateServiceSource } = await import("../../src/cli/daemon.ts");
+  const source = generateServiceSource(
+    "C:\\Users\\test\\triggerfish.exe",
+    "C:\\Users\\test\\.triggerfish",
+    "C:\\Users\\test\\.triggerfish\\logs",
+  );
+  assertStringIncludes(source, "ServiceBase");
+  assertStringIncludes(source, "C:\\Users\\test\\triggerfish.exe");
+  assertStringIncludes(source, "TRIGGERFISH_DATA_DIR");
+  assertStringIncludes(source, "C:\\Users\\test\\.triggerfish");
+  assertStringIncludes(source, "C:\\Users\\test\\.triggerfish\\logs");
+});
+
+Deno.test("Daemon: service source handles paths with double quotes", async () => {
+  const { generateServiceSource } = await import("../../src/cli/daemon.ts");
+  const source = generateServiceSource(
+    'C:\\Users\\test\\"weird"\\triggerfish.exe',
+    "C:\\Users\\test\\.triggerfish",
+    "C:\\Users\\test\\.triggerfish\\logs",
+  );
+  assertStringIncludes(source, '""weird""');
 });
 
 Deno.test("Daemon: logDir does not contain undefined", async () => {

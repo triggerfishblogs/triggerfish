@@ -38,6 +38,8 @@ export interface DaemonStatus {
 /** Service name constants. */
 const LAUNCHD_LABEL = "dev.triggerfish.agent";
 const SYSTEMD_UNIT = "triggerfish.service";
+const WINDOWS_SERVICE_NAME = "Triggerfish";
+/** @deprecated Legacy scheduled task name — kept for cleanup during upgrade. */
 const SCHTASKS_TASK_NAME = "Triggerfish";
 
 /**
@@ -235,6 +237,138 @@ export function generateWindowsTaskCommand(options: DaemonOptions): string {
 }
 
 /**
+ * Encode a PowerShell command as UTF-16LE Base64 for use with -EncodedCommand.
+ * This avoids all quoting/escaping issues when passing commands through
+ * Start-Process -Verb RunAs.
+ */
+function encodeUtf16Base64(command: string): string {
+  const bytes = new Uint8Array(command.length * 2);
+  for (let i = 0; i < command.length; i++) {
+    const code = command.charCodeAt(i);
+    bytes[i * 2] = code & 0xFF;
+    bytes[i * 2 + 1] = (code >> 8) & 0xFF;
+  }
+  // Process in chunks to avoid call stack overflow on large commands
+  let binary = "";
+  const CHUNK = 8192;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+/**
+ * Escape a path for embedding in a C# verbatim string literal (@"...").
+ * In C# verbatim strings, the only escape is "" for a literal double-quote.
+ * Backslashes are literal. Forward slashes are normalized to backslashes.
+ */
+function csEscape(path: string): string {
+  return path.replaceAll("/", "\\").replaceAll('"', '""');
+}
+
+/**
+ * Generate C# source code for the Windows Service wrapper.
+ *
+ * The wrapper implements the SCM (Service Control Manager) protocol so Windows
+ * can properly start/stop the daemon. It spawns triggerfish.exe as a child
+ * process and redirects stdout/stderr to the log file.
+ *
+ * Runs as LocalSystem with TRIGGERFISH_DATA_DIR set to the user's data directory
+ * so the config file is found correctly.
+ *
+ * @param binaryPath - Absolute path to triggerfish.exe
+ * @param dataDir - Absolute path to the .triggerfish data directory
+ * @param logDirectory - Absolute path to the logs directory
+ * @returns C# source code string
+ */
+export function generateServiceSource(
+  binaryPath: string,
+  dataDir: string,
+  logDirectory: string,
+): string {
+  const csBin = csEscape(binaryPath);
+  const csData = csEscape(dataDir);
+  const csLogDir = csEscape(logDirectory);
+
+  return `using System;
+using System.Diagnostics;
+using System.IO;
+using System.ServiceProcess;
+public class TriggerFishService : ServiceBase
+{
+    private Process _proc;
+    public TriggerFishService() { ServiceName = "${WINDOWS_SERVICE_NAME}"; CanStop = true; CanShutdown = true; }
+    protected override void OnStart(string[] args)
+    {
+        var logDir = @"${csLogDir}";
+        var logFile = Path.Combine(logDir, "triggerfish.log");
+        Directory.CreateDirectory(logDir);
+        _proc = new Process();
+        _proc.StartInfo.FileName = @"${csBin}";
+        _proc.StartInfo.Arguments = "run";
+        _proc.StartInfo.UseShellExecute = false;
+        _proc.StartInfo.RedirectStandardOutput = true;
+        _proc.StartInfo.RedirectStandardError = true;
+        _proc.StartInfo.CreateNoWindow = true;
+        _proc.StartInfo.EnvironmentVariables["TRIGGERFISH_DATA_DIR"] = @"${csData}";
+        var w = new StreamWriter(logFile, true) { AutoFlush = true };
+        _proc.OutputDataReceived += (s, e) => { if (e.Data != null) try { w.WriteLine(e.Data); } catch {} };
+        _proc.ErrorDataReceived += (s, e) => { if (e.Data != null) try { w.WriteLine(e.Data); } catch {} };
+        _proc.Start();
+        _proc.BeginOutputReadLine();
+        _proc.BeginErrorReadLine();
+    }
+    protected override void OnStop() { Kill(); }
+    protected override void OnShutdown() { Kill(); }
+    void Kill() { try { if (_proc != null && !_proc.HasExited) { _proc.Kill(); _proc.WaitForExit(5000); } } catch {} }
+    public static void Main() { ServiceBase.Run(new TriggerFishService()); }
+}`;
+}
+
+/**
+ * Generate a PowerShell script that compiles the C# service wrapper,
+ * installs it as a Windows Service, and starts it.
+ *
+ * The script is designed to run elevated (as Administrator) via UAC.
+ *
+ * @param binaryPath - Absolute path to triggerfish.exe
+ * @returns PowerShell script string
+ */
+export function generateServiceInstallScript(binaryPath: string): string {
+  const dataDir = resolveBaseDir();
+  const logDirectory = logDir();
+  const csSource = generateServiceSource(binaryPath, dataDir, logDirectory);
+
+  // Service wrapper .exe goes next to the triggerfish binary
+  const binDir = binaryPath.replace(/[/\\][^/\\]+$/, "");
+  const serviceExePath = `${binDir}\\TriggerFishService.exe`.replaceAll("/", "\\");
+  const psServiceExe = psEscape(serviceExePath);
+
+  return `$ErrorActionPreference = 'Stop'
+$svc = Get-Service -Name '${WINDOWS_SERVICE_NAME}' -ErrorAction SilentlyContinue
+if ($svc) {
+    Stop-Service -Name '${WINDOWS_SERVICE_NAME}' -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    sc.exe delete '${WINDOWS_SERVICE_NAME}' | Out-Null
+    Start-Sleep -Seconds 1
+}
+schtasks /delete /tn '${SCHTASKS_TASK_NAME}' /f 2>$null | Out-Null
+$csSource = @'
+${csSource}
+'@
+$tempCs = Join-Path $env:TEMP 'TriggerFishService.cs'
+Set-Content -Path $tempCs -Value $csSource -Encoding UTF8
+$csc = Join-Path $env:windir 'Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe'
+if (-not (Test-Path $csc)) { $csc = Join-Path $env:windir 'Microsoft.NET\\Framework\\v4.0.30319\\csc.exe' }
+if (-not (Test-Path $csc)) { throw 'C# compiler (csc.exe) not found. .NET Framework 4.x is required.' }
+& $csc /nologo /target:exe /reference:System.ServiceProcess.dll /out:'${psServiceExe}' $tempCs 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Failed to compile service wrapper' }
+Remove-Item $tempCs -Force -ErrorAction SilentlyContinue
+New-Service -Name '${WINDOWS_SERVICE_NAME}' -BinaryPathName '${psServiceExe}' -DisplayName 'Triggerfish AI Agent' -Description 'Triggerfish AI Agent daemon' -StartupType Automatic
+Start-Service -Name '${WINDOWS_SERVICE_NAME}'`;
+}
+
+/**
  * Run a shell command and capture output.
  *
  * @param cmd - Command name.
@@ -338,42 +472,27 @@ export async function installAndStartDaemon(
   }
 
   if (manager === "windows-service") {
-    const psCommand = generateWindowsTaskCommand({ binaryPath });
+    const installScript = generateServiceInstallScript(binaryPath);
+    const encoded = encodeUtf16Base64(installScript);
 
-    // Encode the registration command as UTF-16LE Base64 for -EncodedCommand.
-    // This avoids all escaping/quoting/temp-file issues with elevated PowerShell.
-    const utf16Bytes = new Uint8Array(psCommand.length * 2);
-    for (let i = 0; i < psCommand.length; i++) {
-      const code = psCommand.charCodeAt(i);
-      utf16Bytes[i * 2] = code & 0xFF;
-      utf16Bytes[i * 2 + 1] = (code >> 8) & 0xFF;
-    }
-    const encoded = btoa(String.fromCharCode(...utf16Bytes));
-
-    // Register-ScheduledTask requires admin — elevate via UAC prompt
+    // Service installation requires admin — elevate via UAC prompt
     console.log("  Requesting administrator privileges...");
     await runCommand("powershell", [
       "-NoProfile", "-Command",
       `Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -NonInteractive -EncodedCommand ${encoded}'`,
     ]);
 
-    // Verify the task was actually created (user may have declined UAC)
-    const verifyResult = await runCommand("schtasks", [
-      "/query", "/tn", SCHTASKS_TASK_NAME,
-    ]);
+    // Verify the service was created and started (user may have declined UAC)
+    const verifyResult = await runCommand("sc", ["query", WINDOWS_SERVICE_NAME]);
 
     if (!verifyResult.success) {
-      return { ok: false, message: "Failed to create scheduled task. Administrator privileges are required." };
+      return { ok: false, message: "Failed to install service. Administrator privileges are required." };
     }
 
-    // Start the task immediately
-    const runResult = await runCommand("schtasks", [
-      "/run", "/tn", SCHTASKS_TASK_NAME,
-    ]);
-
-    return runResult.success
-      ? { ok: true, message: `Daemon installed and started (Task Scheduler: ${SCHTASKS_TASK_NAME})` }
-      : { ok: false, message: `Task created but failed to start: ${runResult.stderr}` };
+    const isRunning = verifyResult.stdout.includes("RUNNING");
+    return isRunning
+      ? { ok: true, message: `Daemon installed and started (Windows Service: ${WINDOWS_SERVICE_NAME})` }
+      : { ok: false, message: "Service installed but failed to start. Check 'triggerfish logs' for details." };
   }
 
   return { ok: false, message: `Unsupported daemon manager: ${manager}` };
@@ -403,12 +522,20 @@ export async function stopDaemon(): Promise<DaemonResult> {
   }
 
   if (manager === "windows-service") {
-    const result = await runCommand("schtasks", [
-      "/end", "/tn", SCHTASKS_TASK_NAME,
+    // Stopping a service requires admin — elevate via UAC
+    const stopScript = `Stop-Service -Name '${WINDOWS_SERVICE_NAME}' -Force -ErrorAction Stop`;
+    const encoded = encodeUtf16Base64(stopScript);
+    await runCommand("powershell", [
+      "-NoProfile", "-Command",
+      `Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -NonInteractive -EncodedCommand ${encoded}'`,
     ]);
-    return result.success
+
+    // Verify it stopped
+    const verifyResult = await runCommand("sc", ["query", WINDOWS_SERVICE_NAME]);
+    const stopped = verifyResult.stdout.includes("STOPPED") || !verifyResult.success;
+    return stopped
       ? { ok: true, message: "Daemon stopped" }
-      : { ok: false, message: `Failed to stop daemon: ${result.stderr}` };
+      : { ok: false, message: "Failed to stop daemon" };
   }
 
   return { ok: false, message: `Unsupported daemon manager: ${manager}` };
@@ -477,18 +604,15 @@ export async function getDaemonStatus(): Promise<DaemonStatus> {
   }
 
   if (manager === "windows-service") {
-    // Query task status via CSV for locale-independent parsing
-    const result = await runCommand("schtasks", [
-      "/query", "/tn", SCHTASKS_TASK_NAME, "/fo", "CSV", "/nh",
-    ]);
+    // sc query doesn't need admin
+    const result = await runCommand("sc", ["query", WINDOWS_SERVICE_NAME]);
 
-    if (result.success && result.stdout.includes("Running")) {
+    if (result.success && result.stdout.includes("RUNNING")) {
       // Get PID via tasklist
       const tasklistResult = await runCommand("tasklist", [
         "/fi", "imagename eq triggerfish.exe", "/fo", "CSV", "/nh",
       ]);
       let pid: number | undefined;
-      // CSV format: "triggerfish.exe","1234","Console","1","12,345 K"
       const pidMatch = tasklistResult.stdout.match(/"triggerfish\.exe","(\d+)"/);
       if (pidMatch) {
         pid = parseInt(pidMatch[1], 10);
@@ -498,7 +622,7 @@ export async function getDaemonStatus(): Promise<DaemonStatus> {
         running: true,
         pid,
         manager,
-        message: `Daemon is running (Task Scheduler: ${SCHTASKS_TASK_NAME})`,
+        message: `Daemon is running (Windows Service: ${WINDOWS_SERVICE_NAME})`,
       };
     }
 
@@ -685,7 +809,7 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
   if (Deno.build.os === "windows") {
     const ps = [
       `Start-Sleep 1`,
-      `schtasks /end /tn '${SCHTASKS_TASK_NAME}' 2>$null`,
+      `Stop-Service -Name '${WINDOWS_SERVICE_NAME}' -Force -ErrorAction SilentlyContinue`,
       `Stop-Process -Name triggerfish -Force -ErrorAction SilentlyContinue`,
       `Start-Sleep 1`,
       `Copy-Item '${tmpPath}' '${binaryPath}' -Force`,
@@ -822,12 +946,25 @@ export async function uninstallDaemon(): Promise<DaemonResult> {
   }
 
   if (manager === "windows-service") {
-    const result = await runCommand("schtasks", [
-      "/delete", "/tn", SCHTASKS_TASK_NAME, "/f",
+    // Uninstalling a service requires admin — elevate via UAC
+    const uninstallScript = [
+      `Stop-Service -Name '${WINDOWS_SERVICE_NAME}' -Force -ErrorAction SilentlyContinue`,
+      `Start-Sleep -Seconds 2`,
+      `sc.exe delete '${WINDOWS_SERVICE_NAME}' | Out-Null`,
+      `schtasks /delete /tn '${SCHTASKS_TASK_NAME}' /f 2>$null | Out-Null`,
+    ].join("; ");
+    const encoded = encodeUtf16Base64(uninstallScript);
+    await runCommand("powershell", [
+      "-NoProfile", "-Command",
+      `Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -NonInteractive -EncodedCommand ${encoded}'`,
     ]);
-    return result.success
+
+    // Verify removal
+    const verifyResult = await runCommand("sc", ["query", WINDOWS_SERVICE_NAME]);
+    const removed = !verifyResult.success || verifyResult.stderr.includes("1060");
+    return removed
       ? { ok: true, message: "Daemon uninstalled" }
-      : { ok: false, message: `Failed to uninstall daemon: ${result.stderr}` };
+      : { ok: false, message: "Failed to uninstall daemon. Administrator privileges are required." };
   }
 
   return { ok: false, message: `Unsupported daemon manager: ${manager}` };
