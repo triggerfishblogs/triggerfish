@@ -184,6 +184,7 @@ Deno.test("Daemon: generates PowerShell Register-ScheduledTask command", async (
   assertStringIncludes(cmd, "Triggerfish AI Agent");
   assertStringIncludes(cmd, "C:\\Users\\test\\AppData\\Local\\Triggerfish\\triggerfish.exe");
   assertStringIncludes(cmd, "New-ScheduledTaskTrigger -AtLogon");
+  assertStringIncludes(cmd, "-UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)");
   assertStringIncludes(cmd, "-LogonType Interactive -RunLevel Limited");
   assertStringIncludes(cmd, "-MultipleInstances IgnoreNew");
   assertStringIncludes(cmd, "-AllowStartIfOnBatteries");
