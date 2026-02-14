@@ -15,14 +15,16 @@ export interface SignalConfig {
   readonly endpoint: string;
   /** The Signal account phone number (E.164 format). */
   readonly account: string;
-  /** Classification level for this channel. Default: INTERNAL */
+  /** Classification level for this channel. Default: PUBLIC */
   readonly classification?: ClassificationLevel;
   /** Owner's phone number for isOwner checks. */
   readonly ownerPhone?: string;
-  /** DM policy. */
-  readonly dmPolicy?: "pairing" | "allowlist" | "open" | "owner-only";
-  /** Allowed phone numbers (for allowlist policy). */
-  readonly allowFrom?: readonly string[];
+  /** Enable pairing mode — unpaired senders are silently dropped until they send a valid code. */
+  readonly pairing?: boolean;
+  /** Classification level assigned to paired users. Default: INTERNAL. */
+  readonly pairing_classification?: ClassificationLevel;
+  /** Per-user classification overrides. Users listed here get tool access up to their ceiling. */
+  readonly user_classifications?: Readonly<Record<string, string>>;
   /** Default group mode. */
   readonly defaultGroupMode?: "always" | "mentioned-only" | "owner-only";
   /** Group chat configuration. */
@@ -128,4 +130,26 @@ export interface SignalClientInterface {
   onNotification(handler: (notification: SignalNotification) => void): void;
   /** Ping signal-cli to verify connectivity. */
   ping(): Promise<Result<void, string>>;
+  /** List all known Signal groups. */
+  listGroups(): Promise<Result<readonly SignalGroupEntry[], string>>;
+  /** List all known Signal contacts. */
+  listContacts(): Promise<Result<readonly SignalContactEntry[], string>>;
+}
+
+/** A Signal group as returned by signal-cli listGroups. */
+export interface SignalGroupEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly description?: string;
+  readonly isMember: boolean;
+  readonly isBlocked: boolean;
+  readonly members?: readonly string[];
+}
+
+/** A Signal contact as returned by signal-cli listContacts. */
+export interface SignalContactEntry {
+  readonly number: string;
+  readonly name?: string;
+  readonly profileName?: string;
+  readonly isBlocked: boolean;
 }

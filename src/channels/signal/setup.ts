@@ -63,9 +63,14 @@ export async function checkSignalCli(): Promise<Result<{ version: string; path: 
 }
 
 /** Try running a signal-cli binary and return version + path if it works. */
-async function trySignalCli(path: string): Promise<Result<{ version: string; path: string }, string>> {
+async function trySignalCli(path: string, env?: Record<string, string>): Promise<Result<{ version: string; path: string }, string>> {
   try {
-    const cmd = new Deno.Command(path, { args: ["--version"], stdout: "piped", stderr: "piped" });
+    const cmd = new Deno.Command(path, {
+      args: ["--version"],
+      stdout: "piped",
+      stderr: "piped",
+      env: env ? { ...Deno.env.toObject(), ...env } : undefined,
+    });
     const output = await cmd.output();
     if (output.success) {
       const version = new TextDecoder().decode(output.stdout).trim();
@@ -78,6 +83,23 @@ async function trySignalCli(path: string): Promise<Result<{ version: string; pat
 }
 
 // ─── Installation ─────────────────────────────────────────────────────────────
+
+/** Adoptium API response shape for asset metadata (subset). */
+interface AdoptiumAsset {
+  readonly binary: {
+    readonly package: {
+      readonly link: string;
+      readonly checksum: string;
+      readonly size: number;
+      readonly name: string;
+    };
+  };
+  readonly version: {
+    readonly openjdk_version: string;
+    readonly semver: string;
+  };
+  readonly release_name: string;
+}
 
 /**
  * Fetch the latest signal-cli version from GitHub releases.
@@ -100,19 +122,39 @@ export async function fetchLatestVersion(): Promise<Result<GitHubRelease, string
 }
 
 /**
- * Check if Java 21+ is available on PATH.
+ * Check if Java 21+ is available — checks managed JRE first, then PATH.
  *
- * @returns Java version string, or error.
+ * @returns Java version string and JAVA_HOME path (if managed), or error.
  */
-export async function checkJava(): Promise<Result<string, string>> {
+export async function checkJava(): Promise<Result<{ version: string; javaHome?: string }, string>> {
+  // 1. Check managed JRE in ~/.triggerfish/bin/java/
+  const managedHome = resolveJavaHome();
+  if (managedHome) {
+    const javaBin = javaHomeBin(managedHome);
+    const result = await tryJava(javaBin);
+    if (result.ok) {
+      return { ok: true, value: { version: result.value, javaHome: managedHome } };
+    }
+  }
+
+  // 2. Check system PATH
+  const pathResult = await tryJava("java");
+  if (pathResult.ok) {
+    return { ok: true, value: { version: pathResult.value } };
+  }
+
+  return { ok: false, error: "Java 21+ not found (checked ~/.triggerfish/bin/java/ and PATH)" };
+}
+
+/** Try running a java binary and verify it's 21+. */
+async function tryJava(path: string): Promise<Result<string, string>> {
   try {
-    const cmd = new Deno.Command("java", { args: ["--version"], stdout: "piped", stderr: "piped" });
+    const cmd = new Deno.Command(path, { args: ["--version"], stdout: "piped", stderr: "piped" });
     const output = await cmd.output();
     if (!output.success) {
       return { ok: false, error: "java returned non-zero exit code" };
     }
     const versionText = new TextDecoder().decode(output.stdout).trim();
-    // Parse major version from "openjdk 21.0.1 ..." or "java 21 ..."
     const match = versionText.match(/(\d+)\.\d+/);
     if (match) {
       const major = parseInt(match[1], 10);
@@ -123,20 +165,169 @@ export async function checkJava(): Promise<Result<string, string>> {
     }
     return { ok: true, value: versionText.split("\n")[0] };
   } catch {
-    return { ok: false, error: "java not found on PATH" };
+    return { ok: false, error: "not found" };
   }
+}
+
+/** Return the JAVA_HOME for a managed JRE, or null if none installed. */
+export function resolveJavaHome(): string | null {
+  const javaDir = `${resolveSignalCliBinDir()}/java`;
+  try {
+    for (const entry of Deno.readDirSync(javaDir)) {
+      if (entry.isDirectory && entry.name.startsWith("jdk-")) {
+        const candidate = `${javaDir}/${entry.name}`;
+        // macOS JRE has Contents/Home structure
+        if (Deno.build.os === "darwin") {
+          const macHome = `${candidate}/Contents/Home`;
+          try {
+            Deno.statSync(`${macHome}/bin/java`);
+            return macHome;
+          } catch { /* not macOS layout */ }
+        }
+        // Linux / direct layout
+        try {
+          Deno.statSync(`${candidate}/bin/java`);
+          return candidate;
+        } catch { /* try next */ }
+      }
+    }
+  } catch {
+    // java dir doesn't exist yet
+  }
+  return null;
+}
+
+/** Return the path to the java binary for a given JAVA_HOME. */
+function javaHomeBin(javaHome: string): string {
+  return `${javaHome}/bin/java`;
+}
+
+/**
+ * Download and install Eclipse Temurin JRE 21 to ~/.triggerfish/bin/java/.
+ *
+ * Uses the Adoptium API to fetch the latest JRE 21 GA release.
+ *
+ * @returns JAVA_HOME path for the installed JRE.
+ */
+export async function downloadJre(): Promise<Result<string, string>> {
+  const javaDir = `${resolveSignalCliBinDir()}/java`;
+  await Deno.mkdir(javaDir, { recursive: true });
+
+  // Map Deno.build to Adoptium API parameters
+  const osMap: Record<string, string> = { linux: "linux", darwin: "mac" };
+  const archMap: Record<string, string> = { x86_64: "x64", aarch64: "aarch64" };
+
+  const adoptOs = osMap[Deno.build.os];
+  const adoptArch = archMap[Deno.build.arch];
+
+  if (!adoptOs || !adoptArch) {
+    return { ok: false, error: `Unsupported platform: ${Deno.build.os}/${Deno.build.arch}` };
+  }
+
+  // Fetch metadata to get download URL and size
+  console.log("  Fetching JRE 21 release info...");
+  let assets: AdoptiumAsset[];
+  try {
+    const metaUrl = `https://api.adoptium.net/v3/assets/latest/21/hotspot?image_type=jre&os=${adoptOs}&architecture=${adoptArch}`;
+    const metaResp = await fetch(metaUrl);
+    if (!metaResp.ok) {
+      return { ok: false, error: `Adoptium API returned ${metaResp.status}: ${await metaResp.text()}` };
+    }
+    assets = await metaResp.json() as AdoptiumAsset[];
+  } catch (err) {
+    return { ok: false, error: `Failed to fetch JRE metadata: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  if (assets.length === 0) {
+    return { ok: false, error: `No JRE 21 release found for ${adoptOs}/${adoptArch}` };
+  }
+
+  // Pick the .tar.gz asset
+  const asset = assets.find((a) => a.binary.package.name.endsWith(".tar.gz"));
+  if (!asset) {
+    return { ok: false, error: "No .tar.gz JRE asset found" };
+  }
+
+  const sizeMB = (asset.binary.package.size / 1024 / 1024).toFixed(1);
+  const releaseName = asset.release_name;
+  console.log(`  Downloading JRE 21 (${releaseName}, ${sizeMB} MB)...`);
+
+  // Download
+  let resp: Response;
+  try {
+    resp = await fetch(asset.binary.package.link, { redirect: "follow" });
+    if (!resp.ok || !resp.body) {
+      return { ok: false, error: `JRE download failed: HTTP ${resp.status}` };
+    }
+  } catch (err) {
+    return { ok: false, error: `JRE download failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  // Extract via tar to javaDir
+  try {
+    const tar = new Deno.Command("tar", {
+      args: ["xzf", "-", "-C", javaDir],
+      stdin: "piped",
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const child = tar.spawn();
+    const writer = child.stdin.getWriter();
+
+    for await (const chunk of resp.body) {
+      await writer.write(chunk);
+    }
+    await writer.close();
+
+    const status = await child.status;
+    if (!status.success) {
+      const stderr = new TextDecoder().decode(await child.stderr.getReader().read().then((r) => r.value ?? new Uint8Array()));
+      return { ok: false, error: `JRE tar extraction failed: ${stderr}` };
+    }
+  } catch (err) {
+    return { ok: false, error: `JRE extraction failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  // Resolve JAVA_HOME from extracted directory
+  const javaHome = resolveJavaHome();
+  if (!javaHome) {
+    // List what was extracted for debugging
+    const entries: string[] = [];
+    try {
+      for await (const e of Deno.readDir(javaDir)) entries.push(e.name);
+    } catch { /* */ }
+    return { ok: false, error: `JRE extracted but JAVA_HOME not found. Contents: [${entries.join(", ")}]` };
+  }
+
+  // Verify it works
+  const javaBin = javaHomeBin(javaHome);
+  const verify = await tryJava(javaBin);
+  if (!verify.ok) {
+    return { ok: false, error: `Installed JRE at ${javaBin} does not run correctly: ${verify.error}` };
+  }
+
+  console.log(`  Installed: ${verify.value}`);
+  return { ok: true, value: javaHome };
+}
+
+/** Result of downloading signal-cli: binary path and optional JAVA_HOME. */
+export interface SignalCliInstall {
+  /** Path to the signal-cli binary. */
+  readonly path: string;
+  /** JAVA_HOME for managed JRE, if the JVM build was installed. */
+  readonly javaHome?: string;
 }
 
 /**
  * Download and install signal-cli to Triggerfish's managed bin directory.
  *
  * On Linux: tries native build first (no Java needed), falls back to JVM build.
- * On macOS/other: uses JVM build (requires Java 21+).
+ * On macOS/other: uses JVM build (requires Java 21+, auto-downloads portable JRE if missing).
  *
  * @param release - GitHub release metadata.
- * @returns Path to the installed signal-cli binary.
+ * @returns Path to the installed signal-cli binary and optional JAVA_HOME.
  */
-export async function downloadSignalCli(release: GitHubRelease): Promise<Result<string, string>> {
+export async function downloadSignalCli(release: GitHubRelease): Promise<Result<SignalCliInstall, string>> {
   const version = release.tag_name.replace(/^v/, "");
   const binDir = resolveSignalCliBinDir();
   const installDir = `${binDir}/signal-cli-${version}`;
@@ -158,6 +349,7 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
   }
 
   // Fall back to JVM build
+  let javaHome: string | undefined;
   if (!asset) {
     const jvmName = `signal-cli-${version}.tar.gz`;
     asset = release.assets.find((a) => a.name === jvmName);
@@ -166,10 +358,17 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
       return { ok: false, error: `No suitable signal-cli asset found for ${os} in release ${release.tag_name}` };
     }
 
-    // JVM build requires Java
+    // JVM build requires Java — check or download
     const javaCheck = await checkJava();
-    if (!javaCheck.ok) {
-      return { ok: false, error: `JVM build requires Java 21+: ${javaCheck.error}` };
+    if (javaCheck.ok) {
+      javaHome = javaCheck.value.javaHome;
+    } else {
+      console.log("  Java 21+ not found — downloading portable JRE...");
+      const jreResult = await downloadJre();
+      if (!jreResult.ok) {
+        return { ok: false, error: `JVM build requires Java 21+ and auto-install failed: ${jreResult.error}` };
+      }
+      javaHome = jreResult.value;
     }
   }
 
@@ -249,14 +448,15 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
     } catch { /* already executable */ }
   }
 
-  // Verify it runs
-  const verify = await trySignalCli(binaryPath);
+  // Verify it runs (pass JAVA_HOME for JVM builds)
+  const verifyEnv = javaHome ? { JAVA_HOME: javaHome } : undefined;
+  const verify = await trySignalCli(binaryPath, verifyEnv);
   if (!verify.ok) {
     return { ok: false, error: `Installed binary at ${binaryPath} does not run correctly` };
   }
 
   console.log(`  Installed: ${verify.value.version}`);
-  return { ok: true, value: binaryPath };
+  return { ok: true, value: { path: binaryPath, javaHome } };
 }
 
 // ─── Device linking ───────────────────────────────────────────────────────────
@@ -266,17 +466,23 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
  *
  * @param deviceName - Name for this linked device.
  * @param signalCliPath - Path to signal-cli binary.
+ * @param javaHome - Optional JAVA_HOME for managed JRE.
  * @returns The link URI for QR code display.
  */
 export async function startLinkProcess(
   deviceName: string,
   signalCliPath: string = "signal-cli",
+  javaHome?: string,
 ): Promise<Result<{ uri: string; process: Deno.ChildProcess }, string>> {
   try {
+    const env = javaHome
+      ? { ...Deno.env.toObject(), JAVA_HOME: javaHome }
+      : undefined;
     const cmd = new Deno.Command(signalCliPath, {
       args: ["link", "-n", deviceName],
       stdout: "piped",
       stderr: "piped",
+      env,
     });
     const child = cmd.spawn();
 
@@ -351,12 +557,17 @@ export async function renderQrCode(uri: string): Promise<void> {
 
 // ─── Daemon management ───────────────────────────────────────────────────────
 
+/** Normalize "localhost" to "127.0.0.1" — signal-cli binds IPv4 only. */
+function normalizeHost(host: string): string {
+  return host === "localhost" ? "127.0.0.1" : host;
+}
+
 /**
  * Check if signal-cli daemon is already running on the given endpoint.
  */
 export async function isDaemonRunning(host: string, port: number): Promise<boolean> {
   try {
-    const conn = await Deno.connect({ hostname: host, port });
+    const conn = await Deno.connect({ hostname: normalizeHost(host), port });
     conn.close();
     return true;
   } catch {
@@ -371,6 +582,7 @@ export async function isDaemonRunning(host: string, port: number): Promise<boole
  * @param host - TCP hostname. Default: localhost.
  * @param port - TCP port. Default: 7583.
  * @param signalCliPath - Path to signal-cli binary.
+ * @param javaHome - Optional JAVA_HOME for managed JRE.
  * @returns The child process handle.
  */
 export function startDaemon(
@@ -378,12 +590,17 @@ export function startDaemon(
   host: string = "localhost",
   port: number = 7583,
   signalCliPath: string = "signal-cli",
+  javaHome?: string,
 ): Result<Deno.ChildProcess, string> {
   try {
+    const env = javaHome
+      ? { ...Deno.env.toObject(), JAVA_HOME: javaHome }
+      : undefined;
     const cmd = new Deno.Command(signalCliPath, {
       args: ["-a", account, "daemon", "--tcp", `${host}:${port}`],
       stdout: "null",
       stderr: "null",
+      env,
     });
     const child = cmd.spawn();
     return { ok: true, value: child };
@@ -395,7 +612,7 @@ export function startDaemon(
 /**
  * Wait for daemon to become reachable on TCP.
  */
-export async function waitForDaemon(host: string, port: number, timeoutMs: number = 30000): Promise<boolean> {
+export async function waitForDaemon(host: string, port: number, timeoutMs: number = 60000): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (await isDaemonRunning(host, port)) return true;

@@ -96,14 +96,14 @@ Deno.test("Signal: factory creates adapter with correct channel type", () => {
   assertEquals(adapter.status().connected, false);
 });
 
-Deno.test("Signal: defaults to INTERNAL classification", () => {
+Deno.test("Signal: defaults to PUBLIC classification", () => {
   const { client } = createMockClient();
   const adapter = createSignalChannel({
     endpoint: "tcp://localhost:7583",
     account: "+15551234567",
     _client: client,
   });
-  assertEquals(adapter.classification, "INTERNAL");
+  assertEquals(adapter.classification, "PUBLIC");
 });
 
 Deno.test("Signal: respects custom classification", () => {
@@ -180,7 +180,6 @@ Deno.test("Signal: inbound DM creates correct ChannelMessage", async () => {
   const adapter = createSignalChannel({
     endpoint: "tcp://localhost:7583",
     account: "+15551234567",
-    dmPolicy: "open",
     _client: client,
   });
 
@@ -228,61 +227,11 @@ Deno.test("Signal: inbound group message creates correct sessionId", async () =>
   await adapter.disconnect();
 });
 
-Deno.test("Signal: allowlist dmPolicy allows listed number", async () => {
+Deno.test("Signal: DMs from any sender are forwarded unconditionally", async () => {
   const { client, feedNotification } = createMockClient();
   const adapter = createSignalChannel({
     endpoint: "tcp://localhost:7583",
     account: "+15551234567",
-    dmPolicy: "allowlist",
-    allowFrom: ["+15559876543"],
-    _client: client,
-  });
-
-  let received: ChannelMessage | null = null;
-  adapter.onMessage((msg) => { received = msg; });
-  await adapter.connect();
-
-  feedNotification(makeNotification({
-    source: "+15559876543",
-    message: "Allowed sender",
-  }));
-
-  assert(received !== null, "Handler should have been called for allowed number");
-  assertEquals(received!.content, "Allowed sender");
-
-  await adapter.disconnect();
-});
-
-Deno.test("Signal: allowlist dmPolicy blocks unlisted number", async () => {
-  const { client, feedNotification } = createMockClient();
-  const adapter = createSignalChannel({
-    endpoint: "tcp://localhost:7583",
-    account: "+15551234567",
-    dmPolicy: "allowlist",
-    allowFrom: ["+15559876543"],
-    _client: client,
-  });
-
-  let received: ChannelMessage | null = null;
-  adapter.onMessage((msg) => { received = msg; });
-  await adapter.connect();
-
-  feedNotification(makeNotification({
-    source: "+15551111111",
-    message: "Blocked sender",
-  }));
-
-  assertEquals(received, null, "Handler should NOT have been called for unlisted number");
-
-  await adapter.disconnect();
-});
-
-Deno.test("Signal: open dmPolicy allows any number", async () => {
-  const { client, feedNotification } = createMockClient();
-  const adapter = createSignalChannel({
-    endpoint: "tcp://localhost:7583",
-    account: "+15551234567",
-    dmPolicy: "open",
     _client: client,
   });
 
@@ -292,8 +241,12 @@ Deno.test("Signal: open dmPolicy allows any number", async () => {
 
   feedNotification(makeNotification({ source: "+15551111111", message: "One" }));
   feedNotification(makeNotification({ source: "+15552222222", message: "Two" }));
+  feedNotification(makeNotification({ source: "+15553333333", message: "Three" }));
 
-  assertEquals(messages.length, 2);
+  assertEquals(messages.length, 3, "All DMs should be forwarded regardless of sender");
+  assertEquals(messages[0].senderId, "+15551111111");
+  assertEquals(messages[1].senderId, "+15552222222");
+  assertEquals(messages[2].senderId, "+15553333333");
 
   await adapter.disconnect();
 });

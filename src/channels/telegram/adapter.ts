@@ -49,7 +49,7 @@ export interface TelegramChannelAdapter extends ChannelAdapter {
  */
 export function createTelegramChannel(config: TelegramConfig): TelegramChannelAdapter {
   const bot = new Bot(config.botToken);
-  const classification = (config.classification ?? "INTERNAL") as ClassificationLevel;
+  const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
   const ownerId = config.ownerId;
   let connected = false;
   let handler: MessageHandler | null = null;
@@ -70,9 +70,10 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
   bot.on("message:text", (ctx) => {
     if (!handler) return;
 
-    const isOwner = ownerId !== undefined
-      ? ctx.from.id === ownerId
-      : true; // If no ownerId configured, treat all as owner
+    const numericOwnerId = typeof ownerId === "number" ? ownerId : Number(ownerId);
+    const isOwner = ownerId !== undefined && Number.isFinite(numericOwnerId)
+      ? ctx.from.id === numericOwnerId
+      : ownerId === undefined; // No ownerId → treat as owner; invalid ownerId → never owner
 
     trackMessage(ctx.chat.id, ctx.message.message_id);
 

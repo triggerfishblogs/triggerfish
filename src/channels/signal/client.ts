@@ -14,6 +14,8 @@ import type {
   JsonRpcRequest,
   JsonRpcResponse,
   SignalClientInterface,
+  SignalContactEntry,
+  SignalGroupEntry,
   SignalNotification,
 } from "./types.ts";
 
@@ -59,9 +61,12 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
   function parseEndpoint(endpoint: string): { transport: "tcp"; hostname: string; port: number } | { transport: "unix"; path: string } {
     if (endpoint.startsWith("tcp://")) {
       const url = new URL(endpoint.replace("tcp://", "http://"));
+      // Normalize "localhost" to "127.0.0.1" — signal-cli binds on IPv4,
+      // and "localhost" may resolve to ::1 (IPv6) on some systems.
+      const hostname = url.hostname === "localhost" ? "127.0.0.1" : url.hostname;
       return {
         transport: "tcp",
-        hostname: url.hostname,
+        hostname,
         port: parseInt(url.port || "7583", 10),
       };
     }
@@ -270,11 +275,57 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
 
     async ping(): Promise<Result<void, string>> {
       try {
-        const response = await sendRequest("listAccounts", {});
+        // Use "version" — works in both single-account and multi-account mode.
+        // "listAccounts" only works in multi-account mode.
+        const response = await sendRequest("version", {});
         if (response.error) {
           return { ok: false, error: response.error.message };
         }
         return { ok: true, value: undefined };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+
+    async listGroups(): Promise<Result<readonly SignalGroupEntry[], string>> {
+      try {
+        const response = await sendRequest("listGroups", {});
+        if (response.error) {
+          return { ok: false, error: response.error.message };
+        }
+        const groups = response.result as readonly Record<string, unknown>[] ?? [];
+        return {
+          ok: true,
+          value: groups.map((g) => ({
+            id: String(g.id ?? ""),
+            name: String(g.name ?? ""),
+            description: g.description ? String(g.description) : undefined,
+            isMember: Boolean(g.isMember),
+            isBlocked: Boolean(g.isBlocked),
+            members: Array.isArray(g.members) ? g.members.map(String) : undefined,
+          })),
+        };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+
+    async listContacts(): Promise<Result<readonly SignalContactEntry[], string>> {
+      try {
+        const response = await sendRequest("listContacts", {});
+        if (response.error) {
+          return { ok: false, error: response.error.message };
+        }
+        const contacts = response.result as readonly Record<string, unknown>[] ?? [];
+        return {
+          ok: true,
+          value: contacts.map((c) => ({
+            number: String(c.number ?? ""),
+            name: c.name ? String(c.name) : undefined,
+            profileName: c.profileName ? String(c.profileName) : undefined,
+            isBlocked: Boolean(c.isBlocked),
+          })),
+        };
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }

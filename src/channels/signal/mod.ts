@@ -12,16 +12,21 @@ export type {
   SignalGroupConfig,
   SignalNotification,
   SignalClientInterface,
+  SignalGroupEntry,
+  SignalContactEntry,
 } from "./types.ts";
 export { createSignalClient } from "./client.ts";
 export type { SignalChannelAdapter } from "./adapter.ts";
 export { createSignalChannel } from "./adapter.ts";
+export type { SignalCliInstall } from "./setup.ts";
 export {
   checkSignalCli,
   fetchLatestVersion,
   downloadSignalCli,
+  downloadJre,
   checkJava,
   resolveSignalCliBinDir,
+  resolveJavaHome,
   startLinkProcess,
   renderQrCode,
   isDaemonRunning,
