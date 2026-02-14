@@ -115,7 +115,10 @@ rm -f "/tmp/SHA256SUMS.txt"
 
 echo "[ok] Installed to ${INSTALL_DIR}/${INSTALL_NAME}"
 
-# Ensure it's on PATH
+# Save original PATH before modifying, so persistent PATH check is accurate
+ORIGINAL_PATH="${PATH}"
+
+# Ensure it's on PATH for this session (so 'triggerfish dive' below can find the binary)
 export PATH="${INSTALL_DIR}:${PATH}"
 
 # Ensure install dir is in user's persistent PATH
@@ -161,7 +164,7 @@ add_to_path() {
   echo "[ok] Added ${dir} to PATH in ${profile}"
 }
 
-case ":${PATH}:" in
+case ":${ORIGINAL_PATH}:" in
   *":${INSTALL_DIR}:"*) ;;
   *)
     add_to_path "${INSTALL_DIR}"
