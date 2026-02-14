@@ -382,8 +382,8 @@ export function startDaemon(
   try {
     const cmd = new Deno.Command(signalCliPath, {
       args: ["-a", account, "daemon", "--tcp", `${host}:${port}`],
-      stdout: "piped",
-      stderr: "piped",
+      stdout: "null",
+      stderr: "null",
     });
     const child = cmd.spawn();
     return { ok: true, value: child };
@@ -395,7 +395,7 @@ export function startDaemon(
 /**
  * Wait for daemon to become reachable on TCP.
  */
-export async function waitForDaemon(host: string, port: number, timeoutMs: number = 15000): Promise<boolean> {
+export async function waitForDaemon(host: string, port: number, timeoutMs: number = 30000): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (await isDaemonRunning(host, port)) return true;

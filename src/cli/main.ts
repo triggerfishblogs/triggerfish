@@ -1916,7 +1916,7 @@ async function promptChannelConfig(
         options: [
           { name: "Open (anyone can message)", value: "open" },
           { name: "Allowlist (only approved numbers)", value: "allowlist" },
-          { name: "Pairing (require pairing code)", value: "pairing" },
+          { name: "Pairing (new contacts must send a one-time code)", value: "pairing" },
         ],
         default: "open",
       });
@@ -1928,6 +1928,11 @@ async function promptChannelConfig(
         if (allowFromStr.length > 0) {
           config.allowFrom = allowFromStr.split(",").map((s: string) => s.trim());
         }
+      }
+      if (config.dmPolicy === "pairing") {
+        console.log("\n  Pairing mode: new contacts must send a 6-digit code to start chatting.");
+        console.log("  Generate codes at runtime: ask your agent \"generate a pairing code for Signal\"");
+        console.log("  Codes expire after 5 minutes and can only be used once.\n");
       }
       config.defaultGroupMode = await Select.prompt({
         message: "Default group chat mode",
