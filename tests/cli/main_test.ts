@@ -179,20 +179,25 @@ Deno.test("Daemon: generates Windows Service install script", async () => {
   const { generateServiceInstallScript } = await import("../../src/cli/daemon.ts");
   const script = generateServiceInstallScript(
     "C:\\Users\\test\\AppData\\Local\\Triggerfish\\triggerfish.exe",
+    "C:\\Users\\test\\AppData\\Local\\Temp\\triggerfish-install-result.txt",
   );
   // PowerShell service management
   assertStringIncludes(script, "New-Service");
   assertStringIncludes(script, "Start-Service");
   assertStringIncludes(script, "Triggerfish AI Agent");
   assertStringIncludes(script, "-StartupType Automatic");
-  // C# service wrapper compilation
+  // C# service wrapper compilation — tries csc.exe first, falls back to Add-Type
   assertStringIncludes(script, "csc.exe");
+  assertStringIncludes(script, "Add-Type");
   assertStringIncludes(script, "System.ServiceProcess");
   assertStringIncludes(script, "ServiceBase");
   // Binary path in C# source
   assertStringIncludes(script, "C:\\Users\\test\\AppData\\Local\\Triggerfish\\triggerfish.exe");
   // Cleans up legacy scheduled task
   assertStringIncludes(script, "schtasks /delete");
+  // Result file for error reporting
+  assertStringIncludes(script, "triggerfish-install-result.txt");
+  assertStringIncludes(script, "'OK'");
 });
 
 Deno.test("Daemon: generates C# service source with correct paths", async () => {
