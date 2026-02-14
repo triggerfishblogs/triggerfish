@@ -9,6 +9,10 @@
  * `handleChannelMessage`. Owner messages use the main daemon session;
  * non-owner messages get independent per-user sessions managed here.
  *
+ * `handleChannelMessage` is the single authority for all non-owner
+ * access control: pairing enforcement, respondToUnclassified gating,
+ * and send-event construction. Adapters are dumb pipes.
+ *
  * @module
  */
 
@@ -27,12 +31,13 @@ import { updateTaint } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import type { CompactorConfig } from "../agent/compactor.ts";
 import type { MessageContent } from "../image/content.ts";
-import type { ChannelMessage } from "../channels/types.ts";
+import type { ChannelAdapter, ChannelMessage } from "../channels/types.ts";
 import {
   createUserSessionManager,
   parseUserOverrides,
 } from "../channels/user_sessions.ts";
 import type { UserSessionManager } from "../channels/user_sessions.ts";
+import type { PairingService } from "../channels/pairing.ts";
 
 /** Events sent over the chat wire protocol. */
 export type ChatEvent =
@@ -77,12 +82,36 @@ export type ChatClientMessage =
 /** Callback to send a chat event to a specific client. */
 export type ChatEventSender = (event: ChatEvent) => void;
 
-/** Per-channel classification config for non-owner user sessions. */
+/**
+ * Per-channel classification config for non-owner user sessions.
+ *
+ * @deprecated Use ChannelRegistrationConfig instead.
+ */
 export interface ChannelClassificationConfig {
   /** Default classification ceiling for non-owner users on this channel. */
   readonly classification: ClassificationLevel;
   /** Optional per-user classification overrides keyed by platform-native ID. */
   readonly userClassifications?: Record<string, string>;
+  /** Whether to respond to users not listed in userClassifications. Default: true. */
+  readonly respondToUnclassified?: boolean;
+}
+
+/** Full channel registration config including adapter and access control. */
+export interface ChannelRegistrationConfig {
+  /** The channel adapter instance. */
+  readonly adapter: ChannelAdapter;
+  /** Human-readable channel name (e.g. "Signal", "Telegram"). */
+  readonly channelName: string;
+  /** Default classification ceiling for non-owner users on this channel. */
+  readonly classification: ClassificationLevel;
+  /** Optional per-user classification overrides keyed by platform-native ID. */
+  readonly userClassifications?: Record<string, string>;
+  /** Whether to respond to users not listed in userClassifications. Default: true. */
+  readonly respondToUnclassified?: boolean;
+  /** Whether pairing is required for this channel. Default: false. */
+  readonly pairing?: boolean;
+  /** Classification level assigned to paired users. Default: INTERNAL. */
+  readonly pairingClassification?: ClassificationLevel;
 }
 
 /** Configuration for creating a ChatSession. */
@@ -110,6 +139,20 @@ export interface ChatSessionConfig {
   readonly escalateTaint?: (level: ClassificationLevel, reason: string) => void;
   /** Reset session state (taint back to PUBLIC). Called on /clear. */
   readonly resetSession?: () => void;
+  /** Pairing service for verifying channel pairing codes. */
+  readonly pairingService?: PairingService;
+  /** Return the current owner session state (tracks taint reassignment in main.ts). */
+  readonly getSession?: () => SessionState;
+}
+
+/** Internal per-channel state tracked by ChatSession. */
+interface ChannelState {
+  readonly userSessions: UserSessionManager;
+  readonly adapter: ChannelAdapter;
+  readonly channelName: string;
+  readonly respondToUnclassified: boolean;
+  readonly pairing: boolean;
+  readonly pairingClassification: ClassificationLevel;
 }
 
 /** Shared chat session that serializes access to the orchestrator. */
@@ -121,22 +164,26 @@ export interface ChatSession {
     signal?: AbortSignal,
   ): Promise<void>;
   /**
-   * Register a channel's classification config for per-user session management.
+   * Register a channel for routing through handleChannelMessage.
    *
+   * Pre-loads paired senders from storage when pairing is enabled.
    * Must be called before `handleChannelMessage` for a given channel type.
    */
-  registerChannel(channelType: string, config: ChannelClassificationConfig): void;
+  registerChannel(channelType: string, config: ChannelRegistrationConfig): Promise<void>;
   /**
    * Route a channel message to the correct session.
    *
    * Owner messages (`msg.isOwner !== false`) use the main daemon session.
-   * Non-owner messages get independent per-user sessions with classification
-   * ceilings derived from the registered channel config.
+   * Non-owner messages pass through pairing and respondToUnclassified gates,
+   * then get independent per-user sessions with classification ceilings
+   * derived from the registered channel config.
+   *
+   * Builds the ChatEventSender internally from the registered adapter —
+   * callers do not provide sendEvent.
    */
   handleChannelMessage(
     msg: ChannelMessage,
     channelType: string,
-    sendEvent: ChatEventSender,
     signal?: AbortSignal,
   ): Promise<void>;
   /** Clear conversation history and reset session state. */
@@ -147,6 +194,51 @@ export interface ChatSession {
   readonly providerName: string;
   /** The primary model identifier from config. */
   readonly modelName: string;
+}
+
+/**
+ * Build a ChatEventSender for a channel adapter that handles typing
+ * indicators, response sending, and error delivery.
+ */
+export function buildSendEvent(
+  adapter: ChannelAdapter,
+  channelName: string,
+  msg: ChannelMessage,
+): ChatEventSender {
+  let typingInterval: number | undefined;
+
+  return (event) => {
+    if (event.type === "llm_start") {
+      clearInterval(typingInterval);
+      adapter.sendTyping?.(msg.sessionId ?? "").catch(() => {});
+      typingInterval = setInterval(() => {
+        adapter.sendTyping?.(msg.sessionId ?? "").catch(() => {});
+      }, 4000) as unknown as number;
+    }
+
+    if (event.type === "response") {
+      clearInterval(typingInterval);
+      typingInterval = undefined;
+      const text = event.text.trim();
+      if (text.length > 0) {
+        adapter.send({
+          content: text,
+          sessionId: msg.sessionId,
+        }).catch((err) => console.error(`${channelName} send error:`, err));
+      } else {
+        console.error(`${channelName}: skipping empty response (LLM returned no text)`);
+      }
+    }
+
+    if (event.type === "error") {
+      clearInterval(typingInterval);
+      typingInterval = undefined;
+      adapter.send({
+        content: `Error: ${event.message}`,
+        sessionId: msg.sessionId,
+      }).catch((err) => console.error(`${channelName} send error:`, err));
+    }
+  };
 }
 
 /**
@@ -176,8 +268,10 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
   const sessionStates = new Map<string, SessionState>();
   sessionStates.set(ownerSessionId, config.session);
 
-  // Per-channel UserSessionManagers, keyed by channelType.
-  const channelUserSessions = new Map<string, UserSessionManager>();
+  // Per-channel state, keyed by channelType.
+  const channelStates = new Map<string, ChannelState>();
+
+  const pairingService = config.pairingService;
 
   const ownerGetTaint = config.getSessionTaint;
   const ownerEscalateTaint = config.escalateTaint;
@@ -225,7 +319,10 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     getNonOwnerCeiling: () => activeNonOwnerCeiling,
   });
 
-  const session = config.session;
+  const initialSession = config.session;
+  function getSession(): SessionState {
+    return config.getSession?.() ?? initialSession;
+  }
 
   const providerName = config.providerRegistry.getDefault()?.name ?? "unknown";
   const modelName = config.providerRegistry.getDefault()?.name ?? "unknown";
@@ -251,7 +348,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
 
     try {
       const result = await orchestrator.processMessage({
-        session,
+        session: getSession(),
         message: content,
         targetClassification: ownerTargetClassification,
         signal,
@@ -266,40 +363,96 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     } finally {
       activeSend = null;
       activeSessionId = ownerSessionId;
-  
+
       resolve!();
     }
   }
 
-  function registerChannel(channelType: string, channelConfig: ChannelClassificationConfig): void {
+  async function registerChannel(channelType: string, channelConfig: ChannelRegistrationConfig): Promise<void> {
     const mgr = createUserSessionManager({
       channelDefault: channelConfig.classification,
       userOverrides: parseUserOverrides(channelConfig.userClassifications),
     });
-    channelUserSessions.set(channelType, mgr);
+
+    const pairingCls = channelConfig.pairingClassification ?? "INTERNAL" as ClassificationLevel;
+
+    // Pre-load paired users as classified users when pairing is enabled.
+    if (channelConfig.pairing && pairingService) {
+      try {
+        const linkedUsers = await pairingService.getLinkedUsers(channelType);
+        for (const userId of linkedUsers) {
+          mgr.addClassification(userId, pairingCls);
+        }
+      } catch { /* ignore if prefix listing not supported */ }
+    }
+
+    channelStates.set(channelType, {
+      userSessions: mgr,
+      adapter: channelConfig.adapter,
+      channelName: channelConfig.channelName,
+      respondToUnclassified: channelConfig.respondToUnclassified ?? true,
+      pairing: channelConfig.pairing ?? false,
+      pairingClassification: pairingCls,
+    });
   }
 
   async function handleChannelMessage(
     msg: ChannelMessage,
     channelType: string,
-    sendEvent: ChatEventSender,
     signal?: AbortSignal,
   ): Promise<void> {
-    // Owner messages → main daemon session
-    if (msg.isOwner !== false) {
-      return processMessage(msg.content, sendEvent, signal);
-    }
-
-    // Non-owner messages → per-user session
-    const userSessions = channelUserSessions.get(channelType);
-    if (!userSessions) {
-      sendEvent({ type: "error", message: `No channel config registered for ${channelType}` });
+    const channelState = channelStates.get(channelType);
+    if (!channelState) {
+      console.error(`No channel config registered for ${channelType}`);
       return;
     }
 
-    const senderId = msg.senderId ?? "unknown";
-    const userSession = userSessions.getOrCreate(channelType, senderId);
-    const userCls = userSessions.getClassification(senderId);
+    // Owner messages → build sendEvent from adapter → main daemon session
+    if (msg.isOwner !== false) {
+      const sendEvent = buildSendEvent(channelState.adapter, channelState.channelName, msg);
+      return processMessage(msg.content, sendEvent, signal);
+    }
+
+    const senderId = msg.senderId ?? "";
+    const userSessions = channelState.userSessions;
+    const hasClassification = userSessions.hasExplicitClassification(senderId || "unknown");
+
+    // --- Unified access control gate ---
+    if (!hasClassification) {
+      // Try pairing if enabled (DMs only, 6-digit codes)
+      if (channelState.pairing && senderId) {
+        const isGroupMsg = msg.sessionId?.startsWith(`${channelType}-group-`) ?? false;
+        if (!isGroupMsg) {
+          const codeMatch = (msg.content ?? "").trim().match(/^\d{6}$/);
+          if (codeMatch && pairingService) {
+            const result = await pairingService.verifyCode(codeMatch[0], channelType, senderId);
+            if (result.ok) {
+              userSessions.addClassification(senderId, channelState.pairingClassification);
+              await channelState.adapter.send({
+                content: "Paired successfully. You can now chat with me.",
+                sessionId: msg.sessionId,
+              }).catch(() => {});
+            }
+            // Invalid/expired code: stay silent.
+          }
+        }
+        // Pairing required, user not classified → drop
+        return;
+      }
+
+      // No pairing, no classification → check respondToUnclassified
+      if (!channelState.respondToUnclassified) {
+        console.error(`[${channelType}] Dropping unclassified sender ${senderId} (respondToUnclassified=false)`);
+        return;
+      }
+    }
+
+    // Non-owner messages → per-user session
+    const effectiveSenderId = senderId || "unknown";
+    const userSession = userSessions.getOrCreate(channelType, effectiveSenderId);
+    const userCls = userSessions.getClassification(effectiveSenderId);
+
+    const sendEvent = buildSendEvent(channelState.adapter, channelState.channelName, msg);
 
     const prev = mutex;
     let resolve: () => void;
@@ -313,8 +466,8 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     sessionStates.set(userSessionId, userSession);
     activeSend = sendEvent;
     activeSessionId = userSessionId;
-    activeNonOwnerCeiling = userSessions.hasExplicitClassification(senderId)
-      ? userSessions.getClassification(senderId)
+    activeNonOwnerCeiling = userSessions.hasExplicitClassification(effectiveSenderId)
+      ? userSessions.getClassification(effectiveSenderId)
       : null;
 
     try {
@@ -335,7 +488,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
       // Persist potentially-escalated session back to the UserSessionManager
       const updated = sessionStates.get(userSessionId);
       if (updated) {
-        userSessions.updateSession(channelType, senderId, updated);
+        userSessions.updateSession(channelType, effectiveSenderId, updated);
       }
       activeSend = null;
       activeSessionId = ownerSessionId;
@@ -345,7 +498,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
   }
 
   function clear(): void {
-    orchestrator.clearHistory(session.id);
+    orchestrator.clearHistory(getSession().id);
     if (config.resetSession) {
       config.resetSession();
     }
@@ -354,7 +507,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
   async function compact(sendEvent: ChatEventSender): Promise<void> {
     sendEvent({ type: "compact_start" });
     try {
-      const result = await orchestrator.compactHistory(session.id);
+      const result = await orchestrator.compactHistory(getSession().id);
       sendEvent({
         type: "compact_complete",
         messagesBefore: result.messagesBefore,

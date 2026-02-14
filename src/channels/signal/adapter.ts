@@ -24,34 +24,40 @@ import { createSignalClient } from "./client.ts";
 import type {
   SignalClientInterface,
   SignalConfig,
+  SignalContactEntry,
+  SignalGroupEntry,
   SignalNotification,
 } from "./types.ts";
+import type { Result } from "../../core/types/classification.ts";
 
 /** Maximum message length for Signal before chunking. */
 const MAX_MESSAGE_LENGTH = 4000;
 
-/** Extended Signal adapter with typing indicator support. */
+/** Extended Signal adapter with typing indicator support and discovery. */
 export interface SignalChannelAdapter extends ChannelAdapter {
   /** Send a typing indicator to the recipient for the given session. */
   sendTyping(sessionId: string): Promise<void>;
   /** Stop typing indicator for the given session. */
   stopTyping(sessionId: string): Promise<void>;
+  /** List all Signal groups the account belongs to. */
+  listGroups(): Promise<Result<readonly SignalGroupEntry[], string>>;
+  /** List all known Signal contacts. */
+  listContacts(): Promise<Result<readonly SignalContactEntry[], string>>;
 }
 
 /**
  * Create a Signal channel adapter.
  *
  * Connects to signal-cli daemon via JSON-RPC over TCP or Unix socket.
- * Routes incoming messages to the registered handler with DM policy
- * and group mode enforcement.
+ * Routes incoming messages to the registered handler with group mode
+ * enforcement. DM access control is handled by the shared
+ * ChatSession.handleChannelMessage() layer, not by the adapter.
  *
  * @param config - Signal adapter configuration.
  * @returns A SignalChannelAdapter wired to signal-cli.
  */
 export function createSignalChannel(config: SignalConfig): SignalChannelAdapter {
-  const classification = (config.classification ?? "INTERNAL") as ClassificationLevel;
-  const dmPolicy = config.dmPolicy ?? "open";
-  const allowFrom = config.allowFrom ?? [];
+  const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
   const defaultGroupMode = config.defaultGroupMode ?? "always";
 
   let client: SignalClientInterface | null = config._client ?? null;
@@ -69,24 +75,6 @@ export function createSignalChannel(config: SignalConfig): SignalChannelAdapter 
   function groupIdFromSessionId(sessionId: string): string | null {
     if (sessionId.startsWith("signal-group-")) return sessionId.slice("signal-group-".length);
     return null;
-  }
-
-  /** Check if a phone number is allowed by the DM policy. */
-  function isDmAllowed(senderPhone: string): boolean {
-    switch (dmPolicy) {
-      case "open":
-        return true;
-      case "allowlist":
-        return allowFrom.includes(senderPhone);
-      case "owner-only":
-        // The adapter IS the owner — no inbound message is from the owner
-        return false;
-      case "pairing":
-        // Pairing is handled by the orchestrator layer, allow through
-        return true;
-      default:
-        return false;
-    }
   }
 
   /** Check if a group message should be processed. */
@@ -140,9 +128,7 @@ export function createSignalChannel(config: SignalConfig): SignalChannelAdapter 
         sessionTaint: "PUBLIC" as ClassificationLevel,
       });
     } else {
-      // DM
-      if (!isDmAllowed(senderPhone)) return;
-
+      // DM — access control handled by ChatSession.handleChannelMessage()
       handler({
         content: messageText,
         sessionId: `signal-${senderPhone}`,
@@ -239,6 +225,16 @@ export function createSignalChannel(config: SignalConfig): SignalChannelAdapter 
       if (phone) {
         await client.sendTypingStop(phone);
       }
+    },
+
+    async listGroups(): Promise<Result<readonly SignalGroupEntry[], string>> {
+      if (!client) return { ok: false, error: "Not connected" };
+      return client.listGroups();
+    },
+
+    async listContacts(): Promise<Result<readonly SignalContactEntry[], string>> {
+      if (!client) return { ok: false, error: "Not connected" };
+      return client.listContacts();
     },
   };
 }

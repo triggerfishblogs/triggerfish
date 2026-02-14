@@ -56,4 +56,7 @@ export interface ChannelAdapter {
 
   /** Get the current channel status. */
   status(): ChannelStatus;
+
+  /** Send a typing indicator. Optional — channels that don't support it omit this. */
+  sendTyping?(sessionId: string): Promise<void>;
 }

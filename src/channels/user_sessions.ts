@@ -26,8 +26,10 @@ export interface UserSessionManager {
   getOrCreate(channelType: string, senderId: string): SessionState;
   /** Resolve the classification ceiling for a user (override or channel default). */
   getClassification(senderId: string): ClassificationLevel;
-  /** Whether this user has an explicit classification override in config. */
+  /** Whether this user has an explicit classification (config or runtime pairing). */
   hasExplicitClassification(senderId: string): boolean;
+  /** Add a runtime classification for a paired user. */
+  addClassification(senderId: string, level: ClassificationLevel): void;
   /** Look up an existing session without creating one. */
   getSession(channelType: string, senderId: string): SessionState | undefined;
   /** Replace the cached session state (e.g. after taint escalation). */
@@ -45,13 +47,16 @@ export function createUserSessionManager(
   config: UserClassificationConfig,
 ): UserSessionManager {
   const sessions = new Map<string, SessionState>();
+  const runtimeOverrides = new Map<string, ClassificationLevel>();
 
   function sessionKey(channelType: string, senderId: string): string {
     return `${channelType}:${senderId}`;
   }
 
   function getClassification(senderId: string): ClassificationLevel {
-    return config.userOverrides.get(senderId) ?? config.channelDefault;
+    return runtimeOverrides.get(senderId)
+      ?? config.userOverrides.get(senderId)
+      ?? config.channelDefault;
   }
 
   function getOrCreate(channelType: string, senderId: string): SessionState {
@@ -76,10 +81,14 @@ export function createUserSessionManager(
   }
 
   function hasExplicitClassification(senderId: string): boolean {
-    return config.userOverrides.has(senderId);
+    return runtimeOverrides.has(senderId) || config.userOverrides.has(senderId);
   }
 
-  return { getOrCreate, getClassification, hasExplicitClassification, getSession, updateSession };
+  function addClassification(senderId: string, level: ClassificationLevel): void {
+    runtimeOverrides.set(senderId, level);
+  }
+
+  return { getOrCreate, getClassification, hasExplicitClassification, getSession, updateSession, addClassification };
 }
 
 /**

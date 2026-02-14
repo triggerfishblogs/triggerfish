@@ -14,7 +14,7 @@ Deno.test("Telegram: factory creates adapter with correct channel type", async (
   const adapter = createTelegramChannel({ botToken: "fake:token" });
   assertEquals(adapter.status().channelType, "telegram");
   assertEquals(adapter.status().connected, false);
-  assertEquals(adapter.classification, "INTERNAL");
+  assertEquals(adapter.classification, "PUBLIC");
 });
 
 Deno.test("Telegram: respects custom classification", async () => {
@@ -220,13 +220,13 @@ Deno.test("Signal: factory creates adapter with correct channel type", async () 
   assertEquals(adapter.status().connected, false);
 });
 
-Deno.test("Signal: defaults to INTERNAL classification", async () => {
+Deno.test("Signal: defaults to PUBLIC classification", async () => {
   const { createSignalChannel } = await import("../../src/channels/signal/adapter.ts");
   const adapter = createSignalChannel({
     endpoint: "tcp://localhost:7583",
     account: "+15551234567",
   });
-  assertEquals(adapter.classification, "INTERNAL");
+  assertEquals(adapter.classification, "PUBLIC");
 });
 
 Deno.test("Signal: respects custom classification", async () => {
