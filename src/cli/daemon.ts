@@ -335,7 +335,10 @@ public class TriggerFishService : ServiceBase
  * @param binaryPath - Absolute path to triggerfish.exe
  * @returns PowerShell script string
  */
-export function generateServiceInstallScript(binaryPath: string): string {
+export function generateServiceInstallScript(
+  binaryPath: string,
+  resultFile: string,
+): string {
   const dataDir = resolveBaseDir();
   const logDirectory = logDir();
   const csSource = generateServiceSource(binaryPath, dataDir, logDirectory);
@@ -344,8 +347,12 @@ export function generateServiceInstallScript(binaryPath: string): string {
   const binDir = binaryPath.replace(/[/\\][^/\\]+$/, "");
   const serviceExePath = `${binDir}\\TriggerFishService.exe`.replaceAll("/", "\\");
   const psServiceExe = psEscape(serviceExePath);
+  const psResultFile = psEscape(resultFile);
 
+  // The script writes "OK" to resultFile on success, or "ERROR: <details>" on failure.
+  // This is the only reliable way to communicate results back from the elevated process.
   return `$ErrorActionPreference = 'Stop'
+try {
 $svc = Get-Service -Name '${WINDOWS_SERVICE_NAME}' -ErrorAction SilentlyContinue
 if ($svc) {
     Stop-Service -Name '${WINDOWS_SERVICE_NAME}' -Force -ErrorAction SilentlyContinue
@@ -361,12 +368,19 @@ $tempCs = Join-Path $env:TEMP 'TriggerFishService.cs'
 Set-Content -Path $tempCs -Value $csSource -Encoding UTF8
 $csc = Join-Path $env:windir 'Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe'
 if (-not (Test-Path $csc)) { $csc = Join-Path $env:windir 'Microsoft.NET\\Framework\\v4.0.30319\\csc.exe' }
-if (-not (Test-Path $csc)) { throw 'C# compiler (csc.exe) not found. .NET Framework 4.x is required.' }
-& $csc /nologo /target:exe /reference:System.ServiceProcess.dll /out:'${psServiceExe}' $tempCs 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Failed to compile service wrapper' }
+if (-not (Test-Path $csc)) {
+    Add-Type -TypeDefinition $csSource -OutputAssembly '${psServiceExe}' -OutputType ConsoleApplication -ReferencedAssemblies System.ServiceProcess
+} else {
+    & $csc /nologo /target:exe /reference:System.ServiceProcess.dll /out:'${psServiceExe}' $tempCs 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'C# compiler exited with code $LASTEXITCODE' }
+}
 Remove-Item $tempCs -Force -ErrorAction SilentlyContinue
 New-Service -Name '${WINDOWS_SERVICE_NAME}' -BinaryPathName '${psServiceExe}' -DisplayName 'Triggerfish AI Agent' -Description 'Triggerfish AI Agent daemon' -StartupType Automatic
-Start-Service -Name '${WINDOWS_SERVICE_NAME}'`;
+Start-Service -Name '${WINDOWS_SERVICE_NAME}'
+'OK' | Out-File -FilePath '${psResultFile}' -Encoding UTF8
+} catch {
+    "ERROR: $_" | Out-File -FilePath '${psResultFile}' -Encoding UTF8
+}`;
 }
 
 /**
@@ -391,6 +405,30 @@ async function runCommand(
     stderr: new TextDecoder().decode(output.stderr).trim(),
     success: output.success,
   };
+}
+
+/**
+ * Run an encoded PowerShell command with automatic elevation detection.
+ *
+ * If already running as admin, runs directly. Otherwise uses
+ * Start-Process -Verb RunAs for UAC elevation.
+ */
+async function runElevatedCommand(encoded: string): Promise<void> {
+  const isElevated = await runCommand("powershell", [
+    "-NoProfile", "-Command",
+    "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)",
+  ]);
+
+  if (isElevated.stdout === "True") {
+    await runCommand("powershell", [
+      "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded,
+    ]);
+  } else {
+    await runCommand("powershell", [
+      "-NoProfile", "-Command",
+      `Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -NonInteractive -EncodedCommand ${encoded}'`,
+    ]);
+  }
 }
 
 /**
@@ -473,21 +511,43 @@ export async function installAndStartDaemon(
   }
 
   if (manager === "windows-service") {
-    const installScript = generateServiceInstallScript(binaryPath);
+    // Use a result file so the elevated process can report errors back.
+    // Start-Process -Verb RunAs runs in a separate window — its stdout is lost.
+    const resultFile = join(
+      Deno.env.get("TEMP") ?? Deno.env.get("USERPROFILE") ?? ".",
+      "triggerfish-install-result.txt",
+    );
+    // Clean any stale result file
+    try { await Deno.remove(resultFile); } catch { /* */ }
+
+    const installScript = generateServiceInstallScript(binaryPath, resultFile);
     const encoded = encodeUtf16Base64(installScript);
 
-    // Service installation requires admin — elevate via UAC prompt
-    console.log("  Requesting administrator privileges...");
-    await runCommand("powershell", [
-      "-NoProfile", "-Command",
-      `Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -NonInteractive -EncodedCommand ${encoded}'`,
-    ]);
+    console.log("  Installing Windows Service...");
+    await runElevatedCommand(encoded);
 
-    // Verify the service was created and started (user may have declined UAC)
+    // Read the result file written by the elevated script
+    let elevatedError = "";
+    try {
+      const result = (await Deno.readTextFile(resultFile)).trim();
+      if (result.startsWith("ERROR:")) {
+        elevatedError = result.substring(6).trim();
+      }
+    } catch {
+      elevatedError = "Elevated process produced no result (may have crashed or been denied)";
+    }
+    // Clean up
+    try { await Deno.remove(resultFile); } catch { /* */ }
+
+    if (elevatedError) {
+      return { ok: false, message: `Service installation failed: ${elevatedError}` };
+    }
+
+    // Verify the service was created and started
     const verifyResult = await runCommand("sc", ["query", WINDOWS_SERVICE_NAME]);
 
     if (!verifyResult.success) {
-      return { ok: false, message: "Failed to install service. Administrator privileges are required." };
+      return { ok: false, message: "Service was not created. Check that .NET Framework is installed, or run from an admin terminal." };
     }
 
     const isRunning = verifyResult.stdout.includes("RUNNING");
@@ -523,20 +583,17 @@ export async function stopDaemon(): Promise<DaemonResult> {
   }
 
   if (manager === "windows-service") {
-    // Stopping a service requires admin — elevate via UAC
     const stopScript = `Stop-Service -Name '${WINDOWS_SERVICE_NAME}' -Force -ErrorAction Stop`;
     const encoded = encodeUtf16Base64(stopScript);
-    await runCommand("powershell", [
-      "-NoProfile", "-Command",
-      `Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -NonInteractive -EncodedCommand ${encoded}'`,
-    ]);
+
+    await runElevatedCommand(encoded);
 
     // Verify it stopped
     const verifyResult = await runCommand("sc", ["query", WINDOWS_SERVICE_NAME]);
     const stopped = verifyResult.stdout.includes("STOPPED") || !verifyResult.success;
     return stopped
       ? { ok: true, message: "Daemon stopped" }
-      : { ok: false, message: "Failed to stop daemon" };
+      : { ok: false, message: "Failed to stop daemon. Try running from an admin terminal." };
   }
 
   return { ok: false, message: `Unsupported daemon manager: ${manager}` };
@@ -947,7 +1004,6 @@ export async function uninstallDaemon(): Promise<DaemonResult> {
   }
 
   if (manager === "windows-service") {
-    // Uninstalling a service requires admin — elevate via UAC
     const uninstallScript = [
       `Stop-Service -Name '${WINDOWS_SERVICE_NAME}' -Force -ErrorAction SilentlyContinue`,
       `Start-Sleep -Seconds 2`,
@@ -955,17 +1011,15 @@ export async function uninstallDaemon(): Promise<DaemonResult> {
       `schtasks /delete /tn '${SCHTASKS_TASK_NAME}' /f 2>$null | Out-Null`,
     ].join("; ");
     const encoded = encodeUtf16Base64(uninstallScript);
-    await runCommand("powershell", [
-      "-NoProfile", "-Command",
-      `Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -NonInteractive -EncodedCommand ${encoded}'`,
-    ]);
+
+    await runElevatedCommand(encoded);
 
     // Verify removal
     const verifyResult = await runCommand("sc", ["query", WINDOWS_SERVICE_NAME]);
     const removed = !verifyResult.success || verifyResult.stderr.includes("1060");
     return removed
       ? { ok: true, message: "Daemon uninstalled" }
-      : { ok: false, message: "Failed to uninstall daemon. Administrator privileges are required." };
+      : { ok: false, message: "Failed to uninstall daemon. Try running from an admin terminal." };
   }
 
   return { ok: false, message: `Unsupported daemon manager: ${manager}` };
