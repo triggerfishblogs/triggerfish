@@ -153,7 +153,7 @@ WantedBy=default.target
  */
 export function generateSchtasksXml(options: DaemonOptions): string {
   const logFile = logFilePath();
-  return `<?xml version="1.0" encoding="UTF-8"?>
+  return `<?xml version="1.0"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
     <Description>Triggerfish AI Agent</Description>
@@ -296,7 +296,8 @@ export async function installAndStartDaemon(
     const xml = generateSchtasksXml({ binaryPath });
     const xmlPath = `${resolveBaseDir()}/triggerfish-task.xml`;
 
-    await Deno.writeTextFile(xmlPath, xml);
+    // UTF-8 BOM ensures MSXML (used by schtasks) detects encoding correctly
+    await Deno.writeTextFile(xmlPath, "\uFEFF" + xml);
 
     // Delete existing task (ignore errors if it doesn't exist)
     await runCommand("schtasks", ["/delete", "/tn", SCHTASKS_TASK_NAME, "/f"]);
