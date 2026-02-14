@@ -7,6 +7,7 @@
  * @module
  */
 
+import { join } from "@std/path";
 import { parse as parseYaml } from "@std/yaml";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import { parseClassification } from "../core/types/classification.ts";
@@ -109,8 +110,8 @@ export function createSkillLoader(options: SkillLoaderOptions): SkillLoader {
           for await (const entry of Deno.readDir(dir)) {
             if (!entry.isDirectory) continue;
 
-            const skillDir = `${dir}/${entry.name}`;
-            const skillMdPath = `${skillDir}/SKILL.md`;
+            const skillDir = join(dir, entry.name);
+            const skillMdPath = join(skillDir, "SKILL.md");
 
             let content: string;
             try {

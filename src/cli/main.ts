@@ -673,7 +673,7 @@ function buildSkillsSystemPrompt(skills: readonly Skill[]): string {
   if (skills.length === 0) return "";
 
   const rows = skills.map((s) =>
-    `| ${s.name} | ${s.description} | ${s.path}/SKILL.md |`
+    `| ${s.name} | ${s.description} | ${join(s.path, "SKILL.md")} |`
   ).join("\n");
 
   return `## Available Skills
@@ -691,7 +691,7 @@ When a task matches a skill, use read_file to load the skill's SKILL.md for deta
 function buildTriggersSystemPrompt(baseDir: string): string {
   return `## Triggers (Proactive Monitoring)
 
-Your TRIGGER.md file is at ${baseDir}/TRIGGER.md. It defines what you proactively monitor and act on during periodic trigger wakeups. Use read_file to see current triggers, and edit_file/write_file to modify them. For full documentation on the TRIGGER.md format, read the "triggers" skill.`;
+Your TRIGGER.md file is at ${join(baseDir, "TRIGGER.md")}. It defines what you proactively monitor and act on during periodic trigger wakeups. Use read_file to see current triggers, and edit_file/write_file to modify them. For full documentation on the TRIGGER.md format, read the "triggers" skill.`;
 }
 
 function buildWebTools(
@@ -775,7 +775,7 @@ function createOrchestratorFactory(
   }
   const hookRunner = createHookRunner(engine);
 
-  const spinePath = `${baseDir}/SPINE.md`;
+  const spinePath = join(baseDir, "SPINE.md");
   const toolDefs = getToolDefinitions();
   const { searchProvider, webFetcher } = buildWebTools(config);
   const schedulerKeychain = createKeychain();
@@ -785,8 +785,8 @@ function createOrchestratorFactory(
 
   // Discover skills for scheduler agents (same directories as main session)
   const factoryBundledSkillsDir = join(import.meta.dirname ?? ".", "..", "..", "skills", "bundled");
-  const factoryManagedSkillsDir = `${baseDir}/skills`;
-  const factoryWorkspaceSkillsDir = `${baseDir}/workspaces/main/skills`;
+  const factoryManagedSkillsDir = join(baseDir, "skills");
+  const factoryWorkspaceSkillsDir = join(baseDir, "workspaces", "main", "skills");
   const factorySkillLoader = createSkillLoader({
     directories: [factoryBundledSkillsDir, factoryManagedSkillsDir, factoryWorkspaceSkillsDir],
     dirTypes: {
@@ -813,7 +813,7 @@ function createOrchestratorFactory(
       const agentId = `scheduler-${channelId}-${Date.now()}`;
       const workspace = await createWorkspace({
         agentId,
-        basePath: `${baseDir}/workspaces`,
+        basePath: join(baseDir, "workspaces"),
       });
 
       // Symlink SPINE.md into workspace so the agent can read AND edit its identity
@@ -939,7 +939,7 @@ function buildSchedulerConfig(
 
   return {
     orchestratorFactory: factory,
-    triggerMdPath: `${baseDir}/TRIGGER.md`,
+    triggerMdPath: join(baseDir, "TRIGGER.md"),
     trigger: {
       enabled: sched?.trigger?.enabled ?? true,
       intervalMinutes: sched?.trigger?.interval_minutes ?? 30,
@@ -1023,10 +1023,11 @@ async function runStart(): Promise<void> {
   }
 
   // Create default directories on first run
+  for (const sub of ["logs", "data", "skills"]) {
+    await Deno.mkdir(join(baseDir, sub), { recursive: true });
+  }
   if (isDockerEnvironment()) {
-    for (const sub of ["workspace", "skills", "logs"]) {
-      await Deno.mkdir(`${baseDir}/${sub}`, { recursive: true });
-    }
+    await Deno.mkdir(join(baseDir, "workspace"), { recursive: true });
   }
 
   // Load config
@@ -1041,9 +1042,8 @@ async function runStart(): Promise<void> {
   console.log("  Configuration loaded");
 
   // Create persistent storage for cron jobs
-  const dataDir = `${baseDir}/data`;
-  await Deno.mkdir(dataDir, { recursive: true });
-  const storage = createSqliteStorage(`${dataDir}/triggerfish.db`);
+  const dataDir = join(baseDir, "data");
+  const storage = createSqliteStorage(join(dataDir, "triggerfish.db"));
   const cronManager = await createPersistentCronManager(storage);
 
   const existingJobs = cronManager.list();
@@ -1083,10 +1083,10 @@ async function runStart(): Promise<void> {
   }
   const hookRunner = createHookRunner(engine);
 
-  const spinePath = `${baseDir}/SPINE.md`;
+  const spinePath = join(baseDir, "SPINE.md");
   const mainWorkspace = await createWorkspace({
     agentId: "main-session",
-    basePath: `${baseDir}/workspaces`,
+    basePath: join(baseDir, "workspaces"),
   });
 
   // Symlink SPINE.md into workspace so the agent can read AND edit its identity
@@ -1104,7 +1104,7 @@ async function runStart(): Promise<void> {
 
   // Initialize memory system with FTS5 search
   const { Database } = await import("@db/sqlite");
-  const memoryDb = new Database(`${dataDir}/triggerfish.db`);
+  const memoryDb = new Database(join(dataDir, "triggerfish.db"));
   memoryDb.exec("PRAGMA journal_mode=WAL");
   const memorySearchProvider = createFts5SearchProvider(memoryDb);
   const memoryStore = createMemoryStore({ storage, searchProvider: memorySearchProvider });
@@ -1137,7 +1137,7 @@ async function runStart(): Promise<void> {
   });
   const browserHandle = createAutoLaunchBrowserExecutor({
     manager: createBrowserManager({
-      profileBaseDir: `${dataDir}/browser-profiles`,
+      profileBaseDir: join(dataDir, "browser-profiles"),
       domainPolicy: browserDomainPolicy,
       storage,
       headless: false,
@@ -1238,8 +1238,8 @@ async function runStart(): Promise<void> {
 
   // Discover skills from bundled, managed, and workspace directories
   const bundledSkillsDir = join(import.meta.dirname ?? ".", "..", "..", "skills", "bundled");
-  const managedSkillsDir = `${baseDir}/skills`;
-  const workspaceSkillsDir = `${baseDir}/workspaces/main/skills`;
+  const managedSkillsDir = join(baseDir, "skills");
+  const workspaceSkillsDir = join(baseDir, "workspaces", "main", "skills");
   const skillLoader = createSkillLoader({
     directories: [bundledSkillsDir, managedSkillsDir, workspaceSkillsDir],
     dirTypes: {
@@ -2753,7 +2753,7 @@ async function runChat(): Promise<void> {
 
   const config = configResult.value;
   const baseDir = resolveBaseDir();
-  const dataDir = `${baseDir}/data`;
+  const dataDir = join(baseDir, "data");
   await Deno.mkdir(dataDir, { recursive: true });
 
   // Connect to the daemon's chat WebSocket
@@ -2920,7 +2920,7 @@ async function runChat(): Promise<void> {
   clearTimeout(timeout);
 
   // Load input history
-  const historyFilePath = `${dataDir}/input_history.json`;
+  const historyFilePath = join(dataDir, "input_history.json");
   let inputHistory = await loadInputHistory(historyFilePath);
 
   // Set up suggestion engine
@@ -3359,9 +3359,9 @@ async function runCron(
   flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
   const baseDir = resolveBaseDir();
-  const dataDir = `${baseDir}/data`;
+  const dataDir = join(baseDir, "data");
   await Deno.mkdir(dataDir, { recursive: true });
-  const storage = createSqliteStorage(`${dataDir}/triggerfish.db`);
+  const storage = createSqliteStorage(join(dataDir, "triggerfish.db"));
   const cronManager = await createPersistentCronManager(storage);
 
   try {

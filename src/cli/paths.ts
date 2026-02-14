@@ -7,6 +7,7 @@
  * @module
  */
 
+import { join } from "@std/path";
 import { isDockerEnvironment } from "../core/env.ts";
 
 /**
@@ -30,7 +31,7 @@ export function resolveBaseDir(): string {
   }
 
   const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".";
-  return `${home}/.triggerfish`;
+  return join(home, ".triggerfish");
 }
 
 /**
@@ -41,5 +42,5 @@ export function resolveBaseDir(): string {
  */
 export function resolveConfigPath(baseDir?: string): string {
   const base = baseDir ?? resolveBaseDir();
-  return `${base}/triggerfish.yaml`;
+  return join(base, "triggerfish.yaml");
 }

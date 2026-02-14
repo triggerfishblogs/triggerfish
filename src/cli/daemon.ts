@@ -6,6 +6,7 @@
  * @module
  */
 
+import { join } from "@std/path";
 import { resolveBaseDir } from "./paths.ts";
 
 /** Supported daemon manager types. */
@@ -79,14 +80,14 @@ function systemdUnitPath(): string {
  * Get the log directory path.
  */
 export function logDir(): string {
-  return `${resolveBaseDir()}/logs`;
+  return join(resolveBaseDir(), "logs");
 }
 
 /**
  * Get the stdout log file path.
  */
 export function logFilePath(): string {
-  return `${logDir()}/triggerfish.log`;
+  return join(logDir(), "triggerfish.log");
 }
 
 /**
@@ -777,7 +778,7 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
   console.log(`  Updating to ${latestTag}`);
 
   // Download new binary to temp file
-  const tmpPath = `${resolveBaseDir()}/.update-tmp`;
+  const tmpPath = join(resolveBaseDir(), ".update-tmp");
   console.log("Downloading...");
   try {
     const resp = await fetch(downloadUrl);
