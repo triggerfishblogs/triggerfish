@@ -651,6 +651,10 @@ async function replaceBinary(tmpPath: string, binaryPath: string): Promise<void>
       await Deno.remove(tmpPath);
     }
     await Deno.chmod(binaryPath, 0o755);
+    // macOS: clear quarantine/provenance xattrs so Gatekeeper doesn't kill it
+    if (Deno.build.os === "darwin") {
+      await runCommand("xattr", ["-cr", binaryPath]);
+    }
   } else {
     // Need elevated permissions
     console.log(`  Binary directory (${targetDir}) requires elevated permissions.`);
@@ -672,6 +676,10 @@ async function replaceBinary(tmpPath: string, binaryPath: string): Promise<void>
       stderr: "inherit",
     });
     await chmod.output();
+    // macOS: clear quarantine/provenance xattrs so Gatekeeper doesn't kill it
+    if (Deno.build.os === "darwin") {
+      await runCommand("sudo", ["xattr", "-cr", binaryPath]);
+    }
   }
 }
 
@@ -738,14 +746,34 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
 
   // 3. Download new binary to temp file
   const tmpPath = join(resolveBaseDir(), ".update-tmp");
-  console.log("  Downloading...");
   try {
     const resp = await fetch(downloadUrl);
     if (!resp.ok || !resp.body) {
       return { ok: false, message: `Download failed: HTTP ${resp.status}` };
     }
+    const totalBytes = Number(resp.headers.get("content-length") ?? 0);
     const file = await Deno.open(tmpPath, { write: true, create: true, truncate: true });
-    await resp.body.pipeTo(file.writable);
+    const enc = new TextEncoder();
+    let downloaded = 0;
+    const reader = resp.body.getReader();
+    const writer = file.writable.getWriter();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      await writer.write(value);
+      downloaded += value.byteLength;
+      if (totalBytes > 0) {
+        const pct = Math.round((downloaded / totalBytes) * 100);
+        const mb = (downloaded / 1_048_576).toFixed(1);
+        const totalMb = (totalBytes / 1_048_576).toFixed(1);
+        Deno.stderr.writeSync(enc.encode(`\r  Downloading... ${mb}/${totalMb} MB (${pct}%)`));
+      } else {
+        const mb = (downloaded / 1_048_576).toFixed(1);
+        Deno.stderr.writeSync(enc.encode(`\r  Downloading... ${mb} MB`));
+      }
+    }
+    await writer.close();
+    Deno.stderr.writeSync(enc.encode("\n"));
     if (Deno.build.os !== "windows") {
       await Deno.chmod(tmpPath, 0o755);
     }
