@@ -22,7 +22,7 @@ echo "Building Triggerfish binaries (version: ${VERSION_TAG})..."
 echo ""
 
 # Stamp version into source before compilation
-echo "export const VERSION = \"${VERSION_TAG}\";" > src/cli/version.ts
+echo "export const VERSION: string = \"${VERSION_TAG}\";" > src/cli/version.ts
 
 mkdir -p "${DIST_DIR}"
 
