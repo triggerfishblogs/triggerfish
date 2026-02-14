@@ -64,10 +64,12 @@ fi
 BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
 
 echo "Downloading ${BINARY_NAME}..."
-curl -sSL -o "/tmp/${BINARY_NAME}" "${BASE_URL}/${BINARY_NAME}"
+curl -fSL --progress-bar --connect-timeout 15 --retry 3 \
+  -o "/tmp/${BINARY_NAME}" "${BASE_URL}/${BINARY_NAME}"
 
 echo "Downloading checksums..."
-curl -sSL -o "/tmp/SHA256SUMS.txt" "${BASE_URL}/SHA256SUMS.txt"
+curl -fsSL --connect-timeout 15 --retry 3 \
+  -o "/tmp/SHA256SUMS.txt" "${BASE_URL}/SHA256SUMS.txt"
 
 # --- Step 4: Verify checksum ---
 
