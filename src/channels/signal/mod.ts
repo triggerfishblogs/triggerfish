@@ -18,6 +18,10 @@ export type { SignalChannelAdapter } from "./adapter.ts";
 export { createSignalChannel } from "./adapter.ts";
 export {
   checkSignalCli,
+  fetchLatestVersion,
+  downloadSignalCli,
+  checkJava,
+  resolveSignalCliBinDir,
   startLinkProcess,
   renderQrCode,
   isDaemonRunning,

@@ -1,13 +1,14 @@
 /**
  * Signal channel guided setup.
  *
- * Walks the user through signal-cli installation verification,
+ * Handles signal-cli binary installation (download from GitHub releases),
  * device linking with QR code display, and daemon startup.
  *
  * @module
  */
 
 import type { Result } from "../../core/types/classification.ts";
+import { resolveBaseDir } from "../../cli/paths.ts";
 
 /** Result of the guided Signal setup flow. */
 export interface SignalSetupResult {
@@ -15,41 +16,239 @@ export interface SignalSetupResult {
   readonly endpoint: string;
 }
 
+/** GitHub release API response shape (subset). */
+interface GitHubRelease {
+  readonly tag_name: string;
+  readonly assets: readonly { readonly name: string; readonly browser_download_url: string; readonly size: number }[];
+}
+
+// ─── Binary resolution ────────────────────────────────────────────────────────
+
+/** Return the directory where Triggerfish stores managed binaries. */
+export function resolveSignalCliBinDir(): string {
+  return `${resolveBaseDir()}/bin`;
+}
+
 /**
- * Check if signal-cli is installed and available on PATH.
+ * Find signal-cli binary — check PATH first, then Triggerfish's managed bin dir.
  *
- * @returns The path to signal-cli, or an error message.
+ * @returns The version string and resolved binary path, or an error.
  */
-export async function checkSignalCli(): Promise<Result<string, string>> {
+export async function checkSignalCli(): Promise<Result<{ version: string; path: string }, string>> {
+  // 1. Check PATH
+  const pathResult = await trySignalCli("signal-cli");
+  if (pathResult.ok) return pathResult;
+
+  // 2. Check managed install dir
+  const binDir = resolveSignalCliBinDir();
   try {
-    const cmd = new Deno.Command("signal-cli", { args: ["--version"], stdout: "piped", stderr: "piped" });
+    for await (const entry of Deno.readDir(binDir)) {
+      if (entry.isDirectory && entry.name.startsWith("signal-cli-")) {
+        const candidate = `${binDir}/${entry.name}/bin/signal-cli`;
+        const result = await trySignalCli(candidate);
+        if (result.ok) return result;
+      }
+    }
+  } catch {
+    // binDir doesn't exist yet
+  }
+
+  return { ok: false, error: "signal-cli not found" };
+}
+
+/** Try running a signal-cli binary and return version + path if it works. */
+async function trySignalCli(path: string): Promise<Result<{ version: string; path: string }, string>> {
+  try {
+    const cmd = new Deno.Command(path, { args: ["--version"], stdout: "piped", stderr: "piped" });
     const output = await cmd.output();
     if (output.success) {
       const version = new TextDecoder().decode(output.stdout).trim();
-      return { ok: true, value: version };
+      return { ok: true, value: { version, path } };
     }
-    return { ok: false, error: "signal-cli returned non-zero exit code" };
+    return { ok: false, error: "non-zero exit" };
   } catch {
-    return { ok: false, error: "signal-cli not found on PATH. Install it from https://github.com/AsamK/signal-cli" };
+    return { ok: false, error: "not found" };
+  }
+}
+
+// ─── Installation ─────────────────────────────────────────────────────────────
+
+/**
+ * Fetch the latest signal-cli version from GitHub releases.
+ *
+ * @returns Version string (e.g. "0.13.24") and asset list.
+ */
+export async function fetchLatestVersion(): Promise<Result<GitHubRelease, string>> {
+  try {
+    const resp = await fetch("https://api.github.com/repos/AsamK/signal-cli/releases/latest", {
+      headers: { "Accept": "application/vnd.github+json" },
+    });
+    if (!resp.ok) {
+      return { ok: false, error: `GitHub API returned ${resp.status}: ${await resp.text()}` };
+    }
+    const release = await resp.json() as GitHubRelease;
+    return { ok: true, value: release };
+  } catch (err) {
+    return { ok: false, error: `Failed to fetch releases: ${err instanceof Error ? err.message : String(err)}` };
   }
 }
 
 /**
+ * Check if Java 21+ is available on PATH.
+ *
+ * @returns Java version string, or error.
+ */
+export async function checkJava(): Promise<Result<string, string>> {
+  try {
+    const cmd = new Deno.Command("java", { args: ["--version"], stdout: "piped", stderr: "piped" });
+    const output = await cmd.output();
+    if (!output.success) {
+      return { ok: false, error: "java returned non-zero exit code" };
+    }
+    const versionText = new TextDecoder().decode(output.stdout).trim();
+    // Parse major version from "openjdk 21.0.1 ..." or "java 21 ..."
+    const match = versionText.match(/(\d+)\.\d+/);
+    if (match) {
+      const major = parseInt(match[1], 10);
+      if (major >= 21) {
+        return { ok: true, value: versionText.split("\n")[0] };
+      }
+      return { ok: false, error: `Java ${major} found, but signal-cli requires Java 21+` };
+    }
+    return { ok: true, value: versionText.split("\n")[0] };
+  } catch {
+    return { ok: false, error: "java not found on PATH" };
+  }
+}
+
+/**
+ * Download and install signal-cli to Triggerfish's managed bin directory.
+ *
+ * On Linux: tries native build first (no Java needed), falls back to JVM build.
+ * On macOS/other: uses JVM build (requires Java 21+).
+ *
+ * @param release - GitHub release metadata.
+ * @returns Path to the installed signal-cli binary.
+ */
+export async function downloadSignalCli(release: GitHubRelease): Promise<Result<string, string>> {
+  const version = release.tag_name.replace(/^v/, "");
+  const binDir = resolveSignalCliBinDir();
+  const installDir = `${binDir}/signal-cli-${version}`;
+
+  // Ensure bin directory exists
+  await Deno.mkdir(binDir, { recursive: true });
+
+  const os = Deno.build.os;
+  let asset: { name: string; browser_download_url: string; size: number } | undefined;
+  let isNative = false;
+
+  // On Linux, prefer the native build
+  if (os === "linux") {
+    const nativeName = `signal-cli-${version}-Linux-native.tar.gz`;
+    asset = release.assets.find((a) => a.name === nativeName);
+    if (asset) {
+      isNative = true;
+    }
+  }
+
+  // Fall back to JVM build
+  if (!asset) {
+    const jvmName = `signal-cli-${version}.tar.gz`;
+    asset = release.assets.find((a) => a.name === jvmName);
+
+    if (!asset) {
+      return { ok: false, error: `No suitable signal-cli asset found for ${os} in release ${release.tag_name}` };
+    }
+
+    // JVM build requires Java
+    const javaCheck = await checkJava();
+    if (!javaCheck.ok) {
+      return { ok: false, error: `JVM build requires Java 21+: ${javaCheck.error}` };
+    }
+  }
+
+  const sizeMB = (asset.size / 1024 / 1024).toFixed(1);
+  console.log(`  Downloading signal-cli ${version} (${isNative ? "native" : "JVM"}, ${sizeMB} MB)...`);
+
+  // Download
+  let resp: Response;
+  try {
+    resp = await fetch(asset.browser_download_url, { redirect: "follow" });
+    if (!resp.ok || !resp.body) {
+      return { ok: false, error: `Download failed: HTTP ${resp.status}` };
+    }
+  } catch (err) {
+    return { ok: false, error: `Download failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  // Extract via tar — pipe download stream to `tar xzf - -C binDir`
+  try {
+    // Clean any previous install of this version
+    try { await Deno.remove(installDir, { recursive: true }); } catch { /* doesn't exist */ }
+
+    const tar = new Deno.Command("tar", {
+      args: ["xzf", "-", "-C", binDir],
+      stdin: "piped",
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const child = tar.spawn();
+    const writer = child.stdin.getWriter();
+
+    for await (const chunk of resp.body) {
+      await writer.write(chunk);
+    }
+    await writer.close();
+
+    const status = await child.status;
+    if (!status.success) {
+      const stderr = new TextDecoder().decode(await child.stderr.getReader().read().then(r => r.value ?? new Uint8Array()));
+      return { ok: false, error: `tar extraction failed: ${stderr}` };
+    }
+  } catch (err) {
+    return { ok: false, error: `Extraction failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  // Verify the binary exists
+  const binaryPath = `${installDir}/bin/signal-cli`;
+  try {
+    await Deno.stat(binaryPath);
+  } catch {
+    return { ok: false, error: `Extraction succeeded but binary not found at ${binaryPath}` };
+  }
+
+  // Ensure executable
+  if (Deno.build.os !== "windows") {
+    try {
+      await Deno.chmod(binaryPath, 0o755);
+    } catch { /* already executable */ }
+  }
+
+  // Verify it runs
+  const verify = await trySignalCli(binaryPath);
+  if (!verify.ok) {
+    return { ok: false, error: `Installed binary at ${binaryPath} does not run correctly` };
+  }
+
+  console.log(`  Installed: ${verify.value.version}`);
+  return { ok: true, value: binaryPath };
+}
+
+// ─── Device linking ───────────────────────────────────────────────────────────
+
+/**
  * Run `signal-cli link` and capture the sgnl:// URI.
  *
- * Spawns signal-cli link in the background, reads the URI from stdout,
- * then waits for the user to scan the QR code. Returns when linking completes.
- *
- * @param account - Phone number (E.164) to link with.
  * @param deviceName - Name for this linked device.
+ * @param signalCliPath - Path to signal-cli binary.
  * @returns The link URI for QR code display.
  */
 export async function startLinkProcess(
-  account: string,
   deviceName: string,
+  signalCliPath: string = "signal-cli",
 ): Promise<Result<{ uri: string; process: Deno.ChildProcess }, string>> {
   try {
-    const cmd = new Deno.Command("signal-cli", {
+    const cmd = new Deno.Command(signalCliPath, {
       args: ["link", "-n", deviceName],
       stdout: "piped",
       stderr: "piped",
@@ -76,7 +275,6 @@ export async function startLinkProcess(
     reader.releaseLock();
 
     if (!uri.startsWith("sgnl://") && !uri.startsWith("https://signal.link/")) {
-      // Try stderr for error info
       const stderrReader = child.stderr.getReader();
       const { value: errBytes } = await stderrReader.read();
       stderrReader.releaseLock();
@@ -90,17 +288,15 @@ export async function startLinkProcess(
   }
 }
 
+// ─── QR code rendering ───────────────────────────────────────────────────────
+
 /**
- * Render a URI as a QR code in the terminal using Unicode block characters.
- *
- * Uses the `qrcode` npm package if available, falling back to printing
- * the raw URI for the user to convert manually.
+ * Render a URI as a QR code in the terminal.
  *
  * @param uri - The sgnl:// URI to encode.
  */
 export async function renderQrCode(uri: string): Promise<void> {
   try {
-    // Try using qrcode npm package for terminal rendering
     const qrcode = await import("npm:qrcode@1.5.4");
     const qrText = await qrcode.toString(uri, {
       type: "terminal",
@@ -109,7 +305,6 @@ export async function renderQrCode(uri: string): Promise<void> {
     });
     console.log("\n" + qrText);
   } catch {
-    // Fallback: try qrencode CLI tool
     try {
       const cmd = new Deno.Command("qrencode", {
         args: ["-t", "UTF8", "-o", "-", uri],
@@ -121,23 +316,18 @@ export async function renderQrCode(uri: string): Promise<void> {
         console.log("\n" + new TextDecoder().decode(output.stdout));
         return;
       }
-    } catch {
-      // qrencode not available either
-    }
+    } catch { /* qrencode not available */ }
 
-    // Final fallback: print the URI directly
     console.log("\nCould not render QR code. Open this URI in a QR code generator:");
     console.log(`\n  ${uri}\n`);
     console.log("Or visit: https://api.qrserver.com/v1/create-qr-code/?data=" + encodeURIComponent(uri));
   }
 }
 
+// ─── Daemon management ───────────────────────────────────────────────────────
+
 /**
  * Check if signal-cli daemon is already running on the given endpoint.
- *
- * @param host - TCP hostname.
- * @param port - TCP port.
- * @returns true if a connection can be established.
  */
 export async function isDaemonRunning(host: string, port: number): Promise<boolean> {
   try {
@@ -152,18 +342,20 @@ export async function isDaemonRunning(host: string, port: number): Promise<boole
 /**
  * Start signal-cli daemon on a TCP socket.
  *
- * @param account - Phone number (E.164) to run daemon for.
- * @param host - TCP hostname to bind. Default: localhost.
- * @param port - TCP port to bind. Default: 7583.
+ * @param account - Phone number (E.164).
+ * @param host - TCP hostname. Default: localhost.
+ * @param port - TCP port. Default: 7583.
+ * @param signalCliPath - Path to signal-cli binary.
  * @returns The child process handle.
  */
 export function startDaemon(
   account: string,
   host: string = "localhost",
   port: number = 7583,
+  signalCliPath: string = "signal-cli",
 ): Result<Deno.ChildProcess, string> {
   try {
-    const cmd = new Deno.Command("signal-cli", {
+    const cmd = new Deno.Command(signalCliPath, {
       args: ["-a", account, "daemon", "--tcp", `${host}:${port}`],
       stdout: "piped",
       stderr: "piped",
@@ -177,11 +369,6 @@ export function startDaemon(
 
 /**
  * Wait for daemon to become reachable on TCP.
- *
- * @param host - TCP hostname.
- * @param port - TCP port.
- * @param timeoutMs - Max wait time. Default: 15000.
- * @returns true when reachable, false on timeout.
  */
 export async function waitForDaemon(host: string, port: number, timeoutMs: number = 15000): Promise<boolean> {
   const start = Date.now();
