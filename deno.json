@@ -1,13 +1,13 @@
 {
+  "version": "0.1.29",
   "tasks": {
     "test": "deno test --allow-read --allow-write --allow-env --allow-ffi --allow-run --allow-net --allow-sys --no-check",
     "test:watch": "deno test --allow-read --allow-write --allow-env --allow-ffi --allow-run --allow-net --allow-sys --no-check --watch",
     "lint": "deno lint",
     "fmt": "deno fmt",
     "check": "deno check src/mod.ts src/cli/main.ts",
-    "stamp-version": "deno run --allow-run --allow-write scripts/stamp_version.ts",
-    "dev": "deno task stamp-version && deno run --allow-all src/mod.ts",
-    "compile": "deno task stamp-version && deno compile --allow-all --include config/ --include skills/ --output=triggerfish src/cli/main.ts"
+    "dev": "deno run --allow-all src/mod.ts",
+    "compile": "deno compile --allow-all --include config/ --include skills/ --output=triggerfish src/cli/main.ts"
   },
   "compilerOptions": {
     "strict": true
