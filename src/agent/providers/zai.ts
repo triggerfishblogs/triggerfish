@@ -142,7 +142,7 @@ export function createZaiProvider(config: ZaiConfig): LlmProvider {
 
     async *stream(
       messages: readonly LlmMessage[],
-      _tools: readonly unknown[],
+      tools: readonly unknown[],
       options: Record<string, unknown>,
     ): AsyncIterable<LlmStreamChunk> {
       const signal = options.signal as AbortSignal | undefined;
@@ -163,18 +163,23 @@ export function createZaiProvider(config: ZaiConfig): LlmProvider {
         content: toOpenAiContent(m.content),
       }));
 
+      const streamBody: Record<string, unknown> = {
+        model,
+        max_tokens: maxTokens,
+        messages: openaiMessages,
+        stream: true,
+      };
+      if (Array.isArray(tools) && tools.length > 0) {
+        streamBody.tools = tools;
+      }
+
       const response = await fetch(ZAI_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({
-          model,
-          max_tokens: maxTokens,
-          messages: openaiMessages,
-          stream: true,
-        }),
+        body: JSON.stringify(streamBody),
         ...(signal ? { signal } : {}),
       });
 

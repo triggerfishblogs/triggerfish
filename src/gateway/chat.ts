@@ -55,6 +55,7 @@ export type ChatEvent =
     readonly blocked: boolean;
   }
   | { readonly type: "response"; readonly text: string }
+  | { readonly type: "response_chunk"; readonly text: string; readonly done: boolean }
   | { readonly type: "error"; readonly message: string }
   | { readonly type: "vision_start"; readonly imageCount: number }
   | { readonly type: "vision_complete"; readonly imageCount: number }
@@ -98,6 +99,8 @@ export interface ChatSessionConfig {
   readonly targetClassification?: ClassificationLevel;
   /** Plan manager for plan mode state tracking. */
   readonly planManager?: PlanManager;
+  /** Enable streaming responses from the LLM provider. Default: true. */
+  readonly enableStreaming?: boolean;
   /** Enable verbose logging of LLM responses to stderr. */
   readonly debug?: boolean;
   /** Vision-capable LLM provider for image fallback. */
@@ -216,6 +219,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     compactorConfig: config.compactorConfig,
     systemPromptSections: config.systemPromptSections,
     planManager: config.planManager,
+    enableStreaming: config.enableStreaming,
     debug: config.debug,
     visionProvider: config.visionProvider,
     toolClassifications: config.toolClassifications,

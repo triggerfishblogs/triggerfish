@@ -72,7 +72,7 @@ export function createZenMuxProvider(config: ZenMuxConfig): LlmProvider {
 
     async complete(
       messages: readonly LlmMessage[],
-      _tools: readonly unknown[],
+      tools: readonly unknown[],
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       const signal = options.signal as AbortSignal | undefined;
@@ -81,17 +81,22 @@ export function createZenMuxProvider(config: ZenMuxConfig): LlmProvider {
         content: toOpenAiContent(m.content),
       }));
 
+      const body: Record<string, unknown> = {
+        model,
+        max_tokens: maxTokens,
+        messages: openaiMessages,
+      };
+      if (Array.isArray(tools) && tools.length > 0) {
+        body.tools = tools;
+      }
+
       const response = await fetch(ZENMUX_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({
-          model,
-          max_tokens: maxTokens,
-          messages: openaiMessages,
-        }),
+        body: JSON.stringify(body),
         ...(signal ? { signal } : {}),
       });
 
@@ -114,7 +119,7 @@ export function createZenMuxProvider(config: ZenMuxConfig): LlmProvider {
 
     async *stream(
       messages: readonly LlmMessage[],
-      _tools: readonly unknown[],
+      tools: readonly unknown[],
       options: Record<string, unknown>,
     ): AsyncIterable<LlmStreamChunk> {
       const signal = options.signal as AbortSignal | undefined;
@@ -123,18 +128,23 @@ export function createZenMuxProvider(config: ZenMuxConfig): LlmProvider {
         content: toOpenAiContent(m.content),
       }));
 
+      const streamBody: Record<string, unknown> = {
+        model,
+        max_tokens: maxTokens,
+        messages: openaiMessages,
+        stream: true,
+      };
+      if (Array.isArray(tools) && tools.length > 0) {
+        streamBody.tools = tools;
+      }
+
       const response = await fetch(ZENMUX_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({
-          model,
-          max_tokens: maxTokens,
-          messages: openaiMessages,
-          stream: true,
-        }),
+        body: JSON.stringify(streamBody),
         ...(signal ? { signal } : {}),
       });
 

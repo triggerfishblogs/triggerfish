@@ -192,12 +192,12 @@ Deno.test("Orchestrator: loads SPINE.md as system prompt foundation", async () =
   assert(receivedSystemPrompt.length > 0, "System prompt should not be empty");
 });
 
-Deno.test("Orchestrator: parses tool calls with 'args' key", async () => {
+Deno.test("Orchestrator: parses native tool calls (OpenAI format)", async () => {
   const engine = createPolicyEngine();
   const runner = createHookRunner(engine);
   const registry = createProviderRegistry();
 
-  // Provider returns a tool call with "args" key, then a final response
+  // Provider returns a native tool call, then a final response
   let callCount = 0;
   const toolProvider: LlmProvider = {
     name: "tool-test",
@@ -207,8 +207,11 @@ Deno.test("Orchestrator: parses tool calls with 'args' key", async () => {
       callCount++;
       if (callCount === 1) {
         return {
-          content: '<tool_call>\n{"name": "read_file", "args": {"path": "/tmp/test.txt"}}\n</tool_call>',
-          toolCalls: [],
+          content: '',
+          toolCalls: [{
+            type: "function",
+            function: { name: "read_file", arguments: '{"path":"/tmp/test.txt"}' },
+          }],
           usage: { inputTokens: 10, outputTokens: 5 },
         };
       }
@@ -232,7 +235,7 @@ Deno.test("Orchestrator: parses tool calls with 'args' key", async () => {
   assertEquals(executedArgs.path, "/tmp/test.txt");
 });
 
-Deno.test("Orchestrator: parses tool calls with 'input' key", async () => {
+Deno.test("Orchestrator: parses native tool calls (Anthropic format)", async () => {
   const engine = createPolicyEngine();
   const runner = createHookRunner(engine);
   const registry = createProviderRegistry();
@@ -246,8 +249,12 @@ Deno.test("Orchestrator: parses tool calls with 'input' key", async () => {
       callCount++;
       if (callCount === 1) {
         return {
-          content: '<tool_call>\n{"name": "run_command", "input": {"command": "ls -la"}}\n</tool_call>',
-          toolCalls: [],
+          content: '',
+          toolCalls: [{
+            type: "tool_use",
+            name: "run_command",
+            input: { command: "ls -la" },
+          }],
           usage: { inputTokens: 10, outputTokens: 5 },
         };
       }
@@ -271,7 +278,7 @@ Deno.test("Orchestrator: parses tool calls with 'input' key", async () => {
   assertEquals(executedArgs.command, "ls -la");
 });
 
-Deno.test("Orchestrator: parses tool calls with 'parameters' key", async () => {
+Deno.test("Orchestrator: parses native tool calls with nested arguments", async () => {
   const engine = createPolicyEngine();
   const runner = createHookRunner(engine);
   const registry = createProviderRegistry();
@@ -285,8 +292,11 @@ Deno.test("Orchestrator: parses tool calls with 'parameters' key", async () => {
       callCount++;
       if (callCount === 1) {
         return {
-          content: '<tool_call>\n{"name": "list_directory", "parameters": {"path": "/home"}}\n</tool_call>',
-          toolCalls: [],
+          content: '',
+          toolCalls: [{
+            type: "function",
+            function: { name: "list_directory", arguments: '{"path":"/home"}' },
+          }],
           usage: { inputTokens: 10, outputTokens: 5 },
         };
       }
@@ -310,7 +320,7 @@ Deno.test("Orchestrator: parses tool calls with 'parameters' key", async () => {
   assertEquals(executedArgs.path, "/home");
 });
 
-Deno.test("Orchestrator: parses tool calls with flat args format", async () => {
+Deno.test("Orchestrator: parses native tool calls with content alongside", async () => {
   const engine = createPolicyEngine();
   const runner = createHookRunner(engine);
   const registry = createProviderRegistry();
@@ -324,8 +334,11 @@ Deno.test("Orchestrator: parses tool calls with flat args format", async () => {
       callCount++;
       if (callCount === 1) {
         return {
-          content: '<tool_call>\n{"name": "run_command", "command": "echo hello"}\n</tool_call>',
-          toolCalls: [],
+          content: 'Running the command now.',
+          toolCalls: [{
+            type: "function",
+            function: { name: "run_command", arguments: '{"command":"echo hello"}' },
+          }],
           usage: { inputTokens: 10, outputTokens: 5 },
         };
       }

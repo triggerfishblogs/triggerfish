@@ -224,6 +224,7 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
 
       const finalResponse = await streamResult.response;
       const meta = finalResponse.usageMetadata;
+      const geminiFunctionCalls = extractGeminiFunctionCalls(finalResponse);
 
       yield {
         text: "",
@@ -232,6 +233,7 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
           inputTokens: meta?.promptTokenCount ?? 0,
           outputTokens: meta?.candidatesTokenCount ?? 0,
         },
+        ...(geminiFunctionCalls.length > 0 ? { toolCalls: geminiFunctionCalls } : {}),
       };
     },
   };

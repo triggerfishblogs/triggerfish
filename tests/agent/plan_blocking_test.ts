@@ -20,18 +20,40 @@ import type { UserId, ChannelId } from "../../src/core/types/session.ts";
 import { createPlanManager } from "../../src/agent/plan.ts";
 import { getPlanToolDefinitions } from "../../src/agent/plan_tools.ts";
 
-function createMockProvider(responses: string[]): LlmProvider {
+/** A mock response: text content and/or native tool calls. */
+interface MockResponse {
+  readonly content: string;
+  readonly toolCalls?: readonly Record<string, unknown>[];
+}
+
+/** Create a mock response with native tool calls. */
+function toolResponse(...calls: Array<{ name: string; args: Record<string, unknown> }>): MockResponse {
+  return {
+    content: '',
+    toolCalls: calls.map((c) => ({
+      type: "function",
+      function: { name: c.name, arguments: JSON.stringify(c.args) },
+    })),
+  };
+}
+
+/** Create a mock response with just text. */
+function textResponse(content: string): MockResponse {
+  return { content, toolCalls: [] };
+}
+
+function createMockProvider(responses: readonly MockResponse[]): LlmProvider {
   let callIndex = 0;
   return {
     name: "mock",
     supportsStreaming: false,
     // deno-lint-ignore require-await
     async complete(_messages, _tools, _options) {
-      const content = responses[callIndex] ?? "No more responses";
+      const r = responses[callIndex] ?? { content: "No more responses", toolCalls: [] };
       callIndex++;
       return {
-        content,
-        toolCalls: [],
+        content: r.content,
+        toolCalls: r.toolCalls ?? [],
         usage: { inputTokens: 10, outputTokens: 5 },
       };
     },
@@ -39,7 +61,7 @@ function createMockProvider(responses: string[]): LlmProvider {
 }
 
 function createTestOrchestrator(
-  responses: string[],
+  responses: readonly MockResponse[],
   planManager: ReturnType<typeof createPlanManager>,
 ) {
   const registry = createProviderRegistry();
@@ -117,11 +139,11 @@ Deno.test("Blocking: write_file is blocked in plan mode", async () => {
   // LLM response 1: enter plan mode, then try to write
   const responses = [
     // First call: LLM enters plan mode
-    `Let me plan this out.\n<tool_call>\n{"name": "plan.enter", "args": {"goal": "Build feature"}}\n</tool_call>`,
+    toolResponse({ name: "plan.enter", args: { goal: "Build feature" } }),
     // Second call: LLM tries to write a file (should be blocked)
-    `<tool_call>\n{"name": "write_file", "args": {"path": "test.ts", "content": "hello"}}\n</tool_call>`,
+    toolResponse({ name: "write_file", args: { path: "test.ts", content: "hello" } }),
     // Third call: LLM gets the blocked message and gives up
-    "I see that write_file is blocked in plan mode. Let me create a plan instead.",
+    textResponse("I see that write_file is blocked in plan mode. Let me create a plan instead."),
   ];
 
   const { orchestrator, session, toolResults } = createTestOrchestrator(responses, pm);
@@ -147,11 +169,11 @@ Deno.test("Blocking: read_file is allowed in plan mode", async () => {
 
   const responses = [
     // Enter plan mode then read a file
-    `<tool_call>\n{"name": "plan.enter", "args": {"goal": "Explore codebase"}}\n</tool_call>`,
+    toolResponse({ name: "plan.enter", args: { goal: "Explore codebase" } }),
     // Read a file (should be allowed)
-    `<tool_call>\n{"name": "read_file", "args": {"path": "/tmp/test.txt"}}\n</tool_call>`,
+    toolResponse({ name: "read_file", args: { path: "/tmp/test.txt" } }),
     // Final response
-    "I've explored the codebase.",
+    textResponse("I've explored the codebase."),
   ];
 
   const { orchestrator, session, toolResults, wasExternalToolCalled } = createTestOrchestrator(responses, pm);
@@ -185,13 +207,13 @@ Deno.test("Blocking: tools unblocked after plan.exit", async () => {
 
   const responses = [
     // Enter plan mode
-    `<tool_call>\n{"name": "plan.enter", "args": {"goal": "Build"}}\n</tool_call>`,
+    toolResponse({ name: "plan.enter", args: { goal: "Build" } }),
     // Exit plan mode with plan
-    `<tool_call>\n{"name": "plan.exit", "args": {"plan": ${planJson}}}\n</tool_call>`,
+    toolResponse({ name: "plan.exit", args: { plan: JSON.parse(planJson) } }),
     // Now in awaiting_approval — write should be allowed
-    `<tool_call>\n{"name": "write_file", "args": {"path": "test.ts", "content": "hello"}}\n</tool_call>`,
+    toolResponse({ name: "write_file", args: { path: "test.ts", content: "hello" } }),
     // Done
-    "File written.",
+    textResponse("File written."),
   ];
 
   const { orchestrator, session, toolResults } = createTestOrchestrator(responses, pm);
@@ -213,8 +235,8 @@ Deno.test("Blocking: plan.enter itself is never blocked", async () => {
   const pm = createPlanManager({ plansDir: `${tmpDir}/plans` });
 
   const responses = [
-    `<tool_call>\n{"name": "plan.enter", "args": {"goal": "Build"}}\n</tool_call>`,
-    "In plan mode now.",
+    toolResponse({ name: "plan.enter", args: { goal: "Build" } }),
+    textResponse("In plan mode now."),
   ];
 
   const { orchestrator, session, toolResults } = createTestOrchestrator(responses, pm);
@@ -238,9 +260,9 @@ Deno.test("Blocking: cron_create blocked in plan mode", async () => {
   // Pre-enter plan mode
   pm.enter(session_id(), "Test");
 
-  const responses = [
-    `<tool_call>\n{"name": "cron_create", "args": {"expression": "0 * * * *", "task": "test"}}\n</tool_call>`,
-    "Blocked, I see.",
+  const responses: readonly MockResponse[] = [
+    toolResponse({ name: "cron_create", args: { expression: "0 * * * *", task: "test" } }),
+    textResponse("Blocked, I see."),
   ];
 
   const sess = createSession({
@@ -258,9 +280,9 @@ Deno.test("Blocking: cron_create blocked in plan mode", async () => {
     supportsStreaming: false,
     // deno-lint-ignore require-await
     async complete() {
-      const content = responses[callIdx] ?? "done";
+      const r = responses[callIdx] ?? { content: "done", toolCalls: [] };
       callIdx++;
-      return { content, toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } };
+      return { content: r.content, toolCalls: r.toolCalls ?? [], usage: { inputTokens: 10, outputTokens: 5 } };
     },
   });
   registry.setDefault("mock");

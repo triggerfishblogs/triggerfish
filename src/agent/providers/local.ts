@@ -84,6 +84,7 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
       };
       if (Array.isArray(tools) && tools.length > 0) {
         body.tools = tools;
+        body.tool_choice = "auto";
       }
 
       const response = await fetch(`${endpoint}/v1/chat/completions`, {
@@ -129,6 +130,7 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
       };
       if (Array.isArray(tools) && tools.length > 0) {
         body.tools = tools;
+        body.tool_choice = "auto";
       }
 
       const response = await fetch(`${endpoint}/v1/chat/completions`, {
