@@ -116,14 +116,53 @@ echo "[ok] Installed to ${INSTALL_DIR}/${INSTALL_NAME}"
 # Ensure it's on PATH
 export PATH="${INSTALL_DIR}:${PATH}"
 
+# Ensure install dir is in user's persistent PATH
+add_to_path() {
+  local dir="$1"
+  local line="export PATH=\"${dir}:\$PATH\""
+
+  # Determine the correct shell profile
+  local shell_name
+  shell_name="$(basename "${SHELL:-/bin/zsh}")"
+
+  local profile=""
+  case "${shell_name}" in
+    zsh)
+      profile="${HOME}/.zshrc"
+      ;;
+    bash)
+      # macOS bash reads .bash_profile for login shells, .bashrc for non-login
+      if [ -f "${HOME}/.bash_profile" ]; then
+        profile="${HOME}/.bash_profile"
+      elif [ -f "${HOME}/.bashrc" ]; then
+        profile="${HOME}/.bashrc"
+      else
+        profile="${HOME}/.bash_profile"
+      fi
+      ;;
+    *)
+      profile="${HOME}/.profile"
+      ;;
+  esac
+
+  # Skip if the line already exists in the profile
+  if [ -f "${profile}" ] && grep -qF "${dir}" "${profile}" 2>/dev/null; then
+    return 0
+  fi
+
+  # Create the file if it doesn't exist (handles fresh macOS with no .zshrc)
+  touch "${profile}"
+
+  echo "" >> "${profile}"
+  echo "# Added by Triggerfish installer" >> "${profile}"
+  echo "${line}" >> "${profile}"
+  echo "[ok] Added ${dir} to PATH in ${profile}"
+}
+
 case ":${PATH}:" in
   *":${INSTALL_DIR}:"*) ;;
   *)
-    echo ""
-    echo "[warn] ${INSTALL_DIR} is not in your PATH."
-    echo "  Add this to your shell profile (~/.bashrc or ~/.zshrc):"
-    echo "    export PATH=\"${INSTALL_DIR}:\$PATH\""
-    echo ""
+    add_to_path "${INSTALL_DIR}"
     ;;
 esac
 
