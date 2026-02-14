@@ -41,6 +41,12 @@ export async function checkSignalCli(): Promise<Result<{ version: string; path: 
 
   // 2. Check managed install dir
   const binDir = resolveSignalCliBinDir();
+
+  // 2a. Check flat binary (native build extracts directly)
+  const flatResult = await trySignalCli(`${binDir}/signal-cli`);
+  if (flatResult.ok) return flatResult;
+
+  // 2b. Check nested directories (JVM build extracts to signal-cli-{version}/bin/)
   try {
     for await (const entry of Deno.readDir(binDir)) {
       if (entry.isDirectory && entry.name.startsWith("signal-cli-")) {
@@ -209,12 +215,31 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
     return { ok: false, error: `Extraction failed: ${err instanceof Error ? err.message : String(err)}` };
   }
 
-  // Verify the binary exists
-  const binaryPath = `${installDir}/bin/signal-cli`;
-  try {
-    await Deno.stat(binaryPath);
-  } catch {
-    return { ok: false, error: `Extraction succeeded but binary not found at ${binaryPath}` };
+  // Find the binary — native extracts flat, JVM extracts to signal-cli-{version}/bin/
+  const candidates = [
+    `${binDir}/signal-cli`,                      // native: flat in binDir
+    `${binDir}/signal-cli-${version}/bin/signal-cli`,  // JVM: nested
+    `${installDir}/bin/signal-cli`,               // alternate nested
+  ];
+
+  let binaryPath: string | null = null;
+  for (const candidate of candidates) {
+    try {
+      await Deno.stat(candidate);
+      binaryPath = candidate;
+      break;
+    } catch { /* try next */ }
+  }
+
+  if (!binaryPath) {
+    // List what's actually in binDir for debugging
+    const entries: string[] = [];
+    try {
+      for await (const e of Deno.readDir(binDir)) {
+        entries.push(e.name);
+      }
+    } catch { /* */ }
+    return { ok: false, error: `Binary not found after extraction. binDir contents: [${entries.join(", ")}]` };
   }
 
   // Ensure executable
