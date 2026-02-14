@@ -1,14 +1,30 @@
 /**
- * Single source of truth for the Triggerfish version.
+ * Derives the Triggerfish version from git tags.
  *
- * Reads from deno.json so the version is defined in exactly one place.
- * JSON imports are bundled into `deno compile` output, so this works
- * in both development and compiled binary contexts.
+ * Runs `git describe --tags --abbrev=0` at module load time.
+ * For compiled binaries, the compile task embeds the version first.
  *
  * @module
  */
 
-import denoConfig from "../deno.json" with { type: "json" };
+/** Resolve the current version from the nearest git tag. */
+function resolveVersion(): string {
+  try {
+    const cmd = new Deno.Command("git", {
+      args: ["describe", "--tags", "--abbrev=0"],
+      stdout: "piped",
+      stderr: "null",
+    });
+    const output = cmd.outputSync();
+    if (output.success) {
+      const tag = new TextDecoder().decode(output.stdout).trim();
+      return tag.startsWith("v") ? tag.slice(1) : tag;
+    }
+  } catch {
+    // git not available (compiled binary without git in PATH)
+  }
+  return "unknown";
+}
 
-/** Current Triggerfish version string (e.g. "0.1.27"). */
-export const VERSION: string = denoConfig.version;
+/** Current Triggerfish version (e.g. "0.1.29"). */
+export const VERSION: string = resolveVersion();
