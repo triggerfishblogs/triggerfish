@@ -153,7 +153,7 @@ WantedBy=default.target
  */
 export function generateSchtasksXml(options: DaemonOptions): string {
   const logFile = logFilePath();
-  return `<?xml version="1.0" encoding="UTF-16"?>
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
     <Description>Triggerfish AI Agent</Description>
@@ -175,7 +175,7 @@ export function generateSchtasksXml(options: DaemonOptions): string {
     <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
     <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
     <RestartOnFailure>
-      <Interval>PT30S</Interval>
+      <Interval>PT1M</Interval>
       <Count>3</Count>
     </RestartOnFailure>
   </Settings>
