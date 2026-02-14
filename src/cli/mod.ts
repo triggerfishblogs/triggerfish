@@ -22,6 +22,8 @@ export {
   detectDaemonManager,
   generateLaunchdPlist,
   generateSchtasksXml,
+  generateServiceInstallScript,
+  generateServiceSource,
   generateSystemdUnit,
   generateWindowsTaskCommand,
 } from "./daemon.ts";
