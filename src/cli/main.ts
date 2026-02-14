@@ -1420,6 +1420,34 @@ async function runStart(): Promise<void> {
   } | undefined;
 
   if (signalConfig?.endpoint && signalConfig?.account) {
+    // Parse endpoint to check if signal-cli daemon is running
+    const endpointMatch = signalConfig.endpoint.match(/^tcp:\/\/([^:]+):(\d+)$/);
+    if (endpointMatch) {
+      const [, tcpHost, tcpPortStr] = endpointMatch;
+      const tcpPort = parseInt(tcpPortStr, 10);
+      const running = await isDaemonRunning(tcpHost, tcpPort);
+      if (!running) {
+        // Auto-start signal-cli daemon
+        console.log("  signal-cli daemon not running, starting...");
+        const cliCheck = await checkSignalCli();
+        if (cliCheck.ok) {
+          const daemonResult = startDaemon(signalConfig.account, tcpHost, tcpPort, cliCheck.value.path);
+          if (daemonResult.ok) {
+            const ready = await waitForDaemon(tcpHost, tcpPort);
+            if (ready) {
+              console.log("  signal-cli daemon started");
+            } else {
+              console.error("  signal-cli daemon started but not reachable within 30s");
+            }
+          } else {
+            console.error(`  Failed to start signal-cli daemon: ${daemonResult.error}`);
+          }
+        } else {
+          console.error("  signal-cli not found — cannot auto-start daemon");
+        }
+      }
+    }
+
     const signalAdapter = createSignalChannel({
       endpoint: signalConfig.endpoint,
       account: signalConfig.account,
