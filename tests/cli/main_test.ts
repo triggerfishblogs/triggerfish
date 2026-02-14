@@ -175,15 +175,31 @@ Deno.test("Daemon: generates systemd unit content", async () => {
   assertStringIncludes(unit, "Restart=");
 });
 
-Deno.test("Daemon: generates schtasks XML content", async () => {
-  const { generateSchtasksXml } = await import("../../src/cli/daemon.ts");
-  const xml = generateSchtasksXml({
+Deno.test("Daemon: generates PowerShell Register-ScheduledTask command", async () => {
+  const { generateWindowsTaskCommand } = await import("../../src/cli/daemon.ts");
+  const cmd = generateWindowsTaskCommand({
     binaryPath: "C:\\Users\\test\\AppData\\Local\\Triggerfish\\triggerfish.exe",
   });
-  assertStringIncludes(xml, "Triggerfish AI Agent");
-  assertStringIncludes(xml, "C:\\Users\\test\\AppData\\Local\\Triggerfish\\triggerfish.exe");
-  assertStringIncludes(xml, "<LogonTrigger>");
-  assertStringIncludes(xml, "RestartOnFailure");
+  assertStringIncludes(cmd, "Register-ScheduledTask");
+  assertStringIncludes(cmd, "Triggerfish AI Agent");
+  assertStringIncludes(cmd, "C:\\Users\\test\\AppData\\Local\\Triggerfish\\triggerfish.exe");
+  assertStringIncludes(cmd, "New-ScheduledTaskTrigger -AtLogon");
+  assertStringIncludes(cmd, "-LogonType Interactive -RunLevel Limited");
+  assertStringIncludes(cmd, "-MultipleInstances IgnoreNew");
+  assertStringIncludes(cmd, "-AllowStartIfOnBatteries");
+  assertStringIncludes(cmd, "-DontStopIfGoingOnBatteries");
+  assertStringIncludes(cmd, "-ExecutionTimeLimit (New-TimeSpan)");
+  assertStringIncludes(cmd, "-RestartCount 3");
+  assertStringIncludes(cmd, "-RestartInterval (New-TimeSpan -Minutes 1)");
+  assertStringIncludes(cmd, "-Force");
+});
+
+Deno.test("Daemon: PowerShell command escapes single quotes in paths", async () => {
+  const { generateWindowsTaskCommand } = await import("../../src/cli/daemon.ts");
+  const cmd = generateWindowsTaskCommand({
+    binaryPath: "C:\\Users\\O'Brien\\triggerfish.exe",
+  });
+  assertStringIncludes(cmd, "O''Brien");
 });
 
 Deno.test("Daemon: logDir does not contain undefined", async () => {
