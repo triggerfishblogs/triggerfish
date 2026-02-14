@@ -686,6 +686,18 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
  * Find the installed triggerfish binary path.
  */
 async function findInstalledBinary(): Promise<string> {
+  // First, try to resolve from the currently running executable.
+  // This handles custom install directories on any platform.
+  try {
+    const execPath = Deno.execPath();
+    if (execPath && execPath.toLowerCase().includes("triggerfish")) {
+      await Deno.stat(execPath);
+      return execPath;
+    }
+  } catch {
+    // Fall through to candidate search
+  }
+
   // Check common locations in order of preference
   const candidates: string[] = [];
 
