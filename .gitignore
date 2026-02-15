@@ -20,6 +20,9 @@ TOOLS-IMPLEMENTATION-GUIDE.md
 # Claude skills (local only)
 .claude/skills/
 
+# Internal spec files
+SPEC-*.md
+
 # Ralph Wiggum loop files
 PLAN_PROMPT.md
 BUILD_PROMPT.md
