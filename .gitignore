@@ -27,6 +27,8 @@ SPEC-*.md
 PLAN_PROMPT.md
 BUILD_PROMPT.md
 ralph.sh
+ralph-loop.sh
+scripts/ralph-loop.sh
 IMPLEMENTATION_PLAN.md
 
 # Setup scripts (local only)
