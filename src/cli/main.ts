@@ -17,10 +17,11 @@ import {
   createSessionToolExecutor,
   SESSION_TOOLS_SYSTEM_PROMPT,
 } from "../gateway/tools.ts";
+import type { RegisteredChannel } from "../gateway/tools.ts";
 import { createEnhancedSessionManager } from "../gateway/sessions.ts";
 import type { EnhancedSessionManager } from "../gateway/sessions.ts";
 import { createSessionManager } from "../core/session/manager.ts";
-import { createChatSession } from "../gateway/chat.ts";
+import { createChatSession, buildSendEvent } from "../gateway/chat.ts";
 import type { ChatEvent } from "../gateway/chat.ts";
 import { createA2UIHost } from "../tidepool/host.ts";
 import {
@@ -165,9 +166,20 @@ import {
 } from "../github/mod.ts";
 import { createKeychain } from "../secrets/keychain.ts";
 import { createTelegramChannel } from "../channels/telegram/adapter.ts";
-import type { TelegramChannelAdapter } from "../channels/telegram/adapter.ts";
-import type { ChatEventSender } from "../gateway/chat.ts";
-import type { ChannelMessage } from "../channels/types.ts";
+import { createSignalChannel } from "../channels/signal/adapter.ts";
+import { createPairingService } from "../channels/pairing.ts";
+import type { PairingService } from "../channels/pairing.ts";
+import {
+  checkSignalCli,
+  fetchLatestVersion,
+  downloadSignalCli,
+  resolveJavaHome,
+  startLinkProcess,
+  renderQrCode,
+  isDaemonRunning,
+  startDaemon,
+  waitForDaemon,
+} from "../channels/signal/setup.ts";
 import { createNotificationService } from "../gateway/notifications.ts";
 import { parseClassification } from "../core/types/classification.ts";
 import { createSkillLoader } from "../skills/loader.ts";
@@ -1054,6 +1066,7 @@ async function runStart(): Promise<void> {
   // Create persistent storage for cron jobs
   const dataDir = join(baseDir, "data");
   const storage = createSqliteStorage(join(dataDir, "triggerfish.db"));
+  const pairingService = createPairingService(storage);
   const cronManager = await createPersistentCronManager(storage);
 
   const existingJobs = cronManager.list();
@@ -1165,11 +1178,18 @@ async function runStart(): Promise<void> {
   // Image analysis tools
   const imageExecutor = createImageToolExecutor(registry, visionProvider);
 
+  // Channel adapter registry — populated below when channels are wired up.
+  // Shared mutable Map so the session executor can see channels registered later.
+  const channelAdapters = new Map<string, RegisteredChannel>();
+
   // Session management tools — uses shared EnhancedSessionManager created earlier
   const sessionExecutor = createSessionToolExecutor({
     sessionManager: enhancedSessionManager,
     callerSessionId: session.id,
     callerTaint: session.taint,
+    getCallerTaint: () => session.taint,
+    channels: channelAdapters,
+    pairingService,
   });
 
   // Sub-agent factory — bridges OrchestratorFactory to the subagent tool
@@ -1311,6 +1331,7 @@ async function runStart(): Promise<void> {
     systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT, OBSIDIAN_SYSTEM_PROMPT, SKILLS_SYSTEM_PROMPT, TRIGGERS_SYSTEM_PROMPT, LLM_TASK_SYSTEM_PROMPT, SUMMARIZE_SYSTEM_PROMPT, HEALTHCHECK_SYSTEM_PROMPT],
     session,
     ...(streamingPref !== undefined ? { enableStreaming: streamingPref === true } : {}),
+    getSession: () => session,
     debug: config.debug === true || Deno.env.get("TRIGGERFISH_DEBUG") === "1",
     visionProvider,
     toolClassifications,
@@ -1326,6 +1347,7 @@ async function runStart(): Promise<void> {
       // Close browser so next session gets a fresh launch
       browserHandle.close().catch(() => {});
     },
+    pairingService,
   });
 
   console.log("  Main session created");
@@ -1336,18 +1358,22 @@ async function runStart(): Promise<void> {
     ownerId?: number;
     classification?: string;
     user_classifications?: Record<string, string>;
+    respond_to_unclassified?: boolean;
   } | undefined;
 
   if (telegramConfig?.botToken) {
     const telegramAdapter = createTelegramChannel({
       botToken: telegramConfig.botToken,
       ownerId: telegramConfig.ownerId,
-      classification: (telegramConfig.classification ?? "INTERNAL") as ClassificationLevel,
+      classification: (telegramConfig.classification ?? "PUBLIC") as ClassificationLevel,
     });
 
-    chatSession.registerChannel("telegram", {
-      classification: "PUBLIC" as ClassificationLevel,
+    await chatSession.registerChannel("telegram", {
+      adapter: telegramAdapter,
+      channelName: "Telegram",
+      classification: (telegramConfig.classification ?? "PUBLIC") as ClassificationLevel,
       userClassifications: telegramConfig.user_classifications,
+      respondToUnclassified: telegramConfig.respond_to_unclassified,
     });
 
     telegramAdapter.onMessage((msg) => {
@@ -1375,15 +1401,14 @@ async function runStart(): Promise<void> {
         return;
       }
 
-      const sendEvent = buildTelegramSendEvent(telegramAdapter, msg);
-
       // Owner uses the same processMessage path as the CLI.
-      // Only non-owner messages need handleChannelMessage for per-user sessions.
+      // Non-owner messages go through handleChannelMessage for per-user sessions + access control.
       if (msg.isOwner !== false) {
+        const sendEvent = buildSendEvent(telegramAdapter, "Telegram", msg);
         chatSession.processMessage(msg.content, sendEvent)
           .catch((err) => console.error("Telegram message processing error:", err));
       } else {
-        chatSession.handleChannelMessage(msg, "telegram", sendEvent)
+        chatSession.handleChannelMessage(msg, "telegram")
           .catch((err) => console.error("Telegram message processing error:", err));
       }
     });
@@ -1398,7 +1423,111 @@ async function runStart(): Promise<void> {
     }
 
     await telegramAdapter.connect();
+
+    // Register Telegram adapter for agent tool access (message, channels_list)
+    channelAdapters.set("telegram", {
+      adapter: telegramAdapter,
+      classification: (telegramConfig.classification ?? "PUBLIC") as ClassificationLevel,
+      name: "Telegram",
+    });
+
     console.log("  Telegram channel connected");
+  }
+
+  // --- Signal channel wiring ---
+  const signalConfig = config.channels?.signal as {
+    endpoint?: string;
+    account?: string;
+    ownerPhone?: string;
+    pairing?: boolean;
+    pairing_classification?: string;
+    classification?: string;
+    defaultGroupMode?: string;
+    user_classifications?: Record<string, string>;
+    respond_to_unclassified?: boolean;
+    groups?: Record<string, { mode: string; classification?: string }>;
+  } | undefined;
+
+  if (signalConfig?.endpoint && signalConfig?.account) {
+    // Parse endpoint to check if signal-cli daemon is running
+    const endpointMatch = signalConfig.endpoint.match(/^tcp:\/\/([^:]+):(\d+)$/);
+    if (endpointMatch) {
+      const [, tcpHost, tcpPortStr] = endpointMatch;
+      const tcpPort = parseInt(tcpPortStr, 10);
+      const running = await isDaemonRunning(tcpHost, tcpPort);
+      if (!running) {
+        // Auto-start signal-cli daemon
+        console.log("  signal-cli daemon not running, starting...");
+        const cliCheck = await checkSignalCli();
+        if (cliCheck.ok) {
+          const runtimeJavaHome = resolveJavaHome() ?? undefined;
+          const daemonResult = startDaemon(signalConfig.account, tcpHost, tcpPort, cliCheck.value.path, runtimeJavaHome);
+          if (daemonResult.ok) {
+            const ready = await waitForDaemon(tcpHost, tcpPort);
+            if (ready) {
+              console.log("  signal-cli daemon started");
+            } else {
+              console.error("  signal-cli daemon started but not reachable within 60s");
+            }
+          } else {
+            console.error(`  Failed to start signal-cli daemon: ${daemonResult.error}`);
+          }
+        } else {
+          console.error("  signal-cli not found — cannot auto-start daemon");
+        }
+      }
+    }
+
+    const signalAdapter = createSignalChannel({
+      endpoint: signalConfig.endpoint,
+      account: signalConfig.account,
+      ownerPhone: signalConfig.ownerPhone,
+      classification: (signalConfig.classification ?? "PUBLIC") as ClassificationLevel,
+      defaultGroupMode: (signalConfig.defaultGroupMode ?? "always") as "always" | "mentioned-only" | "owner-only",
+      groups: signalConfig.groups as Record<string, { readonly mode: "always" | "mentioned-only" | "owner-only"; readonly classification?: ClassificationLevel }> | undefined,
+    });
+
+    await chatSession.registerChannel("signal", {
+      adapter: signalAdapter,
+      channelName: "Signal",
+      classification: (signalConfig.classification ?? "PUBLIC") as ClassificationLevel,
+      userClassifications: signalConfig.user_classifications,
+      respondToUnclassified: signalConfig.respond_to_unclassified,
+      pairing: signalConfig.pairing,
+      pairingClassification: (signalConfig.pairing_classification ?? "INTERNAL") as ClassificationLevel,
+    });
+
+    signalAdapter.onMessage((msg) => {
+      chatSession.handleChannelMessage(msg, "signal")
+        .catch((err) => console.error("Signal message processing error:", err));
+    });
+
+    // Register Signal for notification delivery (send to owner's own number doesn't make sense,
+    // but if ownerPhone is set we can notify via a known contact)
+    if (signalConfig.ownerPhone) {
+      notificationService.registerChannel({
+        name: "signal",
+        send: (notifMsg) => signalAdapter.send({
+          content: notifMsg,
+          sessionId: `signal-${signalConfig.ownerPhone}`,
+        }),
+      });
+    }
+
+    try {
+      await signalAdapter.connect();
+
+      // Register Signal adapter for agent tool access (message, channels_list)
+      channelAdapters.set("signal", {
+        adapter: signalAdapter,
+        classification: (signalConfig.classification ?? "PUBLIC") as ClassificationLevel,
+        name: "Signal",
+      });
+
+      console.log("  Signal channel connected");
+    } catch (err) {
+      console.error(`  Signal channel failed to connect: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   // Create and start Tidepool host with chat support
@@ -1430,51 +1559,6 @@ async function runStart(): Promise<void> {
 
   // Keep running until interrupted
   await new Promise(() => {}); // Never resolves
-}
-
-/**
- * Build a ChatEventSender for Telegram that handles typing indicators,
- * response sending, and error delivery. Extracted to share between
- * owner and non-owner message paths.
- */
-function buildTelegramSendEvent(
-  adapter: TelegramChannelAdapter,
-  msg: ChannelMessage,
-): ChatEventSender {
-  let typingInterval: number | undefined;
-
-  return (event) => {
-    if (event.type === "llm_start") {
-      clearInterval(typingInterval);
-      adapter.sendTyping(msg.sessionId ?? "").catch(() => {});
-      typingInterval = setInterval(() => {
-        adapter.sendTyping(msg.sessionId ?? "").catch(() => {});
-      }, 4000) as unknown as number;
-    }
-
-    if (event.type === "response") {
-      clearInterval(typingInterval);
-      typingInterval = undefined;
-      const text = event.text.trim();
-      if (text.length > 0) {
-        adapter.send({
-          content: text,
-          sessionId: msg.sessionId,
-        }).catch((err) => console.error("Telegram send error:", err));
-      } else {
-        console.error("Telegram: skipping empty response (LLM returned no text)");
-      }
-    }
-
-    if (event.type === "error") {
-      clearInterval(typingInterval);
-      typingInterval = undefined;
-      adapter.send({
-        content: `Error: ${event.message}`,
-        sessionId: msg.sessionId,
-      }).catch((err) => console.error("Telegram send error:", err));
-    }
-  };
 }
 
 /**
@@ -1521,6 +1605,7 @@ const CHANNEL_TYPES = [
   "whatsapp",
   "webchat",
   "email",
+  "signal",
 ] as const;
 
 type ChannelType = typeof CHANNEL_TYPES[number];
@@ -1683,6 +1768,153 @@ async function promptChannelConfig(
         message: "Classification level",
         options: ["CONFIDENTIAL", "PUBLIC", "INTERNAL", "RESTRICTED"],
         default: "CONFIDENTIAL",
+      });
+      break;
+    }
+
+    case "signal": {
+      // Step 1: Find or install signal-cli
+      console.log("\nChecking for signal-cli...");
+      let signalCliPath = "signal-cli";
+      let signalJavaHome: string | undefined;
+      const cliCheck = await checkSignalCli();
+
+      if (cliCheck.ok) {
+        signalCliPath = cliCheck.value.path;
+        console.log(`  Found: ${cliCheck.value.version} (${signalCliPath})`);
+        // If it's a JVM build, check for managed JRE
+        signalJavaHome = resolveJavaHome() ?? undefined;
+      } else {
+        // Not found — offer to download
+        console.log("  signal-cli not found on PATH or in ~/.triggerfish/bin/\n");
+        const installIt = await Confirm.prompt({
+          message: "Download and install signal-cli?",
+          default: true,
+        });
+
+        if (!installIt) {
+          console.error("\n  Install signal-cli manually before continuing:");
+          console.error("    https://github.com/AsamK/signal-cli/releases\n");
+          Deno.exit(1);
+        }
+
+        console.log("\n  Fetching latest release info...");
+        const releaseResult = await fetchLatestVersion();
+        if (!releaseResult.ok) {
+          console.error(`  Failed: ${releaseResult.error}`);
+          Deno.exit(1);
+        }
+
+        const installResult = await downloadSignalCli(releaseResult.value);
+        if (!installResult.ok) {
+          console.error(`  Installation failed: ${installResult.error}`);
+          Deno.exit(1);
+        }
+
+        signalCliPath = installResult.value.path;
+        signalJavaHome = installResult.value.javaHome;
+      }
+
+      // Step 2: Get phone number
+      config.account = await Input.prompt({
+        message: "Your Signal phone number (E.164 format, e.g. +15551234567)",
+      });
+
+      // Step 3: Link or skip
+      const setupMode = await Select.prompt({
+        message: "Device setup",
+        options: [
+          { name: "Link to existing Signal account (scan QR with phone)", value: "link" },
+          { name: "Already linked / manual setup", value: "skip" },
+        ],
+        default: "link",
+      });
+
+      const tcpPort = 7583;
+      const tcpHost = "localhost";
+
+      if (setupMode === "link") {
+        console.log("\nStarting device link...");
+        console.log("Open Signal on your phone: Settings > Linked Devices > Link New Device\n");
+
+        const linkResult = await startLinkProcess("Triggerfish", signalCliPath, signalJavaHome);
+
+        if (!linkResult.ok) {
+          console.error(`  Link failed: ${linkResult.error}`);
+          console.error(`  You can link manually: ${signalCliPath} link -n Triggerfish`);
+          Deno.exit(1);
+        }
+
+        // Display QR code
+        await renderQrCode(linkResult.value.uri);
+        console.log("Scan this QR code with Signal on your phone.");
+        console.log("Waiting for link to complete...\n");
+
+        // Wait for the link process to finish
+        const linkStatus = await linkResult.value.process.status;
+        if (!linkStatus.success) {
+          console.error("  Device linking failed. Check signal-cli output.");
+          Deno.exit(1);
+        }
+        console.log("  Device linked successfully!\n");
+      }
+
+      // Step 4: Start daemon or detect existing
+      const alreadyRunning = await isDaemonRunning(tcpHost, tcpPort);
+      if (alreadyRunning) {
+        console.log(`  signal-cli daemon already running on ${tcpHost}:${tcpPort}`);
+      } else {
+        const startIt = await Confirm.prompt({
+          message: `Start signal-cli daemon on tcp://${tcpHost}:${tcpPort}?`,
+          default: true,
+        });
+        if (startIt) {
+          console.log("  Starting signal-cli daemon...");
+          const daemonResult = startDaemon(config.account as string, tcpHost, tcpPort, signalCliPath, signalJavaHome);
+          if (!daemonResult.ok) {
+            console.error(`  Failed: ${daemonResult.error}`);
+            console.error(`  Start manually: ${signalCliPath} -a ${config.account} daemon --tcp localhost:7583`);
+          } else {
+            const ready = await waitForDaemon(tcpHost, tcpPort);
+            if (ready) {
+              console.log("  Daemon is running.");
+            } else {
+              console.error("  Daemon started but not reachable yet. It may still be initializing.");
+              console.error(`  Check: ${signalCliPath} -a ${config.account} daemon --tcp localhost:7583`);
+            }
+          }
+        } else {
+          console.log("\n  Start it manually before running Triggerfish:");
+          console.log(`  ${signalCliPath} -a ${config.account} daemon --tcp ${tcpHost}:${tcpPort}\n`);
+        }
+      }
+
+      config.endpoint = `tcp://${tcpHost}:${tcpPort}`;
+
+      // Step 5: Policy config
+      const enablePairing = await Confirm.prompt({
+        message: "Enable pairing mode? (new contacts must send a one-time code before chatting)",
+        default: false,
+      });
+      if (enablePairing) {
+        config.pairing = true;
+        console.log("\n  Pairing mode: new contacts must send a 6-digit code to start chatting.");
+        console.log("  Generate codes at runtime: ask your agent \"generate a pairing code for Signal\"");
+        console.log("  Codes expire after 5 minutes and can only be used once.\n");
+      }
+      config.defaultGroupMode = await Select.prompt({
+        message: "Default group chat mode",
+        options: [
+          { name: "Always respond", value: "always" },
+          { name: "Only when mentioned", value: "mentioned-only" },
+          { name: "Owner-only commands", value: "owner-only" },
+        ],
+        default: "always",
+      });
+      config.classification = await Select.prompt({
+        message: "Classification level",
+        options: ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"],
+        default: "PUBLIC",
       });
       break;
     }
@@ -2015,6 +2247,7 @@ async function runConfigAddChannel(
       message: "Channel type",
       options: [
         { name: "Telegram", value: "telegram" },
+        { name: "Signal (via signal-cli)", value: "signal" },
         { name: "Slack", value: "slack" },
         { name: "Discord", value: "discord" },
         { name: "WhatsApp", value: "whatsapp" },

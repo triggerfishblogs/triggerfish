@@ -50,6 +50,9 @@ export interface PairingService {
    * Returns null if no valid pending code exists.
    */
   getPending(channelType: string): Promise<PairingCode | null>;
+
+  /** List all platform user IDs that have been linked via pairing for a channel type. */
+  getLinkedUsers(channelType: string): Promise<string[]>;
 }
 
 /** Default pairing code TTL: 5 minutes in milliseconds. */
@@ -191,6 +194,12 @@ export function createPairingService(
       }));
 
       return { ok: true, value: pairingResult };
+    },
+
+    async getLinkedUsers(channelType: string): Promise<string[]> {
+      const prefix = `${LINKED_PREFIX}${channelType}:`;
+      const keys = await storage.list(prefix);
+      return keys.map((key) => key.slice(prefix.length)).filter((id) => id.length > 0);
     },
 
     async getPending(channelType: string): Promise<PairingCode | null> {
