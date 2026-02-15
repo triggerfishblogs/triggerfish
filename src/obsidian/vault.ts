@@ -7,7 +7,11 @@
  * @module
  */
 
-import type { Result, ClassificationLevel } from "../core/types/classification.ts";
+import { join, SEPARATOR } from "@std/path";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../core/types/classification.ts";
 import type { ObsidianVaultConfig } from "./types.ts";
 
 /** Resolved vault context used by all note operations. */
@@ -38,17 +42,28 @@ export async function createVaultContext(
   try {
     realVaultPath = await Deno.realPath(config.vaultPath);
   } catch {
-    return { ok: false, error: `Vault path does not exist: ${config.vaultPath}` };
+    return {
+      ok: false,
+      error: `Vault path does not exist: ${config.vaultPath}`,
+    };
   }
 
   // Verify .obsidian marker exists
   try {
-    const stat = await Deno.stat(`${realVaultPath}/.obsidian`);
+    const stat = await Deno.stat(join(realVaultPath, ".obsidian"));
     if (!stat.isDirectory) {
-      return { ok: false, error: `Not an Obsidian vault (no .obsidian/ directory): ${realVaultPath}` };
+      return {
+        ok: false,
+        error:
+          `Not an Obsidian vault (no .obsidian/ directory): ${realVaultPath}`,
+      };
     }
   } catch {
-    return { ok: false, error: `Not an Obsidian vault (no .obsidian/ directory): ${realVaultPath}` };
+    return {
+      ok: false,
+      error:
+        `Not an Obsidian vault (no .obsidian/ directory): ${realVaultPath}`,
+    };
   }
 
   // Build exclude list
@@ -58,10 +73,14 @@ export async function createVaultContext(
   // Sort folder classifications by path depth (most specific first)
   const folderClassifications: [string, ClassificationLevel][] = [];
   if (config.folderClassifications) {
-    for (const [folder, level] of Object.entries(config.folderClassifications)) {
+    for (
+      const [folder, level] of Object.entries(config.folderClassifications)
+    ) {
       folderClassifications.push([folder, level]);
     }
-    folderClassifications.sort((a, b) => b[0].split("/").length - a[0].split("/").length);
+    folderClassifications.sort((a, b) =>
+      b[0].split("/").length - a[0].split("/").length
+    );
   }
 
   return {
@@ -87,7 +106,10 @@ export async function resolveVaultPath(
 ): Promise<Result<string, string>> {
   // Reject obvious traversal attempts
   const normalized = relativePath.replace(/\\/g, "/");
-  if (normalized.startsWith("/") || normalized.startsWith("..") || normalized.includes("/../") || normalized.endsWith("/..")) {
+  if (
+    normalized.startsWith("/") || normalized.startsWith("..") ||
+    normalized.includes("/../") || normalized.endsWith("/..")
+  ) {
     return { ok: false, error: `Path traversal rejected: ${relativePath}` };
   }
 
@@ -99,24 +121,36 @@ export async function resolveVaultPath(
     }
   }
 
-  const absolutePath = `${ctx.realVaultPath}/${normalized}`;
+  const absolutePath = join(ctx.realVaultPath, ...normalized.split("/"));
 
   // For existing paths, verify the real path stays within vault
   try {
     const realPath = await Deno.realPath(absolutePath);
-    if (!realPath.startsWith(ctx.realVaultPath + "/") && realPath !== ctx.realVaultPath) {
-      return { ok: false, error: `Path escapes vault boundary: ${relativePath}` };
+    if (
+      !realPath.startsWith(ctx.realVaultPath + SEPARATOR) &&
+      realPath !== ctx.realVaultPath
+    ) {
+      return {
+        ok: false,
+        error: `Path escapes vault boundary: ${relativePath}`,
+      };
     }
     return { ok: true, value: realPath };
   } catch {
     // Path doesn't exist yet — check that parent exists and is within vault
     const parentParts = parts.slice(0, -1);
     if (parentParts.length > 0) {
-      const parentPath = `${ctx.realVaultPath}/${parentParts.join("/")}`;
+      const parentPath = join(ctx.realVaultPath, ...parentParts);
       try {
         const realParent = await Deno.realPath(parentPath);
-        if (!realParent.startsWith(ctx.realVaultPath + "/") && realParent !== ctx.realVaultPath) {
-          return { ok: false, error: `Path escapes vault boundary: ${relativePath}` };
+        if (
+          !realParent.startsWith(ctx.realVaultPath + SEPARATOR) &&
+          realParent !== ctx.realVaultPath
+        ) {
+          return {
+            ok: false,
+            error: `Path escapes vault boundary: ${relativePath}`,
+          };
         }
       } catch {
         // Parent doesn't exist either — that's fine for creates that make dirs

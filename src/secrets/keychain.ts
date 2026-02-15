@@ -8,6 +8,7 @@
  * @module
  */
 
+import { join } from "@std/path";
 import type { Result } from "../core/types/classification.ts";
 import { isDockerEnvironment } from "../core/env.ts";
 import { createFileSecretStore } from "./file_provider.ts";
@@ -369,6 +370,12 @@ export function createKeychain(): SecretStore {
       return createLinuxKeychain();
     case "darwin":
       return createMacKeychain();
+    case "windows": {
+      const localAppData = Deno.env.get("LOCALAPPDATA") ??
+        Deno.env.get("USERPROFILE") ?? ".";
+      const secretsPath = join(localAppData, "Triggerfish", "secrets.json");
+      return createFileSecretStore({ path: secretsPath });
+    }
     default:
       return createMemorySecretStore();
   }
