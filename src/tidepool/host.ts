@@ -3,15 +3,16 @@
  *
  * Provides two host implementations:
  * - TidepoolHost: callback-based host for HTML push/eval/reset/snapshot
- * - A2UIHost: WebSocket server that broadcasts component trees to clients
- *   and optionally handles chat messages via a ChatSession
+ * - A2UIHost: WebSocket server that broadcasts component trees and canvas
+ *   messages to clients, optionally handles chat via a ChatSession
  *
  * @module
  */
 
 import type { ComponentTree } from "./components.ts";
 import type { ChatSession, ChatClientMessage } from "../gateway/chat.ts";
-import { TIDEPOOL_HTML } from "./ui.ts";
+import type { CanvasMessage, CanvasRenderComponentMessage } from "./canvas_protocol.ts";
+import { buildTidepoolHtml } from "./ui.ts";
 
 // ---------------------------------------------------------------------------
 // Legacy callback-based TidepoolHost (retained for backward compatibility)
@@ -76,13 +77,15 @@ export interface A2UIHostOptions {
   readonly chatSession?: ChatSession;
 }
 
-/** A2UI WebSocket host that broadcasts component trees to connected clients. */
+/** A2UI WebSocket host that broadcasts component trees and canvas messages to connected clients. */
 export interface A2UIHost {
   /** Start the WebSocket server on the given port. */
   start(port: number): Promise<void>;
   /** Stop the WebSocket server gracefully. */
   stop(): Promise<void>;
-  /** Broadcast an updated component tree to all connected clients. */
+  /** Send a typed canvas message to all connected clients. */
+  sendCanvas(message: CanvasMessage): void;
+  /** Broadcast an updated component tree to all connected clients (wraps in canvas message). */
   broadcast(tree: ComponentTree): void;
   /** The number of currently connected WebSocket clients. */
   readonly connections: number;
@@ -93,13 +96,13 @@ export interface A2UIHost {
  *
  * The host uses `Deno.serve()` to listen for WebSocket upgrade requests.
  * When a client connects it immediately receives the current component
- * tree (if one has been set). Subsequent `broadcast()` calls push the
- * tree to every connected client. Disconnected clients are cleaned up
- * automatically.
+ * tree (if one has been set). Subsequent `sendCanvas()` and `broadcast()`
+ * calls push messages to every connected client. Disconnected clients are
+ * cleaned up automatically.
  *
  * When a `chatSession` is provided via options, the host also handles
  * incoming chat messages from browser clients and serves the Tidepool
- * HTML chat interface on HTTP requests.
+ * HTML chat + canvas interface on HTTP requests.
  */
 export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
   const clients = new Set<WebSocket>();
@@ -107,9 +110,26 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
   let server: Deno.HttpServer | null = null;
   let currentTree: ComponentTree | null = null;
   let _resolvedPort = 0;
+  let cachedHtml: string | null = null;
+
+  /** Send a JSON-serialized message to all open clients. */
+  function sendToAll(json: string): void {
+    for (const ws of clients) {
+      try {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(json);
+        }
+      } catch {
+        clients.delete(ws);
+      }
+    }
+  }
 
   const host: A2UIHost = {
     async start(port: number): Promise<void> {
+      // Cache the pre-built HTML
+      cachedHtml = buildTidepoolHtml();
+
       const ready = Promise.withResolvers<void>();
 
       server = Deno.serve(
@@ -161,6 +181,11 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
                   return;
                 }
 
+                if (msg.type === "clear") {
+                  chatSession.clear();
+                  return;
+                }
+
                 if (msg.type === "message" && (typeof msg.content === "string" || (Array.isArray(msg.content) && msg.content.length > 0))) {
                   abortController = new AbortController();
                   const signal = abortController.signal;
@@ -195,9 +220,9 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
             return response;
           }
 
-          // Serve Tidepool chat HTML when chat session is available
-          if (chatSession) {
-            return new Response(TIDEPOOL_HTML, {
+          // Serve Tidepool HTML (cached at start)
+          if (cachedHtml) {
+            return new Response(cachedHtml, {
               status: 200,
               headers: { "content-type": "text/html; charset=utf-8" },
             });
@@ -227,21 +252,31 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
       }
       _resolvedPort = 0;
       currentTree = null;
+      cachedHtml = null;
+    },
+
+    sendCanvas(message: CanvasMessage): void {
+      // Track component tree from canvas render messages for late-connecting clients
+      if (message.type === "canvas_render_component") {
+        currentTree = (message as CanvasRenderComponentMessage).tree;
+      } else if (message.type === "canvas_clear") {
+        currentTree = null;
+      }
+      const json = JSON.stringify(message);
+      sendToAll(json);
     },
 
     broadcast(tree: ComponentTree): void {
+      // Backward-compatible: wrap bare tree in a canvas_render_component message
       currentTree = tree;
-      const json = JSON.stringify(tree);
-      for (const ws of clients) {
-        try {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(json);
-          }
-        } catch {
-          // Remove clients that fail to receive
-          clients.delete(ws);
-        }
-      }
+      const msg: CanvasRenderComponentMessage = {
+        type: "canvas_render_component",
+        id: crypto.randomUUID(),
+        label: "Component Tree",
+        tree,
+      };
+      const json = JSON.stringify(msg);
+      sendToAll(json);
     },
 
     get connections(): number {

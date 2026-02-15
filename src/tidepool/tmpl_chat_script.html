@@ -1,0 +1,374 @@
+<script>
+(function() {
+  var messages = document.getElementById("messages");
+  var input = document.getElementById("input");
+  var sendBtn = document.getElementById("send");
+  var dot = document.getElementById("dot");
+  var providerInfo = document.getElementById("provider-info");
+
+  var pasteIndicator = document.getElementById("paste-indicator");
+  var pasteText = document.getElementById("paste-text");
+  var pasteDismiss = document.getElementById("paste-dismiss");
+
+  var ws = null;
+  var processing = false;
+  var currentAssistantEl = null;
+  var currentAssistantText = "";
+  var reconnectDelay = 1000;
+  var pendingImages = [];
+
+  function connect() {
+    var proto = location.protocol === "https:" ? "wss:" : "ws:";
+    ws = new WebSocket(proto + "//" + location.host);
+    dot.className = "dot connecting";
+
+    ws.onopen = function() {
+      dot.className = "dot connected";
+      sendBtn.disabled = false;
+      reconnectDelay = 1000;
+    };
+
+    ws.onclose = function() {
+      dot.className = "dot disconnected";
+      sendBtn.disabled = true;
+      processing = false;
+      setTimeout(connect, reconnectDelay);
+      reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+    };
+
+    ws.onerror = function() {
+      dot.className = "dot disconnected";
+    };
+
+    ws.onmessage = function(e) {
+      try {
+        var evt = JSON.parse(e.data);
+        handleEvent(evt);
+      } catch(err) {
+        console.error("Parse error:", err);
+      }
+    };
+  }
+
+  function handleEvent(evt) {
+    switch(evt.type) {
+      case "connected":
+        providerInfo.textContent = evt.provider + " / " + evt.model;
+        break;
+      case "llm_start":
+        if (!currentAssistantEl) {
+          currentAssistantEl = addMessage("assistant", "");
+          currentAssistantEl.classList.add("thinking");
+          currentAssistantEl.innerHTML = '<span class="thinking-label"><span class="thinking-spinner"></span> Thinking\u2026</span>';
+          currentAssistantText = "";
+        }
+        break;
+      case "tool_call":
+        addTool(evt.name, evt.args);
+        break;
+      case "tool_result":
+        finishTool(evt.name, evt.result);
+        break;
+      case "response":
+        if (currentAssistantEl) {
+          currentAssistantEl.classList.remove("thinking");
+          currentAssistantText = evt.text;
+          currentAssistantEl.innerHTML = renderMarkdown(evt.text);
+        } else {
+          addMessage("assistant", evt.text);
+        }
+        currentAssistantEl = null;
+        currentAssistantText = "";
+        todoListEl = null;
+        processing = false;
+        sendBtn.disabled = false;
+        input.focus();
+        break;
+      case "vision_start":
+        if (!currentAssistantEl) {
+          currentAssistantEl = addMessage("assistant", "");
+          currentAssistantText = "";
+        }
+        currentAssistantEl.classList.add("thinking");
+        currentAssistantEl.innerHTML = '<span class="thinking-label"><span class="thinking-spinner"></span> Analyzing ' +
+          (evt.imageCount === 1 ? 'image' : evt.imageCount + ' images') + '\u2026</span>';
+        break;
+      case "vision_complete":
+        break;
+      case "error":
+        if (currentAssistantEl) currentAssistantEl.classList.remove("thinking");
+        addMessage("error", evt.message);
+        currentAssistantEl = null;
+        currentAssistantText = "";
+        todoListEl = null;
+        processing = false;
+        sendBtn.disabled = false;
+        input.focus();
+        break;
+
+      // Canvas events — insert render label in chat + delegate to canvas module
+      case "canvas_render_component":
+      case "canvas_render_html":
+      case "canvas_render_file":
+        addRenderLabel(evt);
+        if (window.tidepoolCanvas) {
+          window.tidepoolCanvas.render(evt);
+          window.tidepoolCanvas.show();
+        }
+        break;
+      case "canvas_update":
+        if (window.tidepoolCanvas) {
+          window.tidepoolCanvas.renderUpdate(evt);
+        }
+        break;
+      case "canvas_clear":
+        if (window.tidepoolCanvas) {
+          window.tidepoolCanvas.clear();
+        }
+        break;
+    }
+  }
+
+  function addRenderLabel(evt) {
+    var el = document.createElement("div");
+    el.className = "render-label";
+    var icon = evt.type === "canvas_render_file" ? "\u{1F4C4}" : "\u{1F3A8}";
+    el.innerHTML = '<span class="render-icon">' + icon + '</span>'
+      + '<span class="render-text">' + escapeHtml(evt.label) + '</span>'
+      + '<span class="render-view" data-render-id="' + escapeHtml(evt.id) + '">View</span>';
+    var viewBtn = el.querySelector(".render-view");
+    viewBtn.addEventListener("click", function() {
+      if (window.tidepoolCanvas) {
+        window.tidepoolCanvas.showRenderId(evt.id);
+        window.tidepoolCanvas.show();
+      }
+    });
+    messages.appendChild(el);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function addMessage(role, text) {
+    var el = document.createElement("div");
+    el.className = "msg " + role;
+    el.innerHTML = renderMarkdown(text);
+    messages.appendChild(el);
+    messages.scrollTop = messages.scrollHeight;
+    return el;
+  }
+
+  var activeTools = {};
+  var pendingTodoArgs = null;
+  var todoListEl = null;
+
+  function isTodoTool(name) {
+    return name === "todo_read" || name === "todo_write";
+  }
+
+  function isWebTool(name) {
+    return name === "web_search" || name === "web_fetch";
+  }
+
+  var WEB_TOOL_NAMES = { web_search: "Web Search", web_fetch: "Fetch" };
+
+  function addTool(name, args) {
+    if (isTodoTool(name)) {
+      pendingTodoArgs = args;
+      return;
+    }
+    var el = document.createElement("div");
+
+    if (isWebTool(name)) {
+      el.className = "tool-web";
+      var displayName = WEB_TOOL_NAMES[name] || name;
+      var argStr = name === "web_search"
+        ? '("' + escapeHtml(String(args.query || "")).slice(0, 60) + '")'
+        : "(" + escapeHtml(String(args.url || "").slice(0, 60)) + ")";
+      el.innerHTML = '<span class="tool-icon">\u25cf</span>'
+        + '<span class="tool-name">' + escapeHtml(displayName) + '</span> '
+        + '<span class="tool-arg">' + argStr + '</span>'
+        + '<div class="tool-meta"><span class="spinner"></span> Loading\u2026</div>';
+    } else {
+      el.className = "tool";
+      var argValues = Object.keys(args || {}).map(function(k) { return args[k]; }).join(" ");
+      el.innerHTML = '<span class="spinner"></span> ' + escapeHtml(name) + " " + escapeHtml(argValues.slice(0, 60));
+    }
+
+    messages.appendChild(el);
+    messages.scrollTop = messages.scrollHeight;
+    activeTools[name] = el;
+  }
+
+  function finishTool(name, result) {
+    if (isTodoTool(name)) {
+      var todos = extractTodos(name, pendingTodoArgs, result);
+      pendingTodoArgs = null;
+      if (todos && todos.length > 0) {
+        renderTodoList(todos);
+      }
+      return;
+    }
+    if (activeTools[name]) {
+      if (isWebTool(name)) {
+        var metaEl = activeTools[name].querySelector(".tool-meta");
+        if (metaEl) {
+          if (name === "web_search") {
+            var count = (result.match(/^\d+\.\s/gm) || []).length;
+            metaEl.textContent = count > 0 ? count + " result" + (count !== 1 ? "s" : "") : "no results";
+          } else {
+            var kb = (new TextEncoder().encode(result).length / 1024).toFixed(1);
+            metaEl.textContent = "Received " + kb + "KB";
+          }
+        }
+        activeTools[name].className = "tool-web done";
+      } else {
+        activeTools[name].className = "tool done";
+      }
+      delete activeTools[name];
+    }
+  }
+
+  function extractTodos(name, args, result) {
+    if (result) {
+      try {
+        var parsed = JSON.parse(result);
+        if (parsed.todos && Array.isArray(parsed.todos)) return parsed.todos;
+      } catch(e) { /* ignore */ }
+    }
+    if (name === "todo_write" && args && Array.isArray(args.todos)) {
+      return args.todos;
+    }
+    return null;
+  }
+
+  function renderTodoList(todos) {
+    var html = '<div class="todo-header">\u{1F4CB} Tasks</div>';
+    for (var i = 0; i < todos.length; i++) {
+      var t = todos[i];
+      var content = escapeHtml(t.content || "");
+      if (t.status === "completed") {
+        html += '<div class="todo-item todo-done"><span class="todo-check">\u2713</span> <s>' + content + '</s></div>';
+      } else if (t.status === "in_progress") {
+        html += '<div class="todo-item todo-active"><span class="todo-arrow">\u25B6</span> ' + content + '</div>';
+      } else {
+        html += '<div class="todo-item todo-pending"><span class="todo-circle">\u25CB</span> ' + content + '</div>';
+      }
+    }
+    if (todoListEl) {
+      todoListEl.innerHTML = html;
+    } else {
+      todoListEl = document.createElement("div");
+      todoListEl.className = "todo-list";
+      todoListEl.innerHTML = html;
+      messages.appendChild(todoListEl);
+    }
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function renderMarkdown(text) {
+    if (!text) return "";
+    var cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
+    cleaned = cleaned.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "");
+    cleaned = cleaned.replace(/<think(?:ing)?>[\s\S]*$/gi, "");
+    cleaned = cleaned.replace(/^[\s\S]*?<\/think(?:ing)?>/gi, "");
+    cleaned = cleaned.trim();
+    var html = escapeHtml(cleaned);
+    html = html.replace(/```(\w*)?\n([\s\S]*?)```/g, "<pre><code>$2</code></pre>");
+    html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    html = html.replace(/\n/g, "<br>");
+    return html;
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function sendMessage() {
+    var text = input.value.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN || processing) return;
+
+    // Client-side slash commands
+    if (text === "/clear") {
+      ws.send(JSON.stringify({ type: "clear" }));
+      messages.innerHTML = "";
+      currentAssistantEl = null;
+      currentAssistantText = "";
+      todoListEl = null;
+      activeTools = {};
+      if (window.tidepoolCanvas) {
+        window.tidepoolCanvas.clear();
+        window.tidepoolCanvas.hide();
+      }
+      input.value = "";
+      input.style.height = "auto";
+      return;
+    }
+
+    addMessage("user", text);
+    var content;
+    if (pendingImages.length > 0) {
+      content = pendingImages.concat([{ type: "text", text: text }]);
+      pendingImages = [];
+      pasteIndicator.className = "";
+    } else {
+      content = text;
+    }
+    ws.send(JSON.stringify({ type: "message", content: content }));
+    input.value = "";
+    input.style.height = "auto";
+    processing = true;
+    sendBtn.disabled = true;
+  }
+
+  sendBtn.addEventListener("click", sendMessage);
+  input.addEventListener("keydown", function(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  input.addEventListener("input", function() {
+    this.style.height = "auto";
+    this.style.height = Math.min(this.scrollHeight, 120) + "px";
+  });
+
+  input.addEventListener("paste", function(e) {
+    var items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        e.preventDefault();
+        var blob = items[i].getAsFile();
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          var dataUrl = ev.target.result;
+          var parts = dataUrl.split(",");
+          var mimeMatch = parts[0].match(/:(.*?);/);
+          var mime = mimeMatch ? mimeMatch[1] : "image/png";
+          var base64 = parts[1];
+          pendingImages.push({
+            type: "image",
+            source: { type: "base64", media_type: mime, data: base64 }
+          });
+          var count = pendingImages.length;
+          pasteText.textContent = count === 1
+            ? "Image pasted \u2014 will send with next message"
+            : count + " images pasted \u2014 will send with next message";
+          pasteIndicator.className = "visible";
+        };
+        reader.readAsDataURL(blob);
+        break;
+      }
+    }
+  });
+
+  pasteDismiss.addEventListener("click", function() {
+    pendingImages = [];
+    pasteIndicator.className = "";
+  });
+
+  connect();
+})();
+</script>

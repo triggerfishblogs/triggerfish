@@ -95,6 +95,67 @@ export function markdown(id: string, content: string): A2UIComponent {
 }
 
 /**
+ * Create a chart component.
+ *
+ * Accepts either structured data (`type`, `labels`, `values`) for auto-rendered
+ * charts, or a passthrough `svg` string for pre-built SVG charts.
+ *
+ * @param id Unique component identifier
+ * @param props Chart properties: structured `{ type, labels, values }` or passthrough `{ svg }`
+ * @returns A chart A2UIComponent
+ */
+export function chart(
+  id: string,
+  props: { readonly type: string; readonly labels: readonly string[]; readonly values: readonly number[] } | { readonly svg: string },
+): A2UIComponent {
+  return {
+    type: "chart",
+    id,
+    props: { ...props },
+  };
+}
+
+/**
+ * Create a form component.
+ *
+ * Renders a display-only form with labeled fields.
+ *
+ * @param id Unique component identifier
+ * @param fields Array of field definitions
+ * @returns A form A2UIComponent
+ */
+export function form(
+  id: string,
+  fields: readonly { readonly name: string; readonly type: string; readonly label: string }[],
+): A2UIComponent {
+  return {
+    type: "form",
+    id,
+    props: { fields: [...fields] },
+  };
+}
+
+/**
+ * Create an image component.
+ *
+ * @param id Unique component identifier
+ * @param src Image URL or data URI
+ * @param alt Optional alt text
+ * @returns An image A2UIComponent
+ */
+export function image(
+  id: string,
+  src: string,
+  alt?: string,
+): A2UIComponent {
+  return {
+    type: "image",
+    id,
+    props: alt !== undefined ? { src, alt } : { src },
+  };
+}
+
+/**
  * Create a layout component that arranges children.
  *
  * @param id Unique component identifier

@@ -2,20 +2,32 @@
  * Tests for the Tide Pool / A2UI module.
  *
  * Covers component constructors, A2UIHost WebSocket broadcasting,
- * and TidePoolTools render/update/clear operations.
+ * TidePoolTools canvas render/update/clear operations, canvas protocol,
+ * tool definitions, executor dispatching, and HTML composition.
  */
-import { assertEquals, assertExists, assert } from "@std/assert";
+import { assertEquals, assertExists, assert, assertNotEquals, assertStringIncludes } from "@std/assert";
 import {
   card,
   table,
+  chart,
+  form,
+  image,
   markdown,
   layout,
   createA2UIHost,
   createTidePoolTools,
+  getTidepoolToolDefinitions,
+  createTidepoolToolExecutor,
+  generateRenderId,
+  buildTidepoolHtml,
 } from "../../src/tidepool/mod.ts";
 import type {
   A2UIComponent,
+  A2UIHost,
   ComponentTree,
+  TidePoolTools,
+  CanvasMessage,
+  CanvasRenderComponentMessage,
 } from "../../src/tidepool/mod.ts";
 
 // ---------------------------------------------------------------------------
@@ -63,6 +75,62 @@ Deno.test("layout: column direction", () => {
   const l = layout("l2", "column", []);
   assertEquals(l.props.direction, "column");
   assertEquals(l.children!.length, 0);
+});
+
+Deno.test("chart: structured data shape", () => {
+  const c = chart("ch1", { type: "bar", labels: ["A", "B"], values: [10, 20] });
+  assertEquals(c.type, "chart");
+  assertEquals(c.id, "ch1");
+  assertEquals(c.props.type, "bar");
+  assertEquals(c.props.labels, ["A", "B"]);
+  assertEquals(c.props.values, [10, 20]);
+});
+
+Deno.test("chart: SVG passthrough shape", () => {
+  const c = chart("ch2", { svg: "<svg></svg>" });
+  assertEquals(c.type, "chart");
+  assertEquals(c.id, "ch2");
+  assertEquals(c.props.svg, "<svg></svg>");
+});
+
+Deno.test("form: produces correct shape", () => {
+  const f = form("f1", [
+    { name: "email", type: "email", label: "Email" },
+    { name: "name", type: "text", label: "Name" },
+  ]);
+  assertEquals(f.type, "form");
+  assertEquals(f.id, "f1");
+  const fields = f.props.fields as Array<{ name: string; type: string; label: string }>;
+  assertEquals(fields.length, 2);
+  assertEquals(fields[0].name, "email");
+  assertEquals(fields[1].label, "Name");
+});
+
+Deno.test("image: produces correct shape", () => {
+  const img = image("i1", "https://example.com/img.png");
+  assertEquals(img.type, "image");
+  assertEquals(img.id, "i1");
+  assertEquals(img.props.src, "https://example.com/img.png");
+  assertEquals(img.props.alt, undefined);
+});
+
+Deno.test("image: with alt text", () => {
+  const img = image("i2", "data:image/png;base64,abc", "test image");
+  assertEquals(img.props.src, "data:image/png;base64,abc");
+  assertEquals(img.props.alt, "test image");
+});
+
+// ---------------------------------------------------------------------------
+// generateRenderId
+// ---------------------------------------------------------------------------
+
+Deno.test("generateRenderId: returns unique IDs", () => {
+  const id1 = generateRenderId();
+  const id2 = generateRenderId();
+  assertNotEquals(id1, id2);
+  // Should be UUID format
+  assert(id1.length > 0);
+  assert(id2.length > 0);
 });
 
 // ---------------------------------------------------------------------------
@@ -127,13 +195,13 @@ Deno.test({
         version: 1,
       };
 
-      const received1 = new Promise<ComponentTree>((resolve) => {
+      const received1 = new Promise<CanvasRenderComponentMessage>((resolve) => {
         ws1.onmessage = (event: MessageEvent) => {
           resolve(JSON.parse(event.data as string));
         };
       });
 
-      const received2 = new Promise<ComponentTree>((resolve) => {
+      const received2 = new Promise<CanvasRenderComponentMessage>((resolve) => {
         ws2.onmessage = (event: MessageEvent) => {
           resolve(JSON.parse(event.data as string));
         };
@@ -143,11 +211,13 @@ Deno.test({
 
       const [result1, result2] = await Promise.all([received1, received2]);
 
-      assertEquals(result1.version, 1);
-      assertEquals(result1.root.type, "card");
-      assertEquals(result1.root.id, "r1");
-      assertEquals(result2.version, 1);
-      assertEquals(result2.root.id, "r1");
+      // broadcast wraps in canvas_render_component
+      assertEquals(result1.type, "canvas_render_component");
+      assertEquals(result1.tree.version, 1);
+      assertEquals(result1.tree.root.type, "card");
+      assertEquals(result1.tree.root.id, "r1");
+      assertEquals(result2.type, "canvas_render_component");
+      assertEquals(result2.tree.root.id, "r1");
 
       ws1.close();
       ws2.close();
@@ -232,41 +302,43 @@ Deno.test({
 });
 
 // ---------------------------------------------------------------------------
-// TidePoolTools tests
+// A2UIHost: sendCanvas tests
 // ---------------------------------------------------------------------------
 
 Deno.test({
-  name: "TidePoolTools: render sends tree to host",
+  name: "A2UIHost: sendCanvas sends typed messages to clients",
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
     const host = createA2UIHost();
-    await host.start(TEST_PORT + 4);
+    await host.start(TEST_PORT + 10);
 
     try {
-      const ws = new WebSocket(`ws://127.0.0.1:${TEST_PORT + 4}`);
+      const ws = new WebSocket(`ws://127.0.0.1:${TEST_PORT + 10}`);
       await new Promise<void>((resolve) => { ws.onopen = () => resolve(); });
       await new Promise<void>((resolve) => setTimeout(resolve, 50));
 
-      const tools = createTidePoolTools(host);
-
-      const tree: ComponentTree = {
-        root: card("main", "Dashboard", "Content"),
-        version: 1,
-      };
-
-      const received = new Promise<ComponentTree>((resolve) => {
+      const received = new Promise<CanvasMessage>((resolve) => {
         ws.onmessage = (event: MessageEvent) => {
           resolve(JSON.parse(event.data as string));
         };
       });
 
-      const result = tools.render(tree);
-      assert(result.ok);
+      const msg: CanvasMessage = {
+        type: "canvas_render_html",
+        id: "test-id",
+        label: "Test HTML",
+        html: "<h1>Hello</h1>",
+      };
+      host.sendCanvas(msg);
 
-      const clientReceived = await received;
-      assertEquals(clientReceived.version, 1);
-      assertEquals(clientReceived.root.id, "main");
+      const result = await received;
+      assertEquals(result.type, "canvas_render_html");
+      if (result.type === "canvas_render_html") {
+        assertEquals(result.id, "test-id");
+        assertEquals(result.label, "Test HTML");
+        assertEquals(result.html, "<h1>Hello</h1>");
+      }
 
       ws.close();
       await new Promise<void>((resolve) => setTimeout(resolve, 100));
@@ -276,79 +348,105 @@ Deno.test({
   },
 });
 
-Deno.test({
-  name: "TidePoolTools: update patches component by ID",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  fn: async () => {
-    const host = createA2UIHost();
-    await host.start(TEST_PORT + 5);
+// ---------------------------------------------------------------------------
+// TidePoolTools tests
+// ---------------------------------------------------------------------------
 
-    try {
-      const ws = new WebSocket(`ws://127.0.0.1:${TEST_PORT + 5}`);
-      await new Promise<void>((resolve) => { ws.onopen = () => resolve(); });
-      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+/** Create a mock host that records sendCanvas calls. */
+function createMockHost(): A2UIHost & { readonly canvasMessages: CanvasMessage[] } {
+  const canvasMessages: CanvasMessage[] = [];
+  return {
+    start: async (_port: number) => {},
+    stop: async () => {},
+    sendCanvas: (msg: CanvasMessage) => { canvasMessages.push(msg); },
+    broadcast: (_tree: ComponentTree) => {},
+    get connections() { return 0; },
+    canvasMessages,
+  };
+}
 
-      const tools = createTidePoolTools(host);
+Deno.test("TidePoolTools: renderComponent sends canvas message", () => {
+  const mockHost = createMockHost();
+  const tools = createTidePoolTools(mockHost);
 
-      const tree: ComponentTree = {
-        root: layout("root", "column", [
-          card("header", "Old Title", "Old Content"),
-          markdown("body", "# Old"),
-        ]),
-        version: 1,
-      };
+  const tree: ComponentTree = {
+    root: card("main", "Dashboard", "Content"),
+    version: 1,
+  };
 
-      // Render initial tree
-      tools.render(tree);
+  const result = tools.renderComponent("Dashboard", tree);
+  assert(result.ok);
 
-      // Drain the initial render message
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve();
-      });
+  assertEquals(mockHost.canvasMessages.length, 1);
+  assertEquals(mockHost.canvasMessages[0].type, "canvas_render_component");
+  if (mockHost.canvasMessages[0].type === "canvas_render_component") {
+    assertEquals(mockHost.canvasMessages[0].label, "Dashboard");
+    assertEquals(mockHost.canvasMessages[0].tree.root.id, "main");
+  }
+});
 
-      // Set up listener for the update
-      const updated = new Promise<ComponentTree>((resolve) => {
-        ws.onmessage = (event: MessageEvent) => {
-          resolve(JSON.parse(event.data as string));
-        };
-      });
+Deno.test("TidePoolTools: renderHtml sends canvas message", () => {
+  const mockHost = createMockHost();
+  const tools = createTidePoolTools(mockHost);
 
-      // Update the header card
-      const updateResult = tools.update("header", {
-        title: "New Title",
-        content: "New Content",
-      });
-      assert(updateResult.ok);
+  const result = tools.renderHtml("Chart SVG", "<svg><circle r='50'/></svg>");
+  assert(result.ok);
 
-      const received = await updated;
-      assertEquals(received.version, 2); // version incremented
-      // Find the header in children
-      const headerChild = received.root.children?.find(
-        (c: A2UIComponent) => c.id === "header",
-      );
-      assertExists(headerChild);
-      assertEquals(headerChild!.props.title, "New Title");
-      assertEquals(headerChild!.props.content, "New Content");
+  assertEquals(mockHost.canvasMessages.length, 1);
+  assertEquals(mockHost.canvasMessages[0].type, "canvas_render_html");
+});
 
-      ws.close();
-      await new Promise<void>((resolve) => setTimeout(resolve, 100));
-    } finally {
-      await host.stop();
-    }
-  },
+Deno.test("TidePoolTools: renderFile sends canvas message", () => {
+  const mockHost = createMockHost();
+  const tools = createTidePoolTools(mockHost);
+
+  const result = tools.renderFile("Report", "report.pdf", "application/pdf", "AAAA");
+  assert(result.ok);
+
+  assertEquals(mockHost.canvasMessages.length, 1);
+  assertEquals(mockHost.canvasMessages[0].type, "canvas_render_file");
+  if (mockHost.canvasMessages[0].type === "canvas_render_file") {
+    assertEquals(mockHost.canvasMessages[0].filename, "report.pdf");
+    assertEquals(mockHost.canvasMessages[0].mime, "application/pdf");
+  }
+});
+
+Deno.test("TidePoolTools: update patches component by ID", () => {
+  const mockHost = createMockHost();
+  const tools = createTidePoolTools(mockHost);
+
+  const tree: ComponentTree = {
+    root: layout("root", "column", [
+      card("header", "Old Title", "Old Content"),
+      markdown("body", "# Old"),
+    ]),
+    version: 1,
+  };
+
+  tools.renderComponent("Layout", tree);
+
+  const updateResult = tools.update("header", {
+    title: "New Title",
+    content: "New Content",
+  });
+  assert(updateResult.ok);
+
+  // Should have sent 2 messages: render + update
+  assertEquals(mockHost.canvasMessages.length, 2);
+  assertEquals(mockHost.canvasMessages[1].type, "canvas_update");
+  if (mockHost.canvasMessages[1].type === "canvas_update") {
+    const headerChild = mockHost.canvasMessages[1].tree.root.children?.find(
+      (c: A2UIComponent) => c.id === "header",
+    );
+    assertExists(headerChild);
+    assertEquals(headerChild!.props.title, "New Title");
+    assertEquals(headerChild!.props.content, "New Content");
+    assertEquals(mockHost.canvasMessages[1].tree.version, 2);
+  }
 });
 
 Deno.test("TidePoolTools: update returns error when no tree rendered", () => {
-  // Use a mock host that doesn't need a server
-  const broadcasts: ComponentTree[] = [];
-  const mockHost = {
-    start: async (_port: number) => {},
-    stop: async () => {},
-    broadcast: (tree: ComponentTree) => { broadcasts.push(tree); },
-    get connections() { return 0; },
-  };
-
+  const mockHost = createMockHost();
   const tools = createTidePoolTools(mockHost);
   const result = tools.update("nonexistent", { title: "X" });
   assert(!result.ok);
@@ -358,16 +456,9 @@ Deno.test("TidePoolTools: update returns error when no tree rendered", () => {
 });
 
 Deno.test("TidePoolTools: update returns error for unknown component ID", () => {
-  const broadcasts: ComponentTree[] = [];
-  const mockHost = {
-    start: async (_port: number) => {},
-    stop: async () => {},
-    broadcast: (tree: ComponentTree) => { broadcasts.push(tree); },
-    get connections() { return 0; },
-  };
-
+  const mockHost = createMockHost();
   const tools = createTidePoolTools(mockHost);
-  tools.render({
+  tools.renderComponent("Test", {
     root: card("only-card", "Title", "Body"),
     version: 1,
   });
@@ -379,69 +470,131 @@ Deno.test("TidePoolTools: update returns error for unknown component ID", () => 
   }
 });
 
-Deno.test({
-  name: "TidePoolTools: clear resets tree",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  fn: async () => {
-    const host = createA2UIHost();
-    await host.start(TEST_PORT + 6);
-
-    try {
-      const ws = new WebSocket(`ws://127.0.0.1:${TEST_PORT + 6}`);
-      await new Promise<void>((resolve) => { ws.onopen = () => resolve(); });
-      await new Promise<void>((resolve) => setTimeout(resolve, 50));
-
-      const tools = createTidePoolTools(host);
-
-      // Render a tree first
-      tools.render({
-        root: card("main", "Title", "Body"),
-        version: 1,
-      });
-
-      // Drain the render message
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve();
-      });
-
-      // Listen for clear broadcast
-      const cleared = new Promise<ComponentTree>((resolve) => {
-        ws.onmessage = (event: MessageEvent) => {
-          resolve(JSON.parse(event.data as string));
-        };
-      });
-
-      const result = tools.clear();
-      assert(result.ok);
-
-      const received = await cleared;
-      assertEquals(received.version, 2); // version 1 + 1
-      assertEquals(received.root.id, "__empty");
-      assertEquals(received.root.type, "layout");
-      assertEquals(received.root.children!.length, 0);
-
-      ws.close();
-      await new Promise<void>((resolve) => setTimeout(resolve, 100));
-    } finally {
-      await host.stop();
-    }
-  },
-});
-
-Deno.test("TidePoolTools: clear without prior render uses version 0", () => {
-  const broadcasts: ComponentTree[] = [];
-  const mockHost = {
-    start: async (_port: number) => {},
-    stop: async () => {},
-    broadcast: (tree: ComponentTree) => { broadcasts.push(tree); },
-    get connections() { return 0; },
-  };
-
+Deno.test("TidePoolTools: clear sends canvas_clear message", () => {
+  const mockHost = createMockHost();
   const tools = createTidePoolTools(mockHost);
+
+  tools.renderComponent("Test", {
+    root: card("main", "Title", "Body"),
+    version: 1,
+  });
+
   const result = tools.clear();
   assert(result.ok);
-  assertEquals(broadcasts.length, 1);
-  assertEquals(broadcasts[0].version, 0);
-  assertEquals(broadcasts[0].root.id, "__empty");
+  assertEquals(mockHost.canvasMessages.length, 2);
+  assertEquals(mockHost.canvasMessages[1].type, "canvas_clear");
+});
+
+// ---------------------------------------------------------------------------
+// Tool definitions
+// ---------------------------------------------------------------------------
+
+Deno.test("getTidepoolToolDefinitions: returns 5 tools with correct names", () => {
+  const defs = getTidepoolToolDefinitions();
+  assertEquals(defs.length, 5);
+  const names = defs.map((d) => d.name);
+  assert(names.includes("tidepool.render_component"));
+  assert(names.includes("tidepool.render_html"));
+  assert(names.includes("tidepool.render_file"));
+  assert(names.includes("tidepool.update"));
+  assert(names.includes("tidepool.clear"));
+});
+
+// ---------------------------------------------------------------------------
+// Executor tests
+// ---------------------------------------------------------------------------
+
+Deno.test("executor: returns null for non-tidepool tool names", async () => {
+  const executor = createTidepoolToolExecutor(() => undefined);
+  const result = await executor("web_search", { query: "test" });
+  assertEquals(result, null);
+});
+
+Deno.test("executor: returns error when getter returns undefined", async () => {
+  const executor = createTidepoolToolExecutor(() => undefined);
+  const result = await executor("tidepool.render_component", { label: "Test", tree: {} });
+  assertEquals(result, "Tidepool is not connected. Visual workspace is unavailable.");
+});
+
+Deno.test("executor: dispatches render_component correctly", async () => {
+  const mockHost = createMockHost();
+  const tools = createTidePoolTools(mockHost);
+  const executor = createTidepoolToolExecutor(() => tools);
+
+  const tree: ComponentTree = {
+    root: card("x", "Title", "Body"),
+    version: 1,
+  };
+
+  const result = await executor("tidepool.render_component", {
+    label: "Test Render",
+    tree,
+  });
+  assertStringIncludes(result!, 'Rendered component tree "Test Render"');
+  assertStringIncludes(result!, "chars) in canvas.");
+  assertStringIncludes(result!, "The user can see it now.");
+  assertEquals(mockHost.canvasMessages.length, 1);
+});
+
+Deno.test("executor: dispatches render_html correctly", async () => {
+  const mockHost = createMockHost();
+  const tools = createTidePoolTools(mockHost);
+  const executor = createTidepoolToolExecutor(() => tools);
+
+  const result = await executor("tidepool.render_html", {
+    label: "HTML Test",
+    html: "<h1>Hello</h1>",
+  });
+  assertStringIncludes(result!, 'Rendered HTML "HTML Test"');
+  assertStringIncludes(result!, "(14 chars) in canvas.");
+  assertStringIncludes(result!, "The user can see it now.");
+});
+
+Deno.test("executor: dispatches render_file correctly", async () => {
+  const mockHost = createMockHost();
+  const tools = createTidePoolTools(mockHost);
+  const executor = createTidepoolToolExecutor(() => tools);
+
+  const result = await executor("tidepool.render_file", {
+    label: "File Test",
+    filename: "test.png",
+    mime: "image/png",
+    data: "iVBORw0KGgo=",
+  });
+  assertStringIncludes(result!, 'Rendered file "test.png"');
+  assertStringIncludes(result!, "(image/png,");
+  assertStringIncludes(result!, 'as "File Test"');
+  assertStringIncludes(result!, "The user can see it now.");
+});
+
+Deno.test("executor: lazy getter works after wiring", async () => {
+  // deno-lint-ignore prefer-const
+  let tools: TidePoolTools | undefined;
+  const executor = createTidepoolToolExecutor(() => tools);
+
+  // Before wiring — should return not connected
+  const before = await executor("tidepool.clear", {});
+  assertEquals(before, "Tidepool is not connected. Visual workspace is unavailable.");
+
+  // Wire up the tools
+  const mockHost = createMockHost();
+  tools = createTidePoolTools(mockHost);
+
+  // After wiring — should work
+  const after = await executor("tidepool.clear", {});
+  assertEquals(after, "Tidepool canvas cleared.");
+});
+
+// ---------------------------------------------------------------------------
+// buildTidepoolHtml
+// ---------------------------------------------------------------------------
+
+Deno.test("buildTidepoolHtml: returns HTML with expected panel IDs", () => {
+  const html = buildTidepoolHtml();
+  assert(html.includes("chat-panel"), "should contain chat-panel");
+  assert(html.includes("canvas-panel"), "should contain canvas-panel");
+  assert(html.includes("canvas-frame"), "should contain canvas-frame");
+  assert(html.includes("canvas-history"), "should contain canvas-history");
+  assert(html.includes("<!DOCTYPE html>"), "should be valid HTML document");
+  assert(html.includes("tidepoolCanvas"), "should contain canvas JS module");
 });

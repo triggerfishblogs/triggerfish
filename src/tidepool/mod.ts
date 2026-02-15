@@ -3,8 +3,8 @@
  *
  * Provides the agent-driven visual workspace using the A2UI
  * (Agent-to-UI) protocol. Includes component tree definitions,
- * a WebSocket host for broadcasting trees to clients, and
- * agent-facing tools for render/update/clear operations.
+ * a WebSocket host for broadcasting trees and canvas messages to
+ * clients, and agent-facing tools for canvas render/update/clear.
  *
  * Legacy HTML push/eval/reset/snapshot tools are also exported
  * for backward compatibility.
@@ -14,16 +14,27 @@
 
 // Component tree types and helper constructors
 export type { ComponentType, A2UIComponent, ComponentTree } from "./components.ts";
-export { card, table, markdown, layout } from "./components.ts";
+export { card, table, chart, form, image, markdown, layout } from "./components.ts";
+
+// Canvas protocol types
+export type {
+  CanvasMessage,
+  CanvasRenderComponentMessage,
+  CanvasRenderHtmlMessage,
+  CanvasRenderFileMessage,
+  CanvasUpdateMessage,
+  CanvasClearMessage,
+} from "./canvas_protocol.ts";
+export { generateRenderId } from "./canvas_protocol.ts";
 
 // A2UI WebSocket host
 export type { A2UIHost, A2UIHostOptions } from "./host.ts";
 export { createA2UIHost } from "./host.ts";
 
-// Tidepool browser chat HTML
-export { TIDEPOOL_HTML } from "./ui.ts";
+// Tidepool browser HTML compositor
+export { buildTidepoolHtml, TIDEPOOL_HTML } from "./ui.ts";
 
-// A2UI tools (Result-based, component tree)
+// A2UI tools (Result-based, canvas)
 export type { TidePoolTools } from "./tools.ts";
 export {
   createTidePoolTools,
