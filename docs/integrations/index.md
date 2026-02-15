@@ -16,6 +16,7 @@ Triggerfish offers five distinct ways to extend the platform. Each serves a diff
 | [Webhooks](./webhooks) | Receive inbound events from external services | Real-time reactions to emails, alerts, CI/CD events, calendar changes |
 | [GitHub](./github) | Full GitHub workflow integration | PR review loops, issue triage, branch management via webhooks + exec + skills |
 | [Google Workspace](./google-workspace) | Connect Gmail, Calendar, Tasks, Drive, Sheets | Bundled OAuth2 integration with 14 tools for Google Workspace |
+| [Obsidian](./obsidian) | Read, write, and search Obsidian vault notes | Classification-gated note access with folder mappings, wikilinks, daily notes |
 
 ## Security Model
 

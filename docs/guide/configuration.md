@@ -34,30 +34,45 @@ models:
     provider: anthropic
     model: claude-sonnet-4-5-20250929
 
+  # Optional: vision model for automatic image description when primary
+  # model lacks vision support
+  # vision: gemini-2.0-flash
+
+  # Streaming responses (default: true)
+  # streaming: true
+
   providers:
     anthropic:
       model: claude-sonnet-4-5-20250929
-      # Auth: apiKey field or ANTHROPIC_API_KEY env var
+      apiKey: "your-anthropic-api-key"
 
     openai:
       model: gpt-4o
-      # Uses OPENAI_API_KEY from environment
+      apiKey: "your-openai-api-key"
 
     google:
       model: gemini-2.5-pro
-      # Uses GOOGLE_API_KEY from environment
+      apiKey: "your-google-api-key"
 
-    local:
+    ollama:
       model: llama3
-      baseUrl: "http://localhost:11434/v1"  # Ollama default
+      endpoint: "http://localhost:11434"    # Ollama default
+
+    lmstudio:
+      model: lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF
+      endpoint: "http://localhost:1234"     # LM Studio default
 
     openrouter:
       model: anthropic/claude-sonnet-4-5
-      # Uses OPENROUTER_API_KEY from environment
+      apiKey: "your-openrouter-api-key"
+
+    zenmux:
+      model: openai/gpt-5
+      apiKey: "your-zenmux-api-key"
 
     zai:
       model: glm-4.7
-      # Uses ZAI_API_KEY from environment
+      apiKey: "your-zai-api-key"
 
   # Failover chain: if primary fails, try these in order
   failover:
@@ -65,21 +80,7 @@ models:
     - google
 ```
 
-
-### Provider Authentication
-
-| Provider | Environment Variable | Notes |
-|----------|---------------------|-------|
-| Anthropic | `apiKey` in YAML or `ANTHROPIC_API_KEY` env var | Standard API key |
-| OpenAI | `OPENAI_API_KEY` | Standard API key |
-| Google | `GOOGLE_API_KEY` | Gemini API key |
-| Local | None | Connects to local OpenAI-compatible endpoint |
-| OpenRouter | `OPENROUTER_API_KEY` | Access any model on OpenRouter |
-| Z.AI | `ZAI_API_KEY` | Z.AI Coding Plan (GLM models) |
-
-::: warning
-Never put API keys directly in your `triggerfish.yaml`. Use environment variables or the OS keychain. Triggerfish reads secrets from the environment at startup.
-:::
+All API keys belong in `triggerfish.yaml`. Ollama and LM Studio are local and require no authentication.
 
 ## Channels
 
@@ -93,27 +94,36 @@ channels:
 
   telegram:
     enabled: true
-    botToken: "${TELEGRAM_BOT_TOKEN}"
+    botToken: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
     ownerId: 123456789
     classification: INTERNAL
 
+  signal:
+    enabled: true
+    endpoint: "tcp://127.0.0.1:7583"
+    account: "+14155552671"
+    classification: PUBLIC
+    defaultGroupMode: mentioned-only
+
   slack:
     enabled: true
-    botToken: "${SLACK_BOT_TOKEN}"
-    appToken: "${SLACK_APP_TOKEN}"
-    signingSecret: "${SLACK_SIGNING_SECRET}"
+    botToken: "xoxb-your-bot-token"
+    appToken: "xapp-your-app-token"
+    signingSecret: "your-signing-secret"
     classification: PUBLIC
 
   discord:
     enabled: true
-    botToken: "${DISCORD_BOT_TOKEN}"
+    botToken: "your-discord-bot-token"
     ownerId: "your-discord-user-id"
     classification: PUBLIC
 
   whatsapp:
     enabled: true
+    accessToken: "your-whatsapp-access-token"
+    phoneNumberId: "your-phone-number-id"
+    verifyToken: "your-webhook-verify-token"
     classification: PUBLIC
-    # WhatsApp uses QR code pairing -- run triggerfish dive to set up
 
   webchat:
     enabled: true
@@ -123,9 +133,12 @@ channels:
   email:
     enabled: true
     imapHost: "imap.gmail.com"
-    smtpHost: "smtp.gmail.com"
-    address: "${EMAIL_ADDRESS}"
-    password: "${EMAIL_APP_PASSWORD}"
+    smtpApiUrl: "https://api.sendgrid.com/v3/mail/send"
+    smtpApiKey: "your-sendgrid-api-key"
+    imapUser: "you@gmail.com"
+    imapPassword: "your-app-password"
+    fromAddress: "bot@example.com"
+    ownerEmail: "you@gmail.com"
     classification: CONFIDENTIAL
 ```
 
@@ -135,11 +148,12 @@ channels:
 |---------|--------------|---------------|
 | CLI | `enabled` | `classification` |
 | Telegram | `enabled`, `botToken`, `ownerId` | `classification` |
-| Slack | `enabled`, `botToken`, `appToken`, `signingSecret` | `classification` |
+| Signal | `enabled`, `endpoint`, `account` | `classification`, `defaultGroupMode`, `groups`, `ownerPhone`, `pairing` |
+| Slack | `enabled`, `botToken`, `appToken`, `signingSecret` | `classification`, `ownerId` |
 | Discord | `enabled`, `botToken`, `ownerId` | `classification` |
-| WhatsApp | `enabled` | `classification` |
-| WebChat | `enabled` | `classification`, `port` |
-| Email | `enabled`, `imapHost`, `smtpHost`, `address`, `password` | `classification` |
+| WhatsApp | `enabled`, `accessToken`, `phoneNumberId`, `verifyToken` | `classification`, `ownerPhone`, `webhookPort` |
+| WebChat | `enabled` | `classification`, `port`, `allowedOrigins` |
+| Email | `enabled`, `smtpApiUrl`, `smtpApiKey`, `imapHost`, `imapUser`, `imapPassword`, `fromAddress` | `classification`, `ownerEmail`, `imapPort`, `pollInterval` |
 
 ### Default Classification Levels
 
@@ -147,11 +161,12 @@ channels:
 |---------|---------|
 | CLI | `INTERNAL` |
 | Telegram | `INTERNAL` |
+| Signal | `PUBLIC` |
 | Slack | `PUBLIC` |
 | Discord | `PUBLIC` |
 | WhatsApp | `PUBLIC` |
 | WebChat | `PUBLIC` |
-| Email | `PUBLIC` |
+| Email | `CONFIDENTIAL` |
 
 All defaults are configurable. Set any channel to any classification level.
 
@@ -213,7 +228,7 @@ The `web` section configures web search and content fetching, including domain s
 web:
   search:
     provider: brave        # Search backend (brave is currently supported)
-    api_key: "${BRAVE_API_KEY}"
+    api_key: "your-brave-api-key"
     max_results: 10
     safe_search: moderate  # off, moderate, strict
   fetch:
@@ -234,7 +249,7 @@ Set up search from the command line:
 
 ```bash
 triggerfish config set web.search.provider brave
-triggerfish config set web.search.api_key YOUR_BRAVE_API_KEY
+triggerfish config set web.search.api_key BSAxxxxxxxxxx
 ```
 
 ::: tip
@@ -285,7 +300,7 @@ webhooks:
   endpoints:
     - id: github-events
       path: /webhook/github
-      secret: "${GITHUB_WEBHOOK_SECRET}"
+      secret: "your-github-webhook-secret"
       classification: INTERNAL
       actions:
         - event: "pull_request.opened"
@@ -295,7 +310,7 @@ webhooks:
 
     - id: sentry-alerts
       path: /webhook/sentry
-      secret: "${SENTRY_WEBHOOK_SECRET}"
+      secret: "your-sentry-webhook-secret"
       classification: CONFIDENTIAL
       actions:
         - event: "error"
@@ -329,9 +344,11 @@ channels:
     classification: INTERNAL
   telegram:
     enabled: true
-    botToken: "${TELEGRAM_BOT_TOKEN}"
+    botToken: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
     ownerId: 123456789
     classification: INTERNAL
+  signal:
+    enabled: false
   slack:
     enabled: false
 

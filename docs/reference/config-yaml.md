@@ -23,31 +23,42 @@ models:
   # described by this model before reaching the primary.
   # vision: glm-4.5v
 
+  # Streaming responses (default: true)
+  # streaming: true
+
   # Provider-specific configuration
   providers:
     anthropic:
       model: claude-sonnet-4-5
-      # Auth: apiKey field or ANTHROPIC_API_KEY env var
+      apiKey: "your-anthropic-api-key"
 
     openai:
       model: gpt-4o
-      # Auth: OPENAI_API_KEY env var
+      apiKey: "your-openai-api-key"
 
     google:
       model: gemini-pro
-      # Auth: GOOGLE_API_KEY env var
+      apiKey: "your-google-api-key"
 
-    local:
+    ollama:
       model: llama3
-      baseUrl: "http://localhost:11434/v1"  # Ollama-compatible endpoint
+      endpoint: "http://localhost:11434"
+
+    lmstudio:
+      model: lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF
+      endpoint: "http://localhost:1234"
 
     openrouter:
       model: anthropic/claude-sonnet-4-5
-      # Auth: OPENROUTER_API_KEY env var
+      apiKey: "your-openrouter-api-key"
+
+    zenmux:
+      model: openai/gpt-5
+      apiKey: "your-zenmux-api-key"
 
     zai:
       model: glm-4.7
-      # Auth: ZAI_API_KEY env var
+      apiKey: "your-zai-api-key"
 
   # Ordered failover chain -- tried in sequence when primary fails
   failover:
@@ -69,24 +80,35 @@ models:
 # ---------------------------------------------------------------------------
 channels:
   telegram:
-    botToken: "${TELEGRAM_BOT_TOKEN}"       # Bot token from @BotFather
+    botToken: "123456:ABC-DEF..."            # Bot token from @BotFather
     ownerId: 123456789                       # Your Telegram numeric user ID
     classification: INTERNAL                 # Default: INTERNAL
 
+  signal:
+    endpoint: "tcp://127.0.0.1:7583"        # signal-cli daemon endpoint
+    account: "+14155552671"                  # Your Signal phone number (E.164)
+    classification: PUBLIC                   # Default: PUBLIC
+    defaultGroupMode: mentioned-only         # always | mentioned-only | owner-only
+    groups:
+      "group-id-here":
+        mode: always
+        classification: INTERNAL
+
   slack:
-    botToken: "${SLACK_BOT_TOKEN}"           # xoxb-... bot token
-    appToken: "${SLACK_APP_TOKEN}"           # xapp-... app-level token
-    signingSecret: "${SLACK_SIGNING_SECRET}" # Request verification secret
+    botToken: "xoxb-your-bot-token"          # xoxb-... bot token
+    appToken: "xapp-your-app-token"          # xapp-... app-level token
+    signingSecret: "your-signing-secret"     # Request verification secret
     classification: PUBLIC                   # Default: PUBLIC
 
   discord:
-    botToken: "${DISCORD_BOT_TOKEN}"         # Discord bot token
-    ownerId: "${DISCORD_OWNER_ID}"           # Your Discord user ID
+    botToken: "your-discord-bot-token"       # Discord bot token
+    ownerId: "your-discord-user-id"          # Your Discord user ID
     classification: PUBLIC                   # Default: PUBLIC
 
   whatsapp:
-    phoneNumber: "+1234567890"               # WhatsApp phone number
-    ownerId: "${WHATSAPP_OWNER_ID}"          # Owner's WhatsApp JID
+    accessToken: "your-whatsapp-token"       # WhatsApp Cloud API access token
+    phoneNumberId: "your-phone-number-id"    # From Meta Business Dashboard
+    verifyToken: "your-webhook-verify-token" # Webhook verification token
     classification: PUBLIC                   # Default: PUBLIC
 
   webchat:
@@ -94,12 +116,14 @@ channels:
     classification: PUBLIC                   # Default: PUBLIC (visitors)
 
   email:
+    smtpApiUrl: "https://api.sendgrid.com/v3/mail/send"
+    smtpApiKey: "your-sendgrid-api-key"
     imapHost: "imap.gmail.com"
     imapPort: 993
-    smtpHost: "smtp.gmail.com"
-    smtpPort: 587
-    username: "${EMAIL_USERNAME}"
-    password: "${EMAIL_PASSWORD}"
+    imapUser: "you@gmail.com"
+    imapPassword: "your-app-password"
+    fromAddress: "bot@example.com"
+    ownerEmail: "you@gmail.com"
     classification: CONFIDENTIAL             # Default: CONFIDENTIAL
 
 # ---------------------------------------------------------------------------
@@ -153,7 +177,7 @@ mcp_servers:
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-github"]
     env:
-      GITHUB_TOKEN: "${GITHUB_TOKEN}"
+      GITHUB_TOKEN: "your-github-token"
     classification: CONFIDENTIAL
 
 # ---------------------------------------------------------------------------
@@ -236,7 +260,7 @@ webhooks:
   endpoints:
     - id: github
       path: /webhook/github
-      secret: "${GITHUB_WEBHOOK_SECRET}"
+      secret: "your-github-webhook-secret"
       classification: INTERNAL
       actions:
         - event: "pull_request.opened"
@@ -277,7 +301,7 @@ groups:
 web:
   search:
     provider: brave                        # Search backend (brave is the default)
-    api_key: "${BRAVE_SEARCH_API_KEY}"     # Brave Search API key
+    api_key: "your-brave-search-api-key"   # Brave Search API key
 
 # ---------------------------------------------------------------------------
 # Remote: Remote access (optional)
@@ -289,7 +313,7 @@ remote:
       enabled: true
       paths: ["/webhook/*"]
   auth:
-    token: "${GATEWAY_TOKEN}"
+    token: "your-gateway-auth-token"
 ```
 
 ## Section Reference
@@ -299,9 +323,10 @@ remote:
 | Key | Type | Description |
 |-----|------|-------------|
 | `primary` | object | Primary model reference with `provider` and `model` fields |
-| `primary.provider` | string | Provider name (e.g. `anthropic`, `openai`, `ollama`) |
+| `primary.provider` | string | Provider name (`anthropic`, `openai`, `google`, `ollama`, `lmstudio`, `openrouter`, `zenmux`, `zai`) |
 | `primary.model` | string | Model identifier used for agent completions |
 | `vision` | string | Optional vision model for automatic image description (see [Image and Vision](/features/image-vision)) |
+| `streaming` | boolean | Enable streaming responses (default: `true`) |
 | `providers` | object | Provider-specific configuration (see below) |
 | `failover` | string[] | Ordered list of fallback models |
 | `failover_config.max_retries` | number | Retries per provider before failover |
@@ -313,7 +338,7 @@ remote:
 Each channel key is the channel type. All channel types support a `classification` field to override the default classification level.
 
 ::: info
-Secrets (tokens, passwords) should be referenced as environment variables using `${VAR_NAME}` syntax, not stored as plaintext in the config file.
+All secrets (tokens, API keys, passwords) are stored directly in `triggerfish.yaml`. Keep this file readable only by your user account (`chmod 600`).
 :::
 
 ### `classification`

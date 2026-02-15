@@ -118,7 +118,7 @@ webhooks:
   endpoints:
     - id: github
       path: /webhook/github
-      secret: "${GITHUB_WEBHOOK_SECRET}"
+      secret: "your-github-webhook-secret"
       classification: INTERNAL
       actions:
         - event: "pull_request_review"
@@ -314,7 +314,7 @@ mcp_servers:
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-github"]
     env:
-      GITHUB_TOKEN: "${GITHUB_TOKEN}"
+      GITHUB_TOKEN: "your-github-token"
     classification: CONFIDENTIAL
 ```
 

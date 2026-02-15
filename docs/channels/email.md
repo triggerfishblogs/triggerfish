@@ -1,14 +1,10 @@
 # Email
 
-::: warning PARTIAL IMPLEMENTATION
-Outbound email via SMTP relay is fully implemented. Inbound email via IMAP is coming soon.
-:::
-
 Connect your Triggerfish agent to email so it can receive messages via IMAP and send replies via an SMTP relay service. The adapter supports services like SendGrid, Mailgun, and Amazon SES for outbound email, and polls any IMAP server for inbound messages.
 
 ## Default Classification
 
-Email defaults to `PUBLIC` classification. Email is inherently open -- anyone with your address can send you a message -- so `PUBLIC` is the safe default.
+Email defaults to `CONFIDENTIAL` classification. Email often contains sensitive content (contracts, account notifications, personal correspondence), so `CONFIDENTIAL` is the safe default.
 
 ## Setup
 
@@ -66,11 +62,11 @@ channels:
 | `imapPassword` | string | Yes | IMAP password or app-specific password |
 | `fromAddress` | string | Yes | From address for outgoing emails |
 | `pollInterval` | number | No | How often to check for new emails, in ms (default: `30000`) |
-| `classification` | string | No | Classification level (default: `PUBLIC`) |
+| `classification` | string | No | Classification level (default: `CONFIDENTIAL`) |
 | `ownerEmail` | string | Recommended | Your email address for owner verification |
 
 ::: warning Store Credentials Securely
-Email credentials include passwords and API keys. Never commit them to source control. Use environment variables or your OS keychain.
+Email credentials include passwords and API keys. Keep your `triggerfish.yaml` file readable only by your user account (`chmod 600`).
 :::
 
 ### Step 4: Start Triggerfish

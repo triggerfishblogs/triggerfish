@@ -7,9 +7,9 @@ Triggerfish connects to your existing messaging platforms. You talk to your agen
 Every channel adapter implements the same interface: `connect`, `disconnect`, `send`, `onMessage`, and `status`. The **channel router** sits above all adapters and handles message dispatch, classification checks, and retry logic.
 
 ```
-   Telegram  Slack  Discord  WhatsApp  WebChat  Email  CLI
-      |        |       |        |         |       |     |
-      +--------+-------+--------+---------+-------+-----+
+   Telegram  Signal  Slack  Discord  WhatsApp  WebChat  Email  CLI
+      |        |       |       |        |         |       |     |
+      +--------+-------+-------+--------+---------+-------+-----+
                               |
                         Channel Router
                      (classification gate)
@@ -32,11 +32,12 @@ Each channel has a default classification level that determines what data can fl
 |---------|:---------------------:|-----------------|
 | [CLI](/channels/cli) | `INTERNAL` | Always owner (terminal user) |
 | [Telegram](/channels/telegram) | `INTERNAL` | Telegram user ID match |
+| [Signal](/channels/signal) | `PUBLIC` | Never owner (adapter IS your phone) |
 | [Slack](/channels/slack) | `PUBLIC` | Slack user ID via OAuth |
 | [Discord](/channels/discord) | `PUBLIC` | Discord user ID match |
 | [WhatsApp](/channels/whatsapp) | `PUBLIC` | Phone number match |
 | [WebChat](/channels/webchat) | `PUBLIC` | Never owner (visitors) |
-| [Email](/channels/email) | `PUBLIC` | Email address match |
+| [Email](/channels/email) | `CONFIDENTIAL` | Email address match |
 
 ::: tip Fully Configurable
 All classifications are configurable in your `triggerfish.yaml`. You can set any channel to any classification level based on your security requirements.
@@ -98,6 +99,7 @@ Triggerfish relays typing indicators and presence state across channels that sup
 | Channel | Typing Indicators | Read Receipts |
 |---------|:-----------------:|:-------------:|
 | Telegram | Send and receive | Yes |
+| Signal | Send and receive | -- |
 | Slack | Send only | -- |
 | Discord | Send only | -- |
 | WhatsApp | Send and receive | Yes |
@@ -112,6 +114,7 @@ Platforms have message length limits. Triggerfish automatically chunks long resp
 | Channel | Max Message Length |
 |---------|:-----------------:|
 | Telegram | 4,096 characters |
+| Signal | 4,000 characters |
 | Discord | 2,000 characters |
 | Slack | 40,000 characters |
 | WhatsApp | 4,096 characters |
@@ -123,6 +126,7 @@ Set up the channels you use:
 
 - [CLI](/channels/cli) -- Always available, no setup needed
 - [Telegram](/channels/telegram) -- Create a bot via @BotFather
+- [Signal](/channels/signal) -- Link via signal-cli daemon
 - [Slack](/channels/slack) -- Create a Slack app with Socket Mode
 - [Discord](/channels/discord) -- Create a Discord bot application
 - [WhatsApp](/channels/whatsapp) -- Connect via WhatsApp Business Cloud API

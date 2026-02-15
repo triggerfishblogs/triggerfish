@@ -66,9 +66,9 @@ The binary installers download a pre-built release, verify its checksum, and run
                           🪸 The Reef
                        (Skill Marketplace)
                               |
-   Telegram  Slack  Discord  WhatsApp  WebChat  Email  CLI
-      |        |       |        |         |       |     |
-      +--------+-------+--------+---------+-------+-----+
+   Telegram  Signal  Slack  Discord  WhatsApp  WebChat  Email  CLI
+      |        |       |       |        |         |       |     |
+      +--------+-------+-------+--------+---------+-------+-----+
                               |
                         Channel Router
                      (classification gate)
@@ -111,11 +111,12 @@ Triggerfish connects to your existing messaging platforms. Each channel has its 
 |---------|:---------------------:|
 | 💻 CLI | `INTERNAL` |
 | ✈️ Telegram | `INTERNAL` |
+| 🔒 Signal | `PUBLIC` |
 | 💼 Slack | `PUBLIC` |
 | 🎮 Discord | `PUBLIC` |
 | 📱 WhatsApp | `PUBLIC` |
 | 🌐 WebChat | `PUBLIC` |
-| 📧 Email | `PUBLIC` |
+| 📧 Email | `CONFIDENTIAL` |
 
 > **Note:** All classifications are configurable. Set any channel to any level in your `triggerfish.yaml`.
 
@@ -159,8 +160,10 @@ Switch between providers or configure failover chains.
 | 🟠 **Anthropic** | API key | Claude Opus, Sonnet, Haiku |
 | 🟢 **OpenAI** | API key | GPT-4o, o1, o3 |
 | 🔵 **Google** | API key | Gemini Pro, Flash |
-| 🏠 **Local** | None (OpenAI-compatible) | Llama, Mistral, etc. via Ollama |
+| 🏠 **Ollama** | None (local) | Llama, Mistral, CodeLlama, etc. |
+| 🖥️ **LM Studio** | None (local) | Any GGUF model |
 | 🌐 **OpenRouter** | API key | Any model on OpenRouter |
+| ⚡ **ZenMux** | API key | Multi-provider routing |
 | 🤖 **Z.AI** | API key | GLM-4.7, GLM-4.5, GLM-5 |
 
 ---

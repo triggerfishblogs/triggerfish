@@ -45,7 +45,7 @@ webhooks:
   endpoints:
     - id: github-events
       path: /webhook/github
-      secret: "${GITHUB_WEBHOOK_SECRET}"
+      secret: "your-github-webhook-secret"
       classification: INTERNAL
       actions:
         - event: "pull_request.opened"
@@ -55,7 +55,7 @@ webhooks:
 
     - id: sentry-alerts
       path: /webhook/sentry
-      secret: "${SENTRY_WEBHOOK_SECRET}"
+      secret: "your-sentry-webhook-secret"
       classification: CONFIDENTIAL
       actions:
         - event: "error"
@@ -63,7 +63,7 @@ webhooks:
 
     - id: stripe-payments
       path: /webhook/stripe
-      secret: "${STRIPE_WEBHOOK_SECRET}"
+      secret: "your-stripe-webhook-secret"
       classification: CONFIDENTIAL
       actions:
         - event: "payment_intent.succeeded"
@@ -78,14 +78,14 @@ webhooks:
 |-------|:--------:|-------------|
 | `id` | Yes | Unique identifier for this webhook endpoint |
 | `path` | Yes | URL path where the endpoint is registered |
-| `secret` | Yes | Shared secret for HMAC signature verification (use env var reference) |
+| `secret` | Yes | Shared secret for HMAC signature verification |
 | `classification` | Yes | Classification level assigned to events from this source |
 | `actions` | Yes | List of event-to-task mappings |
 | `actions[].event` | Yes | Event type pattern to match |
 | `actions[].task` | Yes | Natural language task for the agent to execute |
 
 ::: tip
-Secrets should always be referenced via environment variables (`${VARIABLE_NAME}`), never hardcoded in the configuration file. Triggerfish resolves environment variable references at runtime.
+All secrets are stored in `triggerfish.yaml`. Keep this file readable only by your user account (`chmod 600`).
 :::
 
 ## HMAC Signature Verification
@@ -176,7 +176,7 @@ webhooks:
   endpoints:
     - id: deploy-notify
       path: /webhook/deploy
-      secret: "${DEPLOY_WEBHOOK_SECRET}"
+      secret: "your-deploy-webhook-secret"
       classification: INTERNAL
       actions:
         - event: "deployment.completed"
@@ -225,7 +225,7 @@ webhooks:
   endpoints:
     - id: github
       path: /webhook/github
-      secret: "${GITHUB_WEBHOOK_SECRET}"
+      secret: "your-github-webhook-secret"
       classification: INTERNAL
       actions:
         - event: "pull_request_review"
