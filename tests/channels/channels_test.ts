@@ -14,7 +14,7 @@ Deno.test("Telegram: factory creates adapter with correct channel type", async (
   const adapter = createTelegramChannel({ botToken: "fake:token" });
   assertEquals(adapter.status().channelType, "telegram");
   assertEquals(adapter.status().connected, false);
-  assertEquals(adapter.classification, "INTERNAL");
+  assertEquals(adapter.classification, "PUBLIC");
 });
 
 Deno.test("Telegram: respects custom classification", async () => {
@@ -208,6 +208,46 @@ Deno.test("Email: defaults to CONFIDENTIAL classification", async () => {
   assertEquals(adapter.classification, "CONFIDENTIAL");
 });
 
+// --- Signal ---
+
+Deno.test("Signal: factory creates adapter with correct channel type", async () => {
+  const { createSignalChannel } = await import("../../src/channels/signal/adapter.ts");
+  const adapter = createSignalChannel({
+    endpoint: "tcp://localhost:7583",
+    account: "+15551234567",
+  });
+  assertEquals(adapter.status().channelType, "signal");
+  assertEquals(adapter.status().connected, false);
+});
+
+Deno.test("Signal: defaults to PUBLIC classification", async () => {
+  const { createSignalChannel } = await import("../../src/channels/signal/adapter.ts");
+  const adapter = createSignalChannel({
+    endpoint: "tcp://localhost:7583",
+    account: "+15551234567",
+  });
+  assertEquals(adapter.classification, "PUBLIC");
+});
+
+Deno.test("Signal: respects custom classification", async () => {
+  const { createSignalChannel } = await import("../../src/channels/signal/adapter.ts");
+  const adapter = createSignalChannel({
+    endpoint: "tcp://localhost:7583",
+    account: "+15551234567",
+    classification: "CONFIDENTIAL",
+  });
+  assertEquals(adapter.classification, "CONFIDENTIAL");
+});
+
+Deno.test("Signal: isOwner is always false", async () => {
+  const { createSignalChannel } = await import("../../src/channels/signal/adapter.ts");
+  const adapter = createSignalChannel({
+    endpoint: "tcp://localhost:7583",
+    account: "+15551234567",
+  });
+  assertEquals(adapter.isOwner, false);
+});
+
 // --- Enhanced Router ---
 
 Deno.test("Router: sendWithRetry succeeds on first try", async () => {
@@ -342,6 +382,7 @@ Deno.test("Barrel: mod.ts exports all channel factories", async () => {
   assertExists(mod.createWhatsAppChannel);
   assertExists(mod.createWebChatChannel);
   assertExists(mod.createEmailChannel);
+  assertExists(mod.createSignalChannel);
   assertExists(mod.chunkMessage);
   assertExists(mod.createChannelRouter);
   assertExists(mod.createCliChannel);
