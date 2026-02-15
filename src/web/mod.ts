@@ -23,6 +23,7 @@ export {
 
 export {
   createBraveSearchProvider,
+  createRateLimitedSearchProvider,
   type BraveSearchConfig,
   type SearchOptions,
   type SearchProvider,

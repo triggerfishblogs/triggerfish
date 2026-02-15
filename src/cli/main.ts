@@ -108,6 +108,7 @@ import {
   createWebFetcher,
   createWebToolExecutor,
   getWebToolDefinitions,
+  createRateLimitedSearchProvider,
   WEB_TOOLS_SYSTEM_PROMPT,
 } from "../web/mod.ts";
 import type {
@@ -234,6 +235,7 @@ export interface TriggerFishConfig {
       readonly api_key?: string;
       readonly max_results?: number;
       readonly safe_search?: string;
+      readonly rate_limit?: number;
     };
     readonly fetch?: {
       readonly rate_limit?: number;
@@ -748,6 +750,10 @@ function buildWebTools(
     searchProvider = createBraveSearchProvider({
       apiKey: searchConfig.api_key,
     });
+  }
+
+  if (searchProvider && searchConfig?.rate_limit) {
+    searchProvider = createRateLimitedSearchProvider(searchProvider, searchConfig.rate_limit);
   }
 
   return { searchProvider, webFetcher };
