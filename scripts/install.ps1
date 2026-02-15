@@ -232,6 +232,18 @@ $CsSource = $CsSource.Replace('%%LOGDIR%%', $LogDir)
 $CsSource = $CsSource.Replace('%%BINPATH%%', $InstallPath)
 $CsSource = $CsSource.Replace('%%DATADIR%%', $DataDir)
 
+# Stop existing service if running (to release lock on TriggerFishService.exe)
+$existingSvc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($existingSvc -and $existingSvc.Status -eq 'Running') {
+    Write-Host "  Stopping existing Triggerfish service..."
+    try {
+        Stop-Service -Name $ServiceName -Force -ErrorAction Stop
+        Start-Sleep -Seconds 2
+    } catch {
+        Write-Host "[warn] Could not stop existing service. The service exe may be locked." -ForegroundColor Yellow
+    }
+}
+
 $TempCs = Join-Path $env:TEMP "TriggerFishService.cs"
 Set-Content -Path $TempCs -Value $CsSource -Encoding UTF8
 

@@ -63,7 +63,7 @@ if (Test-Path (Join-Path $SrcDir ".git")) {
 
 Write-Host "Compiling (this may take a minute)..."
 Push-Location $SrcDir
-deno compile --allow-all --include config/ --include skills/ --output=triggerfish src/cli/main.ts
+deno compile --allow-all --include config/ --include skills/ --include src/tidepool/tmpl_base.html --include src/tidepool/tmpl_styles.html --include src/tidepool/tmpl_chat.html --include src/tidepool/tmpl_canvas.html --include src/tidepool/tmpl_chat_script.html --include src/tidepool/tmpl_canvas_script.html --output=triggerfish src/cli/main.ts
 Pop-Location
 Write-Host "[ok] Compiled successfully" -ForegroundColor Green
 
@@ -144,6 +144,18 @@ public class TriggerFishService : ServiceBase
 $CsSource = $CsSource.Replace('%%LOGDIR%%', $LogDir)
 $CsSource = $CsSource.Replace('%%BINPATH%%', $InstallPath)
 $CsSource = $CsSource.Replace('%%DATADIR%%', $DataDir)
+
+# Stop existing service if running (to release lock on TriggerFishService.exe)
+$existingSvc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($existingSvc -and $existingSvc.Status -eq 'Running') {
+    Write-Host "  Stopping existing Triggerfish service..."
+    try {
+        Stop-Service -Name $ServiceName -Force -ErrorAction Stop
+        Start-Sleep -Seconds 2
+    } catch {
+        Write-Host "[warn] Could not stop existing service. The service exe may be locked." -ForegroundColor Yellow
+    }
+}
 
 $TempCs = Join-Path $env:TEMP "TriggerFishService.cs"
 Set-Content -Path $TempCs -Value $CsSource -Encoding UTF8
