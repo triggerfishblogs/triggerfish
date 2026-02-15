@@ -27,6 +27,7 @@ import { createA2UIHost } from "../tidepool/host.ts";
 import {
   getTidepoolToolDefinitions,
   createTidepoolToolExecutor,
+  createTidePoolTools,
   TIDEPOOL_SYSTEM_PROMPT,
 } from "../tidepool/mod.ts";
 import { createPatrolCheck } from "../dive/patrol.ts";
@@ -1172,8 +1173,10 @@ async function runStart(): Promise<void> {
   });
   const browserExecutor = browserHandle.executor;
 
-  // Tidepool tools (graceful degrade — host created after chatSession)
-  const tidepoolExecutor = createTidepoolToolExecutor(undefined);
+  // Tidepool tools (lazy getter — tools resolve after host creation)
+  // deno-lint-ignore prefer-const
+  let tidepoolTools: import("../tidepool/mod.ts").TidePoolTools | undefined;
+  const tidepoolExecutor = createTidepoolToolExecutor(() => tidepoolTools);
 
   // Image analysis tools
   const imageExecutor = createImageToolExecutor(registry, visionProvider);
@@ -1534,6 +1537,7 @@ async function runStart(): Promise<void> {
   const tidepoolHost = createA2UIHost({ chatSession });
   const tidepoolPort = 18790;
   await tidepoolHost.start(tidepoolPort);
+  tidepoolTools = createTidePoolTools(tidepoolHost);
   console.log(`  Tidepool listening on http://127.0.0.1:${tidepoolPort}`);
 
   // Create and start gateway server with scheduler + chat session + session manager
