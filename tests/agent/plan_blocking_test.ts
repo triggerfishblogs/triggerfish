@@ -139,7 +139,7 @@ Deno.test("Blocking: write_file is blocked in plan mode", async () => {
   // LLM response 1: enter plan mode, then try to write
   const responses = [
     // First call: LLM enters plan mode
-    toolResponse({ name: "plan.enter", args: { goal: "Build feature" } }),
+    toolResponse({ name: "plan_enter", args: { goal: "Build feature" } }),
     // Second call: LLM tries to write a file (should be blocked)
     toolResponse({ name: "write_file", args: { path: "test.ts", content: "hello" } }),
     // Third call: LLM gets the blocked message and gives up
@@ -169,7 +169,7 @@ Deno.test("Blocking: read_file is allowed in plan mode", async () => {
 
   const responses = [
     // Enter plan mode then read a file
-    toolResponse({ name: "plan.enter", args: { goal: "Explore codebase" } }),
+    toolResponse({ name: "plan_enter", args: { goal: "Explore codebase" } }),
     // Read a file (should be allowed)
     toolResponse({ name: "read_file", args: { path: "/tmp/test.txt" } }),
     // Final response
@@ -190,7 +190,7 @@ Deno.test("Blocking: read_file is allowed in plan mode", async () => {
   assert(wasExternalToolCalled(), "External tool executor should have been called for read_file");
 });
 
-Deno.test("Blocking: tools unblocked after plan.exit", async () => {
+Deno.test("Blocking: tools unblocked after plan_exit", async () => {
   const tmpDir = Deno.makeTempDirSync();
   const pm = createPlanManager({ plansDir: `${tmpDir}/plans` });
 
@@ -207,9 +207,9 @@ Deno.test("Blocking: tools unblocked after plan.exit", async () => {
 
   const responses = [
     // Enter plan mode
-    toolResponse({ name: "plan.enter", args: { goal: "Build" } }),
+    toolResponse({ name: "plan_enter", args: { goal: "Build" } }),
     // Exit plan mode with plan
-    toolResponse({ name: "plan.exit", args: { plan: JSON.parse(planJson) } }),
+    toolResponse({ name: "plan_exit", args: { plan: JSON.parse(planJson) } }),
     // Now in awaiting_approval — write should be allowed
     toolResponse({ name: "write_file", args: { path: "test.ts", content: "hello" } }),
     // Done
@@ -224,18 +224,18 @@ Deno.test("Blocking: tools unblocked after plan.exit", async () => {
     targetClassification: "INTERNAL",
   });
 
-  // write_file should NOT be blocked after plan.exit (mode = awaiting_approval, not plan)
+  // write_file should NOT be blocked after plan_exit (mode = awaiting_approval, not plan)
   const writeResult = toolResults.find((r) => r.name === "write_file");
   assert(writeResult !== undefined, "write_file should have been attempted");
-  assertEquals(writeResult!.blocked, false, "write_file should not be blocked after plan.exit");
+  assertEquals(writeResult!.blocked, false, "write_file should not be blocked after plan_exit");
 });
 
-Deno.test("Blocking: plan.enter itself is never blocked", async () => {
+Deno.test("Blocking: plan_enter itself is never blocked", async () => {
   const tmpDir = Deno.makeTempDirSync();
   const pm = createPlanManager({ plansDir: `${tmpDir}/plans` });
 
   const responses = [
-    toolResponse({ name: "plan.enter", args: { goal: "Build" } }),
+    toolResponse({ name: "plan_enter", args: { goal: "Build" } }),
     textResponse("In plan mode now."),
   ];
 
@@ -247,7 +247,7 @@ Deno.test("Blocking: plan.enter itself is never blocked", async () => {
     targetClassification: "INTERNAL",
   });
 
-  const enterResult = toolResults.find((r) => r.name === "plan.enter");
+  const enterResult = toolResults.find((r) => r.name === "plan_enter");
   assert(enterResult !== undefined);
   assertEquals(enterResult!.blocked, false);
   assertStringIncludes(enterResult!.result, "entered");

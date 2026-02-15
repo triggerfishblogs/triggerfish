@@ -1,8 +1,8 @@
 /**
  * Obsidian tools — LLM-callable operations for vault interaction.
  *
- * Provides 6 tool definitions (obsidian.read, obsidian.write, obsidian.search,
- * obsidian.list, obsidian.daily, obsidian.links) and a tool executor factory.
+ * Provides 6 tool definitions (obsidian_read, obsidian_write, obsidian_search,
+ * obsidian_list, obsidian_daily, obsidian_links) and a tool executor factory.
  *
  * Classification enforcement:
  * - Reads: verify canFlowTo(noteClassification, sessionTaint)
@@ -37,7 +37,7 @@ export interface ObsidianToolContext {
 export function getObsidianToolDefinitions(): readonly ToolDefinition[] {
   return [
     {
-      name: "obsidian.read",
+      name: "obsidian_read",
       description:
         "Read an Obsidian note by name or path. Returns the note content, " +
         "frontmatter, tags, and wikilinks. The name can be a filename (without " +
@@ -51,7 +51,7 @@ export function getObsidianToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
-      name: "obsidian.write",
+      name: "obsidian_write",
       description:
         "Create or update an Obsidian note. Specify content for full replacement, " +
         "or use append/prepend for incremental updates. Frontmatter is merged " +
@@ -90,7 +90,7 @@ export function getObsidianToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
-      name: "obsidian.search",
+      name: "obsidian_search",
       description:
         "Search Obsidian notes by content and filename. Case-insensitive " +
         "substring matching. Optionally filter by folder and tags.",
@@ -116,7 +116,7 @@ export function getObsidianToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
-      name: "obsidian.list",
+      name: "obsidian_list",
       description:
         "List notes in the Obsidian vault. Optionally filter by folder and " +
         "tags, and sort by name, modified date, or creation date.",
@@ -141,7 +141,7 @@ export function getObsidianToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
-      name: "obsidian.daily",
+      name: "obsidian_daily",
       description:
         "Get or create today's daily note (or a specific date). " +
         "Returns the note content. Creates the note from template if it " +
@@ -158,7 +158,7 @@ export function getObsidianToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
-      name: "obsidian.links",
+      name: "obsidian_links",
       description:
         "Explore wikilink connections. Get backlinks (notes linking TO a note), " +
         "outlinks (notes a note links TO), or resolve a specific wikilink.",
@@ -191,10 +191,10 @@ export function createObsidianToolExecutor(
     input: Record<string, unknown>,
   ): Promise<string | null> => {
     switch (name) {
-      case "obsidian.read": {
+      case "obsidian_read": {
         const noteName = input.name;
         if (typeof noteName !== "string" || noteName.length === 0) {
-          return "Error: obsidian.read requires a 'name' argument (non-empty string).";
+          return "Error: obsidian_read requires a 'name' argument (non-empty string).";
         }
 
         const notePath = resolveNotePath(noteName);
@@ -224,10 +224,10 @@ export function createObsidianToolExecutor(
         });
       }
 
-      case "obsidian.write": {
+      case "obsidian_write": {
         const noteName = input.name;
         if (typeof noteName !== "string" || noteName.length === 0) {
-          return "Error: obsidian.write requires a 'name' argument (non-empty string).";
+          return "Error: obsidian_write requires a 'name' argument (non-empty string).";
         }
 
         const folder = typeof input.folder === "string" ? input.folder : undefined;
@@ -284,10 +284,10 @@ export function createObsidianToolExecutor(
         });
       }
 
-      case "obsidian.search": {
+      case "obsidian_search": {
         const query = input.query;
         if (typeof query !== "string" || query.length === 0) {
-          return "Error: obsidian.search requires a 'query' argument (non-empty string).";
+          return "Error: obsidian_search requires a 'query' argument (non-empty string).";
         }
 
         const folder = typeof input.folder === "string" ? input.folder : undefined;
@@ -317,7 +317,7 @@ export function createObsidianToolExecutor(
         });
       }
 
-      case "obsidian.list": {
+      case "obsidian_list": {
         const folder = typeof input.folder === "string" ? input.folder : undefined;
         const tags = Array.isArray(input.tags)
           ? input.tags.filter((t): t is string => typeof t === "string")
@@ -346,7 +346,7 @@ export function createObsidianToolExecutor(
         });
       }
 
-      case "obsidian.daily": {
+      case "obsidian_daily": {
         const date = typeof input.date === "string" ? input.date : undefined;
         const template = typeof input.template === "string" ? input.template : undefined;
 
@@ -362,10 +362,10 @@ export function createObsidianToolExecutor(
         });
       }
 
-      case "obsidian.links": {
+      case "obsidian_links": {
         const noteName = input.note;
         if (typeof noteName !== "string" || noteName.length === 0) {
-          return "Error: obsidian.links requires a 'note' argument (non-empty string).";
+          return "Error: obsidian_links requires a 'note' argument (non-empty string).";
         }
 
         const direction = typeof input.direction === "string" ? input.direction : "backlinks";
@@ -398,9 +398,9 @@ export function createObsidianToolExecutor(
 /** System prompt section for obsidian tools. */
 export const OBSIDIAN_SYSTEM_PROMPT = `## Obsidian Vault
 
-You have tools to interact with the user's Obsidian vault (obsidian.read, obsidian.write, obsidian.search, obsidian.list, obsidian.daily, obsidian.links).
+You have tools to interact with the user's Obsidian vault (obsidian_read, obsidian_write, obsidian_search, obsidian_list, obsidian_daily, obsidian_links).
 
-Use [[wikilinks]] when referencing notes in content you write. Use obsidian.daily for journal entries and daily logs. Use obsidian.links to explore note connections.
+Use [[wikilinks]] when referencing notes in content you write. Use obsidian_daily for journal entries and daily logs. Use obsidian_links to explore note connections.
 
 When creating notes, use descriptive names and add relevant tags in frontmatter. Respect the vault's folder structure.
 
@@ -430,7 +430,7 @@ async function recordLineage(
     source_name: notePath,
     accessed_at: new Date().toISOString(),
     accessed_by: ctx.sessionId as string,
-    access_method: `obsidian.${operation}`,
+    access_method: `obsidian_${operation}`,
   };
 
   const lineageClassification: LineageClassification = {

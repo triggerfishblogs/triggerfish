@@ -30,9 +30,9 @@ The agent interacts with the Tide Pool through these tools:
 
 | Tool | Description | Use Case |
 |------|-------------|----------|
-| `tidepool.render` | Render a component tree in the workspace | Dashboards, forms, visualizations, rich content |
-| `tidepool.update` | Update a single component's props by ID | Incremental updates without replacing the whole view |
-| `tidepool.clear` | Clear the workspace, removing all components | Session transitions, starting fresh |
+| `tidepool_render` | Render a component tree in the workspace | Dashboards, forms, visualizations, rich content |
+| `tidepool_update` | Update a single component's props by ID | Incremental updates without replacing the whole view |
+| `tidepool_clear` | Clear the workspace, removing all components | Session transitions, starting fresh |
 
 ### Legacy Actions
 

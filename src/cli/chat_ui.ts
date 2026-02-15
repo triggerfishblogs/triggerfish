@@ -381,9 +381,9 @@ function isTodoTool(name: string): boolean {
   return name === "todo_read" || name === "todo_write";
 }
 
-/** Check whether a tool name is plan.exit (requires full display). */
+/** Check whether a tool name is plan_exit (requires full display). */
 function isPlanExitTool(name: string): boolean {
-  return name === "plan.exit";
+  return name === "plan_exit";
 }
 
 /** Human-readable display names for known tools. */
@@ -456,7 +456,7 @@ export function formatToolCompact(
 /**
  * Format plan markdown for terminal display with ANSI colors.
  *
- * Extracts the markdown portion from a plan.exit tool result
+ * Extracts the markdown portion from a plan_exit tool result
  * (after the JSON + "---" separator) and applies ANSI formatting.
  */
 function formatPlanMarkdown(result: string): string {
@@ -990,7 +990,7 @@ export function createScreenEventHandler(
             screen.writeOutput(formatPlanMarkdown(event.result));
           } else {
             screen.writeOutput(
-              `  ${YELLOW}⚡${RESET} plan.exit  ${RED}✗${RESET} ${DIM}blocked${RESET}`,
+              `  ${YELLOW}⚡${RESET} plan_exit  ${RED}✗${RESET} ${DIM}blocked${RESET}`,
             );
           }
         } else if (getDisplayMode() === "compact" && pendingToolCall) {
