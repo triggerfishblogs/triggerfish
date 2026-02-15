@@ -371,10 +371,15 @@ export function createKeychain(): SecretStore {
     case "darwin":
       return createMacKeychain();
     case "windows": {
-      const localAppData = Deno.env.get("LOCALAPPDATA") ??
-        Deno.env.get("USERPROFILE") ?? ".";
-      const secretsPath = join(localAppData, "Triggerfish", "secrets.json");
-      return createFileSecretStore({ path: secretsPath });
+      // Store secrets alongside triggerfish.yaml so the Windows Service
+      // (which runs under a different account) resolves the same path
+      // as the interactive CLI user.
+      const dataDir = Deno.env.get("TRIGGERFISH_DATA_DIR") ??
+        join(
+          Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".",
+          ".triggerfish",
+        );
+      return createFileSecretStore({ path: join(dataDir, "secrets.json") });
     }
     default:
       return createMemorySecretStore();
