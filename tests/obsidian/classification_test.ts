@@ -110,7 +110,7 @@ Deno.test("Classification: PUBLIC session blocked from reading CONFIDENTIAL note
   try {
     const toolCtx = buildToolCtx(ctx, "PUBLIC");
     const executor = createObsidianToolExecutor(toolCtx);
-    const result = await executor("obsidian.read", { name: "confidential/secret.md" });
+    const result = await executor("obsidian_read", { name: "confidential/secret.md" });
     assert(result !== null);
     assert(result!.includes("Access denied"));
     assert(result!.includes("CONFIDENTIAL"));
@@ -124,7 +124,7 @@ Deno.test("Classification: CONFIDENTIAL session can read CONFIDENTIAL note", asy
   try {
     const toolCtx = buildToolCtx(ctx, "CONFIDENTIAL");
     const executor = createObsidianToolExecutor(toolCtx);
-    const result = await executor("obsidian.read", { name: "confidential/secret.md" });
+    const result = await executor("obsidian_read", { name: "confidential/secret.md" });
     assert(result !== null);
     assert(!result!.includes("Error"));
     const parsed = JSON.parse(result!);
@@ -141,7 +141,7 @@ Deno.test("Classification: RESTRICTED session can read all classification levels
     const executor = createObsidianToolExecutor(toolCtx);
 
     for (const notePath of ["public/readme.md", "internal/work.md", "confidential/secret.md", "restricted/top-secret.md"]) {
-      const result = await executor("obsidian.read", { name: notePath });
+      const result = await executor("obsidian_read", { name: notePath });
       assert(result !== null);
       assert(!result!.includes("Error"), `Should be able to read ${notePath}`);
     }
@@ -157,13 +157,13 @@ Deno.test("Classification: PUBLIC session can only read PUBLIC notes", async () 
     const executor = createObsidianToolExecutor(toolCtx);
 
     // Should succeed
-    const publicResult = await executor("obsidian.read", { name: "public/readme.md" });
+    const publicResult = await executor("obsidian_read", { name: "public/readme.md" });
     assert(publicResult !== null);
     assert(!publicResult!.includes("Error"));
 
     // Should fail
     for (const notePath of ["internal/work.md", "confidential/secret.md", "restricted/top-secret.md"]) {
-      const result = await executor("obsidian.read", { name: notePath });
+      const result = await executor("obsidian_read", { name: notePath });
       assert(result !== null);
       assert(result!.includes("Access denied"), `Should not read ${notePath}`);
     }
@@ -179,7 +179,7 @@ Deno.test("Classification: RESTRICTED session blocked from writing to INTERNAL f
   try {
     const toolCtx = buildToolCtx(ctx, "RESTRICTED");
     const executor = createObsidianToolExecutor(toolCtx);
-    const result = await executor("obsidian.write", {
+    const result = await executor("obsidian_write", {
       name: "internal/leaked.md",
       content: "This should not be written",
     });
@@ -195,7 +195,7 @@ Deno.test("Classification: CONFIDENTIAL session blocked from writing to PUBLIC f
   try {
     const toolCtx = buildToolCtx(ctx, "CONFIDENTIAL");
     const executor = createObsidianToolExecutor(toolCtx);
-    const result = await executor("obsidian.write", {
+    const result = await executor("obsidian_write", {
       name: "public/leaked.md",
       content: "This should not be written",
     });
@@ -211,7 +211,7 @@ Deno.test("Classification: PUBLIC session can write to PUBLIC folder", async () 
   try {
     const toolCtx = buildToolCtx(ctx, "PUBLIC");
     const executor = createObsidianToolExecutor(toolCtx);
-    const result = await executor("obsidian.write", {
+    const result = await executor("obsidian_write", {
       name: "public/new-note.md",
       content: "Public content",
     });
@@ -229,7 +229,7 @@ Deno.test("Classification: INTERNAL session can write to CONFIDENTIAL folder", a
   try {
     const toolCtx = buildToolCtx(ctx, "INTERNAL");
     const executor = createObsidianToolExecutor(toolCtx);
-    const result = await executor("obsidian.write", {
+    const result = await executor("obsidian_write", {
       name: "confidential/promoted.md",
       content: "Promoted content",
     });
@@ -266,7 +266,7 @@ Deno.test("Classification: search filters out inaccessible notes", async () => {
     const toolCtx = buildToolCtx(ctx, "PUBLIC");
     const executor = createObsidianToolExecutor(toolCtx);
     // All notes contain "content" in some form
-    const result = await executor("obsidian.search", { query: "content" });
+    const result = await executor("obsidian_search", { query: "content" });
     assert(result !== null);
     const parsed = JSON.parse(result!);
     // Only the PUBLIC note should be returned
@@ -285,10 +285,10 @@ Deno.test("Classification: lineage record created on read", async () => {
     const toolCtx = buildToolCtx(ctx, "RESTRICTED", lineageStore);
     const executor = createObsidianToolExecutor(toolCtx);
 
-    await executor("obsidian.read", { name: "public/readme.md" });
+    await executor("obsidian_read", { name: "public/readme.md" });
     assertEquals(records.length, 1);
     assertEquals(records[0].origin.source_type, "obsidian_vault");
-    assertEquals(records[0].origin.access_method, "obsidian.read");
+    assertEquals(records[0].origin.access_method, "obsidian_read");
   } finally {
     await Deno.remove(path, { recursive: true });
   }
@@ -301,13 +301,13 @@ Deno.test("Classification: lineage record created on write", async () => {
     const toolCtx = buildToolCtx(ctx, "PUBLIC", lineageStore);
     const executor = createObsidianToolExecutor(toolCtx);
 
-    await executor("obsidian.write", {
+    await executor("obsidian_write", {
       name: "public/new-lineage.md",
       content: "Tracked write",
     });
     assertEquals(records.length, 1);
     assertEquals(records[0].origin.source_type, "obsidian_vault");
-    assertEquals(records[0].origin.access_method, "obsidian.write");
+    assertEquals(records[0].origin.access_method, "obsidian_write");
   } finally {
     await Deno.remove(path, { recursive: true });
   }
@@ -327,7 +327,7 @@ Deno.test("Executor escalation: PUBLIC session escalated to INTERNAL sees INTERN
     const toolCtx = buildToolCtx(ctx, taint);
     const executor = createObsidianToolExecutor(toolCtx);
 
-    const result = await executor("obsidian.read", { name: "internal/work.md" });
+    const result = await executor("obsidian_read", { name: "internal/work.md" });
     assert(result !== null);
     assert(!result!.includes("Error"), "Read should succeed after executor escalation");
     const parsed = JSON.parse(result!);
@@ -346,7 +346,7 @@ Deno.test("Executor escalation: write-down still prevented after escalation", as
     const toolCtx = buildToolCtx(ctx, taint);
     const executor = createObsidianToolExecutor(toolCtx);
 
-    const result = await executor("obsidian.write", {
+    const result = await executor("obsidian_write", {
       name: "public/leaked.md",
       content: "Should be blocked",
     });
@@ -366,7 +366,7 @@ Deno.test("Executor escalation: search at INTERNAL sees PUBLIC + INTERNAL, not C
     const toolCtx = buildToolCtx(ctx, taint);
     const executor = createObsidianToolExecutor(toolCtx);
 
-    const result = await executor("obsidian.search", { query: "content" });
+    const result = await executor("obsidian_search", { query: "content" });
     assert(result !== null);
     const parsed = JSON.parse(result!);
     const paths = parsed.results.map((r: { path: string }) => r.path);
@@ -396,7 +396,7 @@ Deno.test("Executor escalation: dynamic getter reflects taint changes across cal
     const executor = createObsidianToolExecutor(toolCtx);
 
     // At PUBLIC — cannot read INTERNAL
-    const r1 = await executor("obsidian.read", { name: "internal/work.md" });
+    const r1 = await executor("obsidian_read", { name: "internal/work.md" });
     assert(r1 !== null);
     assert(r1!.includes("Access denied"));
 
@@ -404,12 +404,12 @@ Deno.test("Executor escalation: dynamic getter reflects taint changes across cal
     taint = maxClassification(taint, "INTERNAL");
 
     // Now the same executor can read INTERNAL
-    const r2 = await executor("obsidian.read", { name: "internal/work.md" });
+    const r2 = await executor("obsidian_read", { name: "internal/work.md" });
     assert(r2 !== null);
     assert(!r2!.includes("Error"), "Should succeed after taint escalation");
 
     // Taint stays INTERNAL even when reading PUBLIC
-    const r3 = await executor("obsidian.read", { name: "public/readme.md" });
+    const r3 = await executor("obsidian_read", { name: "public/readme.md" });
     assert(r3 !== null);
     assert(!r3!.includes("Error"));
     assertEquals(taint, "INTERNAL");

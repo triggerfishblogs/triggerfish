@@ -134,12 +134,12 @@ export function buildToolClassifications(config: ClassificationMapConfig): Map<s
   // GitHub — all tools start with github_
   m.set("github_", (config.github?.classification ?? "PUBLIC") as ClassificationLevel);
 
-  // Plugins — each plugin's tools use {pluginName}. prefix convention
+  // Plugins — each plugin's tools use {pluginName}_ prefix convention
   if (config.plugins) {
     for (const [name, pluginConfig] of Object.entries(config.plugins)) {
       const cfg = pluginConfig as { enabled?: boolean; classification?: string } | undefined;
       if (cfg?.enabled) {
-        m.set(`${name}.`, (cfg.classification ?? "INTERNAL") as ClassificationLevel);
+        m.set(`${name}_`, (cfg.classification ?? "INTERNAL") as ClassificationLevel);
       }
     }
   }

@@ -15,6 +15,7 @@ build-logs/
 triggerfish-meta-loop.sh
 BLOCKERS.md
 ARCHITECTURE_REFERENCE.md
+TOOLS-IMPLEMENTATION-GUIDE.md
 
 # Claude skills (local only)
 .claude/skills/

@@ -2,7 +2,7 @@
  * Plan manager and tool executor.
  *
  * Tracks plan mode state per-session, persists plans as markdown files,
- * and provides a tool executor that handles plan.* tool calls.
+ * and provides a tool executor that handles plan_* tool calls.
  *
  * The PlanManager lives inside the orchestrator closure, keyed by session ID,
  * following the same pattern as conversation history tracking.
@@ -130,7 +130,7 @@ export function createPlanManager(options: PlanManagerOptions): PlanManager {
   ): Promise<{ readonly planId: string; readonly markdown: string }> {
     const current = getState(sessionId);
     if (current.mode !== "plan") {
-      throw new Error("Not in plan mode. Call plan.enter first.");
+      throw new Error("Not in plan mode. Call plan_enter first.");
     }
 
     const goal = current.goal ?? "Unknown goal";
@@ -349,10 +349,10 @@ export function createPlanToolExecutor(
     input: Record<string, unknown>,
   ): Promise<string | null> => {
     switch (name) {
-      case "plan.enter": {
+      case "plan_enter": {
         const goal = input.goal;
         if (typeof goal !== "string" || goal.length === 0) {
-          return "Error: plan.enter requires a 'goal' argument (string).";
+          return "Error: plan_enter requires a 'goal' argument (string).";
         }
         const scope = typeof input.scope === "string"
           ? input.scope
@@ -360,10 +360,10 @@ export function createPlanToolExecutor(
         return manager.enter(sessionId, goal, scope);
       }
 
-      case "plan.exit": {
+      case "plan_exit": {
         const planObj = input.plan;
         if (!planObj || typeof planObj !== "object") {
-          return "Error: plan.exit requires a 'plan' argument (object).";
+          return "Error: plan_exit requires a 'plan' argument (object).";
         }
         const validated = validateImplementationPlan(
           planObj as Record<string, unknown>,
@@ -387,10 +387,10 @@ export function createPlanToolExecutor(
         }
       }
 
-      case "plan.status":
+      case "plan_status":
         return manager.status(sessionId);
 
-      case "plan.approve": {
+      case "plan_approve": {
         const planId = manager.approve(sessionId);
         if (!planId) {
           return JSON.stringify({
@@ -404,25 +404,25 @@ export function createPlanToolExecutor(
         });
       }
 
-      case "plan.reject":
+      case "plan_reject":
         return manager.reject(sessionId);
 
-      case "plan.step_complete": {
+      case "plan_step_complete": {
         const stepId = input.step_id;
         const verificationResult = input.verification_result;
         if (typeof stepId !== "number") {
-          return "Error: plan.step_complete requires a 'step_id' argument (number).";
+          return "Error: plan_step_complete requires a 'step_id' argument (number).";
         }
         if (typeof verificationResult !== "string") {
-          return "Error: plan.step_complete requires a 'verification_result' argument (string).";
+          return "Error: plan_step_complete requires a 'verification_result' argument (string).";
         }
         return manager.stepComplete(sessionId, stepId, verificationResult);
       }
 
-      case "plan.complete": {
+      case "plan_complete": {
         const summary = input.summary;
         if (typeof summary !== "string" || summary.length === 0) {
-          return "Error: plan.complete requires a 'summary' argument (string).";
+          return "Error: plan_complete requires a 'summary' argument (string).";
         }
         const deviations = Array.isArray(input.deviations)
           ? (input.deviations as string[])
@@ -430,18 +430,18 @@ export function createPlanToolExecutor(
         return manager.complete(sessionId, summary, deviations);
       }
 
-      case "plan.modify": {
+      case "plan_modify": {
         const stepId = input.step_id;
         const reason = input.reason;
         const newDescription = input.new_description;
         if (typeof stepId !== "number") {
-          return "Error: plan.modify requires 'step_id' (number).";
+          return "Error: plan_modify requires 'step_id' (number).";
         }
         if (typeof reason !== "string") {
-          return "Error: plan.modify requires 'reason' (string).";
+          return "Error: plan_modify requires 'reason' (string).";
         }
         if (typeof newDescription !== "string") {
-          return "Error: plan.modify requires 'new_description' (string).";
+          return "Error: plan_modify requires 'new_description' (string).";
         }
         const newFiles = Array.isArray(input.new_files)
           ? (input.new_files as string[])

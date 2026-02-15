@@ -8,7 +8,7 @@ Plan mode constrains the agent to read-only exploration and structured planning 
 
 ### Tools
 
-#### `plan.enter`
+#### `plan_enter`
 
 Enter plan mode. Blocks write operations (`write_file`, `cron_create`, `cron_delete`) until the plan is approved.
 
@@ -17,7 +17,7 @@ Enter plan mode. Blocks write operations (`write_file`, `cron_create`, `cron_del
 | `goal` | string | yes | What the agent is planning to build/change |
 | `scope` | string | no | Constrain exploration to specific directories or modules |
 
-#### `plan.exit`
+#### `plan_exit`
 
 Exit plan mode and present the implementation plan for user approval. Does **not** automatically begin execution.
 
@@ -34,19 +34,19 @@ The plan object includes:
 - `files_to_create`, `files_to_modify`, `tests_to_write`
 - `estimated_complexity`
 
-#### `plan.status`
+#### `plan_status`
 
 Returns current plan mode state: active mode, goal, and plan progress.
 
-#### `plan.approve`
+#### `plan_approve`
 
 Approve the pending plan and begin execution. Called when the user approves.
 
-#### `plan.reject`
+#### `plan_reject`
 
 Reject the pending plan and return to normal mode.
 
-#### `plan.step_complete`
+#### `plan_step_complete`
 
 Mark a plan step as complete during execution.
 
@@ -55,7 +55,7 @@ Mark a plan step as complete during execution.
 | `step_id` | number | yes | The step ID to mark complete |
 | `verification_result` | string | yes | Output from the verification command |
 
-#### `plan.complete`
+#### `plan_complete`
 
 Mark the entire plan as complete.
 
@@ -64,7 +64,7 @@ Mark the entire plan as complete.
 | `summary` | string | yes | What was accomplished |
 | `deviations` | array | no | Any changes from the original plan |
 
-#### `plan.modify`
+#### `plan_modify`
 
 Request a modification to an approved plan step. Requires user approval.
 
@@ -80,14 +80,14 @@ Request a modification to an approved plan step. Requires user approval.
 
 ```
 1. User asks for something complex
-2. Agent calls plan.enter({ goal: "..." })
+2. Agent calls plan_enter({ goal: "..." })
 3. Agent explores codebase (read-only tools only)
-4. Agent calls plan.exit({ plan: { ... } })
+4. Agent calls plan_exit({ plan: { ... } })
 5. User reviews the plan
-6. User approves → agent calls plan.approve
-   (or rejects → agent calls plan.reject)
-7. Agent executes step by step, calling plan.step_complete after each
-8. Agent calls plan.complete when done
+6. User approves → agent calls plan_approve
+   (or rejects → agent calls plan_reject)
+7. Agent executes step by step, calling plan_step_complete after each
+8. Agent calls plan_complete when done
 ```
 
 ### When to Use Plan Mode

@@ -493,11 +493,11 @@ Deno.test("getTidepoolToolDefinitions: returns 5 tools with correct names", () =
   const defs = getTidepoolToolDefinitions();
   assertEquals(defs.length, 5);
   const names = defs.map((d) => d.name);
-  assert(names.includes("tidepool.render_component"));
-  assert(names.includes("tidepool.render_html"));
-  assert(names.includes("tidepool.render_file"));
-  assert(names.includes("tidepool.update"));
-  assert(names.includes("tidepool.clear"));
+  assert(names.includes("tidepool_render_component"));
+  assert(names.includes("tidepool_render_html"));
+  assert(names.includes("tidepool_render_file"));
+  assert(names.includes("tidepool_update"));
+  assert(names.includes("tidepool_clear"));
 });
 
 // ---------------------------------------------------------------------------
@@ -512,7 +512,7 @@ Deno.test("executor: returns null for non-tidepool tool names", async () => {
 
 Deno.test("executor: returns error when getter returns undefined", async () => {
   const executor = createTidepoolToolExecutor(() => undefined);
-  const result = await executor("tidepool.render_component", { label: "Test", tree: {} });
+  const result = await executor("tidepool_render_component", { label: "Test", tree: {} });
   assertEquals(result, "Tidepool is not connected. Visual workspace is unavailable.");
 });
 
@@ -526,7 +526,7 @@ Deno.test("executor: dispatches render_component correctly", async () => {
     version: 1,
   };
 
-  const result = await executor("tidepool.render_component", {
+  const result = await executor("tidepool_render_component", {
     label: "Test Render",
     tree,
   });
@@ -541,7 +541,7 @@ Deno.test("executor: dispatches render_html correctly", async () => {
   const tools = createTidePoolTools(mockHost);
   const executor = createTidepoolToolExecutor(() => tools);
 
-  const result = await executor("tidepool.render_html", {
+  const result = await executor("tidepool_render_html", {
     label: "HTML Test",
     html: "<h1>Hello</h1>",
   });
@@ -555,7 +555,7 @@ Deno.test("executor: dispatches render_file correctly", async () => {
   const tools = createTidePoolTools(mockHost);
   const executor = createTidepoolToolExecutor(() => tools);
 
-  const result = await executor("tidepool.render_file", {
+  const result = await executor("tidepool_render_file", {
     label: "File Test",
     filename: "test.png",
     mime: "image/png",
@@ -573,7 +573,7 @@ Deno.test("executor: lazy getter works after wiring", async () => {
   const executor = createTidepoolToolExecutor(() => tools);
 
   // Before wiring — should return not connected
-  const before = await executor("tidepool.clear", {});
+  const before = await executor("tidepool_clear", {});
   assertEquals(before, "Tidepool is not connected. Visual workspace is unavailable.");
 
   // Wire up the tools
@@ -581,7 +581,7 @@ Deno.test("executor: lazy getter works after wiring", async () => {
   tools = createTidePoolTools(mockHost);
 
   // After wiring — should work
-  const after = await executor("tidepool.clear", {});
+  const after = await executor("tidepool_clear", {});
   assertEquals(after, "Tidepool canvas cleared.");
 });
 

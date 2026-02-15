@@ -38,7 +38,7 @@ You MUST NOT:
 - Make any changes to the codebase
 - Skip exploration and jump to a plan without evidence
 
-When you have a complete plan, call plan.exit with your implementation plan.
+When you have a complete plan, call plan_exit with your implementation plan.
 If you need clarification from the user, ask before finalizing.`;
 }
 
@@ -51,9 +51,9 @@ If you need clarification from the user, ask before finalizing.`;
 export function buildAwaitingApprovalPrompt(): string {
   return `A plan is awaiting user approval. The user's message is their response to the plan you presented.
 
-- If they approve, call plan.approve to begin execution.
-- If they want changes, discuss modifications and call plan.enter to re-plan if needed.
-- If they reject, call plan.reject to return to normal mode.`;
+- If they approve, call plan_approve to begin execution.
+- If they want changes, discuss modifications and call plan_enter to re-plan if needed.
+- If they reject, call plan_reject to return to normal mode.`;
 }
 
 /**
@@ -86,9 +86,9 @@ Rules:
 - Execute ONE step at a time
 - After each step, run the verification command specified in the plan
 - If verification fails, fix before moving to the next step
-- If you discover the plan needs modification, call plan.modify and explain why
-- Check off completed steps by calling plan.step_complete
-- When all steps are done, call plan.complete`;
+- If you discover the plan needs modification, call plan_modify and explain why
+- Check off completed steps by calling plan_step_complete
+- When all steps are done, call plan_complete`;
 }
 
 /**

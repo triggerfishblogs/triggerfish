@@ -13,10 +13,10 @@ import type { ToolDefinition } from "./orchestrator.ts";
 export function getPlanToolDefinitions(): readonly ToolDefinition[] {
   return [
     {
-      name: "plan.enter",
+      name: "plan_enter",
       description:
         "Enter plan mode. Constrains the agent to read-only exploration and planning. " +
-        "write_file and cron_create/cron_delete are blocked until plan.exit is called.",
+        "write_file and cron_create/cron_delete are blocked until plan_exit is called.",
       parameters: {
         goal: {
           type: "string",
@@ -32,7 +32,7 @@ export function getPlanToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
-      name: "plan.exit",
+      name: "plan_exit",
       description:
         "Exit plan mode and present the implementation plan for user approval. " +
         "Does NOT automatically begin execution — the user must approve first.",
@@ -48,27 +48,27 @@ export function getPlanToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
-      name: "plan.status",
+      name: "plan_status",
       description:
         "Returns current plan mode state: mode, goal, active plan progress.",
       parameters: {},
     },
     {
-      name: "plan.approve",
+      name: "plan_approve",
       description:
         "Approve the pending plan and begin execution. Call this when the user " +
-        "approves the plan presented by plan.exit.",
+        "approves the plan presented by plan_exit.",
       parameters: {},
     },
     {
-      name: "plan.reject",
+      name: "plan_reject",
       description:
         "Reject the pending plan and return to normal mode. Call this when " +
         "the user rejects the plan or wants to start over.",
       parameters: {},
     },
     {
-      name: "plan.step_complete",
+      name: "plan_step_complete",
       description:
         "Mark a plan step as complete during execution of an approved plan.",
       parameters: {
@@ -85,7 +85,7 @@ export function getPlanToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
-      name: "plan.complete",
+      name: "plan_complete",
       description:
         "Mark the entire plan as complete. Call when all steps are done.",
       parameters: {
@@ -103,7 +103,7 @@ export function getPlanToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
-      name: "plan.modify",
+      name: "plan_modify",
       description:
         "Request a modification to an approved plan step. Requires user approval.",
       parameters: {
@@ -146,12 +146,12 @@ export function getPlanToolDefinitions(): readonly ToolDefinition[] {
  */
 export const PLAN_SYSTEM_PROMPT = `## Plan Mode
 
-You have access to plan mode (plan.enter, plan.exit, plan.status, plan.approve, plan.reject, plan.step_complete, plan.complete, plan.modify) for structured planning before implementation.
+You have access to plan mode (plan_enter, plan_exit, plan_status, plan_approve, plan_reject, plan_step_complete, plan_complete, plan_modify) for structured planning before implementation.
 
 When the user asks you to build, implement, create, refactor, or redesign something complex:
-- Consider entering plan mode first with plan.enter
+- Consider entering plan mode first with plan_enter
 - Explore the codebase thoroughly before proposing changes
-- Present a concrete plan via plan.exit for user approval
-- After approval, execute step by step, marking progress with plan.step_complete
+- Present a concrete plan via plan_exit for user approval
+- After approval, execute step by step, marking progress with plan_step_complete
 
 For simple tasks (fix a typo, add a comment, rename), skip plan mode and just do it.`;

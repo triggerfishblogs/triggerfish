@@ -221,7 +221,7 @@ export function createTidePoolTools(host: A2UIHost): TidePoolTools {
 export function getTidepoolToolDefinitions(): readonly ToolDefinition[] {
   return [
     {
-      name: "tidepool.render_component",
+      name: "tidepool_render_component",
       description:
         "Render a visual component tree in the Tidepool canvas. " +
         "The tree is broadcast to all connected Tidepool clients and displayed in the canvas panel.",
@@ -240,7 +240,7 @@ export function getTidepoolToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
-      name: "tidepool.render_html",
+      name: "tidepool_render_html",
       description:
         "Render raw HTML or SVG in the Tidepool canvas. " +
         "The content is displayed in a sandboxed iframe.",
@@ -258,7 +258,7 @@ export function getTidepoolToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
-      name: "tidepool.render_file",
+      name: "tidepool_render_file",
       description:
         "Render a file with preview and download in the Tidepool canvas. " +
         "Supports images, PDFs, text/code files, and archives.",
@@ -286,7 +286,7 @@ export function getTidepoolToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
-      name: "tidepool.update",
+      name: "tidepool_update",
       description:
         "Update a single component's props by ID in the current Tidepool canvas tree.",
       parameters: {
@@ -303,7 +303,7 @@ export function getTidepoolToolDefinitions(): readonly ToolDefinition[] {
       },
     },
     {
-      name: "tidepool.clear",
+      name: "tidepool_clear",
       description: "Clear the Tidepool canvas, removing all rendered content.",
       parameters: {},
     },
@@ -316,11 +316,11 @@ export const TIDEPOOL_SYSTEM_PROMPT = `## Tidepool Canvas
 You have a visual canvas panel. Render content ONCE per user request — do not re-render or iterate.
 
 ### Tools
-- **tidepool.render_component** — Structured UI (cards, tables, charts, forms, images, markdown, layouts)
-- **tidepool.render_html** — Raw HTML/SVG
-- **tidepool.render_file** — File preview + download (base64 data)
-- **tidepool.update** — Patch a component's props by ID
-- **tidepool.clear** — Clear the canvas
+- **tidepool_render_component** — Structured UI (cards, tables, charts, forms, images, markdown, layouts)
+- **tidepool_render_html** — Raw HTML/SVG
+- **tidepool_render_file** — File preview + download (base64 data)
+- **tidepool_update** — Patch a component's props by ID
+- **tidepool_clear** — Clear the canvas
 
 ### Component props
 - card: { title, content } | table: { headers: string[], rows: string[][] }
@@ -349,7 +349,7 @@ export function createTidepoolToolExecutor(
     name: string,
     input: Record<string, unknown>,
   ): Promise<string | null> => {
-    if (!name.startsWith("tidepool.")) return null;
+    if (!name.startsWith("tidepool_")) return null;
 
     const tools = getTools();
     if (!tools) {
@@ -357,14 +357,14 @@ export function createTidepoolToolExecutor(
     }
 
     switch (name) {
-      case "tidepool.render_component": {
+      case "tidepool_render_component": {
         const label = input.label;
         const tree = input.tree;
         if (typeof label !== "string" || label.length === 0) {
-          return "Error: tidepool.render_component requires a non-empty 'label' argument.";
+          return "Error: tidepool_render_component requires a non-empty 'label' argument.";
         }
         if (!tree || typeof tree !== "object") {
-          return "Error: tidepool.render_component requires a 'tree' argument (object).";
+          return "Error: tidepool_render_component requires a 'tree' argument (object).";
         }
         const result = tools.renderComponent(label, tree as ComponentTree);
         if (!result.ok) return `Render error: ${result.error}`;
@@ -372,57 +372,57 @@ export function createTidepoolToolExecutor(
         return `Rendered component tree "${label}" (${treeJson.length} chars) in canvas. The user can see it now.`;
       }
 
-      case "tidepool.render_html": {
+      case "tidepool_render_html": {
         const label = input.label;
         const html = input.html;
         if (typeof label !== "string" || label.length === 0) {
-          return "Error: tidepool.render_html requires a non-empty 'label' argument.";
+          return "Error: tidepool_render_html requires a non-empty 'label' argument.";
         }
         if (typeof html !== "string" || html.length === 0) {
-          return "Error: tidepool.render_html requires a non-empty 'html' argument.";
+          return "Error: tidepool_render_html requires a non-empty 'html' argument.";
         }
         const result = tools.renderHtml(label, html);
         if (!result.ok) return `Render error: ${result.error}`;
         return `Rendered HTML "${label}" (${html.length} chars) in canvas. The user can see it now.`;
       }
 
-      case "tidepool.render_file": {
+      case "tidepool_render_file": {
         const label = input.label;
         const filename = input.filename;
         const mime = input.mime;
         const data = input.data;
         if (typeof label !== "string" || label.length === 0) {
-          return "Error: tidepool.render_file requires a non-empty 'label' argument.";
+          return "Error: tidepool_render_file requires a non-empty 'label' argument.";
         }
         if (typeof filename !== "string" || filename.length === 0) {
-          return "Error: tidepool.render_file requires a non-empty 'filename' argument.";
+          return "Error: tidepool_render_file requires a non-empty 'filename' argument.";
         }
         if (typeof mime !== "string" || mime.length === 0) {
-          return "Error: tidepool.render_file requires a non-empty 'mime' argument.";
+          return "Error: tidepool_render_file requires a non-empty 'mime' argument.";
         }
         if (typeof data !== "string" || data.length === 0) {
-          return "Error: tidepool.render_file requires a non-empty 'data' argument.";
+          return "Error: tidepool_render_file requires a non-empty 'data' argument.";
         }
         const result = tools.renderFile(label, filename, mime, data);
         if (!result.ok) return `Render error: ${result.error}`;
         return `Rendered file "${filename}" (${mime}, ${data.length} bytes) in canvas as "${label}". The user can see it now.`;
       }
 
-      case "tidepool.update": {
+      case "tidepool_update": {
         const componentId = input.component_id;
         const props = input.props;
         if (typeof componentId !== "string" || componentId.length === 0) {
-          return "Error: tidepool.update requires a non-empty 'component_id' argument.";
+          return "Error: tidepool_update requires a non-empty 'component_id' argument.";
         }
         if (!props || typeof props !== "object") {
-          return "Error: tidepool.update requires a 'props' argument (object).";
+          return "Error: tidepool_update requires a 'props' argument (object).";
         }
         const result = tools.update(componentId, props as Record<string, unknown>);
         if (!result.ok) return `Update error: ${result.error}`;
         return `Component ${componentId} updated.`;
       }
 
-      case "tidepool.clear": {
+      case "tidepool_clear": {
         const result = tools.clear();
         if (!result.ok) return `Clear error: ${result.error}`;
         return "Tidepool canvas cleared.";
