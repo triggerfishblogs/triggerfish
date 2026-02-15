@@ -28,3 +28,6 @@ PLAN_PROMPT.md
 BUILD_PROMPT.md
 ralph.sh
 IMPLEMENTATION_PLAN.md
+
+# Setup scripts (local only)
+setup-phase-*.sh
