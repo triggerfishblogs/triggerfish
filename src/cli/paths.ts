@@ -11,6 +11,20 @@ import { join } from "@std/path";
 import { isDockerEnvironment } from "../core/env.ts";
 
 /**
+ * Expand a leading `~` to the user's home directory.
+ *
+ * Uses `HOME` on Unix and falls back to `USERPROFILE` on Windows.
+ *
+ * @param inputPath - A filesystem path that may start with `~`
+ * @returns The path with `~` replaced by the home directory
+ */
+export function expandTilde(inputPath: string): string {
+  if (!inputPath.startsWith("~")) return inputPath;
+  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? "";
+  return join(home, inputPath.slice(1).replace(/^[/\\]/, ""));
+}
+
+/**
  * Resolve the base data directory for Triggerfish.
  *
  * Priority:

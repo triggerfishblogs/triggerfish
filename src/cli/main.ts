@@ -9,63 +9,77 @@
 import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
 import { Confirm, Input, Select } from "@cliffy/prompt";
 import { join } from "@std/path";
-import { resolveBaseDir, resolveConfigPath } from "./paths.ts";
+import { expandTilde, resolveBaseDir, resolveConfigPath } from "./paths.ts";
 import { isDockerEnvironment } from "../core/env.ts";
 import { createGatewayServer } from "../gateway/server.ts";
 import {
-  getSessionToolDefinitions,
   createSessionToolExecutor,
+  getSessionToolDefinitions,
   SESSION_TOOLS_SYSTEM_PROMPT,
 } from "../gateway/tools.ts";
 import type { RegisteredChannel } from "../gateway/tools.ts";
 import { createEnhancedSessionManager } from "../gateway/sessions.ts";
 import type { EnhancedSessionManager } from "../gateway/sessions.ts";
 import { createSessionManager } from "../core/session/manager.ts";
-import { createChatSession, buildSendEvent } from "../gateway/chat.ts";
+import { buildSendEvent, createChatSession } from "../gateway/chat.ts";
 import type { ChatEvent } from "../gateway/chat.ts";
 import { createA2UIHost } from "../tidepool/host.ts";
 import {
-  getTidepoolToolDefinitions,
   createTidepoolToolExecutor,
   createTidePoolTools,
+  getTidepoolToolDefinitions,
   TIDEPOOL_SYSTEM_PROMPT,
 } from "../tidepool/mod.ts";
 import { createPatrolCheck } from "../dive/patrol.ts";
 import type { PatrolInput } from "../dive/patrol.ts";
 import { runWizard } from "../dive/wizard.ts";
 import {
+  cleanupOldBinary,
+  getDaemonStatus,
   installAndStartDaemon,
   stopDaemon,
-  getDaemonStatus,
   tailLogs,
   updateTriggerfish,
-  cleanupOldBinary,
 } from "./daemon.ts";
 import { VERSION } from "./version.ts";
-import { createOrchestrator, buildToolClassifications } from "../agent/orchestrator.ts";
-import type { ToolDefinition, ToolExecutor, OrchestratorEvent } from "../agent/orchestrator.ts";
+import {
+  buildToolClassifications,
+  createOrchestrator,
+} from "../agent/orchestrator.ts";
+import type {
+  OrchestratorEvent,
+  ToolDefinition,
+  ToolExecutor,
+} from "../agent/orchestrator.ts";
 import { createProviderRegistry } from "../agent/llm.ts";
 import type { LlmProviderRegistry } from "../agent/llm.ts";
-import { loadProvidersFromConfig, resolveVisionProvider } from "../agent/providers/config.ts";
+import {
+  loadProvidersFromConfig,
+  resolveVisionProvider,
+} from "../agent/providers/config.ts";
 import type { ModelsConfig } from "../agent/providers/config.ts";
 import { createPolicyEngine } from "../core/policy/engine.ts";
-import { createHookRunner, createDefaultRules } from "../core/policy/hooks.ts";
+import { createDefaultRules, createHookRunner } from "../core/policy/hooks.ts";
 import { createSession, updateTaint } from "../core/types/session.ts";
-import type { UserId, ChannelId, SessionId } from "../core/types/session.ts";
+import type { ChannelId, SessionId, UserId } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import { createWorkspace } from "../exec/workspace.ts";
 import { createExecTools } from "../exec/tools.ts";
 import {
-  printBanner,
-  formatBanner,
   createEventHandler,
   createScreenEventHandler,
-  renderError,
+  formatBanner,
   formatError,
+  printBanner,
+  renderError,
   renderPrompt,
 } from "./chat_ui.ts";
 import type { ToolDisplayMode } from "./chat_ui.ts";
-import { createKeypressReader, createLineEditor, createSuggestionEngine } from "./terminal.ts";
+import {
+  createKeypressReader,
+  createLineEditor,
+  createSuggestionEngine,
+} from "./terminal.ts";
 import type { LineEditor } from "./terminal.ts";
 import { loadInputHistory, saveInputHistory } from "./history.ts";
 import { createScreenManager } from "./screen.ts";
@@ -80,35 +94,35 @@ import type { CronManager } from "../scheduler/cron.ts";
 import type { StorageProvider } from "../core/storage/provider.ts";
 import { createSqliteStorage } from "../core/storage/sqlite.ts";
 import {
+  createHealthcheckToolExecutor,
+  createLlmTaskToolExecutor,
+  createSummarizeToolExecutor,
   createTodoManager,
   createTodoToolExecutor,
-  getTodoToolDefinitions,
-  TODO_SYSTEM_PROMPT,
-  createLlmTaskToolExecutor,
-  getLlmTaskToolDefinitions,
-  LLM_TASK_SYSTEM_PROMPT,
-  createSummarizeToolExecutor,
-  getSummarizeToolDefinitions,
-  SUMMARIZE_SYSTEM_PROMPT,
-  createHealthcheckToolExecutor,
   getHealthcheckToolDefinitions,
+  getLlmTaskToolDefinitions,
+  getSummarizeToolDefinitions,
+  getTodoToolDefinitions,
   HEALTHCHECK_SYSTEM_PROMPT,
+  LLM_TASK_SYSTEM_PROMPT,
+  SUMMARIZE_SYSTEM_PROMPT,
+  TODO_SYSTEM_PROMPT,
 } from "../tools/mod.ts";
 import type { TodoManager } from "../tools/mod.ts";
 import {
+  createFts5SearchProvider,
   createMemoryStore,
   createMemoryToolExecutor,
-  createFts5SearchProvider,
   getMemoryToolDefinitions,
   MEMORY_SYSTEM_PROMPT,
 } from "../memory/mod.ts";
 import {
   createBraveSearchProvider,
   createDomainPolicy,
+  createRateLimitedSearchProvider,
   createWebFetcher,
   createWebToolExecutor,
   getWebToolDefinitions,
-  createRateLimitedSearchProvider,
   WEB_TOOLS_SYSTEM_PROMPT,
 } from "../web/mod.ts";
 import type {
@@ -117,54 +131,61 @@ import type {
   WebFetcher,
 } from "../web/mod.ts";
 import { createPlanManager, createPlanToolExecutor } from "../agent/plan.ts";
-import { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "../agent/plan_tools.ts";
 import {
-  getBrowserToolDefinitions,
+  getPlanToolDefinitions,
+  PLAN_SYSTEM_PROMPT,
+} from "../agent/plan_tools.ts";
+import {
+  BROWSER_TOOLS_SYSTEM_PROMPT,
   createAutoLaunchBrowserExecutor,
   createBrowserManager,
   createDomainPolicy as createBrowserDomainPolicy,
-  BROWSER_TOOLS_SYSTEM_PROMPT,
+  getBrowserToolDefinitions,
 } from "../browser/mod.ts";
 import {
-  getObsidianToolDefinitions,
-  createObsidianToolExecutor,
-  createVaultContext,
-  createNoteStore,
   createDailyNoteManager,
   createLinkResolver,
+  createNoteStore,
+  createObsidianToolExecutor,
+  createVaultContext,
+  getObsidianToolDefinitions,
   OBSIDIAN_SYSTEM_PROMPT,
 } from "../obsidian/mod.ts";
 import {
-  getImageToolDefinitions,
   createImageToolExecutor,
+  getImageToolDefinitions,
   IMAGE_TOOLS_SYSTEM_PROMPT,
 } from "../image/mod.ts";
-import { readClipboardImage, imageBlock } from "../image/mod.ts";
-import type { ImageContentBlock, ContentBlock, MessageContent } from "../image/mod.ts";
+import { imageBlock, readClipboardImage } from "../image/mod.ts";
+import type {
+  ContentBlock,
+  ImageContentBlock,
+  MessageContent,
+} from "../image/mod.ts";
 import {
-  getExploreToolDefinitions,
   createExploreToolExecutor,
   EXPLORE_SYSTEM_PROMPT,
+  getExploreToolDefinitions,
 } from "../explore/mod.ts";
 import {
-  getGoogleToolDefinitions,
-  createGoogleToolExecutor,
-  createGoogleAuthManager,
-  createGoogleApiClient,
-  createGmailService,
   createCalendarService,
-  createTasksService,
   createDriveService,
+  createGmailService,
+  createGoogleApiClient,
+  createGoogleAuthManager,
+  createGoogleToolExecutor,
   createSheetsService,
+  createTasksService,
+  getGoogleToolDefinitions,
   GOOGLE_TOOLS_SYSTEM_PROMPT,
 } from "../google/mod.ts";
 import type { GoogleAuthConfig } from "../google/mod.ts";
 import {
-  getGitHubToolDefinitions,
-  createGitHubToolExecutor,
   createGitHubClient,
-  resolveGitHubToken,
+  createGitHubToolExecutor,
+  getGitHubToolDefinitions,
   GITHUB_TOOLS_SYSTEM_PROMPT,
+  resolveGitHubToken,
 } from "../github/mod.ts";
 import { createKeychain } from "../secrets/keychain.ts";
 import { createTelegramChannel } from "../channels/telegram/adapter.ts";
@@ -173,13 +194,13 @@ import { createPairingService } from "../channels/pairing.ts";
 import type { PairingService } from "../channels/pairing.ts";
 import {
   checkSignalCli,
-  fetchLatestVersion,
   downloadSignalCli,
-  resolveJavaHome,
-  startLinkProcess,
-  renderQrCode,
+  fetchLatestVersion,
   isDaemonRunning,
+  renderQrCode,
+  resolveJavaHome,
   startDaemon,
+  startLinkProcess,
   waitForDaemon,
 } from "../channels/signal/setup.ts";
 import { createNotificationService } from "../gateway/notifications.ts";
@@ -223,7 +244,9 @@ export interface TriggerFishConfig {
   readonly models: {
     readonly primary: { readonly provider: string; readonly model: string };
     readonly vision?: string;
-    readonly providers: Readonly<Record<string, { readonly model: string; readonly apiKey?: string }>>;
+    readonly providers: Readonly<
+      Record<string, { readonly model: string; readonly apiKey?: string }>
+    >;
   };
   readonly channels: Readonly<Record<string, unknown>>;
   readonly classification: {
@@ -272,10 +295,12 @@ export interface TriggerFishConfig {
     };
     readonly webhooks?: {
       readonly enabled?: boolean;
-      readonly sources?: Readonly<Record<string, {
-        readonly secret: string;
-        readonly classification: string;
-      }>>;
+      readonly sources?: Readonly<
+        Record<string, {
+          readonly secret: string;
+          readonly classification: string;
+        }>
+      >;
     };
   };
   readonly plugins?: {
@@ -384,12 +409,16 @@ export function parseCommand(
     if (sub === "add" && positional.length >= 4) {
       flags["expression"] = positional[2];
       flags["task"] = positional.slice(3).join(" ");
-    } else if ((sub === "delete" || sub === "history") && positional.length > 2) {
+    } else if (
+      (sub === "delete" || sub === "history") && positional.length > 2
+    ) {
       flags["job_id"] = positional[2];
     }
     return { command, subcommand: sub, flags };
   }
-  if ((command === "connect" || command === "disconnect") && positional.length > 1) {
+  if (
+    (command === "connect" || command === "disconnect") && positional.length > 1
+  ) {
     const sub = positional[1];
     return { command, subcommand: sub, flags };
   }
@@ -449,13 +478,23 @@ export function validateConfig(
   } else if (typeof models.primary === "object" && models.primary !== null) {
     const primary = models.primary as Record<string, unknown>;
     if (typeof primary.provider !== "string" || primary.provider.length === 0) {
-      return { ok: false, error: "Missing required field: models.primary.provider" };
+      return {
+        ok: false,
+        error: "Missing required field: models.primary.provider",
+      };
     }
     if (typeof primary.model !== "string" || primary.model.length === 0) {
-      return { ok: false, error: "Missing required field: models.primary.model" };
+      return {
+        ok: false,
+        error: "Missing required field: models.primary.model",
+      };
     }
   } else {
-    return { ok: false, error: "models.primary must be a string or object with provider and model" };
+    return {
+      ok: false,
+      error:
+        "models.primary must be a string or object with provider and model",
+    };
   }
 
   return { ok: true, value: undefined };
@@ -618,7 +657,7 @@ function countConfiguredChannels(): number {
  * Count installed skills in ~/.triggerfish/skills/.
  */
 function countInstalledSkills(): number {
-  const skillsDir = `${resolveBaseDir()}/skills`;
+  const skillsDir = join(resolveBaseDir(), "skills");
   try {
     let count = 0;
     for (const entry of Deno.readDirSync(skillsDir)) {
@@ -679,7 +718,9 @@ async function runPatrol(): Promise<void> {
   console.log();
 
   if (report.overall === "CRITICAL") {
-    console.log("❌ Critical issues detected. Run 'triggerfish start' to launch the gateway.\n");
+    console.log(
+      "❌ Critical issues detected. Run 'triggerfish start' to launch the gateway.\n",
+    );
     Deno.exit(1);
   } else if (report.overall === "WARNING") {
     console.log("⚠️  Warnings detected. Check configuration.\n");
@@ -716,7 +757,9 @@ When a task matches a skill, use read_file to load the skill's SKILL.md for deta
 function buildTriggersSystemPrompt(baseDir: string): string {
   return `## Triggers (Proactive Monitoring)
 
-Your TRIGGER.md file is at ${join(baseDir, "TRIGGER.md")}. It defines what you proactively monitor and act on during periodic trigger wakeups. Use read_file to see current triggers, and edit_file/write_file to modify them. For full documentation on the TRIGGER.md format, read the "triggers" skill.`;
+Your TRIGGER.md file is at ${
+    join(baseDir, "TRIGGER.md")
+  }. It defines what you proactively monitor and act on during periodic trigger wakeups. Use read_file to see current triggers, and edit_file/write_file to modify them. For full documentation on the TRIGGER.md format, read the "triggers" skill.`;
 }
 
 function buildWebTools(
@@ -753,7 +796,10 @@ function buildWebTools(
   }
 
   if (searchProvider && searchConfig?.rate_limit) {
-    searchProvider = createRateLimitedSearchProvider(searchProvider, searchConfig.rate_limit);
+    searchProvider = createRateLimitedSearchProvider(
+      searchProvider,
+      searchConfig.rate_limit,
+    );
   }
 
   return { searchProvider, webFetcher };
@@ -796,7 +842,9 @@ function createOrchestratorFactory(
 ): OrchestratorFactory {
   const registry = createProviderRegistry();
   loadProvidersFromConfig(config.models as ModelsConfig, registry);
-  const schedulerVisionProvider = resolveVisionProvider(config.models as ModelsConfig);
+  const schedulerVisionProvider = resolveVisionProvider(
+    config.models as ModelsConfig,
+  );
 
   const engine = createPolicyEngine();
   for (const rule of createDefaultRules()) {
@@ -813,11 +861,26 @@ function createOrchestratorFactory(
   const schedulerToolClassifications = buildToolClassifications(config);
 
   // Discover skills for scheduler agents (same directories as main session)
-  const factoryBundledSkillsDir = join(import.meta.dirname ?? ".", "..", "..", "skills", "bundled");
+  const factoryBundledSkillsDir = join(
+    import.meta.dirname ?? ".",
+    "..",
+    "..",
+    "skills",
+    "bundled",
+  );
   const factoryManagedSkillsDir = join(baseDir, "skills");
-  const factoryWorkspaceSkillsDir = join(baseDir, "workspaces", "main", "skills");
+  const factoryWorkspaceSkillsDir = join(
+    baseDir,
+    "workspaces",
+    "main",
+    "skills",
+  );
   const factorySkillLoader = createSkillLoader({
-    directories: [factoryBundledSkillsDir, factoryManagedSkillsDir, factoryWorkspaceSkillsDir],
+    directories: [
+      factoryBundledSkillsDir,
+      factoryManagedSkillsDir,
+      factoryWorkspaceSkillsDir,
+    ],
     dirTypes: {
       [factoryBundledSkillsDir]: "bundled",
       [factoryManagedSkillsDir]: "managed",
@@ -848,21 +911,30 @@ function createOrchestratorFactory(
       // Symlink SPINE.md into workspace so the agent can read AND edit its identity
       try {
         const workspaceSpine = join(workspace.path, "SPINE.md");
-        try { await Deno.remove(workspaceSpine); } catch { /* doesn't exist yet */ }
+        try {
+          await Deno.remove(workspaceSpine);
+        } catch { /* doesn't exist yet */ }
         await Deno.symlink(spinePath, workspaceSpine);
       } catch {
         // SPINE.md may not exist yet — not fatal
       }
 
       const execTools = createExecTools(workspace);
-      const todoManager = storage ? createTodoManager({ storage, agentId }) : undefined;
+      const todoManager = storage
+        ? createTodoManager({ storage, agentId })
+        : undefined;
       let session = createSession({
         userId: "owner" as UserId,
         channelId: channelId as ChannelId,
       });
 
       // Memory for scheduler agents (uses storage-backed store, no FTS5)
-      let schedulerMemoryExecutor: ((name: string, input: Record<string, unknown>) => Promise<string | null>) | undefined;
+      let schedulerMemoryExecutor:
+        | ((
+          name: string,
+          input: Record<string, unknown>,
+        ) => Promise<string | null>)
+        | undefined;
       if (storage) {
         const schedulerMemoryStore = createMemoryStore({ storage });
         schedulerMemoryExecutor = createMemoryToolExecutor({
@@ -874,7 +946,9 @@ function createOrchestratorFactory(
       }
 
       // Plan manager for scheduler agents
-      const planManager = createPlanManager({ plansDir: `${workspace.path}/plans` });
+      const planManager = createPlanManager({
+        plansDir: `${workspace.path}/plans`,
+      });
       const planExecutor = createPlanToolExecutor(planManager, session.id);
 
       // Session tools for scheduler agents (if session manager is available)
@@ -893,16 +967,20 @@ function createOrchestratorFactory(
       const schedulerGithubExecutor = createGitHubToolExecutor(
         schedulerGithubTokenResult.ok
           ? {
-              client: createGitHubClient({
-                token: schedulerGithubTokenResult.value,
-                baseUrl: config.github?.base_url,
-                classificationConfig: config.github?.classification_overrides
-                  ? { overrides: config.github.classification_overrides as Readonly<Record<string, ClassificationLevel>> }
-                  : undefined,
-              }),
-              sessionTaint: session.taint,
-              sourceSessionId: session.id,
-            }
+            client: createGitHubClient({
+              token: schedulerGithubTokenResult.value,
+              baseUrl: config.github?.base_url,
+              classificationConfig: config.github?.classification_overrides
+                ? {
+                  overrides: config.github.classification_overrides as Readonly<
+                    Record<string, ClassificationLevel>
+                  >,
+                }
+                : undefined,
+            }),
+            sessionTaint: session.taint,
+            sourceSessionId: session.id,
+          }
           : undefined,
       );
 
@@ -917,8 +995,12 @@ function createOrchestratorFactory(
         sessionExecutor,
         googleExecutor: buildGoogleExecutor(session.taint, session.id),
         githubExecutor: schedulerGithubExecutor,
-        llmTaskExecutor: registry ? createLlmTaskToolExecutor(registry) : undefined,
-        summarizeExecutor: registry ? createSummarizeToolExecutor(registry) : undefined,
+        llmTaskExecutor: registry
+          ? createLlmTaskToolExecutor(registry)
+          : undefined,
+        summarizeExecutor: registry
+          ? createSummarizeToolExecutor(registry)
+          : undefined,
         healthcheckExecutor: createHealthcheckToolExecutor({
           providerRegistry: registry,
           storageProvider: storage,
@@ -932,7 +1014,18 @@ function createOrchestratorFactory(
         spinePath,
         tools: toolDefs,
         toolExecutor,
-        systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT, LLM_TASK_SYSTEM_PROMPT, SUMMARIZE_SYSTEM_PROMPT, HEALTHCHECK_SYSTEM_PROMPT, factorySkillsPrompt],
+        systemPromptSections: [
+          TODO_SYSTEM_PROMPT,
+          WEB_TOOLS_SYSTEM_PROMPT,
+          MEMORY_SYSTEM_PROMPT,
+          PLAN_SYSTEM_PROMPT,
+          GOOGLE_TOOLS_SYSTEM_PROMPT,
+          GITHUB_TOOLS_SYSTEM_PROMPT,
+          LLM_TASK_SYSTEM_PROMPT,
+          SUMMARIZE_SYSTEM_PROMPT,
+          HEALTHCHECK_SYSTEM_PROMPT,
+          factorySkillsPrompt,
+        ],
         visionProvider: schedulerVisionProvider,
         toolClassifications: schedulerToolClassifications,
         getSessionTaint: () => session.taint,
@@ -1006,7 +1099,9 @@ const GOOGLE_SCOPES: readonly string[] = [
 function buildGoogleExecutor(
   sessionTaint: ClassificationLevel,
   sourceSessionId: SessionId,
-): ((name: string, input: Record<string, unknown>) => Promise<string | null>) | undefined {
+):
+  | ((name: string, input: Record<string, unknown>) => Promise<string | null>)
+  | undefined {
   try {
     const secretStore = createKeychain();
     const authManager = createGoogleAuthManager(secretStore);
@@ -1041,9 +1136,13 @@ async function runStart(): Promise<void> {
     if (isDockerEnvironment()) {
       console.error(`No configuration found at ${configPath}\n`);
       console.error("Option 1: Mount your config file:");
-      console.error("  docker run -v ./triggerfish.yaml:/data/triggerfish.yaml triggerfish/triggerfish\n");
+      console.error(
+        "  docker run -v ./triggerfish.yaml:/data/triggerfish.yaml triggerfish/triggerfish\n",
+      );
       console.error("Option 2: Run the setup wizard interactively:");
-      console.error("  docker run -it -v triggerfish-data:/data triggerfish/triggerfish dive\n");
+      console.error(
+        "  docker run -it -v triggerfish-data:/data triggerfish/triggerfish dive\n",
+      );
     } else {
       console.log("Configuration not found.");
       console.log("Run 'triggerfish dive' to set up your agent.\n");
@@ -1083,13 +1182,21 @@ async function runStart(): Promise<void> {
 
   // Create session manager (shared by orchestrator factory, main session, and gateway)
   const baseSessionManager = createSessionManager(storage);
-  const enhancedSessionManager = createEnhancedSessionManager(baseSessionManager);
+  const enhancedSessionManager = createEnhancedSessionManager(
+    baseSessionManager,
+  );
 
   // Notification service for scheduler output delivery
   const notificationService = createNotificationService(storage);
 
   // Build orchestrator factory and scheduler with persistent cron manager
-  const factory = createOrchestratorFactory(config, baseDir, cronManager, storage, enhancedSessionManager);
+  const factory = createOrchestratorFactory(
+    config,
+    baseDir,
+    cronManager,
+    storage,
+    enhancedSessionManager,
+  );
   const schedulerConfig = buildSchedulerConfig(config, baseDir, factory);
   const schedulerService = createSchedulerService({
     ...schedulerConfig,
@@ -1122,7 +1229,9 @@ async function runStart(): Promise<void> {
   // Symlink SPINE.md into workspace so the agent can read AND edit its identity
   try {
     const workspaceSpine = join(mainWorkspace.path, "SPINE.md");
-    try { await Deno.remove(workspaceSpine); } catch { /* doesn't exist yet */ }
+    try {
+      await Deno.remove(workspaceSpine);
+    } catch { /* doesn't exist yet */ }
     await Deno.symlink(spinePath, workspaceSpine);
   } catch {
     // SPINE.md may not exist yet — not fatal
@@ -1137,7 +1246,10 @@ async function runStart(): Promise<void> {
   const memoryDb = new Database(join(dataDir, "triggerfish.db"));
   memoryDb.exec("PRAGMA journal_mode=WAL");
   const memorySearchProvider = createFts5SearchProvider(memoryDb);
-  const memoryStore = createMemoryStore({ storage, searchProvider: memorySearchProvider });
+  const memoryStore = createMemoryStore({
+    storage,
+    searchProvider: memorySearchProvider,
+  });
   let session = createSession({
     userId: "owner" as UserId,
     channelId: "daemon" as ChannelId,
@@ -1151,7 +1263,9 @@ async function runStart(): Promise<void> {
   });
 
   // Plan manager for main session
-  const mainPlanManager = createPlanManager({ plansDir: `${mainWorkspace.path}/plans` });
+  const mainPlanManager = createPlanManager({
+    plansDir: `${mainWorkspace.path}/plans`,
+  });
   const mainPlanExecutor = createPlanToolExecutor(mainPlanManager, session.id);
 
   // Vision provider for image fallback and browser screenshots (optional)
@@ -1162,7 +1276,9 @@ async function runStart(): Promise<void> {
     allowList: (config.web?.domains?.allowlist ?? []) as string[],
     denyList: (config.web?.domains?.denylist ?? []) as string[],
     classifications: Object.fromEntries(
-      (config.web?.domains?.classifications ?? []).map((c) => [c.pattern, c.classification]),
+      (config.web?.domains?.classifications ?? []).map((
+        c,
+      ) => [c.pattern, c.classification]),
     ),
   });
   const browserHandle = createAutoLaunchBrowserExecutor({
@@ -1228,35 +1344,46 @@ async function runStart(): Promise<void> {
   const githubExecutor = createGitHubToolExecutor(
     githubTokenResult.ok
       ? {
-          client: createGitHubClient({
-            token: githubTokenResult.value,
-            baseUrl: config.github?.base_url,
-            classificationConfig: config.github?.classification_overrides
-              ? { overrides: config.github.classification_overrides as Readonly<Record<string, ClassificationLevel>> }
-              : undefined,
-          }),
-          sessionTaint: session.taint,
-          sourceSessionId: session.id,
-        }
+        client: createGitHubClient({
+          token: githubTokenResult.value,
+          baseUrl: config.github?.base_url,
+          classificationConfig: config.github?.classification_overrides
+            ? {
+              overrides: config.github.classification_overrides as Readonly<
+                Record<string, ClassificationLevel>
+              >,
+            }
+            : undefined,
+        }),
+        sessionTaint: session.taint,
+        sourceSessionId: session.id,
+      }
       : undefined,
   );
   // GitHub classification is set by buildToolClassifications from config
 
   // Obsidian vault tools (graceful degrade if not configured)
-  let obsidianExecutor: ((name: string, input: Record<string, unknown>) => Promise<string | null>) | undefined;
+  let obsidianExecutor:
+    | ((name: string, input: Record<string, unknown>) => Promise<string | null>)
+    | undefined;
   const obsVaultPath = config.plugins?.obsidian?.vault_path;
   if (config.plugins?.obsidian?.enabled && obsVaultPath) {
     const obsCfg = config.plugins.obsidian;
     const vaultResult = await createVaultContext({
       vaultPath: obsVaultPath,
-      classification: (obsCfg.classification ?? "INTERNAL") as ClassificationLevel,
-      dailyNotes: obsCfg.daily_notes ? {
-        folder: obsCfg.daily_notes.folder ?? "daily",
-        dateFormat: obsCfg.daily_notes.date_format ?? "YYYY-MM-DD",
-        template: obsCfg.daily_notes.template,
-      } : undefined,
+      classification:
+        (obsCfg.classification ?? "INTERNAL") as ClassificationLevel,
+      dailyNotes: obsCfg.daily_notes
+        ? {
+          folder: obsCfg.daily_notes.folder ?? "daily",
+          dateFormat: obsCfg.daily_notes.date_format ?? "YYYY-MM-DD",
+          template: obsCfg.daily_notes.template,
+        }
+        : undefined,
       excludeFolders: obsCfg.exclude_folders as string[] | undefined,
-      folderClassifications: obsCfg.folder_classifications as Record<string, ClassificationLevel> | undefined,
+      folderClassifications: obsCfg.folder_classifications as
+        | Record<string, ClassificationLevel>
+        | undefined,
     });
     if (vaultResult.ok) {
       const noteStore = createNoteStore(vaultResult.value);
@@ -1276,7 +1403,13 @@ async function runStart(): Promise<void> {
   }
 
   // Discover skills from bundled, managed, and workspace directories
-  const bundledSkillsDir = join(import.meta.dirname ?? ".", "..", "..", "skills", "bundled");
+  const bundledSkillsDir = join(
+    import.meta.dirname ?? ".",
+    "..",
+    "..",
+    "skills",
+    "bundled",
+  );
   const managedSkillsDir = join(baseDir, "skills");
   const workspaceSkillsDir = join(baseDir, "workspaces", "main", "skills");
   const skillLoader = createSkillLoader({
@@ -1316,7 +1449,9 @@ async function runStart(): Promise<void> {
     githubExecutor,
     obsidianExecutor,
     llmTaskExecutor: registry ? createLlmTaskToolExecutor(registry) : undefined,
-    summarizeExecutor: registry ? createSummarizeToolExecutor(registry) : undefined,
+    summarizeExecutor: registry
+      ? createSummarizeToolExecutor(registry)
+      : undefined,
     healthcheckExecutor: createHealthcheckToolExecutor({
       providerRegistry: registry,
       storageProvider: storage,
@@ -1337,9 +1472,29 @@ async function runStart(): Promise<void> {
     spinePath,
     tools: getToolDefinitions(),
     toolExecutor,
-    systemPromptSections: [TODO_SYSTEM_PROMPT, WEB_TOOLS_SYSTEM_PROMPT, MEMORY_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, BROWSER_TOOLS_SYSTEM_PROMPT, TIDEPOOL_SYSTEM_PROMPT, SESSION_TOOLS_SYSTEM_PROMPT, IMAGE_TOOLS_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, GOOGLE_TOOLS_SYSTEM_PROMPT, GITHUB_TOOLS_SYSTEM_PROMPT, OBSIDIAN_SYSTEM_PROMPT, SKILLS_SYSTEM_PROMPT, TRIGGERS_SYSTEM_PROMPT, LLM_TASK_SYSTEM_PROMPT, SUMMARIZE_SYSTEM_PROMPT, HEALTHCHECK_SYSTEM_PROMPT],
+    systemPromptSections: [
+      TODO_SYSTEM_PROMPT,
+      WEB_TOOLS_SYSTEM_PROMPT,
+      MEMORY_SYSTEM_PROMPT,
+      PLAN_SYSTEM_PROMPT,
+      BROWSER_TOOLS_SYSTEM_PROMPT,
+      TIDEPOOL_SYSTEM_PROMPT,
+      SESSION_TOOLS_SYSTEM_PROMPT,
+      IMAGE_TOOLS_SYSTEM_PROMPT,
+      EXPLORE_SYSTEM_PROMPT,
+      GOOGLE_TOOLS_SYSTEM_PROMPT,
+      GITHUB_TOOLS_SYSTEM_PROMPT,
+      OBSIDIAN_SYSTEM_PROMPT,
+      SKILLS_SYSTEM_PROMPT,
+      TRIGGERS_SYSTEM_PROMPT,
+      LLM_TASK_SYSTEM_PROMPT,
+      SUMMARIZE_SYSTEM_PROMPT,
+      HEALTHCHECK_SYSTEM_PROMPT,
+    ],
     session,
-    ...(streamingPref !== undefined ? { enableStreaming: streamingPref === true } : {}),
+    ...(streamingPref !== undefined
+      ? { enableStreaming: streamingPref === true }
+      : {}),
     getSession: () => session,
     debug: config.debug === true || Deno.env.get("TRIGGERFISH_DEBUG") === "1",
     visionProvider,
@@ -1374,13 +1529,15 @@ async function runStart(): Promise<void> {
     const telegramAdapter = createTelegramChannel({
       botToken: telegramConfig.botToken,
       ownerId: telegramConfig.ownerId,
-      classification: (telegramConfig.classification ?? "PUBLIC") as ClassificationLevel,
+      classification:
+        (telegramConfig.classification ?? "PUBLIC") as ClassificationLevel,
     });
 
     await chatSession.registerChannel("telegram", {
       adapter: telegramAdapter,
       channelName: "Telegram",
-      classification: (telegramConfig.classification ?? "PUBLIC") as ClassificationLevel,
+      classification:
+        (telegramConfig.classification ?? "PUBLIC") as ClassificationLevel,
       userClassifications: telegramConfig.user_classifications,
       respondToUnclassified: telegramConfig.respond_to_unclassified,
     });
@@ -1401,10 +1558,13 @@ async function runStart(): Promise<void> {
       if (msg.content === "/clear" && msg.isOwner !== false) {
         chatSession.clear();
         telegramAdapter.clearChat(msg.sessionId ?? "")
-          .then(() => telegramAdapter.send({
-            content: "Session cleared. Your context and taint level have been reset to PUBLIC.\n\nWhat would you like to do?",
-            sessionId: msg.sessionId,
-          }))
+          .then(() =>
+            telegramAdapter.send({
+              content:
+                "Session cleared. Your context and taint level have been reset to PUBLIC.\n\nWhat would you like to do?",
+              sessionId: msg.sessionId,
+            })
+          )
           .then(() => notificationService.flushPending("owner" as UserId))
           .catch((err) => console.error("Telegram clear error:", err));
         return;
@@ -1415,19 +1575,26 @@ async function runStart(): Promise<void> {
       if (msg.isOwner !== false) {
         const sendEvent = buildSendEvent(telegramAdapter, "Telegram", msg);
         chatSession.processMessage(msg.content, sendEvent)
-          .catch((err) => console.error("Telegram message processing error:", err));
+          .catch((err) =>
+            console.error("Telegram message processing error:", err)
+          );
       } else {
         chatSession.handleChannelMessage(msg, "telegram")
-          .catch((err) => console.error("Telegram message processing error:", err));
+          .catch((err) =>
+            console.error("Telegram message processing error:", err)
+          );
       }
     });
 
     // Register Telegram for notification delivery
-    const ownerChatId = telegramConfig.ownerId ? `telegram-${telegramConfig.ownerId}` : undefined;
+    const ownerChatId = telegramConfig.ownerId
+      ? `telegram-${telegramConfig.ownerId}`
+      : undefined;
     if (ownerChatId) {
       notificationService.registerChannel({
         name: "telegram",
-        send: (msg) => telegramAdapter.send({ content: msg, sessionId: ownerChatId }),
+        send: (msg) =>
+          telegramAdapter.send({ content: msg, sessionId: ownerChatId }),
       });
     }
 
@@ -1436,7 +1603,8 @@ async function runStart(): Promise<void> {
     // Register Telegram adapter for agent tool access (message, channels_list)
     channelAdapters.set("telegram", {
       adapter: telegramAdapter,
-      classification: (telegramConfig.classification ?? "PUBLIC") as ClassificationLevel,
+      classification:
+        (telegramConfig.classification ?? "PUBLIC") as ClassificationLevel,
       name: "Telegram",
     });
 
@@ -1459,7 +1627,9 @@ async function runStart(): Promise<void> {
 
   if (signalConfig?.endpoint && signalConfig?.account) {
     // Parse endpoint to check if signal-cli daemon is running
-    const endpointMatch = signalConfig.endpoint.match(/^tcp:\/\/([^:]+):(\d+)$/);
+    const endpointMatch = signalConfig.endpoint.match(
+      /^tcp:\/\/([^:]+):(\d+)$/,
+    );
     if (endpointMatch) {
       const [, tcpHost, tcpPortStr] = endpointMatch;
       const tcpPort = parseInt(tcpPortStr, 10);
@@ -1470,16 +1640,26 @@ async function runStart(): Promise<void> {
         const cliCheck = await checkSignalCli();
         if (cliCheck.ok) {
           const runtimeJavaHome = resolveJavaHome() ?? undefined;
-          const daemonResult = startDaemon(signalConfig.account, tcpHost, tcpPort, cliCheck.value.path, runtimeJavaHome);
+          const daemonResult = startDaemon(
+            signalConfig.account,
+            tcpHost,
+            tcpPort,
+            cliCheck.value.path,
+            runtimeJavaHome,
+          );
           if (daemonResult.ok) {
             const ready = await waitForDaemon(tcpHost, tcpPort);
             if (ready) {
               console.log("  signal-cli daemon started");
             } else {
-              console.error("  signal-cli daemon started but not reachable within 60s");
+              console.error(
+                "  signal-cli daemon started but not reachable within 60s",
+              );
             }
           } else {
-            console.error(`  Failed to start signal-cli daemon: ${daemonResult.error}`);
+            console.error(
+              `  Failed to start signal-cli daemon: ${daemonResult.error}`,
+            );
           }
         } else {
           console.error("  signal-cli not found — cannot auto-start daemon");
@@ -1491,19 +1671,33 @@ async function runStart(): Promise<void> {
       endpoint: signalConfig.endpoint,
       account: signalConfig.account,
       ownerPhone: signalConfig.ownerPhone,
-      classification: (signalConfig.classification ?? "PUBLIC") as ClassificationLevel,
-      defaultGroupMode: (signalConfig.defaultGroupMode ?? "always") as "always" | "mentioned-only" | "owner-only",
-      groups: signalConfig.groups as Record<string, { readonly mode: "always" | "mentioned-only" | "owner-only"; readonly classification?: ClassificationLevel }> | undefined,
+      classification:
+        (signalConfig.classification ?? "PUBLIC") as ClassificationLevel,
+      defaultGroupMode: (signalConfig.defaultGroupMode ?? "always") as
+        | "always"
+        | "mentioned-only"
+        | "owner-only",
+      groups: signalConfig.groups as
+        | Record<
+          string,
+          {
+            readonly mode: "always" | "mentioned-only" | "owner-only";
+            readonly classification?: ClassificationLevel;
+          }
+        >
+        | undefined,
     });
 
     await chatSession.registerChannel("signal", {
       adapter: signalAdapter,
       channelName: "Signal",
-      classification: (signalConfig.classification ?? "PUBLIC") as ClassificationLevel,
+      classification:
+        (signalConfig.classification ?? "PUBLIC") as ClassificationLevel,
       userClassifications: signalConfig.user_classifications,
       respondToUnclassified: signalConfig.respond_to_unclassified,
       pairing: signalConfig.pairing,
-      pairingClassification: (signalConfig.pairing_classification ?? "INTERNAL") as ClassificationLevel,
+      pairingClassification: (signalConfig.pairing_classification ??
+        "INTERNAL") as ClassificationLevel,
     });
 
     signalAdapter.onMessage((msg) => {
@@ -1516,10 +1710,11 @@ async function runStart(): Promise<void> {
     if (signalConfig.ownerPhone) {
       notificationService.registerChannel({
         name: "signal",
-        send: (notifMsg) => signalAdapter.send({
-          content: notifMsg,
-          sessionId: `signal-${signalConfig.ownerPhone}`,
-        }),
+        send: (notifMsg) =>
+          signalAdapter.send({
+            content: notifMsg,
+            sessionId: `signal-${signalConfig.ownerPhone}`,
+          }),
       });
     }
 
@@ -1529,13 +1724,18 @@ async function runStart(): Promise<void> {
       // Register Signal adapter for agent tool access (message, channels_list)
       channelAdapters.set("signal", {
         adapter: signalAdapter,
-        classification: (signalConfig.classification ?? "PUBLIC") as ClassificationLevel,
+        classification:
+          (signalConfig.classification ?? "PUBLIC") as ClassificationLevel,
         name: "Signal",
       });
 
       console.log("  Signal channel connected");
     } catch (err) {
-      console.error(`  Signal channel failed to connect: ${err instanceof Error ? err.message : String(err)}`);
+      console.error(
+        `  Signal channel failed to connect: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 
@@ -1638,7 +1838,8 @@ async function promptChannelConfig(
         message: "Bot token (from @BotFather)",
       });
       const ownerId = await Input.prompt({
-        message: "Your Telegram user ID (numeric, message @getmyid_bot for your ID number)",
+        message:
+          "Your Telegram user ID (numeric, message @getmyid_bot for your ID number)",
       });
       config.ownerId = parseInt(ownerId, 10) || 0;
       config.classification = await Select.prompt({
@@ -1796,7 +1997,9 @@ async function promptChannelConfig(
         signalJavaHome = resolveJavaHome() ?? undefined;
       } else {
         // Not found — offer to download
-        console.log("  signal-cli not found on PATH or in ~/.triggerfish/bin/\n");
+        console.log(
+          "  signal-cli not found on PATH or in ~/.triggerfish/bin/\n",
+        );
         const installIt = await Confirm.prompt({
           message: "Download and install signal-cli?",
           default: true,
@@ -1834,7 +2037,10 @@ async function promptChannelConfig(
       const setupMode = await Select.prompt({
         message: "Device setup",
         options: [
-          { name: "Link to existing Signal account (scan QR with phone)", value: "link" },
+          {
+            name: "Link to existing Signal account (scan QR with phone)",
+            value: "link",
+          },
           { name: "Already linked / manual setup", value: "skip" },
         ],
         default: "link",
@@ -1845,13 +2051,21 @@ async function promptChannelConfig(
 
       if (setupMode === "link") {
         console.log("\nStarting device link...");
-        console.log("Open Signal on your phone: Settings > Linked Devices > Link New Device\n");
+        console.log(
+          "Open Signal on your phone: Settings > Linked Devices > Link New Device\n",
+        );
 
-        const linkResult = await startLinkProcess("Triggerfish", signalCliPath, signalJavaHome);
+        const linkResult = await startLinkProcess(
+          "Triggerfish",
+          signalCliPath,
+          signalJavaHome,
+        );
 
         if (!linkResult.ok) {
           console.error(`  Link failed: ${linkResult.error}`);
-          console.error(`  You can link manually: ${signalCliPath} link -n Triggerfish`);
+          console.error(
+            `  You can link manually: ${signalCliPath} link -n Triggerfish`,
+          );
           Deno.exit(1);
         }
 
@@ -1872,7 +2086,9 @@ async function promptChannelConfig(
       // Step 4: Start daemon or detect existing
       const alreadyRunning = await isDaemonRunning(tcpHost, tcpPort);
       if (alreadyRunning) {
-        console.log(`  signal-cli daemon already running on ${tcpHost}:${tcpPort}`);
+        console.log(
+          `  signal-cli daemon already running on ${tcpHost}:${tcpPort}`,
+        );
       } else {
         const startIt = await Confirm.prompt({
           message: `Start signal-cli daemon on tcp://${tcpHost}:${tcpPort}?`,
@@ -1880,22 +2096,36 @@ async function promptChannelConfig(
         });
         if (startIt) {
           console.log("  Starting signal-cli daemon...");
-          const daemonResult = startDaemon(config.account as string, tcpHost, tcpPort, signalCliPath, signalJavaHome);
+          const daemonResult = startDaemon(
+            config.account as string,
+            tcpHost,
+            tcpPort,
+            signalCliPath,
+            signalJavaHome,
+          );
           if (!daemonResult.ok) {
             console.error(`  Failed: ${daemonResult.error}`);
-            console.error(`  Start manually: ${signalCliPath} -a ${config.account} daemon --tcp localhost:7583`);
+            console.error(
+              `  Start manually: ${signalCliPath} -a ${config.account} daemon --tcp localhost:7583`,
+            );
           } else {
             const ready = await waitForDaemon(tcpHost, tcpPort);
             if (ready) {
               console.log("  Daemon is running.");
             } else {
-              console.error("  Daemon started but not reachable yet. It may still be initializing.");
-              console.error(`  Check: ${signalCliPath} -a ${config.account} daemon --tcp localhost:7583`);
+              console.error(
+                "  Daemon started but not reachable yet. It may still be initializing.",
+              );
+              console.error(
+                `  Check: ${signalCliPath} -a ${config.account} daemon --tcp localhost:7583`,
+              );
             }
           }
         } else {
           console.log("\n  Start it manually before running Triggerfish:");
-          console.log(`  ${signalCliPath} -a ${config.account} daemon --tcp ${tcpHost}:${tcpPort}\n`);
+          console.log(
+            `  ${signalCliPath} -a ${config.account} daemon --tcp ${tcpHost}:${tcpPort}\n`,
+          );
         }
       }
 
@@ -1903,14 +2133,21 @@ async function promptChannelConfig(
 
       // Step 5: Policy config
       const enablePairing = await Confirm.prompt({
-        message: "Enable pairing mode? (new contacts must send a one-time code before chatting)",
+        message:
+          "Enable pairing mode? (new contacts must send a one-time code before chatting)",
         default: false,
       });
       if (enablePairing) {
         config.pairing = true;
-        console.log("\n  Pairing mode: new contacts must send a 6-digit code to start chatting.");
-        console.log("  Generate codes at runtime: ask your agent \"generate a pairing code for Signal\"");
-        console.log("  Codes expire after 5 minutes and can only be used once.\n");
+        console.log(
+          "\n  Pairing mode: new contacts must send a 6-digit code to start chatting.",
+        );
+        console.log(
+          '  Generate codes at runtime: ask your agent "generate a pairing code for Signal"',
+        );
+        console.log(
+          "  Codes expire after 5 minutes and can only be used once.\n",
+        );
       }
       config.defaultGroupMode = await Select.prompt({
         message: "Default group chat mode",
@@ -1952,16 +2189,15 @@ async function promptPluginConfig(
           continue;
         }
         // Expand ~ to home directory
-        if (vaultPath.startsWith("~")) {
-          const home = Deno.env.get("HOME") ?? "";
-          vaultPath = home + vaultPath.slice(1);
-        }
+        vaultPath = expandTilde(vaultPath);
         // Validate .obsidian/ marker
         try {
-          await Deno.stat(`${vaultPath}/.obsidian`);
+          await Deno.stat(join(vaultPath, ".obsidian"));
           break;
         } catch {
-          console.log(`  Not a valid Obsidian vault (no .obsidian/ folder found at ${vaultPath})`);
+          console.log(
+            `  Not a valid Obsidian vault (no .obsidian/ folder found at ${vaultPath})`,
+          );
           console.log("  Please enter the root folder of your Obsidian vault.");
         }
       }
@@ -2026,7 +2262,9 @@ function getNestedValue(
   // deno-lint-ignore no-explicit-any
   let current: any = obj;
   for (const part of parts) {
-    if (current === undefined || current === null || typeof current !== "object") {
+    if (
+      current === undefined || current === null || typeof current !== "object"
+    ) {
       return undefined;
     }
     current = current[part];
@@ -2070,13 +2308,15 @@ async function runConfigSet(
   setNestedValue(parsed, key, value);
 
   const yaml = stringifyYaml(parsed);
-  const content = `# Triggerfish Configuration\n# Generated by triggerfish dive\n\n${yaml}`;
+  const content =
+    `# Triggerfish Configuration\n# Generated by triggerfish dive\n\n${yaml}`;
   await Deno.writeTextFile(configPath, content);
 
   // Mask secrets in output
-  const display = key.includes("key") || key.includes("secret") || key.includes("token")
-    ? `${String(rawValue).slice(0, 4)}...${String(rawValue).slice(-4)}`
-    : String(value);
+  const display =
+    key.includes("key") || key.includes("secret") || key.includes("token")
+      ? `${String(rawValue).slice(0, 4)}...${String(rawValue).slice(-4)}`
+      : String(value);
 
   console.log(`\n  ${key} = ${display}\n`);
 }
@@ -2111,9 +2351,10 @@ function runConfigGet(
     console.log(`\n  ${key} is not set\n`);
   } else {
     // Mask secrets in output
-    const display = key.includes("key") || key.includes("secret") || key.includes("token")
-      ? `${String(value).slice(0, 4)}...${String(value).slice(-4)}`
-      : String(value);
+    const display =
+      key.includes("key") || key.includes("secret") || key.includes("token")
+        ? `${String(value).slice(0, 4)}...${String(value).slice(-4)}`
+        : String(value);
     console.log(`\n  ${key} = ${display}\n`);
   }
 }
@@ -2303,7 +2544,8 @@ async function runConfigAddChannel(
 
   // Write back
   const yaml = stringifyYaml(parsed);
-  const content = `# Triggerfish Configuration\n# Generated by triggerfish dive\n\n${yaml}`;
+  const content =
+    `# Triggerfish Configuration\n# Generated by triggerfish dive\n\n${yaml}`;
   await Deno.writeTextFile(configPath, content);
 
   console.log(`\n✓ ${channelType} added to triggerfish.yaml`);
@@ -2401,7 +2643,8 @@ async function runConfigAddPlugin(
 
   // Write back
   const yaml = stringifyYaml(parsed);
-  const content = `# Triggerfish Configuration\n# Generated by triggerfish dive\n\n${yaml}`;
+  const content =
+    `# Triggerfish Configuration\n# Generated by triggerfish dive\n\n${yaml}`;
   await Deno.writeTextFile(configPath, content);
 
   console.log(`\n✓ ${pluginType} plugin added to triggerfish.yaml`);
@@ -2550,8 +2793,6 @@ async function runUpdate(): Promise<void> {
   }
 }
 
-
-
 /** Tool definitions for the agent. */
 function getToolDefinitions(): readonly ToolDefinition[] {
   return [
@@ -2574,55 +2815,112 @@ function getToolDefinitions(): readonly ToolDefinition[] {
       name: "read_file",
       description: "Read the contents of a file at an absolute path.",
       parameters: {
-        path: { type: "string", description: "Absolute file path to read", required: true },
+        path: {
+          type: "string",
+          description: "Absolute file path to read",
+          required: true,
+        },
       },
     },
     {
       name: "write_file",
       description: "Write content to a file at a workspace-relative path.",
       parameters: {
-        path: { type: "string", description: "Relative path in the workspace", required: true },
-        content: { type: "string", description: "File content to write", required: true },
+        path: {
+          type: "string",
+          description: "Relative path in the workspace",
+          required: true,
+        },
+        content: {
+          type: "string",
+          description: "File content to write",
+          required: true,
+        },
       },
     },
     {
       name: "list_directory",
       description: "List files and directories at a given absolute path.",
       parameters: {
-        path: { type: "string", description: "Absolute directory path to list", required: true },
+        path: {
+          type: "string",
+          description: "Absolute directory path to list",
+          required: true,
+        },
       },
     },
     {
       name: "run_command",
       description: "Run a shell command in the agent workspace directory.",
       parameters: {
-        command: { type: "string", description: "Shell command to execute", required: true },
+        command: {
+          type: "string",
+          description: "Shell command to execute",
+          required: true,
+        },
       },
     },
     {
       name: "search_files",
-      description: "Search for files matching a glob pattern, or search file contents with grep.",
+      description:
+        "Search for files matching a glob pattern, or search file contents with grep.",
       parameters: {
-        path: { type: "string", description: "Directory to search in", required: true },
-        pattern: { type: "string", description: "Glob pattern for file names, or text/regex to search within files", required: true },
-        content_search: { type: "boolean", description: "If true, search file contents instead of file names", required: false },
+        path: {
+          type: "string",
+          description: "Directory to search in",
+          required: true,
+        },
+        pattern: {
+          type: "string",
+          description:
+            "Glob pattern for file names, or text/regex to search within files",
+          required: true,
+        },
+        content_search: {
+          type: "boolean",
+          description: "If true, search file contents instead of file names",
+          required: false,
+        },
       },
     },
     {
       name: "edit_file",
-      description: "Replace a unique string in a file. old_text must appear exactly once in the file.",
+      description:
+        "Replace a unique string in a file. old_text must appear exactly once in the file.",
       parameters: {
-        path: { type: "string", description: "Absolute file path to edit", required: true },
-        old_text: { type: "string", description: "Exact text to find (must be unique in file)", required: true },
-        new_text: { type: "string", description: "Replacement text", required: true },
+        path: {
+          type: "string",
+          description: "Absolute file path to edit",
+          required: true,
+        },
+        old_text: {
+          type: "string",
+          description: "Exact text to find (must be unique in file)",
+          required: true,
+        },
+        new_text: {
+          type: "string",
+          description: "Replacement text",
+          required: true,
+        },
       },
     },
     {
       name: "subagent",
-      description: "Spawn a sub-agent for an autonomous multi-step task. Returns the result when complete.",
+      description:
+        "Spawn a sub-agent for an autonomous multi-step task. Returns the result when complete.",
       parameters: {
-        task: { type: "string", description: "What the sub-agent should accomplish", required: true },
-        tools: { type: "string", description: "Comma-separated tool whitelist (default: read-only tools)", required: false },
+        task: {
+          type: "string",
+          description: "What the sub-agent should accomplish",
+          required: true,
+        },
+        tools: {
+          type: "string",
+          description:
+            "Comma-separated tool whitelist (default: read-only tools)",
+          required: false,
+        },
       },
     },
     {
@@ -2632,30 +2930,54 @@ function getToolDefinitions(): readonly ToolDefinition[] {
     },
     {
       name: "cron_create",
-      description: "Create a scheduled cron job. The task runs on the given cron schedule.",
+      description:
+        "Create a scheduled cron job. The task runs on the given cron schedule.",
       parameters: {
-        expression: { type: "string", description: "5-field cron expression (e.g. '0 9 * * *' for 9am daily)", required: true },
-        task: { type: "string", description: "The task/prompt to execute on each trigger", required: true },
-        classification: { type: "string", description: "Classification ceiling: PUBLIC, INTERNAL, CONFIDENTIAL, or RESTRICTED", required: false },
+        expression: {
+          type: "string",
+          description:
+            "5-field cron expression (e.g. '0 9 * * *' for 9am daily)",
+          required: true,
+        },
+        task: {
+          type: "string",
+          description: "The task/prompt to execute on each trigger",
+          required: true,
+        },
+        classification: {
+          type: "string",
+          description:
+            "Classification ceiling: PUBLIC, INTERNAL, CONFIDENTIAL, or RESTRICTED",
+          required: false,
+        },
       },
     },
     {
       name: "cron_list",
-      description: "List all registered cron jobs with their schedules and status.",
+      description:
+        "List all registered cron jobs with their schedules and status.",
       parameters: {},
     },
     {
       name: "cron_delete",
       description: "Delete a cron job by its ID.",
       parameters: {
-        job_id: { type: "string", description: "The UUID of the cron job to delete", required: true },
+        job_id: {
+          type: "string",
+          description: "The UUID of the cron job to delete",
+          required: true,
+        },
       },
     },
     {
       name: "cron_history",
       description: "Show recent execution history for a cron job.",
       parameters: {
-        job_id: { type: "string", description: "The UUID of the cron job", required: true },
+        job_id: {
+          type: "string",
+          description: "The UUID of the cron job",
+          required: true,
+        },
       },
     },
   ];
@@ -2668,20 +2990,59 @@ interface ToolExecutorOptions {
   readonly todoManager?: TodoManager;
   readonly searchProvider?: SearchProvider;
   readonly webFetcher?: WebFetcher;
-  readonly memoryExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
-  readonly planExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
-  readonly browserExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
-  readonly tidepoolExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly memoryExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
+  readonly planExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
+  readonly browserExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
+  readonly tidepoolExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
   readonly providerRegistry?: LlmProviderRegistry;
-  readonly sessionExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
-  readonly imageExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
-  readonly exploreExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
-  readonly googleExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
-  readonly githubExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
-  readonly obsidianExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
-  readonly llmTaskExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
-  readonly summarizeExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
-  readonly healthcheckExecutor?: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  readonly sessionExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
+  readonly imageExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
+  readonly exploreExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
+  readonly googleExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
+  readonly githubExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
+  readonly obsidianExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
+  readonly llmTaskExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
+  readonly summarizeExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
+  readonly healthcheckExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
   readonly subagentFactory?: (task: string, tools?: string) => Promise<string>;
 }
 
@@ -2695,11 +3056,16 @@ interface ToolExecutorOptions {
  */
 function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
   const { execTools, cronManager, searchProvider, webFetcher } = opts;
-  const todoExecutor = opts.todoManager ? createTodoToolExecutor(opts.todoManager) : null;
+  const todoExecutor = opts.todoManager
+    ? createTodoToolExecutor(opts.todoManager)
+    : null;
   const webExecutor = createWebToolExecutor(searchProvider, webFetcher);
 
   // Inner dispatch — routes tool calls to the appropriate handler.
-  const dispatch = async (name: string, input: Record<string, unknown>): Promise<string> => {
+  const dispatch = async (
+    name: string,
+    input: Record<string, unknown>,
+  ): Promise<string> => {
     // Try todo tools first (returns null if not a todo tool)
     if (todoExecutor) {
       const todoResult = await todoExecutor(name, input);
@@ -2798,7 +3164,9 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
           const content = await Deno.readTextFile(path);
           return content;
         } catch (err) {
-          return `Error reading file: ${err instanceof Error ? err.message : String(err)}`;
+          return `Error reading file: ${
+            err instanceof Error ? err.message : String(err)
+          }`;
         }
       }
 
@@ -2830,7 +3198,9 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
           }
           return entries.length > 0 ? entries.join("\n") : "(empty directory)";
         } catch (err) {
-          return `Error listing directory: ${err instanceof Error ? err.message : String(err)}`;
+          return `Error listing directory: ${
+            err instanceof Error ? err.message : String(err)
+          }`;
         }
       }
 
@@ -2845,7 +3215,9 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
         const parts: string[] = [];
         if (out.stdout) parts.push(out.stdout);
         if (out.stderr) parts.push(`[stderr] ${out.stderr}`);
-        parts.push(`[exit code: ${out.exitCode}, ${Math.round(out.duration)}ms]`);
+        parts.push(
+          `[exit code: ${out.exitCode}, ${Math.round(out.duration)}ms]`,
+        );
         return parts.join("\n");
       }
 
@@ -2879,10 +3251,14 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
             });
             const output = await proc.output();
             const stdout = new TextDecoder().decode(output.stdout).trim();
-            return stdout.length > 0 ? stdout : "No files found matching pattern.";
+            return stdout.length > 0
+              ? stdout
+              : "No files found matching pattern.";
           }
         } catch (err) {
-          return `Error searching: ${err instanceof Error ? err.message : String(err)}`;
+          return `Error searching: ${
+            err instanceof Error ? err.message : String(err)
+          }`;
         }
       }
 
@@ -2912,7 +3288,9 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
           await Deno.writeTextFile(path, updated);
           return `Edited ${path} (${updated.length} bytes written)`;
         } catch (err) {
-          return `Error editing file: ${err instanceof Error ? err.message : String(err)}`;
+          return `Error editing file: ${
+            err instanceof Error ? err.message : String(err)
+          }`;
         }
       }
 
@@ -2924,11 +3302,15 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
         if (typeof task !== "string" || task.length === 0) {
           return "Error: subagent requires a non-empty 'task' argument (string).";
         }
-        const toolsArg = typeof input.tools === "string" ? input.tools : undefined;
+        const toolsArg = typeof input.tools === "string"
+          ? input.tools
+          : undefined;
         try {
           return await opts.subagentFactory(task, toolsArg);
         } catch (err) {
-          return `Error spawning sub-agent: ${err instanceof Error ? err.message : String(err)}`;
+          return `Error spawning sub-agent: ${
+            err instanceof Error ? err.message : String(err)
+          }`;
         }
       }
 
@@ -2939,12 +3321,15 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
         const defaultProvider = opts.providerRegistry.getDefault();
         return JSON.stringify({
           default: defaultProvider?.name ?? "none",
-          note: "Use 'llm_task' with 'model' parameter to target a specific provider.",
+          note:
+            "Use 'llm_task' with 'model' parameter to target a specific provider.",
         });
       }
 
       case "cron_create": {
-        if (!cronManager) return "Cron management is not available in this context.";
+        if (!cronManager) {
+          return "Cron management is not available in this context.";
+        }
         const expression = input.expression as string;
         const task = input.task as string;
         const classification = (input.classification as string) ?? "INTERNAL";
@@ -2959,7 +3344,9 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
       }
 
       case "cron_list": {
-        if (!cronManager) return "Cron management is not available in this context.";
+        if (!cronManager) {
+          return "Cron management is not available in this context.";
+        }
         const jobs = cronManager.list();
         if (jobs.length === 0) return "No cron jobs registered.";
         return jobs.map((j) =>
@@ -2968,19 +3355,27 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
       }
 
       case "cron_delete": {
-        if (!cronManager) return "Cron management is not available in this context.";
+        if (!cronManager) {
+          return "Cron management is not available in this context.";
+        }
         const jobId = input.job_id as string;
         const result = cronManager.delete(jobId);
-        return result.ok ? `Deleted cron job ${jobId}` : `Error: ${result.error}`;
+        return result.ok
+          ? `Deleted cron job ${jobId}`
+          : `Error: ${result.error}`;
       }
 
       case "cron_history": {
-        if (!cronManager) return "Cron management is not available in this context.";
+        if (!cronManager) {
+          return "Cron management is not available in this context.";
+        }
         const jobId = input.job_id as string;
         const hist = cronManager.history(jobId);
         if (hist.length === 0) return "No execution history for this job.";
         return hist.slice(-10).map((e) =>
-          `${e.executedAt.toISOString()} — ${e.success ? "SUCCESS" : "FAILED"}${e.error ? ` (${e.error})` : ""} [${Math.round(e.durationMs)}ms]`
+          `${e.executedAt.toISOString()} — ${e.success ? "SUCCESS" : "FAILED"}${
+            e.error ? ` (${e.error})` : ""
+          } [${Math.round(e.durationMs)}ms]`
         ).join("\n");
       }
 
@@ -3120,7 +3515,8 @@ async function runChat(): Promise<void> {
 
       if (evt.type === "compact_complete") {
         const saved = evt.tokensBefore - evt.tokensAfter;
-        const msg = `  Compacted: ${evt.messagesBefore} → ${evt.messagesAfter} messages (saved ~${saved} tokens)`;
+        const msg =
+          `  Compacted: ${evt.messagesBefore} → ${evt.messagesAfter} messages (saved ~${saved} tokens)`;
         if (isTty) {
           screen.stopSpinner();
           screen.writeOutput(msg);
@@ -3203,7 +3599,9 @@ async function runChat(): Promise<void> {
 
   // Print banner via screen manager
   screen.init();
-  screen.writeOutput(formatBanner(providerName, config.models.primary.model, ""));
+  screen.writeOutput(
+    formatBanner(providerName, config.models.primary.model, ""),
+  );
 
   // Create keypress reader and line editor
   const keypressReader = createKeypressReader();
@@ -3216,14 +3614,18 @@ async function runChat(): Promise<void> {
     keypressReader.stop();
     screen.cleanup();
     saveInputHistory(historyFilePath, inputHistory).catch(() => {});
-    try { ws.close(); } catch { /* already closed */ }
+    try {
+      ws.close();
+    } catch { /* already closed */ }
   }
 
   // Handle SIGINT (Ctrl+C from outside raw mode, e.g. kill signal)
   try {
     Deno.addSignalListener("SIGINT", () => {
       if (state.isProcessing) {
-        try { ws.send(JSON.stringify({ type: "cancel" })); } catch { /* ignore */ }
+        try {
+          ws.send(JSON.stringify({ type: "cancel" }));
+        } catch { /* ignore */ }
         screen.writeOutput(`  \x1b[33m⚠ Interrupted\x1b[0m`);
       } else {
         cleanup();
@@ -3255,7 +3657,9 @@ async function runChat(): Promise<void> {
   for await (const keypress of keypressReader) {
     // ─── Interrupt keys (work in any mode) ──────────────────
     if (keypress.key === "esc" && state.isProcessing) {
-      try { ws.send(JSON.stringify({ type: "cancel" })); } catch { /* ignore */ }
+      try {
+        ws.send(JSON.stringify({ type: "cancel" }));
+      } catch { /* ignore */ }
       screen.writeOutput(`  \x1b[33m⚠ Interrupted\x1b[0m`);
       continue;
     }
@@ -3268,8 +3672,12 @@ async function runChat(): Promise<void> {
           return;
         }
         lastCtrlCTime = now;
-        try { ws.send(JSON.stringify({ type: "cancel" })); } catch { /* ignore */ }
-        screen.writeOutput(`  \x1b[33m⚠ Interrupted (Ctrl+C again to exit)\x1b[0m`);
+        try {
+          ws.send(JSON.stringify({ type: "cancel" }));
+        } catch { /* ignore */ }
+        screen.writeOutput(
+          `  \x1b[33m⚠ Interrupted (Ctrl+C again to exit)\x1b[0m`,
+        );
       } else {
         cleanup();
         return;
@@ -3323,7 +3731,9 @@ async function runChat(): Promise<void> {
             ws.send(JSON.stringify({ type: "clear" }));
             screen.cleanup();
             screen.init();
-            screen.writeOutput(formatBanner(providerName, config.models.primary.model, ""));
+            screen.writeOutput(
+              formatBanner(providerName, config.models.primary.model, ""),
+            );
             screen.redrawInput(editor);
             break;
           }
@@ -3331,17 +3741,17 @@ async function runChat(): Promise<void> {
           if (text === "/help") {
             screen.writeOutput(
               "  Commands:\n" +
-              "    /quit, /exit, /q     — Exit chat\n" +
-              "    /clear               — Clear screen\n" +
-              "    /compact             — Summarize conversation history\n" +
-              "    /verbose             — Toggle tool display detail\n" +
-              "    /help                — Show this help\n" +
-              "    Ctrl+V               — Paste image from clipboard\n" +
-              "    Ctrl+O               — Toggle tool display mode\n" +
-              "    ESC                  — Interrupt current operation\n" +
-              "    Shift+Enter          — New line in message\n" +
-              "    Up/Down              — Navigate input history\n" +
-              "    Tab                  — Accept suggestion",
+                "    /quit, /exit, /q     — Exit chat\n" +
+                "    /clear               — Clear screen\n" +
+                "    /compact             — Summarize conversation history\n" +
+                "    /verbose             — Toggle tool display detail\n" +
+                "    /help                — Show this help\n" +
+                "    Ctrl+V               — Paste image from clipboard\n" +
+                "    Ctrl+O               — Toggle tool display mode\n" +
+                "    ESC                  — Interrupt current operation\n" +
+                "    Shift+Enter          — New line in message\n" +
+                "    Up/Down              — Navigate input history\n" +
+                "    Tab                  — Accept suggestion",
             );
             break;
           }
@@ -3372,7 +3782,9 @@ async function runChat(): Promise<void> {
           // Send message to daemon via WebSocket
           state.isProcessing = true;
           try {
-            ws.send(JSON.stringify({ type: "message", content: messageContent }));
+            ws.send(
+              JSON.stringify({ type: "message", content: messageContent }),
+            );
           } catch {
             screen.writeOutput(formatError("Lost connection to daemon"));
             state.isProcessing = false;
@@ -3382,7 +3794,9 @@ async function runChat(): Promise<void> {
         } else {
           // Processing mode — queue the message
           messageQueue.push(text);
-          screen.writeOutput(`  \x1b[2m(queued — will send after current response)\x1b[0m`);
+          screen.writeOutput(
+            `  \x1b[2m(queued — will send after current response)\x1b[0m`,
+          );
         }
 
         break;
@@ -3461,10 +3875,15 @@ async function runChat(): Promise<void> {
         // Paste image from clipboard
         const clipResult = await readClipboardImage();
         if (clipResult.ok) {
-          const img = imageBlock(clipResult.value.data, clipResult.value.mimeType);
+          const img = imageBlock(
+            clipResult.value.data,
+            clipResult.value.mimeType,
+          );
           pendingImages.push(img);
           const sizeKb = (clipResult.value.data.length / 1024).toFixed(1);
-          screen.setStatus(`Image pasted (${clipResult.value.mimeType}, ${sizeKb}KB) — will send with next message`);
+          screen.setStatus(
+            `Image pasted (${clipResult.value.mimeType}, ${sizeKb}KB) — will send with next message`,
+          );
           setTimeout(() => screen.clearStatus(), 3000);
         } else {
           screen.setStatus(clipResult.error);
@@ -3500,7 +3919,9 @@ async function runChat(): Promise<void> {
         while (cursor > 0 && text[cursor - 1] === " ") cursor--;
         // Delete to previous space
         while (cursor > 0 && text[cursor - 1] !== " ") cursor--;
-        editor = editor.setText(text.slice(0, cursor) + text.slice(editor.cursor));
+        editor = editor.setText(
+          text.slice(0, cursor) + text.slice(editor.cursor),
+        );
         screen.redrawInput(editor);
         break;
       }
@@ -3646,8 +4067,12 @@ async function runCron(
         const expression = flags.expression as string | undefined;
         const task = flags.task as string | undefined;
         if (!expression || !task) {
-          console.log('Usage: triggerfish cron add "<schedule>" <task description>');
-          console.log('Example: triggerfish cron add "0 9 * * *" morning briefing');
+          console.log(
+            'Usage: triggerfish cron add "<schedule>" <task description>',
+          );
+          console.log(
+            'Example: triggerfish cron add "0 9 * * *" morning briefing',
+          );
           Deno.exit(1);
         }
         const rawClassification = typeof flags.classification === "string"
@@ -3656,7 +4081,9 @@ async function runCron(
         const parsedLevel = parseClassification(rawClassification);
         if (!parsedLevel.ok) {
           console.log(`Invalid classification: ${rawClassification}`);
-          console.log("Valid levels: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED");
+          console.log(
+            "Valid levels: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED",
+          );
           Deno.exit(1);
         }
         const result = cronManager.create({
@@ -3682,7 +4109,9 @@ async function runCron(
         const jobs = cronManager.list();
         if (jobs.length === 0) {
           console.log("No cron jobs registered.");
-          console.log('\nCreate one with: triggerfish cron add "0 9 * * *" your task here');
+          console.log(
+            '\nCreate one with: triggerfish cron add "0 9 * * *" your task here',
+          );
           break;
         }
         console.log(`${jobs.length} cron job(s):\n`);
@@ -3733,7 +4162,9 @@ async function runCron(
           const status = e.success ? "OK" : "FAIL";
           const dur = Math.round(e.durationMs);
           const err = e.error ? ` — ${e.error}` : "";
-          console.log(`  ${e.executedAt.toISOString()}  ${status}  ${dur}ms${err}`);
+          console.log(
+            `  ${e.executedAt.toISOString()}  ${status}  ${dur}ms${err}`,
+          );
         }
         break;
       }
@@ -3803,30 +4234,36 @@ function createOAuthCallbackServer(): {
     rejectCode = reject;
   });
 
-  const server = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, (req) => {
-    const url = new URL(req.url);
-    const code = url.searchParams.get("code");
-    const error = url.searchParams.get("error");
+  const server = Deno.serve(
+    { hostname: "127.0.0.1", port: 0, onListen() {} },
+    (req) => {
+      const url = new URL(req.url);
+      const code = url.searchParams.get("code");
+      const error = url.searchParams.get("error");
 
-    if (error) {
-      rejectCode(new Error(`Google returned error: ${error}`));
-      return new Response("Authorization failed. You can close this window.", {
-        status: 400,
+      if (error) {
+        rejectCode(new Error(`Google returned error: ${error}`));
+        return new Response(
+          "Authorization failed. You can close this window.",
+          {
+            status: 400,
+            headers: { "Content-Type": "text/plain" },
+          },
+        );
+      }
+
+      if (code) {
+        resolveCode(code);
+        return new Response(OAUTH_SUCCESS_HTML, {
+          headers: { "Content-Type": "text/html" },
+        });
+      }
+
+      return new Response("Waiting for OAuth callback...", {
         headers: { "Content-Type": "text/plain" },
       });
-    }
-
-    if (code) {
-      resolveCode(code);
-      return new Response(OAUTH_SUCCESS_HTML, {
-        headers: { "Content-Type": "text/html" },
-      });
-    }
-
-    return new Response("Waiting for OAuth callback...", {
-      headers: { "Content-Type": "text/plain" },
-    });
-  });
+    },
+  );
 
   const addr = server.addr as Deno.NetAddr;
 
@@ -3905,11 +4342,15 @@ export async function performGoogleOAuth(
 
     if (result.ok) {
       console.log("\nGoogle account connected successfully.");
-      console.log("Your agent can now use Gmail, Calendar, Tasks, Drive, and Sheets.");
+      console.log(
+        "Your agent can now use Gmail, Calendar, Tasks, Drive, and Sheets.",
+      );
       return true;
     } else {
       console.log(`\nFailed to connect: ${result.error.message}`);
-      console.log("Please verify your Client ID and Client Secret, then try again.");
+      console.log(
+        "Please verify your Client ID and Client Secret, then try again.",
+      );
       return false;
     }
   } finally {
@@ -3923,28 +4364,42 @@ export async function performGoogleOAuth(
  */
 async function runConnectGoogle(): Promise<void> {
   console.log("Connect Google Workspace\n");
-  console.log("This will connect your Google account for Gmail, Calendar, Tasks, Drive, and Sheets.\n");
+  console.log(
+    "This will connect your Google account for Gmail, Calendar, Tasks, Drive, and Sheets.\n",
+  );
   console.log("You'll need OAuth2 credentials from Google Cloud Console.\n");
   console.log("  Quick setup:");
   console.log("    1. Go to https://console.cloud.google.com ");
   console.log("    2. Create a project (or select an existing one)");
   console.log('    3. Navigate to "APIs & Services" → "Credentials"');
-  console.log('    4. Click "+ CREATE CREDENTIALS" and select "OAuth client ID"');
+  console.log(
+    '    4. Click "+ CREATE CREDENTIALS" and select "OAuth client ID"',
+  );
   console.log("    5. If prompted, configure the OAuth consent screen first");
-  console.log("       IMPORTANT: Add yourself as a test user on the consent screen,");
-  console.log("       or you'll get \"Access blocked\" when authorizing.");
-  console.log("       Full walkthrough: https://triggerfish.dev/integrations/google-workspace");
-  console.log('    6. On the Create OAuth client ID screen, select "Desktop app" from');
+  console.log(
+    "       IMPORTANT: Add yourself as a test user on the consent screen,",
+  );
+  console.log('       or you\'ll get "Access blocked" when authorizing.');
+  console.log(
+    "       Full walkthrough: https://triggerfish.dev/integrations/google-workspace",
+  );
+  console.log(
+    '    6. On the Create OAuth client ID screen, select "Desktop app" from',
+  );
   console.log("       the Application type dropdown");
   console.log('    7. Name it "Triggerfish" (or anything you like)');
-  console.log("    8. Click Create, then copy the Client ID and Client Secret\n");
+  console.log(
+    "    8. Click Create, then copy the Client ID and Client Secret\n",
+  );
   console.log("  You'll also need to enable these APIs in your project:");
   console.log("    • Gmail API");
   console.log("    • Google Calendar API");
   console.log("    • Google Tasks API");
   console.log("    • Google Drive API");
   console.log("    • Google Sheets API");
-  console.log("  Enable them at: https://console.cloud.google.com/apis/library\n");
+  console.log(
+    "  Enable them at: https://console.cloud.google.com/apis/library\n",
+  );
   await performGoogleOAuth();
 }
 
@@ -3953,7 +4408,9 @@ async function runConnectGoogle(): Promise<void> {
  */
 async function runConnectGithub(): Promise<void> {
   console.log("Connect GitHub\n");
-  console.log("This will connect your GitHub account for repos, PRs, issues, and Actions.\n");
+  console.log(
+    "This will connect your GitHub account for repos, PRs, issues, and Actions.\n",
+  );
   console.log("You need a Personal Access Token (PAT) from GitHub.\n");
   console.log("  Quick setup:");
   console.log("    1. Go to https://github.com/settings/tokens?type=beta");
@@ -3975,7 +4432,9 @@ async function runConnectGithub(): Promise<void> {
 
   const trimmed = token.trim();
   if (!trimmed.startsWith("ghp_") && !trimmed.startsWith("github_pat_")) {
-    console.log("Warning: token doesn't look like a GitHub PAT (expected ghp_... or github_pat_...)");
+    console.log(
+      "Warning: token doesn't look like a GitHub PAT (expected ghp_... or github_pat_...)",
+    );
     console.log("Continuing anyway...\n");
   }
 
@@ -3991,14 +4450,26 @@ async function runConnectGithub(): Promise<void> {
     });
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({}));
-      console.log(`\nToken verification failed (${resp.status}): ${(body as Record<string, string>).message ?? "Unknown error"}`);
-      console.log("Check that your token is correct and has the required permissions.");
+      console.log(
+        `\nToken verification failed (${resp.status}): ${
+          (body as Record<string, string>).message ?? "Unknown error"
+        }`,
+      );
+      console.log(
+        "Check that your token is correct and has the required permissions.",
+      );
       return;
     }
     const user = await resp.json();
-    console.log(`\nAuthenticated as: ${(user as Record<string, string>).login}`);
+    console.log(
+      `\nAuthenticated as: ${(user as Record<string, string>).login}`,
+    );
   } catch (err: unknown) {
-    console.log(`\nCould not reach GitHub API: ${err instanceof Error ? err.message : String(err)}`);
+    console.log(
+      `\nCould not reach GitHub API: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
     console.log("Check your network connection and try again.");
     return;
   }
@@ -4011,7 +4482,9 @@ async function runConnectGithub(): Promise<void> {
     return;
   }
 
-  console.log("GitHub connected. Your agent can now use repos, PRs, issues, and Actions.");
+  console.log(
+    "GitHub connected. Your agent can now use repos, PRs, issues, and Actions.",
+  );
 }
 
 /**
@@ -4028,7 +4501,9 @@ async function runDisconnect(
       const hadTokens = await authManager.hasTokens();
       await authManager.clearTokens();
       if (hadTokens) {
-        console.log("Google account disconnected. Tokens removed from keychain.");
+        console.log(
+          "Google account disconnected. Tokens removed from keychain.",
+        );
       } else {
         console.log("No Google account was connected.");
       }

@@ -15,8 +15,10 @@
  */
 
 import { Checkbox, Confirm, Input, Select } from "@cliffy/prompt";
+import { join } from "@std/path";
 import { stringify as stringifyYaml } from "@std/yaml";
 
+import { expandTilde } from "../cli/paths.ts";
 import { verifyProvider } from "./verify.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -160,7 +162,9 @@ export function generateConfig(answers: WizardAnswers): string {
       provider: "brave",
       api_key: answers.searchApiKey,
     };
-  } else if (answers.searchProvider === "searxng" && answers.searxngUrl.length > 0) {
+  } else if (
+    answers.searchProvider === "searxng" && answers.searxngUrl.length > 0
+  ) {
     web["search"] = {
       provider: "searxng",
       endpoint: answers.searxngUrl,
@@ -188,7 +192,10 @@ export function generateConfig(answers: WizardAnswers): string {
   }
 
   // Build plugins section
-  if (answers.selectedPlugins.includes("obsidian") && answers.obsidianVaultPath.length > 0) {
+  if (
+    answers.selectedPlugins.includes("obsidian") &&
+    answers.obsidianVaultPath.length > 0
+  ) {
     config["plugins"] = {
       obsidian: {
         enabled: true,
@@ -256,10 +263,10 @@ function getToneGuidelines(tone: ToneChoice, customTone: string): string {
 export async function createDirectoryTree(baseDir: string): Promise<void> {
   const dirs = [
     baseDir,
-    `${baseDir}/workspace`,
-    `${baseDir}/skills`,
-    `${baseDir}/data`,
-    `${baseDir}/logs`,
+    join(baseDir, "workspace"),
+    join(baseDir, "skills"),
+    join(baseDir, "data"),
+    join(baseDir, "logs"),
   ];
   for (const dir of dirs) {
     await Deno.mkdir(dir, { recursive: true });
@@ -270,8 +277,8 @@ export async function createDirectoryTree(baseDir: string): Promise<void> {
 
 /** Run the full 9-step interactive dive wizard. */
 export async function runWizard(baseDir: string): Promise<DiveResult> {
-  const configPath = `${baseDir}/triggerfish.yaml`;
-  const spinePath = `${baseDir}/SPINE.md`;
+  const configPath = join(baseDir, "triggerfish.yaml");
+  const spinePath = join(baseDir, "SPINE.md");
 
   // Guard: interactive prompts require a TTY on stdin
   if (!Deno.stdin.isTerminal()) {
@@ -359,7 +366,8 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
   }
 
   // ── Verify provider connection ───────────────────────────────────────────
-  const shouldVerify = provider === "ollama" || provider === "lmstudio" || apiKey.length > 0;
+  const shouldVerify = provider === "ollama" || provider === "lmstudio" ||
+    apiKey.length > 0;
 
   if (shouldVerify) {
     let verified = false;
@@ -370,7 +378,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
         provider,
         apiKey,
         providerModel,
-        provider === "ollama" || provider === "lmstudio" ? localEndpoint : undefined,
+        provider === "ollama" || provider === "lmstudio"
+          ? localEndpoint
+          : undefined,
       );
 
       if (result.ok) {
@@ -408,9 +418,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
           });
         } else {
           apiKey = await Input.prompt({
-            message: provider === "anthropic"
-              ? "Anthropic API key"
-              : "API key",
+            message: provider === "anthropic" ? "Anthropic API key" : "API key",
           });
         }
       }
@@ -484,7 +492,8 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
       message: "Telegram bot token (from @BotFather)",
     });
     telegramOwnerId = await Input.prompt({
-      message: "Your Telegram user ID (numeric, message @getmyid_bot for your ID number)",
+      message:
+        "Your Telegram user ID (numeric, message @getmyid_bot for your ID number)",
     });
     if (telegramBotToken.length > 0) {
       console.log(
@@ -529,15 +538,14 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
         continue;
       }
       // Expand ~ to home directory
-      if (obsidianVaultPath.startsWith("~")) {
-        const home = Deno.env.get("HOME") ?? "";
-        obsidianVaultPath = home + obsidianVaultPath.slice(1);
-      }
+      obsidianVaultPath = expandTilde(obsidianVaultPath);
       try {
-        await Deno.stat(`${obsidianVaultPath}/.obsidian`);
+        await Deno.stat(join(obsidianVaultPath, ".obsidian"));
         break;
       } catch {
-        console.log(`  Not a valid Obsidian vault (no .obsidian/ folder found at ${obsidianVaultPath})`);
+        console.log(
+          `  Not a valid Obsidian vault (no .obsidian/ folder found at ${obsidianVaultPath})`,
+        );
         console.log("  Please enter the root folder of your Obsidian vault.");
       }
     }
@@ -552,7 +560,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
   }
 
   if (selectedPlugins.length === 0) {
-    console.log("  No plugins selected — add later with: triggerfish config add-plugin");
+    console.log(
+      "  No plugins selected — add later with: triggerfish config add-plugin",
+    );
   }
 
   console.log("");
@@ -563,27 +573,40 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
   console.log("");
 
   const connectGoogle = await Confirm.prompt({
-    message: "Connect a Google account for Gmail, Calendar, Tasks, Drive, and Sheets?",
+    message:
+      "Connect a Google account for Gmail, Calendar, Tasks, Drive, and Sheets?",
     default: false,
   });
 
   if (connectGoogle) {
     console.log("");
-    console.log("  To connect Google Workspace, you need OAuth2 credentials from Google Cloud Console.");
+    console.log(
+      "  To connect Google Workspace, you need OAuth2 credentials from Google Cloud Console.",
+    );
     console.log("");
     console.log("  Quick setup:");
     console.log("    1. Go to https://console.cloud.google.com ");
     console.log("    2. Create a project (or select an existing one)");
     console.log('    3. Navigate to "APIs & Services" → "Credentials"');
-    console.log('    4. Click "+ CREATE CREDENTIALS" and select "OAuth client ID"');
+    console.log(
+      '    4. Click "+ CREATE CREDENTIALS" and select "OAuth client ID"',
+    );
     console.log("    5. If prompted, configure the OAuth consent screen first");
-    console.log("       IMPORTANT: Add yourself as a test user on the consent screen,");
+    console.log(
+      "       IMPORTANT: Add yourself as a test user on the consent screen,",
+    );
     console.log('       or you\'ll get "Access blocked" when authorizing.');
-    console.log("       Full walkthrough: https://triggerfish.dev/integrations/google-workspace");
-    console.log('    6. On the Create OAuth client ID screen, select "Desktop app" from');
+    console.log(
+      "       Full walkthrough: https://triggerfish.dev/integrations/google-workspace",
+    );
+    console.log(
+      '    6. On the Create OAuth client ID screen, select "Desktop app" from',
+    );
     console.log("       the Application type dropdown");
     console.log('    7. Name it "Triggerfish" (or anything you like)');
-    console.log("    8. Click Create, then copy the Client ID and Client Secret");
+    console.log(
+      "    8. Click Create, then copy the Client ID and Client Secret",
+    );
     console.log("");
     console.log("  You also need to enable these APIs in your project:");
     console.log("    - Gmail API");
@@ -592,7 +615,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
     console.log("    - Google Drive API");
     console.log("    - Google Sheets API");
     console.log("");
-    console.log("  Enable them at: https://console.cloud.google.com/apis/library");
+    console.log(
+      "  Enable them at: https://console.cloud.google.com/apis/library",
+    );
     console.log("");
 
     const readyNow = await Confirm.prompt({
@@ -609,7 +634,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
         console.log("  → Google Workspace connected!");
       } else {
         console.log("");
-        console.log("  → Connection failed. Try again later with: triggerfish connect google");
+        console.log(
+          "  → Connection failed. Try again later with: triggerfish connect google",
+        );
       }
     } else {
       console.log("  → Connect later with: triggerfish connect google");
@@ -632,7 +659,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
   if (connectGitHub) {
     console.log("");
-    console.log("  To connect GitHub, you need a Personal Access Token (fine-grained).");
+    console.log(
+      "  To connect GitHub, you need a Personal Access Token (fine-grained).",
+    );
     console.log("");
     console.log("  Quick setup:");
     console.log("    1. Go to https://github.com/settings/tokens?type=beta");
@@ -675,13 +704,23 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
             const store = createKeychain();
             const storeResult = await store.setSecret("github-pat", trimmed);
             if (storeResult.ok) {
-              console.log(`  → GitHub connected as ${(user as Record<string, string>).login}!`);
+              console.log(
+                `  → GitHub connected as ${
+                  (user as Record<string, string>).login
+                }!`,
+              );
             } else {
-              console.log(`  → Token valid but failed to store: ${storeResult.error}`);
-              console.log("  → Try again later with: triggerfish connect github");
+              console.log(
+                `  → Token valid but failed to store: ${storeResult.error}`,
+              );
+              console.log(
+                "  → Try again later with: triggerfish connect github",
+              );
             }
           } else {
-            console.log("  → Token verification failed. Check permissions and try again.");
+            console.log(
+              "  → Token verification failed. Check permissions and try again.",
+            );
             console.log("  → Connect later with: triggerfish connect github");
           }
         } catch {
@@ -689,7 +728,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
           console.log("  → Connect later with: triggerfish connect github");
         }
       } else {
-        console.log("  → No token provided. Connect later with: triggerfish connect github");
+        console.log(
+          "  → No token provided. Connect later with: triggerfish connect github",
+        );
       }
     } else {
       console.log("  → Connect later with: triggerfish connect github");
@@ -727,7 +768,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
     if (searchApiKey.length > 0) {
       console.log("  ✓ API key saved to config");
     } else {
-      console.log("  → Skipped. Set later with: triggerfish config set web.search.api_key <key>");
+      console.log(
+        "  → Skipped. Set later with: triggerfish config set web.search.api_key <key>",
+      );
     }
   } else if (searchProvider === "searxng") {
     searxngUrl = await Input.prompt({

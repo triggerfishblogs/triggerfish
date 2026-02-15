@@ -8,6 +8,7 @@
  * @module
  */
 
+import { dirname } from "@std/path";
 import type { Result } from "../core/types/classification.ts";
 import type { SecretStore } from "./keychain.ts";
 
@@ -142,6 +143,7 @@ export function createFileSecretStore(
     } else {
       content = serializeEnvFile(data);
     }
+    Deno.mkdirSync(dirname(path), { recursive: true });
     Deno.writeTextFileSync(path, content);
 
     // Set restrictive permissions on Linux/macOS
