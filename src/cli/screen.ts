@@ -176,9 +176,27 @@ function createTtyScreenManager(): ScreenManager {
     }
   }
 
+  /** Calculate how many visual (wrapped) rows a logical line occupies. */
+  function visualRowCount(lineText: string, prefixLen: number): number {
+    const usable = size.columns - prefixLen;
+    if (usable <= 0) return 1;
+    if (lineText.length === 0) return 1;
+    return Math.ceil((prefixLen + lineText.length) / size.columns) || 1;
+  }
+
   function drawInputBar(editor: LineEditor): void {
     const lines = editor.text.split("\n");
-    const newLineCount = Math.max(lines.length, 1);
+    const prefixLen = 4; // "  ❯ " or "  · "
+
+    // Count total visual rows including wrapping
+    let totalVisualRows = 0;
+    const visualRowsPerLine: number[] = [];
+    for (const line of lines) {
+      const vr = visualRowCount(line, prefixLen);
+      visualRowsPerLine.push(vr);
+      totalVisualRows += vr;
+    }
+    const newLineCount = Math.max(totalVisualRows, 1);
 
     // If line count changed, adjust scroll region
     if (newLineCount !== inputLineCount) {
@@ -189,17 +207,22 @@ function createTtyScreenManager(): ScreenManager {
     const firstInputRow = size.rows - inputLineCount;
     const prefix = `  ${CYAN}${BOLD}❯${RESET} `;
     const contPrefix = `  ${DIM}·${RESET} `;
-    const prefixLen = 4; // "  ❯ " or "  · "
 
     rawWrite(HIDE_CURSOR);
 
-    // Draw each input line
+    // Draw each input line, clearing all visual rows it occupies
+    let row = firstInputRow;
     for (let i = 0; i < lines.length; i++) {
-      const row = firstInputRow + i;
+      // Clear all visual rows this logical line occupies
+      for (let vr = 0; vr < visualRowsPerLine[i]; vr++) {
+        rawWrite(moveTo(row + vr, 1));
+        rawWrite(CLEAR_LINE);
+      }
+      // Write prefix and text at the first visual row — terminal handles wrapping
       rawWrite(moveTo(row, 1));
-      rawWrite(CLEAR_LINE);
       rawWrite(i === 0 ? prefix : contPrefix);
       rawWrite(lines[i]);
+      row += visualRowsPerLine[i];
     }
 
     // Draw ghost suggestion on the last line (only for single-line input)
@@ -207,17 +230,27 @@ function createTtyScreenManager(): ScreenManager {
       rawWrite(`${DIM}${editor.suggestion}${RESET}`);
     }
 
-    // Calculate cursor position within multi-line text
+    // Calculate cursor position accounting for line wrapping
     const textBeforeCursor = editor.text.slice(0, editor.cursor);
     const cursorLines = textBeforeCursor.split("\n");
     const cursorLineIdx = cursorLines.length - 1;
     const cursorColInLine = cursorLines[cursorLineIdx].length;
 
-    const cursorRow = firstInputRow + cursorLineIdx;
-    const cursorCol = prefixLen + cursorColInLine + 1;
-    knownCursorRow = cursorRow;
+    // Sum visual rows of all logical lines before the cursor's line
+    let cursorVisualRow = firstInputRow;
+    for (let i = 0; i < cursorLineIdx; i++) {
+      cursorVisualRow += visualRowsPerLine[i];
+    }
+
+    // Add wrapped rows within the cursor's logical line
+    const absoluteCol = prefixLen + cursorColInLine;
+    const wrappedRowsBeforeCursor = Math.floor(absoluteCol / size.columns);
+    cursorVisualRow += wrappedRowsBeforeCursor;
+    const cursorCol = (absoluteCol % size.columns) + 1;
+
+    knownCursorRow = cursorVisualRow;
     knownCursorCol = cursorCol;
-    rawWrite(moveTo(cursorRow, cursorCol));
+    rawWrite(moveTo(cursorVisualRow, cursorCol));
     rawWrite(SHOW_CURSOR);
   }
 
