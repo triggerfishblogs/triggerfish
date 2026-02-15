@@ -71,6 +71,46 @@ interface BraveApiResponse {
 }
 
 /**
+ * Wrap a SearchProvider with minimum-interval rate limiting.
+ *
+ * Concurrent calls are serialized — each waits for the previous to start
+ * before beginning its own delay. This prevents bursts from exceeding the
+ * configured requests-per-second limit.
+ *
+ * @param provider - The underlying search provider to wrap
+ * @param requestsPerSecond - Maximum requests per second (e.g. 1 for Brave free tier)
+ * @returns A rate-limited SearchProvider with the same interface
+ */
+export function createRateLimitedSearchProvider(
+  provider: SearchProvider,
+  requestsPerSecond: number,
+): SearchProvider {
+  const minIntervalMs = 1000 / requestsPerSecond;
+  let lastRequestTime = 0;
+  let pending: Promise<unknown> = Promise.resolve();
+
+  return {
+    id: provider.id,
+    name: provider.name,
+    search(query, options) {
+      const job = pending.then(async () => {
+        const now = Date.now();
+        const elapsed = now - lastRequestTime;
+        if (elapsed < minIntervalMs) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, minIntervalMs - elapsed)
+          );
+        }
+        lastRequestTime = Date.now();
+        return provider.search(query, options);
+      });
+      pending = job.catch(() => {}); // errors don't break the chain
+      return job;
+    },
+  };
+}
+
+/**
  * Create a Brave Search provider.
  *
  * @param config - API key and optional endpoint override

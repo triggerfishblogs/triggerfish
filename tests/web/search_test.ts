@@ -4,9 +4,10 @@
  * Tests SearchProvider interface contract, Brave provider request
  * construction, error handling, and option propagation.
  */
-import { assertEquals } from "@std/assert";
-import { createBraveSearchProvider } from "../../src/web/search.ts";
-import type { SearchProvider } from "../../src/web/search.ts";
+import { assertEquals, assertGreaterOrEqual, assertLessOrEqual } from "@std/assert";
+import { createBraveSearchProvider, createRateLimitedSearchProvider } from "../../src/web/search.ts";
+import type { SearchProvider, SearchResult } from "../../src/web/search.ts";
+import type { Result } from "../../src/core/types/classification.ts";
 
 // ─── SearchProvider Interface Contract ──────────────────────────────────────
 
@@ -218,4 +219,146 @@ Deno.test("BraveSearchProvider: clamps maxResults to 20", async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+// ─── Rate-Limited Search Provider ────────────────────────────────────────────
+
+/** Create a fake SearchProvider that records call timestamps. */
+function createMockProvider(): SearchProvider & { readonly calls: number[] } {
+  const calls: number[] = [];
+  return {
+    id: "mock",
+    name: "Mock Search",
+    calls,
+    async search(
+      query: string,
+    ): Promise<Result<SearchResult, string>> {
+      calls.push(Date.now());
+      return {
+        ok: true,
+        value: { query, results: [] },
+      };
+    },
+  };
+}
+
+/** Create a mock that rejects on specific call indices. */
+function createFailingMockProvider(
+  failOnIndices: ReadonlySet<number>,
+): SearchProvider & { readonly calls: number[] } {
+  const calls: number[] = [];
+  let callIndex = 0;
+  return {
+    id: "failing-mock",
+    name: "Failing Mock",
+    calls,
+    async search(
+      query: string,
+    ): Promise<Result<SearchResult, string>> {
+      const idx = callIndex++;
+      calls.push(Date.now());
+      if (failOnIndices.has(idx)) {
+        throw new Error(`Simulated failure on call ${idx}`);
+      }
+      return { ok: true, value: { query, results: [] } };
+    },
+  };
+}
+
+Deno.test("RateLimitedSearchProvider: preserves id and name", () => {
+  const mock = createMockProvider();
+  const limited = createRateLimitedSearchProvider(mock, 10);
+  assertEquals(limited.id, "mock");
+  assertEquals(limited.name, "Mock Search");
+});
+
+Deno.test("RateLimitedSearchProvider: single call passes through immediately", async () => {
+  const mock = createMockProvider();
+  const limited = createRateLimitedSearchProvider(mock, 1);
+  const before = Date.now();
+  const result = await limited.search("hello");
+  const elapsed = Date.now() - before;
+
+  assertEquals(result.ok, true);
+  assertEquals(mock.calls.length, 1);
+  assertLessOrEqual(elapsed, 100); // should be near-instant
+});
+
+Deno.test("RateLimitedSearchProvider: two rapid calls enforce interval", async () => {
+  const mock = createMockProvider();
+  // 2 req/s → 500ms interval
+  const limited = createRateLimitedSearchProvider(mock, 2);
+
+  const p1 = limited.search("first");
+  const p2 = limited.search("second");
+  await Promise.all([p1, p2]);
+
+  assertEquals(mock.calls.length, 2);
+  const gap = mock.calls[1] - mock.calls[0];
+  assertGreaterOrEqual(gap, 450); // 500ms - tolerance
+});
+
+Deno.test("RateLimitedSearchProvider: three concurrent calls serialize with correct spacing", async () => {
+  const mock = createMockProvider();
+  // 4 req/s → 250ms interval
+  const limited = createRateLimitedSearchProvider(mock, 4);
+
+  const p1 = limited.search("a");
+  const p2 = limited.search("b");
+  const p3 = limited.search("c");
+  await Promise.all([p1, p2, p3]);
+
+  assertEquals(mock.calls.length, 3);
+  const gap1 = mock.calls[1] - mock.calls[0];
+  const gap2 = mock.calls[2] - mock.calls[1];
+  assertGreaterOrEqual(gap1, 200); // 250ms - tolerance
+  assertGreaterOrEqual(gap2, 200);
+});
+
+Deno.test("RateLimitedSearchProvider: preserves search results", async () => {
+  const mock: SearchProvider = {
+    id: "custom",
+    name: "Custom",
+    async search(query) {
+      return {
+        ok: true,
+        value: {
+          query,
+          results: [{ title: "Result", url: "https://example.com", snippet: "Snippet" }],
+          totalEstimate: 42,
+        },
+      };
+    },
+  };
+
+  const limited = createRateLimitedSearchProvider(mock, 10);
+  const result = await limited.search("test");
+  assertEquals(result.ok, true);
+  if (result.ok) {
+    assertEquals(result.value.query, "test");
+    assertEquals(result.value.results.length, 1);
+    assertEquals(result.value.results[0].title, "Result");
+    assertEquals(result.value.totalEstimate, 42);
+  }
+});
+
+Deno.test("RateLimitedSearchProvider: error in one call does not break subsequent calls", async () => {
+  const mock = createFailingMockProvider(new Set([1])); // second call throws
+  const limited = createRateLimitedSearchProvider(mock, 100); // fast rate for test speed
+
+  const r1 = await limited.search("first");
+  assertEquals(r1.ok, true);
+
+  let threw = false;
+  try {
+    await limited.search("second");
+  } catch {
+    threw = true;
+  }
+  assertEquals(threw, true);
+
+  // Third call should still work — queue not broken
+  const r3 = await limited.search("third");
+  assertEquals(r3.ok, true);
+  assertEquals(mock.calls.length, 3);
 });
