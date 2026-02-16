@@ -26,6 +26,8 @@ import type {
 import type { LlmProviderRegistry, LlmProvider } from "../agent/llm.ts";
 import type { PlanManager } from "../agent/plan.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
+import type { PathClassifier } from "../core/security/path_classification.ts";
+import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
 import type { SessionState } from "../core/types/session.ts";
 import { updateTaint } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
@@ -146,6 +148,10 @@ export interface ChatSessionConfig {
   readonly pairingService?: PairingService;
   /** Return the current owner session state (tracks taint reassignment in main.ts). */
   readonly getSession?: () => SessionState;
+  /** Path classifier for filesystem tool security checks. */
+  readonly pathClassifier?: PathClassifier;
+  /** Tool floor registry for minimum classification enforcement. */
+  readonly toolFloorRegistry?: ToolFloorRegistry;
 }
 
 /** Internal per-channel state tracked by ChatSession. */
@@ -321,6 +327,8 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     escalateTaint,
     isOwnerSession: () => activeSessionId === ownerSessionId,
     getNonOwnerCeiling: () => activeNonOwnerCeiling,
+    pathClassifier: config.pathClassifier,
+    toolFloorRegistry: config.toolFloorRegistry,
   });
 
   const initialSession = config.session;

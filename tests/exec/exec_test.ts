@@ -2,11 +2,13 @@
  * Phase 11: Agent Execution Environment
  * Tests MUST FAIL until exec tools, workspace, and runner are implemented.
  * Tests write/run/read cycle, isolation, denied commands.
+ * Extended with classification-partitioned workspace tests.
  */
 import { assertEquals, assertExists, assert, assertStringIncludes } from "@std/assert";
 import { createWorkspace } from "../../src/exec/workspace.ts";
 import { createExecTools } from "../../src/exec/tools.ts";
 import { createExecRunner } from "../../src/exec/runner.ts";
+import { join } from "@std/path";
 
 Deno.test("Workspace: creates isolated directory for agent", async () => {
   const ws = await createWorkspace({ agentId: "test-agent", basePath: await Deno.makeTempDir() });
@@ -126,6 +128,166 @@ Deno.test("ExecRunner: logs all executions", async () => {
     assert(history.length >= 1);
     assertExists(history[0].command);
     assertExists(history[0].timestamp);
+  } finally {
+    await ws.destroy();
+  }
+});
+
+// --- Classification-partitioned workspace tests (spec §10.2, scenarios 8-12) ---
+
+Deno.test("Workspace: creates classification directories on init", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test-cls", basePath: tmpDir });
+  try {
+    // Check classification directories exist
+    assertExists(ws.internalPath);
+    assertExists(ws.confidentialPath);
+    assertExists(ws.restrictedPath);
+
+    const internalStat = await Deno.stat(ws.internalPath);
+    assert(internalStat.isDirectory);
+
+    const confidentialStat = await Deno.stat(ws.confidentialPath);
+    assert(confidentialStat.isDirectory);
+
+    const restrictedStat = await Deno.stat(ws.restrictedPath);
+    assert(restrictedStat.isDirectory);
+
+    // Check subdirectories exist
+    for (const dir of [ws.internalPath, ws.confidentialPath, ws.restrictedPath]) {
+      for (const sub of ["scratch", "integrations", "skills"]) {
+        const stat = await Deno.stat(join(dir, sub));
+        assert(stat.isDirectory);
+      }
+    }
+  } finally {
+    await ws.destroy();
+  }
+});
+
+// Scenario 8: CONFIDENTIAL session writes to workspace → file lands in confidential/
+Deno.test("Workspace: CONFIDENTIAL write resolves bare path to confidential/", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  try {
+    const result = ws.resolveClassifiedPath("notes.txt", "CONFIDENTIAL", "write");
+    assertEquals(result.ok, true);
+    if (result.ok) {
+      assertStringIncludes(result.value.absolutePath, "confidential");
+      assertEquals(result.value.classification, "CONFIDENTIAL");
+    }
+  } finally {
+    await ws.destroy();
+  }
+});
+
+// Scenario 9: INTERNAL session reads confidential/report.txt → BLOCKED
+Deno.test("Workspace: INTERNAL session cannot read confidential/ path", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  try {
+    const result = ws.resolveClassifiedPath("confidential/report.txt", "INTERNAL", "read");
+    assertEquals(result.ok, false);
+  } finally {
+    await ws.destroy();
+  }
+});
+
+// Scenario 10: CONFIDENTIAL session reads internal/notes.txt → ALLOWED (read-down)
+Deno.test("Workspace: CONFIDENTIAL session can read internal/ path (read-down)", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  try {
+    const result = ws.resolveClassifiedPath("internal/notes.txt", "CONFIDENTIAL", "read");
+    assertEquals(result.ok, true);
+    if (result.ok) {
+      assertEquals(result.value.classification, "INTERNAL");
+    }
+  } finally {
+    await ws.destroy();
+  }
+});
+
+// Scenario 11: RESTRICTED session writes to internal/ explicitly → BLOCKED (write-down)
+Deno.test("Workspace: RESTRICTED session cannot write to internal/ (write-down)", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  try {
+    const result = ws.resolveClassifiedPath("internal/notes.txt", "RESTRICTED", "write");
+    assertEquals(result.ok, false);
+  } finally {
+    await ws.destroy();
+  }
+});
+
+// Scenario 12: CONFIDENTIAL session writes to bare path → resolves to confidential/
+Deno.test("Workspace: bare path write resolves to session taint directory", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  try {
+    const result = ws.resolveClassifiedPath("notes.txt", "CONFIDENTIAL", "write");
+    assertEquals(result.ok, true);
+    if (result.ok) {
+      assertStringIncludes(result.value.absolutePath, "confidential");
+      assert(result.value.absolutePath.endsWith("notes.txt"));
+    }
+  } finally {
+    await ws.destroy();
+  }
+});
+
+Deno.test("Workspace: path traversal blocked in resolveClassifiedPath", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  try {
+    const result = ws.resolveClassifiedPath("../../etc/passwd", "CONFIDENTIAL", "read");
+    assertEquals(result.ok, false);
+  } finally {
+    await ws.destroy();
+  }
+});
+
+Deno.test("Workspace: PUBLIC session cannot access workspace files", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  try {
+    const result = ws.resolveClassifiedPath("internal/notes.txt", "PUBLIC", "read");
+    assertEquals(result.ok, false);
+  } finally {
+    await ws.destroy();
+  }
+});
+
+Deno.test("Workspace: bare read searches readable levels for existing file", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  try {
+    // Write a file at INTERNAL level
+    const encoder = new TextEncoder();
+    await Deno.writeFile(join(ws.internalPath, "shared.txt"), encoder.encode("internal data"));
+
+    // CONFIDENTIAL session reads bare path "shared.txt" → finds it at INTERNAL
+    const result = ws.resolveClassifiedPath("shared.txt", "CONFIDENTIAL", "read");
+    assertEquals(result.ok, true);
+    if (result.ok) {
+      assertEquals(result.value.classification, "INTERNAL");
+      assertStringIncludes(result.value.absolutePath, "internal");
+    }
+  } finally {
+    await ws.destroy();
+  }
+});
+
+Deno.test("ExecTools: cwdOverride sets command working directory", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  const tools = createExecTools(ws, { cwdOverride: ws.confidentialPath });
+  try {
+    const result = await tools.run("pwd");
+    assertEquals(result.ok, true);
+    if (result.ok) {
+      assertStringIncludes(result.value.stdout.trim(), "confidential");
+    }
   } finally {
     await ws.destroy();
   }

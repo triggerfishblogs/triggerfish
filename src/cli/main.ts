@@ -65,6 +65,8 @@ import type { ChannelId, SessionId, UserId } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import { createWorkspace } from "../exec/workspace.ts";
 import { createExecTools } from "../exec/tools.ts";
+import { createPathClassifier } from "../core/security/path_classification.ts";
+import { createToolFloorRegistry } from "../core/security/tool_floors.ts";
 import {
   createEventHandler,
   createScreenEventHandler,
@@ -316,6 +318,13 @@ export interface TriggerFishConfig {
       readonly exclude_folders?: readonly string[];
       readonly folder_classifications?: Readonly<Record<string, string>>;
     };
+  };
+  readonly filesystem?: {
+    readonly default?: string;
+    readonly paths?: Readonly<Record<string, string>>;
+  };
+  readonly tools?: {
+    readonly floors?: Readonly<Record<string, string>>;
   };
   readonly debug?: boolean;
 }
@@ -839,6 +848,9 @@ function createOrchestratorFactory(
   cronManager?: CronManager,
   storage?: StorageProvider,
   enhancedSessionManager?: EnhancedSessionManager,
+  fsPathMap?: ReadonlyMap<string, ClassificationLevel>,
+  fsDefault?: ClassificationLevel,
+  schedulerToolFloorRegistry?: import("../core/security/tool_floors.ts").ToolFloorRegistry,
 ): OrchestratorFactory {
   const registry = createProviderRegistry();
   loadProvidersFromConfig(config.models as ModelsConfig, registry);
@@ -1008,6 +1020,17 @@ function createOrchestratorFactory(
         }),
         providerRegistry: registry,
       });
+      // Build path classifier for scheduler workspace
+      const schedulerPathClassifier = fsPathMap ? createPathClassifier(
+        { paths: fsPathMap, defaultClassification: fsDefault ?? "CONFIDENTIAL" },
+        {
+          basePath: workspace.path,
+          internalPath: workspace.internalPath,
+          confidentialPath: workspace.confidentialPath,
+          restrictedPath: workspace.restrictedPath,
+        },
+      ) : undefined;
+
       const orchestrator = createOrchestrator({
         hookRunner,
         providerRegistry: registry,
@@ -1032,6 +1055,8 @@ function createOrchestratorFactory(
         escalateTaint: (level: ClassificationLevel, reason: string) => {
           session = updateTaint(session, level, reason);
         },
+        pathClassifier: schedulerPathClassifier,
+        toolFloorRegistry: schedulerToolFloorRegistry,
       });
 
       return { orchestrator, session };
@@ -1189,6 +1214,43 @@ async function runStart(): Promise<void> {
   // Notification service for scheduler output delivery
   const notificationService = createNotificationService(storage);
 
+  // Build filesystem security config (shared by factory and main session)
+  const fsConfig = config.filesystem;
+  const fsPathMap = new Map<string, ClassificationLevel>();
+  if (fsConfig?.paths) {
+    for (const [pattern, level] of Object.entries(fsConfig.paths)) {
+      const parsed = parseClassification(level);
+      if (parsed.ok) {
+        fsPathMap.set(pattern, parsed.value);
+      }
+    }
+  }
+  let fsDefault: ClassificationLevel = "CONFIDENTIAL";
+  if (fsConfig?.default) {
+    const parsed = parseClassification(fsConfig.default);
+    if (parsed.ok) {
+      fsDefault = parsed.value;
+    }
+  }
+
+  if (fsDefault === "PUBLIC") {
+    console.warn("  WARNING: filesystem.default is set to PUBLIC — all unmapped paths are accessible at PUBLIC level");
+  }
+
+  // Build tool floor registry from enterprise overrides (shared by factory and main session)
+  const toolFloorOverrides = new Map<string, ClassificationLevel>();
+  if (config.tools?.floors) {
+    for (const [tool, level] of Object.entries(config.tools.floors)) {
+      const parsed = parseClassification(level);
+      if (parsed.ok) {
+        toolFloorOverrides.set(tool, parsed.value);
+      }
+    }
+  }
+  const toolFloorRegistry = createToolFloorRegistry(
+    toolFloorOverrides.size > 0 ? toolFloorOverrides : undefined,
+  );
+
   // Build orchestrator factory and scheduler with persistent cron manager
   const factory = createOrchestratorFactory(
     config,
@@ -1196,6 +1258,9 @@ async function runStart(): Promise<void> {
     cronManager,
     storage,
     enhancedSessionManager,
+    fsPathMap,
+    fsDefault,
+    toolFloorRegistry,
   );
   const schedulerConfig = buildSchedulerConfig(config, baseDir, factory);
   const schedulerService = createSchedulerService({
@@ -1236,6 +1301,17 @@ async function runStart(): Promise<void> {
   } catch {
     // SPINE.md may not exist yet — not fatal
   }
+
+  // Build path classifier for main workspace
+  const pathClassifier = createPathClassifier(
+    { paths: fsPathMap, defaultClassification: fsDefault },
+    {
+      basePath: mainWorkspace.path,
+      internalPath: mainWorkspace.internalPath,
+      confidentialPath: mainWorkspace.confidentialPath,
+      restrictedPath: mainWorkspace.restrictedPath,
+    },
+  );
 
   const execTools = createExecTools(mainWorkspace);
   const todoManager = createTodoManager({ storage, agentId: "main-session" });
@@ -1512,6 +1588,8 @@ async function runStart(): Promise<void> {
       browserHandle.close().catch(() => {});
     },
     pairingService,
+    pathClassifier,
+    toolFloorRegistry,
   });
 
   console.log("  Main session created");

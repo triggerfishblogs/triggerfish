@@ -14,6 +14,12 @@
 
 import type { Result, ClassificationLevel } from "../core/types/classification.ts";
 import { canFlowTo } from "../core/types/classification.ts";
+import type { PathClassifier } from "../core/security/path_classification.ts";
+import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
+import {
+  FILESYSTEM_READ_TOOLS,
+  FILESYSTEM_WRITE_TOOLS,
+} from "../core/security/constants.ts";
 import type { SessionState, SessionId } from "../core/types/session.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { LlmProviderRegistry, LlmMessage, LlmProvider } from "./llm.ts";
@@ -104,6 +110,10 @@ export interface OrchestratorConfig {
    * Non-null = tools classified at or below this level are allowed.
    */
   readonly getNonOwnerCeiling?: () => ClassificationLevel | null;
+  /** Path classifier for filesystem tool security checks. */
+  readonly pathClassifier?: PathClassifier;
+  /** Tool floor registry for minimum classification enforcement. */
+  readonly toolFloorRegistry?: ToolFloorRegistry;
 }
 
 /** Config shape for building integration/plugin/channel classification map. */
@@ -248,6 +258,108 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   const { hookRunner, providerRegistry, spinePath } = config;
   const tools = config.tools ?? [];
   const rawToolExecutor = config.toolExecutor;
+
+  /** Computed security context returned alongside the hook input. */
+  interface SecurityContext {
+    readonly toolName: string;
+    readonly toolFloor: ClassificationLevel | null;
+    readonly pathClassification: ClassificationLevel | null;
+    readonly operationType: "read" | "write" | null;
+    readonly isOwner: boolean;
+    readonly nonOwnerCeiling: ClassificationLevel | null;
+    readonly pathParam: string | null;
+  }
+
+  /**
+   * Build enriched hook input for PRE_TOOL_CALL with security context.
+   * Returns both the hook input (flat Record for policy engine) and
+   * the structured SecurityContext (for building detailed error messages).
+   */
+  function buildSecurityHookInput(
+    call: ParsedToolCall,
+  ): { input: Record<string, unknown>; ctx: SecurityContext } {
+    const hookInput: Record<string, unknown> = { tool_call: call };
+    const toolName = call.name;
+
+    // Tool floor
+    const toolFloor = config.toolFloorRegistry?.getFloor(toolName) ?? null;
+    if (toolFloor !== null) {
+      hookInput.tool_floor = toolFloor;
+    }
+
+    // Path classification for filesystem tools
+    let pathClassification: ClassificationLevel | null = null;
+    let operationType: "read" | "write" | null = null;
+    const pathParam = (call.args.path ?? call.args.directory ?? call.args.search_path) as string | null ?? null;
+    if (config.pathClassifier && pathParam) {
+      if (FILESYSTEM_READ_TOOLS.has(toolName)) {
+        const result = config.pathClassifier.classify(pathParam);
+        pathClassification = result.classification;
+        operationType = "read";
+        hookInput.path_classification = result.classification;
+        hookInput.operation_type = "read";
+      } else if (FILESYSTEM_WRITE_TOOLS.has(toolName)) {
+        const result = config.pathClassifier.classify(pathParam);
+        pathClassification = result.classification;
+        operationType = "write";
+        hookInput.path_classification = result.classification;
+        hookInput.operation_type = "write";
+      }
+    }
+
+    // Identity context
+    const isOwner = config.isOwnerSession?.() ?? true;
+    hookInput.is_owner = isOwner;
+    const nonOwnerCeiling = config.getNonOwnerCeiling?.() ?? null;
+    if (nonOwnerCeiling !== null) {
+      hookInput.non_owner_ceiling = nonOwnerCeiling;
+    }
+
+    return {
+      input: hookInput,
+      ctx: { toolName, toolFloor, pathClassification, operationType, isOwner, nonOwnerCeiling, pathParam },
+    };
+  }
+
+  /**
+   * Build a detailed, actionable error message for a blocked tool call.
+   *
+   * Uses the ruleId from the policy engine to determine which security
+   * check failed, then includes the actual classification levels and
+   * remediation advice (e.g. /clear to reset session taint).
+   */
+  function formatBlockReason(
+    ruleId: string | null,
+    ctx: SecurityContext,
+    sessionTaint: ClassificationLevel,
+  ): string {
+    switch (ruleId) {
+      case "tool-floor-enforcement":
+        return `Error: "${ctx.toolName}" requires a minimum session taint of ${ctx.toolFloor}. ` +
+          `Your current session taint is ${sessionTaint}. ` +
+          `Access higher-classified data first to escalate your session taint, ` +
+          `or use a tool that doesn't require ${ctx.toolFloor} clearance.`;
+
+      case "path-write-down":
+        return `Error: Write-down blocked — your session taint is ${sessionTaint}, ` +
+          `but the target path${ctx.pathParam ? ` "${ctx.pathParam}"` : ""} is classified ${ctx.pathClassification}. ` +
+          `A ${sessionTaint}-tainted session cannot write to ${ctx.pathClassification}-level destinations. ` +
+          `Use /clear to reset your session context and taint before writing to ${ctx.pathClassification}-classified paths.`;
+
+      case "path-read-ceiling":
+        return `Error: Access denied — the path${ctx.pathParam ? ` "${ctx.pathParam}"` : ""} is classified ${ctx.pathClassification}, ` +
+          `which exceeds your session ceiling of ${ctx.nonOwnerCeiling}. ` +
+          `You do not have permission to access ${ctx.pathClassification}-classified resources.`;
+
+      case "no-write-down":
+        return `Error: Write-down blocked — your session taint is ${sessionTaint}, ` +
+          `which exceeds the target classification. ` +
+          `Use /clear to reset your session context and taint before outputting to lower-classified channels.`;
+
+      default:
+        return `Tool call blocked by policy: ${ruleId ?? "denied"}`;
+    }
+  }
 
   // Wrap tool executor with classification enforcement for integrations.
   // Only tools whose name matches a prefix in toolClassifications are gated.
@@ -695,12 +807,13 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
             resultText = planResult;
           } else {
             // Not a plan tool — fire PRE_TOOL_CALL hook then external executor
+            const { input: secInput, ctx: secCtx } = buildSecurityHookInput(call);
             const preToolResult = await hookRunner.run("PRE_TOOL_CALL", {
               session,
-              input: { tool_call: call },
+              input: secInput,
             });
             if (!preToolResult.allowed) {
-              resultText = `Tool call blocked by policy: ${preToolResult.message ?? "denied"}`;
+              resultText = formatBlockReason(preToolResult.ruleId, secCtx, session.taint);
               blocked = true;
             } else {
               resultText = await toolExecutor!(call.name, call.args);
@@ -708,12 +821,13 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           }
         } else {
           // No plan manager — original behavior
+          const { input: secInput2, ctx: secCtx2 } = buildSecurityHookInput(call);
           const preToolResult = await hookRunner.run("PRE_TOOL_CALL", {
             session,
-            input: { tool_call: call },
+            input: secInput2,
           });
           if (!preToolResult.allowed) {
-            resultText = `Tool call blocked by policy: ${preToolResult.message ?? "denied"}`;
+            resultText = formatBlockReason(preToolResult.ruleId, secCtx2, session.taint);
             blocked = true;
           } else {
             resultText = await toolExecutor!(call.name, call.args);

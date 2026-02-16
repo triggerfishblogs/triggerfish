@@ -42,6 +42,12 @@ export interface FileEntry {
   readonly isDirectory: boolean;
 }
 
+/** Options for creating execution tools. */
+export interface ExecToolsOptions {
+  /** Override CWD for command execution (e.g., session-taint workspace dir). */
+  readonly cwdOverride?: string;
+}
+
 /** Execution tools bound to a workspace. */
 export interface ExecTools {
   /** Write a file to the workspace. Path is relative to workspace root. */
@@ -75,8 +81,14 @@ function resolveWorkspacePath(
  *
  * All file operations are sandboxed to the workspace directory.
  * Path traversal attempts (e.g. `../../etc/passwd`) are blocked.
+ *
+ * @param workspace - The workspace to bind tools to
+ * @param options - Optional overrides (e.g., cwdOverride for taint-aware CWD)
  */
-export function createExecTools(workspace: Workspace): ExecTools {
+export function createExecTools(
+  workspace: Workspace,
+  options?: ExecToolsOptions,
+): ExecTools {
   return {
     async write(
       path: string,
@@ -137,7 +149,7 @@ export function createExecTools(workspace: Workspace): ExecTools {
         const start = performance.now();
         const proc = new Deno.Command("sh", {
           args: ["-c", command],
-          cwd: workspace.path,
+          cwd: options?.cwdOverride ?? workspace.path,
           stdout: "piped",
           stderr: "piped",
         });
