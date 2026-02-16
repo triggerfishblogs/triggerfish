@@ -600,7 +600,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
     );
     console.log('       or you\'ll get "Access blocked" when authorizing.');
     console.log(
-      "       Full walkthrough: https://triggerfish.dev/integrations/google-workspace",
+      "       Full walkthrough: https://trigger.fish/integrations/google-workspace.html#google-workspace",
     );
     console.log(
       '    6. On the Create OAuth client ID screen, select "Desktop app" from',
