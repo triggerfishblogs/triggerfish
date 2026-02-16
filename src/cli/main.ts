@@ -84,7 +84,7 @@ import {
 } from "./terminal.ts";
 import type { LineEditor } from "./terminal.ts";
 import { loadInputHistory, saveInputHistory } from "./history.ts";
-import { createScreenManager } from "./screen.ts";
+import { createScreenManager, taintColor } from "./screen.ts";
 import { createSchedulerService } from "../scheduler/service.ts";
 import type {
   OrchestratorFactory,
@@ -1679,6 +1679,7 @@ async function runStart(): Promise<void> {
     pathClassifier,
     domainClassifier,
     toolFloorRegistry,
+    primaryModelName: config.models.primary.model,
   });
 
   console.log("  Main session created");
@@ -3658,7 +3659,7 @@ async function runChat(): Promise<void> {
   function drainQueue(): void {
     if (messageQueue.length === 0) return;
     const next = messageQueue.shift()!;
-    screen.writeOutput(`  ${"\x1b[36m"}\x1b[1m❯\x1b[0m ${next}`);
+    screen.writeOutput(`  ${taintColor(screen.getTaint())}\x1b[1m❯\x1b[0m ${next}`);
     screen.writeOutput(`  \x1b[2m(queued)\x1b[0m`);
     screen.writeOutput("");
     state.isProcessing = true;
@@ -3912,7 +3913,7 @@ async function runChat(): Promise<void> {
         const displayText = text.includes("\n")
           ? text.split("\n").join(`\n  ${"\x1b[2m"}·\x1b[0m `)
           : text;
-        screen.writeOutput(`  \x1b[36m\x1b[1m❯\x1b[0m ${displayText}`);
+        screen.writeOutput(`  ${taintColor(screen.getTaint())}\x1b[1m❯\x1b[0m ${displayText}`);
         screen.writeOutput("");
 
         // Add to history and save

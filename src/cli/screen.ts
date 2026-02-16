@@ -52,7 +52,7 @@ const RED = "\x1b[31m";
 const ORANGE = "\x1b[38;5;208m";
 
 /** ANSI color code for a classification level. */
-function taintColor(level: ClassificationLevel): string {
+export function taintColor(level: ClassificationLevel): string {
   switch (level) {
     case "PUBLIC":
       return GREEN;
@@ -97,6 +97,8 @@ export interface ScreenManager {
   stopSpinner(): void;
   /** Set the current session taint level (updates separator colors). */
   setTaint(level: ClassificationLevel): void;
+  /** Get the current session taint level. */
+  getTaint(): ClassificationLevel;
   /** Handle terminal resize. */
   handleResize(): void;
   /** Restore terminal to normal mode. */
@@ -223,8 +225,21 @@ function createTtyScreenManager(): ScreenManager {
 
     // If line count changed, adjust scroll region
     if (newLineCount !== inputLineCount) {
+      const oldLineCount = inputLineCount;
       inputLineCount = newLineCount;
       setupScrollRegion();
+
+      // When the input bar shrinks, clear the old rows that are being
+      // released back into the scroll region so stale separator lines
+      // don't persist in the scrollback.
+      if (newLineCount < oldLineCount) {
+        const oldTopSepRow = size.rows - 1 - oldLineCount - 1;
+        const newTopSepRow = size.rows - 1 - newLineCount - 1;
+        for (let r = oldTopSepRow; r < newTopSepRow; r++) {
+          rawWrite(moveTo(r, 1));
+          rawWrite(CLEAR_LINE);
+        }
+      }
     }
 
     const color = taintColor(currentTaint);
@@ -403,6 +418,10 @@ function createTtyScreenManager(): ScreenManager {
       currentTaint = level;
     },
 
+    getTaint(): ClassificationLevel {
+      return currentTaint;
+    },
+
     setStatus(text: string): void {
       statusText = `${DIM}${text}`;
       drawStatusBar();
@@ -504,6 +523,10 @@ function createDumbScreenManager(): ScreenManager {
 
     setTaint(_level: ClassificationLevel): void {
       // No visual taint indicator in dumb mode
+    },
+
+    getTaint(): ClassificationLevel {
+      return "PUBLIC";
     },
 
     setStatus(_text: string): void {

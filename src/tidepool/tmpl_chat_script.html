@@ -13,8 +13,10 @@
   var inputBar = document.getElementById("input-bar");
 
   var TAINT_COLORS = { PUBLIC: "var(--green)", INTERNAL: "var(--yellow)", CONFIDENTIAL: "var(--orange)", RESTRICTED: "var(--red)" };
+  var currentTaint = "PUBLIC";
 
   function updateTaint(level) {
+    currentTaint = level;
     taintBadge.textContent = level;
     taintBadge.className = "taint-badge " + level.toLowerCase();
     inputBar.style.borderTopColor = TAINT_COLORS[level] || "var(--border)";
@@ -63,7 +65,7 @@
   function handleEvent(evt) {
     switch(evt.type) {
       case "connected":
-        providerInfo.textContent = evt.provider + " / " + evt.model;
+        providerInfo.textContent = evt.provider + ":" + evt.model;
         if (evt.taint) updateTaint(evt.taint);
         break;
       case "taint_changed":
@@ -72,7 +74,7 @@
       case "llm_start":
         if (!currentAssistantEl) {
           currentAssistantEl = addMessage("assistant", "");
-          currentAssistantEl.classList.add("thinking");
+          currentAssistantEl.classList.add("thinking", "taint-" + currentTaint.toLowerCase());
           currentAssistantEl.innerHTML = '<span class="thinking-label"><span class="thinking-spinner"></span> Thinking\u2026</span>';
           currentAssistantText = "";
         }
@@ -86,10 +88,15 @@
       case "response":
         if (currentAssistantEl) {
           currentAssistantEl.classList.remove("thinking");
+          // Update taint border to current level — escalation may have
+          // occurred mid-turn via tool results.
+          currentAssistantEl.className = currentAssistantEl.className.replace(/\btaint-\w+/g, "");
+          currentAssistantEl.classList.add("taint-" + currentTaint.toLowerCase());
           currentAssistantText = evt.text;
           currentAssistantEl.innerHTML = renderMarkdown(evt.text);
         } else {
-          addMessage("assistant", evt.text);
+          var fallbackEl = addMessage("assistant", evt.text);
+          fallbackEl.classList.add("taint-" + currentTaint.toLowerCase());
         }
         currentAssistantEl = null;
         currentAssistantText = "";
@@ -321,7 +328,8 @@
       return;
     }
 
-    addMessage("user", text);
+    var userEl = addMessage("user", text);
+    userEl.classList.add("taint-" + currentTaint.toLowerCase());
     var content;
     if (pendingImages.length > 0) {
       content = pendingImages.concat([{ type: "text", text: text }]);

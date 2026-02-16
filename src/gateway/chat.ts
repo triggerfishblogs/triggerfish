@@ -156,6 +156,8 @@ export interface ChatSessionConfig {
   readonly domainClassifier?: DomainClassifier;
   /** Tool floor registry for minimum classification enforcement. */
   readonly toolFloorRegistry?: ToolFloorRegistry;
+  /** Primary model identifier (e.g. "gpt-5.2-codex") for display. */
+  readonly primaryModelName?: string;
 }
 
 /** Internal per-channel state tracked by ChatSession. */
@@ -349,7 +351,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
   }
 
   const providerName = config.providerRegistry.getDefault()?.name ?? "unknown";
-  const modelName = config.providerRegistry.getDefault()?.name ?? "unknown";
+  const modelName = config.primaryModelName ?? config.providerRegistry.getDefault()?.name ?? "unknown";
 
   // Promise-chain mutex: each processMessage waits for the previous to finish
   let mutex: Promise<void> = Promise.resolve();
