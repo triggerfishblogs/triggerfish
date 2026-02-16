@@ -32,27 +32,42 @@ export function resolveSignalCliBinDir(): string {
 /**
  * Find signal-cli binary — check PATH first, then Triggerfish's managed bin dir.
  *
- * @returns The version string and resolved binary path, or an error.
+ * Returns the version string, resolved binary path, and optional JAVA_HOME
+ * (set when the managed JRE is needed for a JVM build).
+ *
+ * @returns The version string, resolved binary path, and optional javaHome.
  */
-export async function checkSignalCli(): Promise<Result<{ version: string; path: string }, string>> {
+export async function checkSignalCli(): Promise<Result<{ version: string; path: string; javaHome?: string }, string>> {
   const ext = Deno.build.os === "windows" ? ".bat" : "";
 
-  // 1. Check PATH
+  // 1. Check PATH (system-installed signal-cli, uses system java)
   const pathResult = await trySignalCli(`signal-cli${ext}`);
   if (pathResult.ok) return pathResult;
 
   // 2. Check managed install dir
   const binDir = resolveSignalCliBinDir();
 
-  // 2a. Check flat binary (native build extracts directly)
+  // 2a. Check flat binary (native build extracts directly — no Java needed)
   const flatResult = await trySignalCli(`${binDir}/signal-cli${ext}`);
   if (flatResult.ok) return flatResult;
 
   // 2b. Check nested directories (JVM build extracts to signal-cli-{version}/bin/)
+  //     JVM builds need JAVA_HOME — try with managed JRE first, then system java.
+  const managedJavaHome = resolveJavaHome();
+  const jvmEnv = managedJavaHome ? { JAVA_HOME: managedJavaHome } : undefined;
+
   try {
     for await (const entry of Deno.readDir(binDir)) {
       if (entry.isDirectory && entry.name.startsWith("signal-cli-")) {
         const candidate = `${binDir}/${entry.name}/bin/signal-cli${ext}`;
+        // Try with managed JRE (JAVA_HOME set)
+        if (jvmEnv) {
+          const result = await trySignalCli(candidate, jvmEnv);
+          if (result.ok) {
+            return { ok: true, value: { ...result.value, javaHome: managedJavaHome! } };
+          }
+        }
+        // Try without (system java on PATH)
         const result = await trySignalCli(candidate);
         if (result.ok) return result;
       }

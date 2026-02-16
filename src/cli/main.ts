@@ -211,7 +211,6 @@ import {
   fetchLatestVersion,
   isDaemonRunning,
   renderQrCode,
-  resolveJavaHome,
   startDaemon,
   startLinkProcess,
   waitForDaemon,
@@ -1807,13 +1806,12 @@ async function runStart(): Promise<void> {
         console.log("  signal-cli daemon not running, starting...");
         const cliCheck = await checkSignalCli();
         if (cliCheck.ok) {
-          const runtimeJavaHome = resolveJavaHome() ?? undefined;
           const daemonResult = startDaemon(
             signalConfig.account,
             tcpHost,
             tcpPort,
             cliCheck.value.path,
-            runtimeJavaHome,
+            cliCheck.value.javaHome,
           );
           if (daemonResult.ok) {
             const ready = await waitForDaemon(tcpHost, tcpPort);
@@ -2161,8 +2159,7 @@ async function promptChannelConfig(
       if (cliCheck.ok) {
         signalCliPath = cliCheck.value.path;
         console.log(`  Found: ${cliCheck.value.version} (${signalCliPath})`);
-        // If it's a JVM build, check for managed JRE
-        signalJavaHome = resolveJavaHome() ?? undefined;
+        signalJavaHome = cliCheck.value.javaHome;
       } else {
         // Not found — offer to download
         console.log(
