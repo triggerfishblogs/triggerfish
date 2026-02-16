@@ -58,3 +58,53 @@ export function resolveConfigPath(baseDir?: string): string {
   const base = baseDir ?? resolveBaseDir();
   return join(base, "triggerfish.yaml");
 }
+
+/** Maximum number of config backups to retain. */
+const MAX_CONFIG_BACKUPS = 10;
+
+/**
+ * Create a timestamped backup of triggerfish.yaml before modifying it.
+ *
+ * Backups are stored in `~/.triggerfish/backups/` with filenames like
+ * `triggerfish.yaml.2026-02-16T14-30-45Z`. Old backups beyond
+ * {@link MAX_CONFIG_BACKUPS} are pruned automatically.
+ *
+ * Silently no-ops if the config file doesn't exist yet.
+ *
+ * @param configPath - Absolute path to triggerfish.yaml
+ */
+export async function backupConfig(configPath: string): Promise<void> {
+  // Only back up if the file exists
+  try {
+    await Deno.stat(configPath);
+  } catch {
+    return;
+  }
+
+  const base = resolveBaseDir();
+  const backupDir = join(base, "backups");
+  await Deno.mkdir(backupDir, { recursive: true });
+
+  // Timestamp with colons replaced for filesystem safety
+  const ts = new Date().toISOString().replace(/:/g, "-");
+  const backupName = `triggerfish.yaml.${ts}`;
+  const backupPath = join(backupDir, backupName);
+
+  await Deno.copyFile(configPath, backupPath);
+
+  // Prune old backups beyond MAX_CONFIG_BACKUPS
+  const entries: string[] = [];
+  for await (const entry of Deno.readDir(backupDir)) {
+    if (entry.isFile && entry.name.startsWith("triggerfish.yaml.")) {
+      entries.push(entry.name);
+    }
+  }
+
+  entries.sort();
+  const excess = entries.length - MAX_CONFIG_BACKUPS;
+  if (excess > 0) {
+    for (let i = 0; i < excess; i++) {
+      await Deno.remove(join(backupDir, entries[i]));
+    }
+  }
+}
