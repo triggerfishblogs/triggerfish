@@ -334,8 +334,11 @@ export async function installAndStartDaemon(
       return { ok: true, message: `Daemon is already running (Windows Service: ${WINDOWS_SERVICE_NAME})` };
     }
 
-    // Start the service (needs elevation)
-    const startScript = `Start-Service -Name '${WINDOWS_SERVICE_NAME}' -ErrorAction Stop`;
+    // Start the service (needs elevation) and wait briefly for it to settle
+    const startScript = [
+      `Start-Service -Name '${WINDOWS_SERVICE_NAME}' -ErrorAction Stop`,
+      `Start-Sleep -Seconds 2`,
+    ].join("; ");
     const encoded = encodeUtf16Base64(startScript);
     await runElevatedCommand(encoded);
 
@@ -374,7 +377,12 @@ export async function stopDaemon(): Promise<DaemonResult> {
   }
 
   if (manager === "windows-service") {
-    const stopScript = `Stop-Service -Name '${WINDOWS_SERVICE_NAME}' -Force -ErrorAction Stop`;
+    // Include a 2-second delay after stopping to let the service release
+    // file locks before any subsequent binary replacement or restart.
+    const stopScript = [
+      `Stop-Service -Name '${WINDOWS_SERVICE_NAME}' -Force -ErrorAction Stop`,
+      `Start-Sleep -Seconds 2`,
+    ].join("; ");
     const encoded = encodeUtf16Base64(stopScript);
 
     await runElevatedCommand(encoded);
