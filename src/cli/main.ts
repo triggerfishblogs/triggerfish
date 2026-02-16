@@ -1683,6 +1683,24 @@ async function runStart(): Promise<void> {
 
   console.log("  Main session created");
 
+  // Start Tidepool + Gateway EARLY so `triggerfish chat` can connect
+  // while channels and MCP servers finish wiring in the background.
+  const tidepoolHost = createA2UIHost({ chatSession });
+  const tidepoolPort = 18790;
+  await tidepoolHost.start(tidepoolPort);
+  tidepoolTools = createTidePoolTools(tidepoolHost);
+  console.log(`  Tidepool listening on http://127.0.0.1:${tidepoolPort}`);
+
+  const server = createGatewayServer({
+    port: 18789,
+    schedulerService,
+    chatSession,
+    sessionManager: enhancedSessionManager,
+    notificationService,
+  });
+  const addr = await server.start();
+  console.log(`  Gateway listening on ${addr.hostname}:${addr.port}`);
+
   // --- Telegram channel wiring ---
   const telegramConfig = config.channels?.telegram as {
     botToken?: string;
@@ -1905,27 +1923,8 @@ async function runStart(): Promise<void> {
     }
   }
 
-  // Create and start Tidepool host with chat support
-  const tidepoolHost = createA2UIHost({ chatSession });
-  const tidepoolPort = 18790;
-  await tidepoolHost.start(tidepoolPort);
-  tidepoolTools = createTidePoolTools(tidepoolHost);
-  console.log(`  Tidepool listening on http://127.0.0.1:${tidepoolPort}`);
-
-  // Create and start gateway server with scheduler + chat session + session manager
-  const server = createGatewayServer({
-    port: 18789,
-    schedulerService,
-    chatSession,
-    sessionManager: enhancedSessionManager,
-    notificationService,
-  });
-  const addr = await server.start();
-
   // Start the scheduler (cron tick loop + trigger)
   schedulerService.start();
-
-  console.log(`  Gateway listening on ${addr.hostname}:${addr.port}`);
   console.log("  Scheduler started");
   if (schedulerConfig.trigger.enabled) {
     console.log(`  Trigger: every ${schedulerConfig.trigger.intervalMinutes}m`);
@@ -1948,9 +1947,29 @@ async function runDaemonStart(): Promise<void> {
 
   if (result.ok) {
     console.log("✓", result.message);
+
+    // Wait for gateway to be ready (up to 30s)
+    const deadline = Date.now() + 30_000;
+    let ready = false;
+    while (Date.now() < deadline) {
+      try {
+        const conn = await Deno.connect({ hostname: "127.0.0.1", port: 18789 });
+        conn.close();
+        ready = true;
+        break;
+      } catch {
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    }
+
+    if (ready) {
+      console.log("✓ Gateway ready");
+    } else {
+      console.log("  Gateway not yet reachable — check 'triggerfish logs'");
+    }
+
     console.log(`\n  Tidepool: http://127.0.0.1:18790`);
-    console.log("\nRun 'triggerfish status' to verify.");
-    console.log("Run 'triggerfish logs --tail' to follow output.\n");
+    console.log("\nRun 'triggerfish logs --tail' to follow output.\n");
   } else {
     console.log("✗", result.message);
     Deno.exit(1);
