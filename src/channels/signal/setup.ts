@@ -35,22 +35,24 @@ export function resolveSignalCliBinDir(): string {
  * @returns The version string and resolved binary path, or an error.
  */
 export async function checkSignalCli(): Promise<Result<{ version: string; path: string }, string>> {
+  const ext = Deno.build.os === "windows" ? ".bat" : "";
+
   // 1. Check PATH
-  const pathResult = await trySignalCli("signal-cli");
+  const pathResult = await trySignalCli(`signal-cli${ext}`);
   if (pathResult.ok) return pathResult;
 
   // 2. Check managed install dir
   const binDir = resolveSignalCliBinDir();
 
   // 2a. Check flat binary (native build extracts directly)
-  const flatResult = await trySignalCli(`${binDir}/signal-cli`);
+  const flatResult = await trySignalCli(`${binDir}/signal-cli${ext}`);
   if (flatResult.ok) return flatResult;
 
   // 2b. Check nested directories (JVM build extracts to signal-cli-{version}/bin/)
   try {
     for await (const entry of Deno.readDir(binDir)) {
       if (entry.isDirectory && entry.name.startsWith("signal-cli-")) {
-        const candidate = `${binDir}/${entry.name}/bin/signal-cli`;
+        const candidate = `${binDir}/${entry.name}/bin/signal-cli${ext}`;
         const result = await trySignalCli(candidate);
         if (result.ok) return result;
       }
@@ -184,9 +186,10 @@ export function resolveJavaHome(): string | null {
             return macHome;
           } catch { /* not macOS layout */ }
         }
-        // Linux / direct layout
+        // Linux / Windows / direct layout
+        const javaBinName = Deno.build.os === "windows" ? "java.exe" : "java";
         try {
-          Deno.statSync(`${candidate}/bin/java`);
+          Deno.statSync(`${candidate}/bin/${javaBinName}`);
           return candidate;
         } catch { /* try next */ }
       }
@@ -199,7 +202,9 @@ export function resolveJavaHome(): string | null {
 
 /** Return the path to the java binary for a given JAVA_HOME. */
 function javaHomeBin(javaHome: string): string {
-  return `${javaHome}/bin/java`;
+  return Deno.build.os === "windows"
+    ? `${javaHome}/bin/java.exe`
+    : `${javaHome}/bin/java`;
 }
 
 /**
@@ -214,7 +219,7 @@ export async function downloadJre(): Promise<Result<string, string>> {
   await Deno.mkdir(javaDir, { recursive: true });
 
   // Map Deno.build to Adoptium API parameters
-  const osMap: Record<string, string> = { linux: "linux", darwin: "mac" };
+  const osMap: Record<string, string> = { linux: "linux", darwin: "mac", windows: "windows" };
   const archMap: Record<string, string> = { x86_64: "x64", aarch64: "aarch64" };
 
   const adoptOs = osMap[Deno.build.os];
@@ -242,10 +247,12 @@ export async function downloadJre(): Promise<Result<string, string>> {
     return { ok: false, error: `No JRE 21 release found for ${adoptOs}/${adoptArch}` };
   }
 
-  // Pick the .tar.gz asset
-  const asset = assets.find((a) => a.binary.package.name.endsWith(".tar.gz"));
+  // Pick the right archive format: .zip for Windows, .tar.gz for others
+  const isWindows = Deno.build.os === "windows";
+  const ext = isWindows ? ".zip" : ".tar.gz";
+  const asset = assets.find((a) => a.binary.package.name.endsWith(ext));
   if (!asset) {
-    return { ok: false, error: "No .tar.gz JRE asset found" };
+    return { ok: false, error: `No ${ext} JRE asset found` };
   }
 
   const sizeMB = (asset.binary.package.size / 1024 / 1024).toFixed(1);
@@ -263,26 +270,47 @@ export async function downloadJre(): Promise<Result<string, string>> {
     return { ok: false, error: `JRE download failed: ${err instanceof Error ? err.message : String(err)}` };
   }
 
-  // Extract via tar to javaDir
+  // Extract archive to javaDir
   try {
-    const tar = new Deno.Command("tar", {
-      args: ["xzf", "-", "-C", javaDir],
-      stdin: "piped",
-      stdout: "piped",
-      stderr: "piped",
-    });
-    const child = tar.spawn();
-    const writer = child.stdin.getWriter();
+    if (isWindows) {
+      // Write .zip to temp file, then extract with PowerShell
+      const tmpZip = `${javaDir}\\jre-download.zip`;
+      const file = await Deno.open(tmpZip, { write: true, create: true, truncate: true });
+      for await (const chunk of resp.body) {
+        await file.write(chunk);
+      }
+      file.close();
+      const ps = new Deno.Command("powershell", {
+        args: ["-NoProfile", "-Command", `Expand-Archive -Force -Path '${tmpZip}' -DestinationPath '${javaDir}'`],
+        stdout: "piped",
+        stderr: "piped",
+      });
+      const psOut = await ps.output();
+      await Deno.remove(tmpZip).catch(() => {});
+      if (!psOut.success) {
+        const stderr = new TextDecoder().decode(psOut.stderr);
+        return { ok: false, error: `JRE zip extraction failed: ${stderr}` };
+      }
+    } else {
+      const tar = new Deno.Command("tar", {
+        args: ["xzf", "-", "-C", javaDir],
+        stdin: "piped",
+        stdout: "piped",
+        stderr: "piped",
+      });
+      const child = tar.spawn();
+      const writer = child.stdin.getWriter();
 
-    for await (const chunk of resp.body) {
-      await writer.write(chunk);
-    }
-    await writer.close();
+      for await (const chunk of resp.body) {
+        await writer.write(chunk);
+      }
+      await writer.close();
 
-    const status = await child.status;
-    if (!status.success) {
-      const stderr = new TextDecoder().decode(await child.stderr.getReader().read().then((r) => r.value ?? new Uint8Array()));
-      return { ok: false, error: `JRE tar extraction failed: ${stderr}` };
+      const status = await child.status;
+      if (!status.success) {
+        const stderr = new TextDecoder().decode(await child.stderr.getReader().read().then((r) => r.value ?? new Uint8Array()));
+        return { ok: false, error: `JRE tar extraction failed: ${stderr}` };
+      }
     }
   } catch (err) {
     return { ok: false, error: `JRE extraction failed: ${err instanceof Error ? err.message : String(err)}` };
@@ -415,11 +443,17 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
   }
 
   // Find the binary — native extracts flat, JVM extracts to signal-cli-{version}/bin/
-  const candidates = [
-    `${binDir}/signal-cli`,                      // native: flat in binDir
-    `${binDir}/signal-cli-${version}/bin/signal-cli`,  // JVM: nested
-    `${installDir}/bin/signal-cli`,               // alternate nested
-  ];
+  const candidates = Deno.build.os === "windows"
+    ? [
+        `${binDir}/signal-cli.bat`,                           // native: flat in binDir (Windows)
+        `${binDir}/signal-cli-${version}/bin/signal-cli.bat`, // JVM: nested (Windows)
+        `${installDir}/bin/signal-cli.bat`,                   // alternate nested (Windows)
+      ]
+    : [
+        `${binDir}/signal-cli`,                      // native: flat in binDir
+        `${binDir}/signal-cli-${version}/bin/signal-cli`,  // JVM: nested
+        `${installDir}/bin/signal-cli`,               // alternate nested
+      ];
 
   let binaryPath: string | null = null;
   for (const candidate of candidates) {
