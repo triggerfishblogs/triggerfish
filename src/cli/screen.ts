@@ -11,6 +11,7 @@
  */
 
 import type { LineEditor } from "./terminal.ts";
+import type { ClassificationLevel } from "../core/types/classification.ts";
 
 // ─── ANSI escape sequences ─────────────────────────────────────
 
@@ -45,6 +46,24 @@ const RESET = "\x1b[0m";
 const BOLD = "\x1b[1m";
 const DIM = "\x1b[2m";
 const CYAN = "\x1b[36m";
+const GREEN = "\x1b[32m";
+const YELLOW = "\x1b[33m";
+const RED = "\x1b[31m";
+const ORANGE = "\x1b[38;5;208m";
+
+/** ANSI color code for a classification level. */
+function taintColor(level: ClassificationLevel): string {
+  switch (level) {
+    case "PUBLIC":
+      return GREEN;
+    case "INTERNAL":
+      return YELLOW;
+    case "CONFIDENTIAL":
+      return ORANGE;
+    case "RESTRICTED":
+      return RED;
+  }
+}
 
 // ─── Screen manager ─────────────────────────────────────────────
 
@@ -76,6 +95,8 @@ export interface ScreenManager {
   startSpinner(text: string): void;
   /** Stop the animated spinner and clear the status bar. */
   stopSpinner(): void;
+  /** Set the current session taint level (updates separator colors). */
+  setTaint(level: ClassificationLevel): void;
   /** Handle terminal resize. */
   handleResize(): void;
   /** Restore terminal to normal mode. */
@@ -145,6 +166,7 @@ function createTtyScreenManager(): ScreenManager {
   let size = getTermSize();
   let statusText = "";
   let inputLineCount = 1;
+  let currentTaint: ClassificationLevel = "PUBLIC";
   let spinnerTimer: ReturnType<typeof setInterval> | null = null;
   let spinnerFrame = 0;
   let spinnerLabel = "";
@@ -166,7 +188,8 @@ function createTtyScreenManager(): ScreenManager {
   }
 
   function getScrollBottom(): number {
-    return size.rows - inputLineCount - 1;
+    // Reserve: top separator + input lines + bottom separator + status bar
+    return size.rows - inputLineCount - 3;
   }
 
   function setupScrollRegion(): void {
@@ -186,7 +209,7 @@ function createTtyScreenManager(): ScreenManager {
 
   function drawInputBar(editor: LineEditor): void {
     const lines = editor.text.split("\n");
-    const prefixLen = 4; // "  ❯ " or "  · "
+    const prefixLen = 3; // " ❯ " or " · "
 
     // Count total visual rows including wrapping
     let totalVisualRows = 0;
@@ -204,21 +227,29 @@ function createTtyScreenManager(): ScreenManager {
       setupScrollRegion();
     }
 
-    const firstInputRow = size.rows - inputLineCount;
-    const prefix = `  ${CYAN}${BOLD}❯${RESET} `;
-    const contPrefix = `  ${DIM}·${RESET} `;
+    const color = taintColor(currentTaint);
+    // Layout: topSep(1) + input(inputLineCount) + bottomSep(1) + status(1)
+    const bottomSepRow = size.rows - 1;
+    const firstInputRow = bottomSepRow - inputLineCount;
+    const topSepRow = firstInputRow - 1;
+
+    const prefix = ` ${CYAN}${BOLD}❯${RESET} `;
+    const contPrefix = ` ${DIM}·${RESET} `;
 
     rawWrite(HIDE_CURSOR);
 
-    // Draw each input line, clearing all visual rows it occupies
+    // ── Top separator (taint-colored, edge-to-edge) ──
+    rawWrite(moveTo(topSepRow, 1));
+    rawWrite(CLEAR_LINE);
+    rawWrite(`${color}${"─".repeat(size.columns)}${RESET}`);
+
+    // ── Input lines ──
     let row = firstInputRow;
     for (let i = 0; i < lines.length; i++) {
-      // Clear all visual rows this logical line occupies
       for (let vr = 0; vr < visualRowsPerLine[i]; vr++) {
         rawWrite(moveTo(row + vr, 1));
         rawWrite(CLEAR_LINE);
       }
-      // Write prefix and text at the first visual row — terminal handles wrapping
       rawWrite(moveTo(row, 1));
       rawWrite(i === 0 ? prefix : contPrefix);
       rawWrite(lines[i]);
@@ -229,6 +260,16 @@ function createTtyScreenManager(): ScreenManager {
     if (lines.length === 1 && editor.suggestion.length > 0) {
       rawWrite(`${DIM}${editor.suggestion}${RESET}`);
     }
+
+    // ── Bottom separator with taint label inline (edge-to-edge) ──
+    const label = currentTaint;
+    // "── LABEL ──────..." — 3 chars before label, 1 after, rest is fill
+    const fillLen = Math.max(size.columns - 3 - label.length - 1, 1);
+    rawWrite(moveTo(bottomSepRow, 1));
+    rawWrite(CLEAR_LINE);
+    rawWrite(
+      `${color}${"─".repeat(2)} ${BOLD}${label}${RESET}${color} ${"─".repeat(fillLen)}${RESET}`,
+    );
 
     // Calculate cursor position accounting for line wrapping
     const textBeforeCursor = editor.text.slice(0, editor.cursor);
@@ -260,7 +301,7 @@ function createTtyScreenManager(): ScreenManager {
     rawWrite(moveTo(statusRow, 1));
     rawWrite(CLEAR_LINE);
     if (statusText.length > 0) {
-      rawWrite(`  ${statusText}${RESET}`);
+      rawWrite(` ${statusText}${RESET}`);
     }
     // Return cursor to its known position instead of using
     // SAVE/RESTORE which is a single slot and breaks during scrolling
@@ -276,12 +317,14 @@ function createTtyScreenManager(): ScreenManager {
       inputLineCount = 1;
       setupScrollRegion();
 
-      // Clear the input and status rows
-      const firstInputRow = size.rows - inputLineCount;
-      rawWrite(moveTo(firstInputRow, 1));
-      rawWrite(CLEAR_LINE);
-      rawWrite(moveTo(getStatusRow(), 1));
-      rawWrite(CLEAR_LINE);
+      // Clear the top separator, input, bottom separator, and status rows
+      const bottomSepRow = size.rows - 1;
+      const firstInputRow = bottomSepRow - inputLineCount;
+      const topSepRow = firstInputRow - 1;
+      for (let r = topSepRow; r <= size.rows; r++) {
+        rawWrite(moveTo(r, 1));
+        rawWrite(CLEAR_LINE);
+      }
 
       // Position cursor in scroll region
       rawWrite(moveTo(1, 1));
@@ -356,6 +399,10 @@ function createTtyScreenManager(): ScreenManager {
       drawInputBar(editor);
     },
 
+    setTaint(level: ClassificationLevel): void {
+      currentTaint = level;
+    },
+
     setStatus(text: string): void {
       statusText = `${DIM}${text}`;
       drawStatusBar();
@@ -406,9 +453,9 @@ function createTtyScreenManager(): ScreenManager {
     handleResize(): void {
       const oldRows = size.rows;
       size = getTermSize();
-      // Clear old input/status rows that are now mispositioned
-      const oldFirstInput = oldRows - inputLineCount;
-      for (let r = oldFirstInput; r <= oldRows; r++) {
+      // Clear old input area (top sep + input + bottom sep + status)
+      const oldTopSep = oldRows - inputLineCount - 2;
+      for (let r = oldTopSep; r <= oldRows; r++) {
         if (r >= 1 && r <= size.rows) {
           rawWrite(moveTo(r, 1));
           rawWrite(CLEAR_LINE);
@@ -452,7 +499,11 @@ function createDumbScreenManager(): ScreenManager {
 
     redrawInput(_editor: LineEditor): void {
       // In dumb mode, just write the prompt character
-      rawWrite("  ❯ ");
+      rawWrite(" ❯ ");
+    },
+
+    setTaint(_level: ClassificationLevel): void {
+      // No visual taint indicator in dumb mode
     },
 
     setStatus(_text: string): void {

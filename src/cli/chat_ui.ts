@@ -91,8 +91,6 @@ export function printBanner(
     `  ${DIM}Commands :${RESET} ${DIM}/quit${RESET} exit  ${DIM}/clear${RESET} reset  ${DIM}Ctrl+O${RESET} tool detail  ${DIM}ESC${RESET} interrupt`,
   );
   writeln();
-  writeln(`  ${DIM}${"─".repeat(50)}${RESET}`);
-  writeln();
 }
 
 /** Return the banner as a string (for screen manager output). */
@@ -139,8 +137,6 @@ export function formatBanner(
     `  ${DIM}Commands :${RESET} ${DIM}/quit${RESET} exit  ${DIM}/clear${RESET} reset  ${DIM}Ctrl+O${RESET} tool detail  ${DIM}ESC${RESET} interrupt`,
   );
   lines.push("");
-  lines.push(`  ${DIM}${"─".repeat(50)}${RESET}`);
-  lines.push("");
   return lines.join("\n");
 }
 
@@ -161,7 +157,7 @@ export function createSpinner(label: string): Spinner {
 
   const render = () => {
     const ch = SPINNER_FRAMES[frame % SPINNER_FRAMES.length];
-    write(`\r\x1b[K  ${CYAN}${ch}${RESET} ${DIM}${currentLabel}${RESET}`);
+    write(`\r\x1b[K ${CYAN}${ch}${RESET} ${DIM}${currentLabel}${RESET}`);
     frame++;
   };
 
@@ -368,7 +364,7 @@ export function formatError(text: string): string {
 
 /** Write the user input prompt (legacy, for non-screen-manager mode). */
 export function renderPrompt(): void {
-  write(`  ${CYAN}${BOLD}❯${RESET} `);
+  write(` ${CYAN}${BOLD}❯${RESET} `);
 }
 
 // ─── Event handler ──────────────────────────────────────────────

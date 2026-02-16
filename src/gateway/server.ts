@@ -241,6 +241,7 @@ function handleChatWebSocket(
         type: "connected",
         provider: chat.providerName,
         model: chat.modelName,
+        taint: chat.sessionTaint,
       }));
     } catch {
       // Client may have disconnected immediately

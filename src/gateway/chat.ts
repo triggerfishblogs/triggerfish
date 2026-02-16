@@ -44,7 +44,7 @@ import type { PairingService } from "../channels/pairing.ts";
 
 /** Events sent over the chat wire protocol. */
 export type ChatEvent =
-  | { readonly type: "connected"; readonly provider: string; readonly model: string }
+  | { readonly type: "connected"; readonly provider: string; readonly model: string; readonly taint?: ClassificationLevel }
   | { readonly type: "llm_start"; readonly iteration: number; readonly maxIterations: number }
   | {
     readonly type: "llm_complete";
@@ -74,7 +74,8 @@ export type ChatEvent =
     readonly messagesAfter: number;
     readonly tokensBefore: number;
     readonly tokensAfter: number;
-  };
+  }
+  | { readonly type: "taint_changed"; readonly level: ClassificationLevel };
 
 /** Messages the client can send. */
 export type ChatClientMessage =
@@ -206,6 +207,8 @@ export interface ChatSession {
   readonly providerName: string;
   /** The primary model identifier from config. */
   readonly modelName: string;
+  /** Read the current owner session taint. */
+  readonly sessionTaint: ClassificationLevel;
 }
 
 /**
@@ -296,13 +299,18 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
   }
 
   function escalateTaint(level: ClassificationLevel, reason: string): void {
+    const prevTaint = getSessionTaint();
     if (activeSessionId === ownerSessionId && ownerEscalateTaint) {
       ownerEscalateTaint(level, reason);
-      return;
+    } else {
+      const s = sessionStates.get(activeSessionId);
+      if (s) {
+        sessionStates.set(activeSessionId, updateTaint(s, level, reason));
+      }
     }
-    const s = sessionStates.get(activeSessionId);
-    if (s) {
-      sessionStates.set(activeSessionId, updateTaint(s, level, reason));
+    const newTaint = getSessionTaint();
+    if (newTaint !== prevTaint && activeSend) {
+      activeSend({ type: "taint_changed", level: newTaint });
     }
   }
 
@@ -548,6 +556,9 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     },
     get modelName() {
       return modelName;
+    },
+    get sessionTaint() {
+      return getSessionTaint();
     },
   };
 }

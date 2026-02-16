@@ -3682,7 +3682,16 @@ async function runChat(): Promise<void> {
       if (evt.type === "connected") {
         providerName = evt.provider;
         _modelName = evt.model;
+        if (evt.taint) {
+          screen.setTaint(evt.taint);
+        }
         connected.resolve();
+        return;
+      }
+
+      if (evt.type === "taint_changed") {
+        screen.setTaint(evt.level);
+        if (isTty) screen.redrawInput(editor);
         return;
       }
 
@@ -3926,6 +3935,7 @@ async function runChat(): Promise<void> {
 
           if (text === "/clear") {
             ws.send(JSON.stringify({ type: "clear" }));
+            screen.setTaint("PUBLIC");
             screen.cleanup();
             screen.init();
             screen.writeOutput(

@@ -9,6 +9,16 @@
   var pasteIndicator = document.getElementById("paste-indicator");
   var pasteText = document.getElementById("paste-text");
   var pasteDismiss = document.getElementById("paste-dismiss");
+  var taintBadge = document.getElementById("taint-badge");
+  var inputBar = document.getElementById("input-bar");
+
+  var TAINT_COLORS = { PUBLIC: "var(--green)", INTERNAL: "var(--yellow)", CONFIDENTIAL: "var(--orange)", RESTRICTED: "var(--red)" };
+
+  function updateTaint(level) {
+    taintBadge.textContent = level;
+    taintBadge.className = "taint-badge " + level.toLowerCase();
+    inputBar.style.borderTopColor = TAINT_COLORS[level] || "var(--border)";
+  }
 
   var ws = null;
   var processing = false;
@@ -54,6 +64,10 @@
     switch(evt.type) {
       case "connected":
         providerInfo.textContent = evt.provider + " / " + evt.model;
+        if (evt.taint) updateTaint(evt.taint);
+        break;
+      case "taint_changed":
+        updateTaint(evt.level);
         break;
       case "llm_start":
         if (!currentAssistantEl) {
@@ -297,6 +311,7 @@
       currentAssistantText = "";
       todoListEl = null;
       activeTools = {};
+      updateTaint("PUBLIC");
       if (window.tidepoolCanvas) {
         window.tidepoolCanvas.clear();
         window.tidepoolCanvas.hide();
