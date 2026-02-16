@@ -2458,6 +2458,35 @@ function getNestedValue(
 }
 
 /**
+ * Prompt the user to restart the daemon if it's running.
+ * Shared by config set, add-channel, and add-plugin commands.
+ */
+async function promptDaemonRestart(): Promise<void> {
+  const status = await getDaemonStatus();
+  if (status.running) {
+    const restart = await Confirm.prompt({
+      message: "Restart daemon to apply?",
+      default: true,
+    });
+    if (restart) {
+      const stopResult = await stopDaemon();
+      if (!stopResult.ok) {
+        console.log(`✗ Failed to stop daemon: ${stopResult.message}`);
+        return;
+      }
+      const startResult = await installAndStartDaemon(Deno.execPath());
+      if (startResult.ok) {
+        console.log("✓ Daemon restarted");
+      } else {
+        console.log(`✗ ${startResult.message}`);
+      }
+    }
+  } else {
+    console.log("Daemon is not running. Start it with: triggerfish start");
+  }
+}
+
+/**
  * Set a config value in triggerfish.yaml by dotted key path.
  */
 async function runConfigSet(
@@ -2504,6 +2533,8 @@ async function runConfigSet(
       : String(value);
 
   console.log(`\n  ${key} = ${display}\n`);
+
+  await promptDaemonRestart();
 }
 
 /**
@@ -2735,29 +2766,7 @@ async function runConfigAddChannel(
 
   console.log(`\n✓ ${channelType} added to triggerfish.yaml`);
 
-  // Offer daemon restart
-  const status = await getDaemonStatus();
-  if (status.running) {
-    const restart = await Confirm.prompt({
-      message: "Restart daemon to apply?",
-      default: true,
-    });
-    if (restart) {
-      const stopResult = await stopDaemon();
-      if (!stopResult.ok) {
-        console.log(`✗ Failed to stop daemon: ${stopResult.message}`);
-        return;
-      }
-      const startResult = await installAndStartDaemon(Deno.execPath());
-      if (startResult.ok) {
-        console.log("✓ Daemon restarted");
-      } else {
-        console.log(`✗ ${startResult.message}`);
-      }
-    }
-  } else {
-    console.log("Daemon is not running. Start it with: triggerfish start");
-  }
+  await promptDaemonRestart();
 }
 
 /**
@@ -2834,29 +2843,7 @@ async function runConfigAddPlugin(
 
   console.log(`\n✓ ${pluginType} plugin added to triggerfish.yaml`);
 
-  // Offer daemon restart
-  const status = await getDaemonStatus();
-  if (status.running) {
-    const restart = await Confirm.prompt({
-      message: "Restart daemon to apply?",
-      default: true,
-    });
-    if (restart) {
-      const stopResult = await stopDaemon();
-      if (!stopResult.ok) {
-        console.log(`✗ Failed to stop daemon: ${stopResult.message}`);
-        return;
-      }
-      const startResult = await installAndStartDaemon(Deno.execPath());
-      if (startResult.ok) {
-        console.log("✓ Daemon restarted");
-      } else {
-        console.log(`✗ ${startResult.message}`);
-      }
-    }
-  } else {
-    console.log("Daemon is not running. Start it with: triggerfish start");
-  }
+  await promptDaemonRestart();
 }
 
 /**
