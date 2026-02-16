@@ -60,7 +60,7 @@ Add the Discord channel to your `triggerfish.yaml`:
 ```yaml
 channels:
   discord:
-    botToken: "your-discord-bot-token"
+    # botToken stored in OS keychain
     ownerId: "123456789012345678"
 ```
 
@@ -129,7 +129,7 @@ groups:
 ```yaml
 channels:
   discord:
-    botToken: "your-discord-bot-token"
+    # botToken stored in OS keychain
     ownerId: "123456789012345678"
     classification: INTERNAL
 ```

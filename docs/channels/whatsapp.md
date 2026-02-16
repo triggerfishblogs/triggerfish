@@ -41,9 +41,9 @@ Add the WhatsApp channel to your `triggerfish.yaml`:
 ```yaml
 channels:
   whatsapp:
-    accessToken: "your-access-token"
+    # accessToken stored in OS keychain
     phoneNumberId: "your-phone-number-id"
-    verifyToken: "your-chosen-verify-token"
+    # verifyToken stored in OS keychain
     ownerPhone: "15551234567"
 ```
 
@@ -101,9 +101,9 @@ Triggerfish sends and receives typing indicators on WhatsApp. When your agent is
 ```yaml
 channels:
   whatsapp:
-    accessToken: "your-access-token"
+    # accessToken stored in OS keychain
     phoneNumberId: "your-phone-number-id"
-    verifyToken: "your-verify-token"
+    # verifyToken stored in OS keychain
     classification: INTERNAL
 ```
 

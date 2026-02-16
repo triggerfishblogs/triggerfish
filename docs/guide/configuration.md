@@ -44,15 +44,12 @@ models:
   providers:
     anthropic:
       model: claude-sonnet-4-5-20250929
-      apiKey: "your-anthropic-api-key"
 
     openai:
       model: gpt-4o
-      apiKey: "your-openai-api-key"
 
     google:
       model: gemini-2.5-pro
-      apiKey: "your-google-api-key"
 
     ollama:
       model: llama3
@@ -64,15 +61,12 @@ models:
 
     openrouter:
       model: anthropic/claude-sonnet-4-5
-      apiKey: "your-openrouter-api-key"
 
     zenmux:
       model: openai/gpt-5
-      apiKey: "your-zenmux-api-key"
 
     zai:
       model: glm-4.7
-      apiKey: "your-zai-api-key"
 
   # Failover chain: if primary fails, try these in order
   failover:
@@ -80,7 +74,7 @@ models:
     - google
 ```
 
-All API keys belong in `triggerfish.yaml`. Ollama and LM Studio are local and require no authentication.
+API keys are stored in the OS keychain, not in this file. The setup wizard (`triggerfish dive`) prompts for your API key and stores it securely. Ollama and LM Studio are local and require no authentication.
 
 ## Channels
 
@@ -94,7 +88,6 @@ channels:
 
   telegram:
     enabled: true
-    botToken: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
     ownerId: 123456789
     classification: INTERNAL
 
@@ -107,22 +100,16 @@ channels:
 
   slack:
     enabled: true
-    botToken: "xoxb-your-bot-token"
-    appToken: "xapp-your-app-token"
-    signingSecret: "your-signing-secret"
     classification: PUBLIC
 
   discord:
     enabled: true
-    botToken: "your-discord-bot-token"
     ownerId: "your-discord-user-id"
     classification: PUBLIC
 
   whatsapp:
     enabled: true
-    accessToken: "your-whatsapp-access-token"
     phoneNumberId: "your-phone-number-id"
-    verifyToken: "your-webhook-verify-token"
     classification: PUBLIC
 
   webchat:
@@ -134,26 +121,30 @@ channels:
     enabled: true
     imapHost: "imap.gmail.com"
     smtpApiUrl: "https://api.sendgrid.com/v3/mail/send"
-    smtpApiKey: "your-sendgrid-api-key"
     imapUser: "you@gmail.com"
-    imapPassword: "your-app-password"
     fromAddress: "bot@example.com"
     ownerEmail: "you@gmail.com"
     classification: CONFIDENTIAL
 ```
 
+Tokens, passwords, and API keys for each channel are stored in the OS keychain. Run `triggerfish config add-channel <name>` to enter credentials interactively -- they are saved to the keychain, never to this file.
+
 ### Channel Configuration Keys
 
-| Channel | Required Keys | Optional Keys |
-|---------|--------------|---------------|
+Non-secret configuration in `triggerfish.yaml`:
+
+| Channel | Config Keys | Optional Keys |
+|---------|------------|---------------|
 | CLI | `enabled` | `classification` |
-| Telegram | `enabled`, `botToken`, `ownerId` | `classification` |
+| Telegram | `enabled`, `ownerId` | `classification` |
 | Signal | `enabled`, `endpoint`, `account` | `classification`, `defaultGroupMode`, `groups`, `ownerPhone`, `pairing` |
-| Slack | `enabled`, `botToken`, `appToken`, `signingSecret` | `classification`, `ownerId` |
-| Discord | `enabled`, `botToken`, `ownerId` | `classification` |
-| WhatsApp | `enabled`, `accessToken`, `phoneNumberId`, `verifyToken` | `classification`, `ownerPhone`, `webhookPort` |
+| Slack | `enabled` | `classification`, `ownerId` |
+| Discord | `enabled`, `ownerId` | `classification` |
+| WhatsApp | `enabled`, `phoneNumberId` | `classification`, `ownerPhone`, `webhookPort` |
 | WebChat | `enabled` | `classification`, `port`, `allowedOrigins` |
-| Email | `enabled`, `smtpApiUrl`, `smtpApiKey`, `imapHost`, `imapUser`, `imapPassword`, `fromAddress` | `classification`, `ownerEmail`, `imapPort`, `pollInterval` |
+| Email | `enabled`, `smtpApiUrl`, `imapHost`, `imapUser`, `fromAddress` | `classification`, `ownerEmail`, `imapPort`, `pollInterval` |
+
+Secrets (bot tokens, API keys, passwords, signing secrets) are entered during channel setup and stored in the OS keychain.
 
 ### Default Classification Levels
 
@@ -228,7 +219,6 @@ The `web` section configures web search and content fetching, including domain s
 web:
   search:
     provider: brave        # Search backend (brave is currently supported)
-    api_key: "your-brave-api-key"
     max_results: 10
     safe_search: moderate  # off, moderate, strict
   fetch:
@@ -249,8 +239,9 @@ Set up search from the command line:
 
 ```bash
 triggerfish config set web.search.provider brave
-triggerfish config set web.search.api_key BSAxxxxxxxxxx
 ```
+
+The Brave API key is entered during `triggerfish dive` and stored in the OS keychain.
 
 ::: tip
 Get a Brave Search API key at [brave.com/search/api](https://brave.com/search/api/). The free tier includes 2,000 queries/month.
@@ -300,7 +291,6 @@ webhooks:
   endpoints:
     - id: github-events
       path: /webhook/github
-      secret: "your-github-webhook-secret"
       classification: INTERNAL
       actions:
         - event: "pull_request.opened"
@@ -310,7 +300,6 @@ webhooks:
 
     - id: sentry-alerts
       path: /webhook/sentry
-      secret: "your-sentry-webhook-secret"
       classification: CONFIDENTIAL
       actions:
         - event: "error"
@@ -344,7 +333,6 @@ channels:
     classification: INTERNAL
   telegram:
     enabled: true
-    botToken: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
     ownerId: 123456789
     classification: INTERNAL
   signal:

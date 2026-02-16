@@ -73,17 +73,14 @@ Add the Slack channel to your `triggerfish.yaml`:
 ```yaml
 channels:
   slack:
-    botToken: "xoxb-your-bot-token"
-    appToken: "xapp-your-app-token"
-    signingSecret: "your-signing-secret"
+    # botToken, appToken, signingSecret stored in OS keychain
     ownerId: "U01234ABC"
 ```
 
+Secrets (bot token, app token, signing secret) are entered during `triggerfish config add-channel slack` and stored in the OS keychain.
+
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
-| `botToken` | string | Yes | Bot User OAuth Token (`xoxb-...`) |
-| `appToken` | string | Yes | App-Level Token for Socket Mode (`xapp-...`) |
-| `signingSecret` | string | Yes | Signing Secret from App Credentials |
 | `ownerId` | string | Recommended | Your Slack member ID for owner verification |
 | `classification` | string | No | Classification level (default: `PUBLIC`) |
 
@@ -154,9 +151,6 @@ groups:
 ```yaml
 channels:
   slack:
-    botToken: "xoxb-..."
-    appToken: "xapp-..."
-    signingSecret: "..."
     classification: INTERNAL
 ```
 

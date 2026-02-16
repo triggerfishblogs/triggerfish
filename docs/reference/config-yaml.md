@@ -27,18 +27,17 @@ models:
   # streaming: true
 
   # Provider-specific configuration
+  # API keys are stored in the OS keychain, not here.
+  # Run `triggerfish dive` to enter credentials securely.
   providers:
     anthropic:
       model: claude-sonnet-4-5
-      apiKey: "your-anthropic-api-key"
 
     openai:
       model: gpt-4o
-      apiKey: "your-openai-api-key"
 
     google:
       model: gemini-pro
-      apiKey: "your-google-api-key"
 
     ollama:
       model: llama3
@@ -50,15 +49,12 @@ models:
 
     openrouter:
       model: anthropic/claude-sonnet-4-5
-      apiKey: "your-openrouter-api-key"
 
     zenmux:
       model: openai/gpt-5
-      apiKey: "your-zenmux-api-key"
 
     zai:
       model: glm-4.7
-      apiKey: "your-zai-api-key"
 
   # Ordered failover chain -- tried in sequence when primary fails
   failover:
@@ -78,9 +74,11 @@ models:
 # ---------------------------------------------------------------------------
 # Channels: Messaging platform connections
 # ---------------------------------------------------------------------------
+# Secrets (bot tokens, API keys, passwords) are stored in the OS keychain.
+# Run `triggerfish config add-channel <name>` to enter them securely.
+# Only non-secret configuration appears here.
 channels:
   telegram:
-    botToken: "123456:ABC-DEF..."            # Bot token from @BotFather
     ownerId: 123456789                       # Your Telegram numeric user ID
     classification: INTERNAL                 # Default: INTERNAL
 
@@ -95,20 +93,14 @@ channels:
         classification: INTERNAL
 
   slack:
-    botToken: "xoxb-your-bot-token"          # xoxb-... bot token
-    appToken: "xapp-your-app-token"          # xapp-... app-level token
-    signingSecret: "your-signing-secret"     # Request verification secret
     classification: PUBLIC                   # Default: PUBLIC
 
   discord:
-    botToken: "your-discord-bot-token"       # Discord bot token
     ownerId: "your-discord-user-id"          # Your Discord user ID
     classification: PUBLIC                   # Default: PUBLIC
 
   whatsapp:
-    accessToken: "your-whatsapp-token"       # WhatsApp Cloud API access token
     phoneNumberId: "your-phone-number-id"    # From Meta Business Dashboard
-    verifyToken: "your-webhook-verify-token" # Webhook verification token
     classification: PUBLIC                   # Default: PUBLIC
 
   webchat:
@@ -117,11 +109,9 @@ channels:
 
   email:
     smtpApiUrl: "https://api.sendgrid.com/v3/mail/send"
-    smtpApiKey: "your-sendgrid-api-key"
     imapHost: "imap.gmail.com"
     imapPort: 993
     imapUser: "you@gmail.com"
-    imapPassword: "your-app-password"
     fromAddress: "bot@example.com"
     ownerEmail: "you@gmail.com"
     classification: CONFIDENTIAL             # Default: CONFIDENTIAL
@@ -176,8 +166,6 @@ mcp_servers:
   - id: github
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-github"]
-    env:
-      GITHUB_TOKEN: "your-github-token"
     classification: CONFIDENTIAL
 
 # ---------------------------------------------------------------------------
@@ -260,7 +248,7 @@ webhooks:
   endpoints:
     - id: github
       path: /webhook/github
-      secret: "your-github-webhook-secret"
+      # Webhook secret is stored in the OS keychain
       classification: INTERNAL
       actions:
         - event: "pull_request.opened"
@@ -301,7 +289,7 @@ groups:
 web:
   search:
     provider: brave                        # Search backend (brave is the default)
-    api_key: "your-brave-search-api-key"   # Brave Search API key
+    # API key is stored in the OS keychain
 
 # ---------------------------------------------------------------------------
 # Remote: Remote access (optional)
@@ -313,7 +301,7 @@ remote:
       enabled: true
       paths: ["/webhook/*"]
   auth:
-    token: "your-gateway-auth-token"
+    # Auth token is stored in the OS keychain
 ```
 
 ## Section Reference
@@ -338,7 +326,7 @@ remote:
 Each channel key is the channel type. All channel types support a `classification` field to override the default classification level.
 
 ::: info
-All secrets (tokens, API keys, passwords) are stored directly in `triggerfish.yaml`. Keep this file readable only by your user account (`chmod 600`).
+All secrets (tokens, API keys, passwords) are stored in the OS keychain, not in this file. Run `triggerfish config add-channel <name>` to enter credentials securely.
 :::
 
 ### `classification`
@@ -368,7 +356,7 @@ Notification delivery preferences. See [Notifications](/features/notifications) 
 | Key | Type | Description |
 |-----|------|-------------|
 | `web.search.provider` | string | Search backend for `web_search` tool (currently: `brave`) |
-| `web.search.api_key` | string | API key for the search provider |
+| `web.search.provider` | string | Search backend (currently: `brave`) |
 
 See [Web Search and Fetch](/features/web-search) for details.
 

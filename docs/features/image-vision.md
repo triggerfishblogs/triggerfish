@@ -58,10 +58,9 @@ models:
   providers:
     zai:
       model: glm-5
-      apiKey: your-api-key
 ```
 
-The `vision` model reuses credentials from the primary provider's config block. In this example, the primary provider is `zai`, so `glm-4.5v` uses the same API key from the `zai` provider block.
+The `vision` model reuses credentials from the primary provider's keychain entry. In this example, the primary provider is `zai`, so `glm-4.5v` uses the same API key stored in the OS keychain for the `zai` provider.
 
 | Key | Type | Description |
 |-----|------|-------------|

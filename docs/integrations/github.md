@@ -118,7 +118,7 @@ webhooks:
   endpoints:
     - id: github
       path: /webhook/github
-      secret: "your-github-webhook-secret"
+      # secret stored in OS keychain
       classification: INTERNAL
       actions:
         - event: "pull_request_review"
@@ -313,8 +313,7 @@ mcp_servers:
   - id: github
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-github"]
-    env:
-      GITHUB_TOKEN: "your-github-token"
+    # GitHub token is read from the OS keychain
     classification: CONFIDENTIAL
 ```
 

@@ -56,22 +56,17 @@ models:
   providers:
     anthropic:
       model: claude-sonnet-4-5
-      # Auth: apiKey field or ANTHROPIC_API_KEY env var
     openai:
       model: gpt-4o
-      # Auth: set OPENAI_API_KEY env var
     google:
       model: gemini-pro
-      # Auth: set GOOGLE_API_KEY env var
-    local:
+    ollama:
       model: llama3
       baseUrl: "http://localhost:11434/v1"  # Ollama default
     openrouter:
       model: anthropic/claude-sonnet-4-5
-      # Auth: set OPENROUTER_API_KEY env var
     zai:
       model: glm-4.7
-      # Auth: set ZAI_API_KEY env var
 ```
 
 ### Failover Chain

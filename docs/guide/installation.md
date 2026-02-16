@@ -95,7 +95,7 @@ docker compose up -d
 
 ### Secrets in Docker
 
-Triggerfish does **not** use environment variables for secrets. All API keys and tokens belong in `triggerfish.yaml`, which is mounted into the container.
+Triggerfish stores all secrets in the OS keychain (or a file-backed secret store in Docker at `/data/secrets.json`). Secrets never appear in `triggerfish.yaml`.
 
 For additional secrets (OS keychain is unavailable in containers), Triggerfish uses a file-backed secret store at `/data/secrets.json`. You can pre-populate it:
 

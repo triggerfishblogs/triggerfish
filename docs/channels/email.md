@@ -43,30 +43,28 @@ Add the Email channel to your `triggerfish.yaml`:
 channels:
   email:
     smtpApiUrl: "https://api.sendgrid.com/v3/mail/send"
-    smtpApiKey: "your-sendgrid-api-key"
     imapHost: "imap.gmail.com"
     imapPort: 993
     imapUser: "you@gmail.com"
-    imapPassword: "your-app-password"
     fromAddress: "triggerfish@yourdomain.com"
     ownerEmail: "you@gmail.com"
 ```
 
+Secrets (SMTP API key, IMAP password) are entered during `triggerfish config add-channel email` and stored in the OS keychain.
+
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
 | `smtpApiUrl` | string | Yes | SMTP relay API endpoint URL |
-| `smtpApiKey` | string | Yes | API key for the SMTP relay service |
 | `imapHost` | string | Yes | IMAP server hostname |
 | `imapPort` | number | No | IMAP server port (default: `993`) |
 | `imapUser` | string | Yes | IMAP username (usually your email address) |
-| `imapPassword` | string | Yes | IMAP password or app-specific password |
 | `fromAddress` | string | Yes | From address for outgoing emails |
 | `pollInterval` | number | No | How often to check for new emails, in ms (default: `30000`) |
 | `classification` | string | No | Classification level (default: `CONFIDENTIAL`) |
 | `ownerEmail` | string | Recommended | Your email address for owner verification |
 
-::: warning Store Credentials Securely
-Email credentials include passwords and API keys. Keep your `triggerfish.yaml` file readable only by your user account (`chmod 600`).
+::: warning Credentials
+The SMTP API key and IMAP password are stored in the OS keychain (Linux: GNOME Keyring, macOS: Keychain Access). They never appear in `triggerfish.yaml`.
 :::
 
 ### Step 4: Start Triggerfish

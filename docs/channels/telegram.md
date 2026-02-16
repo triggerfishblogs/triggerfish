@@ -39,7 +39,7 @@ You can also add it manually:
 ```yaml
 channels:
   telegram:
-    botToken: "your-bot-token-from-botfather"
+    # botToken stored in OS keychain
     ownerId: 8019881968
     classification: INTERNAL
 ```
@@ -114,7 +114,7 @@ Or edit `triggerfish.yaml` directly:
 ```yaml
 channels:
   telegram:
-    botToken: "your-bot-token"
+    # botToken stored in OS keychain
     ownerId: 8019881968
     classification: CONFIDENTIAL
 ```

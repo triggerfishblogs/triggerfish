@@ -45,7 +45,7 @@ webhooks:
   endpoints:
     - id: github-events
       path: /webhook/github
-      secret: "your-github-webhook-secret"
+      # secret stored in OS keychain
       classification: INTERNAL
       actions:
         - event: "pull_request.opened"
@@ -55,7 +55,7 @@ webhooks:
 
     - id: sentry-alerts
       path: /webhook/sentry
-      secret: "your-sentry-webhook-secret"
+      # secret stored in OS keychain
       classification: CONFIDENTIAL
       actions:
         - event: "error"
@@ -63,7 +63,7 @@ webhooks:
 
     - id: stripe-payments
       path: /webhook/stripe
-      secret: "your-stripe-webhook-secret"
+      # secret stored in OS keychain
       classification: CONFIDENTIAL
       actions:
         - event: "payment_intent.succeeded"
@@ -85,7 +85,7 @@ webhooks:
 | `actions[].task` | Yes | Natural language task for the agent to execute |
 
 ::: tip
-All secrets are stored in `triggerfish.yaml`. Keep this file readable only by your user account (`chmod 600`).
+Webhook secrets are stored in the OS keychain. Run `triggerfish dive` or configure webhooks interactively to enter them securely.
 :::
 
 ## HMAC Signature Verification
@@ -176,7 +176,7 @@ webhooks:
   endpoints:
     - id: deploy-notify
       path: /webhook/deploy
-      secret: "your-deploy-webhook-secret"
+      # secret stored in OS keychain
       classification: INTERNAL
       actions:
         - event: "deployment.completed"
@@ -225,7 +225,7 @@ webhooks:
   endpoints:
     - id: github
       path: /webhook/github
-      secret: "your-github-webhook-secret"
+      # secret stored in OS keychain
       classification: INTERNAL
       actions:
         - event: "pull_request_review"
