@@ -27,6 +27,7 @@ import type { LlmProviderRegistry, LlmProvider } from "../agent/llm.ts";
 import type { PlanManager } from "../agent/plan.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
+import type { DomainClassifier } from "../web/domains.ts";
 import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
 import type { SessionState } from "../core/types/session.ts";
 import { updateTaint } from "../core/types/session.ts";
@@ -150,6 +151,8 @@ export interface ChatSessionConfig {
   readonly getSession?: () => SessionState;
   /** Path classifier for filesystem tool security checks. */
   readonly pathClassifier?: PathClassifier;
+  /** Domain classifier for URL-based tool security checks. */
+  readonly domainClassifier?: DomainClassifier;
   /** Tool floor registry for minimum classification enforcement. */
   readonly toolFloorRegistry?: ToolFloorRegistry;
 }
@@ -328,6 +331,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     isOwnerSession: () => activeSessionId === ownerSessionId,
     getNonOwnerCeiling: () => activeNonOwnerCeiling,
     pathClassifier: config.pathClassifier,
+    domainClassifier: config.domainClassifier,
     toolFloorRegistry: config.toolFloorRegistry,
   });
 

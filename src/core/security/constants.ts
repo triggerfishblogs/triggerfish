@@ -54,6 +54,17 @@ export const FILESYSTEM_WRITE_TOOLS: ReadonlySet<string> = new Set([
   "edit_file",
 ]);
 
+/** Tools that access a URL (read operation — fetching content). */
+export const URL_READ_TOOLS: ReadonlySet<string> = new Set([
+  "web_fetch",
+  "browser_navigate",
+]);
+
+/** Tools that submit data to a URL (write operation — posting/typing into forms). */
+export const URL_WRITE_TOOLS: ReadonlySet<string> = new Set([
+  "browser_type",
+]);
+
 /** Tools with hardcoded classification floors (non-overridable minimums). */
 export const HARDCODED_TOOL_FLOORS: ReadonlyMap<string, ClassificationLevel> =
   new Map<string, ClassificationLevel>([

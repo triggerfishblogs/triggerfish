@@ -84,7 +84,7 @@ Deno.test("e2e: path write-down blocks CONFIDENTIAL session writing to INTERNAL 
     session,
     input: {
       tool_call: { name: "write_file", args: { path: "/tmp/workspace/internal/file.txt" } },
-      path_classification: "INTERNAL" as ClassificationLevel,
+      resource_classification: "INTERNAL" as ClassificationLevel,
       operation_type: "write",
       is_owner: true,
     },
@@ -92,7 +92,7 @@ Deno.test("e2e: path write-down blocks CONFIDENTIAL session writing to INTERNAL 
 
   assertEquals(result.allowed, false);
   assertEquals(result.action, "BLOCK");
-  assertEquals(result.ruleId, "path-write-down");
+  assertEquals(result.ruleId, "resource-write-down");
 });
 
 Deno.test("e2e: path write allows CONFIDENTIAL session writing to CONFIDENTIAL path", async () => {
@@ -103,7 +103,7 @@ Deno.test("e2e: path write allows CONFIDENTIAL session writing to CONFIDENTIAL p
     session,
     input: {
       tool_call: { name: "write_file", args: { path: "/tmp/workspace/confidential/file.txt" } },
-      path_classification: "CONFIDENTIAL" as ClassificationLevel,
+      resource_classification: "CONFIDENTIAL" as ClassificationLevel,
       operation_type: "write",
       is_owner: true,
     },
@@ -120,7 +120,7 @@ Deno.test("e2e: path write allows INTERNAL session writing to CONFIDENTIAL path 
     session,
     input: {
       tool_call: { name: "write_file", args: { path: "/tmp/workspace/confidential/file.txt" } },
-      path_classification: "CONFIDENTIAL" as ClassificationLevel,
+      resource_classification: "CONFIDENTIAL" as ClassificationLevel,
       operation_type: "write",
       is_owner: true,
     },
@@ -139,7 +139,7 @@ Deno.test("e2e: non-owner ceiling blocks read of CONFIDENTIAL file with INTERNAL
     session,
     input: {
       tool_call: { name: "read_file", args: { path: "/tmp/finance/q4.xlsx" } },
-      path_classification: "CONFIDENTIAL" as ClassificationLevel,
+      resource_classification: "CONFIDENTIAL" as ClassificationLevel,
       operation_type: "read",
       is_owner: false,
       non_owner_ceiling: "INTERNAL" as ClassificationLevel,
@@ -148,7 +148,7 @@ Deno.test("e2e: non-owner ceiling blocks read of CONFIDENTIAL file with INTERNAL
 
   assertEquals(result.allowed, false);
   assertEquals(result.action, "BLOCK");
-  assertEquals(result.ruleId, "path-read-ceiling");
+  assertEquals(result.ruleId, "resource-read-ceiling");
 });
 
 Deno.test("e2e: non-owner ceiling allows read of CONFIDENTIAL file with CONFIDENTIAL ceiling", async () => {
@@ -159,7 +159,7 @@ Deno.test("e2e: non-owner ceiling allows read of CONFIDENTIAL file with CONFIDEN
     session,
     input: {
       tool_call: { name: "read_file", args: { path: "/tmp/finance/q4.xlsx" } },
-      path_classification: "CONFIDENTIAL" as ClassificationLevel,
+      resource_classification: "CONFIDENTIAL" as ClassificationLevel,
       operation_type: "read",
       is_owner: false,
       non_owner_ceiling: "CONFIDENTIAL" as ClassificationLevel,
@@ -177,7 +177,7 @@ Deno.test("e2e: owner read is not blocked by ceiling (owner auto-escalation)", a
     session,
     input: {
       tool_call: { name: "read_file", args: { path: "/tmp/finance/q4.xlsx" } },
-      path_classification: "CONFIDENTIAL" as ClassificationLevel,
+      resource_classification: "CONFIDENTIAL" as ClassificationLevel,
       operation_type: "read",
       is_owner: true,
     },
@@ -212,12 +212,12 @@ Deno.test("e2e: write-down prevention is universal — blocks owner too", async 
     session,
     input: {
       tool_call: { name: "write_file", args: { path: "/tmp/workspace/internal/report.txt" } },
-      path_classification: "INTERNAL" as ClassificationLevel,
+      resource_classification: "INTERNAL" as ClassificationLevel,
       operation_type: "write",
       is_owner: true,
     },
   });
 
   assertEquals(result.allowed, false);
-  assertEquals(result.ruleId, "path-write-down");
+  assertEquals(result.ruleId, "resource-write-down");
 });

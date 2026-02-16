@@ -249,6 +249,36 @@ export function createDomainPolicy(config: DomainSecurityConfig): DomainPolicy {
   };
 }
 
+// ─── Domain Classifier (for orchestrator resource classification) ────────────
+
+/** Result of classifying a URL's domain. */
+export interface DomainClassificationResult {
+  readonly classification: ClassificationLevel;
+  readonly source: string;
+}
+
+/** Classifier that resolves a URL to a classification level. Mirrors PathClassifier. */
+export interface DomainClassifier {
+  /** Classify a URL by its domain. */
+  classify(url: string): DomainClassificationResult;
+}
+
+/**
+ * Create a domain classifier from a domain policy.
+ *
+ * Wraps the existing DomainPolicy.getClassification() to produce the same
+ * output shape as PathClassifier.classify() — a classification level and
+ * source string.
+ */
+export function createDomainClassifier(policy: DomainPolicy): DomainClassifier {
+  return {
+    classify(url: string): DomainClassificationResult {
+      const classification = policy.getClassification(url);
+      return { classification, source: "domain-policy" };
+    },
+  };
+}
+
 // ─── Legacy Compatibility (for browser module) ──────────────────────────────
 
 /** Configuration shape compatible with the browser module's DomainPolicyConfig. */
