@@ -106,6 +106,7 @@ Triggerfish implements ten layers of defense. No single layer is sufficient on i
 
 | Page | Description |
 |------|-------------|
+| [Classification Guide](/guide/classification-guide) | Practical guide to choosing the right level for channels, MCP servers, and integrations |
 | [No Write-Down Rule](./no-write-down) | The fundamental data flow rule and how it is enforced |
 | [Identity & Auth](./identity) | Channel authentication and owner identity verification |
 | [Agent Delegation](./agent-delegation) | Agent-to-agent identity, certificates, and delegation chains |

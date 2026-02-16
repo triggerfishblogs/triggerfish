@@ -99,6 +99,9 @@ export function logFilePath(): string {
  */
 export function generateLaunchdPlist(options: DaemonOptions): string {
   const logFile = logFilePath();
+  // Capture the user's PATH at install time so MCP subprocess spawning
+  // can find npx, node, deno, python, etc. launchd has a minimal default PATH.
+  const userPath = Deno.env.get("PATH") ?? "/usr/local/bin:/usr/bin:/bin";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -114,6 +117,11 @@ export function generateLaunchdPlist(options: DaemonOptions): string {
   <true/>
   <key>KeepAlive</key>
   <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>${userPath}</string>
+  </dict>
   <key>StandardOutPath</key>
   <string>${logFile}</string>
   <key>StandardErrorPath</key>
@@ -130,6 +138,9 @@ export function generateLaunchdPlist(options: DaemonOptions): string {
  * @returns Systemd unit file content for ~/.config/systemd/user/.
  */
 export function generateSystemdUnit(options: DaemonOptions): string {
+  // Capture the user's PATH at install time so MCP subprocess spawning
+  // can find npx, node, deno, python, etc.
+  const userPath = Deno.env.get("PATH") ?? "/usr/local/bin:/usr/bin:/bin";
   return `[Unit]
 Description=Triggerfish AI Agent
 After=network.target
@@ -140,6 +151,7 @@ ExecStart=${options.binaryPath} run
 Restart=on-failure
 RestartSec=5
 Environment=DENO_DIR=%h/.cache/deno
+Environment="PATH=${userPath}"
 
 [Install]
 WantedBy=default.target

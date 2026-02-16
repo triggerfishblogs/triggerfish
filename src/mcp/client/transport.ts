@@ -26,12 +26,18 @@ export interface Transport {
 export class StdioTransport implements Transport {
   readonly #command: string;
   readonly #args: readonly string[];
+  readonly #env?: Readonly<Record<string, string>>;
   #process: Deno.ChildProcess | null = null;
   readonly #handlers: Array<(msg: string) => void> = [];
 
-  constructor(command: string, args: readonly string[] = []) {
+  constructor(
+    command: string,
+    args: readonly string[] = [],
+    env?: Readonly<Record<string, string>>,
+  ) {
     this.#command = command;
     this.#args = args;
+    this.#env = env;
   }
 
   // deno-lint-ignore require-await
@@ -41,6 +47,7 @@ export class StdioTransport implements Transport {
       stdin: "piped",
       stdout: "piped",
       stderr: "piped",
+      env: { PATH: Deno.env.get("PATH") ?? "", ...this.#env },
     });
     this.#process = cmd.spawn();
 

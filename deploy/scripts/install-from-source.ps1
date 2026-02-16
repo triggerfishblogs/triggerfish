@@ -127,6 +127,7 @@ public class TriggerFishService : ServiceBase
         _proc.StartInfo.RedirectStandardError = true;
         _proc.StartInfo.CreateNoWindow = true;
         _proc.StartInfo.EnvironmentVariables["TRIGGERFISH_DATA_DIR"] = @"%%DATADIR%%";
+        _proc.StartInfo.EnvironmentVariables["PATH"] = @"%%USERPATH%%";
         var w = new StreamWriter(logFile, true) { AutoFlush = true };
         _proc.OutputDataReceived += (s, e) => { if (e.Data != null) try { w.WriteLine(e.Data); } catch {} };
         _proc.ErrorDataReceived += (s, e) => { if (e.Data != null) try { w.WriteLine(e.Data); } catch {} };
@@ -141,9 +142,14 @@ public class TriggerFishService : ServiceBase
 }
 '@
 
+# Capture the user's PATH at install time so MCP subprocess spawning
+# can find npx, node, deno, python, etc.
+$FullUserPath = $env:PATH
+
 $CsSource = $CsSource.Replace('%%LOGDIR%%', $LogDir)
 $CsSource = $CsSource.Replace('%%BINPATH%%', $InstallPath)
 $CsSource = $CsSource.Replace('%%DATADIR%%', $DataDir)
+$CsSource = $CsSource.Replace('%%USERPATH%%', $FullUserPath)
 
 # Stop existing service if running (to release lock on TriggerFishService.exe)
 $existingSvc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue

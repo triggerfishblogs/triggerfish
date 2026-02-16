@@ -252,6 +252,14 @@ export function createMcpClient(
         );
       }
 
+      // Send the required "initialized" notification to complete the handshake.
+      // MCP servers won't respond to tools/list etc. until they receive this.
+      const notification: JsonRpcNotification = {
+        jsonrpc: "2.0",
+        method: "notifications/initialized",
+      };
+      await transport.send(JSON.stringify(notification));
+
       return response.result as McpInitializeResult;
     },
 

@@ -49,42 +49,79 @@ An `UNTRUSTED` MCP server cannot be invoked by the agent under any circumstances
 
 ## Configuration
 
-MCP servers are configured in `triggerfish.yaml` with classification levels and per-tool permissions:
+MCP servers are configured in `triggerfish.yaml` as a map keyed by server ID. Each server uses either a local subprocess (stdio transport) or a remote endpoint (SSE transport).
+
+### Local Servers (Stdio)
+
+Local servers are spawned as subprocesses. Triggerfish communicates with them via stdin/stdout.
 
 ```yaml
 mcp_servers:
-  - uri: "mcp://salesforce.mcp.example.com"
-    name: "Salesforce MCP"
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: "keychain:github-pat"
     classification: CONFIDENTIAL
-    status: CLASSIFIED
-    tools:
-      - name: "query_opportunities"
-        permitted: true
-        requires_user_auth: true
-      - name: "delete_record"
-        permitted: false  # Blocked by policy
-      - name: "export_all"
-        permitted: false
 
-  - uri: "mcp://weather-api.mcp.example.com"
-    name: "Weather API"
+  filesystem:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/you/docs"]
+    classification: INTERNAL
+
+  weather:
+    command: npx
+    args: ["-y", "@mcp/server-weather"]
     classification: PUBLIC
-    status: CLASSIFIED
-    tools:
-      - name: "*"  # All tools permitted
-        permitted: true
-
-  - uri: "mcp://unknown-server.example.com"
-    status: UNTRUSTED  # Pending review
 ```
 
-Each server entry specifies:
+### Remote Servers (SSE)
 
-- **uri** -- The MCP server endpoint
-- **classification** -- The data sensitivity level assigned to this server
-- **status** -- The current server state (`CLASSIFIED`, `UNTRUSTED`, or `BLOCKED`)
-- **tools** -- Per-tool permission configuration (use `"*"` for all tools)
-- **requires_user_auth** -- Whether the tool requires user credential passthrough
+Remote servers run elsewhere and are accessed via HTTP Server-Sent Events.
+
+```yaml
+mcp_servers:
+  remote_api:
+    url: "https://mcp.example.com/sse"
+    classification: CONFIDENTIAL
+```
+
+### Configuration Keys
+
+| Key | Type | Required | Description |
+|-----|------|----------|-------------|
+| `command` | string | Yes (stdio) | Binary to spawn (e.g., `npx`, `deno`, `node`) |
+| `args` | string[] | No | Arguments passed to the command |
+| `env` | map | No | Environment variables for the subprocess |
+| `url` | string | Yes (SSE) | HTTP endpoint for remote servers |
+| `classification` | string | **Yes** | Data sensitivity level: `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, or `RESTRICTED` |
+| `enabled` | boolean | No | Default: `true`. Set to `false` to skip without removing config. |
+
+Each server must have either `command` (local) or `url` (remote). Servers with neither are skipped.
+
+### Environment Variables and Secrets
+
+Env values prefixed with `keychain:` are resolved from the OS keychain at startup:
+
+```yaml
+env:
+  API_KEY: "keychain:my-secret-name"    # Resolved from OS keychain
+  PLAIN_VAR: "literal-value"             # Passed as-is
+```
+
+Only `PATH` is inherited from the host environment (so `npx`, `node`, `deno`, etc. resolve correctly). No other host environment variables leak into MCP server subprocesses.
+
+::: tip
+Store secrets with `triggerfish config set-secret <name> <value>`. Then reference them as `keychain:<name>` in your MCP server env config.
+:::
+
+### Tool Naming
+
+Tools from MCP servers are namespaced as `mcp_<serverId>_<toolName>` to avoid collision with built-in tools. For example, if a server named `github` exposes a tool called `list_repos`, the agent sees it as `mcp_github_list_repos`.
+
+### Classification and Default Deny
+
+If you omit `classification`, the server is registered as **UNTRUSTED** and the gateway rejects all tool calls. You must explicitly choose a classification level. See the [Classification Guide](/guide/classification-guide) for help choosing the right level.
 
 ## Tool Call Flow
 

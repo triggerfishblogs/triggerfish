@@ -192,6 +192,15 @@ import {
   resolveGitHubToken,
 } from "../github/mod.ts";
 import { createKeychain } from "../secrets/keychain.ts";
+import {
+  createMcpServerManager,
+  createMcpExecutor,
+  createMcpGateway,
+  getMcpToolDefinitions,
+  buildMcpToolClassifications,
+  buildMcpSystemPrompt,
+} from "../mcp/mod.ts";
+import type { McpServerConfig } from "../mcp/mod.ts";
 import { createTelegramChannel } from "../channels/telegram/adapter.ts";
 import { createSignalChannel } from "../channels/signal/adapter.ts";
 import { createPairingService } from "../channels/pairing.ts";
@@ -328,6 +337,14 @@ export interface TriggerFishConfig {
   readonly tools?: {
     readonly floors?: Readonly<Record<string, string>>;
   };
+  readonly mcp_servers?: Readonly<Record<string, {
+    readonly command?: string;
+    readonly args?: readonly string[];
+    readonly env?: Readonly<Record<string, string>>;
+    readonly url?: string;
+    readonly classification?: string;
+    readonly enabled?: boolean;
+  }>>;
   readonly debug?: boolean;
 }
 
@@ -1482,6 +1499,72 @@ async function runStart(): Promise<void> {
     }
   }
 
+  // --- MCP server wiring ---
+  const mcpManager = createMcpServerManager();
+  let mcpExecutor:
+    | ((name: string, input: Record<string, unknown>) => Promise<string | null>)
+    | undefined;
+  let mcpToolDefs: readonly ToolDefinition[] = [];
+  let mcpSystemPrompt = "";
+
+  if (config.mcp_servers && Object.keys(config.mcp_servers).length > 0) {
+    console.log("  Connecting MCP servers...");
+    const mcpConfigs: McpServerConfig[] = [];
+    for (const [id, serverCfg] of Object.entries(config.mcp_servers)) {
+      let classification: ClassificationLevel | undefined;
+      if (serverCfg.classification) {
+        const parsed = parseClassification(serverCfg.classification);
+        if (parsed.ok) classification = parsed.value;
+      }
+      mcpConfigs.push({
+        id,
+        command: serverCfg.command,
+        args: serverCfg.args,
+        env: serverCfg.env,
+        url: serverCfg.url,
+        classification,
+        enabled: serverCfg.enabled,
+      });
+    }
+
+    const connectedMcpServers = await mcpManager.connectAll(
+      mcpConfigs,
+      keychain,
+    );
+
+    if (connectedMcpServers.length > 0) {
+      // Build tool definitions and system prompt
+      mcpToolDefs = getMcpToolDefinitions(connectedMcpServers);
+      mcpSystemPrompt = buildMcpSystemPrompt(connectedMcpServers);
+
+      // Merge MCP tool classifications into the main map
+      const mcpClassifications = buildMcpToolClassifications(
+        connectedMcpServers,
+      );
+      for (const [prefix, level] of mcpClassifications) {
+        toolClassifications.set(prefix, level);
+      }
+
+      // Create MCP gateway for policy enforcement
+      const mcpGateway = createMcpGateway({ hookRunner });
+      for (const server of connectedMcpServers) {
+        mcpGateway.registerServer({
+          uri: `mcp://${server.id}`,
+          name: server.id,
+          status: server.classification ? "CLASSIFIED" : "UNTRUSTED",
+          classification: server.classification,
+        });
+      }
+
+      // Create MCP executor
+      mcpExecutor = createMcpExecutor({
+        gateway: mcpGateway,
+        servers: connectedMcpServers,
+        getSession: () => session,
+      });
+    }
+  }
+
   // Discover skills from bundled, managed, and workspace directories
   const bundledSkillsDir = join(
     import.meta.dirname ?? ".",
@@ -1537,6 +1620,7 @@ async function runStart(): Promise<void> {
       storageProvider: storage,
       skillLoader,
     }),
+    mcpExecutor,
     subagentFactory,
     providerRegistry: registry,
   });
@@ -1550,7 +1634,7 @@ async function runStart(): Promise<void> {
     hookRunner,
     providerRegistry: registry,
     spinePath,
-    tools: getToolDefinitions(),
+    tools: getToolDefinitions(mcpToolDefs),
     toolExecutor,
     systemPromptSections: [
       TODO_SYSTEM_PROMPT,
@@ -1570,6 +1654,7 @@ async function runStart(): Promise<void> {
       LLM_TASK_SYSTEM_PROMPT,
       SUMMARIZE_SYSTEM_PROMPT,
       HEALTHCHECK_SYSTEM_PROMPT,
+      mcpSystemPrompt,
     ],
     session,
     ...(streamingPref !== undefined
@@ -2877,7 +2962,9 @@ async function runUpdate(): Promise<void> {
 }
 
 /** Tool definitions for the agent. */
-function getToolDefinitions(): readonly ToolDefinition[] {
+function getToolDefinitions(
+  mcpToolDefs?: readonly ToolDefinition[],
+): readonly ToolDefinition[] {
   return [
     ...getTodoToolDefinitions(),
     ...getMemoryToolDefinitions(),
@@ -2894,6 +2981,7 @@ function getToolDefinitions(): readonly ToolDefinition[] {
     ...getLlmTaskToolDefinitions(),
     ...getSummarizeToolDefinitions(),
     ...getHealthcheckToolDefinitions(),
+    ...(mcpToolDefs ?? []),
     {
       name: "read_file",
       description: "Read the contents of a file at an absolute path.",
@@ -3126,6 +3214,10 @@ interface ToolExecutorOptions {
     name: string,
     input: Record<string, unknown>,
   ) => Promise<string | null>;
+  readonly mcpExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
   readonly subagentFactory?: (task: string, tools?: string) => Promise<string>;
 }
 
@@ -3231,6 +3323,12 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
     if (opts.healthcheckExecutor) {
       const healthcheckResult = await opts.healthcheckExecutor(name, input);
       if (healthcheckResult !== null) return healthcheckResult;
+    }
+
+    // Try MCP server tools (returns null if not an MCP tool)
+    if (opts.mcpExecutor) {
+      const mcpResult = await opts.mcpExecutor(name, input);
+      if (mcpResult !== null) return mcpResult;
     }
 
     // Try web tools (returns null if not a web tool)

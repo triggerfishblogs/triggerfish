@@ -161,6 +161,29 @@ Secrets (bot tokens, API keys, passwords, signing secrets) are entered during ch
 
 All defaults are configurable. Set any channel to any classification level.
 
+## MCP Servers
+
+Connect external MCP servers to give your agent access to additional tools. See [MCP Gateway](/integrations/mcp-gateway) for the full security model.
+
+```yaml
+mcp_servers:
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: "keychain:github-pat"
+    classification: CONFIDENTIAL
+
+  filesystem:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/you/docs"]
+    classification: INTERNAL
+```
+
+Each server must have a `classification` level or it will be rejected (default deny). Use `command` + `args` for local servers (spawned as subprocesses) or `url` for remote servers (HTTP SSE). Environment values prefixed with `keychain:` are resolved from the OS keychain.
+
+For help choosing classification levels, see the [Classification Guide](./classification-guide).
+
 ## Classification
 
 The `classification` section controls how Triggerfish classifies and protects data.
@@ -178,6 +201,8 @@ classification:
 | `CONFIDENTIAL` | Sensitive | CRM data, financials, contracts, tax records |
 | `INTERNAL` | Internal only | Internal wikis, personal notes, contacts |
 | `PUBLIC` | Safe for anyone | Marketing materials, public info, general web content |
+
+For detailed guidance on choosing the right level for your integrations, channels, and MCP servers, see the [Classification Guide](./classification-guide).
 
 ## Policy
 
