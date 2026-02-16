@@ -93,8 +93,8 @@ function buildEvaluationContext(
     toolFloor in CLASSIFICATION_ORDER &&
     CLASSIFICATION_ORDER[session.taint] < CLASSIFICATION_ORDER[toolFloor];
 
-  // Path classification violations (for filesystem tools)
-  const pathClassification = input.path_classification as
+  // Resource classification violations (filesystem paths and URL domains)
+  const resourceClassification = input.resource_classification as
     | ClassificationLevel
     | undefined;
   const operationType = input.operation_type as "read" | "write" | undefined;
@@ -103,21 +103,22 @@ function buildEvaluationContext(
     | ClassificationLevel
     | undefined;
 
-  // Write-down: session taint exceeds target path classification
-  const pathWriteDownViolation =
-    pathClassification !== undefined &&
-    operationType === "write" &&
-    pathClassification in CLASSIFICATION_ORDER &&
-    !canFlowTo(session.taint, pathClassification);
+  // Resource taint violation: session taint exceeds resource classification.
+  // Applies to ALL tools (read, write, fetch) — once tainted, the session
+  // cannot interact with any lower-classified resource.
+  const resourceWriteDownViolation =
+    resourceClassification !== undefined &&
+    resourceClassification in CLASSIFICATION_ORDER &&
+    !canFlowTo(session.taint, resourceClassification);
 
-  // Read ceiling: non-owner path classification exceeds ceiling
-  const pathReadCeilingViolation =
-    pathClassification !== undefined &&
+  // Read ceiling: non-owner resource classification exceeds ceiling
+  const resourceReadCeilingViolation =
+    resourceClassification !== undefined &&
     operationType === "read" &&
     isOwner === false &&
     nonOwnerCeiling !== undefined &&
     nonOwnerCeiling in CLASSIFICATION_ORDER &&
-    !canFlowTo(pathClassification, nonOwnerCeiling);
+    !canFlowTo(resourceClassification, nonOwnerCeiling);
 
   return {
     ...input,
@@ -127,8 +128,8 @@ function buildEvaluationContext(
     session_taint: session.taint,
     write_down_violation: writeDownViolation ? "true" : "false",
     tool_floor_violation: toolFloorViolation ? "true" : "false",
-    path_write_down_violation: pathWriteDownViolation ? "true" : "false",
-    path_read_ceiling_violation: pathReadCeilingViolation ? "true" : "false",
+    resource_write_down_violation: resourceWriteDownViolation ? "true" : "false",
+    resource_read_ceiling_violation: resourceReadCeilingViolation ? "true" : "false",
   };
 }
 
@@ -254,10 +255,10 @@ function evaluateWithTimeout(
  *   input from UNTRUSTED sources.
  * - **tool-floor-enforcement** (priority 1000): PRE_TOOL_CALL hook, blocks
  *   tool calls when session taint is below the tool's minimum floor.
- * - **path-write-down** (priority 1000): PRE_TOOL_CALL hook, blocks filesystem
- *   writes when session taint exceeds target path classification.
- * - **path-read-ceiling** (priority 1000): PRE_TOOL_CALL hook, blocks non-owner
- *   reads when path classification exceeds user ceiling.
+ * - **resource-write-down** (priority 1000): PRE_TOOL_CALL hook, blocks resource
+ *   writes when session taint exceeds target resource classification.
+ * - **resource-read-ceiling** (priority 1000): PRE_TOOL_CALL hook, blocks non-owner
+ *   reads when resource classification exceeds user ceiling.
  * - **rate-limit-base** (priority 500): Basic rate limiting placeholder.
  *
  * @returns Array of default PolicyRule objects
@@ -307,32 +308,32 @@ export function createDefaultRules(): PolicyRule[] {
       message: "Tool requires minimum classification level",
     },
     {
-      id: "path-write-down",
+      id: "resource-write-down",
       priority: 1000,
       hook: "PRE_TOOL_CALL",
       conditions: [
         {
-          field: "path_write_down_violation",
+          field: "resource_write_down_violation",
           operator: "equals",
           value: "true",
         },
       ],
       action: "BLOCK",
-      message: "Write-down: session taint exceeds target path classification",
+      message: "Write-down: session taint exceeds target resource classification",
     },
     {
-      id: "path-read-ceiling",
+      id: "resource-read-ceiling",
       priority: 1000,
       hook: "PRE_TOOL_CALL",
       conditions: [
         {
-          field: "path_read_ceiling_violation",
+          field: "resource_read_ceiling_violation",
           operator: "equals",
           value: "true",
         },
       ],
       action: "BLOCK",
-      message: "Path classification exceeds session ceiling",
+      message: "Resource classification exceeds session ceiling",
     },
     {
       id: "rate-limit-base",

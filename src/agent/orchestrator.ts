@@ -19,7 +19,10 @@ import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
 import {
   FILESYSTEM_READ_TOOLS,
   FILESYSTEM_WRITE_TOOLS,
+  URL_READ_TOOLS,
+  URL_WRITE_TOOLS,
 } from "../core/security/constants.ts";
+import type { DomainClassifier } from "../web/domains.ts";
 import type { SessionState, SessionId } from "../core/types/session.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { LlmProviderRegistry, LlmMessage, LlmProvider } from "./llm.ts";
@@ -112,6 +115,8 @@ export interface OrchestratorConfig {
   readonly getNonOwnerCeiling?: () => ClassificationLevel | null;
   /** Path classifier for filesystem tool security checks. */
   readonly pathClassifier?: PathClassifier;
+  /** Domain classifier for URL-based tool security checks. Uses same infrastructure as pathClassifier. */
+  readonly domainClassifier?: DomainClassifier;
   /** Tool floor registry for minimum classification enforcement. */
   readonly toolFloorRegistry?: ToolFloorRegistry;
 }
@@ -263,11 +268,11 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   interface SecurityContext {
     readonly toolName: string;
     readonly toolFloor: ClassificationLevel | null;
-    readonly pathClassification: ClassificationLevel | null;
+    readonly resourceClassification: ClassificationLevel | null;
     readonly operationType: "read" | "write" | null;
     readonly isOwner: boolean;
     readonly nonOwnerCeiling: ClassificationLevel | null;
-    readonly pathParam: string | null;
+    readonly resourceParam: string | null;
   }
 
   /**
@@ -287,24 +292,47 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       hookInput.tool_floor = toolFloor;
     }
 
-    // Path classification for filesystem tools
-    let pathClassification: ClassificationLevel | null = null;
+    // Resource classification for filesystem and URL tools
+    let resourceClassification: ClassificationLevel | null = null;
     let operationType: "read" | "write" | null = null;
+    let resourceParam: string | null = null;
+
+    // --- FILESYSTEM TOOLS ---
     const pathParam = (call.args.path ?? call.args.directory ?? call.args.search_path) as string | null ?? null;
     if (config.pathClassifier && pathParam) {
       if (FILESYSTEM_READ_TOOLS.has(toolName)) {
         const result = config.pathClassifier.classify(pathParam);
-        pathClassification = result.classification;
+        resourceClassification = result.classification;
         operationType = "read";
-        hookInput.path_classification = result.classification;
-        hookInput.operation_type = "read";
+        resourceParam = pathParam;
       } else if (FILESYSTEM_WRITE_TOOLS.has(toolName)) {
         const result = config.pathClassifier.classify(pathParam);
-        pathClassification = result.classification;
+        resourceClassification = result.classification;
         operationType = "write";
-        hookInput.path_classification = result.classification;
-        hookInput.operation_type = "write";
+        resourceParam = pathParam;
       }
+    }
+
+    // --- URL TOOLS ---
+    const urlParam = (call.args.url) as string | undefined ?? null;
+    if (config.domainClassifier && urlParam && resourceClassification === null) {
+      if (URL_READ_TOOLS.has(toolName)) {
+        const result = config.domainClassifier.classify(urlParam);
+        resourceClassification = result.classification;
+        operationType = "read";
+        resourceParam = urlParam;
+      } else if (URL_WRITE_TOOLS.has(toolName)) {
+        const result = config.domainClassifier.classify(urlParam);
+        resourceClassification = result.classification;
+        operationType = "write";
+        resourceParam = urlParam;
+      }
+    }
+
+    // Set hook input fields (same fields regardless of source)
+    if (resourceClassification !== null) {
+      hookInput.resource_classification = resourceClassification;
+      hookInput.operation_type = operationType;
     }
 
     // Identity context
@@ -317,7 +345,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
     return {
       input: hookInput,
-      ctx: { toolName, toolFloor, pathClassification, operationType, isOwner, nonOwnerCeiling, pathParam },
+      ctx: { toolName, toolFloor, resourceClassification, operationType, isOwner, nonOwnerCeiling, resourceParam },
     };
   }
 
@@ -340,16 +368,16 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           `Access higher-classified data first to escalate your session taint, ` +
           `or use a tool that doesn't require ${ctx.toolFloor} clearance.`;
 
-      case "path-write-down":
+      case "resource-write-down":
         return `Error: Write-down blocked — your session taint is ${sessionTaint}, ` +
-          `but the target path${ctx.pathParam ? ` "${ctx.pathParam}"` : ""} is classified ${ctx.pathClassification}. ` +
-          `A ${sessionTaint}-tainted session cannot write to ${ctx.pathClassification}-level destinations. ` +
-          `Use /clear to reset your session context and taint before writing to ${ctx.pathClassification}-classified paths.`;
+          `but the target resource${ctx.resourceParam ? ` "${ctx.resourceParam}"` : ""} is classified ${ctx.resourceClassification}. ` +
+          `A ${sessionTaint}-tainted session cannot write to ${ctx.resourceClassification}-level destinations. ` +
+          `Use /clear to reset your session context and taint before writing to ${ctx.resourceClassification}-classified resources.`;
 
-      case "path-read-ceiling":
-        return `Error: Access denied — the path${ctx.pathParam ? ` "${ctx.pathParam}"` : ""} is classified ${ctx.pathClassification}, ` +
+      case "resource-read-ceiling":
+        return `Error: Access denied — the resource${ctx.resourceParam ? ` "${ctx.resourceParam}"` : ""} is classified ${ctx.resourceClassification}, ` +
           `which exceeds your session ceiling of ${ctx.nonOwnerCeiling}. ` +
-          `You do not have permission to access ${ctx.pathClassification}-classified resources.`;
+          `You do not have permission to access ${ctx.resourceClassification}-classified resources.`;
 
       case "no-write-down":
         return `Error: Write-down blocked — your session taint is ${sessionTaint}, ` +
@@ -734,12 +762,26 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           ? "I'm sorry, I wasn't able to generate a response. The language model returned empty or malformed output. This may be a temporary issue — please try again, or consider switching to a more capable model (e.g. google/gemini-2.0-flash-001)."
           : finalText;
 
-        // Fire PRE_OUTPUT hook
+        // Fire PRE_OUTPUT hook — use real-time session taint (same pattern
+        // as PRE_TOOL_CALL) so the write-down check sees post-escalation taint.
+        // For owner sessions the output target IS the current session taint:
+        // the owner reads their own session, so there is no write-down.
+        // For non-owner channels the fixed targetClassification (channel level)
+        // is correct and blocks output to lower-classified channels.
+        const outputTaint = config.getSessionTaint?.() ?? session.taint;
+        const outputSession = outputTaint !== session.taint
+          ? { ...session, taint: outputTaint }
+          : session;
+        const isOwnerOutput = config.isOwnerSession !== undefined && config.isOwnerSession();
+        const effectiveTargetClassification = isOwnerOutput
+          ? outputTaint
+          : targetClassification;
+
         const preOutputResult = await hookRunner.run("PRE_OUTPUT", {
-          session,
+          session: outputSession,
           input: {
             content: responseText,
-            target_classification: targetClassification,
+            target_classification: effectiveTargetClassification,
           },
         });
 
@@ -791,45 +833,54 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
         emit({ type: "tool_call", name: call.name, args: call.args });
 
-        let resultText: string;
+        let resultText: string | undefined;
         let blocked = false;
 
-        // Plan mode tool blocking (defense-in-depth)
+        // Step 1: Plan mode filter (only if plan manager exists)
         if (planManager && planManager.isToolBlocked(sessionKey, call.name)) {
           resultText = `Tool "${call.name}" is blocked in plan mode. ` +
             `Use plan.exit to present your implementation plan first.`;
           blocked = true;
         } else if (planManager) {
-          // Try plan tools first (returns null if not a plan tool)
+          // Step 2: Try plan tools (returns null if not a plan tool)
           const planExecutor = createPlanToolExecutor(planManager, sessionKey);
           const planResult = await planExecutor(call.name, call.args);
           if (planResult !== null) {
             resultText = planResult;
-          } else {
-            // Not a plan tool — fire PRE_TOOL_CALL hook then external executor
-            const { input: secInput, ctx: secCtx } = buildSecurityHookInput(call);
-            const preToolResult = await hookRunner.run("PRE_TOOL_CALL", {
-              session,
-              input: secInput,
-            });
-            if (!preToolResult.allowed) {
-              resultText = formatBlockReason(preToolResult.ruleId, secCtx, session.taint);
-              blocked = true;
-            } else {
-              resultText = await toolExecutor!(call.name, call.args);
-            }
           }
-        } else {
-          // No plan manager — original behavior
-          const { input: secInput2, ctx: secCtx2 } = buildSecurityHookInput(call);
+        }
+
+        // Step 3: Universal security + execution path (runs if not handled above)
+        if (resultText === undefined) {
+          const { input: secInput, ctx: secCtx } = buildSecurityHookInput(call);
+
+          // Owner pre-escalation: escalate taint from the resolved resource
+          // classification BEFORE the hook so tool floor checks see the
+          // post-escalation taint. Owner sessions have no ceiling — reads
+          // are always allowed. Write-down checks still work because
+          // maxClassification only goes up (taint ≥ resource → no write-down).
+          if (secCtx.resourceClassification !== null && secCtx.isOwner && config.escalateTaint) {
+            config.escalateTaint(secCtx.resourceClassification, `${call.name}: ${secCtx.resourceParam}`);
+          }
+
+          // Use real-time session taint for hook evaluation — reflects both
+          // prior tool calls in this turn and the owner pre-escalation above.
+          const currentTaint = config.getSessionTaint?.() ?? session.taint;
+          const hookSession = currentTaint !== session.taint
+            ? { ...session, taint: currentTaint }
+            : session;
           const preToolResult = await hookRunner.run("PRE_TOOL_CALL", {
-            session,
-            input: secInput2,
+            session: hookSession,
+            input: secInput,
           });
           if (!preToolResult.allowed) {
-            resultText = formatBlockReason(preToolResult.ruleId, secCtx2, session.taint);
+            resultText = formatBlockReason(preToolResult.ruleId, secCtx, currentTaint);
             blocked = true;
           } else {
+            // Non-owner escalation: only after hook confirms the read/write is allowed
+            if (secCtx.resourceClassification !== null && !secCtx.isOwner && config.escalateTaint) {
+              config.escalateTaint(secCtx.resourceClassification, `${call.name}: ${secCtx.resourceParam}`);
+            }
             resultText = await toolExecutor!(call.name, call.args);
           }
         }

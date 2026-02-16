@@ -13,9 +13,12 @@
 export {
   createDomainPolicy,
   createDomainPolicyFromLegacy,
+  createDomainClassifier,
   isPrivateIp,
   resolveAndCheck,
   type DomainClassification,
+  type DomainClassificationResult,
+  type DomainClassifier,
   type DomainPolicy,
   type DomainPolicyConfig,
   type DomainSecurityConfig,

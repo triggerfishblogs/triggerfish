@@ -121,6 +121,7 @@ import {
 import {
   createBraveSearchProvider,
   createDomainPolicy,
+  createDomainClassifier,
   createRateLimitedSearchProvider,
   createWebFetcher,
   createWebToolExecutor,
@@ -128,6 +129,7 @@ import {
   WEB_TOOLS_SYSTEM_PROMPT,
 } from "../web/mod.ts";
 import type {
+  DomainClassifier,
   DomainSecurityConfig,
   SearchProvider,
   WebFetcher,
@@ -773,7 +775,7 @@ Your TRIGGER.md file is at ${
 
 function buildWebTools(
   config: TriggerFishConfig,
-): { searchProvider: SearchProvider | undefined; webFetcher: WebFetcher } {
+): { searchProvider: SearchProvider | undefined; webFetcher: WebFetcher; domainClassifier: DomainClassifier } {
   const webConfig = config.web;
 
   // Build domain security config
@@ -787,6 +789,7 @@ function buildWebTools(
   };
 
   const domainPolicy = createDomainPolicy(domainSecConfig);
+  const domainClassifier = createDomainClassifier(domainPolicy);
   const webFetcher = createWebFetcher(domainPolicy);
 
   // Build search provider
@@ -811,7 +814,7 @@ function buildWebTools(
     );
   }
 
-  return { searchProvider, webFetcher };
+  return { searchProvider, webFetcher, domainClassifier };
 }
 
 /**
@@ -866,7 +869,7 @@ function createOrchestratorFactory(
 
   const spinePath = join(baseDir, "SPINE.md");
   const toolDefs = getToolDefinitions();
-  const { searchProvider, webFetcher } = buildWebTools(config);
+  const { searchProvider, webFetcher, domainClassifier: schedulerDomainClassifier } = buildWebTools(config);
   const schedulerKeychain = createKeychain();
 
   // Shared by all scheduler orchestrators — same config-driven map
@@ -1056,6 +1059,7 @@ function createOrchestratorFactory(
           session = updateTaint(session, level, reason);
         },
         pathClassifier: schedulerPathClassifier,
+        domainClassifier: schedulerDomainClassifier,
         toolFloorRegistry: schedulerToolFloorRegistry,
       });
 
@@ -1315,7 +1319,7 @@ async function runStart(): Promise<void> {
 
   const execTools = createExecTools(mainWorkspace);
   const todoManager = createTodoManager({ storage, agentId: "main-session" });
-  const { searchProvider, webFetcher } = buildWebTools(config);
+  const { searchProvider, webFetcher, domainClassifier } = buildWebTools(config);
 
   // Initialize memory system with FTS5 search
   const { Database } = await import("@db/sqlite");
@@ -1589,6 +1593,7 @@ async function runStart(): Promise<void> {
     },
     pairingService,
     pathClassifier,
+    domainClassifier,
     toolFloorRegistry,
   });
 
