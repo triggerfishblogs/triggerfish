@@ -88,9 +88,23 @@ async function trySignalCli(path: string, env?: Record<string, string>): Promise
       stderr: "piped",
       env: env ? { ...Deno.env.toObject(), ...env } : undefined,
     });
-    const output = await cmd.output();
-    if (output.success) {
-      const version = new TextDecoder().decode(output.stdout).trim();
+    const child = cmd.spawn();
+
+    // Race the process against a 15-second timeout to prevent hanging
+    // (Java-based signal-cli can stall on some systems)
+    const result = await Promise.race([
+      child.output(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
+    ]);
+
+    if (result === null) {
+      // Timeout — kill the hung process
+      try { child.kill(); } catch { /* already dead */ }
+      return { ok: false, error: "timed out" };
+    }
+
+    if (result.success) {
+      const version = new TextDecoder().decode(result.stdout).trim();
       return { ok: true, value: { version, path } };
     }
     return { ok: false, error: "non-zero exit" };
@@ -167,7 +181,19 @@ export async function checkJava(): Promise<Result<{ version: string; javaHome?: 
 async function tryJava(path: string): Promise<Result<string, string>> {
   try {
     const cmd = new Deno.Command(path, { args: ["--version"], stdout: "piped", stderr: "piped" });
-    const output = await cmd.output();
+    const child = cmd.spawn();
+
+    // Race against a 15-second timeout to prevent hanging
+    const output = await Promise.race([
+      child.output(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
+    ]);
+
+    if (output === null) {
+      try { child.kill(); } catch { /* already dead */ }
+      return { ok: false, error: "timed out" };
+    }
+
     if (!output.success) {
       return { ok: false, error: "java returned non-zero exit code" };
     }
