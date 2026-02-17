@@ -186,6 +186,12 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
                   return;
                 }
 
+                // Route secret prompt responses to the waiting secret_save executor.
+                if (msg.type === "secret_prompt_response") {
+                  chatSession.handleSecretPromptResponse(msg.nonce, msg.value);
+                  return;
+                }
+
                 if (msg.type === "message" && (typeof msg.content === "string" || (Array.isArray(msg.content) && msg.content.length > 0))) {
                   abortController = new AbortController();
                   const signal = abortController.signal;

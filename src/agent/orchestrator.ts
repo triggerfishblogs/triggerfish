@@ -14,6 +14,8 @@
 
 import type { Result, ClassificationLevel } from "../core/types/classification.ts";
 import { canFlowTo } from "../core/types/classification.ts";
+import type { SecretStore } from "../secrets/keychain.ts";
+import { resolveSecretRefs } from "../secrets/resolver.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
 import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
 import {
@@ -119,6 +121,12 @@ export interface OrchestratorConfig {
   readonly domainClassifier?: DomainClassifier;
   /** Tool floor registry for minimum classification enforcement. */
   readonly toolFloorRegistry?: ToolFloorRegistry;
+  /**
+   * Secret store for resolving `{{secret:name}}` references in tool arguments.
+   * When provided, all tool input arguments are scanned and references substituted
+   * before dispatch. The resolved values are never logged or returned to the LLM.
+   */
+  readonly secretStore?: SecretStore;
 }
 
 /** Config shape for building integration/plugin/channel classification map. */
@@ -442,7 +450,23 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           }
         }
 
-        const result = await rawToolExecutor(name, input);
+        // Resolve {{secret:name}} references in tool input before dispatch.
+        // The LLM never sees the resolved values — substitution happens here,
+        // below the LLM layer.
+        let resolvedInput = input;
+        if (config.secretStore) {
+          const resolution = await resolveSecretRefs(input, config.secretStore);
+          if (resolution.ok) {
+            if (resolution.value.missing.length > 0) {
+              return `Error: The following secrets were referenced but not found in the secret store: ${
+                resolution.value.missing.map((n) => `'${n}'`).join(", ")
+              }. Use secret_save to store them first.`;
+            }
+            resolvedInput = resolution.value.resolved;
+          }
+        }
+
+        const result = await rawToolExecutor(name, resolvedInput);
 
         // Post-call: escalate based on response-level classification
         // (e.g. GitHub per-repo classification in _classification field)
