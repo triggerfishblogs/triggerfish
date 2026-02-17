@@ -2972,7 +2972,22 @@ async function runUpdate(): Promise<void> {
       console.log("✓ Already up to date (" + result.newVersion + ")");
     } else {
       console.log("✓", result.message);
-      console.log("\nRun 'triggerfish status' to verify the daemon restarted.");
+      if (result.wasRunning) {
+        console.log("\nRun 'triggerfish status' to verify the daemon restarted.");
+      } else {
+        const startIt = await Confirm.prompt({
+          message: "Daemon was not running. Start it now?",
+          default: true,
+        });
+        if (startIt) {
+          const startResult = await installAndStartDaemon(Deno.execPath());
+          if (startResult.ok) {
+            console.log("✓ Daemon started");
+          } else {
+            console.log(`✗ ${startResult.message}`);
+          }
+        }
+      }
     }
   } else {
     console.log("✗", result.message);
