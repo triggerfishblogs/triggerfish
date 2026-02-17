@@ -70,6 +70,12 @@ import type { ChannelId, SessionId, UserId } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import { createWorkspace } from "../exec/workspace.ts";
 import { createExecTools } from "../exec/tools.ts";
+import {
+  CLAUDE_SESSION_SYSTEM_PROMPT,
+  createClaudeSessionManager,
+  createClaudeToolExecutor,
+  getClaudeToolDefinitions,
+} from "../exec/claude.ts";
 import { createPathClassifier } from "../core/security/path_classification.ts";
 import { createToolFloorRegistry } from "../core/security/tool_floors.ts";
 import {
@@ -1606,6 +1612,12 @@ async function runStart(): Promise<void> {
   const SKILLS_SYSTEM_PROMPT = buildSkillsSystemPrompt(discoveredSkills);
   const TRIGGERS_SYSTEM_PROMPT = buildTriggersSystemPrompt(baseDir);
 
+  // Claude session manager — spawns headless Claude CLI subprocesses
+  const claudeSessionManager = createClaudeSessionManager({
+    workspacePath: mainWorkspace.path,
+  });
+  const claudeExecutor = createClaudeToolExecutor(claudeSessionManager);
+
   const toolExecutor = createToolExecutor({
     execTools,
     cronManager,
@@ -1631,6 +1643,7 @@ async function runStart(): Promise<void> {
       storageProvider: storage,
       skillLoader,
     }),
+    claudeExecutor,
     mcpExecutor,
     subagentFactory,
     providerRegistry: registry,
@@ -1665,6 +1678,7 @@ async function runStart(): Promise<void> {
       LLM_TASK_SYSTEM_PROMPT,
       SUMMARIZE_SYSTEM_PROMPT,
       HEALTHCHECK_SYSTEM_PROMPT,
+      CLAUDE_SESSION_SYSTEM_PROMPT,
       mcpSystemPrompt,
     ],
     session,
@@ -3015,6 +3029,7 @@ function getToolDefinitions(
     ...getLlmTaskToolDefinitions(),
     ...getSummarizeToolDefinitions(),
     ...getHealthcheckToolDefinitions(),
+    ...getClaudeToolDefinitions(),
     ...(mcpToolDefs ?? []),
     {
       name: "read_file",
@@ -3252,6 +3267,10 @@ interface ToolExecutorOptions {
     name: string,
     input: Record<string, unknown>,
   ) => Promise<string | null>;
+  readonly claudeExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
   readonly subagentFactory?: (task: string, tools?: string) => Promise<string>;
 }
 
@@ -3357,6 +3376,12 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
     if (opts.healthcheckExecutor) {
       const healthcheckResult = await opts.healthcheckExecutor(name, input);
       if (healthcheckResult !== null) return healthcheckResult;
+    }
+
+    // Try Claude session tools (returns null if not a claude tool)
+    if (opts.claudeExecutor) {
+      const claudeResult = await opts.claudeExecutor(name, input);
+      if (claudeResult !== null) return claudeResult;
     }
 
     // Try MCP server tools (returns null if not an MCP tool)
