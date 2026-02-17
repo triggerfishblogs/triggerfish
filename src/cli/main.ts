@@ -1865,9 +1865,13 @@ async function runStart(): Promise<void> {
             if (ready) {
               console.log("  signal-cli daemon started");
             } else {
+              const stderr = await daemonResult.value.stderrText();
               console.error(
                 "  signal-cli daemon started but not reachable within 60s",
               );
+              if (stderr) {
+                console.error(`  signal-cli stderr: ${stderr}`);
+              }
             }
           } else {
             console.error(
@@ -2326,9 +2330,13 @@ async function promptChannelConfig(
             if (ready) {
               console.log("  Daemon is running.");
             } else {
+              const stderr = await daemonResult.value.stderrText();
               console.error(
                 "  Daemon started but not reachable yet. It may still be initializing.",
               );
+              if (stderr) {
+                console.error(`  signal-cli stderr: ${stderr}`);
+              }
               console.error(
                 `  Check: ${signalCliPath} -a ${config.account} daemon --tcp localhost:7583`,
               );
