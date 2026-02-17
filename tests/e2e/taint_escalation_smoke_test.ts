@@ -148,17 +148,17 @@ Deno.test("SMOKE: full taint lifecycle — read → escalate → write-down bloc
   assertEquals(writeResult?.includes("blocked=true"), true, "write_file should have been blocked");
 });
 
-Deno.test("SMOKE: browser_navigate with tool floor — owner auto-escalates from PUBLIC", async () => {
+Deno.test("SMOKE: browser_navigate with no floor — PUBLIC session allowed directly", async () => {
   const log: string[] = [];
 
   let sessionTaint: ClassificationLevel = "PUBLIC";
   const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
 
-  // LLM calls browser_navigate to a CONFIDENTIAL domain from a PUBLIC session.
-  // browser_navigate has a CONFIDENTIAL tool floor. The owner pre-escalation
-  // should escalate PUBLIC → CONFIDENTIAL before the hook, so the floor passes.
+  // LLM calls browser_navigate from a PUBLIC session.
+  // browser_navigate has no floor — it should be allowed immediately without
+  // any taint escalation requirement.
   const toolSequence = [
-    { name: "browser_navigate", args: { url: "https://gmail.com/inbox" } },
+    { name: "browser_navigate", args: { url: "https://ibm.com" } },
   ];
   let toolIdx = 0;
 
@@ -187,13 +187,13 @@ Deno.test("SMOKE: browser_navigate with tool floor — owner auto-escalates from
     { name: "browser_navigate", description: "Navigate", parameters: { url: { type: "string", description: "u", required: true } } },
   ];
 
-  // Tool floor registry that returns CONFIDENTIAL for browser_navigate
+  // No hardcoded floor for browser_navigate — it has no floor in HARDCODED_TOOL_FLOORS
   const toolFloorRegistry = {
-    getFloor(toolName: string): ClassificationLevel | null {
-      const floors: Record<string, ClassificationLevel> = {
-        browser_navigate: "CONFIDENTIAL",
-      };
-      return floors[toolName] ?? null;
+    getFloor(_toolName: string): ClassificationLevel | null {
+      return null;
+    },
+    canInvoke(_toolName: string, _sessionTaint: ClassificationLevel): boolean {
+      return true;
     },
   };
 
@@ -227,11 +227,11 @@ Deno.test("SMOKE: browser_navigate with tool floor — owner auto-escalates from
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
   const result = await orchestrator.processMessage({
     session,
-    message: "Navigate to gmail",
-    targetClassification: "CONFIDENTIAL",
+    message: "Open ibm.com",
+    targetClassification: "PUBLIC",
   });
 
-  console.log("\n── Browser Navigate + Tool Floor Log ──");
+  console.log("\n── Browser Navigate (no floor) Log ──");
   for (const entry of log) {
     console.log(`  ${entry}`);
   }
@@ -239,9 +239,8 @@ Deno.test("SMOKE: browser_navigate with tool floor — owner auto-escalates from
   console.log("────────────────────────────────────────\n");
 
   assertEquals(result.ok, true);
-  assertEquals(sessionTaint, "CONFIDENTIAL", "Owner should auto-escalate to CONFIDENTIAL");
 
-  // browser_navigate should NOT be blocked — owner pre-escalation satisfies the floor
+  // browser_navigate should NOT be blocked — no floor means PUBLIC sessions are allowed
   const navResult = log.find(l => l.includes("TOOL_RESULT: browser_navigate"));
-  assertEquals(navResult?.includes("blocked=false"), true, "browser_navigate should NOT be blocked for owner after auto-escalation");
+  assertEquals(navResult?.includes("blocked=false"), true, "browser_navigate should NOT be blocked for PUBLIC session");
 });

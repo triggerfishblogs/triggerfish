@@ -11,7 +11,7 @@
 import { join } from "@std/path";
 import type { Result } from "../core/types/classification.ts";
 import { isDockerEnvironment } from "../core/env.ts";
-import { createFileSecretStore } from "./file_provider.ts";
+import { createEncryptedFileSecretStore } from "./encrypted_file_provider.ts";
 
 /** Service name used for all keychain entries. */
 const SERVICE_NAME = "triggerfish";
@@ -360,7 +360,10 @@ export function createMemorySecretStore(): SecretStore {
  */
 export function createKeychain(): SecretStore {
   if (isDockerEnvironment()) {
-    return createFileSecretStore({ path: "/data/secrets.json" });
+    return createEncryptedFileSecretStore({
+      secretsPath: "/data/secrets.json",
+      keyPath: "/data/secrets.key",
+    });
   }
 
   const os = Deno.build.os;
@@ -379,7 +382,10 @@ export function createKeychain(): SecretStore {
           Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".",
           ".triggerfish",
         );
-      return createFileSecretStore({ path: join(dataDir, "secrets.json") });
+      return createEncryptedFileSecretStore({
+        secretsPath: join(dataDir, "secrets.json"),
+        keyPath: join(dataDir, "secrets.key"),
+      });
     }
     default:
       return createMemorySecretStore();

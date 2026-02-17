@@ -29,3 +29,16 @@ export type {
   ExecRunner,
   ExecRunnerOptions,
 } from "./runner.ts";
+
+export { createClaudeSessionManager } from "./claude.ts";
+export type {
+  ClaudeSession,
+  ClaudeSessionConfig,
+  ClaudeSessionManager,
+  ClaudeSessionManagerOptions,
+} from "./claude.ts";
+export {
+  CLAUDE_SESSION_SYSTEM_PROMPT,
+  createClaudeToolExecutor,
+  getClaudeToolDefinitions,
+} from "./claude.ts";

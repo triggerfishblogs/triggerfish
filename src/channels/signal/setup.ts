@@ -88,9 +88,23 @@ async function trySignalCli(path: string, env?: Record<string, string>): Promise
       stderr: "piped",
       env: env ? { ...Deno.env.toObject(), ...env } : undefined,
     });
-    const output = await cmd.output();
-    if (output.success) {
-      const version = new TextDecoder().decode(output.stdout).trim();
+    const child = cmd.spawn();
+
+    // Race the process against a 15-second timeout to prevent hanging
+    // (Java-based signal-cli can stall on some systems)
+    const result = await Promise.race([
+      child.output(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
+    ]);
+
+    if (result === null) {
+      // Timeout — kill the hung process
+      try { child.kill(); } catch { /* already dead */ }
+      return { ok: false, error: "timed out" };
+    }
+
+    if (result.success) {
+      const version = new TextDecoder().decode(result.stdout).trim();
       return { ok: true, value: { version, path } };
     }
     return { ok: false, error: "non-zero exit" };
@@ -167,7 +181,19 @@ export async function checkJava(): Promise<Result<{ version: string; javaHome?: 
 async function tryJava(path: string): Promise<Result<string, string>> {
   try {
     const cmd = new Deno.Command(path, { args: ["--version"], stdout: "piped", stderr: "piped" });
-    const output = await cmd.output();
+    const child = cmd.spawn();
+
+    // Race against a 15-second timeout to prevent hanging
+    const output = await Promise.race([
+      child.output(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
+    ]);
+
+    if (output === null) {
+      try { child.kill(); } catch { /* already dead */ }
+      return { ok: false, error: "timed out" };
+    }
+
     if (!output.success) {
       return { ok: false, error: "java returned non-zero exit code" };
     }
@@ -624,15 +650,27 @@ export async function isDaemonRunning(host: string, port: number): Promise<boole
   }
 }
 
+/** Result of starting the signal-cli daemon. */
+export interface DaemonHandle {
+  /** The child process. */
+  readonly child: Deno.ChildProcess;
+  /** Collect any stderr output (for diagnostics on failure). */
+  readonly stderrText: () => Promise<string>;
+}
+
 /**
  * Start signal-cli daemon on a TCP socket.
+ *
+ * Normalizes "localhost" to "127.0.0.1" so signal-cli binds IPv4 — on
+ * Windows dual-stack systems Java resolves "localhost" to `::1` (IPv6),
+ * causing connection refused when Triggerfish probes `127.0.0.1`.
  *
  * @param account - Phone number (E.164).
  * @param host - TCP hostname. Default: localhost.
  * @param port - TCP port. Default: 7583.
  * @param signalCliPath - Path to signal-cli binary.
  * @param javaHome - Optional JAVA_HOME for managed JRE.
- * @returns The child process handle.
+ * @returns A handle with the child process and stderr accessor.
  */
 export function startDaemon(
   account: string,
@@ -640,19 +678,50 @@ export function startDaemon(
   port: number = 7583,
   signalCliPath: string = "signal-cli",
   javaHome?: string,
-): Result<Deno.ChildProcess, string> {
+): Result<DaemonHandle, string> {
   try {
     const env = javaHome
       ? { ...Deno.env.toObject(), JAVA_HOME: javaHome }
       : undefined;
+    const normalizedHost = normalizeHost(host);
     const cmd = new Deno.Command(signalCliPath, {
-      args: ["-a", account, "daemon", "--tcp", `${host}:${port}`],
+      args: ["-a", account, "daemon", "--tcp", `${normalizedHost}:${port}`],
       stdout: "null",
-      stderr: "null",
+      stderr: "piped",
       env,
     });
     const child = cmd.spawn();
-    return { ok: true, value: child };
+
+    // Collect stderr lazily — only read when caller needs diagnostics
+    let stderrPromise: Promise<string> | null = null;
+    const stderrText = (): Promise<string> => {
+      if (!stderrPromise) {
+        stderrPromise = (async () => {
+          try {
+            const reader = child.stderr.getReader();
+            const chunks: Uint8Array[] = [];
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              chunks.push(value);
+            }
+            const total = chunks.reduce((n, c) => n + c.length, 0);
+            const merged = new Uint8Array(total);
+            let offset = 0;
+            for (const c of chunks) {
+              merged.set(c, offset);
+              offset += c.length;
+            }
+            return new TextDecoder().decode(merged).trim();
+          } catch {
+            return "";
+          }
+        })();
+      }
+      return stderrPromise;
+    };
+
+    return { ok: true, value: { child, stderrText } };
   } catch (err) {
     return { ok: false, error: `Failed to start signal-cli daemon: ${err instanceof Error ? err.message : String(err)}` };
   }
