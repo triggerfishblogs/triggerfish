@@ -13,3 +13,8 @@ export { createKeychain, createMemorySecretStore } from "./keychain.ts";
 export type { SecretStore } from "./keychain.ts";
 export { createFileSecretStore } from "./file_provider.ts";
 export type { FileSecretStoreOptions } from "./file_provider.ts";
+export {
+  findSecretRefs,
+  resolveConfigSecrets,
+  resolveSecretRef,
+} from "./resolver.ts";

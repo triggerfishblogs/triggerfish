@@ -1,19 +1,99 @@
 # Triggerfish Example Configuration
 # Copy to ~/.triggerfish/triggerfish.yaml and edit.
+#
+# SECRETS: API keys and tokens must NOT be stored as plaintext in this file.
+# Use the `secret:<key>` reference syntax to pull values from the OS keychain:
+#
+#   apiKey: "secret:provider:anthropic:apiKey"
+#
+# Store secrets with:
+#   triggerfish config set-secret provider:anthropic:apiKey sk-ant-...
+#
+# Migrate existing plaintext secrets automatically:
+#   triggerfish config migrate-secrets
 
 models:
-  primary: claude-sonnet-4-5-20250929
+  primary:
+    provider: anthropic
+    model: claude-sonnet-4-5-20250929
   # vision: glm-4.5v  # Optional: separate vision model for image description
   providers:
     anthropic:
       model: claude-sonnet-4-5-20250929
-    # zai:
-    #   model: glm-4.7
+      # API key stored in OS keychain — never commit plaintext here
+      apiKey: "secret:provider:anthropic:apiKey"
+    # openai:
+    #   model: gpt-4o
+    #   apiKey: "secret:provider:openai:apiKey"
+    # google:
+    #   model: gemini-2.0-flash
+    #   apiKey: "secret:provider:google:apiKey"
+    # openrouter:
+    #   model: anthropic/claude-sonnet-4-5
+    #   apiKey: "secret:provider:openrouter:apiKey"
+    # ollama:
+    #   model: llama3
+    #   endpoint: http://localhost:11434
+    # lmstudio:
+    #   model: lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF
+    #   endpoint: http://localhost:1234
 
 channels:
   cli:
     enabled: true
     classification: INTERNAL
+  # telegram:
+  #   botToken: "secret:telegram:botToken"
+  #   classification: INTERNAL
+  #   ownerId: 123456789
+  # discord:
+  #   botToken: "secret:discord:botToken"
+  #   classification: INTERNAL
+  # slack:
+  #   botToken: "secret:slack:botToken"
+  #   appToken: "secret:slack:appToken"
+  #   signingSecret: "secret:slack:signingSecret"
+  #   classification: INTERNAL
+  # whatsapp:
+  #   accessToken: "secret:whatsapp:accessToken"
+  #   webhookVerifyToken: "secret:whatsapp:webhookVerifyToken"
+  #   classification: INTERNAL
+  # email:
+  #   smtpHost: smtp.example.com
+  #   smtpPort: 587
+  #   smtpUser: you@example.com
+  #   smtpPassword: "secret:email:smtpPassword"
+  #   imapHost: imap.example.com
+  #   imapPassword: "secret:email:imapPassword"
+  #   classification: CONFIDENTIAL
+
+web:
+  search:
+    provider: brave
+    # api_key: "secret:web:search:apiKey"
+  fetch:
+    enabled: true
+
+# scheduler:
+#   trigger:
+#     enabled: true
+#   webhooks:
+#     sources:
+#       my-webhook:
+#         secret: "secret:webhook:my-webhook:secret"
+
+# plugins:
+#   obsidian:
+#     enabled: true
+#     vault_path: ~/Documents/Obsidian
+#     classification: INTERNAL
+#     daily_notes:
+#       folder: daily
+#       date_format: YYYY-MM-DD
+
+classification:
+  mode: personal
+  levels: standard
 
 policy:
   default_action: ALLOW

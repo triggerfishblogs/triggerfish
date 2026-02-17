@@ -14,8 +14,10 @@ import {
   createDirectoryTree,
   generateConfig,
   generateSpine,
+  storeWizardSecrets,
 } from "../../src/dive/wizard.ts";
 import type { WizardAnswers } from "../../src/dive/wizard.ts";
+import { createMemorySecretStore } from "../../src/secrets/keychain.ts";
 
 // ─── Test fixtures ───────────────────────────────────────────────────────────
 
@@ -162,8 +164,8 @@ Deno.test("Wizard: generateConfig includes telegram channel config", () => {
   const channels = parsed.channels as Record<string, Record<string, unknown>>;
   assertEquals(channels.telegram.classification, "INTERNAL");
   assertEquals(channels.telegram.ownerId, 483291057);
-  // Token stored directly in config
-  assertEquals(channels.telegram.botToken, "123:ABC");
+  // Token stored as secret: reference, not plaintext
+  assertEquals(channels.telegram.botToken, "secret:telegram:botToken");
 });
 
 Deno.test("Wizard: generateConfig has empty channels when only CLI selected", () => {
@@ -352,4 +354,123 @@ Deno.test("Wizard: dive --force flag parses correctly", async () => {
   const cmd = parseCommand(["dive", "--force"]);
   assertEquals(cmd.command, "dive");
   assertEquals(cmd.flags["force"], true);
+});
+
+// ─── generateConfig: secret: reference syntax ─────────────────────────────────
+
+Deno.test("Wizard: generateConfig writes secret: ref for provider apiKey, not plaintext", () => {
+  const answers = makeAnswers({
+    provider: "anthropic",
+    apiKey: "sk-ant-real-key",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const models = parsed.models as Record<string, unknown>;
+  const providers = models.providers as Record<string, Record<string, string>>;
+  // Must be a secret reference, not the actual key
+  assertEquals(providers.anthropic.apiKey, "secret:provider:anthropic:apiKey");
+  assertEquals(providers.anthropic.apiKey.includes("sk-ant-real-key"), false);
+});
+
+Deno.test("Wizard: generateConfig writes secret: ref for telegram botToken", () => {
+  const answers = makeAnswers({
+    channels: ["cli", "telegram"],
+    telegramBotToken: "1234567890:ABCDEFabcdef",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const channels = parsed.channels as Record<string, Record<string, string>>;
+  assertEquals(channels.telegram.botToken, "secret:telegram:botToken");
+  assertEquals(
+    channels.telegram.botToken.includes("ABCDEFabcdef"),
+    false,
+  );
+});
+
+Deno.test("Wizard: generateConfig writes secret: ref for Brave search api_key", () => {
+  const answers = makeAnswers({
+    searchProvider: "brave",
+    searchApiKey: "BSV-real-key-value",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const web = parsed.web as Record<string, unknown>;
+  const search = web.search as Record<string, string>;
+  assertEquals(search.api_key, "secret:web:search:apiKey");
+  assertEquals(search.api_key.includes("BSV-real-key-value"), false);
+});
+
+Deno.test("Wizard: generateConfig omits apiKey field when no key provided", () => {
+  const answers = makeAnswers({ provider: "anthropic", apiKey: "" });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const models = parsed.models as Record<string, unknown>;
+  const providers = models.providers as Record<string, Record<string, string>>;
+  assertEquals(providers.anthropic.apiKey, undefined);
+});
+
+// ─── storeWizardSecrets tests ─────────────────────────────────────────────────
+
+Deno.test("Wizard: storeWizardSecrets stores provider apiKey in keychain", async () => {
+  const store = createMemorySecretStore();
+  const answers = makeAnswers({
+    provider: "anthropic",
+    apiKey: "sk-ant-test-key",
+  });
+
+  const stored = await storeWizardSecrets(answers, store);
+  assertEquals(stored.includes("provider:anthropic:apiKey"), true);
+
+  const result = await store.getSecret("provider:anthropic:apiKey");
+  assertEquals(result.ok, true);
+  if (result.ok) assertEquals(result.value, "sk-ant-test-key");
+});
+
+Deno.test("Wizard: storeWizardSecrets stores telegram botToken in keychain", async () => {
+  const store = createMemorySecretStore();
+  const answers = makeAnswers({
+    channels: ["cli", "telegram"],
+    telegramBotToken: "123:TOKEN",
+  });
+
+  const stored = await storeWizardSecrets(answers, store);
+  assertEquals(stored.includes("telegram:botToken"), true);
+
+  const result = await store.getSecret("telegram:botToken");
+  assertEquals(result.ok, true);
+  if (result.ok) assertEquals(result.value, "123:TOKEN");
+});
+
+Deno.test("Wizard: storeWizardSecrets stores Brave search apiKey in keychain", async () => {
+  const store = createMemorySecretStore();
+  const answers = makeAnswers({
+    searchProvider: "brave",
+    searchApiKey: "brave-api-key-abc",
+  });
+
+  const stored = await storeWizardSecrets(answers, store);
+  assertEquals(stored.includes("web:search:apiKey"), true);
+
+  const result = await store.getSecret("web:search:apiKey");
+  assertEquals(result.ok, true);
+  if (result.ok) assertEquals(result.value, "brave-api-key-abc");
+});
+
+Deno.test("Wizard: storeWizardSecrets does not store keys for local providers (ollama)", async () => {
+  const store = createMemorySecretStore();
+  const answers = makeAnswers({
+    provider: "ollama",
+    apiKey: "should-not-be-stored",
+  });
+
+  const stored = await storeWizardSecrets(answers, store);
+  assertEquals(stored.includes("provider:ollama:apiKey"), false);
+});
+
+Deno.test("Wizard: storeWizardSecrets returns empty array when no secrets provided", async () => {
+  const store = createMemorySecretStore();
+  const answers = makeAnswers({ apiKey: "", telegramBotToken: "", searchApiKey: "" });
+
+  const stored = await storeWizardSecrets(answers, store);
+  assertEquals(stored, []);
 });
