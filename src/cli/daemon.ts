@@ -579,6 +579,8 @@ export interface UpdateResult {
   readonly message: string;
   readonly previousVersion?: string;
   readonly newVersion?: string;
+  /** Whether the daemon was running before the update began. */
+  readonly wasRunning?: boolean;
 }
 
 const GITHUB_REPO = "greghavens/triggerfish";
@@ -877,6 +879,7 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
     message: `Updated from ${currentVersion} to ${latestTag}`,
     previousVersion: currentVersion,
     newVersion: latestTag,
+    wasRunning,
   };
 }
 
