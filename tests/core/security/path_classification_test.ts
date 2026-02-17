@@ -14,7 +14,7 @@ import type {
   WorkspacePaths,
 } from "../../../src/core/security/path_classification.ts";
 import type { ClassificationLevel } from "../../../src/core/types/classification.ts";
-import { join, resolve } from "@std/path";
+import { join } from "@std/path";
 
 // --- Helpers ---
 

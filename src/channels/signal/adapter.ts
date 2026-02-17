@@ -118,7 +118,7 @@ export function createSignalChannel(config: SignalConfig): SignalChannelAdapter 
       const groupId = groupInfo.groupId;
       if (!isGroupMessageAllowed(groupId, messageText, dataMessage.mentions)) return;
 
-      const groupClassification = config.groups?.[groupId]?.classification ?? classification;
+      const _groupClassification = config.groups?.[groupId]?.classification ?? classification;
 
       handler({
         content: messageText,
@@ -227,13 +227,13 @@ export function createSignalChannel(config: SignalConfig): SignalChannelAdapter 
       }
     },
 
-    async listGroups(): Promise<Result<readonly SignalGroupEntry[], string>> {
-      if (!client) return { ok: false, error: "Not connected" };
+    listGroups(): Promise<Result<readonly SignalGroupEntry[], string>> {
+      if (!client) return Promise.resolve({ ok: false, error: "Not connected" });
       return client.listGroups();
     },
 
-    async listContacts(): Promise<Result<readonly SignalContactEntry[], string>> {
-      if (!client) return { ok: false, error: "Not connected" };
+    listContacts(): Promise<Result<readonly SignalContactEntry[], string>> {
+      if (!client) return Promise.resolve({ ok: false, error: "Not connected" });
       return client.listContacts();
     },
   };
