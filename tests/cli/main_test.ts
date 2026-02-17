@@ -69,6 +69,22 @@ Deno.test("CLI: parses 'config validate' subcommand", async () => {
   assertEquals(cmd.subcommand, "validate");
 });
 
+Deno.test("CLI: parses 'config remove-channel signal' subcommand", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["config", "remove-channel", "signal"]);
+  assertEquals(cmd.command, "config");
+  assertEquals(cmd.subcommand, "remove-channel");
+  assertEquals(cmd.flags.channel_type, "signal");
+});
+
+Deno.test("CLI: parses 'config remove-channel' without type", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["config", "remove-channel"]);
+  assertEquals(cmd.command, "config");
+  assertEquals(cmd.subcommand, "remove-channel");
+  assertEquals(cmd.flags.channel_type, undefined);
+});
+
 Deno.test("CLI: unknown command returns help suggestion", async () => {
   const { parseCommand } = await import("../../src/cli/main.ts");
   const cmd = parseCommand(["nonexistent"]);
