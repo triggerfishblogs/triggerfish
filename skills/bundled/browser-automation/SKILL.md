@@ -73,6 +73,7 @@ When a page loads content asynchronously:
 
 - The browser auto-launches when you call any browser tool. You do not need to start it manually.
 - Only http and https URLs are allowed. Private/reserved IPs are blocked (SSRF prevention).
+- When the user says "open Brave", "open Chrome", or "open a browser tab", use `browser_navigate` with an http/https URL. Do not use browser-scheme URLs like `brave://` or `chrome://` — they are not supported.
 - Some domains may be blocked by policy. If navigation fails, tell the user.
 - The browser profile is classification-aware — visiting classified domains escalates the watermark.
 - Always use `browser_snapshot` after navigation to see what loaded.

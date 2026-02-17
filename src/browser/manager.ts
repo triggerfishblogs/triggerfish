@@ -126,6 +126,7 @@ const FLATPAK_APP_IDS = [
   "com.google.Chrome",
   "com.google.ChromeDev",
   "org.chromium.Chromium",
+  "com.brave.Browser",
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -147,12 +148,16 @@ export async function detectChrome(): Promise<ChromeDetection | undefined> {
     "/usr/bin/google-chrome-stable",
     "/snap/bin/chromium",
     "/usr/bin/microsoft-edge",
+    "/usr/bin/brave-browser",
+    "/usr/bin/brave",
+    "/snap/bin/brave",
   ];
 
   const darwinPaths = [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/Applications/Chromium.app/Contents/MacOS/Chromium",
     "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
   ];
 
   const candidates = Deno.build.os === "darwin" ? darwinPaths : linuxPaths;
@@ -167,7 +172,7 @@ export async function detectChrome(): Promise<ChromeDetection | undefined> {
   }
 
   // Fallback: try 'which' for common browser names
-  const names = ["chromium-browser", "chromium", "google-chrome"];
+  const names = ["chromium-browser", "chromium", "google-chrome", "brave-browser", "brave"];
   for (const name of names) {
     try {
       const cmd = new Deno.Command("which", {
