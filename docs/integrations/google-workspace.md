@@ -46,8 +46,9 @@ Before you can create credentials, Google requires an OAuth consent screen. This
    - `https://www.googleapis.com/auth/drive.readonly`
    - `https://www.googleapis.com/auth/spreadsheets`
 7. Click **Update**, then **Save and Continue**
-8. On the **Test users** screen, click **+ Add Users** and add your own Google email address
-9. Click **Save and Continue**, then **Back to Dashboard**
+8. Go to the **Audience** page (in the left sidebar under "OAuth consent screen") — this is where you'll find the **Test users** section
+9. Click **+ Add Users** and add your own Google email address
+10. Click **Save and Continue**, then **Back to Dashboard**
 
 ::: warning
 While your app is in "Testing" status, only test users you've added can authorize. This is fine for personal use. Publishing the app removes the test user restriction but requires Google verification.
@@ -155,9 +156,8 @@ Your refresh token was invalidated (e.g., you revoked access in Google Account s
 This means your Google account is not listed as a test user for the app. While the app is in "Testing" status (the default), only accounts explicitly added as test users can authorize.
 
 1. Go to [OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
-2. Click **Edit App**
-3. Click through to the **Test users** screen
-4. Click **+ Add Users** and add your Google email address
+2. Go to the **Audience** page (in the left sidebar)
+3. In the **Test users** section, click **+ Add Users** and add your Google email address
 5. Save and try `triggerfish connect google` again
 
 ### "Token exchange failed"
