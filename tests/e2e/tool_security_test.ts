@@ -58,7 +58,7 @@ Deno.test("e2e: tool floor allows CONFIDENTIAL session for run_command", async (
   assertEquals(result.allowed, true);
 });
 
-Deno.test("e2e: tool floor blocks PUBLIC session from browser_navigate", async () => {
+Deno.test("e2e: tool floor allows PUBLIC session to use browser_navigate (no floor)", async () => {
   const runner = makeHookRunner();
   const session = makeSession("PUBLIC");
 
@@ -66,7 +66,22 @@ Deno.test("e2e: tool floor blocks PUBLIC session from browser_navigate", async (
     session,
     input: {
       tool_call: { name: "browser_navigate", args: { url: "https://example.com" } },
-      tool_floor: "CONFIDENTIAL" as ClassificationLevel,
+      // No tool_floor set — browser_navigate no longer has a hardcoded floor
+    },
+  });
+
+  assertEquals(result.allowed, true);
+});
+
+Deno.test("e2e: tool floor blocks PUBLIC session from browser_click (INTERNAL floor)", async () => {
+  const runner = makeHookRunner();
+  const session = makeSession("PUBLIC");
+
+  const result = await runner.run("PRE_TOOL_CALL", {
+    session,
+    input: {
+      tool_call: { name: "browser_click", args: { selector: "#submit" } },
+      tool_floor: "INTERNAL" as ClassificationLevel,
     },
   });
 
