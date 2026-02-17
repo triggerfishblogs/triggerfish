@@ -51,6 +51,42 @@ export type {
 export { loadProvidersFromConfig } from "./providers/config.ts";
 export type { ProvidersConfig, ModelsConfig, PrimaryModelRef } from "./providers/config.ts";
 
+// Rate limiting
+export { createRateLimiter, createRateLimitedProvider } from "./rate_limiter.ts";
+export type {
+  RateLimiterConfig,
+  RateLimiter,
+  RateLimiterSnapshot,
+} from "./rate_limiter.ts";
+
+// OpenAI rate limit constants
+export { getOpenAiLimits } from "./providers/openai_limits.ts";
+export type { OpenAiModelLimits, OpenAiTier } from "./providers/openai_limits.ts";
+export {
+  GPT4O_FREE,
+  GPT4O_TIER1,
+  GPT4O_TIER2,
+  GPT4O_TIER3,
+  GPT4O_TIER4,
+  GPT4O_TIER5,
+  GPT4O_MINI_FREE,
+  GPT4O_MINI_TIER1,
+  GPT4O_MINI_TIER2,
+  GPT4O_MINI_TIER3,
+  GPT4O_MINI_TIER4,
+  GPT4O_MINI_TIER5,
+  O1_TIER1,
+  O1_TIER2,
+  O1_TIER3,
+  O1_TIER4,
+  O1_TIER5,
+  O3_MINI_TIER1,
+  O3_MINI_TIER2,
+  O3_MINI_TIER3,
+  O3_MINI_TIER4,
+  O3_MINI_TIER5,
+} from "./providers/openai_limits.ts";
+
 // Plan mode
 export type {
   PlanManager,
