@@ -876,9 +876,23 @@ type WizardSection =
   | "search"
   | "daemon";
 
+/** Safely read a nested value from a config object by dot path. */
+function getConfigValue(
+  obj: Record<string, unknown>,
+  path: string,
+): unknown {
+  let current: unknown = obj;
+  for (const key of path.split(".")) {
+    if (typeof current !== "object" || current === null) return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
 /**
  * Run a selective dive wizard that lets the user choose which sections to
  * reconfigure while preserving the rest of their existing config.
+ * Defaults are pre-populated from the existing configuration.
  */
 export async function runWizardSelective(
   baseDir: string,
@@ -904,6 +918,14 @@ export async function runWizardSelective(
   } catch {
     // No existing config — fall through to full wizard
     return runWizard(baseDir);
+  }
+
+  // Load existing SPINE.md for agent defaults
+  let existingSpine = "";
+  try {
+    existingSpine = await Deno.readTextFile(spinePath);
+  } catch {
+    // No existing SPINE.md
   }
 
   console.log("");
@@ -953,8 +975,12 @@ export async function runWizardSelective(
     console.log("  LLM Provider");
     console.log("");
 
+    const currentProvider = (getConfigValue(existingConfig, "models.primary.provider") as string | undefined) ?? "";
+    const currentModel = (getConfigValue(existingConfig, "models.primary.model") as string | undefined) ?? "";
+
     const provider = (await Select.prompt({
       message: "LLM provider",
+      default: currentProvider || undefined,
       options: [
         { name: PROVIDER_LABELS.anthropic, value: "anthropic" },
         { name: PROVIDER_LABELS.google, value: "google" },
@@ -969,11 +995,12 @@ export async function runWizardSelective(
 
     let providerModel = await Input.prompt({
       message: "Model name",
-      default: DEFAULT_MODELS[provider],
+      default: currentModel || DEFAULT_MODELS[provider],
     });
 
     let apiKey = "";
-    let localEndpoint = "http://localhost:11434";
+    const currentEndpoint = (getConfigValue(existingConfig, `models.providers.${provider}.endpoint`) as string | undefined) ?? "";
+    let localEndpoint = currentEndpoint || "http://localhost:11434";
 
     if (provider === "anthropic") {
       apiKey = await Input.prompt({
@@ -983,9 +1010,9 @@ export async function runWizardSelective(
       console.log("  ✓ Local provider — no API key needed");
       localEndpoint = await Input.prompt({
         message: `${provider === "ollama" ? "Ollama" : "LM Studio"} endpoint`,
-        default: provider === "lmstudio"
+        default: localEndpoint || (provider === "lmstudio"
           ? "http://localhost:1234"
-          : "http://localhost:11434",
+          : "http://localhost:11434"),
       });
     } else {
       const envVarName = provider === "openai"
@@ -1093,13 +1120,30 @@ export async function runWizardSelective(
     console.log("  Agent Name & Personality");
     console.log("");
 
+    // Parse existing SPINE.md for defaults
+    const spineNameMatch = existingSpine.match(/^# (.+)$/m);
+    const currentAgentName = spineNameMatch?.[1] ?? "Triggerfish";
+    // Mission is the first non-empty line after the heading
+    const spineLines = existingSpine.split("\n");
+    const headingIdx = spineLines.findIndex((l) => l.startsWith("# "));
+    let currentMission = "A helpful AI assistant that keeps my data safe.";
+    if (headingIdx >= 0) {
+      for (let i = headingIdx + 1; i < spineLines.length; i++) {
+        const line = spineLines[i].trim();
+        if (line.length > 0 && !line.startsWith("#")) {
+          currentMission = line;
+          break;
+        }
+      }
+    }
+
     const agentName = await Input.prompt({
       message: "Agent name",
-      default: "Triggerfish",
+      default: currentAgentName,
     });
     const mission = await Input.prompt({
       message: "Mission (one sentence)",
-      default: "A helpful AI assistant that keeps my data safe.",
+      default: currentMission,
     });
     const tone = (await Select.prompt({
       message: "Communication tone",
@@ -1134,15 +1178,23 @@ export async function runWizardSelective(
     console.log("  Channels");
     console.log("");
 
+    const existingChannels = (getConfigValue(existingConfig, "channels") ?? {}) as Record<string, unknown>;
+    const hasWebchat = "webchat" in existingChannels;
+    const hasTelegram = "telegram" in existingChannels;
+
     const channelChoices = (await Checkbox.prompt({
       message: "Enable additional channels",
       options: [
         {
           name: "WebChat (browser-based, zero config)",
           value: "webchat",
-          checked: true,
+          checked: hasWebchat,
         },
-        { name: "Telegram (requires bot token)", value: "telegram" },
+        {
+          name: "Telegram (requires bot token)",
+          value: "telegram",
+          checked: hasTelegram,
+        },
       ],
     })) as ChannelChoice[];
 
@@ -1150,9 +1202,12 @@ export async function runWizardSelective(
 
     if (channelChoices.includes("webchat")) {
       activeChannels.push("webchat");
+      const currentPort = String(
+        (getConfigValue(existingConfig, "channels.webchat.port") as number | undefined) ?? 8765,
+      );
       const portStr = await Input.prompt({
         message: "WebChat port",
-        default: "8765",
+        default: currentPort,
       });
       channels["webchat"] = {
         port: parseInt(portStr, 10) || 8765,
@@ -1162,11 +1217,15 @@ export async function runWizardSelective(
 
     if (channelChoices.includes("telegram")) {
       activeChannels.push("telegram");
+      const currentOwnerId = String(
+        (getConfigValue(existingConfig, "channels.telegram.ownerId") as number | undefined) ?? "",
+      );
       const telegramBotToken = await Input.prompt({
         message: "Telegram bot token (from @BotFather)",
       });
       const telegramOwnerId = await Input.prompt({
         message: "Your Telegram user ID (numeric)",
+        default: currentOwnerId || undefined,
       });
       if (telegramBotToken.length > 0) {
         const tc: Record<string, unknown> = {
@@ -1192,18 +1251,26 @@ export async function runWizardSelective(
     console.log("  Plugins");
     console.log("");
 
+    const hasObsidian = getConfigValue(existingConfig, "plugins.obsidian.enabled") === true;
+
     const selectedPlugins = await Checkbox.prompt({
       message: "Which plugins would you like to configure?",
       options: [
-        { name: "Obsidian (local vault integration)", value: "obsidian" },
+        {
+          name: "Obsidian (local vault integration)",
+          value: "obsidian",
+          checked: hasObsidian,
+        },
       ],
     });
 
     if (selectedPlugins.includes("obsidian")) {
+      const currentVaultPath = (getConfigValue(existingConfig, "plugins.obsidian.vault_path") as string | undefined) ?? "";
       let obsidianVaultPath = "";
       while (true) {
         obsidianVaultPath = await Input.prompt({
           message: "Path to your Obsidian vault",
+          default: currentVaultPath || undefined,
         });
         if (obsidianVaultPath.length === 0) {
           console.log("  Vault path is required for Obsidian plugin.");
@@ -1219,10 +1286,11 @@ export async function runWizardSelective(
           );
         }
       }
+      const currentClassification = (getConfigValue(existingConfig, "plugins.obsidian.classification") as string | undefined) ?? "INTERNAL";
       const obsidianClassification = await Select.prompt({
         message: "Vault classification level",
         options: ["INTERNAL", "PUBLIC", "CONFIDENTIAL", "RESTRICTED"],
-        default: "INTERNAL",
+        default: currentClassification,
       });
       config["plugins"] = {
         obsidian: {
@@ -1279,8 +1347,11 @@ export async function runWizardSelective(
     console.log("  Search Provider");
     console.log("");
 
+    const currentSearchProvider = (getConfigValue(existingConfig, "web.search.provider") as string | undefined) ?? "";
+
     const searchProvider = (await Select.prompt({
       message: "Which search engine should your agent use?",
+      default: currentSearchProvider || undefined,
       options: [
         {
           name: "Brave Search API (recommended, free tier available)",
@@ -1299,9 +1370,10 @@ export async function runWizardSelective(
         config["web"] = { search: { provider: "brave", api_key: searchApiKey } };
       }
     } else if (searchProvider === "searxng") {
+      const currentSearxngUrl = (getConfigValue(existingConfig, "web.search.endpoint") as string | undefined) ?? "http://localhost:8888";
       const searxngUrl = await Input.prompt({
         message: "SearXNG instance URL",
-        default: "http://localhost:8888",
+        default: currentSearxngUrl,
       });
       config["web"] = { search: { provider: "searxng", endpoint: searxngUrl } };
     } else {
