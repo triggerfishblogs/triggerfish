@@ -23,6 +23,7 @@ export {
   type DiveResult,
   generateConfig,
   generateSpine,
+  generateTrigger,
   type ProviderChoice,
   runWizard,
   type ToneChoice,

@@ -257,6 +257,16 @@ function getToneGuidelines(tone: ToneChoice, customTone: string): string {
   }
 }
 
+/** Generate a default TRIGGER.md with a minimal starting template. */
+export function generateTrigger(): string {
+  return `# Check on each wakeup
+
+- Any unread messages older than 1 hour
+- Calendar events in the next 4 hours
+- Anything urgent in email
+`;
+}
+
 // ─── Directory setup (side-effectful) ────────────────────────────────────────
 
 /** Create the ~/.triggerfish directory tree. */
@@ -829,6 +839,17 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
   const spineContent = generateSpine(answers);
   await Deno.writeTextFile(spinePath, spineContent);
   console.log(`  ✓ Created: ${spinePath}`);
+
+  // Write TRIGGER.md (only if it doesn't already exist)
+  const triggerPath = join(baseDir, "TRIGGER.md");
+  try {
+    await Deno.stat(triggerPath);
+    // Already exists — don't overwrite
+  } catch {
+    const triggerContent = generateTrigger();
+    await Deno.writeTextFile(triggerPath, triggerContent);
+    console.log(`  ✓ Created: ${triggerPath}`);
+  }
 
   if (apiKey.length > 0) {
     console.log(`  ✓ API key saved to triggerfish.yaml`);
