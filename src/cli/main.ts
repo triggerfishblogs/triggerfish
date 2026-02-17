@@ -37,7 +37,7 @@ import {
 } from "../tidepool/mod.ts";
 import { createPatrolCheck } from "../dive/patrol.ts";
 import type { PatrolInput } from "../dive/patrol.ts";
-import { runWizard } from "../dive/wizard.ts";
+import { runWizard, runWizardSelective } from "../dive/wizard.ts";
 import {
   cleanupOldBinary,
   getDaemonStatus,
@@ -626,22 +626,29 @@ async function runDive(
   const baseDir = resolveBaseDir();
   const configPath = resolveConfigPath(baseDir);
 
-  // Check if config already exists (skip check if --force)
-  if (flags["force"] !== true) {
-    try {
-      await Deno.stat(configPath);
-      console.log("");
-      console.log("  Configuration already exists at:", configPath);
-      console.log("  Run 'triggerfish start' to launch the gateway.");
-      console.log("  Run 'triggerfish dive --force' to re-run the wizard.");
-      console.log("");
-      return;
-    } catch {
-      // Config doesn't exist, continue with setup
-    }
+  // Check if config already exists
+  let configExists = false;
+  try {
+    await Deno.stat(configPath);
+    configExists = true;
+  } catch {
+    // Config doesn't exist
   }
 
-  const result = await runWizard(baseDir);
+  if (configExists && flags["force"] !== true) {
+    console.log("");
+    console.log("  Configuration already exists at:", configPath);
+    console.log("  Run 'triggerfish start' to launch the gateway.");
+    console.log("  Run 'triggerfish dive --force' to re-run the wizard.");
+    console.log("");
+    return;
+  }
+
+  // --force with existing config: let user pick which sections to update
+  // No existing config: run the full wizard from scratch
+  const result = configExists
+    ? await runWizardSelective(baseDir)
+    : await runWizard(baseDir);
 
   // If called with --install-daemon (from install script), auto-start daemon
   if (result.installDaemon && flags["install-daemon"] === true) {

@@ -25,6 +25,7 @@ export {
   generateSpine,
   type ProviderChoice,
   runWizard,
+  runWizardSelective,
   type ToneChoice,
   type WizardAnswers,
 } from "./wizard.ts";
