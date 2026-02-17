@@ -147,7 +147,7 @@ export function generateConfig(answers: WizardAnswers): string {
       };
     } else if (ch === "telegram" && answers.telegramBotToken.length > 0) {
       const telegramConfig: Record<string, unknown> = {
-        botToken: "${TELEGRAM_BOT_TOKEN}",
+        botToken: answers.telegramBotToken,
         classification: "INTERNAL",
       };
       if (answers.telegramOwnerId.length > 0) {
@@ -499,9 +499,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
         "Your Telegram user ID (numeric, message @getmyid_bot for your ID number)",
     });
     if (telegramBotToken.length > 0) {
-      console.log(
-        "  ✓ Set TELEGRAM_BOT_TOKEN in your environment before starting",
-      );
+      console.log("  ✓ Telegram bot token saved to config");
     }
   }
 
@@ -1229,16 +1227,14 @@ export async function runWizardSelective(
       });
       if (telegramBotToken.length > 0) {
         const tc: Record<string, unknown> = {
-          botToken: "${TELEGRAM_BOT_TOKEN}",
+          botToken: telegramBotToken,
           classification: "INTERNAL",
         };
         if (telegramOwnerId.length > 0) {
           tc["ownerId"] = parseInt(telegramOwnerId, 10) || 0;
         }
         channels["telegram"] = tc;
-        console.log(
-          "  ✓ Set TELEGRAM_BOT_TOKEN in your environment before starting",
-        );
+        console.log("  ✓ Telegram bot token saved to config");
       }
     }
 
