@@ -3845,14 +3845,16 @@ async function runChat(): Promise<void> {
     // Signal listeners may not be supported on all platforms
   }
 
-  // Handle SIGWINCH (terminal resize)
+  // Handle terminal resize — SIGWINCH on Unix, polling fallback on Windows
+  const resizeHandler = () => {
+    screen.handleResize();
+    screen.redrawInput(editor);
+  };
   try {
-    Deno.addSignalListener("SIGWINCH", () => {
-      screen.handleResize();
-      screen.redrawInput(editor);
-    });
+    Deno.addSignalListener("SIGWINCH", resizeHandler);
   } catch {
-    // SIGWINCH not supported on all platforms (e.g. Windows)
+    // SIGWINCH not supported (Windows/PowerShell) — poll for size changes
+    screen.startResizePolling(resizeHandler);
   }
 
   // Draw initial input prompt

@@ -101,6 +101,14 @@ export interface ScreenManager {
   getTaint(): ClassificationLevel;
   /** Handle terminal resize. */
   handleResize(): void;
+  /**
+   * Start polling for terminal resize changes.
+   * Used as a fallback on platforms without SIGWINCH (e.g. Windows).
+   * The callback is invoked whenever a size change is detected.
+   */
+  startResizePolling(onResize: () => void): void;
+  /** Stop resize polling (called during cleanup). */
+  stopResizePolling(): void;
   /** Restore terminal to normal mode. */
   cleanup(): void;
   /** Whether running in TTY mode (vs dumb/piped). */
@@ -173,6 +181,7 @@ function createTtyScreenManager(): ScreenManager {
   let spinnerFrame = 0;
   let spinnerLabel = "";
   let spinnerVerbIdx = 0;
+  let resizePollTimer: ReturnType<typeof setInterval> | null = null;
 
   // Track the last known cursor position so we never rely on
   // the terminal's single-slot SAVE_CURSOR / RESTORE_CURSOR,
@@ -472,6 +481,11 @@ function createTtyScreenManager(): ScreenManager {
     handleResize(): void {
       const oldRows = size.rows;
       size = getTermSize();
+
+      // Reset stream cursor — any active streaming must reposition
+      streamCursorRow = 0;
+      streamCursorCol = 1;
+
       // Clear old input area (top sep + input + bottom sep + status)
       const oldTopSep = oldRows - inputLineCount - 2;
       for (let r = oldTopSep; r <= oldRows; r++) {
@@ -480,14 +494,45 @@ function createTtyScreenManager(): ScreenManager {
           rawWrite(CLEAR_LINE);
         }
       }
+
+      // Also clear the new input area in case terminal shrunk
+      const newTopSep = size.rows - inputLineCount - 2;
+      for (let r = newTopSep; r <= size.rows; r++) {
+        if (r >= 1) {
+          rawWrite(moveTo(r, 1));
+          rawWrite(CLEAR_LINE);
+        }
+      }
+
       setupScrollRegion();
       drawStatusBar();
+    },
+
+    startResizePolling(onResize: () => void): void {
+      if (resizePollTimer !== null) return;
+      resizePollTimer = setInterval(() => {
+        const newSize = getTermSize();
+        if (newSize.columns !== size.columns || newSize.rows !== size.rows) {
+          onResize();
+        }
+      }, 300);
+    },
+
+    stopResizePolling(): void {
+      if (resizePollTimer !== null) {
+        clearInterval(resizePollTimer);
+        resizePollTimer = null;
+      }
     },
 
     cleanup(): void {
       if (spinnerTimer !== null) {
         clearInterval(spinnerTimer);
         spinnerTimer = null;
+      }
+      if (resizePollTimer !== null) {
+        clearInterval(resizePollTimer);
+        resizePollTimer = null;
       }
       // Reset scroll region to full screen
       rawWrite(RESET_SCROLL);
@@ -546,6 +591,14 @@ function createDumbScreenManager(): ScreenManager {
     },
 
     handleResize(): void {
+      // No-op
+    },
+
+    startResizePolling(_onResize: () => void): void {
+      // No-op — no resize handling in dumb mode
+    },
+
+    stopResizePolling(): void {
       // No-op
     },
 
