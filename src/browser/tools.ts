@@ -108,7 +108,8 @@ export function createBrowserTools(config: BrowserToolsConfig): BrowserTools {
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
         return {
           ok: false,
-          error: `Only http/https URLs are allowed, got: ${parsed.protocol}`,
+          error:
+            `Only http/https URLs are allowed. Got: ${parsed.protocol} — if the user asked to open a browser or a browser tab, navigate to a URL like https://example.com instead.`,
         };
       }
 
@@ -410,7 +411,9 @@ export const BROWSER_TOOLS_SYSTEM_PROMPT = `## Browser Automation
 
 You have browser automation tools (browser_navigate, browser_snapshot, browser_click, browser_type, browser_select, browser_scroll, browser_wait, browser_describe). The browser auto-launches on first use — just call the tools directly.
 
-When the user asks to open or go to a website, call browser_navigate immediately. Use browser_snapshot after navigating to see the page. Use browser_describe if you need a visual description of the screenshot. Read the browser-automation skill for detailed usage patterns.`;
+When the user asks to open or go to a website, call browser_navigate immediately. Use browser_snapshot after navigating to see the page. Use browser_describe if you need a visual description of the screenshot. Read the browser-automation skill for detailed usage patterns.
+
+When the user says "open Brave", "open Chrome", or "open a browser tab", use browser_navigate with an http/https URL — never use browser-scheme URLs like brave:// or chrome://. Only http and https are supported.`;
 
 // ─── Executor ────────────────────────────────────────────────────────────────
 
