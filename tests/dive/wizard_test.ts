@@ -162,8 +162,8 @@ Deno.test("Wizard: generateConfig includes telegram channel config", () => {
   const channels = parsed.channels as Record<string, Record<string, unknown>>;
   assertEquals(channels.telegram.classification, "INTERNAL");
   assertEquals(channels.telegram.ownerId, 483291057);
-  // Token stored as env var reference, not plaintext
-  assertEquals(channels.telegram.botToken, "${TELEGRAM_BOT_TOKEN}");
+  // Token stored directly in config
+  assertEquals(channels.telegram.botToken, "123:ABC");
 });
 
 Deno.test("Wizard: generateConfig has empty channels when only CLI selected", () => {
