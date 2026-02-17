@@ -13,3 +13,7 @@ export { createKeychain, createMemorySecretStore } from "./keychain.ts";
 export type { SecretStore } from "./keychain.ts";
 export { createFileSecretStore } from "./file_provider.ts";
 export type { FileSecretStoreOptions } from "./file_provider.ts";
+export { createEncryptedFileSecretStore } from "./encrypted_file_provider.ts";
+export type { EncryptedFileSecretStoreOptions } from "./encrypted_file_provider.ts";
+export { loadOrCreateMachineKey } from "./key_manager.ts";
+export type { MachineKeyOptions } from "./key_manager.ts";
