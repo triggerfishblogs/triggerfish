@@ -233,8 +233,8 @@ async function runElevatedCommand(encoded: string): Promise<void> {
     ]);
   } else {
     await runCommand("powershell", [
-      "-NoProfile", "-Command",
-      `Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -NonInteractive -EncodedCommand ${encoded}'`,
+      "-NoProfile", "-NonInteractive", "-Command",
+      `$null = Start-Process powershell -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile -NonInteractive -EncodedCommand ${encoded}'`,
     ]);
   }
 }
