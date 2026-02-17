@@ -596,7 +596,7 @@ Deno.test("createClaudeToolExecutor: claude_stop returns success message", async
 
 // --- Classification boundary tests ---
 
-Deno.test("HARDCODED_TOOL_FLOORS: claude tools have CONFIDENTIAL floor", () => {
+Deno.test("HARDCODED_TOOL_FLOORS: claude tools have INTERNAL floor", () => {
   const claudeTools = [
     "claude_start",
     "claude_send",
@@ -607,6 +607,6 @@ Deno.test("HARDCODED_TOOL_FLOORS: claude tools have CONFIDENTIAL floor", () => {
   for (const tool of claudeTools) {
     const floor = HARDCODED_TOOL_FLOORS.get(tool);
     assertExists(floor, `Missing floor for ${tool}`);
-    assertEquals(floor, "CONFIDENTIAL");
+    assertEquals(floor, "INTERNAL");
   }
 });

@@ -76,11 +76,11 @@ export const HARDCODED_TOOL_FLOORS: ReadonlyMap<string, ClassificationLevel> =
     ["browser_select", "CONFIDENTIAL"],
     ["browser_scroll", "CONFIDENTIAL"],
     ["browser_wait", "CONFIDENTIAL"],
-    ["claude_start", "CONFIDENTIAL"],
-    ["claude_send", "CONFIDENTIAL"],
-    ["claude_stop", "CONFIDENTIAL"],
-    ["claude_status", "CONFIDENTIAL"],
-    ["claude_output", "CONFIDENTIAL"],
+    ["claude_start", "INTERNAL"],
+    ["claude_send", "INTERNAL"],
+    ["claude_stop", "INTERNAL"],
+    ["claude_status", "INTERNAL"],
+    ["claude_output", "INTERNAL"],
   ]);
 
 /** Default classification for unmapped filesystem paths. */
