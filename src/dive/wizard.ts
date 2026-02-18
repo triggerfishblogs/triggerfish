@@ -1285,7 +1285,18 @@ export async function runWizardSelective(
       ],
     })) as ChannelChoice[];
 
-    const channels: Record<string, Record<string, unknown>> = {};
+    // Preserve channels that the wizard doesn't manage (Signal, Slack,
+    // Discord, WhatsApp, Email, iMessage). Only webchat and telegram are
+    // editable here — everything else carries forward unchanged.
+    const channels: Record<string, unknown> = { ...existingChannels };
+
+    // Remove webchat/telegram if user deselected them
+    if (!channelChoices.includes("webchat")) {
+      delete channels["webchat"];
+    }
+    if (!channelChoices.includes("telegram")) {
+      delete channels["telegram"];
+    }
 
     if (channelChoices.includes("webchat")) {
       activeChannels.push("webchat");
