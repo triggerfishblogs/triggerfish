@@ -209,9 +209,9 @@ export function createEncryptedFileSecretStore(
       const iv = fromBase64(entry.iv);
       const ct = fromBase64(entry.ct);
       const plaintext = await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv },
+        { name: "AES-GCM", iv: iv.buffer as ArrayBuffer },
         key,
-        ct,
+        ct.buffer as ArrayBuffer,
       );
       return { ok: true, value: new TextDecoder().decode(plaintext) };
     } catch (err: unknown) {
