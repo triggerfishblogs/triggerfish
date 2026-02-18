@@ -38,6 +38,19 @@ export interface ConnectedMcpServer {
   readonly transport: Transport;
 }
 
+/** Connection state for a configured MCP server. */
+export type McpServerState = "connecting" | "connected" | "disconnected" | "failed";
+
+/** Full status of a configured MCP server (connected or not). */
+export interface McpServerStatus {
+  readonly id: string;
+  readonly config: McpServerConfig;
+  readonly state: McpServerState;
+  /** Only present when state is "connected". */
+  readonly server?: ConnectedMcpServer;
+  readonly lastError?: string;
+}
+
 /** Manager interface for MCP server lifecycle. */
 export interface McpServerManager {
   /** Connect to all configured servers. Graceful degradation on failure. */
@@ -49,6 +62,20 @@ export interface McpServerManager {
   disconnectAll(): Promise<void>;
   /** Get currently connected servers. */
   getConnected(): readonly ConnectedMcpServer[];
+  /**
+   * Start background connection loops for all configured servers. Non-blocking.
+   * Servers that fail to connect are retried with exponential backoff.
+   */
+  startAll(configs: readonly McpServerConfig[], secretStore?: SecretStore): void;
+  /** Get full status (connected + disconnected) for all configured servers. */
+  getStatus(): readonly McpServerStatus[];
+  /** Get count of configured (non-disabled) servers. */
+  getConfiguredCount(): number;
+  /**
+   * Register a callback invoked whenever connection state changes.
+   * Returns an unsubscribe function.
+   */
+  onStatusChange(cb: (status: readonly McpServerStatus[]) => void): () => void;
 }
 
 /**
@@ -122,6 +149,55 @@ export function createMcpServerAdapter(
   };
 }
 
+/** Attempt to connect to a single configured MCP server. Returns ConnectedMcpServer or throws. */
+async function connectOne(
+  cfg: McpServerConfig,
+  secretStore: SecretStore | undefined,
+  mcpLog: ReturnType<typeof createLogger>,
+): Promise<ConnectedMcpServer> {
+  // Resolve env vars (including keychain: prefixed values)
+  const resolvedEnv = cfg.env
+    ? await resolveEnvVars(cfg.env, secretStore)
+    : undefined;
+
+  // Create transport
+  let transport: Transport;
+  if (cfg.command) {
+    transport = new StdioTransport(
+      cfg.command,
+      cfg.args ?? [],
+      resolvedEnv,
+    );
+  } else {
+    transport = new SSETransport(cfg.url!);
+  }
+
+  // Create client, connect, and initialize
+  const client = createMcpClient(transport);
+  await client.initialize();
+
+  // Discover tools
+  const tools = await client.listTools();
+
+  // Create McpServer adapter for the gateway
+  const server = createMcpServerAdapter(client, cfg.classification);
+
+  const entry: ConnectedMcpServer = {
+    id: cfg.id,
+    classification: cfg.classification,
+    tools,
+    server,
+    client,
+    transport,
+  };
+
+  mcpLog.info(
+    `MCP server '${cfg.id}' connected (${tools.length} tools)`,
+  );
+
+  return entry;
+}
+
 /**
  * Create an McpServerManager instance.
  *
@@ -131,6 +207,115 @@ export function createMcpServerAdapter(
 export function createMcpServerManager(): McpServerManager {
   const mcpLog = createLogger("mcp");
   let connected: ConnectedMcpServer[] = [];
+
+  // State for startAll / background connection loops
+  const statusMap = new Map<string, McpServerStatus>();
+  const statusListeners = new Set<(status: readonly McpServerStatus[]) => void>();
+  let configuredCount = 0;
+
+  function notifyListeners(): void {
+    const statuses = Array.from(statusMap.values());
+    for (const cb of statusListeners) {
+      try {
+        cb(statuses);
+      } catch {
+        // Listeners must not throw
+      }
+    }
+    // Keep connected array in sync
+    connected = statuses
+      .filter((s) => s.state === "connected" && s.server !== undefined)
+      .map((s) => s.server!);
+  }
+
+  /**
+   * Background retry loop for a single server.
+   * Uses exponential backoff: 2s → 4s → 8s → 30s max.
+   */
+  async function startRetryLoop(
+    cfg: McpServerConfig,
+    secretStore: SecretStore | undefined,
+  ): Promise<void> {
+    let delay = 2000;
+
+    while (true) {
+      // Update state to "connecting"
+      statusMap.set(cfg.id, {
+        id: cfg.id,
+        config: cfg,
+        state: "connecting",
+      });
+      notifyListeners();
+
+      try {
+        const entry = await connectOne(cfg, secretStore, mcpLog);
+
+        statusMap.set(cfg.id, {
+          id: cfg.id,
+          config: cfg,
+          state: "connected",
+          server: entry,
+        });
+        notifyListeners();
+        delay = 2000; // Reset backoff on success
+
+        // Wait for transport disconnection by polling getConnected or transport close
+        // We poll periodically — when the server drops out of connected, we re-attempt
+        await waitForDisconnect(cfg.id, entry);
+
+        mcpLog.warn(`MCP server '${cfg.id}' disconnected — reconnecting`);
+        statusMap.set(cfg.id, {
+          id: cfg.id,
+          config: cfg,
+          state: "disconnected",
+        });
+        notifyListeners();
+      } catch (err: unknown) {
+        const message = err instanceof Error
+          ? `${err.message}${err.stack ? "\n" + err.stack : ""}`
+          : String(err);
+        mcpLog.warn(
+          `MCP server '${cfg.id}' failed to connect: ${message} — retrying in ${delay}ms`,
+        );
+        statusMap.set(cfg.id, {
+          id: cfg.id,
+          config: cfg,
+          state: "disconnected",
+          lastError: message,
+        });
+        notifyListeners();
+      }
+
+      // Wait before next attempt
+      await new Promise<void>((resolve) => setTimeout(resolve, delay));
+      delay = Math.min(delay * 2, 30000);
+    }
+  }
+
+  /**
+   * Wait until the transport signals disconnection.
+   * Polls every 5 seconds to check if transport is still alive.
+   */
+  async function waitForDisconnect(
+    serverId: string,
+    _entry: ConnectedMcpServer,
+  ): Promise<void> {
+    // Poll until this server is no longer in the connected state in statusMap
+    while (true) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 5000));
+      const current = statusMap.get(serverId);
+      // If the status was externally updated to disconnected (e.g. by disconnectAll), exit
+      if (!current || current.state !== "connected") {
+        return;
+      }
+      // Try a lightweight check: if we can't list tools, the transport dropped
+      try {
+        await _entry.client.listTools();
+      } catch {
+        return;
+      }
+    }
+  }
 
   return {
     async connectAll(
@@ -152,46 +337,8 @@ export function createMcpServerManager(): McpServerManager {
         }
 
         try {
-          // Resolve env vars (including keychain: prefixed values)
-          const resolvedEnv = cfg.env
-            ? await resolveEnvVars(cfg.env, secretStore)
-            : undefined;
-
-          // Create transport
-          let transport: Transport;
-          if (cfg.command) {
-            transport = new StdioTransport(
-              cfg.command,
-              cfg.args ?? [],
-              resolvedEnv,
-            );
-          } else {
-            transport = new SSETransport(cfg.url!);
-          }
-
-          // Create client, connect, and initialize
-          const client = createMcpClient(transport);
-          await client.initialize();
-
-          // Discover tools
-          const tools = await client.listTools();
-
-          // Create McpServer adapter for the gateway
-          const server = createMcpServerAdapter(client, cfg.classification);
-
-          const entry: ConnectedMcpServer = {
-            id: cfg.id,
-            classification: cfg.classification,
-            tools,
-            server,
-            client,
-            transport,
-          };
-
+          const entry = await connectOne(cfg, secretStore, mcpLog);
           results.push(entry);
-          mcpLog.info(
-            `MCP server '${cfg.id}' connected (${tools.length} tools)`,
-          );
         } catch (err: unknown) {
           const message = err instanceof Error
             ? `${err.message}${err.stack ? "\n" + err.stack : ""}`
@@ -214,11 +361,59 @@ export function createMcpServerManager(): McpServerManager {
           // Best-effort cleanup
         }
       }
+      // Mark all as disconnected
+      for (const [id, status] of statusMap.entries()) {
+        statusMap.set(id, {
+          ...status,
+          state: "disconnected",
+          server: undefined,
+        });
+      }
       connected = [];
+      notifyListeners();
     },
 
     getConnected(): readonly ConnectedMcpServer[] {
       return connected;
+    },
+
+    startAll(configs: readonly McpServerConfig[], secretStore?: SecretStore): void {
+      const activeConfigs = configs.filter((cfg) => cfg.enabled !== false);
+      configuredCount = activeConfigs.length;
+
+      for (const cfg of activeConfigs) {
+        if (!cfg.command && !cfg.url) {
+          mcpLog.warn(`MCP server '${cfg.id}': no command or url — skipping`);
+          statusMap.set(cfg.id, {
+            id: cfg.id,
+            config: cfg,
+            state: "failed",
+            lastError: "no command or url configured",
+          });
+          continue;
+        }
+
+        // Launch background retry loop (non-blocking)
+        startRetryLoop(cfg, secretStore).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          mcpLog.error(`MCP retry loop for '${cfg.id}' crashed: ${msg}`);
+        });
+      }
+    },
+
+    getStatus(): readonly McpServerStatus[] {
+      return Array.from(statusMap.values());
+    },
+
+    getConfiguredCount(): number {
+      return configuredCount;
+    },
+
+    onStatusChange(cb: (status: readonly McpServerStatus[]) => void): () => void {
+      statusListeners.add(cb);
+      return () => {
+        statusListeners.delete(cb);
+      };
     },
   };
 }

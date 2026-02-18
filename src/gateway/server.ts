@@ -43,6 +43,11 @@ export interface GatewayServer {
   start(): Promise<GatewayAddr>;
   /** Stop the server gracefully. */
   stop(): Promise<void>;
+  /**
+   * Broadcast a JSON event to all currently connected /chat WebSocket clients.
+   * Used for push notifications such as MCP server status changes.
+   */
+  broadcastChatEvent(event: Record<string, unknown>): void;
 }
 
 /** JSON-RPC 2.0 request. */
@@ -231,11 +236,13 @@ async function handleJsonRpc(
 function handleChatWebSocket(
   request: Request,
   chat: ChatSession,
+  chatSockets: Set<WebSocket>,
 ): Response {
   const { socket, response } = Deno.upgradeWebSocket(request);
   let abortController: AbortController | null = null;
 
   socket.addEventListener("open", () => {
+    chatSockets.add(socket);
     try {
       socket.send(JSON.stringify({
         type: "connected",
@@ -245,6 +252,17 @@ function handleChatWebSocket(
       }));
     } catch {
       // Client may have disconnected immediately
+    }
+    // Send last known MCP status if available
+    if (chat.getMcpStatus) {
+      const mcpStatus = chat.getMcpStatus();
+      if (mcpStatus !== null) {
+        try {
+          socket.send(JSON.stringify({ type: "mcp_status", ...mcpStatus }));
+        } catch {
+          // Client may have disconnected
+        }
+      }
     }
   });
 
@@ -310,6 +328,14 @@ function handleChatWebSocket(
     }
   });
 
+  socket.addEventListener("close", () => {
+    chatSockets.delete(socket);
+  });
+
+  socket.addEventListener("error", () => {
+    chatSockets.delete(socket);
+  });
+
   return response;
 }
 
@@ -332,8 +358,23 @@ export function createGatewayServer(
   const chatSession = options?.chatSession;
   let server: Deno.HttpServer | null = null;
   let resolvedAddr: GatewayAddr | null = null;
+  // Track all open /chat WebSocket connections for broadcasting
+  const chatSockets = new Set<WebSocket>();
 
   return {
+    broadcastChatEvent(event: Record<string, unknown>): void {
+      const json = JSON.stringify(event);
+      for (const ws of chatSockets) {
+        try {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(json);
+          }
+        } catch {
+          chatSockets.delete(ws);
+        }
+      }
+    },
+
     // deno-lint-ignore require-await
     async start(): Promise<GatewayAddr> {
       const addrPromise = Promise.withResolvers<GatewayAddr>();
@@ -354,7 +395,7 @@ export function createGatewayServer(
           if (request.headers.get("upgrade") === "websocket") {
             // Route /chat to the chat session handler
             if (url.pathname === "/chat" && chatSession) {
-              return handleChatWebSocket(request, chatSession);
+              return handleChatWebSocket(request, chatSession, chatSockets);
             }
 
             // All other WebSocket connections: JSON-RPC control plane

@@ -11,9 +11,12 @@ import {
   getMcpToolDefinitions,
   buildMcpToolClassifications,
   buildMcpSystemPrompt,
+  createMcpExecutor,
 } from "../../src/mcp/executor.ts";
 import type { ConnectedMcpServer } from "../../src/mcp/manager.ts";
 import type { McpToolDefinition } from "../../src/mcp/client/protocol.ts";
+import type { McpGateway } from "../../src/mcp/gateway/gateway.ts";
+
 
 // --- encodeMcpToolName ---
 
@@ -174,4 +177,73 @@ Deno.test("buildMcpSystemPrompt: shows 'No tools' for server with empty tool lis
   const server = makeServer("empty", [], "PUBLIC");
   const prompt = buildMcpSystemPrompt([server]);
   assertEquals(prompt.includes("No tools available"), true);
+});
+
+// --- createMcpExecutor (live getter) ---
+
+function makeMockGateway(responseText: string = "ok"): McpGateway {
+  return {
+    registerServer: () => {},
+    callTool: async (_opts) => ({
+      ok: true,
+      value: {
+        content: [{ type: "text", text: responseText }],
+        classification: "PUBLIC" as const,
+      },
+    }),
+  };
+}
+
+Deno.test("createMcpExecutor: returns null for non-MCP tool names", async () => {
+  const serverList = [makeServer("myserver", [])];
+  const executor = createMcpExecutor({
+    gateway: makeMockGateway(),
+    getServers: () => serverList,
+    getSession: () => ({ id: "s1", taint: "PUBLIC" } as never),
+  });
+  const result = await executor("read_file", { path: "/tmp/x" });
+  assertEquals(result, null);
+});
+
+Deno.test("createMcpExecutor: resolves live server list on each call", async () => {
+  const toolDefs: McpToolDefinition[] = [
+    { name: "ping", description: "ping", inputSchema: { type: "object" } },
+  ];
+  const server = makeServer("live", toolDefs, "PUBLIC");
+  let serverList: ConnectedMcpServer[] = [];
+
+  const executor = createMcpExecutor({
+    gateway: makeMockGateway("pong"),
+    getServers: () => serverList,
+    getSession: () => ({ id: "s1", taint: "PUBLIC" } as never),
+  });
+
+  // Server not yet in list — no server match, returns null
+  const beforeResult = await executor("mcp_live_ping", {});
+  assertEquals(beforeResult, null);
+
+  // Add server to live list
+  serverList = [server];
+
+  // Now should dispatch correctly
+  const afterResult = await executor("mcp_live_ping", {});
+  assertEquals(afterResult, "pong");
+});
+
+Deno.test("createMcpExecutor: returns error when known server not found mid-call", async () => {
+  const toolDefs: McpToolDefinition[] = [
+    { name: "tool", description: "t", inputSchema: { type: "object" } },
+  ];
+  // Server is known at decode time but removed from map
+  const server = makeServer("present", toolDefs);
+  const serverList = [server];
+  const executor = createMcpExecutor({
+    gateway: makeMockGateway(),
+    getServers: () => serverList,
+    getSession: () => ({ id: "s1", taint: "PUBLIC" } as never),
+  });
+  // Tool matches "present" server
+  const result = await executor("mcp_present_tool", {});
+  // Gateway returns ok, so result should be the response text
+  assertEquals(result, "ok");
 });

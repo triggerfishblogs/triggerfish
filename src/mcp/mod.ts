@@ -27,6 +27,8 @@ export type {
   McpServerConfig,
   ConnectedMcpServer,
   McpServerManager,
+  McpServerStatus,
+  McpServerState,
 } from "./manager.ts";
 
 export {

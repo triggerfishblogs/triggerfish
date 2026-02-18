@@ -1583,15 +1583,15 @@ async function runStart(): Promise<void> {
   }
 
   // --- MCP server wiring ---
+  // MCP servers are connected in the background (non-blocking). Tools are injected
+  // dynamically as servers come online. The daemon and chat session start immediately
+  // without waiting for MCP servers to be available.
   const mcpManager = createMcpServerManager();
   let mcpExecutor:
     | ((name: string, input: Record<string, unknown>) => Promise<string | null>)
     | undefined;
-  let mcpToolDefs: readonly ToolDefinition[] = [];
-  let mcpSystemPrompt = "";
 
   if (config.mcp_servers && Object.keys(config.mcp_servers).length > 0) {
-    log.info("Connecting MCP servers...");
     const mcpConfigs: McpServerConfig[] = [];
     for (const [id, serverCfg] of Object.entries(config.mcp_servers)) {
       let classification: ClassificationLevel | undefined;
@@ -1610,43 +1610,76 @@ async function runStart(): Promise<void> {
       });
     }
 
-    const connectedMcpServers = await mcpManager.connectAll(
-      mcpConfigs,
-      keychain,
-    );
+    // Create MCP gateway for policy enforcement (always, regardless of connectivity)
+    const mcpGateway = createMcpGateway({ hookRunner });
 
-    if (connectedMcpServers.length > 0) {
-      // Build tool definitions and system prompt
-      mcpToolDefs = getMcpToolDefinitions(connectedMcpServers);
-      mcpSystemPrompt = buildMcpSystemPrompt(connectedMcpServers);
+    // Create MCP executor with live getter — picks up newly connected servers automatically
+    mcpExecutor = createMcpExecutor({
+      gateway: mcpGateway,
+      getServers: () => mcpManager.getConnected(),
+      getSession: () => session,
+    });
 
-      // Merge MCP tool classifications into the main map
-      const mcpClassifications = buildMcpToolClassifications(
-        connectedMcpServers,
-      );
+    // Register a status change callback that:
+    // 1. Re-registers newly connected servers with the gateway
+    // 2. Updates tool classifications live
+    // 3. Broadcasts MCP status to CLI and Tidepool clients
+    mcpManager.onStatusChange((statuses) => {
+      // Re-register all currently connected servers with the gateway
+      for (const status of statuses) {
+        if (status.state === "connected" && status.server) {
+          mcpGateway.registerServer({
+            uri: `mcp://${status.server.id}`,
+            name: status.server.id,
+            status: status.server.classification ? "CLASSIFIED" : "UNTRUSTED",
+            classification: status.server.classification,
+          });
+        }
+      }
+
+      // Rebuild MCP tool classifications into the main map
+      const connectedServers = statuses
+        .filter((s) => s.state === "connected" && s.server !== undefined)
+        .map((s) => s.server!);
+      const mcpClassifications = buildMcpToolClassifications(connectedServers);
+      // Clear old MCP prefix entries then apply new ones
+      for (const key of [...toolClassifications.keys()]) {
+        if (key.startsWith("mcp_")) {
+          toolClassifications.delete(key);
+        }
+      }
       for (const [prefix, level] of mcpClassifications) {
         toolClassifications.set(prefix, level);
       }
 
-      // Create MCP gateway for policy enforcement
-      const mcpGateway = createMcpGateway({ hookRunner });
-      for (const server of connectedMcpServers) {
-        mcpGateway.registerServer({
-          uri: `mcp://${server.id}`,
-          name: server.id,
-          status: server.classification ? "CLASSIFIED" : "UNTRUSTED",
-          classification: server.classification,
+      // Broadcast MCP status to CLI clients (via gateway WebSocket) and Tidepool clients.
+      // _mcpGatewayServerRef and _mcpTidepoolRef are set after server/host are created.
+      const mcpConnected = statuses.filter((s) => s.state === "connected").length;
+      const mcpConfigured = mcpManager.getConfiguredCount();
+      if (_mcpChatSessionRef !== null) {
+        _mcpChatSessionRef.setMcpStatus?.(mcpConnected, mcpConfigured);
+      }
+      if (_mcpGatewayServerRef !== null) {
+        _mcpGatewayServerRef.broadcastChatEvent({
+          type: "mcp_status",
+          connected: mcpConnected,
+          configured: mcpConfigured,
         });
       }
+      if (_mcpTidepoolRef !== null) {
+        _mcpTidepoolRef.broadcastMcpStatus(mcpConnected, mcpConfigured);
+      }
+    });
 
-      // Create MCP executor
-      mcpExecutor = createMcpExecutor({
-        gateway: mcpGateway,
-        servers: connectedMcpServers,
-        getSession: () => session,
-      });
-    }
+    // Start background connection loops (non-blocking — daemon starts immediately)
+    log.info("Starting MCP server connection loops (background)...");
+    mcpManager.startAll(mcpConfigs, keychain);
   }
+
+  // Late-bound references for MCP status indicator callbacks (set after chatSession/server/host creation)
+  let _mcpChatSessionRef: import("../gateway/chat.ts").ChatSession | null = null;
+  let _mcpGatewayServerRef: import("../gateway/server.ts").GatewayServer | null = null;
+  let _mcpTidepoolRef: import("../tidepool/host.ts").A2UIHost | null = null;
 
   // Discover skills from bundled, managed, and workspace directories
   const bundledSkillsDir = join(
@@ -1785,7 +1818,12 @@ async function runStart(): Promise<void> {
     hookRunner,
     providerRegistry: registry,
     spinePath,
-    tools: getToolDefinitions(mcpToolDefs),
+    tools: getToolDefinitions(),
+    getExtraTools: () => getMcpToolDefinitions(mcpManager.getConnected()) as readonly ToolDefinition[],
+    getExtraSystemPromptSections: () => {
+      const mcpPrompt = buildMcpSystemPrompt(mcpManager.getConnected());
+      return mcpPrompt ? [mcpPrompt] : [];
+    },
     toolExecutor,
     systemPromptSections: [
       TODO_SYSTEM_PROMPT,
@@ -1802,7 +1840,6 @@ async function runStart(): Promise<void> {
       SUMMARIZE_SYSTEM_PROMPT,
       CLAUDE_SESSION_SYSTEM_PROMPT,
       SECRET_TOOLS_SYSTEM_PROMPT,
-      mcpSystemPrompt,
     ],
     secretStore: mainKeychain,
     session,
@@ -1833,6 +1870,8 @@ async function runStart(): Promise<void> {
   });
 
   log.info("Main session created");
+  // Wire chat session for MCP status broadcasting (late-bound ref used in onStatusChange callback)
+  _mcpChatSessionRef = chatSession;
 
   // Wrap the chatSession processMessage for Tidepool so that each WebSocket
   // message sets the active secret prompt callback to the Tidepool variant
@@ -1859,6 +1898,8 @@ async function runStart(): Promise<void> {
   await tidepoolHost.start(tidepoolPort);
   tidepoolTools = createTidePoolTools(tidepoolHost);
   log.info(`Tidepool listening on http://127.0.0.1:${tidepoolPort}`);
+  // Wire up MCP status indicator for Tidepool
+  _mcpTidepoolRef = tidepoolHost;
 
   const server = createGatewayServer({
     port: 18789,
@@ -1869,6 +1910,8 @@ async function runStart(): Promise<void> {
   });
   const addr = await server.start();
   log.info(`Gateway listening on ${addr.hostname}:${addr.port}`);
+  // Wire gateway server for MCP status broadcasting
+  _mcpGatewayServerRef = server;
 
   // --- Telegram channel wiring ---
   const telegramConfig = config.channels?.telegram as {
@@ -3447,10 +3490,8 @@ async function runUpdate(): Promise<void> {
   }
 }
 
-/** Tool definitions for the agent. */
-function getToolDefinitions(
-  mcpToolDefs?: readonly ToolDefinition[],
-): readonly ToolDefinition[] {
+/** Tool definitions for the agent (static built-in tools only; MCP tools injected via getExtraTools). */
+function getToolDefinitions(): readonly ToolDefinition[] {
   return [
     ...getTodoToolDefinitions(),
     ...getMemoryToolDefinitions(),
@@ -3469,7 +3510,6 @@ function getToolDefinitions(
     ...getSummarizeToolDefinitions(),
     ...getHealthcheckToolDefinitions(),
     ...getClaudeToolDefinitions(),
-    ...(mcpToolDefs ?? []),
     {
       name: "read_file",
       description: "Read the contents of a file at an absolute path.",
@@ -4184,6 +4224,14 @@ async function runChat(): Promise<void> {
       if (evt.type === "taint_changed") {
         screen.setTaint(evt.level);
         if (isTty) screen.redrawInput(editor);
+        return;
+      }
+
+      if (evt.type === "mcp_status") {
+        if (isTty) {
+          screen.setMcpStatus(evt.connected, evt.configured);
+          screen.redrawInput(editor);
+        }
         return;
       }
 

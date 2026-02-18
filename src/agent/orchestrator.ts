@@ -82,6 +82,16 @@ export interface OrchestratorConfig {
   readonly spinePath?: string;
   /** Tool definitions available to the agent. */
   readonly tools?: readonly ToolDefinition[];
+  /**
+   * Live getter for additional tool definitions resolved at each LLM call.
+   * Used for dynamically-connected sources such as MCP servers.
+   */
+  readonly getExtraTools?: () => readonly ToolDefinition[];
+  /**
+   * Live getter for additional system prompt sections resolved at each LLM call.
+   * Used for dynamically-connected sources such as MCP servers.
+   */
+  readonly getExtraSystemPromptSections?: () => readonly string[];
   /** Callback to execute tool calls. */
   readonly toolExecutor?: ToolExecutor;
   /** Event callback for real-time progress reporting. */
@@ -270,7 +280,9 @@ interface ParsedToolCall {
  */
 export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   const { hookRunner, providerRegistry, spinePath } = config;
-  const tools = config.tools ?? [];
+  const baseTools = config.tools ?? [];
+  const getExtraTools = config.getExtraTools;
+  const getExtraSystemPromptSections = config.getExtraSystemPromptSections;
   const rawToolExecutor = config.toolExecutor;
 
   /** Computed security context returned alongside the hook input. */
@@ -484,7 +496,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
         return result;
       }
     : undefined;
-  const systemPromptSections = config.systemPromptSections ?? [];
+  const baseSystemPromptSections = config.systemPromptSections ?? [];
   const planManager = config.planManager;
   const visionProvider = config.visionProvider;
   const emit = config.onEvent ?? (() => {});
@@ -574,8 +586,12 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     const spineContent = await loadSpine(spinePath);
     let systemPrompt = spineContent ?? DEFAULT_SYSTEM_PROMPT;
 
-    // Append platform-level sections (layered after SPINE.md)
-    for (const section of systemPromptSections) {
+    // Append platform-level sections (layered after SPINE.md).
+    // getExtraSystemPromptSections is called live to pick up dynamic sources (e.g. MCP).
+    const effectiveSystemPromptSections = getExtraSystemPromptSections
+      ? [...baseSystemPromptSections, ...getExtraSystemPromptSections()]
+      : baseSystemPromptSections;
+    for (const section of effectiveSystemPromptSections) {
       systemPrompt += "\n\n" + section;
     }
 
@@ -676,6 +692,11 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           orchLog.trace(`history ${h.role}: ${preview}`);
         }
       }
+
+      // Resolve live tool list — merges static tools with dynamic extra tools (e.g. MCP servers).
+      const tools = getExtraTools
+        ? [...baseTools, ...getExtraTools()]
+        : baseTools;
 
       // Call LLM provider — pass native tool definitions for providers that support them
       const nativeTools = (tools.length > 0 && toolExecutor)

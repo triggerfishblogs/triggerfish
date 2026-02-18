@@ -99,6 +99,12 @@ export interface ScreenManager {
   setTaint(level: ClassificationLevel): void;
   /** Get the current session taint level. */
   getTaint(): ClassificationLevel;
+  /**
+   * Update the MCP server connection indicator in the bottom separator.
+   * @param connected - Number of currently connected MCP servers
+   * @param configured - Total number of configured (non-disabled) MCP servers
+   */
+  setMcpStatus(connected: number, configured: number): void;
   /** Handle terminal resize. */
   handleResize(): void;
   /**
@@ -182,6 +188,9 @@ function createTtyScreenManager(): ScreenManager {
   let spinnerLabel = "";
   let spinnerVerbIdx = 0;
   let resizePollTimer: ReturnType<typeof setInterval> | null = null;
+  // MCP server connection indicator
+  let mcpConnected = -1; // -1 = not configured (hidden)
+  let mcpConfigured = 0;
 
   // Track the last known cursor position so we never rely on
   // the terminal's single-slot SAVE_CURSOR / RESTORE_CURSOR,
@@ -285,14 +294,32 @@ function createTtyScreenManager(): ScreenManager {
       rawWrite(`${DIM}${editor.suggestion}${RESET}`);
     }
 
-    // ── Bottom separator with taint label inline (edge-to-edge) ──
+    // ── Bottom separator with taint label inline and optional MCP indicator ──
     const label = currentTaint;
-    // "── LABEL ──────..." — 3 chars before label, 1 after, rest is fill
-    const fillLen = Math.max(size.columns - 3 - label.length - 1, 1);
+    // Build optional MCP status indicator (right side)
+    let mcpColor = "";
+    let mcpText = "";
+    if (mcpConnected >= 0 && mcpConfigured > 0) {
+      if (mcpConnected === mcpConfigured) {
+        mcpColor = GREEN;
+      } else if (mcpConnected === 0) {
+        mcpColor = RED;
+      } else {
+        mcpColor = YELLOW;
+      }
+      mcpText = `MCP ${mcpConnected}/${mcpConfigured}`;
+    }
+    // "── LABEL ──────... [MCP x/y] ──" layout
+    const rightSuffix = mcpText
+      ? ` ${mcpColor}${BOLD}${mcpText}${RESET}${color} ─`
+      : "";
+    // Visible length of rightSuffix (strip ANSI codes for length calc)
+    const rightVisLen = mcpText ? 1 + mcpText.length + 2 : 0; // " " + text + " ─"
+    const fillLen = Math.max(size.columns - 3 - label.length - 1 - rightVisLen, 1);
     rawWrite(moveTo(bottomSepRow, 1));
     rawWrite(CLEAR_LINE);
     rawWrite(
-      `${color}${"─".repeat(2)} ${BOLD}${label}${RESET}${color} ${"─".repeat(fillLen)}${RESET}`,
+      `${color}${"─".repeat(2)} ${BOLD}${label}${RESET}${color} ${"─".repeat(fillLen)}${rightSuffix}${RESET}`,
     );
 
     // Calculate cursor position accounting for line wrapping
@@ -429,6 +456,13 @@ function createTtyScreenManager(): ScreenManager {
 
     getTaint(): ClassificationLevel {
       return currentTaint;
+    },
+
+    setMcpStatus(connected: number, configured: number): void {
+      mcpConnected = connected;
+      mcpConfigured = configured;
+      // Redraw will happen on the next input redraw; no immediate redraw needed
+      // (avoids cursor flicker when not actively typing)
     },
 
     setStatus(text: string): void {
@@ -572,6 +606,10 @@ function createDumbScreenManager(): ScreenManager {
 
     getTaint(): ClassificationLevel {
       return "PUBLIC";
+    },
+
+    setMcpStatus(_connected: number, _configured: number): void {
+      // No MCP status indicator in dumb mode
     },
 
     setStatus(_text: string): void {

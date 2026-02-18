@@ -75,7 +75,11 @@ export function decodeMcpToolName(
 /** Options for creating an MCP executor. */
 export interface McpExecutorOptions {
   readonly gateway: McpGateway;
-  readonly servers: readonly ConnectedMcpServer[];
+  /**
+   * Live getter for currently connected servers.
+   * Called on every tool invocation so newly connected servers are picked up.
+   */
+  readonly getServers: () => readonly ConnectedMcpServer[];
   readonly getSession: () => SessionState;
 }
 
@@ -84,18 +88,23 @@ export interface McpExecutorOptions {
  *
  * Returns a standard dispatch function `(name, input) => Promise<string | null>`
  * that returns null for non-MCP tools and the tool result text for MCP tools.
+ * Uses a live getter for the server list so tools from newly connected servers
+ * are available without restarting the session.
  */
 export function createMcpExecutor(
   options: McpExecutorOptions,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
-  const { gateway, servers, getSession } = options;
-  const serverIds = servers.map((s) => s.id);
-  const serverMap = new Map(servers.map((s) => [s.id, s]));
+  const { gateway, getServers, getSession } = options;
 
   return async (
     name: string,
     input: Record<string, unknown>,
   ): Promise<string | null> => {
+    // Resolve the live server list on each invocation
+    const servers = getServers();
+    const serverIds = servers.map((s) => s.id);
+    const serverMap = new Map(servers.map((s) => [s.id, s]));
+
     const decoded = decodeMcpToolName(name, serverIds);
     if (!decoded) return null;
 
