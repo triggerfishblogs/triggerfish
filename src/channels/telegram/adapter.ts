@@ -91,7 +91,7 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
   //   /addtrigger           → adds the default periodic trigger result
   //   /addtrigger cron:job  → adds the last result for that source
   bot.command("addtrigger", (ctx) => {
-    if (!handler) return;
+    if (!handler || !ctx.from) return;
 
     const numericOwnerId = typeof ownerId === "number" ? ownerId : Number(ownerId);
     const isOwner = ownerId !== undefined && Number.isFinite(numericOwnerId)
