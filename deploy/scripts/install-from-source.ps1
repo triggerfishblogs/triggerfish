@@ -109,9 +109,18 @@ $CsSource = @'
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.ServiceProcess;
 public class TriggerFishService : ServiceBase
 {
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool GenerateConsoleCtrlEvent(uint dwCtrlEvent, uint dwProcessGroupId);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool AttachConsole(uint dwProcessId);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool FreeConsole();
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool SetConsoleCtrlHandler(IntPtr HandlerRoutine, bool Add);
     private Process _proc;
     public TriggerFishService() { ServiceName = "Triggerfish"; CanStop = true; CanShutdown = true; }
     protected override void OnStart(string[] args)
@@ -135,9 +144,28 @@ public class TriggerFishService : ServiceBase
         _proc.BeginOutputReadLine();
         _proc.BeginErrorReadLine();
     }
-    protected override void OnStop() { Kill(); }
-    protected override void OnShutdown() { Kill(); }
-    void Kill() { try { if (_proc != null && !_proc.HasExited) { _proc.Kill(); _proc.WaitForExit(5000); } } catch {} }
+    protected override void OnStop() { GracefulStop(); }
+    protected override void OnShutdown() { GracefulStop(); }
+    void GracefulStop()
+    {
+        try
+        {
+            if (_proc == null || _proc.HasExited) return;
+            // Send CTRL+C to the child process so Deno's SIGINT handler fires
+            FreeConsole();
+            if (AttachConsole((uint)_proc.Id))
+            {
+                SetConsoleCtrlHandler(IntPtr.Zero, true); // Disable ctrl-c for ourselves
+                GenerateConsoleCtrlEvent(0 /*CTRL_C_EVENT*/, 0);
+                _proc.WaitForExit(5000);
+                FreeConsole();
+                SetConsoleCtrlHandler(IntPtr.Zero, false); // Re-enable
+            }
+            // If still running after 5s, force kill
+            if (!_proc.HasExited) { _proc.Kill(); _proc.WaitForExit(3000); }
+        }
+        catch {}
+    }
     public static void Main() { ServiceBase.Run(new TriggerFishService()); }
 }
 '@
