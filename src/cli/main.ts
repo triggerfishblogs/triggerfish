@@ -2224,22 +2224,42 @@ async function runStart(): Promise<void> {
   }
   log.info("Triggerfish is running!");
 
-  // Graceful shutdown handler — stop signal-cli daemon if we spawned it
-  const handleShutdown = () => {
+  // Graceful shutdown handler
+  let shuttingDown = false;
+  const handleShutdown = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    log.info("Shutting down...");
+
+    // Stop signal-cli daemon if we spawned it
     if (signalDaemonHandle) {
       try { signalDaemonHandle.child.kill("SIGTERM"); } catch { /* already dead */ }
       signalDaemonHandle = null;
     }
+
+    // Stop scheduler (cron tick loop + triggers)
+    try { schedulerService.stop(); } catch { /* best effort */ }
+
+    // Stop gateway and tidepool servers
+    try { await server.stop(); } catch { /* best effort */ }
+    try { await tidepoolHost.stop(); } catch { /* best effort */ }
+
+    // Close database connections
+    try { memoryDb.close(); } catch { /* best effort */ }
+    try { await storage.close(); } catch { /* best effort */ }
+
+    log.info("Shutdown complete");
+    Deno.exit(0);
   };
   try {
-    Deno.addSignalListener("SIGTERM", handleShutdown);
+    Deno.addSignalListener("SIGTERM", () => { handleShutdown(); });
   } catch { /* not supported on all platforms */ }
   try {
-    Deno.addSignalListener("SIGINT", handleShutdown);
+    Deno.addSignalListener("SIGINT", () => { handleShutdown(); });
   } catch { /* not supported on all platforms */ }
 
   // Keep running until interrupted
-  await new Promise(() => {}); // Never resolves
+  await new Promise(() => {}); // Never resolves — signal handler calls Deno.exit()
 }
 
 /**
