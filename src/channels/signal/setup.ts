@@ -730,8 +730,10 @@ export function startDaemon(
     // Read all stderr into a shared buffer for diagnostics.
     // earlyStderr resolves with the first line (within 5s); stderrText() resolves when the process ends.
     const stderrChunks: Uint8Array[] = [];
-    let earlyResolve: ((s: string) => void) | null = null;
-    let fullResolve: ((s: string) => void) | null = null;
+    // deno-lint-ignore no-explicit-any
+    let earlyResolve: ((s: string) => void) | null = null as any;
+    // deno-lint-ignore no-explicit-any
+    let fullResolve: ((s: string) => void) | null = null as any;
     const earlyStderr: Promise<string> = new Promise((r) => { earlyResolve = r; });
     const _fullStderrPromise: Promise<string> = new Promise((r) => { fullResolve = r; });
 
@@ -881,8 +883,10 @@ export function startDaemonUnix(
 
     // Read all stderr into a shared buffer — earlyStderr resolves with the first line within 5s
     const stderrChunksUnix: Uint8Array[] = [];
-    let earlyResolveUnix: ((s: string) => void) | null = null;
-    let fullResolveUnix: ((s: string) => void) | null = null;
+    // deno-lint-ignore no-explicit-any
+    let earlyResolveUnix: ((s: string) => void) | null = null as any;
+    // deno-lint-ignore no-explicit-any
+    let fullResolveUnix: ((s: string) => void) | null = null as any;
     const earlyStderr: Promise<string> = new Promise((r) => { earlyResolveUnix = r; });
     const _fullStderrPromiseUnix: Promise<string> = new Promise((r) => { fullResolveUnix = r; });
 

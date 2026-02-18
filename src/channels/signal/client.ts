@@ -185,7 +185,7 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
   }
 
   /** Send a JSON-RPC request and wait for the response. */
-  function sendRequest(method: string, params: Record<string, unknown>): Promise<JsonRpcResponse> {
+  function sendRequest(method: string, params: Record<string, unknown>, timeoutMs = 10000): Promise<JsonRpcResponse> {
     if (!conn) {
       throw new Error("Not connected to signal-cli");
     }
@@ -202,8 +202,24 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
     const data = encoder.encode(JSON.stringify(request) + "\n");
 
     return new Promise<JsonRpcResponse>((resolve, reject) => {
-      pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`JSON-RPC request "${method}" timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      pending.set(id, {
+        resolve: (response) => {
+          clearTimeout(timer);
+          resolve(response);
+        },
+        reject: (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      });
+
       conn!.write(data).catch((err: Error) => {
+        clearTimeout(timer);
         pending.delete(id);
         reject(err);
       });
@@ -326,7 +342,8 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
       try {
         // Use "version" — works in both single-account and multi-account mode.
         // "listAccounts" only works in multi-account mode.
-        const response = await sendRequest("version", {});
+        // Short timeout (3s) so the adapter retry loop can cycle quickly.
+        const response = await sendRequest("version", {}, 3000);
         if (response.error) {
           return { ok: false, error: response.error.message };
         }

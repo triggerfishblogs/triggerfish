@@ -2028,7 +2028,8 @@ async function runStart(): Promise<void> {
   } | undefined;
 
   // Track the spawned signal-cli daemon child so we can gracefully stop it on exit.
-  let signalDaemonHandle: DaemonHandle | null = null;
+  // deno-lint-ignore no-explicit-any
+  let signalDaemonHandle: DaemonHandle | null = null as any;
 
   if (signalConfig?.endpoint && signalConfig?.account) {
     // Parse endpoint — handle both TCP and Unix socket auto-start
