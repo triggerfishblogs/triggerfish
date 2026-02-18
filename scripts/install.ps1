@@ -135,7 +135,7 @@ try {
 }
 
 $InstallPath = Join-Path $InstallDir "${InstallName}.exe"
-Move-Item -Path $BinaryPath -Destination $InstallPath -Force
+Copy-Item -Path $BinaryPath -Destination $InstallPath -Force
 Remove-Item -Recurse -Force $TempDir
 
 Write-Host "[ok] Installed to $InstallPath" -ForegroundColor Green
