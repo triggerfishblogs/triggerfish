@@ -11,6 +11,9 @@
  */
 
 import type { ClassificationLevel } from "../core/types/classification.ts";
+import { createLogger } from "../core/logger/mod.ts";
+
+const log = createLogger("scheduler.trigger");
 
 /** Quiet hours configuration. Hours are 0-24 in local time. */
 export interface QuietHours {
@@ -70,10 +73,13 @@ export function createTrigger(options: TriggerOptions): Trigger {
     start(): void {
       if (intervalId !== undefined) return;
 
+      log.info(`Trigger started (interval: ${Math.round(options.intervalMs / 60000)}m, ceiling: ${options.classificationCeiling})`);
       intervalId = setInterval(() => {
         if (options.quietHours && isQuietHour(options.quietHours)) {
+          log.debug("Trigger skipped — quiet hours active");
           return;
         }
+        log.info("Trigger firing");
         options.callback();
       }, options.intervalMs);
     },

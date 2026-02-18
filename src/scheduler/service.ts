@@ -24,6 +24,9 @@ import type { Trigger } from "./trigger.ts";
 import { createWebhookHandler, verifyHmacAsync } from "./webhooks.ts";
 import type { WebhookEvent, WebhookHandler } from "./webhooks.ts";
 import type { TriggerStore } from "./trigger_store.ts";
+import { createLogger } from "../core/logger/mod.ts";
+
+const log = createLogger("scheduler");
 
 /**
  * Factory that creates an isolated orchestrator + session per execution.
@@ -120,7 +123,10 @@ export function createSchedulerService(
     source: string,
   ): Promise<void> {
     const text = result.ok ? result.value.response : result.error;
-    if (!text || text.trim().length === 0) return;
+    if (!text || text.trim().length === 0) {
+      log.debug(`[${source}] No output to deliver (empty response)`);
+      return;
+    }
 
     // Persist result to trigger store (if configured) regardless of notification delivery
     if (config.triggerStore) {
@@ -132,12 +138,16 @@ export function createSchedulerService(
           classification: sessionTaint,
           firedAt: new Date().toISOString(),
         });
-      } catch {
-        // Store failures never crash the scheduler
+        log.info(`[${source}] Result persisted to trigger store`);
+      } catch (err) {
+        log.error(`[${source}] Failed to persist to trigger store: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
-    if (!config.notificationService || !config.ownerId) return;
+    if (!config.notificationService || !config.ownerId) {
+      log.warn(`[${source}] No notification service or ownerId — output not delivered`);
+      return;
+    }
     try {
       await config.notificationService.deliver({
         userId: config.ownerId,
@@ -145,8 +155,9 @@ export function createSchedulerService(
         priority: "normal",
         classification: sessionTaint,
       });
-    } catch {
-      // Delivery failures never crash the scheduler
+      log.info(`[${source}] Notification delivered`);
+    } catch (err) {
+      log.error(`[${source}] Notification delivery failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -161,6 +172,7 @@ export function createSchedulerService(
 
   /** Execute a cron job in an isolated session. */
   async function executeCronJob(job: CronJob): Promise<void> {
+    log.info(`Executing cron job: ${job.id}`);
     const startTime = performance.now();
     try {
       const { orchestrator, session } =
@@ -215,18 +227,21 @@ export function createSchedulerService(
         "If there is nothing to report, simply respond with a brief status.";
 
     try {
+      log.info("Creating trigger orchestrator session");
       const { orchestrator, session } =
         await config.orchestratorFactory.create("trigger");
 
+      log.info("Trigger orchestrator processing TRIGGER.md");
       const result = await orchestrator.processMessage({
         session,
         message,
         targetClassification: config.trigger.classificationCeiling,
       });
 
+      log.info(`Trigger completed (ok: ${result.ok}, taint: ${session.taint})`);
       await deliverOutput(result, session.taint, "trigger");
-    } catch {
-      // Trigger failures are non-fatal — silently continue
+    } catch (err) {
+      log.error(`Trigger callback failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

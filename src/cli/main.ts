@@ -97,6 +97,7 @@ import type { LineEditor } from "./terminal.ts";
 import { loadInputHistory, saveInputHistory } from "./history.ts";
 import { createScreenManager, taintColor } from "./screen.ts";
 import { createSchedulerService } from "../scheduler/service.ts";
+import { createTriggerStore } from "../scheduler/trigger_store.ts";
 import type {
   OrchestratorFactory,
   SchedulerServiceConfig,
@@ -233,6 +234,11 @@ import {
 } from "../channels/signal/setup.ts";
 import type { DaemonHandle } from "../channels/signal/setup.ts";
 import { createNotificationService } from "../gateway/notifications.ts";
+import {
+  createTriggerToolExecutor,
+  getTriggerToolDefinitions,
+  TRIGGER_TOOLS_SYSTEM_PROMPT,
+} from "../gateway/trigger_tools.ts";
 import { parseClassification } from "../core/types/classification.ts";
 import { createSkillLoader } from "../skills/loader.ts";
 import type { Skill } from "../skills/loader.ts";
@@ -1323,6 +1329,9 @@ async function runStart(): Promise<void> {
   // Notification service for scheduler output delivery
   const notificationService = createNotificationService(storage);
 
+  // Trigger store for persisting trigger results (used by trigger_add_to_context tool)
+  const triggerStore = createTriggerStore(storage);
+
   // Build filesystem security config (shared by factory and main session)
   const fsConfig = config.filesystem;
   const fsPathMap = new Map<string, ClassificationLevel>();
@@ -1377,6 +1386,7 @@ async function runStart(): Promise<void> {
     cronManager,
     notificationService,
     ownerId: "owner" as UserId,
+    triggerStore,
   });
 
   // Create the main session orchestrator — this is the daemon-owned session
@@ -1782,6 +1792,15 @@ async function runStart(): Promise<void> {
     (name, hint) => activeSecretPrompt(name, hint),
   );
 
+  const triggerExecutor = createTriggerToolExecutor({
+    triggerStore,
+    sessionTaint: session.taint,
+    getSessionTaint: () => session.taint,
+    escalateTaint: (level: ClassificationLevel) => {
+      session = updateTaint(session, level, "trigger context injection");
+    },
+  });
+
   const toolExecutor = createToolExecutor({
     execTools,
     cronManager,
@@ -1811,6 +1830,7 @@ async function runStart(): Promise<void> {
     mcpExecutor,
     subagentFactory,
     secretExecutor,
+    triggerExecutor,
     providerRegistry: registry,
   });
 
@@ -1841,6 +1861,7 @@ async function runStart(): Promise<void> {
       EXPLORE_SYSTEM_PROMPT,
       SKILLS_SYSTEM_PROMPT,
       TRIGGERS_SYSTEM_PROMPT,
+      TRIGGER_TOOLS_SYSTEM_PROMPT,
       LLM_TASK_SYSTEM_PROMPT,
       SUMMARIZE_SYSTEM_PROMPT,
       CLAUDE_SESSION_SYSTEM_PROMPT,
@@ -2032,188 +2053,186 @@ async function runStart(): Promise<void> {
   let signalDaemonHandle: DaemonHandle | null = null as any;
 
   if (signalConfig?.endpoint && signalConfig?.account) {
-    // Parse endpoint — handle both TCP and Unix socket auto-start
-    const tcpMatch = signalConfig.endpoint.match(/^tcp:\/\/([^:]+):(\d+)$/);
-    const unixMatch = signalConfig.endpoint.match(/^unix:\/\/(.+)$/);
-
-    if (tcpMatch) {
-      const [, tcpHost, tcpPortStr] = tcpMatch;
-      const tcpPort = parseInt(tcpPortStr, 10);
-      const running = await isDaemonRunning(tcpHost, tcpPort);
-      const healthy = running ? await isDaemonHealthy(tcpHost, tcpPort) : false;
-
-      if (!running || !healthy) {
-        if (running && !healthy) {
-          log.warn("signal-cli daemon is occupying the port but not responding to JSON-RPC");
-          // If we own the process, kill it and wait briefly before restarting
-          if (signalDaemonHandle) {
-            try { signalDaemonHandle.child.kill("SIGTERM"); } catch { /* already dead */ }
-            signalDaemonHandle = null;
-            await new Promise((r) => setTimeout(r, 1000));
-          }
+    // Signal setup runs in the background — daemon auto-start can take 60s+
+    // and must never block the rest of Triggerfish from starting.
+    log.info("Signal channel setup starting (background)...");
+    const signalEndpoint = signalConfig.endpoint;
+    const signalAccount = signalConfig.account;
+    const signalOwnerPhone = signalConfig.ownerPhone;
+    const signalClassification = (signalConfig.classification ?? "PUBLIC") as ClassificationLevel;
+    const signalDefaultGroupMode = (signalConfig.defaultGroupMode ?? "always") as
+      | "always"
+      | "mentioned-only"
+      | "owner-only";
+    const signalGroups = signalConfig.groups as
+      | Record<
+        string,
+        {
+          readonly mode: "always" | "mentioned-only" | "owner-only";
+          readonly classification?: ClassificationLevel;
         }
+      >
+      | undefined;
+    const signalUserClassifications = signalConfig.user_classifications;
+    const signalRespondToUnclassified = signalConfig.respond_to_unclassified;
+    const signalPairing = signalConfig.pairing;
+    const signalPairingClassification = (signalConfig.pairing_classification ??
+      "INTERNAL") as ClassificationLevel;
 
-        // Auto-start signal-cli daemon
-        log.info("signal-cli daemon not running, starting...");
-        const cliCheck = await checkSignalCli();
-        if (cliCheck.ok) {
-          const daemonResult = startDaemon(
-            signalConfig.account,
-            tcpHost,
-            tcpPort,
-            cliCheck.value.path,
-            cliCheck.value.javaHome,
-          );
-          if (daemonResult.ok) {
-            signalDaemonHandle = daemonResult.value;
-            const ready = await waitForDaemon(tcpHost, tcpPort);
-            if (ready) {
-              log.info("signal-cli daemon started");
-              // Log version for diagnostics (rec 7)
-              const versionCheck = await checkSignalCli();
-              if (versionCheck.ok) {
-                log.info(`signal-cli version: ${versionCheck.value.version}`);
-              }
-            } else {
-              const earlyErr = await daemonResult.value.earlyStderr;
-              if (earlyErr) {
-                log.error(`signal-cli early stderr: ${earlyErr}`);
-              }
-              const stderr = await daemonResult.value.stderrText();
-              log.error(
-                "signal-cli daemon started but not reachable within 60s",
-              );
-              if (stderr) {
-                log.error(`signal-cli stderr: ${stderr}`);
+    (async () => {
+      try {
+        // Parse endpoint — handle both TCP and Unix socket auto-start
+        const tcpMatch = signalEndpoint.match(/^tcp:\/\/([^:]+):(\d+)$/);
+        const unixMatch = signalEndpoint.match(/^unix:\/\/(.+)$/);
+
+        if (tcpMatch) {
+          const [, tcpHost, tcpPortStr] = tcpMatch;
+          const tcpPort = parseInt(tcpPortStr, 10);
+          const running = await isDaemonRunning(tcpHost, tcpPort);
+          const healthy = running ? await isDaemonHealthy(tcpHost, tcpPort) : false;
+
+          if (!running || !healthy) {
+            if (running && !healthy) {
+              log.warn("signal-cli daemon is occupying the port but not responding to JSON-RPC");
+              if (signalDaemonHandle) {
+                try { signalDaemonHandle.child.kill("SIGTERM"); } catch { /* already dead */ }
+                signalDaemonHandle = null;
+                await new Promise((r) => setTimeout(r, 1000));
               }
             }
-          } else {
-            log.error(
-              `Failed to start signal-cli daemon: ${daemonResult.error}`,
-            );
-          }
-        } else {
-          log.error("signal-cli not found — cannot auto-start daemon");
-        }
-      }
-    } else if (unixMatch) {
-      const socketPath = unixMatch[1];
-      const running = await isDaemonRunningUnix(socketPath);
-      if (!running) {
-        // Auto-start signal-cli daemon on Unix socket
-        log.info("signal-cli daemon not running (Unix socket), starting...");
-        const cliCheck = await checkSignalCli();
-        if (cliCheck.ok) {
-          const daemonResult = startDaemonUnix(
-            signalConfig.account,
-            socketPath,
-            cliCheck.value.path,
-            cliCheck.value.javaHome,
-          );
-          if (daemonResult.ok) {
-            signalDaemonHandle = daemonResult.value;
-            const ready = await waitForDaemonUnix(socketPath);
-            if (ready) {
-              log.info("signal-cli daemon started (Unix socket)");
-              // Log version for diagnostics (rec 7)
-              const versionCheck = await checkSignalCli();
-              if (versionCheck.ok) {
-                log.info(`signal-cli version: ${versionCheck.value.version}`);
+
+            log.info("signal-cli daemon not running, starting...");
+            const cliCheck = await checkSignalCli();
+            if (cliCheck.ok) {
+              const daemonResult = startDaemon(
+                signalAccount,
+                tcpHost,
+                tcpPort,
+                cliCheck.value.path,
+                cliCheck.value.javaHome,
+              );
+              if (daemonResult.ok) {
+                signalDaemonHandle = daemonResult.value;
+                const ready = await waitForDaemon(tcpHost, tcpPort);
+                if (ready) {
+                  log.info("signal-cli daemon started");
+                  const versionCheck = await checkSignalCli();
+                  if (versionCheck.ok) {
+                    log.info(`signal-cli version: ${versionCheck.value.version}`);
+                  }
+                } else {
+                  const earlyErr = await daemonResult.value.earlyStderr;
+                  if (earlyErr) {
+                    log.error(`signal-cli early stderr: ${earlyErr}`);
+                  }
+                  const stderr = await daemonResult.value.stderrText();
+                  log.error("signal-cli daemon started but not reachable within 60s");
+                  if (stderr) {
+                    log.error(`signal-cli stderr: ${stderr}`);
+                  }
+                }
+              } else {
+                log.error(`Failed to start signal-cli daemon: ${daemonResult.error}`);
               }
             } else {
-              const earlyErr = await daemonResult.value.earlyStderr;
-              if (earlyErr) {
-                log.error(`signal-cli early stderr: ${earlyErr}`);
-              }
-              const stderr = await daemonResult.value.stderrText();
-              log.error(
-                "signal-cli daemon (Unix socket) not reachable within 60s",
-              );
-              if (stderr) {
-                log.error(`signal-cli stderr: ${stderr}`);
-              }
+              log.error("signal-cli not found — cannot auto-start daemon");
             }
-          } else {
-            log.error(
-              `Failed to start signal-cli daemon: ${daemonResult.error}`,
-            );
           }
-        } else {
-          log.error("signal-cli not found — cannot auto-start daemon");
+        } else if (unixMatch) {
+          const socketPath = unixMatch[1];
+          const running = await isDaemonRunningUnix(socketPath);
+          if (!running) {
+            log.info("signal-cli daemon not running (Unix socket), starting...");
+            const cliCheck = await checkSignalCli();
+            if (cliCheck.ok) {
+              const daemonResult = startDaemonUnix(
+                signalAccount,
+                socketPath,
+                cliCheck.value.path,
+                cliCheck.value.javaHome,
+              );
+              if (daemonResult.ok) {
+                signalDaemonHandle = daemonResult.value;
+                const ready = await waitForDaemonUnix(socketPath);
+                if (ready) {
+                  log.info("signal-cli daemon started (Unix socket)");
+                  const versionCheck = await checkSignalCli();
+                  if (versionCheck.ok) {
+                    log.info(`signal-cli version: ${versionCheck.value.version}`);
+                  }
+                } else {
+                  const earlyErr = await daemonResult.value.earlyStderr;
+                  if (earlyErr) {
+                    log.error(`signal-cli early stderr: ${earlyErr}`);
+                  }
+                  const stderr = await daemonResult.value.stderrText();
+                  log.error("signal-cli daemon (Unix socket) not reachable within 60s");
+                  if (stderr) {
+                    log.error(`signal-cli stderr: ${stderr}`);
+                  }
+                }
+              } else {
+                log.error(`Failed to start signal-cli daemon: ${daemonResult.error}`);
+              }
+            } else {
+              log.error("signal-cli not found — cannot auto-start daemon");
+            }
+          }
         }
+
+        const signalAdapter = createSignalChannel({
+          endpoint: signalEndpoint,
+          account: signalAccount,
+          ownerPhone: signalOwnerPhone,
+          classification: signalClassification,
+          defaultGroupMode: signalDefaultGroupMode,
+          groups: signalGroups,
+        });
+
+        await chatSession.registerChannel("signal", {
+          adapter: signalAdapter,
+          channelName: "Signal",
+          classification: signalClassification,
+          userClassifications: signalUserClassifications,
+          respondToUnclassified: signalRespondToUnclassified,
+          pairing: signalPairing,
+          pairingClassification: signalPairingClassification,
+        });
+
+        signalAdapter.onMessage((msg) => {
+          chatSession.handleChannelMessage(msg, "signal")
+            .catch((err) => log.error("Signal message processing error:", err));
+        });
+
+        if (signalOwnerPhone) {
+          notificationService.registerChannel({
+            name: "signal",
+            send: (notifMsg) =>
+              signalAdapter.send({
+                content: notifMsg,
+                sessionId: `signal-${signalOwnerPhone}`,
+              }),
+          });
+        }
+
+        await signalAdapter.connect();
+
+        // Register Signal adapter for agent tool access (message, channels_list)
+        channelAdapters.set("signal", {
+          adapter: signalAdapter,
+          classification: signalClassification,
+          name: "Signal",
+        });
+
+        log.info("Signal channel connected");
+      } catch (err) {
+        log.error(
+          `Signal channel failed to connect: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
       }
-    }
-
-    const signalAdapter = createSignalChannel({
-      endpoint: signalConfig.endpoint,
-      account: signalConfig.account,
-      ownerPhone: signalConfig.ownerPhone,
-      classification:
-        (signalConfig.classification ?? "PUBLIC") as ClassificationLevel,
-      defaultGroupMode: (signalConfig.defaultGroupMode ?? "always") as
-        | "always"
-        | "mentioned-only"
-        | "owner-only",
-      groups: signalConfig.groups as
-        | Record<
-          string,
-          {
-            readonly mode: "always" | "mentioned-only" | "owner-only";
-            readonly classification?: ClassificationLevel;
-          }
-        >
-        | undefined,
-    });
-
-    await chatSession.registerChannel("signal", {
-      adapter: signalAdapter,
-      channelName: "Signal",
-      classification:
-        (signalConfig.classification ?? "PUBLIC") as ClassificationLevel,
-      userClassifications: signalConfig.user_classifications,
-      respondToUnclassified: signalConfig.respond_to_unclassified,
-      pairing: signalConfig.pairing,
-      pairingClassification: (signalConfig.pairing_classification ??
-        "INTERNAL") as ClassificationLevel,
-    });
-
-    signalAdapter.onMessage((msg) => {
-      chatSession.handleChannelMessage(msg, "signal")
-        .catch((err) => log.error("Signal message processing error:", err));
-    });
-
-    // Register Signal for notification delivery (send to owner's own number doesn't make sense,
-    // but if ownerPhone is set we can notify via a known contact)
-    if (signalConfig.ownerPhone) {
-      notificationService.registerChannel({
-        name: "signal",
-        send: (notifMsg) =>
-          signalAdapter.send({
-            content: notifMsg,
-            sessionId: `signal-${signalConfig.ownerPhone}`,
-          }),
-      });
-    }
-
-    try {
-      await signalAdapter.connect();
-
-      // Register Signal adapter for agent tool access (message, channels_list)
-      channelAdapters.set("signal", {
-        adapter: signalAdapter,
-        classification:
-          (signalConfig.classification ?? "PUBLIC") as ClassificationLevel,
-        name: "Signal",
-      });
-
-      log.info("Signal channel connected");
-    } catch (err) {
-      log.error(
-        `Signal channel failed to connect: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
+    })();
   }
 
   // Start the scheduler (cron tick loop + trigger)
@@ -3620,6 +3639,7 @@ function getToolDefinitions(): readonly ToolDefinition[] {
     ...getLlmTaskToolDefinitions(),
     ...getSummarizeToolDefinitions(),
     ...getHealthcheckToolDefinitions(),
+    ...getTriggerToolDefinitions(),
     ...getClaudeToolDefinitions(),
     {
       name: "read_file",
@@ -3866,6 +3886,10 @@ interface ToolExecutorOptions {
     name: string,
     input: Record<string, unknown>,
   ) => Promise<string | null>;
+  readonly triggerExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
 }
 
 /**
@@ -3988,6 +4012,12 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
     if (opts.secretExecutor) {
       const secretResult = await opts.secretExecutor(name, input);
       if (secretResult !== null) return secretResult;
+    }
+
+    // Try trigger context tools (returns null if not a trigger tool)
+    if (opts.triggerExecutor) {
+      const triggerResult = await opts.triggerExecutor(name, input);
+      if (triggerResult !== null) return triggerResult;
     }
 
     // Try web tools (returns null if not a web tool)
