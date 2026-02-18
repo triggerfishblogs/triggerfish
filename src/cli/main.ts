@@ -116,7 +116,6 @@ import {
   getLlmTaskToolDefinitions,
   getSummarizeToolDefinitions,
   getTodoToolDefinitions,
-  HEALTHCHECK_SYSTEM_PROMPT,
   LLM_TASK_SYSTEM_PROMPT,
   SUMMARIZE_SYSTEM_PROMPT,
   TODO_SYSTEM_PROMPT,
@@ -151,7 +150,6 @@ import {
   PLAN_SYSTEM_PROMPT,
 } from "../agent/plan_tools.ts";
 import {
-  BROWSER_TOOLS_SYSTEM_PROMPT,
   createAutoLaunchBrowserExecutor,
   createBrowserManager,
   createDomainPolicy as createBrowserDomainPolicy,
@@ -164,7 +162,6 @@ import {
   createObsidianToolExecutor,
   createVaultContext,
   getObsidianToolDefinitions,
-  OBSIDIAN_SYSTEM_PROMPT,
 } from "../obsidian/mod.ts";
 import {
   createImageToolExecutor,
@@ -192,14 +189,12 @@ import {
   createSheetsService,
   createTasksService,
   getGoogleToolDefinitions,
-  GOOGLE_TOOLS_SYSTEM_PROMPT,
 } from "../google/mod.ts";
 import type { GoogleAuthConfig } from "../google/mod.ts";
 import {
   createGitHubClient,
   createGitHubToolExecutor,
   getGitHubToolDefinitions,
-  GITHUB_TOOLS_SYSTEM_PROMPT,
   resolveGitHubToken,
 } from "../github/mod.ts";
 import { createKeychain } from "../secrets/keychain.ts";
@@ -1098,11 +1093,8 @@ function createOrchestratorFactory(
           WEB_TOOLS_SYSTEM_PROMPT,
           MEMORY_SYSTEM_PROMPT,
           PLAN_SYSTEM_PROMPT,
-          GOOGLE_TOOLS_SYSTEM_PROMPT,
-          GITHUB_TOOLS_SYSTEM_PROMPT,
           LLM_TASK_SYSTEM_PROMPT,
           SUMMARIZE_SYSTEM_PROMPT,
-          HEALTHCHECK_SYSTEM_PROMPT,
           factorySkillsPrompt,
         ],
         visionProvider: schedulerVisionProvider,
@@ -1761,19 +1753,14 @@ async function runStart(): Promise<void> {
       WEB_TOOLS_SYSTEM_PROMPT,
       MEMORY_SYSTEM_PROMPT,
       PLAN_SYSTEM_PROMPT,
-      BROWSER_TOOLS_SYSTEM_PROMPT,
       TIDEPOOL_SYSTEM_PROMPT,
       SESSION_TOOLS_SYSTEM_PROMPT,
       IMAGE_TOOLS_SYSTEM_PROMPT,
       EXPLORE_SYSTEM_PROMPT,
-      GOOGLE_TOOLS_SYSTEM_PROMPT,
-      GITHUB_TOOLS_SYSTEM_PROMPT,
-      OBSIDIAN_SYSTEM_PROMPT,
       SKILLS_SYSTEM_PROMPT,
       TRIGGERS_SYSTEM_PROMPT,
       LLM_TASK_SYSTEM_PROMPT,
       SUMMARIZE_SYSTEM_PROMPT,
-      HEALTHCHECK_SYSTEM_PROMPT,
       CLAUDE_SESSION_SYSTEM_PROMPT,
       SECRET_TOOLS_SYSTEM_PROMPT,
       mcpSystemPrompt,

@@ -74,7 +74,7 @@ export async function loadOrCreateMachineKey(
     // Import the existing raw bytes as AES-GCM key
     const key = await crypto.subtle.importKey(
       "raw",
-      rawBytes,
+      rawBytes.buffer as ArrayBuffer,
       { name: "AES-GCM" },
       false,
       ["encrypt", "decrypt"],

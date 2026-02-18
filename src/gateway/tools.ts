@@ -163,14 +163,12 @@ export function getSessionToolDefinitions(): readonly ToolDefinition[] {
 /** System prompt section explaining session tools to the LLM. */
 export const SESSION_TOOLS_SYSTEM_PROMPT = `## Session & Channel Management
 
-You have access to messaging channels (Signal, Telegram, etc.) and can manage sessions across them.
+You have access to messaging channels and can manage sessions across them.
 
 ### Channels
 - Use channels_list to discover connected channels and their classification levels.
 - Use message to send a message to a recipient on a connected channel.
-  - For Signal: you ARE the owner's phone number. Recipients are phone numbers in E.164 format (e.g. "+15551234567") or group IDs prefixed with "group-".
-  - For Telegram: recipients are chat IDs.
-- Write-down enforcement applies: you cannot send data to a channel whose classification is lower than your current session taint. If your taint is CONFIDENTIAL and the channel is INTERNAL, the message will be blocked.
+- Write-down enforcement applies: you cannot send data to a channel whose classification is lower than your current session taint.
 
 ### Sessions
 - Use sessions_list to see active sessions across all channels (filtered by your taint level).
@@ -179,23 +177,7 @@ You have access to messaging channels (Signal, Telegram, etc.) and can manage se
 - Use sessions_spawn to create a new background session for autonomous tasks.
 - Use session_status to check a session's metadata (taint, channel, user).
 
-### Signal
-When Signal is connected, you operate as the owner's assistant on their phone number. People who message the owner on Signal are routed to you. Each Signal contact gets their own session with independent taint tracking. The owner can see these sessions and instruct you on how to respond.
-
-- Use signal_list_groups to see all Signal groups the account belongs to (names, IDs, member counts).
-- Use signal_list_contacts to see known Signal contacts (names, phone numbers).
-- To message a group, use: message with channel="signal" and recipient="group-<groupId>".
-- To message a contact, use: message with channel="signal" and recipient="+15551234567".
-
-### Signal Pairing (Authorization)
-When Signal DM policy is "pairing", ALL senders must be paired before they get any response — DMs and group messages alike. This is enforced at the code level. You will never see messages from unpaired senders.
-
-The pairing flow:
-1. The owner asks you to generate a pairing code → use signal_generate_pairing.
-2. The owner gives the code to the person (verbally, via another channel, etc.).
-3. The person sends the 6-digit code as a DM to the owner's Signal number.
-4. If valid, they're paired and can chat (DMs and groups). On success they get a confirmation message.
-5. ALL unpaired messages are silently ignored — no response, no indication of the agent's presence. The owner is also a linked device on this Signal account, so unpaired people are just having normal conversations with the owner. Triggerfish stays invisible until someone pairs.`;
+For Signal-specific usage (messaging contacts, groups, pairing), read the "signal" skill.`;
 
 /**
  * Create a tool executor for session management tools.
