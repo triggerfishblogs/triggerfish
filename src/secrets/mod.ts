@@ -17,7 +17,12 @@ export { createEncryptedFileSecretStore } from "./encrypted_file_provider.ts";
 export type { EncryptedFileSecretStoreOptions } from "./encrypted_file_provider.ts";
 export { loadOrCreateMachineKey } from "./key_manager.ts";
 export type { MachineKeyOptions } from "./key_manager.ts";
-export { resolveSecretRefs } from "./resolver.ts";
+export {
+  findSecretRefs,
+  resolveConfigSecrets,
+  resolveSecretRef,
+  resolveSecretRefs,
+} from "./resolver.ts";
 export type { ResolveResult } from "./resolver.ts";
 export {
   createSecretToolExecutor,

@@ -23,6 +23,8 @@ import {
 
 import { expandTilde } from "../cli/paths.ts";
 import { verifyProvider } from "./verify.ts";
+import { createKeychain } from "../secrets/keychain.ts";
+import type { SecretStore } from "../secrets/keychain.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -101,9 +103,62 @@ const PROVIDER_LABELS: Readonly<Record<ProviderChoice, string>> = {
   zai: "Z.AI Coding Plan (GLM)",
 };
 
+// ─── Secret storage ──────────────────────────────────────────────────────────
+
+/**
+ * Store all collected API keys and tokens in the OS keychain.
+ *
+ * Uses the canonical key names that match the `secret:` references
+ * written into triggerfish.yaml by `generateConfig()`.
+ *
+ * @param answers - Wizard answers containing plaintext secret values
+ * @param store - Secret store to write to (defaults to OS keychain)
+ * @returns Array of canonical keys that were stored
+ */
+export async function storeWizardSecrets(
+  answers: WizardAnswers,
+  store?: SecretStore,
+): Promise<string[]> {
+  const s = store ?? createKeychain();
+  const stored: string[] = [];
+
+  // Provider API key
+  if (
+    answers.apiKey.length > 0 &&
+    answers.provider !== "ollama" &&
+    answers.provider !== "lmstudio"
+  ) {
+    const key = `provider:${answers.provider}:apiKey`;
+    await s.setSecret(key, answers.apiKey);
+    stored.push(key);
+  }
+
+  // Telegram bot token
+  if (answers.telegramBotToken.length > 0) {
+    const key = "telegram:botToken";
+    await s.setSecret(key, answers.telegramBotToken);
+    stored.push(key);
+  }
+
+  // Brave Search API key
+  if (answers.searchProvider === "brave" && answers.searchApiKey.length > 0) {
+    const key = "web:search:apiKey";
+    await s.setSecret(key, answers.searchApiKey);
+    stored.push(key);
+  }
+
+  return stored;
+}
+
 // ─── Config generation (pure, testable) ──────────────────────────────────────
 
-/** Generate triggerfish.yaml content from wizard answers. */
+/**
+ * Generate triggerfish.yaml content from wizard answers.
+ *
+ * All API keys and tokens are written as `secret:<key>` references
+ * rather than plaintext. The actual values must be stored in the OS
+ * keychain separately (see `storeWizardSecrets()`).
+ */
 export function generateConfig(answers: WizardAnswers): string {
   // Build providers section
   const providers: Record<string, Record<string, string>> = {};
@@ -113,7 +168,8 @@ export function generateConfig(answers: WizardAnswers): string {
       model: answers.providerModel,
     };
     if (answers.apiKey.length > 0) {
-      anthropicConfig["apiKey"] = answers.apiKey;
+      // Store reference, not plaintext
+      anthropicConfig["apiKey"] = `secret:provider:${answers.provider}:apiKey`;
     }
     providers["anthropic"] = anthropicConfig;
   } else if (answers.provider === "ollama") {
@@ -131,7 +187,8 @@ export function generateConfig(answers: WizardAnswers): string {
       model: answers.providerModel,
     };
     if (answers.apiKey.length > 0) {
-      providerConfig["apiKey"] = answers.apiKey;
+      // Store reference, not plaintext
+      providerConfig["apiKey"] = `secret:provider:${answers.provider}:apiKey`;
     }
     providers[answers.provider] = providerConfig;
   }
@@ -147,7 +204,8 @@ export function generateConfig(answers: WizardAnswers): string {
       };
     } else if (ch === "telegram" && answers.telegramBotToken.length > 0) {
       const telegramConfig: Record<string, unknown> = {
-        botToken: answers.telegramBotToken,
+        // Store reference, not plaintext
+        botToken: "secret:telegram:botToken",
         classification: "INTERNAL",
       };
       if (answers.telegramOwnerId.length > 0) {
@@ -163,7 +221,8 @@ export function generateConfig(answers: WizardAnswers): string {
   if (answers.searchProvider === "brave" && answers.searchApiKey.length > 0) {
     web["search"] = {
       provider: "brave",
-      api_key: answers.searchApiKey,
+      // Store reference, not plaintext
+      api_key: "secret:web:search:apiKey",
     };
   } else if (
     answers.searchProvider === "searxng" && answers.searxngUrl.length > 0
@@ -834,7 +893,13 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
   // Create directory tree
   await createDirectoryTree(baseDir);
 
-  // Write config
+  // Store secrets in OS keychain before writing config (so config only has refs)
+  const storedKeys = await storeWizardSecrets(answers);
+  if (storedKeys.length > 0) {
+    console.log(`  ✓ Secrets stored in OS keychain (${storedKeys.length} key(s))`);
+  }
+
+  // Write config (uses secret: references, not plaintext values)
   const configContent = generateConfig(answers);
   await Deno.writeTextFile(configPath, configContent);
   console.log(`  ✓ Created: ${configPath}`);
@@ -856,7 +921,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
   }
 
   if (apiKey.length > 0) {
-    console.log(`  ✓ API key saved to triggerfish.yaml`);
+    console.log(`  ✓ API key stored in OS keychain. triggerfish.yaml references it by name.`);
   }
 
   console.log("");

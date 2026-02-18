@@ -198,6 +198,7 @@ import {
   resolveGitHubToken,
 } from "../github/mod.ts";
 import { createKeychain } from "../secrets/keychain.ts";
+import { findSecretRefs, resolveConfigSecrets } from "../secrets/resolver.ts";
 import {
   createSecretToolExecutor,
   getSecretToolDefinitions,
@@ -553,6 +554,42 @@ export function validateConfig(
 }
 
 /**
+ * Load and parse a triggerfish YAML configuration file, resolving all
+ * `secret:<key>` references from the OS keychain.
+ *
+ * Unlike the synchronous `loadConfig()`, this function performs async
+ * secret resolution after parsing the YAML. If any `secret:` reference
+ * cannot be found in the keychain, the function returns an error rather
+ * than starting with an empty or null value (fail-fast behavior).
+ *
+ * @param path - Absolute path to the YAML file.
+ * @param store - Secret store to resolve `secret:` references from.
+ * @returns Result with parsed and secret-resolved config, or error string.
+ */
+export async function loadConfigWithSecrets(
+  path: string,
+  store: import("../secrets/keychain.ts").SecretStore,
+): Promise<Result<TriggerFishConfig, string>> {
+  const raw = loadConfig(path);
+  if (!raw.ok) {
+    return raw;
+  }
+
+  const resolved = await resolveConfigSecrets(raw.value, store);
+  if (!resolved.ok) {
+    return { ok: false, error: resolved.error };
+  }
+
+  // Re-validate after secret resolution (resolved values could affect structure)
+  const validation = validateConfig(resolved.value as Record<string, unknown>);
+  if (!validation.ok) {
+    return validation as Err<string>;
+  }
+
+  return { ok: true, value: resolved.value as TriggerFishConfig };
+}
+
+/**
  * Display help text.
  */
 function showHelp(): void {
@@ -587,6 +624,7 @@ CONFIG SUBCOMMANDS:
   config add-plugin [name]                 Add a plugin (obsidian)
   config set-secret <key> <value>          Store a secret in OS keychain
   config get-secret <key>                  Retrieve a secret from OS keychain
+  config migrate-secrets                   Migrate plaintext secrets to keychain
 
 CRON SUBCOMMANDS:
   cron list                              List all cron jobs
@@ -1238,8 +1276,9 @@ async function runStart(): Promise<void> {
   initLogger({ level: "INFO", fileWriter, console: true });
   let log = createLogger("main");
 
-  // Load config
-  const configResult = loadConfig(configPath);
+  // Load config and resolve secret references from OS keychain
+  const keychainForConfig = createKeychain();
+  const configResult = await loadConfigWithSecrets(configPath, keychainForConfig);
   if (!configResult.ok) {
     log.error("Failed to load configuration:", configResult.error);
     Deno.exit(1);
@@ -3085,6 +3124,185 @@ async function runConfigAddPlugin(
 }
 
 /**
+ * Canonical set of known-secret config field paths and their keychain key names.
+ *
+ * Used by `migrate-secrets` to detect plaintext values in config fields
+ * that should be stored in the keychain.
+ */
+const KNOWN_SECRET_FIELDS: ReadonlyArray<{
+  readonly path: string;
+  readonly keychainKey: (parsed: Record<string, unknown>) => string | undefined;
+}> = [
+  {
+    path: "web.search.api_key",
+    keychainKey: () => "web:search:apiKey",
+  },
+  {
+    path: "channels.telegram.botToken",
+    keychainKey: () => "telegram:botToken",
+  },
+  {
+    path: "channels.discord.botToken",
+    keychainKey: () => "discord:botToken",
+  },
+  {
+    path: "channels.slack.botToken",
+    keychainKey: () => "slack:botToken",
+  },
+  {
+    path: "channels.slack.appToken",
+    keychainKey: () => "slack:appToken",
+  },
+  {
+    path: "channels.slack.signingSecret",
+    keychainKey: () => "slack:signingSecret",
+  },
+  {
+    path: "channels.whatsapp.accessToken",
+    keychainKey: () => "whatsapp:accessToken",
+  },
+  {
+    path: "channels.whatsapp.webhookVerifyToken",
+    keychainKey: () => "whatsapp:webhookVerifyToken",
+  },
+  {
+    path: "channels.email.smtpPassword",
+    keychainKey: () => "email:smtpPassword",
+  },
+  {
+    path: "channels.email.imapPassword",
+    keychainKey: () => "email:imapPassword",
+  },
+];
+
+/**
+ * Migrate plaintext secrets in triggerfish.yaml to the OS keychain.
+ *
+ * Detects plaintext values in known secret fields, stores them in
+ * the keychain, and rewrites the config with `secret:` references.
+ * Creates a timestamped backup before modifying the file.
+ */
+async function runConfigMigrateSecrets(): Promise<void> {
+  const configPath = resolveConfigPath();
+
+  let raw: string;
+  try {
+    raw = await Deno.readTextFile(configPath);
+  } catch {
+    console.error(`Cannot read config: ${configPath}`);
+    Deno.exit(1);
+    return;
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    const p = parseYaml(raw);
+    if (typeof p !== "object" || p === null) {
+      console.error("Config file did not parse to an object");
+      Deno.exit(1);
+      return;
+    }
+    parsed = p as Record<string, unknown>;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Failed to parse config: ${message}`);
+    Deno.exit(1);
+    return;
+  }
+
+  // Also detect provider apiKey fields dynamically
+  const providers = (
+    (parsed.models as Record<string, unknown> | undefined)
+      ?.providers
+  ) as Record<string, unknown> | undefined;
+
+  const dynamicSecretFields: Array<{
+    path: string;
+    keychainKey: () => string;
+  }> = [];
+
+  if (providers) {
+    for (const providerName of Object.keys(providers)) {
+      dynamicSecretFields.push({
+        path: `models.providers.${providerName}.apiKey`,
+        keychainKey: () => `provider:${providerName}:apiKey`,
+      });
+    }
+  }
+
+  const allFields = [...KNOWN_SECRET_FIELDS, ...dynamicSecretFields];
+
+  const store = createKeychain();
+  const migrated: Array<{ path: string; keychainKey: string }> = [];
+  const alreadyRefs: string[] = [];
+
+  for (const field of allFields) {
+    const value = getNestedValue(parsed, field.path);
+    if (typeof value !== "string" || value.length === 0) continue;
+
+    if (value.startsWith("secret:")) {
+      alreadyRefs.push(field.path);
+      continue;
+    }
+
+    const keychainKey = field.keychainKey(parsed);
+    if (!keychainKey) continue;
+
+    // Store in keychain
+    const result = await store.setSecret(keychainKey, value);
+    if (!result.ok) {
+      console.error(`Failed to store secret for ${field.path}: ${result.error}`);
+      Deno.exit(1);
+      return;
+    }
+
+    // Update parsed config with reference
+    setNestedValue(parsed, field.path, `secret:${keychainKey}`);
+    migrated.push({ path: field.path, keychainKey });
+  }
+
+  if (migrated.length === 0) {
+    if (alreadyRefs.length > 0) {
+      console.log(`All ${alreadyRefs.length} secret field(s) already use secret: references. Nothing to migrate.`);
+    } else {
+      console.log("No plaintext secrets found in known fields. Nothing to migrate.");
+    }
+    return;
+  }
+
+  // Create backup before modifying
+  await backupConfig(configPath);
+
+  // Write updated config
+  const yaml = stringifyYaml(parsed);
+  const content =
+    `# Triggerfish Configuration\n# Generated by triggerfish dive\n\n${yaml}`;
+  await Deno.writeTextFile(configPath, content);
+
+  console.log(`\nMigrated ${migrated.length} secret(s) to OS keychain:\n`);
+  for (const { path, keychainKey } of migrated) {
+    console.log(`  ${path}  →  secret:${keychainKey}`);
+  }
+  console.log(`\nBackup saved. Config updated: ${configPath}`);
+
+  // Report any refs already in place
+  if (alreadyRefs.length > 0) {
+    console.log(`\n${alreadyRefs.length} field(s) already used secret: references (unchanged):`);
+    for (const p of alreadyRefs) {
+      console.log(`  ${p}`);
+    }
+  }
+
+  // Show any other secret: refs in the config for awareness
+  const allRefs = findSecretRefs(parsed);
+  if (allRefs.length > 0) {
+    console.log(`\n${allRefs.length} total secret: reference(s) now in config.`);
+  }
+
+  console.log();
+}
+
+/**
  * Config command dispatcher.
  */
 async function runConfig(
@@ -3116,6 +3334,9 @@ async function runConfig(
     case "get-secret":
       await runConfigGetSecret(flags);
       break;
+    case "migrate-secrets":
+      await runConfigMigrateSecrets();
+      break;
     default:
       console.log(`
 CONFIG USAGE:
@@ -3127,6 +3348,7 @@ CONFIG USAGE:
   triggerfish config add-plugin [name]       Add a plugin interactively
   triggerfish config set-secret <key> <value>  Store a secret in OS keychain
   triggerfish config get-secret <key>          Retrieve a secret from OS keychain
+  triggerfish config migrate-secrets           Migrate plaintext secrets to keychain
 
 KEYS use dotted paths into triggerfish.yaml:
   web.search.provider              Search provider (brave)
@@ -3155,6 +3377,7 @@ EXAMPLES:
   triggerfish config add-plugin obsidian
   triggerfish config set-secret github-pat ghp_...
   triggerfish config get-secret github-pat
+  triggerfish config migrate-secrets
 `);
       break;
   }
