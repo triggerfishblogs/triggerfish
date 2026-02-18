@@ -29,7 +29,7 @@ import type { DomainClassifier } from "../web/domains.ts";
 import type { SessionState, SessionId } from "../core/types/session.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { LlmProviderRegistry, LlmMessage, LlmProvider } from "./llm.ts";
-import { createCompactor, estimateHistoryTokens } from "./compactor.ts";
+import { createCompactor, estimateHistoryTokens, countTokens } from "./compactor.ts";
 import type { Compactor, CompactorConfig, CompactResult } from "./compactor.ts";
 import type { MessageContent, ImageContentBlock, ContentBlock } from "../image/content.ts";
 import { extractText, hasImages, normalizeContent } from "../image/content.ts";
@@ -657,8 +657,11 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
         "Do NOT use image_analyze or any other tool to re-examine these images — the descriptions are already complete.";
     }
 
-    // Auto-compact history if approaching context limits
-    const compacted = compactor.compact(history);
+    // Auto-compact history if approaching context limits.
+    // Pass system prompt token count as overhead so the compactor measures
+    // total context usage (system + history), not just history tokens alone.
+    const systemPromptTokens = countTokens(systemPrompt);
+    const compacted = compactor.compact(history, systemPromptTokens);
     if (compacted.length < history.length) {
       history.length = 0;
       history.push(...compacted);

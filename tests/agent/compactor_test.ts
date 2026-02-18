@@ -278,6 +278,56 @@ Deno.test("updateBudget changes the compaction threshold", () => {
   assertEquals(compacted.length, 1);
 });
 
+// ─── Overhead token accounting ──────────────────────────────────
+
+Deno.test("compact fires when overhead + history exceeds threshold", () => {
+  // History is well under 70% of the budget on its own, but when the
+  // system-prompt overhead is included the total exceeds the threshold.
+  const history: HistoryEntry[] = [];
+  // ~10 tokens per pair × 3 pairs = ~30 history tokens
+  for (let i = 0; i < 3; i++) {
+    history.push({ role: "user", content: `Hi ${i}` });
+    history.push({ role: "assistant", content: `Hello ${i}` });
+  }
+
+  // Budget of 100. Auto-trigger = 70.
+  // History alone ≈ 30 tokens (well under 70).
+  // Pass 60 as overhead — total ≈ 90 > 70, compaction must fire.
+  const compactor = createCompactor({ contextBudget: 100 });
+  const result = compactor.compact(history, 60);
+
+  assertEquals(result.length, 1);
+  assertEquals((result[0].content as string).startsWith("[Conversation context:"), true);
+});
+
+Deno.test("compact does NOT fire when overhead + history is under threshold", () => {
+  const history: HistoryEntry[] = [
+    { role: "user", content: "Hello" },
+    { role: "assistant", content: "Hi!" },
+    { role: "user", content: "How are you?" },
+    { role: "assistant", content: "I'm fine." },
+  ];
+
+  // Huge budget — even with 50-token overhead, total is well under 70% of 10 000
+  const compactor = createCompactor({ contextBudget: 10_000 });
+  const result = compactor.compact(history, 50);
+  assertEquals(result, history);
+});
+
+Deno.test("compact with zero overhead behaves identically to no argument", () => {
+  const history: HistoryEntry[] = [];
+  for (let i = 0; i < 20; i++) {
+    history.push({ role: "user", content: `Message ${i}: ${"x".repeat(100)}` });
+    history.push({ role: "assistant", content: `Response ${i}: ${"y".repeat(100)}` });
+  }
+
+  const compactor = createCompactor({ contextBudget: 200 });
+  const withZero = compactor.compact(history, 0);
+  const withNoArg = compactor.compact(history);
+  assertEquals(withZero.length, withNoArg.length);
+  assertEquals(withZero[0].content, withNoArg[0].content);
+});
+
 // ─── Keyword extraction ──────────────────────────────────────────
 
 Deno.test("compact summary includes topic keywords", () => {
