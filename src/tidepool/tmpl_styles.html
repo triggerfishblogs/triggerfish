@@ -42,6 +42,14 @@
   .taint-badge.confidential { background: var(--orange); color: #1a1b26; }
   .taint-badge.restricted { background: var(--red); color: #1a1b26; }
 
+  /* Context usage progress bar */
+  #context-bar { display: flex; align-items: center; gap: 6px; flex: 1; max-width: 200px; }
+  #context-bar-track { position: relative; height: 6px; flex: 1; background: var(--bg3); border-radius: 3px; overflow: visible; }
+  #context-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; border-radius: 3px 0 0 3px; transition: width 0.3s ease; }
+  #context-bar-overflow { position: absolute; top: 0; bottom: 0; background: var(--red); transition: left 0.3s ease, width 0.3s ease; }
+  #context-bar-marker { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--accent); }
+  #context-bar-label { font-size: 10px; color: var(--fg3); white-space: nowrap; }
+
   /* Messages */
   #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
   .msg { max-width: 85%; padding: 10px 14px; border-radius: 8px; line-height: 1.5; word-wrap: break-word; }

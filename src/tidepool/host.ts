@@ -185,6 +185,14 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
                   // Client may have disconnected
                 }
               }
+              // Send initial context usage
+              if (chatSession && chatSession.getContextUsage) {
+                try {
+                  socket.send(JSON.stringify({ type: "context_usage", ...chatSession.getContextUsage() }));
+                } catch {
+                  // Client may have disconnected
+                }
+              }
             });
 
             socket.addEventListener("message", (event: MessageEvent) => {

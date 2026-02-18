@@ -50,6 +50,39 @@ const GREEN = "\x1b[32m";
 const YELLOW = "\x1b[33m";
 const RED = "\x1b[31m";
 const ORANGE = "\x1b[38;5;208m";
+const WHITE = "\x1b[37m";
+const BLUE = "\x1b[34m";
+
+/**
+ * Build context bar segment counts for a given token state.
+ *
+ * Pure function exported for unit testing. Returns the number of filled,
+ * overflow, and empty characters, plus the compact marker position —
+ * all in bar-character units, not pixels.
+ *
+ * @param current - Current token count
+ * @param max - Full context window in tokens
+ * @param compactAt - Token threshold for auto-compact
+ * @param barWidth - Width of the bar in characters (default 20)
+ */
+export function buildContextBarSegments(
+  current: number,
+  max: number,
+  compactAt: number,
+  barWidth = 20,
+): { readonly filled: number; readonly overflow: number; readonly empty: number; readonly markerPos: number } {
+  if (max === 0) {
+    return { filled: 0, overflow: 0, empty: barWidth, markerPos: 0 };
+  }
+  const markerPos = Math.round(Math.min(compactAt, max) / max * barWidth);
+  const filledEnd = Math.round(Math.min(current, compactAt) / max * barWidth);
+  const filled = filledEnd;
+  const overflow = current > compactAt
+    ? Math.round(Math.min((current - compactAt) / max * barWidth, barWidth - filled))
+    : 0;
+  const empty = Math.max(barWidth - filled - overflow, 0);
+  return { filled, overflow, empty, markerPos };
+}
 
 /** ANSI color code for a classification level. */
 export function taintColor(level: ClassificationLevel): string {
@@ -105,6 +138,13 @@ export interface ScreenManager {
    * @param configured - Total number of configured (non-disabled) MCP servers
    */
   setMcpStatus(connected: number, configured: number): void;
+  /**
+   * Update the context usage progress bar in the bottom separator.
+   * @param current - Current estimated token count (history only)
+   * @param max - Full model context window in tokens
+   * @param compactAt - Token threshold at which auto-compact fires
+   */
+  setContextUsage(current: number, max: number, compactAt: number): void;
   /** Handle terminal resize. */
   handleResize(): void;
   /**
@@ -191,6 +231,10 @@ function createTtyScreenManager(): ScreenManager {
   // MCP server connection indicator
   let mcpConnected = -1; // -1 = not configured (hidden)
   let mcpConfigured = 0;
+  // Context usage progress bar (0 = hidden until first update)
+  let ctxCurrent = 0;
+  let ctxMax = 0;
+  let ctxCompactAt = 0;
 
   // Track the last known cursor position so we never rely on
   // the terminal's single-slot SAVE_CURSOR / RESTORE_CURSOR,
@@ -294,8 +338,34 @@ function createTtyScreenManager(): ScreenManager {
       rawWrite(`${DIM}${editor.suggestion}${RESET}`);
     }
 
-    // ── Bottom separator with taint label inline and optional MCP indicator ──
+    // ── Bottom separator with taint label, optional context bar, and optional MCP indicator ──
     const label = currentTaint;
+    // Build optional context usage progress bar (center region)
+    let ctxBarStr = "";
+    let ctxBarVisLen = 0;
+    if (ctxMax > 0) {
+      const BAR_WIDTH = 20;
+      const filled = Math.round(Math.min(ctxCurrent, ctxCompactAt) / ctxMax * BAR_WIDTH);
+      const overflow = ctxCurrent > ctxCompactAt
+        ? Math.round(Math.min((ctxCurrent - ctxCompactAt) / ctxMax * BAR_WIDTH, BAR_WIDTH - filled))
+        : 0;
+      const markerPos = Math.round(ctxCompactAt / ctxMax * BAR_WIDTH);
+      // Build bar character by character
+      let bar = "";
+      for (let i = 0; i < BAR_WIDTH; i++) {
+        if (i < filled) {
+          bar += `${WHITE}█`;
+        } else if (i === markerPos && overflow === 0) {
+          bar += `${BLUE}│`;
+        } else if (i < filled + overflow && overflow > 0) {
+          bar += `${RED}█`;
+        } else {
+          bar += `${DIM}░`;
+        }
+      }
+      ctxBarStr = ` ${bar}${RESET}`;
+      ctxBarVisLen = 1 + BAR_WIDTH; // " " + bar chars
+    }
     // Build optional MCP status indicator (right side)
     let mcpColor = "";
     let mcpText = "";
@@ -309,17 +379,17 @@ function createTtyScreenManager(): ScreenManager {
       }
       mcpText = `MCP ${mcpConnected}/${mcpConfigured}`;
     }
-    // "── LABEL ──────... [MCP x/y] ──" layout
+    // "── LABEL [bar] ────... [MCP x/y] ──" layout
     const rightSuffix = mcpText
       ? ` ${mcpColor}${BOLD}${mcpText}${RESET}${color} ─`
       : "";
     // Visible length of rightSuffix (strip ANSI codes for length calc)
     const rightVisLen = mcpText ? 1 + mcpText.length + 2 : 0; // " " + text + " ─"
-    const fillLen = Math.max(size.columns - 3 - label.length - 1 - rightVisLen, 1);
+    const fillLen = Math.max(size.columns - 3 - label.length - 1 - ctxBarVisLen - rightVisLen, 1);
     rawWrite(moveTo(bottomSepRow, 1));
     rawWrite(CLEAR_LINE);
     rawWrite(
-      `${color}${"─".repeat(2)} ${BOLD}${label}${RESET}${color} ${"─".repeat(fillLen)}${rightSuffix}${RESET}`,
+      `${color}${"─".repeat(2)} ${BOLD}${label}${RESET}${color}${ctxBarStr}${color} ${"─".repeat(fillLen)}${rightSuffix}${RESET}`,
     );
 
     // Calculate cursor position accounting for line wrapping
@@ -463,6 +533,13 @@ function createTtyScreenManager(): ScreenManager {
       mcpConfigured = configured;
       // Redraw will happen on the next input redraw; no immediate redraw needed
       // (avoids cursor flicker when not actively typing)
+    },
+
+    setContextUsage(current: number, max: number, compactAt: number): void {
+      ctxCurrent = current;
+      ctxMax = max;
+      ctxCompactAt = compactAt;
+      // Redraw will happen on the next input redraw; no immediate redraw needed
     },
 
     setStatus(text: string): void {
@@ -610,6 +687,10 @@ function createDumbScreenManager(): ScreenManager {
 
     setMcpStatus(_connected: number, _configured: number): void {
       // No MCP status indicator in dumb mode
+    },
+
+    setContextUsage(_current: number, _max: number, _compactAt: number): void {
+      // No context bar in dumb mode
     },
 
     setStatus(_text: string): void {
