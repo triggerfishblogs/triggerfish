@@ -12,6 +12,7 @@
  * @module
  */
 
+import { createLogger } from "../core/logger/mod.ts";
 import type { Result, ClassificationLevel } from "../core/types/classification.ts";
 import { canFlowTo } from "../core/types/classification.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
@@ -476,13 +477,14 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     contextBudget: effectiveBudget,
   });
 
-  /** Log to stderr when debug mode is enabled. */
+  const orchLog = createLogger("orchestrator");
+
+  /** Log to the structured logger at TRACE level (replaces old debugLog). */
   function debugLog(label: string, data: unknown): void {
     if (!debug) return;
-    const ts = new Date().toISOString().slice(11, 23);
     const str = typeof data === "string" ? data : JSON.stringify(data, null, 2);
     const preview = str.length > 500 ? str.slice(0, 500) + `… [${str.length} chars]` : str;
-    console.error(`[orch ${ts}] ${label}: ${preview}`);
+    orchLog.trace(`${label}: ${preview}`);
   }
 
   /**
@@ -644,10 +646,10 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
       debugLog(`iter${iterations} sending`, `${messages.length} msgs, sysPrompt=${systemPrompt.length}chars, history=${history.length} entries`);
       if (debug && iterations === 1) {
-        console.error(`[orch] === SYSTEM PROMPT ===\n${systemPrompt}\n[orch] === END SYSTEM PROMPT ===`);
+        orchLog.trace(`=== SYSTEM PROMPT ===\n${systemPrompt}\n=== END SYSTEM PROMPT ===`);
         for (const h of history) {
           const preview = typeof h.content === "string" ? h.content.slice(0, 100) : "(non-string)";
-          console.error(`[orch] history ${h.role}: ${preview}`);
+          orchLog.trace(`history ${h.role}: ${preview}`);
         }
       }
 

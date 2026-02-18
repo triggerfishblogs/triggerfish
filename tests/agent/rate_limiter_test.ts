@@ -9,7 +9,6 @@ import {
   createRateLimiter,
   createRateLimitedProvider,
 } from "../../src/agent/rate_limiter.ts";
-import type { RateLimiterConfig } from "../../src/agent/rate_limiter.ts";
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../../src/agent/llm.ts";
 
 // ---------------------------------------------------------------------------
@@ -24,17 +23,17 @@ function makeMockProvider(
     supportsStreaming: true,
     callCount: 0,
 
-    async complete(
+    complete(
       _messages: readonly LlmMessage[],
       _tools: readonly unknown[],
       _options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       provider.callCount++;
-      return {
+      return Promise.resolve({
         content: "hello",
         toolCalls: [],
         usage,
-      };
+      });
     },
 
     async *stream(
@@ -181,8 +180,8 @@ Deno.test("createRateLimitedProvider — provider without stream has no stream m
   const mock: LlmProvider = {
     name: "no-stream",
     supportsStreaming: false,
-    async complete(): Promise<LlmCompletionResult> {
-      return { content: "", toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } };
+    complete(): Promise<LlmCompletionResult> {
+      return Promise.resolve({ content: "", toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } });
     },
   };
   const limiter = createRateLimiter({ tpm: 1000, rpm: 10 });

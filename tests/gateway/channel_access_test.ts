@@ -7,7 +7,6 @@
  */
 import { assertEquals, assert } from "@std/assert";
 import { createChatSession } from "../../src/gateway/chat.ts";
-import type { ChannelRegistrationConfig } from "../../src/gateway/chat.ts";
 import type { ChannelAdapter, ChannelMessage, ChannelStatus, MessageHandler } from "../../src/channels/types.ts";
 import type { ClassificationLevel, Result } from "../../src/core/types/classification.ts";
 import { createProviderRegistry } from "../../src/agent/llm.ts";
@@ -30,17 +29,19 @@ function createMockAdapter(cls: ClassificationLevel = "PUBLIC"): {
   const adapter: ChannelAdapter = {
     classification: cls,
     isOwner: false,
-    async connect() {},
-    async disconnect() {},
-    async send(msg: ChannelMessage) {
+    connect(): Promise<void> { return Promise.resolve(); },
+    disconnect(): Promise<void> { return Promise.resolve(); },
+    send(msg: ChannelMessage): Promise<void> {
       sent.push(msg);
+      return Promise.resolve();
     },
     onMessage(_handler: MessageHandler) {},
     status(): ChannelStatus {
       return { connected: true, channelType: "test" };
     },
-    async sendTyping(sessionId: string) {
+    sendTyping(sessionId: string): Promise<void> {
       typingSent.push(sessionId);
+      return Promise.resolve();
     },
   };
 
@@ -52,12 +53,12 @@ function createMockProvider(): LlmProvider {
   return {
     name: "mock",
     supportsStreaming: false,
-    async complete() {
-      return {
+    complete() {
+      return Promise.resolve({
         content: "Mock response",
         toolCalls: [],
         usage: { inputTokens: 10, outputTokens: 5 },
-      };
+      });
     },
   };
 }
@@ -71,21 +72,21 @@ function createMockPairingService(opts?: {
   const verifyResult = opts?.verifyResult ?? { ok: false, error: "Invalid" } as Result<PairingResult, string>;
 
   return {
-    async generateCode(_channelType: string): Promise<PairingCode> {
-      return { code: "123456", channelType: _channelType, expiresAt: new Date(Date.now() + 300000), used: false };
+    generateCode(_channelType: string): Promise<PairingCode> {
+      return Promise.resolve({ code: "123456", channelType: _channelType, expiresAt: new Date(Date.now() + 300000), used: false });
     },
-    async verifyCode(
+    verifyCode(
       _code: string,
       _channelType: string,
       _platformUserId: string,
     ): Promise<Result<PairingResult, string>> {
-      return verifyResult;
+      return Promise.resolve(verifyResult);
     },
-    async getPending(_channelType: string): Promise<PairingCode | null> {
-      return null;
+    getPending(_channelType: string): Promise<PairingCode | null> {
+      return Promise.resolve(null);
     },
-    async getLinkedUsers(_channelType: string): Promise<string[]> {
-      return linked;
+    getLinkedUsers(_channelType: string): Promise<string[]> {
+      return Promise.resolve(linked);
     },
   };
 }

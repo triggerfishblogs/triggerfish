@@ -311,7 +311,7 @@ export function createClaudeSessionManager(
   }
 
   return {
-    async start(
+    start(
       prompt: string,
       config?: Partial<ClaudeSessionConfig>,
     ): Promise<Result<ClaudeSession, string>> {
@@ -325,11 +325,11 @@ export function createClaudeSessionManager(
       if (fullConfig.workingDir) {
         const resolved = fullConfig.workingDir;
         if (!resolved.startsWith(options.workspacePath)) {
-          return {
-            ok: false,
+          return Promise.resolve({
+            ok: false as const,
             error:
               `Working directory "${resolved}" is outside the workspace "${options.workspacePath}"`,
-          };
+          });
         }
       }
 
@@ -355,12 +355,12 @@ export function createClaudeSessionManager(
         });
         process = command.spawn();
       } catch (err) {
-        return {
-          ok: false,
+        return Promise.resolve({
+          ok: false as const,
           error: `Failed to spawn claude: ${
             err instanceof Error ? err.message : String(err)
           }`,
-        };
+        });
       }
 
       const id = generateSessionId();
@@ -405,7 +405,7 @@ export function createClaudeSessionManager(
 
       sessions.set(id, entry);
 
-      return { ok: true, value: session };
+      return Promise.resolve({ ok: true as const, value: session });
     },
 
     async send(

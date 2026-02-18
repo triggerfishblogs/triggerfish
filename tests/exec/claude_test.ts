@@ -19,7 +19,6 @@ import {
   getClaudeToolDefinitions,
   CLAUDE_SESSION_SYSTEM_PROMPT,
 } from "../../src/exec/claude.ts";
-import type { ClaudeSessionManager } from "../../src/exec/claude.ts";
 import { HARDCODED_TOOL_FLOORS } from "../../src/core/security/constants.ts";
 
 // --- Mock claude binary ---

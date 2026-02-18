@@ -10,7 +10,6 @@
  */
 import { assertEquals, assert } from "@std/assert";
 import { createOrchestrator } from "../../src/agent/orchestrator.ts";
-import type { OrchestratorConfig } from "../../src/agent/orchestrator.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
 import {
   createHookRunner,

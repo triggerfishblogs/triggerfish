@@ -27,6 +27,7 @@
     "@mozilla/readability": "npm:@mozilla/readability@^0.5.0",
     "linkedom": "npm:linkedom@^0.18.0",
     "gpt-tokenizer": "npm:gpt-tokenizer@^2",
+    "qrcode": "npm:qrcode@^1.5.4",
     "pyodide": "https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.mjs"
   },
   "exclude": [

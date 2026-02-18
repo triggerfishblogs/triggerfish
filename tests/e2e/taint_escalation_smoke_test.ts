@@ -11,7 +11,7 @@ import { assertEquals } from "@std/assert";
 import { createOrchestrator } from "../../src/agent/orchestrator.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
 import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks.ts";
-import { createSession, updateTaint } from "../../src/core/types/session.ts";
+import { createSession } from "../../src/core/types/session.ts";
 import type { UserId, ChannelId } from "../../src/core/types/session.ts";
 import type { ClassificationLevel } from "../../src/core/types/classification.ts";
 import type { LlmProvider } from "../../src/agent/llm.ts";

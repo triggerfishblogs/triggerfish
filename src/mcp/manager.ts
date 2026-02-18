@@ -8,6 +8,7 @@
  * @module
  */
 
+import { createLogger } from "../core/logger/mod.ts";
 import type { Result, ClassificationLevel } from "../core/types/classification.ts";
 import type { SecretStore } from "../secrets/keychain.ts";
 import type { McpClient, McpToolDefinition } from "./client/protocol.ts";
@@ -68,13 +69,13 @@ export async function resolveEnvVars(
       if (result.ok) {
         resolved[key] = result.value;
       } else {
-        console.warn(
-          `  MCP env: could not resolve keychain secret '${secretName}' for ${key}: ${result.error}`,
+        createLogger("mcp").warn(
+          `env: could not resolve keychain secret '${secretName}' for ${key}: ${result.error}`,
         );
       }
     } else if (value.startsWith("keychain:")) {
-      console.warn(
-        `  MCP env: keychain: prefix used for ${key} but no SecretStore available`,
+      createLogger("mcp").warn(
+        `env: keychain: prefix used for ${key} but no SecretStore available`,
       );
     } else {
       resolved[key] = value;
@@ -128,6 +129,7 @@ export function createMcpServerAdapter(
  * initialization, tool discovery, and disconnection.
  */
 export function createMcpServerManager(): McpServerManager {
+  const mcpLog = createLogger("mcp");
   let connected: ConnectedMcpServer[] = [];
 
   return {
@@ -145,7 +147,7 @@ export function createMcpServerManager(): McpServerManager {
 
         // Must have either command or url
         if (!cfg.command && !cfg.url) {
-          console.warn(`  MCP server '${cfg.id}': no command or url — skipping`);
+          mcpLog.warn(`MCP server '${cfg.id}': no command or url — skipping`);
           continue;
         }
 
@@ -187,15 +189,15 @@ export function createMcpServerManager(): McpServerManager {
           };
 
           results.push(entry);
-          console.log(
-            `  MCP server '${cfg.id}' connected (${tools.length} tools)`,
+          mcpLog.info(
+            `MCP server '${cfg.id}' connected (${tools.length} tools)`,
           );
         } catch (err: unknown) {
           const message = err instanceof Error
             ? `${err.message}${err.stack ? "\n" + err.stack : ""}`
             : String(err);
-          console.warn(
-            `  MCP server '${cfg.id}' failed to connect: ${message}`,
+          mcpLog.warn(
+            `MCP server '${cfg.id}' failed to connect: ${message}`,
           );
         }
       }

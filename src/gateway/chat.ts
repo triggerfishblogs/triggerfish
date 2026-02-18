@@ -16,6 +16,7 @@
  * @module
  */
 
+import { createLogger } from "../core/logger/mod.ts";
 import { createOrchestrator } from "../agent/orchestrator.ts";
 import type {
   OrchestratorEvent,
@@ -41,6 +42,8 @@ import {
 } from "../channels/user_sessions.ts";
 import type { UserSessionManager } from "../channels/user_sessions.ts";
 import type { PairingService } from "../channels/pairing.ts";
+
+const chatLog = createLogger("chat");
 
 /** Events sent over the chat wire protocol. */
 export type ChatEvent =
@@ -241,9 +244,9 @@ export function buildSendEvent(
         adapter.send({
           content: text,
           sessionId: msg.sessionId,
-        }).catch((err) => console.error(`${channelName} send error:`, err));
+        }).catch((err) => chatLog.warn(`${channelName} send error:`, err));
       } else {
-        console.error(`${channelName}: skipping empty response (LLM returned no text)`);
+        chatLog.warn(`${channelName}: skipping empty response (LLM returned no text)`);
       }
     }
 
@@ -253,7 +256,7 @@ export function buildSendEvent(
       adapter.send({
         content: `Error: ${event.message}`,
         sessionId: msg.sessionId,
-      }).catch((err) => console.error(`${channelName} send error:`, err));
+      }).catch((err) => chatLog.warn(`${channelName} send error:`, err));
     }
   };
 }
@@ -429,7 +432,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
   ): Promise<void> {
     const channelState = channelStates.get(channelType);
     if (!channelState) {
-      console.error(`No channel config registered for ${channelType}`);
+      chatLog.error(`No channel config registered for ${channelType}`);
       return;
     }
 
@@ -468,7 +471,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
 
       // No pairing, no classification → check respondToUnclassified
       if (!channelState.respondToUnclassified) {
-        console.error(`[${channelType}] Dropping unclassified sender ${senderId} (respondToUnclassified=false)`);
+        chatLog.warn(`[${channelType}] Dropping unclassified sender ${senderId} (respondToUnclassified=false)`);
         return;
       }
     }

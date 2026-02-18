@@ -159,18 +159,6 @@ WantedBy=default.target
 }
 
 /**
- * Escape a string for use inside a PowerShell single-quoted string.
- *
- * PowerShell single-quoted strings only interpret `''` as a literal `'`.
- *
- * @param s - Raw string to escape.
- * @returns Escaped string safe for embedding in `'...'`.
- */
-function psEscape(s: string): string {
-  return s.replaceAll("'", "''");
-}
-
-/**
  * Encode a PowerShell command as UTF-16LE Base64 for use with -EncodedCommand.
  * This avoids all quoting/escaping issues when passing commands through
  * Start-Process -Verb RunAs.
@@ -500,45 +488,46 @@ export async function getDaemonStatus(): Promise<DaemonStatus> {
 /**
  * Tail the Triggerfish log file. Streams output to stdout.
  *
- * Uses journalctl on systemd systems, falls back to reading
- * the log file directly on other platforms.
+ * Always reads from the file-based log (`~/.triggerfish/logs/triggerfish.log`)
+ * on all platforms. This ensures consistent behaviour on Linux (where systemd
+ * captures stdout to journalctl but the FileWriter writes to the log file)
+ * and Windows (minimal service capture).
  *
  * @param follow - Whether to follow (tail -f) the log. Default: true.
  * @param lines - Number of lines to show. Default: 50.
+ * @param levelFilter - Optional log level filter (e.g. "ERROR", "WARN"). Only shows lines at or above this level.
  */
 export async function tailLogs(
   follow = true,
   lines = 50,
+  levelFilter?: string,
 ): Promise<void> {
-  const manager = detectDaemonManager();
-
-  if (manager === "systemd") {
-    // Use journalctl for systemd
-    const args = [
-      "--user",
-      "-u",
-      SYSTEMD_UNIT,
-      `-n${lines}`,
-    ];
-    if (follow) args.push("-f");
-
-    const cmd = new Deno.Command("journalctl", {
-      args,
-      stdout: "inherit",
-      stderr: "inherit",
-    });
-    const child = cmd.spawn();
-    await child.status;
-    return;
-  }
-
-  // Fallback: read log file directly
   const path = logFilePath();
   try {
     await Deno.stat(path);
   } catch {
     console.log(`No log file found at ${path}`);
     console.log("Start the daemon first: triggerfish start");
+    return;
+  }
+
+  if (levelFilter) {
+    // Read-and-filter mode: read the file, filter by level, print matching lines
+    const content = await Deno.readTextFile(path);
+    const levelOrder: Record<string, number> = {
+      ERROR: 0, WARN: 1, INFO: 2, DEBUG: 3, TRACE: 4,
+    };
+    const threshold = levelOrder[levelFilter.toUpperCase()] ?? 2;
+    const allLines = content.split("\n");
+    const filtered = allLines.filter((line) => {
+      const match = line.match(/\[(ERROR|WARN|INFO|DEBUG|TRACE)\]/);
+      if (!match) return false;
+      return (levelOrder[match[1]] ?? 5) <= threshold;
+    });
+    const tail = filtered.slice(-lines);
+    for (const line of tail) {
+      console.log(line);
+    }
     return;
   }
 

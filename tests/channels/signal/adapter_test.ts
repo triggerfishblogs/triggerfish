@@ -4,7 +4,7 @@
  * Tests the Signal adapter factory, message handling, DM policy,
  * group mode filtering, and typing indicators using a mock SignalClient.
  */
-import { assertEquals, assert } from "jsr:@std/assert";
+import { assertEquals, assert } from "@std/assert";
 import { createSignalChannel } from "../../../src/channels/signal/adapter.ts";
 import type { SignalClientInterface, SignalNotification } from "../../../src/channels/signal/types.ts";
 import type { Result } from "../../../src/core/types/classification.ts";
@@ -20,35 +20,36 @@ function createMockClient(): {
   let notificationHandler: ((notification: SignalNotification) => void) | null = null;
 
   const client: SignalClientInterface = {
-    async connect(): Promise<Result<void, string>> {
+    connect(): Promise<Result<void, string>> {
       calls.push({ method: "connect", args: [] });
-      return { ok: true, value: undefined };
+      return Promise.resolve({ ok: true, value: undefined });
     },
-    async disconnect(): Promise<void> {
+    disconnect(): Promise<void> {
       calls.push({ method: "disconnect", args: [] });
+      return Promise.resolve();
     },
-    async sendMessage(recipient: string, message: string): Promise<Result<{ readonly timestamp: number }, string>> {
+    sendMessage(recipient: string, message: string): Promise<Result<{ readonly timestamp: number }, string>> {
       calls.push({ method: "sendMessage", args: [recipient, message] });
-      return { ok: true, value: { timestamp: Date.now() } };
+      return Promise.resolve({ ok: true, value: { timestamp: Date.now() } });
     },
-    async sendGroupMessage(groupId: string, message: string): Promise<Result<{ readonly timestamp: number }, string>> {
+    sendGroupMessage(groupId: string, message: string): Promise<Result<{ readonly timestamp: number }, string>> {
       calls.push({ method: "sendGroupMessage", args: [groupId, message] });
-      return { ok: true, value: { timestamp: Date.now() } };
+      return Promise.resolve({ ok: true, value: { timestamp: Date.now() } });
     },
-    async sendTyping(recipient: string): Promise<Result<void, string>> {
+    sendTyping(recipient: string): Promise<Result<void, string>> {
       calls.push({ method: "sendTyping", args: [recipient] });
-      return { ok: true, value: undefined };
+      return Promise.resolve({ ok: true, value: undefined });
     },
-    async sendTypingStop(recipient: string): Promise<Result<void, string>> {
+    sendTypingStop(recipient: string): Promise<Result<void, string>> {
       calls.push({ method: "sendTypingStop", args: [recipient] });
-      return { ok: true, value: undefined };
+      return Promise.resolve({ ok: true, value: undefined });
     },
     onNotification(handler: (notification: SignalNotification) => void): void {
       notificationHandler = handler;
     },
-    async ping(): Promise<Result<void, string>> {
+    ping(): Promise<Result<void, string>> {
       calls.push({ method: "ping", args: [] });
-      return { ok: true, value: undefined };
+      return Promise.resolve({ ok: true, value: undefined });
     },
   };
 

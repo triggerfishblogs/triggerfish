@@ -7,6 +7,7 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/mod.ts";
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
 import { getModelInfo } from "../models.ts";
 import { parseSseStream } from "./sse.ts";
@@ -81,6 +82,8 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
     );
   }
 
+  const orLog = createLogger("openrouter");
+
   return {
     name: "openrouter",
     supportsStreaming: true,
@@ -92,7 +95,6 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       const signal = options.signal as AbortSignal | undefined;
-      const debug = Deno.env.get("TRIGGERFISH_DEBUG") === "1";
       const openaiMessages = messages.map((m) => ({
         role: m.role,
         content: toOpenAiContent(m.content),
@@ -110,14 +112,12 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
 
       const requestBody = JSON.stringify(body);
 
-      if (debug) {
-        console.error(`[openrouter] model=${model} msgs=${openaiMessages.length} body=${requestBody.length}chars`);
-        for (const m of openaiMessages) {
-          const preview = typeof m.content === "string"
-            ? m.content.slice(0, 120)
-            : "(non-string)";
-          console.error(`[openrouter]   ${m.role}: ${preview}…`);
-        }
+      orLog.debug(`model=${model} msgs=${openaiMessages.length} body=${requestBody.length}chars`);
+      for (const m of openaiMessages) {
+        const preview = typeof m.content === "string"
+          ? m.content.slice(0, 120)
+          : "(non-string)";
+        orLog.trace(`  ${m.role}: ${preview}…`);
       }
 
       // Retry loop for transient errors (HTTP 502/503/429 or API-level errors)
@@ -127,7 +127,7 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         if (attempt > 0) {
           const delayMs = 1000 * Math.pow(2, attempt - 1); // 1s, 2s
-          if (debug) console.error(`[openrouter] retry ${attempt}/${MAX_RETRIES} after ${delayMs}ms`);
+          orLog.debug(`retry ${attempt}/${MAX_RETRIES} after ${delayMs}ms`);
           await new Promise((r) => setTimeout(r, delayMs));
         }
 
@@ -147,7 +147,7 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
         if (!response.ok) {
           const body = await response.text();
           if ((response.status === 502 || response.status === 503 || response.status === 429) && attempt < MAX_RETRIES) {
-            if (debug) console.error(`[openrouter] HTTP ${response.status}: ${body.slice(0, 200)}`);
+            orLog.debug(`HTTP ${response.status}: ${body.slice(0, 200)}`);
             lastError = `HTTP ${response.status}: ${body.slice(0, 200)}`;
             continue;
           }
@@ -155,10 +155,11 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
         }
 
         const rawText = await response.text();
-        if (debug) {
-          console.error(`[openrouter] status=${response.status} rawLen=${rawText.length}`);
-          const preview = rawText.length > 500 ? rawText.slice(0, 500) + "…" : rawText;
-          console.error(`[openrouter] raw: ${preview}`);
+        orLog.trace(`status=${response.status} rawLen=${rawText.length}`);
+        if (rawText.length <= 500) {
+          orLog.trace(`raw: ${rawText}`);
+        } else {
+          orLog.trace(`raw: ${rawText.slice(0, 500)}…`);
         }
 
         const data = JSON.parse(rawText);
@@ -167,7 +168,7 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
         if (data.error) {
           const code = data.error.code;
           if ((code === 502 || code === 503 || code === 429) && attempt < MAX_RETRIES) {
-            if (debug) console.error(`[openrouter] API error ${code}: ${JSON.stringify(data.error).slice(0, 200)}`);
+            orLog.debug(`API error ${code}: ${JSON.stringify(data.error).slice(0, 200)}`);
             lastError = `API ${code}: ${JSON.stringify(data.error).slice(0, 200)}`;
             continue;
           }
@@ -175,8 +176,8 @@ export function createOpenRouterProvider(config: OpenRouterConfig): LlmProvider 
         }
 
         const content = data.choices?.[0]?.message?.content ?? "";
-        if (debug && content.length === 0) {
-          console.error(`[openrouter] WARNING: empty content! choices=${JSON.stringify(data.choices?.length)} full=${rawText.slice(0, 300)}`);
+        if (content.length === 0) {
+          orLog.warn(`empty content! choices=${JSON.stringify(data.choices?.length)} full=${rawText.slice(0, 300)}`);
         }
 
         return {

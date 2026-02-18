@@ -603,7 +603,7 @@ export async function startLinkProcess(
  */
 export async function renderQrCode(uri: string): Promise<void> {
   try {
-    const qrcode = await import("npm:qrcode@1.5.4");
+    const qrcode = await import("qrcode");
     const qrText = await qrcode.toString(uri, {
       type: "terminal",
       small: true,
