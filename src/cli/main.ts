@@ -247,6 +247,7 @@ import {
   createLogger,
   initLogger,
   parseUserLogLevel,
+  shutdownLogger,
   USER_LEVEL_MAP,
 } from "../core/logger/mod.ts";
 import { logDir as resolveLogDir } from "./daemon.ts";
@@ -1281,9 +1282,17 @@ async function runStart(): Promise<void> {
     await Deno.mkdir(join(baseDir, "workspace"), { recursive: true });
   }
 
-  // Initialize structured logger early with file writer so we capture startup.
-  // Starts at INFO; re-initialized below with the YAML-configured level.
-  const fileWriter = await createFileWriter({ logDir: resolveLogDir() });
+  // Initialize structured logger early so we capture startup.
+  // On Windows, when running as a service the C# wrapper already captures
+  // stdout/stderr to triggerfish.log via a StreamWriter. Opening the same
+  // file from Deno causes EBUSY (os error 32) because Windows file locks
+  // are mandatory. Skip the FileWriter in that case — stderr output is
+  // sufficient since the service wrapper redirects it to the log file.
+  const isWindowsService = Deno.build.os === "windows" &&
+    !Deno.stdout.isTerminal();
+  const fileWriter = isWindowsService
+    ? undefined
+    : await createFileWriter({ logDir: resolveLogDir() });
   initLogger({ level: "INFO", fileWriter, console: true });
   let log = createLogger("main");
 
@@ -2285,6 +2294,11 @@ async function runStart(): Promise<void> {
     try { await storage.close(); } catch { /* best effort */ }
 
     log.info("Shutdown complete");
+
+    // Close the log file handle so the file lock is released before exit.
+    // Without this, a stop→start cycle on Windows can hit EBUSY if the
+    // old process's handle lingers.
+    try { await shutdownLogger(); } catch { /* best effort */ }
     Deno.exit(0);
   };
   try {
