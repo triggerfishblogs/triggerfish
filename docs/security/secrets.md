@@ -126,6 +126,8 @@ Deletes a secret by name from the keychain.
 
 ### Tool Argument Substitution
 
+<div v-pre>
+
 When the agent uses a tool that needs a secret (for example, setting an API key in an MCP server environment variable), it uses the `{{secret:name}}` syntax in tool arguments:
 
 ```
@@ -135,8 +137,10 @@ arguments: { "key": "API_TOKEN", "value": "{{secret:my-api-token}}" }
 
 The runtime resolves `{{secret:name}}` references **below the LLM layer** before the tool executes. The resolved value never appears in conversation history or logs.
 
+</div>
+
 ::: warning SECURITY
-The `{{secret:name}}` substitution is enforced by code, not by the LLM. Even if the LLM attempted to log or return the resolved value, the policy layer would catch the attempt in the `PRE_OUTPUT` hook.
+The <code v-pre>{{secret:name}}</code> substitution is enforced by code, not by the LLM. Even if the LLM attempted to log or return the resolved value, the policy layer would catch the attempt in the `PRE_OUTPUT` hook.
 :::
 
 ### SDK Permission Methods
