@@ -204,6 +204,12 @@ import {
 } from "../github/mod.ts";
 import { createKeychain } from "../secrets/keychain.ts";
 import {
+  createSecretToolExecutor,
+  getSecretToolDefinitions,
+  SECRET_TOOLS_SYSTEM_PROMPT,
+} from "../secrets/tools.ts";
+import type { SecretPromptCallback } from "../secrets/tools.ts";
+import {
   createMcpServerManager,
   createMcpExecutor,
   createMcpGateway,
@@ -1647,6 +1653,66 @@ async function runStart(): Promise<void> {
   });
   const claudeExecutor = createClaudeToolExecutor(claudeSessionManager);
 
+  // Secret store and CLI prompt callback for secure out-of-context secret input.
+  // The prompt writes directly to the terminal TTY to keep the value off-screen
+  // and out of any pipe or log. The LLM never sees the entered value.
+  const mainKeychain = createKeychain();
+  const cliSecretPrompt: SecretPromptCallback = async (
+    name: string,
+    hint?: string,
+  ): Promise<string | null> => {
+    const promptText = hint
+      ? `Enter value for '${name}' (${hint}): `
+      : `Enter value for '${name}': `;
+    // Write prompt to stderr so it shows on terminal even when stdout is piped.
+    Deno.stderr.writeSync(new TextEncoder().encode(promptText));
+    // Read from stdin with raw mode to suppress echo.
+    try {
+      Deno.stdin.setRaw(true);
+    } catch {
+      // setRaw may fail in non-TTY environments; proceed without it.
+    }
+    const chars: number[] = [];
+    const buf = new Uint8Array(1);
+    try {
+      while (true) {
+        const n = await Deno.stdin.read(buf);
+        if (n === null) break;
+        const byte = buf[0];
+        // Enter key
+        if (byte === 13 || byte === 10) break;
+        // Ctrl-C
+        if (byte === 3) {
+          Deno.stderr.writeSync(new TextEncoder().encode("\n"));
+          return null;
+        }
+        // Backspace
+        if (byte === 127 || byte === 8) {
+          if (chars.length > 0) chars.pop();
+        } else {
+          chars.push(byte);
+        }
+      }
+    } finally {
+      try {
+        Deno.stdin.setRaw(false);
+      } catch {
+        // Ignore
+      }
+      Deno.stderr.writeSync(new TextEncoder().encode("\n"));
+    }
+    return new TextDecoder().decode(new Uint8Array(chars));
+  };
+  // Mutable prompt callback ref — defaults to CLI terminal input.
+  // Tidepool path swaps this to the browser WebSocket callback once the
+  // chatSession is available. Access is safe because the mutex serializes
+  // processMessage calls and ensures no concurrent secret_save invocations.
+  let activeSecretPrompt: SecretPromptCallback = cliSecretPrompt;
+  const secretExecutor = createSecretToolExecutor(
+    mainKeychain,
+    (name, hint) => activeSecretPrompt(name, hint),
+  );
+
   const toolExecutor = createToolExecutor({
     execTools,
     cronManager,
@@ -1675,6 +1741,7 @@ async function runStart(): Promise<void> {
     claudeExecutor,
     mcpExecutor,
     subagentFactory,
+    secretExecutor,
     providerRegistry: registry,
   });
 
@@ -1708,8 +1775,10 @@ async function runStart(): Promise<void> {
       SUMMARIZE_SYSTEM_PROMPT,
       HEALTHCHECK_SYSTEM_PROMPT,
       CLAUDE_SESSION_SYSTEM_PROMPT,
+      SECRET_TOOLS_SYSTEM_PROMPT,
       mcpSystemPrompt,
     ],
+    secretStore: mainKeychain,
     session,
     ...(streamingPref !== undefined
       ? { enableStreaming: streamingPref === true }
@@ -1739,9 +1808,27 @@ async function runStart(): Promise<void> {
 
   log.info("Main session created");
 
+  // Wrap the chatSession processMessage for Tidepool so that each WebSocket
+  // message sets the active secret prompt callback to the Tidepool variant
+  // (which sends a `secret_prompt` event over the browser WebSocket).
+  // CLI path leaves activeSecretPrompt as the terminal hidden-input callback.
+  const tidepoolChatSession = {
+    ...chatSession,
+    processMessage: (
+      content: Parameters<typeof chatSession.processMessage>[0],
+      sendEvent: Parameters<typeof chatSession.processMessage>[1],
+      signal?: Parameters<typeof chatSession.processMessage>[2],
+    ) => {
+      activeSecretPrompt = chatSession.createTidepoolSecretPrompt(sendEvent);
+      return chatSession.processMessage(content, sendEvent, signal).finally(() => {
+        activeSecretPrompt = cliSecretPrompt;
+      });
+    },
+  };
+
   // Start Tidepool + Gateway EARLY so `triggerfish chat` can connect
   // while channels and MCP servers finish wiring in the background.
-  const tidepoolHost = createA2UIHost({ chatSession });
+  const tidepoolHost = createA2UIHost({ chatSession: tidepoolChatSession });
   const tidepoolPort = 18790;
   await tidepoolHost.start(tidepoolPort);
   tidepoolTools = createTidePoolTools(tidepoolHost);
@@ -3157,6 +3244,7 @@ function getToolDefinitions(
   return [
     ...getTodoToolDefinitions(),
     ...getMemoryToolDefinitions(),
+    ...getSecretToolDefinitions(),
     ...getWebToolDefinitions(),
     ...getPlanToolDefinitions(),
     ...getBrowserToolDefinitions(),
@@ -3413,6 +3501,10 @@ interface ToolExecutorOptions {
     input: Record<string, unknown>,
   ) => Promise<string | null>;
   readonly subagentFactory?: (task: string, tools?: string) => Promise<string>;
+  readonly secretExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
 }
 
 /**
@@ -3529,6 +3621,12 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
     if (opts.mcpExecutor) {
       const mcpResult = await opts.mcpExecutor(name, input);
       if (mcpResult !== null) return mcpResult;
+    }
+
+    // Try secret tools (returns null if not a secret tool)
+    if (opts.secretExecutor) {
+      const secretResult = await opts.secretExecutor(name, input);
+      if (secretResult !== null) return secretResult;
     }
 
     // Try web tools (returns null if not a web tool)

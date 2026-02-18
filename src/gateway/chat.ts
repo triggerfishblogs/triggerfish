@@ -24,6 +24,7 @@ import type {
   ToolDefinition,
   ToolExecutor,
 } from "../agent/orchestrator.ts";
+import type { SecretStore } from "../secrets/keychain.ts";
 import type { LlmProviderRegistry, LlmProvider } from "../agent/llm.ts";
 import type { PlanManager } from "../agent/plan.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
@@ -78,14 +79,39 @@ export type ChatEvent =
     readonly tokensBefore: number;
     readonly tokensAfter: number;
   }
-  | { readonly type: "taint_changed"; readonly level: ClassificationLevel };
+  | { readonly type: "taint_changed"; readonly level: ClassificationLevel }
+  | {
+    /**
+     * Server → browser: request the user to securely enter a secret value.
+     * The browser must show a password input form and respond with
+     * `secret_prompt_response`.
+     */
+    readonly type: "secret_prompt";
+    /** Unique nonce correlating this request with the response. */
+    readonly nonce: string;
+    /** The secret name being collected. */
+    readonly name: string;
+    /** Optional human-readable hint for the user. */
+    readonly hint?: string;
+  };
 
 /** Messages the client can send. */
 export type ChatClientMessage =
   | { readonly type: "message"; readonly content: MessageContent }
   | { readonly type: "cancel" }
   | { readonly type: "clear" }
-  | { readonly type: "compact" };
+  | { readonly type: "compact" }
+  | {
+    /**
+     * Browser → server: the user has entered a secret value in the password
+     * form triggered by a `secret_prompt` event.
+     */
+    readonly type: "secret_prompt_response";
+    /** The nonce from the originating `secret_prompt` event. */
+    readonly nonce: string;
+    /** The secret value entered by the user, or null if cancelled. */
+    readonly value: string | null;
+  };
 
 /** Callback to send a chat event to a specific client. */
 export type ChatEventSender = (event: ChatEvent) => void;
@@ -161,6 +187,17 @@ export interface ChatSessionConfig {
   readonly toolFloorRegistry?: ToolFloorRegistry;
   /** Primary model identifier (e.g. "gpt-5.2-codex") for display. */
   readonly primaryModelName?: string;
+  /**
+   * Secret store for resolving `{{secret:name}}` references in tool arguments.
+   * Passed through to the orchestrator for substitution below the LLM layer.
+   */
+  readonly secretStore?: SecretStore;
+  /**
+   * Callback invoked when a `secret_prompt` response arrives from the browser.
+   * Used by the Tidepool WebSocket handler to route browser responses to the
+   * waiting `secret_save` tool executor.
+   */
+  readonly onSecretPromptResponse?: (nonce: string, value: string | null) => void;
 }
 
 /** Internal per-channel state tracked by ChatSession. */
@@ -214,6 +251,26 @@ export interface ChatSession {
   readonly modelName: string;
   /** Read the current owner session taint. */
   readonly sessionTaint: ClassificationLevel;
+  /**
+   * Route a `secret_prompt_response` from the Tidepool browser client to the
+   * waiting `secret_save` tool executor.
+   *
+   * @param nonce - The nonce from the originating `secret_prompt` event.
+   * @param value - The entered secret value, or null if the user cancelled.
+   */
+  handleSecretPromptResponse(nonce: string, value: string | null): void;
+  /**
+   * Create a `SecretPromptCallback` suitable for use with `createSecretToolExecutor`
+   * in Tidepool mode.
+   *
+   * When called, the callback sends a `secret_prompt` WebSocket event to the
+   * currently-active Tidepool client (via `sendEvent`) and awaits the
+   * corresponding `secret_prompt_response` from the browser.
+   *
+   * @param sendEvent - The function that sends events to the active WebSocket client.
+   * @returns A SecretPromptCallback that resolves when the browser responds.
+   */
+  createTidepoolSecretPrompt(sendEvent: ChatEventSender): (name: string, hint?: string) => Promise<string | null>;
 }
 
 /**
@@ -346,6 +403,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     pathClassifier: config.pathClassifier,
     domainClassifier: config.domainClassifier,
     toolFloorRegistry: config.toolFloorRegistry,
+    secretStore: config.secretStore,
   });
 
   const initialSession = config.session;
@@ -355,6 +413,10 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
 
   const providerName = config.providerRegistry.getDefault()?.name ?? "unknown";
   const modelName = config.primaryModelName ?? config.providerRegistry.getDefault()?.name ?? "unknown";
+
+  // Registry of pending secret prompt requests from the Tidepool browser client.
+  // Keyed by nonce; values are resolve functions from awaited Promises.
+  const pendingSecretPrompts = new Map<string, (value: string | null) => void>();
 
   // Promise-chain mutex: each processMessage waits for the previous to finish
   let mutex: Promise<void> = Promise.resolve();
@@ -550,12 +612,37 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     }
   }
 
+  function handleSecretPromptResponse(nonce: string, value: string | null): void {
+    const resolve = pendingSecretPrompts.get(nonce);
+    if (resolve) {
+      pendingSecretPrompts.delete(nonce);
+      resolve(value);
+    }
+  }
+
+  function createTidepoolSecretPrompt(
+    sendEvent: ChatEventSender,
+  ): (name: string, hint?: string) => Promise<string | null> {
+    return (name: string, hint?: string): Promise<string | null> => {
+      const nonce = crypto.randomUUID();
+      return new Promise<string | null>((resolve) => {
+        pendingSecretPrompts.set(nonce, resolve);
+        const promptEvent: ChatEvent = hint !== undefined
+          ? { type: "secret_prompt", nonce, name, hint }
+          : { type: "secret_prompt", nonce, name };
+        sendEvent(promptEvent);
+      });
+    };
+  }
+
   return {
     processMessage,
     registerChannel,
     handleChannelMessage,
     clear,
     compact,
+    handleSecretPromptResponse,
+    createTidepoolSecretPrompt,
     get providerName() {
       return providerName;
     },
