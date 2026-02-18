@@ -5339,7 +5339,11 @@ async function main(): Promise<void> {
 
 // Execute main if this is the entry point
 if (import.meta.main) {
-  main().catch((err) => {
+  // Force-exit after completion to prevent Deno from hanging on Windows due to
+  // stdin raw-mode handles left open by interactive prompts (Cliffy). Without
+  // Deno.exit(0), the process lingers for minutes after "Daemon restarted" is
+  // printed on Windows because the TTY handle is never fully released.
+  main().then(() => Deno.exit(0)).catch((err) => {
     console.error("Fatal error:", err);
     Deno.exit(1);
   });
