@@ -13,19 +13,28 @@ Deno.test("tool floor: run_command has CONFIDENTIAL floor", () => {
   assertEquals(registry.getFloor("run_command"), "CONFIDENTIAL");
 });
 
-Deno.test("tool floor: all browser tools have CONFIDENTIAL floor", () => {
+Deno.test("tool floor: interactive browser tools have INTERNAL floor", () => {
   const registry = createToolFloorRegistry();
-  const browserTools = [
-    "browser_navigate",
-    "browser_snapshot",
+  const interactiveBrowserTools = [
     "browser_click",
     "browser_type",
     "browser_select",
+  ];
+  for (const tool of interactiveBrowserTools) {
+    assertEquals(registry.getFloor(tool), "INTERNAL", `${tool} should have INTERNAL floor`);
+  }
+});
+
+Deno.test("tool floor: read-only browser tools have no floor", () => {
+  const registry = createToolFloorRegistry();
+  const readOnlyBrowserTools = [
+    "browser_navigate",
+    "browser_snapshot",
     "browser_scroll",
     "browser_wait",
   ];
-  for (const tool of browserTools) {
-    assertEquals(registry.getFloor(tool), "CONFIDENTIAL", `${tool} should have CONFIDENTIAL floor`);
+  for (const tool of readOnlyBrowserTools) {
+    assertEquals(registry.getFloor(tool), null, `${tool} should have no floor`);
   }
 });
 
@@ -70,18 +79,25 @@ Deno.test("tool floor: RESTRICTED session can invoke run_command", () => {
   assertEquals(registry.canInvoke("run_command", "RESTRICTED"), true);
 });
 
-// --- Scenario 4: INTERNAL session invokes browser_navigate → BLOCKED ---
+// --- Scenario 4: PUBLIC session invokes browser_navigate → ALLOWED (no floor) ---
 
-Deno.test("tool floor: INTERNAL session cannot invoke browser_navigate", () => {
+Deno.test("tool floor: PUBLIC session can invoke browser_navigate (no floor)", () => {
   const registry = createToolFloorRegistry();
-  assertEquals(registry.canInvoke("browser_navigate", "INTERNAL"), false);
+  assertEquals(registry.canInvoke("browser_navigate", "PUBLIC"), true);
 });
 
-// --- Scenario 5: CONFIDENTIAL session invokes browser_navigate → ALLOWED ---
+// --- Scenario 5: PUBLIC session cannot invoke browser_click (INTERNAL floor) ---
 
-Deno.test("tool floor: CONFIDENTIAL session can invoke browser_navigate", () => {
+Deno.test("tool floor: PUBLIC session cannot invoke browser_click", () => {
   const registry = createToolFloorRegistry();
-  assertEquals(registry.canInvoke("browser_navigate", "CONFIDENTIAL"), true);
+  assertEquals(registry.canInvoke("browser_click", "PUBLIC"), false);
+});
+
+// --- Scenario 5b: INTERNAL session can invoke browser_click (meets INTERNAL floor) ---
+
+Deno.test("tool floor: INTERNAL session can invoke browser_click", () => {
+  const registry = createToolFloorRegistry();
+  assertEquals(registry.canInvoke("browser_click", "INTERNAL"), true);
 });
 
 // --- Scenario 6: INTERNAL session invokes read_file → ALLOWED (no floor) ---
@@ -105,11 +121,11 @@ Deno.test("tool floor: enterprise can raise floor (run_command → RESTRICTED)",
 
 Deno.test("tool floor: enterprise CANNOT lower floor below hardcoded", () => {
   const overrides = new Map<string, ClassificationLevel>([
-    ["browser_navigate", "PUBLIC"],
+    ["run_command", "PUBLIC"],
   ]);
   const registry = createToolFloorRegistry(overrides);
   // Hardcoded is CONFIDENTIAL, enterprise tries to set PUBLIC → max = CONFIDENTIAL
-  assertEquals(registry.getFloor("browser_navigate"), "CONFIDENTIAL");
+  assertEquals(registry.getFloor("run_command"), "CONFIDENTIAL");
 });
 
 Deno.test("tool floor: enterprise can add floor to tool that had none", () => {
@@ -122,10 +138,12 @@ Deno.test("tool floor: enterprise can add floor to tool that had none", () => {
   assertEquals(registry.canInvoke("web_fetch", "CONFIDENTIAL"), true);
 });
 
-Deno.test("tool floor: PUBLIC session cannot invoke any floored tool", () => {
+Deno.test("tool floor: PUBLIC session cannot invoke floored tools", () => {
   const registry = createToolFloorRegistry();
   assertEquals(registry.canInvoke("run_command", "PUBLIC"), false);
-  assertEquals(registry.canInvoke("browser_navigate", "PUBLIC"), false);
+  assertEquals(registry.canInvoke("browser_click", "PUBLIC"), false);
+  assertEquals(registry.canInvoke("browser_type", "PUBLIC"), false);
+  assertEquals(registry.canInvoke("browser_select", "PUBLIC"), false);
 });
 
 Deno.test("tool floor: PUBLIC session can invoke unfloored tools", () => {

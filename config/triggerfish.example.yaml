@@ -95,5 +95,9 @@ classification:
   mode: personal
   levels: standard
 
+logging:
+  # quiet = errors only, normal = info (default), verbose = debug, debug = trace (everything)
+  level: normal
+
 policy:
   default_action: ALLOW

@@ -10,7 +10,6 @@
 
 import type { Result } from "../../core/types/classification.ts";
 import type {
-  JsonRpcNotification,
   JsonRpcRequest,
   JsonRpcResponse,
   SignalClientInterface,
@@ -47,8 +46,8 @@ interface PendingRequest {
  * @returns A SignalClientInterface for communicating with signal-cli.
  */
 export function createSignalClient(options: SignalClientOptions): SignalClientInterface {
-  const maxRetries = options.maxRetries ?? 5;
-  const baseDelay = options.baseDelay ?? 1000;
+  const _maxRetries = options.maxRetries ?? 5;
+  const _baseDelay = options.baseDelay ?? 1000;
 
   let conn: Deno.Conn | null = options._conn ?? null;
   let idCounter = 0;
@@ -138,7 +137,7 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
   }
 
   /** Send a JSON-RPC request and wait for the response. */
-  async function sendRequest(method: string, params: Record<string, unknown>): Promise<JsonRpcResponse> {
+  function sendRequest(method: string, params: Record<string, unknown>): Promise<JsonRpcResponse> {
     if (!conn) {
       throw new Error("Not connected to signal-cli");
     }
@@ -190,7 +189,7 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
       }
     },
 
-    async disconnect(): Promise<void> {
+    disconnect(): Promise<void> {
       readLoopActive = false;
       if (conn) {
         try {
@@ -206,6 +205,7 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
         pending.delete(id);
       }
       buffer = "";
+      return Promise.resolve();
     },
 
     async sendMessage(recipient: string, message: string): Promise<Result<{ readonly timestamp: number }, string>> {

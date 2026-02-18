@@ -147,7 +147,60 @@
           window.tidepoolCanvas.clear();
         }
         break;
+
+      case "secret_prompt":
+        handleSecretPrompt(evt.nonce, evt.name, evt.hint);
+        break;
     }
+  }
+
+  function handleSecretPrompt(nonce, name, hint) {
+    var overlay = document.getElementById("secret-prompt-overlay");
+    var title = document.getElementById("secret-prompt-title");
+    var desc = document.getElementById("secret-prompt-hint");
+    var valueInput = document.getElementById("secret-prompt-value");
+    var submitBtn = document.getElementById("secret-prompt-submit");
+    var cancelBtn = document.getElementById("secret-prompt-cancel");
+
+    if (!overlay || !title || !valueInput || !submitBtn || !cancelBtn) return;
+
+    title.textContent = "Enter secret: " + name;
+    if (desc) desc.textContent = hint || "";
+    valueInput.value = "";
+    overlay.style.display = "flex";
+    setTimeout(function() { valueInput.focus(); }, 50);
+
+    function cleanup() {
+      overlay.style.display = "none";
+      valueInput.value = "";
+      submitBtn.removeEventListener("click", onSubmit);
+      cancelBtn.removeEventListener("click", onCancel);
+      valueInput.removeEventListener("keydown", onKeydown);
+    }
+
+    function onSubmit() {
+      var val = valueInput.value;
+      cleanup();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "secret_prompt_response", nonce: nonce, value: val || null }));
+      }
+    }
+
+    function onCancel() {
+      cleanup();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "secret_prompt_response", nonce: nonce, value: null }));
+      }
+    }
+
+    function onKeydown(e) {
+      if (e.key === "Enter") { e.preventDefault(); onSubmit(); }
+      if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+    }
+
+    submitBtn.addEventListener("click", onSubmit);
+    cancelBtn.addEventListener("click", onCancel);
+    valueInput.addEventListener("keydown", onKeydown);
   }
 
   function addRenderLabel(evt) {

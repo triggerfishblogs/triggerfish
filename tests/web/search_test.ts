@@ -230,14 +230,14 @@ function createMockProvider(): SearchProvider & { readonly calls: number[] } {
     id: "mock",
     name: "Mock Search",
     calls,
-    async search(
+    search(
       query: string,
     ): Promise<Result<SearchResult, string>> {
       calls.push(Date.now());
-      return {
+      return Promise.resolve({
         ok: true,
         value: { query, results: [] },
-      };
+      });
     },
   };
 }
@@ -252,15 +252,15 @@ function createFailingMockProvider(
     id: "failing-mock",
     name: "Failing Mock",
     calls,
-    async search(
+    search(
       query: string,
     ): Promise<Result<SearchResult, string>> {
       const idx = callIndex++;
       calls.push(Date.now());
       if (failOnIndices.has(idx)) {
-        throw new Error(`Simulated failure on call ${idx}`);
+        return Promise.reject(new Error(`Simulated failure on call ${idx}`));
       }
-      return { ok: true, value: { query, results: [] } };
+      return Promise.resolve({ ok: true, value: { query, results: [] } });
     },
   };
 }
@@ -319,15 +319,15 @@ Deno.test("RateLimitedSearchProvider: preserves search results", async () => {
   const mock: SearchProvider = {
     id: "custom",
     name: "Custom",
-    async search(query) {
-      return {
-        ok: true,
+    search(query) {
+      return Promise.resolve({
+        ok: true as const,
         value: {
           query,
           results: [{ title: "Result", url: "https://example.com", snippet: "Snippet" }],
           totalEstimate: 42,
         },
-      };
+      });
     },
   };
 

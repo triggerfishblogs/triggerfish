@@ -12,8 +12,11 @@
  * @module
  */
 
+import { createLogger } from "../core/logger/mod.ts";
 import type { Result, ClassificationLevel } from "../core/types/classification.ts";
 import { canFlowTo } from "../core/types/classification.ts";
+import type { SecretStore } from "../secrets/keychain.ts";
+import { resolveSecretRefs } from "../secrets/resolver.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
 import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
 import {
@@ -119,6 +122,12 @@ export interface OrchestratorConfig {
   readonly domainClassifier?: DomainClassifier;
   /** Tool floor registry for minimum classification enforcement. */
   readonly toolFloorRegistry?: ToolFloorRegistry;
+  /**
+   * Secret store for resolving `{{secret:name}}` references in tool arguments.
+   * When provided, all tool input arguments are scanned and references substituted
+   * before dispatch. The resolved values are never logged or returned to the LLM.
+   */
+  readonly secretStore?: SecretStore;
 }
 
 /** Config shape for building integration/plugin/channel classification map. */
@@ -442,7 +451,23 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           }
         }
 
-        const result = await rawToolExecutor(name, input);
+        // Resolve {{secret:name}} references in tool input before dispatch.
+        // The LLM never sees the resolved values — substitution happens here,
+        // below the LLM layer.
+        let resolvedInput = input;
+        if (config.secretStore) {
+          const resolution = await resolveSecretRefs(input, config.secretStore);
+          if (resolution.ok) {
+            if (resolution.value.missing.length > 0) {
+              return `Error: The following secrets were referenced but not found in the secret store: ${
+                resolution.value.missing.map((n) => `'${n}'`).join(", ")
+              }. Use secret_save to store them first.`;
+            }
+            resolvedInput = resolution.value.resolved;
+          }
+        }
+
+        const result = await rawToolExecutor(name, resolvedInput);
 
         // Post-call: escalate based on response-level classification
         // (e.g. GitHub per-repo classification in _classification field)
@@ -476,13 +501,14 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     contextBudget: effectiveBudget,
   });
 
-  /** Log to stderr when debug mode is enabled. */
+  const orchLog = createLogger("orchestrator");
+
+  /** Log to the structured logger at TRACE level (replaces old debugLog). */
   function debugLog(label: string, data: unknown): void {
     if (!debug) return;
-    const ts = new Date().toISOString().slice(11, 23);
     const str = typeof data === "string" ? data : JSON.stringify(data, null, 2);
     const preview = str.length > 500 ? str.slice(0, 500) + `… [${str.length} chars]` : str;
-    console.error(`[orch ${ts}] ${label}: ${preview}`);
+    orchLog.trace(`${label}: ${preview}`);
   }
 
   /**
@@ -644,10 +670,10 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
       debugLog(`iter${iterations} sending`, `${messages.length} msgs, sysPrompt=${systemPrompt.length}chars, history=${history.length} entries`);
       if (debug && iterations === 1) {
-        console.error(`[orch] === SYSTEM PROMPT ===\n${systemPrompt}\n[orch] === END SYSTEM PROMPT ===`);
+        orchLog.trace(`=== SYSTEM PROMPT ===\n${systemPrompt}\n=== END SYSTEM PROMPT ===`);
         for (const h of history) {
           const preview = typeof h.content === "string" ? h.content.slice(0, 100) : "(non-string)";
-          console.error(`[orch] history ${h.role}: ${preview}`);
+          orchLog.trace(`history ${h.role}: ${preview}`);
         }
       }
 

@@ -116,7 +116,6 @@ import {
   getLlmTaskToolDefinitions,
   getSummarizeToolDefinitions,
   getTodoToolDefinitions,
-  HEALTHCHECK_SYSTEM_PROMPT,
   LLM_TASK_SYSTEM_PROMPT,
   SUMMARIZE_SYSTEM_PROMPT,
   TODO_SYSTEM_PROMPT,
@@ -151,7 +150,6 @@ import {
   PLAN_SYSTEM_PROMPT,
 } from "../agent/plan_tools.ts";
 import {
-  BROWSER_TOOLS_SYSTEM_PROMPT,
   createAutoLaunchBrowserExecutor,
   createBrowserManager,
   createDomainPolicy as createBrowserDomainPolicy,
@@ -164,7 +162,6 @@ import {
   createObsidianToolExecutor,
   createVaultContext,
   getObsidianToolDefinitions,
-  OBSIDIAN_SYSTEM_PROMPT,
 } from "../obsidian/mod.ts";
 import {
   createImageToolExecutor,
@@ -192,18 +189,22 @@ import {
   createSheetsService,
   createTasksService,
   getGoogleToolDefinitions,
-  GOOGLE_TOOLS_SYSTEM_PROMPT,
 } from "../google/mod.ts";
 import type { GoogleAuthConfig } from "../google/mod.ts";
 import {
   createGitHubClient,
   createGitHubToolExecutor,
   getGitHubToolDefinitions,
-  GITHUB_TOOLS_SYSTEM_PROMPT,
   resolveGitHubToken,
 } from "../github/mod.ts";
 import { createKeychain } from "../secrets/keychain.ts";
 import { findSecretRefs, resolveConfigSecrets } from "../secrets/resolver.ts";
+import {
+  createSecretToolExecutor,
+  getSecretToolDefinitions,
+  SECRET_TOOLS_SYSTEM_PROMPT,
+} from "../secrets/tools.ts";
+import type { SecretPromptCallback } from "../secrets/tools.ts";
 import {
   createMcpServerManager,
   createMcpExecutor,
@@ -216,7 +217,6 @@ import type { McpServerConfig } from "../mcp/mod.ts";
 import { createTelegramChannel } from "../channels/telegram/adapter.ts";
 import { createSignalChannel } from "../channels/signal/adapter.ts";
 import { createPairingService } from "../channels/pairing.ts";
-import type { PairingService } from "../channels/pairing.ts";
 import {
   checkSignalCli,
   downloadSignalCli,
@@ -231,6 +231,14 @@ import { createNotificationService } from "../gateway/notifications.ts";
 import { parseClassification } from "../core/types/classification.ts";
 import { createSkillLoader } from "../skills/loader.ts";
 import type { Skill } from "../skills/loader.ts";
+import {
+  createFileWriter,
+  createLogger,
+  initLogger,
+  parseUserLogLevel,
+  USER_LEVEL_MAP,
+} from "../core/logger/mod.ts";
+import { logDir as resolveLogDir } from "./daemon.ts";
 
 /** Known CLI commands. */
 const KNOWN_COMMANDS = new Set([
@@ -356,6 +364,10 @@ export interface TriggerFishConfig {
     readonly classification?: string;
     readonly enabled?: boolean;
   }>>;
+  readonly logging?: {
+    /** Log level: "quiet" | "normal" | "verbose" | "debug". Default: "normal". */
+    readonly level?: string;
+  };
   readonly debug?: boolean;
 }
 
@@ -1119,11 +1131,8 @@ function createOrchestratorFactory(
           WEB_TOOLS_SYSTEM_PROMPT,
           MEMORY_SYSTEM_PROMPT,
           PLAN_SYSTEM_PROMPT,
-          GOOGLE_TOOLS_SYSTEM_PROMPT,
-          GITHUB_TOOLS_SYSTEM_PROMPT,
           LLM_TASK_SYSTEM_PROMPT,
           SUMMARIZE_SYSTEM_PROMPT,
-          HEALTHCHECK_SYSTEM_PROMPT,
           factorySkillsPrompt,
         ],
         visionProvider: schedulerVisionProvider,
@@ -1261,17 +1270,33 @@ async function runStart(): Promise<void> {
     await Deno.mkdir(join(baseDir, "workspace"), { recursive: true });
   }
 
+  // Initialize structured logger early with file writer so we capture startup.
+  // Starts at INFO; re-initialized below with the YAML-configured level.
+  const fileWriter = await createFileWriter({ logDir: resolveLogDir() });
+  initLogger({ level: "INFO", fileWriter, console: true });
+  let log = createLogger("main");
+
   // Load config and resolve secret references from OS keychain
   const keychainForConfig = createKeychain();
   const configResult = await loadConfigWithSecrets(configPath, keychainForConfig);
   if (!configResult.ok) {
-    console.log("Failed to load configuration:", configResult.error);
+    log.error("Failed to load configuration:", configResult.error);
     Deno.exit(1);
   }
 
   const config = configResult.value;
 
-  console.log("  Configuration loaded");
+  // Re-initialize logger with YAML-configured level.
+  // Priority: logging.level in triggerfish.yaml > TRIGGERFISH_DEBUG=1 compat > "normal"
+  const debugCompat = Deno.env.get("TRIGGERFISH_DEBUG") === "1" ? "debug" : undefined;
+  const userLevel = parseUserLogLevel(config.logging?.level ?? debugCompat ?? "normal");
+  initLogger({
+    level: USER_LEVEL_MAP[userLevel],
+    fileWriter,
+    console: true,
+  });
+  log = createLogger("main");
+  log.info(`Configuration loaded (log_level=${userLevel})`);
 
   // Create persistent storage for cron jobs
   const dataDir = join(baseDir, "data");
@@ -1281,7 +1306,7 @@ async function runStart(): Promise<void> {
 
   const existingJobs = cronManager.list();
   if (existingJobs.length > 0) {
-    console.log(`  Loaded ${existingJobs.length} persistent cron job(s)`);
+    log.info(`Loaded ${existingJobs.length} persistent cron job(s)`);
   }
 
   // Create session manager (shared by orchestrator factory, main session, and gateway)
@@ -1313,7 +1338,7 @@ async function runStart(): Promise<void> {
   }
 
   if (fsDefault === "PUBLIC") {
-    console.warn("  WARNING: filesystem.default is set to PUBLIC — all unmapped paths are accessible at PUBLIC level");
+    log.warn("filesystem.default is set to PUBLIC — all unmapped paths are accessible at PUBLIC level");
   }
 
   // Build tool floor registry from enterprise overrides (shared by factory and main session)
@@ -1354,7 +1379,7 @@ async function runStart(): Promise<void> {
   loadProvidersFromConfig(config.models as ModelsConfig, registry);
 
   if (!registry.getDefault()) {
-    console.log("No LLM provider configured. Check triggerfish.yaml.\n");
+    log.error("No LLM provider configured. Check triggerfish.yaml.");
     Deno.exit(1);
   }
 
@@ -1551,9 +1576,9 @@ async function runStart(): Promise<void> {
         sessionId: session.id,
       });
       // Obsidian classification is set by buildToolClassifications from config
-      console.log(`  Obsidian vault connected: ${obsCfg.vault_path}`);
+      log.info(`Obsidian vault connected: ${obsCfg.vault_path}`);
     } else {
-      console.error(`  Obsidian vault error: ${vaultResult.error}`);
+      log.error(`Obsidian vault error: ${vaultResult.error}`);
     }
   }
 
@@ -1566,7 +1591,7 @@ async function runStart(): Promise<void> {
   let mcpSystemPrompt = "";
 
   if (config.mcp_servers && Object.keys(config.mcp_servers).length > 0) {
-    console.log("  Connecting MCP servers...");
+    log.info("Connecting MCP servers...");
     const mcpConfigs: McpServerConfig[] = [];
     for (const [id, serverCfg] of Object.entries(config.mcp_servers)) {
       let classification: ClassificationLevel | undefined;
@@ -1645,7 +1670,7 @@ async function runStart(): Promise<void> {
   try {
     discoveredSkills = await skillLoader.discover();
     if (discoveredSkills.length > 0) {
-      console.log(`  Discovered ${discoveredSkills.length} skill(s)`);
+      log.info(`Discovered ${discoveredSkills.length} skill(s)`);
     }
   } catch {
     // Skill discovery failure is non-fatal
@@ -1658,6 +1683,66 @@ async function runStart(): Promise<void> {
     workspacePath: mainWorkspace.path,
   });
   const claudeExecutor = createClaudeToolExecutor(claudeSessionManager);
+
+  // Secret store and CLI prompt callback for secure out-of-context secret input.
+  // The prompt writes directly to the terminal TTY to keep the value off-screen
+  // and out of any pipe or log. The LLM never sees the entered value.
+  const mainKeychain = createKeychain();
+  const cliSecretPrompt: SecretPromptCallback = async (
+    name: string,
+    hint?: string,
+  ): Promise<string | null> => {
+    const promptText = hint
+      ? `Enter value for '${name}' (${hint}): `
+      : `Enter value for '${name}': `;
+    // Write prompt to stderr so it shows on terminal even when stdout is piped.
+    Deno.stderr.writeSync(new TextEncoder().encode(promptText));
+    // Read from stdin with raw mode to suppress echo.
+    try {
+      Deno.stdin.setRaw(true);
+    } catch {
+      // setRaw may fail in non-TTY environments; proceed without it.
+    }
+    const chars: number[] = [];
+    const buf = new Uint8Array(1);
+    try {
+      while (true) {
+        const n = await Deno.stdin.read(buf);
+        if (n === null) break;
+        const byte = buf[0];
+        // Enter key
+        if (byte === 13 || byte === 10) break;
+        // Ctrl-C
+        if (byte === 3) {
+          Deno.stderr.writeSync(new TextEncoder().encode("\n"));
+          return null;
+        }
+        // Backspace
+        if (byte === 127 || byte === 8) {
+          if (chars.length > 0) chars.pop();
+        } else {
+          chars.push(byte);
+        }
+      }
+    } finally {
+      try {
+        Deno.stdin.setRaw(false);
+      } catch {
+        // Ignore
+      }
+      Deno.stderr.writeSync(new TextEncoder().encode("\n"));
+    }
+    return new TextDecoder().decode(new Uint8Array(chars));
+  };
+  // Mutable prompt callback ref — defaults to CLI terminal input.
+  // Tidepool path swaps this to the browser WebSocket callback once the
+  // chatSession is available. Access is safe because the mutex serializes
+  // processMessage calls and ensures no concurrent secret_save invocations.
+  let activeSecretPrompt: SecretPromptCallback = cliSecretPrompt;
+  const secretExecutor = createSecretToolExecutor(
+    mainKeychain,
+    (name, hint) => activeSecretPrompt(name, hint),
+  );
 
   const toolExecutor = createToolExecutor({
     execTools,
@@ -1687,6 +1772,7 @@ async function runStart(): Promise<void> {
     claudeExecutor,
     mcpExecutor,
     subagentFactory,
+    secretExecutor,
     providerRegistry: registry,
   });
 
@@ -1706,22 +1792,19 @@ async function runStart(): Promise<void> {
       WEB_TOOLS_SYSTEM_PROMPT,
       MEMORY_SYSTEM_PROMPT,
       PLAN_SYSTEM_PROMPT,
-      BROWSER_TOOLS_SYSTEM_PROMPT,
       TIDEPOOL_SYSTEM_PROMPT,
       SESSION_TOOLS_SYSTEM_PROMPT,
       IMAGE_TOOLS_SYSTEM_PROMPT,
       EXPLORE_SYSTEM_PROMPT,
-      GOOGLE_TOOLS_SYSTEM_PROMPT,
-      GITHUB_TOOLS_SYSTEM_PROMPT,
-      OBSIDIAN_SYSTEM_PROMPT,
       SKILLS_SYSTEM_PROMPT,
       TRIGGERS_SYSTEM_PROMPT,
       LLM_TASK_SYSTEM_PROMPT,
       SUMMARIZE_SYSTEM_PROMPT,
-      HEALTHCHECK_SYSTEM_PROMPT,
       CLAUDE_SESSION_SYSTEM_PROMPT,
+      SECRET_TOOLS_SYSTEM_PROMPT,
       mcpSystemPrompt,
     ],
+    secretStore: mainKeychain,
     session,
     ...(streamingPref !== undefined
       ? { enableStreaming: streamingPref === true }
@@ -1749,15 +1832,33 @@ async function runStart(): Promise<void> {
     primaryModelName: config.models.primary.model,
   });
 
-  console.log("  Main session created");
+  log.info("Main session created");
+
+  // Wrap the chatSession processMessage for Tidepool so that each WebSocket
+  // message sets the active secret prompt callback to the Tidepool variant
+  // (which sends a `secret_prompt` event over the browser WebSocket).
+  // CLI path leaves activeSecretPrompt as the terminal hidden-input callback.
+  const tidepoolChatSession = {
+    ...chatSession,
+    processMessage: (
+      content: Parameters<typeof chatSession.processMessage>[0],
+      sendEvent: Parameters<typeof chatSession.processMessage>[1],
+      signal?: Parameters<typeof chatSession.processMessage>[2],
+    ) => {
+      activeSecretPrompt = chatSession.createTidepoolSecretPrompt(sendEvent);
+      return chatSession.processMessage(content, sendEvent, signal).finally(() => {
+        activeSecretPrompt = cliSecretPrompt;
+      });
+    },
+  };
 
   // Start Tidepool + Gateway EARLY so `triggerfish chat` can connect
   // while channels and MCP servers finish wiring in the background.
-  const tidepoolHost = createA2UIHost({ chatSession });
+  const tidepoolHost = createA2UIHost({ chatSession: tidepoolChatSession });
   const tidepoolPort = 18790;
   await tidepoolHost.start(tidepoolPort);
   tidepoolTools = createTidePoolTools(tidepoolHost);
-  console.log(`  Tidepool listening on http://127.0.0.1:${tidepoolPort}`);
+  log.info(`Tidepool listening on http://127.0.0.1:${tidepoolPort}`);
 
   const server = createGatewayServer({
     port: 18789,
@@ -1767,7 +1868,7 @@ async function runStart(): Promise<void> {
     notificationService,
   });
   const addr = await server.start();
-  console.log(`  Gateway listening on ${addr.hostname}:${addr.port}`);
+  log.info(`Gateway listening on ${addr.hostname}:${addr.port}`);
 
   // --- Telegram channel wiring ---
   const telegramConfig = config.channels?.telegram as {
@@ -1801,7 +1902,7 @@ async function runStart(): Promise<void> {
         telegramAdapter.send({
           content: "Triggerfish connected. You can chat with me here.",
           sessionId: msg.sessionId,
-        }).catch((err) => console.error("Telegram send error:", err));
+        }).catch((err) => log.error("Telegram send error:", err));
         return;
       }
 
@@ -1819,7 +1920,7 @@ async function runStart(): Promise<void> {
             })
           )
           .then(() => notificationService.flushPending("owner" as UserId))
-          .catch((err) => console.error("Telegram clear error:", err));
+          .catch((err) => log.error("Telegram clear error:", err));
         return;
       }
 
@@ -1829,12 +1930,12 @@ async function runStart(): Promise<void> {
         const sendEvent = buildSendEvent(telegramAdapter, "Telegram", msg);
         chatSession.processMessage(msg.content, sendEvent)
           .catch((err) =>
-            console.error("Telegram message processing error:", err)
+            log.error("Telegram message processing error:", err)
           );
       } else {
         chatSession.handleChannelMessage(msg, "telegram")
           .catch((err) =>
-            console.error("Telegram message processing error:", err)
+            log.error("Telegram message processing error:", err)
           );
       }
     });
@@ -1861,7 +1962,7 @@ async function runStart(): Promise<void> {
       name: "Telegram",
     });
 
-    console.log("  Telegram channel connected");
+    log.info("Telegram channel connected");
   }
 
   // --- Signal channel wiring ---
@@ -1889,7 +1990,7 @@ async function runStart(): Promise<void> {
       const running = await isDaemonRunning(tcpHost, tcpPort);
       if (!running) {
         // Auto-start signal-cli daemon
-        console.log("  signal-cli daemon not running, starting...");
+        log.info("signal-cli daemon not running, starting...");
         const cliCheck = await checkSignalCli();
         if (cliCheck.ok) {
           const daemonResult = startDaemon(
@@ -1902,23 +2003,23 @@ async function runStart(): Promise<void> {
           if (daemonResult.ok) {
             const ready = await waitForDaemon(tcpHost, tcpPort);
             if (ready) {
-              console.log("  signal-cli daemon started");
+              log.info("signal-cli daemon started");
             } else {
               const stderr = await daemonResult.value.stderrText();
-              console.error(
-                "  signal-cli daemon started but not reachable within 60s",
+              log.error(
+                "signal-cli daemon started but not reachable within 60s",
               );
               if (stderr) {
-                console.error(`  signal-cli stderr: ${stderr}`);
+                log.error(`signal-cli stderr: ${stderr}`);
               }
             }
           } else {
-            console.error(
-              `  Failed to start signal-cli daemon: ${daemonResult.error}`,
+            log.error(
+              `Failed to start signal-cli daemon: ${daemonResult.error}`,
             );
           }
         } else {
-          console.error("  signal-cli not found — cannot auto-start daemon");
+          log.error("signal-cli not found — cannot auto-start daemon");
         }
       }
     }
@@ -1958,7 +2059,7 @@ async function runStart(): Promise<void> {
 
     signalAdapter.onMessage((msg) => {
       chatSession.handleChannelMessage(msg, "signal")
-        .catch((err) => console.error("Signal message processing error:", err));
+        .catch((err) => log.error("Signal message processing error:", err));
     });
 
     // Register Signal for notification delivery (send to owner's own number doesn't make sense,
@@ -1985,10 +2086,10 @@ async function runStart(): Promise<void> {
         name: "Signal",
       });
 
-      console.log("  Signal channel connected");
+      log.info("Signal channel connected");
     } catch (err) {
-      console.error(
-        `  Signal channel failed to connect: ${
+      log.error(
+        `Signal channel failed to connect: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
@@ -1997,12 +2098,11 @@ async function runStart(): Promise<void> {
 
   // Start the scheduler (cron tick loop + trigger)
   schedulerService.start();
-  console.log("  Scheduler started");
+  log.info("Scheduler started");
   if (schedulerConfig.trigger.enabled) {
-    console.log(`  Trigger: every ${schedulerConfig.trigger.intervalMinutes}m`);
+    log.info(`Trigger: every ${schedulerConfig.trigger.intervalMinutes}m`);
   }
-  console.log("\n  Triggerfish is running!");
-  console.log("\nPress Ctrl+C to stop.\n");
+  log.info("Triggerfish is running!");
 
   // Keep running until interrupted
   await new Promise(() => {}); // Never resolves
@@ -3350,7 +3450,8 @@ async function runDaemonLogs(
   flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
   const follow = flags.tail === true;
-  await tailLogs(follow);
+  const levelFilter = typeof flags.level === "string" ? flags.level : undefined;
+  await tailLogs(follow, 50, levelFilter);
 }
 
 /**
@@ -3396,6 +3497,7 @@ function getToolDefinitions(
   return [
     ...getTodoToolDefinitions(),
     ...getMemoryToolDefinitions(),
+    ...getSecretToolDefinitions(),
     ...getWebToolDefinitions(),
     ...getPlanToolDefinitions(),
     ...getBrowserToolDefinitions(),
@@ -3652,6 +3754,10 @@ interface ToolExecutorOptions {
     input: Record<string, unknown>,
   ) => Promise<string | null>;
   readonly subagentFactory?: (task: string, tools?: string) => Promise<string>;
+  readonly secretExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
 }
 
 /**
@@ -3768,6 +3874,12 @@ function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
     if (opts.mcpExecutor) {
       const mcpResult = await opts.mcpExecutor(name, input);
       if (mcpResult !== null) return mcpResult;
+    }
+
+    // Try secret tools (returns null if not a secret tool)
+    if (opts.secretExecutor) {
+      const secretResult = await opts.secretExecutor(name, input);
+      if (secretResult !== null) return secretResult;
     }
 
     // Try web tools (returns null if not a web tool)
