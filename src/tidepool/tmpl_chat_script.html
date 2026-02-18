@@ -148,31 +148,6 @@
         }
         break;
 
-      case "context_usage": {
-        var ctxBarEl = document.getElementById("context-bar");
-        var ctxFillEl = document.getElementById("context-bar-fill");
-        var ctxOverflowEl = document.getElementById("context-bar-overflow");
-        var ctxMarkerEl = document.getElementById("context-bar-marker");
-        var ctxLabelEl = document.getElementById("context-bar-label");
-        if (!ctxBarEl || !ctxFillEl || !ctxOverflowEl || !ctxMarkerEl || !ctxLabelEl) break;
-        if (evt.max === 0) { ctxBarEl.style.display = "none"; break; }
-        ctxBarEl.style.display = "flex";
-        var ctxPct = Math.min(evt.current / evt.max * 100, 100);
-        var compactPct = Math.min(evt.compactAt / evt.max * 100, 100);
-        if (evt.current <= evt.compactAt) {
-          ctxFillEl.style.width = ctxPct + "%";
-          ctxOverflowEl.style.display = "none";
-        } else {
-          ctxFillEl.style.width = compactPct + "%";
-          ctxOverflowEl.style.left = compactPct + "%";
-          ctxOverflowEl.style.width = (ctxPct - compactPct) + "%";
-          ctxOverflowEl.style.display = "";
-        }
-        ctxMarkerEl.style.left = compactPct + "%";
-        var fmtK = function(n) { return n >= 1000 ? Math.round(n / 1000) + "k" : String(n); };
-        ctxLabelEl.textContent = fmtK(evt.current) + " / " + fmtK(evt.max);
-        break;
-      }
       case "mcp_status": {
         var mcpEl = document.getElementById("mcp-status");
         if (!mcpEl) break;
