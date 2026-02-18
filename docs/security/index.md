@@ -53,7 +53,7 @@ This means security behavior is:
 
 - **Auditable** -- you can replay any decision and get the same result
 - **Testable** -- deterministic code can be covered by automated tests
-- **Verifiable** -- the policy engine is open source (MIT licensed) and anyone can inspect it
+- **Verifiable** -- the policy engine is open source (Apache 2.0 licensed) and anyone can inspect it
 
 ## Security Principles
 
@@ -81,7 +81,7 @@ Most AI agent platforms rely on the LLM to enforce safety. The system prompt say
 | **Audit trail** | LLM conversation logs | Structured policy decision logs with full context |
 | **Credential access** | System service account for all users | Delegated user credentials; source system permissions inherited |
 | **Testability** | Fuzzy -- depends on prompt wording | Deterministic -- same input, same decision, every time |
-| **Open for verification** | Usually proprietary | MIT licensed, fully auditable |
+| **Open for verification** | Usually proprietary | Apache 2.0 licensed, fully auditable |
 
 ::: tip
 Triggerfish does not claim that LLMs are unreliable. It claims that LLMs are the wrong layer for security enforcement. A well-prompted LLM will follow its instructions most of the time. But "most of the time" is not a security guarantee. Triggerfish provides a guarantee: the policy layer is code, and code does what it is told, every time.

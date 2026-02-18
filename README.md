@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License" />
+  <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge" alt="Apache 2.0 License" />
   <img src="https://img.shields.io/badge/Runtime-Deno_2.x-000000?style=for-the-badge&logo=deno&logoColor=white" alt="Deno" />
   <img src="https://img.shields.io/badge/LLM-Claude_%7C_GPT_%7C_Gemini-8A2BE2?style=for-the-badge" alt="LLMs" />
 </p>
@@ -209,7 +209,7 @@ See the [GitHub integration docs](docs/integrations/github.md) for full setup in
 
 ## 📄 License
 
-MIT
+Apache 2.0
 
 ---
 

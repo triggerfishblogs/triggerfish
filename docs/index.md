@@ -31,7 +31,7 @@ features:
     details: Cron jobs, triggers, and webhooks. Your agent checks in, monitors, and acts autonomously — within strict policy boundaries.
   - icon: "\U0001F310"
     title: Open Source
-    details: MIT licensed. Security-critical components fully open for audit. Don't trust us — verify the code.
+    details: Apache 2.0 licensed. Security-critical components fully open for audit. Don't trust us — verify the code.
 ---
 
 ## Install in one command
