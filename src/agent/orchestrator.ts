@@ -213,6 +213,11 @@ export interface Orchestrator {
   clearHistory(sessionId: SessionId): void;
   /** Force LLM-based summarization of a session's history. */
   compactHistory(sessionId: SessionId): Promise<CompactResult>;
+  /**
+   * Get current context window usage for a session.
+   * Returns token counts suitable for emitting a `context_usage` event.
+   */
+  getContextUsage(sessionId: SessionId): { current: number; max: number; compactAt: number };
 }
 
 /** Events emitted by the orchestrator during message processing. */
@@ -988,5 +993,13 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     return { messagesBefore, messagesAfter: history.length, tokensBefore, tokensAfter };
   }
 
-  return { processMessage, getHistory, clearHistory, compactHistory };
+  function getContextUsage(sessionId: SessionId): { current: number; max: number; compactAt: number } {
+    const history = histories.get(sessionId as string) ?? [];
+    const current = compactor.getTokenEstimate(history);
+    const max = effectiveBudget;
+    const compactAt = Math.floor(max * 0.7);
+    return { current, max, compactAt };
+  }
+
+  return { processMessage, getHistory, clearHistory, compactHistory, getContextUsage };
 }

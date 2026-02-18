@@ -4364,6 +4364,12 @@ async function runChat(): Promise<void> {
         return;
       }
 
+      if (evt.type === "context_usage") {
+        screen.setContextUsage(evt.current, evt.max, evt.compactAt);
+        if (isTty) screen.redrawInput(editor);
+        return;
+      }
+
       if (evt.type === "response_chunk") {
         eventHandler(evt as OrchestratorEvent);
         if (isTty) screen.redrawInput(editor);

@@ -18,6 +18,7 @@
 
 import { createLogger } from "../core/logger/mod.ts";
 import { createOrchestrator } from "../agent/orchestrator.ts";
+import type { Orchestrator } from "../agent/orchestrator.ts";
 import type {
   OrchestratorEvent,
   OrchestratorEventCallback,
@@ -90,6 +91,19 @@ export type ChatEvent =
     readonly connected: number;
     /** Total number of configured (non-disabled) MCP servers. */
     readonly configured: number;
+  }
+  | {
+    /**
+     * Server → client: current context window usage.
+     * Sent on `connected`, after `llm_complete`, and after `compact_complete`.
+     */
+    readonly type: "context_usage";
+    /** Current estimated input tokens (conversation history only). */
+    readonly current: number;
+    /** Full model context window in tokens. */
+    readonly max: number;
+    /** Token threshold at which auto-compact fires (~70% of max). */
+    readonly compactAt: number;
   }
   | {
     /**
@@ -292,6 +306,11 @@ export interface ChatSession {
    */
   getMcpStatus?: () => { readonly connected: number; readonly configured: number } | null;
   /**
+   * Get current context window usage for the owner session.
+   * Used to send an initial `context_usage` event on new client connections.
+   */
+  getContextUsage?: () => { readonly current: number; readonly max: number; readonly compactAt: number };
+  /**
    * Update the stored MCP server connection status.
    * Called by the daemon when MCP connection state changes.
    */
@@ -401,9 +420,18 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     }
   }
 
+  // Mutable ref: set after orchestrator is created to allow `onEvent` to call back.
+  let orchestratorRef: Orchestrator | null = null;
+
   const onEvent: OrchestratorEventCallback = (event: OrchestratorEvent) => {
     if (activeSend) {
       activeSend(event as ChatEvent);
+      // After each LLM turn completes, emit current context usage so clients
+      // can update their progress bars.
+      if (event.type === "llm_complete" && orchestratorRef) {
+        const usage = orchestratorRef.getContextUsage(getSession().id);
+        activeSend({ type: "context_usage", ...usage });
+      }
     }
   };
 
@@ -432,6 +460,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     toolFloorRegistry: config.toolFloorRegistry,
     secretStore: config.secretStore,
   });
+  orchestratorRef = orchestrator;
 
   const initialSession = config.session;
   function getSession(): SessionState {
@@ -633,6 +662,9 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
         tokensBefore: result.tokensBefore,
         tokensAfter: result.tokensAfter,
       });
+      // Emit updated context usage after compaction
+      const usage = orchestrator.getContextUsage(getSession().id);
+      sendEvent({ type: "context_usage", ...usage });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       sendEvent({ type: "error", message: `Compact failed: ${msg}` });
@@ -681,6 +713,9 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     setMcpStatus(connected: number, configured: number): void {
       mcpStatusConnected = connected;
       mcpStatusConfigured = configured;
+    },
+    getContextUsage(): { current: number; max: number; compactAt: number } {
+      return orchestrator.getContextUsage(getSession().id);
     },
     get providerName() {
       return providerName;

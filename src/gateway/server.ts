@@ -264,6 +264,14 @@ function handleChatWebSocket(
         }
       }
     }
+    // Send initial context usage
+    if (chat.getContextUsage) {
+      try {
+        socket.send(JSON.stringify({ type: "context_usage", ...chat.getContextUsage() }));
+      } catch {
+        // Client may have disconnected
+      }
+    }
   });
 
   socket.addEventListener("message", (event: MessageEvent) => {
