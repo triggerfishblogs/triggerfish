@@ -66,6 +66,16 @@ Route different channels, accounts, or contacts to separate isolated agents, eac
 
 Connect to Anthropic, OpenAI, Google, local models (Ollama), or OpenRouter. Configure failover chains so your agent automatically falls back to an alternate provider when one is unavailable. Each agent can use a different model.
 
+### [Rate Limiting](./rate-limiting)
+
+Sliding-window rate limiter that prevents hitting LLM provider API limits. Tracks tokens-per-minute and requests-per-minute, delays calls when capacity is exhausted, and integrates with the failover chain.
+
+## Operations
+
+### [Structured Logging](./logging)
+
+Unified structured logging with severity levels, file rotation, and dual output to stderr and file. Component-tagged log lines, automatic 1 MB rotation, and a bundled log-analyst skill for diagnosing issues.
+
 ::: info
 All features integrate with the core security model. Cron jobs respect classification ceilings. Voice input carries taint. Tide Pool content passes through the PRE_OUTPUT hook. Multi-agent routing enforces session isolation. No feature bypasses the policy layer.
 :::

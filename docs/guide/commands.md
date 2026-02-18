@@ -160,6 +160,18 @@ triggerfish config get models.primary.model
 triggerfish config add-channel telegram
 ```
 
+#### `triggerfish config migrate-secrets`
+
+Migrate plaintext credentials from `triggerfish.yaml` to the OS keychain.
+
+```bash
+triggerfish config migrate-secrets
+```
+
+This scans your configuration for plaintext API keys, tokens, and passwords, stores them in the OS keychain, and replaces the plaintext values with `secret:` references. A backup of the original file is created before any changes.
+
+See [Secrets Management](/security/secrets) for details.
+
 ### `triggerfish connect`
 
 Connect an external service to Triggerfish.
@@ -266,6 +278,17 @@ The ESC interrupt sends an abort signal through the entire chain -- from the orc
 
 Triggerfish includes detailed debug logging for diagnosing LLM provider issues, tool call parsing, and agent loop behavior. Enable it by setting the `TRIGGERFISH_DEBUG` environment variable to `1`.
 
+::: tip
+The preferred way to control log verbosity is through `triggerfish.yaml`:
+
+```yaml
+logging:
+  level: verbose   # quiet, normal, verbose, or debug
+```
+
+The `TRIGGERFISH_DEBUG=1` environment variable is still supported for backward compatibility. See [Structured Logging](/features/logging) for full details.
+:::
+
 ### Foreground Mode
 
 ```bash
@@ -346,6 +369,7 @@ triggerfish patrol            # Health check
 triggerfish config set <k> <v> # Set config value
 triggerfish config get <key>  # Read config value
 triggerfish config add-channel # Add a channel
+triggerfish config migrate-secrets  # Migrate secrets to keychain
 triggerfish update            # Check for updates
 triggerfish version           # Show version
 

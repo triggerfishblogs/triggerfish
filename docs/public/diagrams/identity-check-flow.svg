@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 720" width="800" height="720" font-family="system-ui, sans-serif">
+  <rect width="800" height="720" fill="#ffffff" rx="0"/>
+
+  <defs>
+    <marker id="ic-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#374151"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="400" y="36" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e40af">Code-Level Identity Check Flow</text>
+
+  <!-- Step 1: Incoming Message -->
+  <rect x="250" y="58" width="300" height="50" rx="8" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="400" y="88" text-anchor="middle" font-size="14" font-weight="600" fill="#374151">Incoming Message</text>
+
+  <!-- Arrow down -->
+  <line x1="400" y1="108" x2="400" y2="138" stroke="#374151" stroke-width="1.5" marker-end="url(#ic-arrow)"/>
+
+  <!-- Step 2: Identity Check (large box) -->
+  <rect x="100" y="140" width="600" height="330" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <rect x="100" y="140" width="600" height="38" rx="8" fill="#2563eb"/>
+  <rect x="100" y="160" width="600" height="18" fill="#2563eb"/>
+  <text x="400" y="165" text-anchor="middle" font-size="14" font-weight="bold" fill="#ffffff">Code-Level Identity Check (deterministic, no LLM)</text>
+
+  <!-- Channel + Sender info -->
+  <text x="140" y="205" font-size="13" fill="#374151" font-weight="500">Channel:</text>
+  <text x="240" y="205" font-size="13" fill="#2563eb" font-weight="600">Telegram</text>
+
+  <!-- Owner scenario -->
+  <rect x="130" y="225" width="520" height="100" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="390" y="248" text-anchor="middle" font-size="12" font-weight="600" fill="#15803d">OWNER MATCH</text>
+
+  <text x="155" y="272" font-size="12" fill="#374151">Sender ID:</text>
+  <text x="260" y="272" font-size="13" fill="#374151" font-weight="600" font-style="normal">483291057</text>
+  <text x="400" y="272" font-size="12" fill="#6b7280">Registered Owner:</text>
+  <text x="530" y="272" font-size="13" fill="#374151" font-weight="600">483291057</text>
+
+  <text x="155" y="296" font-size="12" fill="#374151">Match?</text>
+  <text x="210" y="296" font-size="13" font-weight="bold" fill="#16a34a">YES</text>
+  <text x="250" y="296" font-size="12" fill="#374151">→</text>
+  <rect x="270" y="282" width="200" height="22" rx="4" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+  <text x="370" y="298" text-anchor="middle" font-size="12" font-weight="600" fill="#15803d">{ source: "owner" }</text>
+
+  <!-- Divider -->
+  <text x="390" y="345" text-anchor="middle" font-size="12" fill="#9ca3af" font-weight="500">— or —</text>
+
+  <!-- External scenario -->
+  <rect x="130" y="358" width="520" height="95" rx="6" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+  <text x="390" y="380" text-anchor="middle" font-size="12" font-weight="600" fill="#dc2626">NO MATCH</text>
+
+  <text x="155" y="404" font-size="12" fill="#374151">Sender ID:</text>
+  <text x="260" y="404" font-size="13" fill="#374151" font-weight="600">928374651</text>
+  <text x="400" y="404" font-size="12" fill="#6b7280">Registered Owner:</text>
+  <text x="530" y="404" font-size="13" fill="#374151" font-weight="600">483291057</text>
+
+  <text x="155" y="430" font-size="12" fill="#374151">Match?</text>
+  <text x="210" y="430" font-size="13" font-weight="bold" fill="#dc2626">NO</text>
+  <text x="240" y="430" font-size="12" fill="#374151">→</text>
+  <rect x="260" y="416" width="220" height="22" rx="4" fill="#fee2e2" stroke="#fca5a5" stroke-width="1"/>
+  <text x="370" y="432" text-anchor="middle" font-size="12" font-weight="600" fill="#dc2626">{ source: "external" }</text>
+
+  <!-- Arrow down -->
+  <line x1="400" y1="470" x2="400" y2="500" stroke="#374151" stroke-width="1.5" marker-end="url(#ic-arrow)"/>
+
+  <!-- Step 3: LLM receives labeled message -->
+  <rect x="100" y="502" width="600" height="170" rx="8" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1.5"/>
+  <rect x="100" y="502" width="600" height="36" rx="8" fill="#374151"/>
+  <rect x="100" y="520" width="600" height="18" fill="#374151"/>
+  <text x="400" y="526" text-anchor="middle" font-size="14" font-weight="bold" fill="#ffffff">LLM Receives Message WITH Immutable Label</text>
+
+  <!-- Owner result -->
+  <rect x="130" y="550" width="520" height="48" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+  <rect x="140" y="557" width="140" height="22" rx="4" fill="#dcfce7"/>
+  <text x="210" y="573" text-anchor="middle" font-size="12" font-weight="600" fill="#15803d">{ source: "owner" }</text>
+  <text x="300" y="573" font-size="12" fill="#374151">→</text>
+  <text x="320" y="573" font-size="12" fill="#374151">Can interpret as command</text>
+  <text x="320" y="590" font-size="11" fill="#6b7280">Agent may take actions on behalf of the owner</text>
+
+  <!-- External result -->
+  <rect x="130" y="608" width="520" height="48" rx="6" fill="#fef2f2" stroke="#fca5a5" stroke-width="1"/>
+  <rect x="140" y="615" width="155" height="22" rx="4" fill="#fee2e2"/>
+  <text x="217" y="631" text-anchor="middle" font-size="12" font-weight="600" fill="#dc2626">{ source: "external" }</text>
+  <text x="315" y="631" font-size="12" fill="#374151">→</text>
+  <text x="335" y="631" font-size="12" fill="#374151">Input only, not a command</text>
+  <text x="335" y="648" font-size="11" fill="#6b7280">Agent treats as data — never as instruction</text>
+
+  <!-- Bottom note -->
+  <text x="400" y="700" text-anchor="middle" font-size="12" fill="#6b7280">Label is set in code before the LLM sees it — the LLM cannot forge or modify the source tag</text>
+</svg>

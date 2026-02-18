@@ -43,6 +43,31 @@ You can optionally display the current session taint level in the output by enab
 [CONFIDENTIAL] Here are your Q4 pipeline numbers...
 ```
 
+### Context Length Progress Bar
+
+The CLI displays a real-time context window usage bar in the separator line at the bottom of the terminal:
+
+```
+[████████████░░░░░░░░] 62% ctx  MCP 3/3
+```
+
+- The bar fills as context tokens are consumed
+- A blue marker appears at the 70% threshold (where automatic compaction triggers)
+- The bar turns red when approaching the limit
+- After compaction (`/compact` or automatic), the bar resets
+
+### MCP Server Status
+
+The separator also shows MCP server connection status:
+
+| Display | Meaning |
+|---------|---------|
+| `MCP 3/3` (green) | All configured servers connected |
+| `MCP 2/3` (yellow) | Some servers still connecting or failed |
+| `MCP 0/3` (red) | No servers connected |
+
+MCP servers connect lazily in the background after startup. The status updates in real time as servers come online.
+
 ## Input History
 
 Your input history is persisted across sessions at:

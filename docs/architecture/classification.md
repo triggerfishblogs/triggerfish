@@ -21,12 +21,7 @@ The single most important security invariant in Triggerfish:
 Data can only flow to channels or recipients at **equal or higher** classification. This is a **fixed rule** -- it cannot be configured, overridden, or disabled. The LLM cannot influence this decision.
 :::
 
-```
-RESTRICTED    -->  RESTRICTED only
-CONFIDENTIAL  -->  CONFIDENTIAL or RESTRICTED
-INTERNAL      -->  INTERNAL, CONFIDENTIAL, or RESTRICTED
-PUBLIC        -->  Anywhere
-```
+<img src="/diagrams/classification-hierarchy.svg" alt="Classification hierarchy: PUBLIC → INTERNAL → CONFIDENTIAL → RESTRICTED. Data flows upward only." style="max-width: 100%;" />
 
 This means:
 - A response containing `CONFIDENTIAL` data cannot be sent to a `PUBLIC` channel
@@ -104,11 +99,7 @@ Each channel type has specific rules for determining its classification level.
 
 Every channel progresses through a state machine before it can carry data:
 
-```
-UNTRUSTED  -->  CLASSIFIED  (after admin/user review)
-UNTRUSTED  -->  BLOCKED     (explicitly prohibited)
-CLASSIFIED -->  BLOCKED     (admin revokes)
-```
+<img src="/diagrams/state-machine.svg" alt="Channel state machine: UNTRUSTED → CLASSIFIED or BLOCKED" style="max-width: 100%;" />
 
 | State | Can receive data? | Can send data into agent context? | Description |
 |-------|:-----------------:|:---------------------------------:|-------------|

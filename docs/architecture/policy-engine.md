@@ -4,33 +4,7 @@ The policy engine is the enforcement layer that sits between the LLM and the out
 
 ## Core Principle: Enforcement Below the LLM
 
-```
-+------------------------------------------------------------------+
-|  LLM / Agent Reasoning Layer                                     |
-|  - Can be manipulated via prompt injection                       |
-|  - Does NOT make security decisions                              |
-|  - Requests actions, does not execute them                       |
-|  - Has ZERO authority                                            |
-+------------------------------------------------------------------+
-                            |
-                            v  action request (structured)
-+------------------------------------------------------------------+
-|  POLICY ENFORCEMENT LAYER                                        |
-|                                                                  |
-|  - Pure code, deterministic                                      |
-|  - Tracks taint labels on all data in context                    |
-|  - Computes effective classification of any output               |
-|  - Compares against channel/recipient classification             |
-|  - BLOCKS or ALLOWS -- no LLM discretion                         |
-|  - Logs all decisions for audit                                  |
-|  - Cannot be prompt-injected                                     |
-+------------------------------------------------------------------+
-                            |
-                            v  allowed actions only
-+------------------------------------------------------------------+
-|  Execution Layer (plugins, tool calls, messages)                 |
-+------------------------------------------------------------------+
-```
+<img src="/diagrams/policy-enforcement-layers.svg" alt="Policy enforcement layers: LLM sits above the policy layer, which sits above the execution layer" style="max-width: 100%;" />
 
 ::: warning SECURITY
 The LLM sits above the policy layer. It can be prompt-injected, jailbroken, or manipulated -- and it does not matter. The policy layer is pure code that runs below the LLM, examining structured action requests and making binary decisions based on classification rules. There is no pathway from LLM output to hook bypass.
@@ -42,57 +16,7 @@ Eight enforcement hooks intercept actions at every critical point in the data fl
 
 ### Hook Architecture
 
-```
-  External Input
-        |
-        v
-  +--------------------------------------------+
-  | HOOK: PRE_CONTEXT_INJECTION                |
-  | - Validate sender identity                 |
-  | - Assign classification to input           |
-  | - Scan for injection patterns              |
-  | - Create lineage record                    |
-  +--------------------------------------------+
-        |
-        v
-  LLM Context (agent processes input)
-        |
-        v
-  +--------------------------------------------+
-  | HOOK: PRE_TOOL_CALL                        |
-  | - Validate tool is permitted               |
-  | - Check user has permission for action     |
-  | - Verify parameters within policy          |
-  | - Rate limit check                         |
-  +--------------------------------------------+
-        |
-        v
-  Tool Execution
-        |
-        v
-  +--------------------------------------------+
-  | HOOK: POST_TOOL_RESPONSE                   |
-  | - Classify returned data                   |
-  | - Update session taint                     |
-  | - Create/update lineage records            |
-  | - Scan for sensitive patterns              |
-  +--------------------------------------------+
-        |
-        v
-  LLM Response Generation
-        |
-        v
-  +--------------------------------------------+
-  | HOOK: PRE_OUTPUT                           |
-  | - Verify output classification <= target   |
-  | - Final PII/sensitive data scan            |
-  | - Record lineage destination               |
-  | - BLOCK or ALLOW (deterministic)           |
-  +--------------------------------------------+
-        |
-        v
-  Output Channel
-```
+<img src="/diagrams/hook-chain-flow.svg" alt="Hook chain flow: PRE_CONTEXT_INJECTION → LLM Context → PRE_TOOL_CALL → Tool Execution → POST_TOOL_RESPONSE → LLM Response → PRE_OUTPUT → Output Channel" style="max-width: 100%;" />
 
 ### All Hook Types
 

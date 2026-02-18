@@ -4,24 +4,7 @@ The Gateway is Triggerfish's central control plane -- a long-running local servi
 
 ## Architecture
 
-```
-  WhatsApp / Telegram / Slack / Discord / WebChat / Email / CLI
-                          |
-                          v
-              +-----------------------+
-              |       Gateway         |
-              |    (control plane)    |
-              |  ws://127.0.0.1:PORT  |
-              +-----------+-----------+
-                          |
-          +---------------+---------------+
-          |               |               |
-          v               v               v
-    +----------+   +----------+   +----------+
-    |  Agent   |   |   CLI    |   | Companion|
-    |  (RPC)   |   | Commands |   |   Apps   |
-    +----------+   +----------+   +----------+
-```
+<img src="/diagrams/gateway-architecture.svg" alt="Gateway architecture: channels on the left connect through the central Gateway to services on the right" style="max-width: 100%;" />
 
 The Gateway listens on a configurable port (default `18789`) and accepts connections from channel adapters, CLI commands, companion apps, and internal services. All communication uses JSON-RPC over WebSocket.
 

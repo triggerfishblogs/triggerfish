@@ -10,77 +10,13 @@ This page provides the big picture of how Triggerfish works. Each major componen
 
 ## System Architecture
 
-```
-                          The Reef
-                       (Skill Marketplace)
-                              |
-   Telegram  Slack  Discord  WhatsApp  WebChat  Email  CLI  Voice
-      |        |       |        |         |       |     |     |
-      +--------+-------+--------+---------+-------+-----+-----+
-                              |
-                        Channel Router
-                  (classification gate, retry,
-                   streaming, chunk delivery)
-                              |
-                   +----------+----------+
-                   |                     |
-             Gateway Server         Notification
-          (WebSocket control         Service
-           plane, JSON-RPC)        (cross-channel
-                   |                 delivery)
-                   |
-       +-----------+-----------+
-       |           |           |
-  Session      Policy       Agent
-  Manager      Engine        Loop
-  (taint,     (hooks,      (LLM providers,
-   lineage,   rules,       tool execution,
-   history)   audit)       exec environment)
-       |           |           |
-       |     +-----+-----+    +------+------+------+
-       |     |     |     |    |      |      |      |
-       |   Hooks Taint  Audit Claude  GPT  Gemini  Local
-       |         Track   Log  API    API   API   Ollama
-       |
-  StorageProvider
-  (SQLite / Memory / Enterprise)
-```
+<img src="/diagrams/system-architecture.svg" alt="System architecture: channels flow through the Channel Router to the Gateway, which coordinates Session Manager, Policy Engine, and Agent Loop" style="max-width: 100%;" />
 
 ### Data Flow
 
 Every message follows this path through the system:
 
-```
-1. INBOUND: Channel receives message
-      |
-      v
-2. PRE_CONTEXT_INJECTION hook
-   - Classify input, assign taint, scan for injection
-      |
-      v
-3. LLM processes message, may request tool calls
-      |
-      v
-4. PRE_TOOL_CALL hook (per tool request)
-   - Permission check, rate limit, parameter validation
-      |
-      v
-5. Tool executes (MCP, plugin, exec, browser, etc.)
-      |
-      v
-6. POST_TOOL_RESPONSE hook
-   - Classify response, update session taint, create lineage
-      |
-      v
-7. LLM generates final response
-      |
-      v
-8. PRE_OUTPUT hook
-   - Final classification check, PII scan, BLOCK or ALLOW
-      |
-      v
-9. OUTBOUND: Response delivered to channel
-```
+<img src="/diagrams/data-flow-9-steps.svg" alt="Data flow: 9-step pipeline from inbound message through policy hooks to outbound delivery" style="max-width: 100%;" />
 
 At every enforcement point, the decision is deterministic -- the same input always produces the same result. There are no LLM calls inside hooks, no randomness, and no way for the LLM to influence the outcome.
 

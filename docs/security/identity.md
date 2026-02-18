@@ -14,35 +14,7 @@ An LLM might resist this. It might not. The point is that resisting prompt injec
 
 When a message arrives on any channel, Triggerfish checks the sender's platform-verified identity before the message enters the LLM context. The message is then tagged with an immutable label that the LLM cannot modify:
 
-```
-+----------------------------------------------------------+
-|  INCOMING MESSAGE                                        |
-+----------------------------------------------------------+
-                         |
-                         v
-+----------------------------------------------------------+
-|  CODE-LEVEL IDENTITY CHECK (before LLM sees message)    |
-|                                                          |
-|  Channel: Telegram                                       |
-|  Sender ID: 483291057                                    |
-|  Registered owner ID: 483291057                          |
-|  Match? YES --> tag as { source: "owner" }               |
-|                                                          |
-|  -- or --                                                |
-|                                                          |
-|  Sender ID: 928374651                                    |
-|  Registered owner ID: 483291057                          |
-|  Match? NO --> tag as { source: "external" }             |
-+----------------------------------------------------------+
-                         |
-                         v
-+----------------------------------------------------------+
-|  LLM receives message WITH immutable context label       |
-|                                                          |
-|  { source: "owner" }    --> can interpret as command      |
-|  { source: "external" } --> input only, not command       |
-+----------------------------------------------------------+
-```
+<img src="/diagrams/identity-check-flow.svg" alt="Identity check flow: incoming message → code-level identity check → LLM receives message with immutable label" style="max-width: 100%;" />
 
 ::: warning SECURITY
 The `{ source: "owner" }` and `{ source: "external" }` labels are set by code before the LLM sees the message. The LLM cannot change these labels, and its response to externally-sourced messages is constrained by the policy layer regardless of what the message content says.

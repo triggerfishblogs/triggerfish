@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 400" width="1100" height="400" font-family="system-ui, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#374151"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1100" height="400" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="550" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#1e40af">Hook Chain — Request/Response Cycle</text>
+
+  <!-- Legend -->
+  <rect x="30" y="50" width="14" height="14" rx="3" fill="#2563eb"/>
+  <text x="50" y="62" font-size="12" fill="#374151">Policy Hook</text>
+  <rect x="150" y="50" width="14" height="14" rx="3" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1"/>
+  <text x="170" y="62" font-size="12" fill="#374151">Processing Stage</text>
+
+  <!-- Row 1: Inbound path -->
+  <!-- Stage 1: Inbound Message -->
+  <rect x="30" y="90" width="120" height="56" rx="8" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1.5"/>
+  <text x="90" y="115" text-anchor="middle" font-size="13" font-weight="500" fill="#374151">Inbound</text>
+  <text x="90" y="132" text-anchor="middle" font-size="13" font-weight="500" fill="#374151">Message</text>
+
+  <!-- Arrow -->
+  <line x1="150" y1="118" x2="176" y2="118" stroke="#374151" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Hook 1: PRE_CONTEXT_INJECTION -->
+  <rect x="182" y="84" width="142" height="68" rx="8" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
+  <text x="253" y="110" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">PRE_CONTEXT</text>
+  <text x="253" y="126" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">_INJECTION</text>
+  <text x="253" y="143" text-anchor="middle" font-size="10" fill="#bfdbfe">Classify source</text>
+
+  <!-- Arrow -->
+  <line x1="324" y1="118" x2="350" y2="118" stroke="#374151" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Stage 2: LLM Context -->
+  <rect x="356" y="90" width="110" height="56" rx="8" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1.5"/>
+  <text x="411" y="115" text-anchor="middle" font-size="13" font-weight="500" fill="#374151">LLM</text>
+  <text x="411" y="132" text-anchor="middle" font-size="13" font-weight="500" fill="#374151">Context</text>
+
+  <!-- Arrow -->
+  <line x1="466" y1="118" x2="492" y2="118" stroke="#374151" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Hook 2: PRE_TOOL_CALL -->
+  <rect x="498" y="84" width="130" height="68" rx="8" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
+  <text x="563" y="110" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">PRE_TOOL</text>
+  <text x="563" y="126" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">_CALL</text>
+  <text x="563" y="143" text-anchor="middle" font-size="10" fill="#bfdbfe">Validate + classify</text>
+
+  <!-- Arrow -->
+  <line x1="628" y1="118" x2="654" y2="118" stroke="#374151" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Stage 3: Tool Execution -->
+  <rect x="660" y="90" width="120" height="56" rx="8" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1.5"/>
+  <text x="720" y="115" text-anchor="middle" font-size="13" font-weight="500" fill="#374151">Tool</text>
+  <text x="720" y="132" text-anchor="middle" font-size="13" font-weight="500" fill="#374151">Execution</text>
+
+  <!-- Arrow down to row 2 -->
+  <line x1="720" y1="146" x2="720" y2="200" stroke="#374151" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Row 2: Return path (right to left visually, but we draw left to right for clarity) -->
+  <!-- Hook 3: POST_TOOL_RESPONSE -->
+  <rect x="654" y="206" width="132" height="68" rx="8" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
+  <text x="720" y="232" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">POST_TOOL</text>
+  <text x="720" y="248" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">_RESPONSE</text>
+  <text x="720" y="265" text-anchor="middle" font-size="10" fill="#bfdbfe">Classify result</text>
+
+  <!-- Arrow left -->
+  <line x1="654" y1="240" x2="590" y2="240" stroke="#374151" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Stage 4: LLM Response -->
+  <rect x="466" y="212" width="118" height="56" rx="8" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1.5"/>
+  <text x="525" y="237" text-anchor="middle" font-size="13" font-weight="500" fill="#374151">LLM</text>
+  <text x="525" y="254" text-anchor="middle" font-size="13" font-weight="500" fill="#374151">Response</text>
+
+  <!-- Arrow left -->
+  <line x1="466" y1="240" x2="402" y2="240" stroke="#374151" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Hook 4: PRE_OUTPUT -->
+  <rect x="266" y="206" width="130" height="68" rx="8" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
+  <text x="331" y="232" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">PRE_OUTPUT</text>
+  <text x="331" y="252" text-anchor="middle" font-size="10" fill="#bfdbfe">Check destination</text>
+  <text x="331" y="265" text-anchor="middle" font-size="10" fill="#bfdbfe">classification</text>
+
+  <!-- Arrow left -->
+  <line x1="266" y1="240" x2="202" y2="240" stroke="#374151" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Stage 5: Output Channel -->
+  <rect x="70" y="212" width="126" height="56" rx="8" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1.5"/>
+  <text x="133" y="237" text-anchor="middle" font-size="13" font-weight="500" fill="#374151">Output</text>
+  <text x="133" y="254" text-anchor="middle" font-size="13" font-weight="500" fill="#374151">Channel</text>
+
+  <!-- Additional hooks row -->
+  <text x="550" y="320" text-anchor="middle" font-size="14" font-weight="600" fill="#1e40af">Additional Hooks</text>
+
+  <rect x="120" y="338" width="160" height="44" rx="8" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
+  <text x="200" y="358" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">PRE_SESSION_CREATE</text>
+  <text x="200" y="373" text-anchor="middle" font-size="10" fill="#bfdbfe">Init classification</text>
+
+  <rect x="310" y="338" width="160" height="44" rx="8" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
+  <text x="390" y="358" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">PRE_MEMORY_ACCESS</text>
+  <text x="390" y="373" text-anchor="middle" font-size="10" fill="#bfdbfe">Gate by taint level</text>
+
+  <rect x="500" y="338" width="160" height="44" rx="8" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
+  <text x="580" y="358" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">PRE_ESCALATION</text>
+  <text x="580" y="373" text-anchor="middle" font-size="10" fill="#bfdbfe">Validate taint change</text>
+
+  <rect x="690" y="338" width="160" height="44" rx="8" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
+  <text x="770" y="358" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">POST_SESSION_END</text>
+  <text x="770" y="373" text-anchor="middle" font-size="10" fill="#bfdbfe">Cleanup + audit</text>
+</svg>

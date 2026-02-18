@@ -121,6 +121,14 @@ agents:
 
 The agent can switch models mid-session for cost optimization. Use a fast model for simple queries and escalate to a more capable model for complex reasoning. This is available through the `session_status` tool.
 
+## Rate Limiting
+
+Triggerfish includes a built-in sliding-window rate limiter that prevents hitting provider API limits. The limiter wraps any provider transparently — it tracks tokens-per-minute (TPM) and requests-per-minute (RPM) in a sliding window and delays calls when limits are approached.
+
+Rate limiting works alongside failover: if a provider's rate limit is exhausted and the limiter cannot wait within the timeout, the failover chain activates and tries the next provider.
+
+See [Rate Limiting](/features/rate-limiting) for full details including OpenAI tier limits.
+
 ::: info
 API keys are never stored in configuration files. Set credentials as environment variables or use your OS keychain. See the [Security Model](/security/) for details on secrets management.
 :::

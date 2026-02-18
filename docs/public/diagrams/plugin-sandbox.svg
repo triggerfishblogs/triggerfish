@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" width="800" height="520" font-family="system-ui, sans-serif">
+  <rect width="800" height="520" fill="#ffffff" rx="0"/>
+
+  <!-- Title -->
+  <text x="400" y="36" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e40af">Plugin Sandbox — Defense in Depth</text>
+
+  <!-- Outer: Deno Sandbox -->
+  <rect x="60" y="60" width="680" height="420" rx="12" fill="#eff6ff" stroke="#93c5fd" stroke-width="2.5" stroke-dasharray="none"/>
+  <text x="400" y="90" text-anchor="middle" font-size="15" font-weight="600" fill="#1e40af">Deno Sandbox</text>
+
+  <!-- Deno restriction labels -->
+  <g font-size="12" fill="#6b7280">
+    <rect x="80" y="100" width="120" height="26" rx="13" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+    <text x="140" y="117" text-anchor="middle" fill="#1e40af" font-size="11" font-weight="500">No network</text>
+
+    <rect x="210" y="100" width="120" height="26" rx="13" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+    <text x="270" y="117" text-anchor="middle" fill="#1e40af" font-size="11" font-weight="500">No filesystem</text>
+
+    <rect x="340" y="100" width="130" height="26" rx="13" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+    <text x="405" y="117" text-anchor="middle" fill="#1e40af" font-size="11" font-weight="500">No system calls</text>
+
+    <rect x="480" y="100" width="120" height="26" rx="13" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+    <text x="540" y="117" text-anchor="middle" fill="#1e40af" font-size="11" font-weight="500">No child procs</text>
+  </g>
+
+  <!-- Middle: WASM Sandbox -->
+  <rect x="120" y="145" width="560" height="310" rx="12" fill="#f0fdf4" stroke="#86efac" stroke-width="2.5"/>
+  <text x="400" y="177" text-anchor="middle" font-size="15" font-weight="600" fill="#15803d">WASM Sandbox (Pyodide)</text>
+
+  <!-- WASM restriction labels -->
+  <g font-size="12">
+    <rect x="145" y="190" width="140" height="26" rx="13" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+    <text x="215" y="207" text-anchor="middle" fill="#15803d" font-size="11" font-weight="500">Memory isolated</text>
+
+    <rect x="295" y="190" width="130" height="26" rx="13" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+    <text x="360" y="207" text-anchor="middle" fill="#15803d" font-size="11" font-weight="500">No host access</text>
+
+    <rect x="435" y="190" width="160" height="26" rx="13" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+    <text x="515" y="207" text-anchor="middle" fill="#15803d" font-size="11" font-weight="500">Linear memory only</text>
+  </g>
+
+  <!-- Inner: Plugin Code -->
+  <rect x="200" y="240" width="400" height="190" rx="12" fill="#2563eb" stroke="#1e40af" stroke-width="2"/>
+
+  <text x="400" y="280" text-anchor="middle" font-size="15" font-weight="600" fill="#ffffff">Plugin Code</text>
+  <text x="400" y="310" text-anchor="middle" font-size="13" fill="#bfdbfe">Your code runs here</text>
+
+  <!-- What plugin CAN do -->
+  <line x1="260" y1="330" x2="540" y2="330" stroke="#3b82f6" stroke-width="1"/>
+  <text x="400" y="352" text-anchor="middle" font-size="11" fill="#bfdbfe" font-weight="500">CAN: compute, transform data, return results</text>
+  <text x="400" y="370" text-anchor="middle" font-size="11" fill="#bfdbfe" font-weight="500">CAN: call exposed API functions</text>
+  <text x="400" y="388" text-anchor="middle" font-size="11" fill="#93c5fd" font-weight="500">CANNOT: escape sandbox boundaries</text>
+
+  <!-- Arrows showing containment -->
+  <defs>
+    <marker id="ps-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#6b7280"/>
+    </marker>
+  </defs>
+
+  <!-- Left side depth indicator -->
+  <line x1="40" y1="70" x2="40" y2="450" stroke="#6b7280" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="30" y="260" text-anchor="middle" font-size="11" fill="#6b7280" transform="rotate(-90, 30, 260)">Increasing isolation →</text>
+
+  <!-- Bottom note -->
+  <text x="400" y="500" text-anchor="middle" font-size="12" fill="#6b7280">Each layer independently enforced — compromise of one does not bypass others</text>
+</svg>

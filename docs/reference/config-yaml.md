@@ -2,6 +2,10 @@
 
 Triggerfish is configured through `triggerfish.yaml`, located at `~/.triggerfish/triggerfish.yaml` after running `triggerfish dive`. This page documents every configuration section.
 
+::: info Secret References
+Any string value in this file can use the `secret:` prefix to reference a credential stored in the OS keychain. For example, `apiKey: "secret:provider:anthropic:apiKey"` resolves the value from the keychain at startup. See [Secrets Management](/security/secrets#secret-references-in-configuration) for details.
+:::
+
 ## Full Annotated Example
 
 ```yaml
@@ -27,11 +31,12 @@ models:
   # streaming: true
 
   # Provider-specific configuration
-  # API keys are stored in the OS keychain, not here.
-  # Run `triggerfish dive` to enter credentials securely.
+  # API keys are referenced via secret: syntax and resolved from the OS keychain.
+  # Run `triggerfish dive` or `triggerfish config migrate-secrets` to set up.
   providers:
     anthropic:
       model: claude-sonnet-4-5
+      # apiKey: "secret:provider:anthropic:apiKey"
 
     openai:
       model: gpt-4o
@@ -70,6 +75,12 @@ models:
       - rate_limited            # Provider returned 429
       - server_error            # Provider returned 5xx
       - timeout                 # Request exceeded timeout
+
+# ---------------------------------------------------------------------------
+# Logging: Structured log output
+# ---------------------------------------------------------------------------
+logging:
+  level: normal                        # quiet | normal | verbose | debug
 
 # ---------------------------------------------------------------------------
 # Channels: Messaging platform connections
@@ -359,6 +370,14 @@ Notification delivery preferences. See [Notifications](/features/notifications) 
 | `web.search.provider` | string | Search backend (currently: `brave`) |
 
 See [Web Search and Fetch](/features/web-search) for details.
+
+### `logging`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `level` | string | `"normal"` | Log verbosity: `quiet` (errors only), `normal` (info), `verbose` (debug), `debug` (trace) |
+
+See [Structured Logging](/features/logging) for details on log output, file rotation, and the log-analyst skill.
 
 ### `github`
 
