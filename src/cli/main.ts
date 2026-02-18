@@ -3176,49 +3176,6 @@ const KNOWN_SECRET_FIELDS: ReadonlyArray<{
 ];
 
 /**
- * Get a value from a parsed config object by dotted path.
- */
-function getNestedValue(
-  obj: Record<string, unknown>,
-  path: string,
-): unknown {
-  let current: unknown = obj;
-  for (const key of path.split(".")) {
-    if (typeof current !== "object" || current === null) return undefined;
-    current = (current as Record<string, unknown>)[key];
-  }
-  return current;
-}
-
-/**
- * Set a value in a parsed config object by dotted path.
- * Returns a new object with the value set (does not mutate).
- */
-function setNestedValue(
-  obj: Record<string, unknown>,
-  path: string,
-  value: unknown,
-): Record<string, unknown> {
-  const keys = path.split(".");
-  const result = { ...obj };
-  let current: Record<string, unknown> = result;
-
-  for (let i = 0; i < keys.length - 1; i++) {
-    const key = keys[i];
-    const child = current[key];
-    const next: Record<string, unknown> = typeof child === "object" &&
-        child !== null
-      ? { ...(child as Record<string, unknown>) }
-      : {};
-    current[key] = next;
-    current = next;
-  }
-
-  current[keys[keys.length - 1]] = value;
-  return result;
-}
-
-/**
  * Migrate plaintext secrets in triggerfish.yaml to the OS keychain.
  *
  * Detects plaintext values in known secret fields, stores them in
@@ -3300,7 +3257,7 @@ async function runConfigMigrateSecrets(): Promise<void> {
     }
 
     // Update parsed config with reference
-    parsed = setNestedValue(parsed, field.path, `secret:${keychainKey}`);
+    setNestedValue(parsed, field.path, `secret:${keychainKey}`);
     migrated.push({ path: field.path, keychainKey });
   }
 
