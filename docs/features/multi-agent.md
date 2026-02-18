@@ -14,21 +14,7 @@ Multi-agent routing lets you run all of these simultaneously from a single Trigg
 
 ## How It Works
 
-```
-  Inbound Messages                      Agent Workspaces
-
-  WhatsApp         ----------------->   Agent: "Personal"
-  (personal #)                          Skills: calendar, email
-                                        Classification: PERSONAL
-
-  Slack            ----------------->   Agent: "Work"
-  (work workspace)                      Skills: jira, github
-                                        Classification: CONFIDENTIAL
-
-  Telegram         ----------------->   Agent: "Side Project"
-  (@projectbot)                         Skills: coding, deploy
-                                        Classification: INTERNAL
-```
+<img src="/diagrams/multi-agent-routing.svg" alt="Multi-agent routing: inbound channels routed through AgentRouter to isolated agent workspaces" style="max-width: 100%;" />
 
 The **AgentRouter** examines each inbound message and maps it to an agent based on configurable routing rules. If no rule matches, messages go to a default agent.
 

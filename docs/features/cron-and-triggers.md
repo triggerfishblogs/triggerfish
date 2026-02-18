@@ -129,6 +129,33 @@ Each trigger wakeup follows this sequence:
 Triggers and cron jobs complement each other. Use cron for tasks that should run at exact times regardless of conditions (morning briefing at 7 AM). Use triggers for monitoring that requires judgment (check if anything needs my attention every 30 minutes).
 :::
 
+## Trigger Context Tool
+
+The agent can load trigger results into its current conversation using the `trigger_add_to_context` tool. This is useful when a user asks about something that was checked during the last trigger wakeup.
+
+### Usage
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `source` | `"trigger"` | Which trigger output to load: `"trigger"` (periodic), `"cron:<job-id>"`, or `"webhook:<source>"` |
+
+The tool loads the most recent execution result for the specified source and adds it to the conversation context.
+
+### Write-Down Enforcement
+
+Trigger context injection respects the no-write-down rule:
+
+- If the trigger's classification **exceeds** the session taint, the session taint **escalates** to match
+- If the session taint **exceeds** the trigger's classification, the injection is **blocked** — data cannot flow from a higher classification to a lower one
+
+::: warning
+A session already tainted at CONFIDENTIAL cannot load a PUBLIC trigger result. This prevents classified context from being mixed with lower-classification data in ways that could leak information.
+:::
+
+### Persistence
+
+Trigger results are stored via `StorageProvider` with keys in the format `trigger:last:<source>`. Only the most recent result per source is kept.
+
 ## Security Integration
 
 All scheduled execution integrates with the core security model:

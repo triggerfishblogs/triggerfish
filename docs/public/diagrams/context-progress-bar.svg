@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" width="800" height="440" font-family="system-ui, sans-serif">
+  <rect width="800" height="440" fill="#ffffff" rx="0"/>
+
+  <!-- Title -->
+  <text x="400" y="32" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e40af">Context Length Progress Bar — CLI Mockup</text>
+
+  <!-- Terminal window frame -->
+  <rect x="50" y="50" width="700" height="310" rx="10" fill="#1e1e1e" stroke="#3f3f3f" stroke-width="2"/>
+
+  <!-- Title bar -->
+  <rect x="50" y="50" width="700" height="32" rx="10" fill="#2d2d2d"/>
+  <rect x="50" y="68" width="700" height="14" fill="#2d2d2d"/>
+  <!-- Traffic lights -->
+  <circle cx="76" cy="66" r="6" fill="#ff5f57"/>
+  <circle cx="96" cy="66" r="6" fill="#febc2e"/>
+  <circle cx="116" cy="66" r="6" fill="#28c840"/>
+  <text x="400" y="71" text-anchor="middle" font-size="11" fill="#9ca3af">triggerfish — ~/projects/demo</text>
+
+  <!-- Terminal content area -->
+  <g font-family="'SF Mono', 'Fira Code', 'Cascadia Code', monospace" font-size="13">
+    <!-- Previous conversation lines -->
+    <text x="75" y="110" fill="#6b7280">  You: What files are in the project root?</text>
+
+    <text x="75" y="135" fill="#e5e7eb">  Agent: Here are the files in your project root:</text>
+    <text x="75" y="155" fill="#9ca3af">    README.md     package.json   src/</text>
+    <text x="75" y="175" fill="#9ca3af">    tsconfig.json  deno.json     tests/</text>
+
+    <text x="75" y="205" fill="#6b7280">  You: Explain the architecture</text>
+
+    <text x="75" y="230" fill="#e5e7eb">  Agent: The project uses a layered architecture with</text>
+    <text x="75" y="250" fill="#e5e7eb">  policy enforcement below the LLM layer...</text>
+
+    <!-- Separator / status bar area -->
+    <rect x="65" y="272" width="670" height="28" rx="4" fill="#252525"/>
+
+    <!-- Progress bar background -->
+    <rect x="80" y="278" width="200" height="16" rx="3" fill="#374151"/>
+    <!-- Progress bar filled (62%) -->
+    <rect x="80" y="278" width="124" height="16" rx="3" fill="#2563eb"/>
+
+    <!-- 70% threshold marker -->
+    <rect x="219" y="275" width="2" height="22" fill="#f59e0b" rx="1"/>
+
+    <!-- Status text -->
+    <text x="292" y="291" fill="#9ca3af" font-size="12">62% ctx</text>
+
+    <!-- MCP status -->
+    <rect x="355" y="278" width="8" height="8" rx="4" fill="#16a34a" y="280"/>
+    <text x="370" y="291" fill="#9ca3af" font-size="12">MCP 3/3</text>
+
+    <!-- Model name -->
+    <text x="445" y="291" fill="#6b7280" font-size="12">claude-opus-4-6</text>
+
+    <!-- Tool count -->
+    <text x="590" y="291" fill="#6b7280" font-size="12">25 tools</text>
+
+    <!-- Taint level -->
+    <rect x="665" y="278" width="56" height="16" rx="3" fill="#374151"/>
+    <text x="693" y="290" text-anchor="middle" fill="#16a34a" font-size="10" font-weight="600">INTERNAL</text>
+
+    <!-- Input prompt area -->
+    <text x="75" y="325" fill="#16a34a" font-weight="600">  &gt;</text>
+    <rect x="95" y="313" width="8" height="16" fill="#e5e7eb">
+      <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- Annotation lines and labels -->
+  <!-- Context usage label -->
+  <line x1="142" y1="305" x2="142" y2="375" stroke="#6b7280" stroke-width="1" stroke-dasharray="3,3"/>
+  <circle cx="142" cy="375" r="3" fill="#6b7280"/>
+  <text x="142" y="393" text-anchor="middle" font-size="12" font-weight="500" fill="#374151">Context usage</text>
+  <text x="142" y="408" text-anchor="middle" font-size="11" fill="#6b7280">Filled portion = tokens used</text>
+
+  <!-- Compact threshold label -->
+  <line x1="220" y1="305" x2="320" y2="375" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,3"/>
+  <circle cx="320" cy="375" r="3" fill="#f59e0b"/>
+  <text x="320" y="393" text-anchor="middle" font-size="12" font-weight="500" fill="#f59e0b">Compact threshold (70%)</text>
+  <text x="320" y="408" text-anchor="middle" font-size="11" fill="#6b7280">Auto-compact triggers here</text>
+
+  <!-- MCP status label -->
+  <line x1="380" y1="305" x2="500" y2="375" stroke="#6b7280" stroke-width="1" stroke-dasharray="3,3"/>
+  <circle cx="500" cy="375" r="3" fill="#6b7280"/>
+  <text x="500" y="393" text-anchor="middle" font-size="12" font-weight="500" fill="#374151">MCP server status</text>
+  <text x="500" y="408" text-anchor="middle" font-size="11" fill="#6b7280">Connected / total servers</text>
+
+  <!-- Taint label -->
+  <line x1="693" y1="305" x2="693" y2="375" stroke="#6b7280" stroke-width="1" stroke-dasharray="3,3"/>
+  <circle cx="693" cy="375" r="3" fill="#6b7280"/>
+  <text x="693" y="393" text-anchor="middle" font-size="12" font-weight="500" fill="#374151">Session taint</text>
+  <text x="693" y="408" text-anchor="middle" font-size="11" fill="#6b7280">Current classification level</text>
+</svg>

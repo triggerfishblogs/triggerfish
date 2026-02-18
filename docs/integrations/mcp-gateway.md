@@ -10,14 +10,7 @@ You bring the MCP servers. Triggerfish secures every request and response that c
 
 The MCP Gateway sits between your agent and any MCP server. Every tool call passes through the policy enforcement layer before reaching the external server, and every response is classified before it enters the agent context.
 
-```
-Agent  -->  MCP Gateway  -->  Policy Layer  -->  MCP Server (any)
-                                    |
-                              Classification
-                              Taint tracking
-                              Schema validation
-                              Audit logging
-```
+<img src="/diagrams/mcp-gateway-flow.svg" alt="MCP Gateway flow: Agent → MCP Gateway → Policy Layer → MCP Server, with deny path to BLOCKED" style="max-width: 100%;" />
 
 The gateway provides five core functions:
 
@@ -37,11 +30,7 @@ All MCP servers default to `UNTRUSTED`. They must be explicitly classified befor
 | `CLASSIFIED` | Reviewed and assigned a classification level with per-tool permissions. | Yes (within policy) |
 | `BLOCKED` | Explicitly prohibited by admin. | No |
 
-```
-UNTRUSTED  -->  CLASSIFIED  (admin/user reviews and assigns level)
-UNTRUSTED  -->  BLOCKED     (admin determines server is not permitted)
-CLASSIFIED -->  BLOCKED     (admin revokes access)
-```
+<img src="/diagrams/state-machine.svg" alt="MCP server state machine: UNTRUSTED → CLASSIFIED or BLOCKED" style="max-width: 100%;" />
 
 ::: warning SECURITY
 An `UNTRUSTED` MCP server cannot be invoked by the agent under any circumstances. The LLM cannot request, convince, or trick the system into using an unclassified server. Classification is a code-level gate, not an LLM decision.
@@ -98,6 +87,29 @@ mcp_servers:
 | `enabled` | boolean | No | Default: `true`. Set to `false` to skip without removing config. |
 
 Each server must have either `command` (local) or `url` (remote). Servers with neither are skipped.
+
+### Lazy Connection
+
+MCP servers connect in the background after startup. You do not need to wait for all servers to be ready before using your agent.
+
+- Servers retry with exponential backoff: 2s → 4s → 8s → 30s max
+- New servers become available to the agent as they connect — no session restart needed
+- If a server fails to connect after all retries, it enters the `failed` state and can be retried on the next daemon restart
+
+The CLI and Tidepool interfaces display real-time MCP connection status. See [CLI Channel](/channels/cli#mcp-server-status) for details.
+
+### Disabling a Server
+
+To temporarily disable an MCP server without removing its configuration:
+
+```yaml
+mcp_servers:
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    classification: CONFIDENTIAL
+    enabled: false    # Skipped during startup
+```
 
 ### Environment Variables and Secrets
 

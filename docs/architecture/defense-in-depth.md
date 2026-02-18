@@ -126,22 +126,7 @@ MCP Server States:
 
 Plugins run inside a double sandbox:
 
-```
-+---------------------------------------------------+
-| Deno sandbox                                      |
-|   Network: allowlisted endpoints only             |
-|   Filesystem: isolated                            |
-|                                                   |
-|   +---------------------------------------------+ |
-|   | WASM sandbox (for Python/Pyodide)           | |
-|   |   Memory: isolated                          | |
-|   |   System calls: none                        | |
-|   |   Host access: impossible                   | |
-|   |                                             | |
-|   |   [ Plugin code runs here ]                 | |
-|   +---------------------------------------------+ |
-+---------------------------------------------------+
-```
+<img src="/diagrams/plugin-sandbox.svg" alt="Plugin sandbox: Deno sandbox wraps WASM sandbox, plugin code runs in the innermost layer" style="max-width: 100%;" />
 
 Plugins cannot:
 - Access undeclared network endpoints

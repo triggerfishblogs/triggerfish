@@ -8,19 +8,7 @@ A2UI (Agent-to-UI) is the protocol that powers the Tide Pool. It defines how the
 
 ## Architecture
 
-```
-  Agent                    Gateway                    Client
-  +-----------+            +-------------+            +-------------+
-  | tide_pool |   A2UI     | Tide Pool   |  WebSocket | Tide Pool   |
-  | tool      |---push---->| Host        |----------->| Renderer    |
-  |           |            |             |            |             |
-  | actions:  |            |             |            | Platforms:  |
-  | - push    |            |             |            | - WebChat   |
-  | - eval    |            |             |            | - macOS     |
-  | - reset   |            |             |            | - iOS       |
-  | - snap    |            |             |            | - Android   |
-  +-----------+            +-------------+            +-------------+
-```
+<img src="/diagrams/tidepool-architecture.svg" alt="Tide Pool A2UI architecture: Agent pushes content through Gateway to Tide Pool Renderer on connected clients" style="max-width: 100%;" />
 
 The agent uses the `tide_pool` tool to push content to the Tide Pool Host running in the Gateway. The Host relays updates over WebSocket to any connected Tide Pool Renderer on a supported platform.
 
@@ -74,6 +62,22 @@ Tide Pool content is subject to the same security enforcement as any other outpu
 - **Snapshot classification** -- Tide Pool snapshots are classified at the session's taint level at the time of capture.
 - **JavaScript sandboxing** -- JavaScript executed via `eval` is sandboxed within the Tide Pool context. It has no access to the host system, network, or filesystem.
 - **No network access** -- The Tide Pool runtime cannot make network requests. All data flows through the agent and policy layer.
+
+## Status Indicators
+
+The Tidepool web interface includes real-time status indicators:
+
+### Context Length Bar
+
+A styled progress bar showing context window usage — how much of the LLM's context window has been consumed. The bar updates after each message and after compaction.
+
+### MCP Server Status
+
+Shows the connection status of configured MCP servers (e.g., "MCP 3/3"). Color-coded: green for all connected, yellow for partial, red for none.
+
+### Secure Secret Input
+
+When the agent needs you to enter a secret (via the `secret_save` tool), Tidepool displays a secure input popup. The entered value goes directly to the keychain — it is never sent through the chat or visible in conversation history.
 
 ::: tip
 Think of the Tide Pool as the agent's whiteboard. While chat is how you talk to the agent, the Tide Pool is where the agent shows you things.

@@ -144,18 +144,52 @@ Valid levels: `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`.
 
 Restart the daemon after changing: `triggerfish stop && triggerfish start`
 
+## Reliability Features
+
+The Signal adapter includes several reliability mechanisms:
+
+### Auto-Reconnection
+
+If the connection to signal-cli drops (network interruption, daemon restart), the adapter automatically reconnects with exponential backoff. No manual intervention needed.
+
+### Health Checking
+
+On startup, Triggerfish checks whether an existing signal-cli daemon is healthy using a JSON-RPC ping probe. If the daemon is unresponsive, it is killed and restarted automatically.
+
+### Version Tracking
+
+Triggerfish tracks the known-good signal-cli version (currently 0.13.0) and warns at startup if your installed version is older. The signal-cli version is logged on each successful connection.
+
+### Unix Socket Support
+
+In addition to TCP endpoints, the adapter supports Unix domain sockets:
+
+```yaml
+channels:
+  signal:
+    endpoint: "unix:///run/signal-cli/socket"
+    account: "+14155552671"
+```
+
 ## Troubleshooting
 
 **signal-cli daemon not reachable:**
 - Verify the daemon is running: check for the process or try `nc -z 127.0.0.1 7583`
-- signal-cli binds IPv4 only -- use `127.0.0.1`, not `localhost`
+- signal-cli binds IPv4 only — use `127.0.0.1`, not `localhost`
 - TCP default port is 7583
+- Triggerfish will auto-restart the daemon if it detects an unhealthy process
 
 **Messages not arriving:**
 - Confirm the device is linked: check Signal mobile app under Linked Devices
 - signal-cli must have received at least one sync after linking
+- Check logs for connection errors: `triggerfish logs --tail`
 
 **Java errors (JVM build only):**
 - signal-cli JVM build requires Java 21+
 - Run `java -version` to check
 - Triggerfish can download a portable JRE during setup if needed
+
+**Reconnection loops:**
+- If you see repeated reconnection attempts in the logs, the signal-cli daemon may be crashing
+- Check signal-cli's own stderr output for errors
+- Try restarting with a fresh daemon: stop Triggerfish, kill signal-cli, restart both

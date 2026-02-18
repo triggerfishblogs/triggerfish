@@ -12,21 +12,7 @@ When a session accesses data at a classification level, the entire session is **
 2. **Escalation only**: Taint can increase, never decrease within a session
 3. **Full reset clears everything**: Taint AND conversation history are cleared together
 
-```
-Session starts:   taint = PUBLIC
-
-Access internal wiki:
-  Session taint:  PUBLIC -> INTERNAL
-
-Access Salesforce:
-  Session taint:  INTERNAL -> CONFIDENTIAL
-
-Try to downgrade:
-  Session taint:  CONFIDENTIAL -> CONFIDENTIAL  (no change, escalation only)
-
-Full reset:
-  Session taint:  -> PUBLIC (history also cleared)
-```
+<img src="/diagrams/taint-escalation.svg" alt="Taint escalation: PUBLIC → INTERNAL → CONFIDENTIAL → RESTRICTED. Taint can only escalate, never decrease." style="max-width: 100%;" />
 
 ::: warning SECURITY
 Taint can never be selectively reduced. There is no mechanism to "un-taint" a session without clearing the entire conversation history. This prevents context leakage -- if the session remembers seeing confidential data, the taint must reflect that.
@@ -56,54 +42,7 @@ Background sessions always start with `PUBLIC` taint, regardless of the parent s
 
 Here is a complete flow showing taint escalation and the resulting policy block:
 
-```
-User: "Check my Salesforce pipeline"
-
-  [PRE_CONTEXT_INJECTION]
-  Input classified: PUBLIC (owner text message)
-  Session taint: PUBLIC (unchanged)
-
-  [PRE_TOOL_CALL: salesforce.query_opportunities]
-  Permission check: ALLOW
-
-  [Tool executes with user's delegated OAuth token]
-
-  [POST_TOOL_RESPONSE]
-  Salesforce data classified: CONFIDENTIAL
-  Session taint: PUBLIC -> CONFIDENTIAL
-  Lineage record created: lin_789xyz
-
-  Agent: "You have 3 deals closing this week totaling $1.2M..."
-
-User: "Send a message to my wife that I'll be late tonight"
-
-  [PRE_TOOL_CALL: whatsapp.send_message]
-  Permission check: ALLOW
-
-  [PRE_OUTPUT]
-  Session taint: CONFIDENTIAL
-  Wife = EXTERNAL recipient
-  WhatsApp personal = PUBLIC channel
-  Effective classification: PUBLIC
-
-  CONFIDENTIAL -> PUBLIC: BLOCKED
-
-  Agent: "I can't send to external contacts in this session
-          because we accessed confidential data.
-
-          -> Reset session and send message
-          -> Cancel"
-
-User: [chooses reset and send]
-
-  [SESSION_RESET]
-  Archive lineage records
-  Clear conversation history
-  Session taint: CONFIDENTIAL -> PUBLIC
-
-  [Message sent successfully]
-  Agent: "Done. Message sent to your wife."
-```
+<img src="/diagrams/taint-with-blocks.svg" alt="Taint escalation example: session starts PUBLIC, escalates to CONFIDENTIAL after Salesforce access, then BLOCKS output to PUBLIC WhatsApp channel" style="max-width: 100%;" />
 
 ## Full Reset Mechanism
 

@@ -6,14 +6,13 @@ Triggerfish provides deep browser control through a dedicated managed Chromium i
 
 Browser automation is built on `puppeteer-core` or `playwright`, connecting to a managed Chromium instance via CDP. Every browser action passes through the policy layer before reaching the browser.
 
-```
-Agent  --[browser tool]--> Policy Layer --[CDP]--> Managed Chromium
-                               |
-                         URL allow/deny
-                         Domain classification
-                         Taint tracking
-                         Audit logging
-```
+Triggerfish auto-detects Chromium-based browsers including **Google Chrome**, **Chromium**, and **Brave**. Detection covers standard install paths on Linux, macOS, Windows, and Flatpak environments.
+
+::: info
+The `browser_navigate` tool requires `http://` or `https://` URLs. Browser-internal schemes (like `chrome://`, `brave://`, `about:`) are not supported and will return an error with guidance to use a web URL instead.
+:::
+
+<img src="/diagrams/browser-automation-flow.svg" alt="Browser automation flow: Agent → Browser Tool → Policy Layer → CDP → Managed Chromium" style="max-width: 100%;" />
 
 The browser profile is isolated per agent. The managed Chromium instance does not share cookies, sessions, or local storage with your personal browser. Credential autofill is disabled by default.
 

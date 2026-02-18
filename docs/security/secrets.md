@@ -11,42 +11,54 @@ Triggerfish never stores credentials in configuration files. All secrets -- API 
 
 In both cases, secrets are encrypted at rest by the storage backend. Triggerfish does not implement its own encryption for secrets -- it delegates to purpose-built, audited secret storage systems.
 
+On platforms without a native keychain (Windows without Credential Manager, Docker containers), Triggerfish falls back to an encrypted JSON file at `~/.triggerfish/secrets.json`. Entries are encrypted with AES-256-GCM using a machine-bound 256-bit key stored at `~/.triggerfish/secrets.key` (permissions: `0600`). Each entry uses a fresh random 12-byte IV on every write. Legacy plaintext secret files are automatically migrated to the encrypted format on first load.
+
 ::: tip
 The personal tier requires zero configuration for secrets. When you connect an integration during setup (`triggerfish dive`), credentials are automatically stored in your OS keychain. You do not need to install or configure anything beyond what your operating system already provides.
+:::
+
+## Secret References in Configuration
+
+Triggerfish supports `secret:` references in `triggerfish.yaml`. Instead of storing credentials as plaintext, you reference them by name and they are resolved from the OS keychain at startup.
+
+```yaml
+models:
+  providers:
+    anthropic:
+      apiKey: "secret:provider:anthropic:apiKey"
+    openai:
+      apiKey: "secret:provider:openai:apiKey"
+
+channels:
+  telegram:
+    botToken: "secret:channel:telegram:botToken"
+```
+
+The resolver performs a depth-first walk of the configuration file. Any string value starting with `secret:` is substituted with the corresponding keychain entry. If a referenced secret is not found, startup fails immediately with a clear error message.
+
+### Migrating Existing Secrets
+
+If you have plaintext credentials in your config file from an earlier version, the migration command moves them to the keychain automatically:
+
+```bash
+triggerfish config migrate-secrets
+```
+
+This command:
+1. Scans `triggerfish.yaml` for plaintext credential values
+2. Stores each one in the OS keychain
+3. Replaces the plaintext value with a `secret:` reference
+4. Creates a backup of the original file
+
+::: warning
+After migration, verify your agent starts correctly before deleting the backup file. The migration is not reversible without the backup.
 :::
 
 ## Delegated Credential Architecture
 
 A core security principle in Triggerfish is that data queries run with the **user's** credentials, not system credentials. This ensures that the agent inherits the source system's permission model -- a user can only access data they could access directly.
 
-```
-+--------------+     +--------------+     +--------------+
-|    User      |     |  Triggerfish  |     |   Source     |
-|              |     |    Agent     |     |   System     |
-+------+-------+     +------+-------+     +------+-------+
-       |                     |                     |
-       | OAuth consent       |                     |
-       |-------------------->|                     |
-       |                     |                     |
-       |                     | Store delegated     |
-       |                     | token (encrypted,   |
-       |                     | in OS keychain)      |
-       |                     |                     |
-       | "Show my deals"     |                     |
-       |-------------------->|                     |
-       |                     |                     |
-       |                     | Query with USER's   |
-       |                     | token, not system    |
-       |                     |-------------------->|
-       |                     |                     |
-       |                     |   Only records      |
-       |                     |   user can see      |
-       |                     |<--------------------|
-       |                     |                     |
-       | Results (filtered   |                     |
-       | by source system)   |                     |
-       |<--------------------|                     |
-```
+<img src="/diagrams/delegated-credentials.svg" alt="Delegated credential architecture: User grants OAuth consent, agent queries with user's token, source system enforces permissions" style="max-width: 100%;" />
 
 This architecture means:
 
@@ -90,6 +102,41 @@ def get_all_opportunities(sdk, params):
 
 ::: danger
 `sdk.get_system_credential()` is always blocked. There is no configuration to enable it, no admin override, and no escape hatch. This is a fixed security rule, the same as the no-write-down rule.
+:::
+
+## LLM-Callable Secret Tools
+
+The agent can help you manage secrets through three tools. Critically, the LLM never sees the actual secret values -- input and storage happen out-of-band.
+
+### `secret_save`
+
+Prompts you to enter a secret value securely:
+- **CLI**: Terminal switches to hidden input mode (characters not echoed)
+- **Tidepool**: A secure input popup appears in the web interface
+
+The LLM requests that a secret be saved, but the actual value is entered by you through the secure prompt. The value is stored directly in the keychain -- it never passes through the LLM context.
+
+### `secret_list`
+
+Lists the names of all stored secrets. Never exposes values.
+
+### `secret_delete`
+
+Deletes a secret by name from the keychain.
+
+### Tool Argument Substitution
+
+When the agent uses a tool that needs a secret (for example, setting an API key in an MCP server environment variable), it uses the `{{secret:name}}` syntax in tool arguments:
+
+```
+tool_call: set_env_var
+arguments: { "key": "API_TOKEN", "value": "{{secret:my-api-token}}" }
+```
+
+The runtime resolves `{{secret:name}}` references **below the LLM layer** before the tool executes. The resolved value never appears in conversation history or logs.
+
+::: warning SECURITY
+The `{{secret:name}}` substitution is enforced by code, not by the LLM. Even if the LLM attempted to log or return the resolved value, the policy layer would catch the attempt in the `PRE_OUTPUT` hook.
 :::
 
 ### SDK Permission Methods
@@ -194,7 +241,7 @@ Enterprise vault integration provides:
 
 ## What Is Never Stored in Config Files
 
-The following are never stored in `triggerfish.yaml`, `SPINE.md`, `TRIGGER.md`, or any other plaintext configuration file:
+The following never appear as plaintext values in `triggerfish.yaml` or any other configuration file. They are either stored in the OS keychain and referenced via `secret:` syntax, or managed through the `secret_save` tool:
 
 - API keys for LLM providers
 - OAuth tokens for integrations
@@ -204,7 +251,7 @@ The following are never stored in `triggerfish.yaml`, `SPINE.md`, `TRIGGER.md`, 
 - Pairing codes (ephemeral, in-memory only)
 
 ::: danger
-If you find credentials in a Triggerfish configuration file, something has gone wrong. Triggerfish will not read credentials from config files -- it exclusively uses the OS keychain (personal tier) or vault (enterprise tier). Credentials found in config files should be rotated immediately.
+If you find plaintext credentials in a Triggerfish configuration file (values that are NOT `secret:` references), something has gone wrong. Run `triggerfish config migrate-secrets` to move them to the keychain. Credentials found as plaintext should be rotated immediately.
 :::
 
 ## Related Pages
