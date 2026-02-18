@@ -221,12 +221,17 @@ import {
   checkSignalCli,
   downloadSignalCli,
   fetchLatestVersion,
+  isDaemonHealthy,
   isDaemonRunning,
+  isDaemonRunningUnix,
   renderQrCode,
   startDaemon,
+  startDaemonUnix,
   startLinkProcess,
   waitForDaemon,
+  waitForDaemonUnix,
 } from "../channels/signal/setup.ts";
+import type { DaemonHandle } from "../channels/signal/setup.ts";
 import { createNotificationService } from "../gateway/notifications.ts";
 import { parseClassification } from "../core/types/classification.ts";
 import { createSkillLoader } from "../skills/loader.ts";
@@ -1979,16 +1984,31 @@ async function runStart(): Promise<void> {
     groups?: Record<string, { mode: string; classification?: string }>;
   } | undefined;
 
+  // Track the spawned signal-cli daemon child so we can gracefully stop it on exit.
+  let signalDaemonHandle: DaemonHandle | null = null;
+
   if (signalConfig?.endpoint && signalConfig?.account) {
-    // Parse endpoint to check if signal-cli daemon is running
-    const endpointMatch = signalConfig.endpoint.match(
-      /^tcp:\/\/([^:]+):(\d+)$/,
-    );
-    if (endpointMatch) {
-      const [, tcpHost, tcpPortStr] = endpointMatch;
+    // Parse endpoint — handle both TCP and Unix socket auto-start
+    const tcpMatch = signalConfig.endpoint.match(/^tcp:\/\/([^:]+):(\d+)$/);
+    const unixMatch = signalConfig.endpoint.match(/^unix:\/\/(.+)$/);
+
+    if (tcpMatch) {
+      const [, tcpHost, tcpPortStr] = tcpMatch;
       const tcpPort = parseInt(tcpPortStr, 10);
       const running = await isDaemonRunning(tcpHost, tcpPort);
-      if (!running) {
+      const healthy = running ? await isDaemonHealthy(tcpHost, tcpPort) : false;
+
+      if (!running || !healthy) {
+        if (running && !healthy) {
+          log.warn("signal-cli daemon is occupying the port but not responding to JSON-RPC");
+          // If we own the process, kill it and wait briefly before restarting
+          if (signalDaemonHandle) {
+            try { signalDaemonHandle.child.kill("SIGTERM"); } catch { /* already dead */ }
+            signalDaemonHandle = null;
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+        }
+
         // Auto-start signal-cli daemon
         log.info("signal-cli daemon not running, starting...");
         const cliCheck = await checkSignalCli();
@@ -2001,13 +2021,69 @@ async function runStart(): Promise<void> {
             cliCheck.value.javaHome,
           );
           if (daemonResult.ok) {
+            signalDaemonHandle = daemonResult.value;
             const ready = await waitForDaemon(tcpHost, tcpPort);
             if (ready) {
               log.info("signal-cli daemon started");
+              // Log version for diagnostics (rec 7)
+              const versionCheck = await checkSignalCli();
+              if (versionCheck.ok) {
+                log.info(`signal-cli version: ${versionCheck.value.version}`);
+              }
             } else {
+              const earlyErr = await daemonResult.value.earlyStderr;
+              if (earlyErr) {
+                log.error(`signal-cli early stderr: ${earlyErr}`);
+              }
               const stderr = await daemonResult.value.stderrText();
               log.error(
                 "signal-cli daemon started but not reachable within 60s",
+              );
+              if (stderr) {
+                log.error(`signal-cli stderr: ${stderr}`);
+              }
+            }
+          } else {
+            log.error(
+              `Failed to start signal-cli daemon: ${daemonResult.error}`,
+            );
+          }
+        } else {
+          log.error("signal-cli not found — cannot auto-start daemon");
+        }
+      }
+    } else if (unixMatch) {
+      const socketPath = unixMatch[1];
+      const running = await isDaemonRunningUnix(socketPath);
+      if (!running) {
+        // Auto-start signal-cli daemon on Unix socket
+        log.info("signal-cli daemon not running (Unix socket), starting...");
+        const cliCheck = await checkSignalCli();
+        if (cliCheck.ok) {
+          const daemonResult = startDaemonUnix(
+            signalConfig.account,
+            socketPath,
+            cliCheck.value.path,
+            cliCheck.value.javaHome,
+          );
+          if (daemonResult.ok) {
+            signalDaemonHandle = daemonResult.value;
+            const ready = await waitForDaemonUnix(socketPath);
+            if (ready) {
+              log.info("signal-cli daemon started (Unix socket)");
+              // Log version for diagnostics (rec 7)
+              const versionCheck = await checkSignalCli();
+              if (versionCheck.ok) {
+                log.info(`signal-cli version: ${versionCheck.value.version}`);
+              }
+            } else {
+              const earlyErr = await daemonResult.value.earlyStderr;
+              if (earlyErr) {
+                log.error(`signal-cli early stderr: ${earlyErr}`);
+              }
+              const stderr = await daemonResult.value.stderrText();
+              log.error(
+                "signal-cli daemon (Unix socket) not reachable within 60s",
               );
               if (stderr) {
                 log.error(`signal-cli stderr: ${stderr}`);
@@ -2103,6 +2179,20 @@ async function runStart(): Promise<void> {
     log.info(`Trigger: every ${schedulerConfig.trigger.intervalMinutes}m`);
   }
   log.info("Triggerfish is running!");
+
+  // Graceful shutdown handler — stop signal-cli daemon if we spawned it
+  const handleShutdown = () => {
+    if (signalDaemonHandle) {
+      try { signalDaemonHandle.child.kill("SIGTERM"); } catch { /* already dead */ }
+      signalDaemonHandle = null;
+    }
+  };
+  try {
+    Deno.addSignalListener("SIGTERM", handleShutdown);
+  } catch { /* not supported on all platforms */ }
+  try {
+    Deno.addSignalListener("SIGINT", handleShutdown);
+  } catch { /* not supported on all platforms */ }
 
   // Keep running until interrupted
   await new Promise(() => {}); // Never resolves

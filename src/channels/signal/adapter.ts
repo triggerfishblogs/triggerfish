@@ -155,10 +155,18 @@ export function createSignalChannel(config: SignalConfig): SignalChannelAdapter 
         throw new Error(`Signal connect failed: ${result.error}`);
       }
 
-      // Verify connectivity
-      const pingResult = await client.ping();
+      // Verify connectivity — retry up to 5 times (500ms apart) to handle
+      // the TCP-ready-but-JSON-RPC-not-ready window after daemon startup.
+      let pingResult: Result<void, string> = { ok: false, error: "not attempted" };
+      for (let attempt = 0; attempt < 5; attempt++) {
+        if (attempt > 0) {
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        pingResult = await client.ping();
+        if (pingResult.ok) break;
+      }
       if (!pingResult.ok) {
-        throw new Error(`Signal ping failed: ${pingResult.error}`);
+        throw new Error(`Signal ping failed after retries: ${pingResult.error}`);
       }
 
       connected = true;

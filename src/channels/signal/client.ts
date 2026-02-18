@@ -55,6 +55,8 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
   let notificationHandler: ((notification: SignalNotification) => void) | null = null;
   let readLoopActive = false;
   let buffer = "";
+  let destroyed = false;
+  let reconnecting = false;
 
   /** Parse the endpoint URI into connection parameters. */
   function parseEndpoint(endpoint: string): { transport: "tcp"; hostname: string; port: number } | { transport: "unix"; path: string } {
@@ -90,7 +92,15 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
       while (readLoopActive && conn) {
         const n = await conn.read(buf);
         if (n === null) {
+          // EOF — connection closed
           readLoopActive = false;
+          conn = null;
+          // Reject pending requests
+          for (const [id, req] of pending) {
+            req.reject(new Error("Connection closed"));
+            pending.delete(id);
+          }
+          reconnectLoop();
           break;
         }
 
@@ -115,7 +125,45 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
     } catch {
       // Connection closed or errored
       readLoopActive = false;
+      conn = null;
+      // Reject pending requests
+      for (const [id, req] of pending) {
+        req.reject(new Error("Connection error"));
+        pending.delete(id);
+      }
+      reconnectLoop();
     }
+  }
+
+  /** Attempt to reconnect using exponential backoff. Fire-and-forget. */
+  async function reconnectLoop(): Promise<void> {
+    if (destroyed || reconnecting) return;
+    reconnecting = true;
+    let attempt = 0;
+    while (!destroyed && attempt < _maxRetries) {
+      const delay = _baseDelay * Math.pow(2, attempt);
+      await new Promise((r) => setTimeout(r, delay));
+      if (destroyed) break;
+      attempt++;
+      try {
+        const target = parseEndpoint(options.endpoint);
+        if (target.transport === "tcp") {
+          conn = await Deno.connect({ hostname: target.hostname, port: target.port });
+        } else {
+          conn = await (Deno.connect as (opts: { transport: "unix"; path: string }) => Promise<Deno.Conn>)({
+            transport: "unix",
+            path: target.path,
+          });
+        }
+        buffer = "";
+        startReadLoop();
+        reconnecting = false;
+        return;
+      } catch {
+        conn = null;
+      }
+    }
+    reconnecting = false;
   }
 
   /** Dispatch a parsed JSON message as either a response or notification. */
@@ -190,6 +238,7 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
     },
 
     disconnect(): Promise<void> {
+      destroyed = true;
       readLoopActive = false;
       if (conn) {
         try {

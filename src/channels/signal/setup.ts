@@ -10,6 +10,13 @@
 import type { Result } from "../../core/types/classification.ts";
 import { resolveBaseDir } from "../../cli/paths.ts";
 
+/**
+ * Minimum known-good signal-cli version. Warn (but don't block) if the
+ * installed version is older. Update this constant when a newer release
+ * has been validated.
+ */
+export const SIGNAL_CLI_KNOWN_GOOD_VERSION = "0.13.0";
+
 /** Result of the guided Signal setup flow. */
 export interface SignalSetupResult {
   readonly account: string;
@@ -30,6 +37,29 @@ export function resolveSignalCliBinDir(): string {
 }
 
 /**
+ * Log a warning if the installed signal-cli version is older than the known-good version.
+ *
+ * @param versionOutput - Output from `signal-cli --version` (e.g. "signal-cli 0.13.24").
+ */
+export function warnIfOldVersion(versionOutput: string): void {
+  const match = versionOutput.match(/(\d+\.\d+\.\d+)/);
+  if (!match) return;
+  const installed = match[1].split(".").map(Number);
+  const known = SIGNAL_CLI_KNOWN_GOOD_VERSION.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    const inst = installed[i] ?? 0;
+    const know = known[i] ?? 0;
+    if (inst < know) {
+      console.warn(
+        `⚠ signal-cli ${match[1]} is older than known-good ${SIGNAL_CLI_KNOWN_GOOD_VERSION}. Consider upgrading.`,
+      );
+      return;
+    }
+    if (inst > know) return;
+  }
+}
+
+/**
  * Find signal-cli binary — check PATH first, then Triggerfish's managed bin dir.
  *
  * Returns the version string, resolved binary path, and optional JAVA_HOME
@@ -42,7 +72,10 @@ export async function checkSignalCli(): Promise<Result<{ version: string; path: 
 
   // 1. Check PATH (system-installed signal-cli, uses system java)
   const pathResult = await trySignalCli(`signal-cli${ext}`);
-  if (pathResult.ok) return pathResult;
+  if (pathResult.ok) {
+    warnIfOldVersion(pathResult.value.version);
+    return pathResult;
+  }
 
   // 2. Check managed install dir
   const binDir = resolveSignalCliBinDir();
@@ -656,6 +689,8 @@ export interface DaemonHandle {
   readonly child: Deno.ChildProcess;
   /** Collect any stderr output (for diagnostics on failure). */
   readonly stderrText: () => Promise<string>;
+  /** Resolves with the first stderr output received within 5s of start (for fast error surfacing). */
+  readonly earlyStderr: Promise<string>;
 }
 
 /**
@@ -692,36 +727,71 @@ export function startDaemon(
     });
     const child = cmd.spawn();
 
-    // Collect stderr lazily — only read when caller needs diagnostics
-    let stderrPromise: Promise<string> | null = null;
-    const stderrText = (): Promise<string> => {
-      if (!stderrPromise) {
-        stderrPromise = (async () => {
-          try {
-            const reader = child.stderr.getReader();
-            const chunks: Uint8Array[] = [];
-            while (true) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              chunks.push(value);
-            }
-            const total = chunks.reduce((n, c) => n + c.length, 0);
-            const merged = new Uint8Array(total);
-            let offset = 0;
-            for (const c of chunks) {
-              merged.set(c, offset);
-              offset += c.length;
-            }
-            return new TextDecoder().decode(merged).trim();
-          } catch {
-            return "";
-          }
-        })();
-      }
-      return stderrPromise;
-    };
+    // Read all stderr into a shared buffer for diagnostics.
+    // earlyStderr resolves with the first line (within 5s); stderrText() resolves when the process ends.
+    const stderrChunks: Uint8Array[] = [];
+    let earlyResolve: ((s: string) => void) | null = null;
+    let fullResolve: ((s: string) => void) | null = null;
+    const earlyStderr: Promise<string> = new Promise((r) => { earlyResolve = r; });
+    const _fullStderrPromise: Promise<string> = new Promise((r) => { fullResolve = r; });
 
-    return { ok: true, value: { child, stderrText } };
+    // Background reader — collects all stderr, resolves both promises
+    (async () => {
+      const decoder = new TextDecoder();
+      const earlyDeadline = Date.now() + 5000;
+      // Auto-resolve earlyStderr after 5s if not already done
+      const earlyTimer = setTimeout(() => {
+        if (earlyResolve) {
+          const soFar = stderrChunks.map((c) => decoder.decode(c)).join("");
+          earlyResolve(soFar.split("\n")[0].trim());
+          earlyResolve = null;
+        }
+      }, 5000);
+      try {
+        const reader = child.stderr.getReader();
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done || !value) {
+              // Process ended — resolve early if not yet done
+              if (earlyResolve) {
+                const soFar = stderrChunks.map((c) => decoder.decode(c)).join("");
+                earlyResolve(soFar.split("\n")[0].trim());
+                earlyResolve = null;
+              }
+              break;
+            }
+            stderrChunks.push(value);
+            // Resolve earlyStderr once we have the first complete line (before 5s deadline)
+            if (earlyResolve && Date.now() < earlyDeadline) {
+              const soFar = stderrChunks.map((c) => decoder.decode(c)).join("");
+              if (soFar.includes("\n")) {
+                earlyResolve(soFar.split("\n")[0].trim());
+                earlyResolve = null;
+              }
+            }
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      } catch {
+        if (earlyResolve) { earlyResolve(""); earlyResolve = null; }
+      }
+      clearTimeout(earlyTimer);
+      // Resolve the full stderr promise
+      const total = stderrChunks.reduce((n, c) => n + c.length, 0);
+      const merged = new Uint8Array(total);
+      let offset = 0;
+      for (const c of stderrChunks) {
+        merged.set(c, offset);
+        offset += c.length;
+      }
+      if (fullResolve) { fullResolve(new TextDecoder().decode(merged).trim()); fullResolve = null; }
+    })();
+
+    const stderrText = (): Promise<string> => _fullStderrPromise;
+
+    return { ok: true, value: { child, stderrText, earlyStderr } };
   } catch (err) {
     return { ok: false, error: `Failed to start signal-cli daemon: ${err instanceof Error ? err.message : String(err)}` };
   }
@@ -734,6 +804,152 @@ export async function waitForDaemon(host: string, port: number, timeoutMs: numbe
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (await isDaemonRunning(host, port)) return true;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return false;
+}
+
+/**
+ * Check if a running TCP daemon actually responds to JSON-RPC (not just accepts TCP).
+ *
+ * Returns true if healthy (JSON-RPC responds), false if port is occupied but
+ * the daemon is broken or not yet initialized.
+ */
+export async function isDaemonHealthy(host: string, port: number): Promise<boolean> {
+  try {
+    const conn = await Deno.connect({ hostname: normalizeHost(host), port });
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    const req = JSON.stringify({ jsonrpc: "2.0", method: "version", params: {}, id: "health-1" }) + "\n";
+    await conn.write(encoder.encode(req));
+    const buf = new Uint8Array(1024);
+    const readResult = await Promise.race<number | null>([
+      conn.read(buf),
+      new Promise<null>((r) => setTimeout(() => r(null), 3000)),
+    ]);
+    conn.close();
+    if (readResult === null || readResult === 0) return false;
+    const resp = JSON.parse(decoder.decode(buf.subarray(0, readResult))) as Record<string, unknown>;
+    return resp?.result !== undefined || resp?.error !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if signal-cli daemon is already running on a Unix socket.
+ */
+export async function isDaemonRunningUnix(socketPath: string): Promise<boolean> {
+  try {
+    const conn = await (Deno.connect as (opts: { transport: "unix"; path: string }) => Promise<Deno.Conn>)({
+      transport: "unix",
+      path: socketPath,
+    });
+    conn.close();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Start signal-cli daemon on a Unix socket.
+ *
+ * @param account - Phone number (E.164).
+ * @param socketPath - Path to the Unix socket file.
+ * @param signalCliPath - Path to signal-cli binary.
+ * @param javaHome - Optional JAVA_HOME for managed JRE.
+ * @returns A handle with the child process and stderr accessor.
+ */
+export function startDaemonUnix(
+  account: string,
+  socketPath: string,
+  signalCliPath: string = "signal-cli",
+  javaHome?: string,
+): Result<DaemonHandle, string> {
+  try {
+    const env = javaHome
+      ? { ...Deno.env.toObject(), JAVA_HOME: javaHome }
+      : undefined;
+    const cmd = new Deno.Command(signalCliPath, {
+      args: ["-a", account, "daemon", "--socket", socketPath],
+      stdout: "null",
+      stderr: "piped",
+      env,
+    });
+    const child = cmd.spawn();
+
+    // Read all stderr into a shared buffer — earlyStderr resolves with the first line within 5s
+    const stderrChunksUnix: Uint8Array[] = [];
+    let earlyResolveUnix: ((s: string) => void) | null = null;
+    let fullResolveUnix: ((s: string) => void) | null = null;
+    const earlyStderr: Promise<string> = new Promise((r) => { earlyResolveUnix = r; });
+    const _fullStderrPromiseUnix: Promise<string> = new Promise((r) => { fullResolveUnix = r; });
+
+    (async () => {
+      const decoder = new TextDecoder();
+      const earlyDeadlineUnix = Date.now() + 5000;
+      const earlyTimerUnix = setTimeout(() => {
+        if (earlyResolveUnix) {
+          const soFar = stderrChunksUnix.map((c) => decoder.decode(c)).join("");
+          earlyResolveUnix(soFar.split("\n")[0].trim());
+          earlyResolveUnix = null;
+        }
+      }, 5000);
+      try {
+        const reader = child.stderr.getReader();
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done || !value) {
+              if (earlyResolveUnix) {
+                const soFar = stderrChunksUnix.map((c) => decoder.decode(c)).join("");
+                earlyResolveUnix(soFar.split("\n")[0].trim());
+                earlyResolveUnix = null;
+              }
+              break;
+            }
+            stderrChunksUnix.push(value);
+            if (earlyResolveUnix && Date.now() < earlyDeadlineUnix) {
+              const soFar = stderrChunksUnix.map((c) => decoder.decode(c)).join("");
+              if (soFar.includes("\n")) {
+                earlyResolveUnix(soFar.split("\n")[0].trim());
+                earlyResolveUnix = null;
+              }
+            }
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      } catch {
+        if (earlyResolveUnix) { earlyResolveUnix(""); earlyResolveUnix = null; }
+      }
+      clearTimeout(earlyTimerUnix);
+      const total = stderrChunksUnix.reduce((n, c) => n + c.length, 0);
+      const merged = new Uint8Array(total);
+      let offset = 0;
+      for (const c of stderrChunksUnix) {
+        merged.set(c, offset);
+        offset += c.length;
+      }
+      if (fullResolveUnix) { fullResolveUnix(new TextDecoder().decode(merged).trim()); fullResolveUnix = null; }
+    })();
+
+    const stderrText = (): Promise<string> => _fullStderrPromiseUnix;
+
+    return { ok: true, value: { child, stderrText, earlyStderr } };
+  } catch (err) {
+    return { ok: false, error: `Failed to start signal-cli daemon: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+/**
+ * Wait for daemon to become reachable on a Unix socket.
+ */
+export async function waitForDaemonUnix(socketPath: string, timeoutMs: number = 60000): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await isDaemonRunningUnix(socketPath)) return true;
     await new Promise((r) => setTimeout(r, 500));
   }
   return false;

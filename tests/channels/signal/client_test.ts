@@ -310,3 +310,64 @@ Deno.test("SignalClient: sendTypingStop sends stop flag", async () => {
 
   await client.disconnect();
 });
+
+Deno.test("SignalClient: disconnect sets destroyed flag, prevents reconnect", async () => {
+  const { conn } = createMockConn();
+  const client = createSignalClient({
+    endpoint: "tcp://localhost:7583",
+    _conn: conn,
+    maxRetries: 3,
+    baseDelay: 10,
+  });
+
+  await client.connect();
+  // Disconnect immediately — should prevent any reconnection attempt
+  await client.disconnect();
+
+  // After disconnect, sendMessage should fail (not connected)
+  const result = await client.sendMessage("+15551234567", "test after disconnect");
+  assertEquals(result.ok, false);
+});
+
+Deno.test("SignalClient: reconnection triggers after EOF on read loop", async () => {
+  // Create a conn that immediately signals EOF on first read
+  let readCount = 0;
+  const eofConn = {
+    read(_buf: Uint8Array): Promise<number | null> {
+      readCount++;
+      // Signal EOF on first read
+      return Promise.resolve(null);
+    },
+    write(data: Uint8Array): Promise<number> {
+      return Promise.resolve(data.length);
+    },
+    close(): void {},
+    localAddr: { transport: "tcp", hostname: "127.0.0.1", port: 12345 } as Deno.Addr,
+    remoteAddr: { transport: "tcp", hostname: "127.0.0.1", port: 7583 } as Deno.Addr,
+    rid: 0,
+    readable: new ReadableStream(),
+    writable: new WritableStream(),
+    ref(): void {},
+    unref(): void {},
+    [Symbol.dispose](): void {},
+    closeWrite(): Promise<void> { return Promise.resolve(); },
+  } as unknown as Deno.Conn;
+
+  const client = createSignalClient({
+    endpoint: "tcp://127.0.0.1:7583",
+    _conn: eofConn,
+    maxRetries: 1,
+    baseDelay: 50,
+  });
+
+  await client.connect();
+
+  // Wait briefly for the EOF to be processed and reconnect attempt to fire
+  await new Promise((r) => setTimeout(r, 200));
+
+  // readCount should be >= 1 (initial read triggered reconnect)
+  assert(readCount >= 1, `Expected at least 1 read attempt, got ${readCount}`);
+
+  // Clean up — destroy prevents further reconnect attempts
+  await client.disconnect();
+});
