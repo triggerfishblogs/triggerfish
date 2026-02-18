@@ -44,8 +44,20 @@ export interface CompactResult {
 
 /** The compactor interface for managing conversation history size. */
 export interface Compactor {
-  /** Auto-compact history if tokens exceed threshold. Returns new history. */
-  compact(history: readonly HistoryEntry[]): readonly HistoryEntry[];
+  /**
+   * Auto-compact history if total context usage exceeds threshold.
+   *
+   * @param history - Conversation history entries
+   * @param overheadTokens - Tokens already consumed by system prompt, tool
+   *   definitions, and other fixed context outside the history. The compactor
+   *   adds this to the history token count before comparing against the budget,
+   *   ensuring compaction fires based on *total* context usage rather than
+   *   history tokens alone. Defaults to 0 (backward-compatible).
+   */
+  compact(
+    history: readonly HistoryEntry[],
+    overheadTokens?: number,
+  ): readonly HistoryEntry[];
   /** Force LLM-based summarization. Returns new history (single summary message). */
   summarize(
     history: readonly HistoryEntry[],
@@ -197,10 +209,11 @@ export function createCompactor(
 
   function compact(
     history: readonly HistoryEntry[],
+    overheadTokens = 0,
   ): readonly HistoryEntry[] {
     if (history.length === 0) return history;
 
-    const totalTokens = estimateHistoryTokens(history);
+    const totalTokens = estimateHistoryTokens(history) + overheadTokens;
     if (totalTokens <= autoTriggerThreshold) return history;
 
     // Need at least something to compact
