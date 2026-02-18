@@ -56,3 +56,10 @@ export type {
   ChatSession,
   ChatSessionConfig,
 } from "./chat.ts";
+
+export {
+  getTriggerToolDefinitions,
+  createTriggerToolExecutor,
+  TRIGGER_TOOLS_SYSTEM_PROMPT,
+} from "./trigger_tools.ts";
+export type { TriggerToolContext } from "./trigger_tools.ts";

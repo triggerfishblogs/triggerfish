@@ -43,3 +43,9 @@ export {
 } from "./service.ts";
 
 export { signWebhook, verifyWebhookSignature } from "./webhook_security.ts";
+
+export {
+  createTriggerStore,
+  type TriggerResult,
+  type TriggerStore,
+} from "./trigger_store.ts";

@@ -86,12 +86,49 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
     });
   });
 
+  // /addtrigger command: route as a natural language message so the orchestrator
+  // calls trigger_add_to_context. Supports an optional source argument:
+  //   /addtrigger           → adds the default periodic trigger result
+  //   /addtrigger cron:job  → adds the last result for that source
+  bot.command("addtrigger", (ctx) => {
+    if (!handler) return;
+
+    const numericOwnerId = typeof ownerId === "number" ? ownerId : Number(ownerId);
+    const isOwner = ownerId !== undefined && Number.isFinite(numericOwnerId)
+      ? ctx.from.id === numericOwnerId
+      : ownerId === undefined;
+
+    if (ctx.message) {
+      trackMessage(ctx.chat.id, ctx.message.message_id);
+    }
+
+    // Extract optional source argument (e.g. "/addtrigger cron:job-id")
+    const rawArg = ctx.match?.trim() ?? "";
+    const sourceArg = rawArg.length > 0 ? ` for source "${rawArg}"` : "";
+    const content = `Add the last trigger output${sourceArg} to our conversation using the trigger_add_to_context tool.`;
+
+    handler({
+      content,
+      sessionId: `telegram-${ctx.chat.id}`,
+      senderId: String(ctx.from.id),
+      isOwner,
+      sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
+    });
+  });
+
   return {
     classification,
     isOwner: true, // Determined per-message via ownerId check
 
-    // deno-lint-ignore require-await
     async connect(): Promise<void> {
+      // Register bot commands with Telegram so they appear in the command menu
+      try {
+        await bot.api.setMyCommands([
+          { command: "addtrigger", description: "Add last trigger output to conversation context" },
+        ]);
+      } catch {
+        // Non-fatal: command registration failure should not prevent connection
+      }
       bot.start();
       connected = true;
     },

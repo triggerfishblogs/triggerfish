@@ -23,6 +23,7 @@ import { createTrigger } from "./trigger.ts";
 import type { Trigger } from "./trigger.ts";
 import { createWebhookHandler, verifyHmacAsync } from "./webhooks.ts";
 import type { WebhookEvent, WebhookHandler } from "./webhooks.ts";
+import type { TriggerStore } from "./trigger_store.ts";
 
 /**
  * Factory that creates an isolated orchestrator + session per execution.
@@ -72,6 +73,8 @@ export interface SchedulerServiceConfig {
   readonly notificationService?: NotificationService;
   /** Owner user ID for notification delivery. */
   readonly ownerId?: UserId;
+  /** Optional store for persisting the last result of each trigger source. */
+  readonly triggerStore?: TriggerStore;
 }
 
 /** The scheduler service interface. */
@@ -110,15 +113,31 @@ export function createSchedulerService(
   let cronTickId: number | undefined;
   let trigger: Trigger | undefined;
 
-  /** Deliver orchestrator output as a notification. */
+  /** Deliver orchestrator output as a notification and persist to trigger store. */
   async function deliverOutput(
     result: Result<{ readonly response: string }, string>,
     sessionTaint: ClassificationLevel,
     source: string,
   ): Promise<void> {
-    if (!config.notificationService || !config.ownerId) return;
     const text = result.ok ? result.value.response : result.error;
     if (!text || text.trim().length === 0) return;
+
+    // Persist result to trigger store (if configured) regardless of notification delivery
+    if (config.triggerStore) {
+      try {
+        await config.triggerStore.save({
+          id: crypto.randomUUID(),
+          source,
+          message: text,
+          classification: sessionTaint,
+          firedAt: new Date().toISOString(),
+        });
+      } catch {
+        // Store failures never crash the scheduler
+      }
+    }
+
+    if (!config.notificationService || !config.ownerId) return;
     try {
       await config.notificationService.deliver({
         userId: config.ownerId,
