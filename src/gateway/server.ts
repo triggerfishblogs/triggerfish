@@ -285,6 +285,11 @@ function handleChatWebSocket(
         return;
       }
 
+      if (msg.type === "secret_prompt_response") {
+        chat.handleSecretPromptResponse(msg.nonce, msg.value);
+        return;
+      }
+
       if (msg.type === "compact") {
         const send = (evt: unknown) => {
           try {

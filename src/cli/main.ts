@@ -1927,10 +1927,27 @@ async function runStart(): Promise<void> {
   // Wire up MCP status indicator for Tidepool
   _mcpTidepoolRef = tidepoolHost;
 
+  // Wrap the chatSession for CLI WebSocket clients so that secret_save prompts
+  // are sent over the WebSocket (just like the Tidepool variant) instead of
+  // trying to read from the daemon's stdin (which has no TTY).
+  const gatewayChatSession = {
+    ...chatSession,
+    processMessage: (
+      content: Parameters<typeof chatSession.processMessage>[0],
+      sendEvent: Parameters<typeof chatSession.processMessage>[1],
+      signal?: Parameters<typeof chatSession.processMessage>[2],
+    ) => {
+      activeSecretPrompt = chatSession.createTidepoolSecretPrompt(sendEvent);
+      return chatSession.processMessage(content, sendEvent, signal).finally(() => {
+        activeSecretPrompt = cliSecretPrompt;
+      });
+    },
+  };
+
   const server = createGatewayServer({
     port: 18789,
     schedulerService,
-    chatSession,
+    chatSession: gatewayChatSession,
     sessionManager: enhancedSessionManager,
     notificationService,
   });
@@ -4327,6 +4344,17 @@ async function runChat(): Promise<void> {
   const state = { isProcessing: false };
   const messageQueue: string[] = [];
 
+  // Password mode state — active when the daemon sends a secret_prompt event.
+  // While active, keypress input collects characters for the secret value
+  // instead of the normal line editor.
+  interface PasswordModeState {
+    readonly nonce: string;
+    readonly name: string;
+    readonly hint?: string;
+    readonly chars: string[];
+  }
+  let passwordMode: PasswordModeState | null = null;
+
   /** Send the next queued message (if any). */
   function drainQueue(): void {
     if (messageQueue.length === 0) return;
@@ -4373,6 +4401,25 @@ async function runChat(): Promise<void> {
           screen.setMcpStatus(evt.connected, evt.configured);
           screen.redrawInput(editor);
         }
+        return;
+      }
+
+      if (evt.type === "secret_prompt") {
+        if (isTty) {
+          // Enter password mode — capture keystrokes for the secret value
+          passwordMode = {
+            nonce: evt.nonce,
+            name: evt.name,
+            hint: evt.hint,
+            chars: [],
+          };
+          screen.stopSpinner();
+          const hintStr = evt.hint ? ` (${evt.hint})` : "";
+          screen.writeOutput(`  \x1b[33m\u{1f512} Enter value for '${evt.name}'${hintStr}\x1b[0m`);
+          screen.setStatus("\u{1f512} Type secret, Enter to submit, Esc to cancel");
+          screen.redrawInput(editor);
+        }
+        // Non-TTY path is handled in runSimpleWsRepl
         return;
       }
 
@@ -4571,6 +4618,59 @@ async function runChat(): Promise<void> {
         cleanup();
         return;
       }
+      continue;
+    }
+
+    // ─── Password mode (secret_prompt active) ─────────────
+    if (passwordMode !== null) {
+      const pm: PasswordModeState = passwordMode; // capture for TypeScript narrowing
+      if (keypress.key === "enter") {
+        // Submit the secret value
+        const value = pm.chars.join("");
+        try {
+          ws.send(JSON.stringify({
+            type: "secret_prompt_response",
+            nonce: pm.nonce,
+            value,
+          }));
+        } catch { /* ignore */ }
+        screen.writeOutput(`  \x1b[32m\u2713 Secret submitted\x1b[0m`);
+        screen.clearStatus();
+        passwordMode = null;
+        screen.redrawInput(editor);
+        continue;
+      }
+      if (keypress.key === "esc" || keypress.key === "ctrl+c") {
+        // Cancel the secret prompt
+        try {
+          ws.send(JSON.stringify({
+            type: "secret_prompt_response",
+            nonce: pm.nonce,
+            value: null,
+          }));
+        } catch { /* ignore */ }
+        screen.writeOutput(`  \x1b[33m\u2717 Secret entry cancelled\x1b[0m`);
+        screen.clearStatus();
+        passwordMode = null;
+        screen.redrawInput(editor);
+        continue;
+      }
+      if (keypress.key === "backspace") {
+        if (pm.chars.length > 0) {
+          pm.chars.pop();
+          const masked = "\u25cf".repeat(pm.chars.length);
+          screen.setStatus(`\u{1f512} ${pm.name}: ${masked}`);
+        }
+        continue;
+      }
+      // Printable character → accumulate
+      if (keypress.char !== null) {
+        pm.chars.push(keypress.char);
+        const masked = "\u25cf".repeat(pm.chars.length);
+        screen.setStatus(`\u{1f512} ${pm.name}: ${masked}`);
+        continue;
+      }
+      // Ignore all other keys in password mode
       continue;
     }
 
@@ -4910,12 +5010,33 @@ async function runSimpleWsRepl(
       console.log();
       const responsePromise = Promise.withResolvers<void>();
 
-      const handler = (event: MessageEvent) => {
+      const handler = async (event: MessageEvent) => {
         try {
           const data = typeof event.data === "string"
             ? event.data
             : new TextDecoder().decode(event.data as ArrayBuffer);
           const evt = JSON.parse(data) as ChatEvent;
+
+          // Handle secret prompt in non-TTY mode: read a line from stdin
+          if (evt.type === "secret_prompt") {
+            const hintStr = evt.hint ? ` (${evt.hint})` : "";
+            const enc = new TextEncoder();
+            Deno.stderr.writeSync(enc.encode(`  Enter value for '${evt.name}'${hintStr}: `));
+            const lineBuf = new Uint8Array(4096);
+            const nRead = await Deno.stdin.read(lineBuf);
+            const value = nRead !== null
+              ? new TextDecoder().decode(lineBuf.subarray(0, nRead)).trimEnd()
+              : null;
+            try {
+              ws.send(JSON.stringify({
+                type: "secret_prompt_response",
+                nonce: evt.nonce,
+                value: value && value.length > 0 ? value : null,
+              }));
+            } catch { /* ignore */ }
+            return;
+          }
+
           if (evt.type === "response" || evt.type === "error") {
             if (evt.type === "error") {
               renderError(evt.message);
