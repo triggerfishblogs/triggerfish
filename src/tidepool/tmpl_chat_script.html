@@ -148,6 +148,20 @@
         }
         break;
 
+      case "mcp_status": {
+        var mcpEl = document.getElementById("mcp-status");
+        if (!mcpEl) break;
+        var mcpConfigured = evt.configured;
+        var mcpConnected = evt.connected;
+        if (mcpConfigured === 0) { mcpEl.style.display = "none"; break; }
+        mcpEl.style.display = "";
+        mcpEl.textContent = "MCP " + mcpConnected + "/" + mcpConfigured;
+        mcpEl.className = "mcp-status " + (
+          mcpConnected === mcpConfigured ? "green" :
+          mcpConnected === 0 ? "red" : "yellow"
+        );
+        break;
+      }
       case "secret_prompt":
         handleSecretPrompt(evt.nonce, evt.name, evt.hint);
         break;

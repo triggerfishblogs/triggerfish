@@ -82,6 +82,17 @@ export type ChatEvent =
   | { readonly type: "taint_changed"; readonly level: ClassificationLevel }
   | {
     /**
+     * Server → client: MCP server connection status indicator.
+     * Sent on new connection and whenever connection state changes.
+     */
+    readonly type: "mcp_status";
+    /** Number of currently connected MCP servers. */
+    readonly connected: number;
+    /** Total number of configured (non-disabled) MCP servers. */
+    readonly configured: number;
+  }
+  | {
+    /**
      * Server → browser: request the user to securely enter a secret value.
      * The browser must show a password input form and respond with
      * `secret_prompt_response`.
@@ -154,6 +165,10 @@ export interface ChatSessionConfig {
   readonly providerRegistry: LlmProviderRegistry;
   readonly spinePath?: string;
   readonly tools?: readonly ToolDefinition[];
+  /** Live getter for extra tools resolved at each LLM call (e.g. MCP servers). */
+  readonly getExtraTools?: () => readonly ToolDefinition[];
+  /** Live getter for extra system prompt sections resolved at each LLM call (e.g. MCP servers). */
+  readonly getExtraSystemPromptSections?: () => readonly string[];
   readonly toolExecutor?: ToolExecutor;
   readonly systemPromptSections?: readonly string[];
   readonly compactorConfig?: Partial<CompactorConfig>;
@@ -271,6 +286,16 @@ export interface ChatSession {
    * @returns A SecretPromptCallback that resolves when the browser responds.
    */
   createTidepoolSecretPrompt(sendEvent: ChatEventSender): (name: string, hint?: string) => Promise<string | null>;
+  /**
+   * Get the last known MCP server connection status for sending to new clients.
+   * Returns null if MCP status has not been set yet (no MCP servers configured).
+   */
+  getMcpStatus?: () => { readonly connected: number; readonly configured: number } | null;
+  /**
+   * Update the stored MCP server connection status.
+   * Called by the daemon when MCP connection state changes.
+   */
+  setMcpStatus?: (connected: number, configured: number) => void;
 }
 
 /**
@@ -387,6 +412,8 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     providerRegistry: config.providerRegistry,
     spinePath: config.spinePath,
     tools: config.tools,
+    getExtraTools: config.getExtraTools,
+    getExtraSystemPromptSections: config.getExtraSystemPromptSections,
     toolExecutor: config.toolExecutor,
     onEvent,
     compactorConfig: config.compactorConfig,
@@ -635,6 +662,10 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     };
   }
 
+  // Stored MCP status for sending to new clients on connect
+  let mcpStatusConnected = -1;
+  let mcpStatusConfigured = 0;
+
   return {
     processMessage,
     registerChannel,
@@ -643,6 +674,14 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     compact,
     handleSecretPromptResponse,
     createTidepoolSecretPrompt,
+    getMcpStatus(): { connected: number; configured: number } | null {
+      if (mcpStatusConnected < 0 || mcpStatusConfigured === 0) return null;
+      return { connected: mcpStatusConnected, configured: mcpStatusConfigured };
+    },
+    setMcpStatus(connected: number, configured: number): void {
+      mcpStatusConnected = connected;
+      mcpStatusConfigured = configured;
+    },
     get providerName() {
       return providerName;
     },

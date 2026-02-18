@@ -87,6 +87,12 @@ export interface A2UIHost {
   sendCanvas(message: CanvasMessage): void;
   /** Broadcast an updated component tree to all connected clients (wraps in canvas message). */
   broadcast(tree: ComponentTree): void;
+  /**
+   * Broadcast MCP server connection status to all connected Tidepool clients.
+   * @param connected - Number of currently connected MCP servers
+   * @param configured - Total number of configured (non-disabled) MCP servers
+   */
+  broadcastMcpStatus(connected: number, configured: number): void;
   /** The number of currently connected WebSocket clients. */
   readonly connections: number;
 }
@@ -111,6 +117,9 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
   let currentTree: ComponentTree | null = null;
   let _resolvedPort = 0;
   let cachedHtml: string | null = null;
+  // Last known MCP status — sent to new clients on connect
+  let lastMcpConnected = -1;
+  let lastMcpConfigured = 0;
 
   /** Send a JSON-serialized message to all open clients. */
   function sendToAll(json: string): void {
@@ -159,6 +168,18 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
                     type: "connected",
                     provider: chatSession.providerName,
                     model: chatSession.modelName,
+                  }));
+                } catch {
+                  // Client may have disconnected
+                }
+              }
+              // Send last known MCP status to this new client
+              if (lastMcpConnected >= 0 && lastMcpConfigured > 0) {
+                try {
+                  socket.send(JSON.stringify({
+                    type: "mcp_status",
+                    connected: lastMcpConnected,
+                    configured: lastMcpConfigured,
                   }));
                 } catch {
                   // Client may have disconnected
@@ -282,6 +303,13 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
         tree,
       };
       const json = JSON.stringify(msg);
+      sendToAll(json);
+    },
+
+    broadcastMcpStatus(connected: number, configured: number): void {
+      lastMcpConnected = connected;
+      lastMcpConfigured = configured;
+      const json = JSON.stringify({ type: "mcp_status", connected, configured });
       sendToAll(json);
     },
 

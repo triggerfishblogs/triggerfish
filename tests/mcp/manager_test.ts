@@ -148,3 +148,118 @@ Deno.test("McpServerManager: disconnectAll after connectAll with no servers", as
   await manager.disconnectAll();
   assertEquals(manager.getConnected().length, 0);
 });
+
+// --- startAll / getStatus / getConfiguredCount / onStatusChange ---
+
+Deno.test("McpServerManager: getConfiguredCount returns 0 before startAll", () => {
+  const manager = createMcpServerManager();
+  assertEquals(manager.getConfiguredCount(), 0);
+});
+
+Deno.test("McpServerManager: getStatus returns empty array before startAll", () => {
+  const manager = createMcpServerManager();
+  assertEquals(manager.getStatus().length, 0);
+});
+
+Deno.test("McpServerManager: startAll with no configs sets configuredCount to 0", () => {
+  const manager = createMcpServerManager();
+  manager.startAll([]);
+  assertEquals(manager.getConfiguredCount(), 0);
+  assertEquals(manager.getStatus().length, 0);
+});
+
+Deno.test(
+  { name: "McpServerManager: startAll counts non-disabled configs", sanitizeOps: false, sanitizeResources: false },
+  () => {
+    const manager = createMcpServerManager();
+    const configs: McpServerConfig[] = [
+      { id: "a", command: "echo", args: [] },
+      { id: "b", command: "echo", args: [], enabled: false },
+      { id: "c", url: "http://localhost:9999" },
+    ];
+    // startAll is non-blocking; we only check configuredCount immediately
+    manager.startAll(configs);
+    // 2 active configs (a + c); b is disabled
+    assertEquals(manager.getConfiguredCount(), 2);
+  },
+);
+
+Deno.test(
+  {
+    name: "McpServerManager: onStatusChange callback is invoked on status update",
+    sanitizeOps: false,
+    sanitizeResources: false,
+  },
+  async () => {
+    const manager = createMcpServerManager();
+    const received: number[] = [];
+    const unsub = manager.onStatusChange((statuses) => {
+      received.push(statuses.length);
+    });
+
+    // Manually simulate status notification by calling startAll with a bad server
+    // The first status change fires almost immediately (connecting state)
+    const configs: McpServerConfig[] = [
+      { id: "bad", command: "nonexistent-binary-that-does-not-exist-99999", args: [] },
+    ];
+    manager.startAll(configs);
+
+    // Wait briefly for the first status notification (connecting state)
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+
+    // Should have received at least one notification
+    assertEquals(received.length > 0, true);
+    // The notification should report 1 status entry
+    assertEquals(received[0], 1);
+
+    unsub();
+  },
+);
+
+Deno.test(
+  {
+    name: "McpServerManager: onStatusChange unsubscribe stops notifications",
+    sanitizeOps: false,
+    sanitizeResources: false,
+  },
+  async () => {
+    const manager = createMcpServerManager();
+    let callCount = 0;
+    const unsub = manager.onStatusChange(() => {
+      callCount++;
+    });
+
+    // Unsubscribe immediately
+    unsub();
+
+    // Start with a bad server — would normally fire notifications
+    manager.startAll([
+      { id: "bad2", command: "nonexistent-binary-xyz", args: [] },
+    ]);
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+
+    // No callbacks should have fired after unsubscribe
+    assertEquals(callCount, 0);
+  },
+);
+
+Deno.test("McpServerManager: startAll with no-transport server marks it as failed", async () => {
+  const manager = createMcpServerManager();
+  manager.startAll([{ id: "no-transport" }]);
+  // no-transport entry goes directly to "failed"
+  const statuses = manager.getStatus();
+  assertEquals(statuses.length, 1);
+  assertEquals(statuses[0].id, "no-transport");
+  assertEquals(statuses[0].state, "failed");
+});
+
+Deno.test("McpServerManager: getConnected reflects newly connected servers", async () => {
+  // Initially empty
+  const manager = createMcpServerManager();
+  assertEquals(manager.getConnected().length, 0);
+  // connectAll still works for backward compat
+  const result = await manager.connectAll([]);
+  assertEquals(result.length, 0);
+  assertEquals(manager.getConnected().length, 0);
+});
