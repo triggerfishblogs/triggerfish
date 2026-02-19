@@ -562,6 +562,53 @@ export async function tailLogs(
   }
 }
 
+/**
+ * Bundle all Triggerfish log files into a temporary directory.
+ *
+ * Collects `triggerfish.log` and any rotated variants (`triggerfish.1.log`,
+ * `triggerfish.2.log`, etc.) from the log directory and copies them to a
+ * freshly-created temporary directory. Prints the bundle path to stdout.
+ */
+export async function bundleLogs(): Promise<void> {
+  const dir = logDir();
+
+  // Collect log files from the log directory
+  const logFiles: string[] = [];
+  try {
+    for await (const entry of Deno.readDir(dir)) {
+      if (entry.isFile && /^triggerfish(\.\d+)?\.log$/.test(entry.name)) {
+        logFiles.push(entry.name);
+      }
+    }
+  } catch {
+    console.log(`No log directory found at ${dir}`);
+    console.log("Start the daemon first: triggerfish start");
+    return;
+  }
+
+  if (logFiles.length === 0) {
+    console.log(`No log files found in ${dir}`);
+    console.log("Start the daemon first: triggerfish start");
+    return;
+  }
+
+  // Sort so the primary log comes first, then rotated in order
+  logFiles.sort((a, b) => {
+    const numA = a === "triggerfish.log" ? -1 : parseInt(a.match(/\.(\d+)\.log$/)?.[1] ?? "0", 10);
+    const numB = b === "triggerfish.log" ? -1 : parseInt(b.match(/\.(\d+)\.log$/)?.[1] ?? "0", 10);
+    return numA - numB;
+  });
+
+  const bundleDir = await Deno.makeTempDir({ prefix: "triggerfish-logs-" });
+
+  for (const name of logFiles) {
+    await Deno.copyFile(join(dir, name), join(bundleDir, name));
+  }
+
+  console.log(`Log bundle created at: ${bundleDir}`);
+  console.log(`Bundled ${logFiles.length} log file(s).`);
+}
+
 /** Result of an update operation. */
 export interface UpdateResult {
   readonly ok: boolean;
