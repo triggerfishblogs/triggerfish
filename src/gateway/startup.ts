@@ -152,6 +152,7 @@ import {
 import { logDir as resolveLogDir } from "../cli/daemon.ts";
 import { loadConfigWithSecrets } from "../core/config.ts";
 import { resolveBaseDir, resolveConfigPath } from "../cli/paths.ts";
+import { TIDEPOOL_PORT } from "../cli/constants.ts";
 import { buildSkillsSystemPrompt, buildTriggersSystemPrompt } from "../skills/prompts.ts";
 import {
   buildGoogleExecutor,
@@ -854,10 +855,10 @@ export async function runStart(): Promise<void> {
   // Start Tidepool + Gateway EARLY so `triggerfish chat` can connect
   // while channels and MCP servers finish wiring in the background.
   const tidepoolHost = createA2UIHost({ chatSession: tidepoolChatSession });
-  const tidepoolPort = 18790;
-  await tidepoolHost.start(tidepoolPort);
+  await tidepoolHost.start(TIDEPOOL_PORT);
   tidepoolTools = createTidePoolTools(tidepoolHost);
-  log.info(`Tidepool listening on http://127.0.0.1:${tidepoolPort}`);
+  log.info(`Tidepool listening on http://127.0.0.1:${TIDEPOOL_PORT}`);
+  console.log(`  Tidepool: http://127.0.0.1:${TIDEPOOL_PORT}`);
   // Wire up MCP status indicator for Tidepool
   _mcpTidepoolRef = tidepoolHost;
 
