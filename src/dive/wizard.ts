@@ -700,7 +700,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
     if (readyNow) {
       console.log("");
-      const { performGoogleOAuth } = await import("../cli/main.ts");
+      const { performGoogleOAuth } = await import("../cli/connect.ts");
       const success = await performGoogleOAuth();
       if (success) {
         console.log("");

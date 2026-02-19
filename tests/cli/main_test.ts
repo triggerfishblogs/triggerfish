@@ -129,7 +129,7 @@ Deno.test("CLI: 'connect' without subcommand has no subcommand", async () => {
 // --- Config ---
 
 Deno.test("Config: loads valid triggerfish.yaml", async () => {
-  const { loadConfig } = await import("../../src/cli/main.ts");
+  const { loadConfig } = await import("../../src/core/config.ts");
   const tmpDir = await Deno.makeTempDir();
   await Deno.writeTextFile(`${tmpDir}/triggerfish.yaml`, `
 models:
@@ -153,7 +153,7 @@ classification:
 });
 
 Deno.test("Config: rejects invalid YAML", async () => {
-  const { loadConfig } = await import("../../src/cli/main.ts");
+  const { loadConfig } = await import("../../src/core/config.ts");
   const tmpDir = await Deno.makeTempDir();
   await Deno.writeTextFile(`${tmpDir}/triggerfish.yaml`, "{{invalid yaml");
   const result = loadConfig(`${tmpDir}/triggerfish.yaml`);
@@ -162,7 +162,7 @@ Deno.test("Config: rejects invalid YAML", async () => {
 });
 
 Deno.test("Config: validates required fields", async () => {
-  const { validateConfig } = await import("../../src/cli/main.ts");
+  const { validateConfig } = await import("../../src/core/config.ts");
   const result = validateConfig({});
   assertEquals(result.ok, false); // Missing models.primary
 });
