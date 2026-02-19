@@ -68,23 +68,20 @@ export const URL_WRITE_TOOLS: ReadonlySet<string> = new Set([
 /**
  * Tools with hardcoded classification floors (non-overridable minimums).
  *
- * Browser read-only tools (navigate, snapshot, scroll, wait) have no floor —
- * navigating to a public website is a PUBLIC activity. The browser profile
- * watermark system (src/browser/watermark.ts) separately prevents a lower-tainted
- * session from reusing a profile that was previously used at a higher level.
- *
- * Interactive browser tools (click, type, select) require INTERNAL — they submit
- * data into forms and carry a higher risk of unintended data disclosure.
+ * Browser tools (read-only and interactive) have no floor — the existing
+ * resource-write-down check already prevents a higher-tainted session from
+ * submitting data to a lower-classified domain. A floor would create an
+ * impossible situation in owner sessions: escalating to INTERNAL to satisfy
+ * the floor would immediately trigger write-down against a PUBLIC domain,
+ * making browser interaction on public websites impossible. The browser
+ * profile watermark system (src/browser/watermark.ts) separately prevents
+ * a lower-tainted session from reusing a profile used at a higher level.
  *
  * run_command requires CONFIDENTIAL — shell execution is a different risk category.
  */
 export const HARDCODED_TOOL_FLOORS: ReadonlyMap<string, ClassificationLevel> =
   new Map<string, ClassificationLevel>([
     ["run_command", "CONFIDENTIAL"],
-    // Interactive browser tools that submit data require INTERNAL floor
-    ["browser_click", "INTERNAL"],
-    ["browser_type", "INTERNAL"],
-    ["browser_select", "INTERNAL"],
     // claude_* exec tools require INTERNAL (spawning sub-agents)
     ["claude_start", "INTERNAL"],
     ["claude_send", "INTERNAL"],

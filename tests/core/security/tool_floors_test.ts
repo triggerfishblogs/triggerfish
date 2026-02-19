@@ -13,7 +13,12 @@ Deno.test("tool floor: run_command has CONFIDENTIAL floor", () => {
   assertEquals(registry.getFloor("run_command"), "CONFIDENTIAL");
 });
 
-Deno.test("tool floor: interactive browser tools have INTERNAL floor", () => {
+Deno.test("tool floor: interactive browser tools have no floor", () => {
+  // Browser interactive tools have no hardcoded floor. The resource-write-down
+  // rule already prevents higher-tainted sessions from submitting data to
+  // lower-classified domains. A floor would create an impossible situation:
+  // escalating to INTERNAL to satisfy the floor would immediately trigger
+  // write-down against a PUBLIC domain in owner sessions.
   const registry = createToolFloorRegistry();
   const interactiveBrowserTools = [
     "browser_click",
@@ -21,19 +26,22 @@ Deno.test("tool floor: interactive browser tools have INTERNAL floor", () => {
     "browser_select",
   ];
   for (const tool of interactiveBrowserTools) {
-    assertEquals(registry.getFloor(tool), "INTERNAL", `${tool} should have INTERNAL floor`);
+    assertEquals(registry.getFloor(tool), null, `${tool} should have no floor`);
   }
 });
 
-Deno.test("tool floor: read-only browser tools have no floor", () => {
+Deno.test("tool floor: all browser tools have no floor", () => {
   const registry = createToolFloorRegistry();
-  const readOnlyBrowserTools = [
+  const allBrowserTools = [
     "browser_navigate",
     "browser_snapshot",
     "browser_scroll",
     "browser_wait",
+    "browser_click",
+    "browser_type",
+    "browser_select",
   ];
-  for (const tool of readOnlyBrowserTools) {
+  for (const tool of allBrowserTools) {
     assertEquals(registry.getFloor(tool), null, `${tool} should have no floor`);
   }
 });
@@ -86,16 +94,18 @@ Deno.test("tool floor: PUBLIC session can invoke browser_navigate (no floor)", (
   assertEquals(registry.canInvoke("browser_navigate", "PUBLIC"), true);
 });
 
-// --- Scenario 5: PUBLIC session cannot invoke browser_click (INTERNAL floor) ---
+// --- Scenario 5: PUBLIC session can invoke browser_click (no floor) ---
 
-Deno.test("tool floor: PUBLIC session cannot invoke browser_click", () => {
+Deno.test("tool floor: PUBLIC session can invoke browser_click (no floor)", () => {
+  // No hardcoded floor for browser interactive tools — resource-write-down
+  // handles domain-level enforcement in the PRE_TOOL_CALL hook.
   const registry = createToolFloorRegistry();
-  assertEquals(registry.canInvoke("browser_click", "PUBLIC"), false);
+  assertEquals(registry.canInvoke("browser_click", "PUBLIC"), true);
 });
 
-// --- Scenario 5b: INTERNAL session can invoke browser_click (meets INTERNAL floor) ---
+// --- Scenario 5b: INTERNAL session can invoke browser_click (no floor) ---
 
-Deno.test("tool floor: INTERNAL session can invoke browser_click", () => {
+Deno.test("tool floor: INTERNAL session can invoke browser_click (no floor)", () => {
   const registry = createToolFloorRegistry();
   assertEquals(registry.canInvoke("browser_click", "INTERNAL"), true);
 });
@@ -141,9 +151,7 @@ Deno.test("tool floor: enterprise can add floor to tool that had none", () => {
 Deno.test("tool floor: PUBLIC session cannot invoke floored tools", () => {
   const registry = createToolFloorRegistry();
   assertEquals(registry.canInvoke("run_command", "PUBLIC"), false);
-  assertEquals(registry.canInvoke("browser_click", "PUBLIC"), false);
-  assertEquals(registry.canInvoke("browser_type", "PUBLIC"), false);
-  assertEquals(registry.canInvoke("browser_select", "PUBLIC"), false);
+  // browser_click, browser_type, browser_select have no floor — not included here
 });
 
 Deno.test("tool floor: PUBLIC session can invoke unfloored tools", () => {
