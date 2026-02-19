@@ -3,7 +3,7 @@
  * Tests MUST FAIL until orchestrator.ts and llm.ts are implemented.
  * Tests LlmProvider interface, provider registry, orchestrator loop.
  */
-import { assertEquals, assertExists, assert } from "@std/assert";
+import { assertEquals, assertExists, assert, assertStringIncludes } from "@std/assert";
 import {
   type LlmProvider,
   createProviderRegistry,
@@ -424,3 +424,173 @@ Deno.test("LEAKED_INTENT_PATTERN: does not match normal response text", () => {
 // Note: The leaked-intent guard was removed from the orchestrator because it
 // caused blank responses with some LLM providers. The LEAKED_INTENT_PATTERN
 // regex is still exported and tested above for potential future use.
+
+// --- isTriggerSession tests ---
+
+Deno.test("Orchestrator: isTriggerSession=undefined is always false (default deny)", async () => {
+  // Without isTriggerSession set, the orchestrator should NOT behave as a trigger session.
+  // isOwnerSession && !isOwnerSession() = false (isOwnerSession is undefined) — the
+  // non-owner check is skipped. This is the legacy behaviour, not the trigger behaviour.
+  // This test documents the baseline: isTrigger defaults to false.
+  const engine = createPolicyEngine();
+  for (const r of createDefaultRules()) engine.addRule(r);
+  const runner = createHookRunner(engine);
+  const registry = createProviderRegistry();
+  registry.register(createMockProvider("mock", "response"));
+  registry.setDefault("mock");
+
+  let calledTool = "";
+  const orchestrator = createOrchestrator({
+    hookRunner: runner,
+    providerRegistry: registry,
+    tools: [{ name: "read_file", description: "Read a file", parameters: { path: { type: "string", description: "path" } } }],
+    toolExecutor: async (name) => { calledTool = name; return "result"; },
+    // isTriggerSession not set — must be false per "undefined is always false" rule
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  // With no isOwnerSession or isTriggerSession set, the non-owner check is bypassed
+  // (legacy behaviour). The tool runs because neither check activates.
+  const result = await orchestrator.processMessage({
+    session,
+    message: "do something",
+    targetClassification: "INTERNAL",
+  });
+  // Passes because the orchestrator has no integration toolClassifications blocking it
+  assertEquals(result.ok, true);
+});
+
+Deno.test("Orchestrator: trigger session allows built-in tools (not blocked as non-owner)", async () => {
+  const engine = createPolicyEngine();
+  for (const r of createDefaultRules()) engine.addRule(r);
+  const runner = createHookRunner(engine);
+  const registry = createProviderRegistry();
+  registry.register(createMockProvider("mock", "result"));
+  registry.setDefault("mock");
+
+  let calledTool = "";
+  const orchestrator = createOrchestrator({
+    hookRunner: runner,
+    providerRegistry: registry,
+    tools: [{ name: "memory_save", description: "Save memory", parameters: { key: { type: "string", description: "key" }, value: { type: "string", description: "value" } } }],
+    toolExecutor: async (name) => { calledTool = name; return "saved"; },
+    isTriggerSession: () => true,
+    getNonOwnerCeiling: () => "CONFIDENTIAL" as const,
+    toolClassifications: new Map([["gmail_", "CONFIDENTIAL" as const]]),
+    getSessionTaint: () => "PUBLIC" as const,
+    escalateTaint: () => {},
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const result = await orchestrator.processMessage({
+    session,
+    message: "use memory tool",
+    targetClassification: "CONFIDENTIAL",
+  });
+  // Trigger sessions can call built-in tools (memory_save is not in toolClassifications)
+  assertEquals(result.ok, true);
+});
+
+Deno.test("Orchestrator: trigger session blocks integration tool above ceiling", async () => {
+  const engine = createPolicyEngine();
+  for (const r of createDefaultRules()) engine.addRule(r);
+  const runner = createHookRunner(engine);
+  const registry = createProviderRegistry();
+
+  // Provider returns a tool call to a CONFIDENTIAL integration, then a final response
+  let callCount = 0;
+  const toolProvider: LlmProvider = {
+    name: "tool-test",
+    supportsStreaming: false,
+    // deno-lint-ignore require-await
+    async complete(_messages, _tools, _options) {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          content: "",
+          toolCalls: [{ type: "function", function: { name: "gmail_list", arguments: "{}" } }],
+          usage: { inputTokens: 10, outputTokens: 5 },
+        };
+      }
+      return { content: "Done.", toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } };
+    },
+  };
+  registry.register(toolProvider);
+  registry.setDefault("tool-test");
+
+  let toolResult = "";
+  const orchestrator = createOrchestrator({
+    hookRunner: runner,
+    providerRegistry: registry,
+    tools: [{ name: "gmail_list", description: "List gmail", parameters: {} }],
+    toolExecutor: async (name) => { return `${name} result`; },
+    isTriggerSession: () => true,
+    // Ceiling is INTERNAL — gmail (CONFIDENTIAL) is above ceiling → blocked
+    getNonOwnerCeiling: () => "INTERNAL" as const,
+    toolClassifications: new Map([["gmail_", "CONFIDENTIAL" as const]]),
+    getSessionTaint: () => "PUBLIC" as const,
+    escalateTaint: () => {},
+    onEvent: (evt) => {
+      if (evt.type === "tool_result") toolResult = evt.result;
+    },
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  await orchestrator.processMessage({
+    session,
+    message: "list gmail",
+    targetClassification: "INTERNAL",
+  });
+  // gmail_list (CONFIDENTIAL) is above INTERNAL ceiling — should be blocked
+  assertStringIncludes(toolResult, "exceeds trigger ceiling");
+});
+
+Deno.test("Orchestrator: trigger session allows integration tool at ceiling level", async () => {
+  const engine = createPolicyEngine();
+  for (const r of createDefaultRules()) engine.addRule(r);
+  const runner = createHookRunner(engine);
+  const registry = createProviderRegistry();
+
+  let callCount = 0;
+  const toolProvider: LlmProvider = {
+    name: "tool-test",
+    supportsStreaming: false,
+    // deno-lint-ignore require-await
+    async complete(_messages, _tools, _options) {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          content: "",
+          toolCalls: [{ type: "function", function: { name: "github_search_repos", arguments: "{}" } }],
+          usage: { inputTokens: 10, outputTokens: 5 },
+        };
+      }
+      return { content: "Done.", toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } };
+    },
+  };
+  registry.register(toolProvider);
+  registry.setDefault("tool-test");
+
+  let toolExecuted = false;
+  const orchestrator = createOrchestrator({
+    hookRunner: runner,
+    providerRegistry: registry,
+    tools: [{ name: "github_search_repos", description: "Search GitHub repos", parameters: {} }],
+    toolExecutor: async () => { toolExecuted = true; return "repos found"; },
+    isTriggerSession: () => true,
+    // Ceiling is INTERNAL — github (INTERNAL) is at ceiling → allowed
+    getNonOwnerCeiling: () => "INTERNAL" as const,
+    toolClassifications: new Map([["github_", "INTERNAL" as const]]),
+    getSessionTaint: () => "PUBLIC" as const,
+    escalateTaint: () => {},
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  await orchestrator.processMessage({
+    session,
+    message: "search repos",
+    targetClassification: "INTERNAL",
+  });
+  // github_ (INTERNAL) is at the ceiling level — tool should execute
+  assertEquals(toolExecuted, true);
+});

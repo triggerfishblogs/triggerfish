@@ -63,6 +63,14 @@ export interface TriggerFishConfig {
         readonly start?: number;
         readonly end?: number;
       };
+      /**
+       * Classification ceiling for trigger sessions.
+       * Integration tools classified above this level are blocked.
+       * Defaults to "CONFIDENTIAL" when not set — triggers routinely need
+       * access to CONFIDENTIAL integrations such as Gmail.
+       * Set to "INTERNAL" explicitly to restrict trigger access.
+       */
+      readonly classification_ceiling?: string;
     };
     readonly webhooks?: {
       readonly enabled?: boolean;

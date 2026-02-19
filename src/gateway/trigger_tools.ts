@@ -1,9 +1,12 @@
 /**
  * Trigger context tools for the agent orchestrator.
  *
- * Provides the `trigger_add_to_context` tool that allows the agent to
- * load the most recent trigger output into the current conversation
- * context, subject to the no-write-down rule.
+ * Provides:
+ * - `trigger_add_to_context` — loads the most recent trigger output into the
+ *   current conversation context, subject to the no-write-down rule.
+ * - `get_tool_classification` — returns the classification level of one or more
+ *   tools so that trigger sessions can order their work from lowest to highest
+ *   classification, avoiding write-down violations mid-session.
  *
  * Classification enforcement:
  * - The trigger result's classification must be >= the current session taint.
@@ -41,6 +44,14 @@ export interface TriggerToolContext {
 /** Default trigger source used when none is specified. */
 const DEFAULT_SOURCE = "trigger";
 
+/** Classification level ordering for sorting (lower number = lower classification). */
+const CLASSIFICATION_ORDER: Readonly<Record<string, number>> = {
+  PUBLIC: 0,
+  INTERNAL: 1,
+  CONFIDENTIAL: 2,
+  RESTRICTED: 3,
+};
+
 /** Get the tool definitions for trigger context tools. */
 export function getTriggerToolDefinitions(): readonly ToolDefinition[] {
   return [
@@ -60,10 +71,33 @@ export function getTriggerToolDefinitions(): readonly ToolDefinition[] {
         },
       },
     },
+    {
+      name: "get_tool_classification",
+      description:
+        "Look up the classification level of one or more tools. " +
+        "In trigger sessions, call this before executing your planned tool calls to determine " +
+        "the correct order (lowest to highest classification). " +
+        "Built-in tools (exec, memory, web, etc.) are PUBLIC. " +
+        "Integration tools (gmail_, calendar_, github_, etc.) have their configured classification.",
+      parameters: {
+        tools: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "List of tool names to classify. Returns classifications and recommended call order.",
+          required: true,
+        },
+      },
+    },
   ];
 }
 
-/** System prompt section explaining trigger tools to the LLM. */
+/** Get trigger tool definitions for the main (user) session — only trigger_add_to_context. */
+export function getTriggerContextToolDefinitions(): readonly ToolDefinition[] {
+  return getTriggerToolDefinitions().filter((t) => t.name === "trigger_add_to_context");
+}
+
+/** System prompt section explaining trigger_add_to_context to the user-session LLM. */
 export const TRIGGER_TOOLS_SYSTEM_PROMPT =
   `## Trigger Context
 
@@ -77,6 +111,103 @@ You can retrieve recent trigger outputs and inject them into the conversation.
 - When a trigger is successfully added, its content and classification are visible in context.
 - If the trigger's classification exceeds your current session taint, your session taint
   will automatically escalate to match it.`;
+
+/**
+ * System prompt section for trigger sessions — explains classification-ordered execution.
+ *
+ * Injected into the orchestrator system prompt when isTriggerSession is true.
+ * Instructs the agent to call get_tool_classification first and order its work
+ * from lowest to highest classification to avoid write-down violations mid-session.
+ */
+export const TRIGGER_SESSION_SYSTEM_PROMPT =
+  `## Trigger Session — Classification-Ordered Execution
+
+You are running in a trigger session. Your session taint starts at PUBLIC and escalates as you call classified tools. Calling a lower-classified tool AFTER a higher-classified one is blocked as a write-down violation.
+
+**Required protocol before calling any integration tools (gmail_, calendar_, drive_, github_, etc.):**
+
+1. **Identify all tools** you plan to call in this session.
+2. **Call \`get_tool_classification\`** with your full list of planned tools to get their classification levels.
+3. **Order your work from lowest to highest classification** — PUBLIC first, then INTERNAL, then CONFIDENTIAL, then RESTRICTED.
+4. **Execute in order** — your session taint escalates naturally. Your final session taint reflects the highest classification you accessed.
+
+Your output is stored in the trigger store and stamped with your final session taint. The owner can then optionally pull it into their session via \`trigger_add_to_context\`, at which point their session taint may escalate to match yours.
+
+If you skip classification ordering and call a higher-classified tool before a lower one, subsequent lower-classified calls will be blocked by write-down enforcement. Always call \`get_tool_classification\` first.`;
+
+/**
+ * Create a tool executor for the `get_tool_classification` tool.
+ *
+ * Accepts a tool-prefix → classification map (the same map used by the
+ * orchestrator for enforcement). Given a list of tool names, returns their
+ * classification levels and a recommended call order (lowest → highest).
+ * Built-in tools not in the map are returned as PUBLIC.
+ *
+ * This executor is intended for trigger sessions so the agent can plan its
+ * work order before calling any tools, avoiding mid-session write-down blocks.
+ *
+ * Returns null for unrecognised tool names (allowing chaining with other executors).
+ *
+ * @param toolClassifications - Map of tool prefix → classification level.
+ * @returns An executor function: (name, input) => Promise<string | null>
+ */
+export function createTriggerClassificationToolExecutor(
+  toolClassifications: ReadonlyMap<string, ClassificationLevel>,
+): (name: string, input: Record<string, unknown>) => Promise<string | null> {
+  return async (
+    name: string,
+    input: Record<string, unknown>,
+  ): Promise<string | null> => {
+    if (name !== "get_tool_classification") return null;
+
+    const rawTools = input.tools;
+    const toolNames: string[] = Array.isArray(rawTools)
+      ? rawTools.filter((t): t is string => typeof t === "string")
+      : typeof rawTools === "string"
+      ? [rawTools]
+      : [];
+
+    if (toolNames.length === 0) {
+      return "Error: 'tools' parameter must be a non-empty array of tool names.";
+    }
+
+    const classifications: Array<{ tool: string; classification: ClassificationLevel }> = [];
+
+    for (const toolName of toolNames) {
+      let found = false;
+      for (const [prefix, level] of toolClassifications) {
+        if (toolName.startsWith(prefix)) {
+          classifications.push({ tool: toolName, classification: level });
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        // Built-in tools not in the classification map are ungated (PUBLIC).
+        classifications.push({ tool: toolName, classification: "PUBLIC" as ClassificationLevel });
+      }
+    }
+
+    // Sort by classification level: lowest first so the recommended order is
+    // safe to execute top-to-bottom without write-down violations.
+    const sorted = [...classifications].sort(
+      (a, b) =>
+        (CLASSIFICATION_ORDER[a.classification] ?? 0) -
+        (CLASSIFICATION_ORDER[b.classification] ?? 0),
+    );
+
+    const result = {
+      classifications,
+      recommended_order: sorted.map((c) => ({ tool: c.tool, classification: c.classification })),
+      instruction:
+        "Execute tools in the recommended_order sequence (lowest classification first). " +
+        "Your session taint escalates as you call higher-classified tools. " +
+        "Calling a lower-classified tool after a higher-classified one will be blocked.",
+    };
+
+    return JSON.stringify(result, null, 2);
+  };
+}
 
 /**
  * Create a tool executor for trigger context tools.

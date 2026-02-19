@@ -28,6 +28,22 @@ import { createLogger } from "../core/logger/mod.ts";
 
 const log = createLogger("scheduler");
 
+/** Options passed to OrchestratorFactory.create() to configure the session type. */
+export interface OrchestratorCreateOptions {
+  /**
+   * When true, the orchestrator is configured as a trigger session.
+   * Trigger sessions may call all built-in tools and integration tools
+   * classified at or below the ceiling. They are never owner sessions.
+   */
+  readonly isTrigger?: boolean;
+  /**
+   * Classification ceiling for this session.
+   * Integration tools classified above this level are blocked.
+   * Ignored unless isTrigger is true (owner sessions have no ceiling).
+   */
+  readonly ceiling?: ClassificationLevel;
+}
+
 /**
  * Factory that creates an isolated orchestrator + session per execution.
  *
@@ -37,7 +53,7 @@ const log = createLogger("scheduler");
  */
 export interface OrchestratorFactory {
   /** Create a new orchestrator and session for a scheduled task. */
-  create(channelId: string): Promise<{
+  create(channelId: string, options?: OrchestratorCreateOptions): Promise<{
     readonly orchestrator: Orchestrator;
     readonly session: SessionState;
   }>;
@@ -229,7 +245,10 @@ export function createSchedulerService(
     try {
       log.info("Creating trigger orchestrator session");
       const { orchestrator, session } =
-        await config.orchestratorFactory.create("trigger");
+        await config.orchestratorFactory.create("trigger", {
+          isTrigger: true,
+          ceiling: config.trigger.classificationCeiling,
+        });
 
       log.info("Trigger orchestrator processing TRIGGER.md");
       const result = await orchestrator.processMessage({
