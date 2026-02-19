@@ -28,3 +28,6 @@ export type {
   SkillAuthor,
   SkillAuthorOptions,
 } from "./author.ts";
+
+export { createSkillToolExecutor, getSkillToolDefinitions } from "./tools.ts";
+export type { SkillToolContext, SkillType } from "./tools.ts";
