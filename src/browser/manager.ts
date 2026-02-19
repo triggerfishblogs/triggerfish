@@ -23,6 +23,9 @@ import {
   escalateWatermark,
   getWatermark,
 } from "./watermark.ts";
+import { createLogger } from "../core/logger/mod.ts";
+
+const log = createLogger("browser-manager");
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -513,6 +516,7 @@ async function launchDirect(
     const page = pages[0] ?? await browser.newPage();
     return { ok: true, value: { browser, page } };
   } catch (err) {
+    log.error("browser launch exception", (err as Error).message);
     return { ok: false, error: `Browser launch failed: ${(err as Error).message}` };
   }
 }
@@ -558,6 +562,7 @@ async function launchFlatpak(
     });
     proc = cmd.spawn();
   } catch (err) {
+    log.error("flatpak spawn exception", (err as Error).message);
     return { ok: false, error: `Failed to spawn flatpak: ${(err as Error).message}` };
   }
 
@@ -583,6 +588,7 @@ async function launchFlatpak(
 
     return { ok: true, value: { browser, page, process: proc, port } };
   } catch (err) {
+    log.error("puppeteer connect exception", (err as Error).message);
     await killChromeProcess(proc);
     return { ok: false, error: `puppeteer.connect() failed: ${(err as Error).message}` };
   }
@@ -613,6 +619,8 @@ export function createBrowserManager(config: BrowserManagerConfig): BrowserManag
       agentId: string,
       sessionTaint: ClassificationLevel,
     ): Promise<Result<BrowserInstance, string>> {
+      log.debug("browser launch start", { agentId, sessionTaint });
+
       // Check watermark access
       const currentWatermark = await getWatermark(config.storage, agentId);
       if (
@@ -683,6 +691,7 @@ export function createBrowserManager(config: BrowserManagerConfig): BrowserManag
       // Branch on launch strategy
       if (detection.kind === "flatpak") {
         const result = await launchFlatpak(config, detection, profilePath, timeoutMs);
+        log.debug("flatpak launch result", { ok: result.ok, error: result.ok ? undefined : result.error });
         if (!result.ok) return result;
 
         const { browser, page, process: proc, port } = result.value;
@@ -706,11 +715,13 @@ export function createBrowserManager(config: BrowserManagerConfig): BrowserManag
           debugPort: port,
         });
 
+        log.debug("browser launch success", { agentId, strategy: "flatpak", watermark });
         return { ok: true, value: instance };
       }
 
       // Direct launch
       const result = await launchDirect(config, detection.target, profilePath, timeoutMs);
+      log.debug("direct launch result", { ok: result.ok, error: result.ok ? undefined : result.error });
       if (!result.ok) return result;
 
       const { browser, page } = result.value;
@@ -728,6 +739,7 @@ export function createBrowserManager(config: BrowserManagerConfig): BrowserManag
 
       instances.set(agentId, { browser, page, instance });
 
+      log.debug("browser launch success", { agentId, strategy: "direct", watermark });
       return { ok: true, value: instance };
     },
 

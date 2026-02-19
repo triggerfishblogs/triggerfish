@@ -16,6 +16,9 @@ import type { ToolDefinition } from "../agent/orchestrator.ts";
 import { resolveAndCheck } from "../web/domains.ts";
 import type { BrowserManager } from "./manager.ts";
 import type { LlmProvider } from "../agent/llm.ts";
+import { createLogger } from "../core/logger/mod.ts";
+
+const log = createLogger("browser-tools");
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -491,13 +494,20 @@ export function createBrowserToolExecutor(
     switch (name) {
       case "browser_navigate": {
         const url = input.url;
+        log.debug("browser_navigate", { inputKeys: Object.keys(input), urlType: typeof url, url: String(url) });
         if (typeof url !== "string" || url.trim().length === 0) {
+          log.warn("browser_navigate validation failed", "url is missing or not a non-empty string");
           return "Error: browser_navigate requires a non-empty 'url' argument.";
         }
         const result = await tools.navigate(url);
-        if (!result.ok) return `Navigation error: ${result.error}`;
+        if (!result.ok) {
+          log.warn("browser_navigate navigation error", result.error);
+          return `Navigation error: ${result.error}`;
+        }
         lastScreenshot = undefined;
-        return JSON.stringify(result.value);
+        const responseJson = JSON.stringify(result.value);
+        log.debug("browser_navigate success", { responseLength: responseJson.length });
+        return responseJson;
       }
 
       case "browser_snapshot": {
