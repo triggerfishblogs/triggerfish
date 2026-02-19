@@ -318,6 +318,16 @@ export function buildSendEvent(
       }, 4000) as unknown as number;
     }
 
+    if (event.type === "tool_result" && event.blocked) {
+      // A tool call was blocked (e.g. write-down: session taint > tool classification).
+      // Notify the user directly so they see the reason — channels like Telegram do not
+      // surface individual tool results the way Tidepool/webchat does via WebSocket events.
+      adapter.send({
+        content: event.result,
+        sessionId: msg.sessionId,
+      }).catch((err) => chatLog.warn(`${channelName} send error:`, err));
+    }
+
     if (event.type === "response") {
       clearInterval(typingInterval);
       typingInterval = undefined;
