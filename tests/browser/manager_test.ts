@@ -41,10 +41,30 @@ Deno.test("detectChrome: prefers direct binary over Flatpak", async () => {
   const result = await detectChrome();
   // If we got a result AND a direct binary exists, kind must be "direct"
   if (result?.kind === "direct") {
-    // Verify the target looks like a path
-    assertEquals(result.target.startsWith("/"), true);
+    // Verify the target looks like an absolute path (Unix: starts with "/", Windows: "C:\...")
+    const isAbsPath = result.target.startsWith("/") ||
+      /^[A-Za-z]:[\\\/]/.test(result.target);
+    assertEquals(isAbsPath, true);
   }
   // If kind is "flatpak", it means no direct binary was found — still valid
+});
+
+Deno.test({
+  name: "detectChrome: Windows detection returns chrome.exe, brave.exe, or msedge.exe path",
+  ignore: Deno.build.os !== "windows",
+  async fn() {
+    const result = await detectChrome();
+    if (result !== undefined && result.kind === "direct") {
+      const lowerTarget = result.target.toLowerCase();
+      const isKnownBrowser =
+        lowerTarget.endsWith("chrome.exe") ||
+        lowerTarget.endsWith("brave.exe") ||
+        lowerTarget.endsWith("msedge.exe");
+      assertEquals(isKnownBrowser, true);
+      // Must be an absolute Windows path
+      assertEquals(/^[A-Za-z]:[\\\/]/.test(result.target), true);
+    }
+  },
 });
 
 // ---------------------------------------------------------------------------
