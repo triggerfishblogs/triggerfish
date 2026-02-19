@@ -747,7 +747,7 @@ export async function runStart(): Promise<void> {
     imageExecutor,
     sessionExecutor,
     exploreExecutor,
-    googleExecutor: buildGoogleExecutor(session.taint, session.id),
+    googleExecutor: buildGoogleExecutor(() => session.taint, session.id),
     githubExecutor,
     obsidianExecutor,
     llmTaskExecutor: registry ? createLlmTaskToolExecutor(registry) : undefined,

@@ -291,7 +291,7 @@ Deno.test("integration: executor routes gmail_search end-to-end", async () => {
       tasks: createTasksService(apiClient),
       drive: createDriveService(apiClient),
       sheets: createSheetsService(apiClient),
-      sessionTaint: "INTERNAL" as ClassificationLevel,
+      sessionTaint: () => "INTERNAL" as ClassificationLevel,
       sourceSessionId: "integration-session" as SessionId,
     });
 

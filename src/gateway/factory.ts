@@ -352,7 +352,7 @@ export function createOrchestratorFactory(
         memoryExecutor: schedulerMemoryExecutor,
         planExecutor,
         sessionExecutor,
-        googleExecutor: buildGoogleExecutor(session.taint, session.id),
+        googleExecutor: buildGoogleExecutor(() => session.taint, session.id),
         githubExecutor: schedulerGithubExecutor,
         llmTaskExecutor: registry
           ? createLlmTaskToolExecutor(registry)
@@ -477,7 +477,7 @@ export function buildSchedulerConfig(
  * clear error at tool-call time, not at startup.
  */
 export function buildGoogleExecutor(
-  sessionTaint: ClassificationLevel,
+  getSessionTaint: () => ClassificationLevel,
   sourceSessionId: SessionId,
 ):
   | ((name: string, input: Record<string, unknown>) => Promise<string | null>)
@@ -492,7 +492,7 @@ export function buildGoogleExecutor(
       tasks: createTasksService(apiClient),
       drive: createDriveService(apiClient),
       sheets: createSheetsService(apiClient),
-      sessionTaint,
+      sessionTaint: getSessionTaint,
       sourceSessionId,
     });
   } catch {
