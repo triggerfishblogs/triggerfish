@@ -134,6 +134,41 @@ const FLATPAK_APP_IDS = [
 // ---------------------------------------------------------------------------
 
 /**
+ * Build the ordered list of well-known Chromium-family executable paths
+ * for Windows, resolving standard environment variables at call time.
+ */
+function getWindowsBrowserPaths(): string[] {
+  const pf = Deno.env.get("PROGRAMFILES") ?? "C:\\Program Files";
+  const pf86 = Deno.env.get("PROGRAMFILES(X86)") ?? "C:\\Program Files (x86)";
+  const local = Deno.env.get("LOCALAPPDATA") ?? "";
+
+  const paths: string[] = [
+    // Chrome — system installs
+    `${pf}\\Google\\Chrome\\Application\\chrome.exe`,
+    `${pf86}\\Google\\Chrome\\Application\\chrome.exe`,
+    // Brave — system installs
+    `${pf}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
+    `${pf86}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
+    // Microsoft Edge (Chromium-based) — system installs
+    `${pf}\\Microsoft\\Edge\\Application\\msedge.exe`,
+    `${pf86}\\Microsoft\\Edge\\Application\\msedge.exe`,
+  ];
+
+  if (local) {
+    paths.push(
+      // Chrome — per-user install
+      `${local}\\Google\\Chrome\\Application\\chrome.exe`,
+      // Brave — per-user install
+      `${local}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
+      // Chromium — per-user install
+      `${local}\\Chromium\\Application\\chrome.exe`,
+    );
+  }
+
+  return paths;
+}
+
+/**
  * Detect a Chromium-family browser, returning a discriminated union
  * describing whether it is a direct binary or a Flatpak app.
  *
@@ -160,7 +195,10 @@ export async function detectChrome(): Promise<ChromeDetection | undefined> {
     "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
   ];
 
-  const candidates = Deno.build.os === "darwin" ? darwinPaths : linuxPaths;
+  const candidates =
+    Deno.build.os === "darwin" ? darwinPaths :
+    Deno.build.os === "windows" ? getWindowsBrowserPaths() :
+    linuxPaths;
 
   for (const p of candidates) {
     try {
@@ -171,18 +209,23 @@ export async function detectChrome(): Promise<ChromeDetection | undefined> {
     }
   }
 
-  // Fallback: try 'which' for common browser names
-  const names = ["chromium-browser", "chromium", "google-chrome", "brave-browser", "brave"];
+  // Fallback: try 'where' (Windows) or 'which' (Unix) for common browser names
+  const isWindows = Deno.build.os === "windows";
+  const whichCmd = isWindows ? "where" : "which";
+  const names = isWindows
+    ? ["chrome.exe", "brave.exe", "msedge.exe"]
+    : ["chromium-browser", "chromium", "google-chrome", "brave-browser", "brave"];
   for (const name of names) {
     try {
-      const cmd = new Deno.Command("which", {
+      const cmd = new Deno.Command(whichCmd, {
         args: [name],
         stdout: "piped",
         stderr: "null",
       });
       const result = await cmd.output();
       if (result.success) {
-        const path = new TextDecoder().decode(result.stdout).trim();
+        // 'where' may return multiple lines; take the first
+        const path = new TextDecoder().decode(result.stdout).split(/\r?\n/)[0].trim();
         if (path) return { kind: "direct", target: path };
       }
     } catch {
@@ -190,24 +233,26 @@ export async function detectChrome(): Promise<ChromeDetection | undefined> {
     }
   }
 
-  // --- 2. Flatpak (system-level then user-level) ---
-  const flatpakBin = await findFlatpakBin();
-  if (flatpakBin) {
-    const prefixes = [
-      "/var/lib/flatpak/exports/bin",
-      `${Deno.env.get("HOME") ?? ""}/.local/share/flatpak/exports/bin`,
-    ];
+  // --- 2. Flatpak (system-level then user-level) — Linux only ---
+  if (Deno.build.os !== "windows") {
+    const flatpakBin = await findFlatpakBin();
+    if (flatpakBin) {
+      const prefixes = [
+        "/var/lib/flatpak/exports/bin",
+        `${Deno.env.get("HOME") ?? ""}/.local/share/flatpak/exports/bin`,
+      ];
 
-    for (const prefix of prefixes) {
-      for (const appId of FLATPAK_APP_IDS) {
-        const exportPath = `${prefix}/${appId}`;
-        try {
-          const stat = await Deno.stat(exportPath);
-          if (stat.isFile || stat.isSymlink) {
-            return { kind: "flatpak", target: appId, flatpakBin };
+      for (const prefix of prefixes) {
+        for (const appId of FLATPAK_APP_IDS) {
+          const exportPath = `${prefix}/${appId}`;
+          try {
+            const stat = await Deno.stat(exportPath);
+            if (stat.isFile || stat.isSymlink) {
+              return { kind: "flatpak", target: appId, flatpakBin };
+            }
+          } catch {
+            // not found, try next
           }
-        } catch {
-          // not found, try next
         }
       }
     }
