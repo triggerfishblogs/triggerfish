@@ -24,6 +24,7 @@ import {
   updateTriggerfish,
 } from "./daemon.ts";
 import { VERSION } from "./version.ts";
+import { TIDEPOOL_PORT } from "./constants.ts";
 import { Confirm } from "@cliffy/prompt";
 
 // Re-export config types and functions for backward-compatibility (tests and other modules import from here)
@@ -54,6 +55,7 @@ const KNOWN_COMMANDS = new Set([
   "config",
   "dive",
   "patrol",
+  "tidepool",
   "update",
   "help",
   "version",
@@ -160,6 +162,10 @@ export function parseCommand(
     const sub = positional[1];
     return { command, subcommand: sub, flags };
   }
+  if (command === "tidepool" && positional.length > 1) {
+    const sub = positional[1];
+    return { command, subcommand: sub, flags };
+  }
 
   return { command, flags };
 }
@@ -189,6 +195,7 @@ COMMANDS:
   status      Show daemon status
   logs        View daemon logs (--tail to follow)
   patrol      Run health diagnostics
+  tidepool    Tidepool A2UI controls
   update      Pull latest code, recompile, and restart
   help        Show this help message
   version     Show version information
@@ -208,6 +215,9 @@ CRON SUBCOMMANDS:
   cron add "<schedule>" <task>           Create a new cron job
   cron delete <job_id>                   Delete a cron job
   cron history <job_id>                  Show execution history
+
+TIDEPOOL SUBCOMMANDS:
+  tidepool url                           Print Tidepool A2UI URL (if running)
 
 INTEGRATIONS:
   connect google                         Authenticate with Google Workspace
@@ -236,6 +246,7 @@ EXAMPLES:
   triggerfish connect google                          # Link Google account
   triggerfish disconnect google                       # Remove Google account
   triggerfish patrol                                # Health check
+  triggerfish tidepool url                          # Show Tidepool A2UI URL
   triggerfish update                                # Update to latest version
 
 For more information, visit: https://trigger.fish/docs
@@ -478,6 +489,7 @@ async function runDaemonStart(): Promise<void> {
   const result = await installAndStartDaemon(Deno.execPath());
   if (result.ok) {
     console.log("✓ Daemon installed and started");
+    console.log(`  Tidepool: http://127.0.0.1:${TIDEPOOL_PORT} (available once daemon is ready)`);
   } else {
     console.log(`✗ ${result.message}`);
     Deno.exit(1);
@@ -607,6 +619,11 @@ async function main(): Promise<void> {
     case "logs":
       await runDaemonLogs(parsed.flags);
       break;
+    case "tidepool": {
+      const { runTidepool } = await import("./tidepool.ts");
+      await runTidepool(parsed.subcommand, parsed.flags);
+      break;
+    }
     case "update":
       await runUpdate();
       break;
