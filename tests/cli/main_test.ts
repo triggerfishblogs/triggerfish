@@ -65,6 +65,13 @@ Deno.test("CLI: parses 'logs bundle' subcommand", async () => {
   assertEquals(cmd.subcommand, "bundle");
 });
 
+Deno.test("CLI: parses 'tidepool url' subcommand", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["tidepool", "url"]);
+  assertEquals(cmd.command, "tidepool");
+  assertEquals(cmd.subcommand, "url");
+});
+
 Deno.test("CLI: parses 'dive' command", async () => {
   const { parseCommand } = await import("../../src/cli/main.ts");
   const cmd = parseCommand(["dive"]);
