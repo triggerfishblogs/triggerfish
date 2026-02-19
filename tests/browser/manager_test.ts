@@ -8,6 +8,8 @@
 
 import { assertEquals, assertRejects } from "@std/assert";
 import {
+  applyStealthPatches,
+  baseChromeArgs,
   detectChrome,
   findFreePort,
   pollCdpReady,
@@ -148,6 +150,73 @@ Deno.test("withTimeout: propagates original rejection", async () => {
     Error,
     "original error",
   );
+});
+
+// ---------------------------------------------------------------------------
+// baseChromeArgs — anti-automation-detection flags
+// ---------------------------------------------------------------------------
+
+Deno.test("baseChromeArgs: includes --disable-blink-features=AutomationControlled", () => {
+  const config = {
+    profileBaseDir: "/tmp/test",
+    domainPolicy: createDomainPolicy({ allowList: [], denyList: [], classifications: {} }),
+    storage: createMemoryStorage(),
+  };
+  const args = baseChromeArgs(config);
+  assertEquals(args.includes("--disable-blink-features=AutomationControlled"), true);
+});
+
+Deno.test("baseChromeArgs: includes --disable-infobars", () => {
+  const config = {
+    profileBaseDir: "/tmp/test",
+    domainPolicy: createDomainPolicy({ allowList: [], denyList: [], classifications: {} }),
+    storage: createMemoryStorage(),
+  };
+  const args = baseChromeArgs(config);
+  assertEquals(args.includes("--disable-infobars"), true);
+});
+
+Deno.test("baseChromeArgs: includes --exclude-switches=enable-automation", () => {
+  const config = {
+    profileBaseDir: "/tmp/test",
+    domainPolicy: createDomainPolicy({ allowList: [], denyList: [], classifications: {} }),
+    storage: createMemoryStorage(),
+  };
+  const args = baseChromeArgs(config);
+  assertEquals(args.includes("--exclude-switches=enable-automation"), true);
+});
+
+Deno.test("baseChromeArgs: retains base operational flags", () => {
+  const config = {
+    profileBaseDir: "/tmp/test",
+    domainPolicy: createDomainPolicy({ allowList: [], denyList: [], classifications: {} }),
+    storage: createMemoryStorage(),
+  };
+  const args = baseChromeArgs(config);
+  assertEquals(args.includes("--no-first-run"), true);
+  assertEquals(args.includes("--disable-extensions"), true);
+  assertEquals(args.includes("--disable-sync"), true);
+});
+
+Deno.test("baseChromeArgs: propagates extra launchArgs", () => {
+  const config = {
+    profileBaseDir: "/tmp/test",
+    domainPolicy: createDomainPolicy({ allowList: [], denyList: [], classifications: {} }),
+    storage: createMemoryStorage(),
+    launchArgs: ["--some-custom-flag"],
+  };
+  const args = baseChromeArgs(config);
+  assertEquals(args.includes("--some-custom-flag"), true);
+});
+
+// ---------------------------------------------------------------------------
+// applyStealthPatches — exported function presence
+// ---------------------------------------------------------------------------
+
+Deno.test("applyStealthPatches: is exported as an async function", () => {
+  assertEquals(typeof applyStealthPatches, "function");
+  // Calling it with a minimal mock-like object should return a Promise
+  // (we can't run a real browser in unit tests; integration tests cover this)
 });
 
 // ---------------------------------------------------------------------------

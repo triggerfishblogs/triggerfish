@@ -368,19 +368,80 @@ function drainStderr(
 // Launch strategies
 // ---------------------------------------------------------------------------
 
-/** Standard Chrome launch arguments shared by both strategies. */
-function baseChromeArgs(config: BrowserManagerConfig): string[] {
+/**
+ * Standard Chrome launch arguments shared by both strategies.
+ *
+ * Includes anti-automation-detection flags that prevent Chrome from
+ * advertising itself as WebDriver-controlled.
+ *
+ * @exported for testing
+ */
+export function baseChromeArgs(config: BrowserManagerConfig): string[] {
   return [
     "--no-first-run",
     "--disable-default-apps",
     "--disable-extensions",
     "--disable-sync",
     "--disable-background-networking",
+    // Remove Chrome's automation-mode advertising
+    "--disable-blink-features=AutomationControlled",
+    "--disable-infobars",
+    "--exclude-switches=enable-automation",
     ...(config.credentialAutofill === true
       ? []
       : ["--disable-save-password-bubble"]),
     ...(config.launchArgs ?? []),
   ];
+}
+
+/**
+ * Apply stealth patches to a puppeteer Page to suppress automation fingerprints.
+ *
+ * Patches applied on every new document (via `evaluateOnNewDocument`):
+ * 1. `navigator.webdriver` → `undefined` (eliminates the #1 CDP detection signal)
+ * 2. `window.chrome` → `{ runtime: {} }` if absent (matches real Chrome environment)
+ *
+ * Additionally, strips `"HeadlessChrome"` from the live user-agent string and
+ * re-injects the cleaned UA for subsequent navigations.
+ *
+ * Must be called immediately after the page is obtained, before any navigation.
+ *
+ * @exported for testing
+ */
+export async function applyStealthPatches(page: Page): Promise<void> {
+  // 1. Override navigator.webdriver — the #1 automation detection signal
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+  });
+
+  // 2. Populate window.chrome so the environment looks like a real browser
+  await page.evaluateOnNewDocument(() => {
+    if (!("chrome" in window)) {
+      Object.defineProperty(window, "chrome", {
+        writable: true,
+        enumerable: true,
+        configurable: false,
+        value: { runtime: {} },
+      });
+    }
+  });
+
+  // 3. Strip "HeadlessChrome" token from the navigator.userAgent string.
+  //    Also re-override via evaluateOnNewDocument so navigations preserve the patch.
+  const ua = await page.evaluate(() => navigator.userAgent) as string;
+  const patchedUa = ua.replace(/HeadlessChrome\//g, "Chrome/");
+  if (patchedUa !== ua) {
+    await page.setUserAgent(patchedUa);
+    await page.evaluateOnNewDocument(
+      (cleanUa: string) => {
+        Object.defineProperty(navigator, "userAgent", {
+          get: () => cleanUa,
+          configurable: true,
+        });
+      },
+      patchedUa,
+    );
+  }
 }
 
 /** Launch Chrome via puppeteer.launch() for a direct binary, wrapped in a timeout. */
@@ -583,6 +644,7 @@ export function createBrowserManager(config: BrowserManagerConfig): BrowserManag
 
         const vp = config.viewport ?? DEFAULT_VIEWPORT;
         await page.setViewport({ width: vp.width, height: vp.height });
+        await applyStealthPatches(page);
 
         const instance: BrowserInstance = {
           agentId,
@@ -610,6 +672,7 @@ export function createBrowserManager(config: BrowserManagerConfig): BrowserManag
 
       const vp = config.viewport ?? DEFAULT_VIEWPORT;
       await page.setViewport({ width: vp.width, height: vp.height });
+      await applyStealthPatches(page);
 
       const instance: BrowserInstance = {
         agentId,
