@@ -7,8 +7,9 @@
  *
  * Supports two launch strategies:
  * - **direct**: Chromium binary found on the host → uses puppeteer.launch()
- * - **flatpak**: Chrome available only via Flatpak → spawns via Deno.Command
- *   with --remote-debugging-port, polls CDP until ready, then puppeteer.connect()
+ * - **flatpak**: Chrome available only via Flatpak → writes a shell wrapper that
+ *   exec-replaces itself with `flatpak run`, then uses puppeteer.launch() with
+ *   pipe: true. No TCP port allocation or CDP polling required.
  *
  * @module
  */
@@ -108,10 +109,6 @@ interface RunningBrowser {
   readonly browser: Browser;
   readonly page: Page;
   readonly instance: BrowserInstance;
-  /** The Chrome child process when launched via Flatpak. */
-  readonly chromeProcess?: Deno.ChildProcess;
-  /** The debugging port when launched via Flatpak. */
-  readonly debugPort?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,8 +117,6 @@ interface RunningBrowser {
 
 const DEFAULT_LAUNCH_TIMEOUT_MS = 30_000;
 const CDP_POLL_INTERVAL_MS = 200;
-const KILL_GRACE_MS = 5_000;
-const STDERR_TAIL_BYTES = 4_096;
 const DEFAULT_VIEWPORT = { width: 1280, height: 900 };
 
 /** Flatpak app IDs to check, in priority order. */
@@ -341,78 +336,6 @@ export function withTimeout<T>(
 }
 
 // ---------------------------------------------------------------------------
-// Process management helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Gracefully kill a Chrome child process: SIGTERM, wait up to 5 s, then SIGKILL.
- */
-async function killChromeProcess(proc: Deno.ChildProcess): Promise<void> {
-  try {
-    proc.kill("SIGTERM");
-  } catch {
-    return; // already dead
-  }
-
-  const exited = Symbol("exited");
-  const result = await Promise.race([
-    proc.status.then(() => exited),
-    new Promise<symbol>((r) => setTimeout(() => r(Symbol("timeout")), KILL_GRACE_MS)),
-  ]);
-
-  if (result !== exited) {
-    try {
-      proc.kill("SIGKILL");
-    } catch {
-      // already dead
-    }
-  }
-}
-
-/**
- * Drain stderr asynchronously to prevent pipe buffer blocking.
- * Returns a function that retrieves the last N bytes for diagnostics.
- */
-function drainStderr(
-  proc: Deno.ChildProcess,
-): () => string {
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
-  const reader = proc.stderr.getReader();
-  (async () => {
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) {
-          chunks.push(value);
-          totalBytes += value.length;
-          // Keep only the tail
-          while (totalBytes > STDERR_TAIL_BYTES && chunks.length > 1) {
-            const dropped = chunks.shift()!;
-            totalBytes -= dropped.length;
-          }
-        }
-      }
-    } catch {
-      // stream closed
-    }
-  })();
-
-  return () => {
-    const merged = new Uint8Array(totalBytes > STDERR_TAIL_BYTES ? STDERR_TAIL_BYTES : totalBytes);
-    let offset = 0;
-    for (const chunk of chunks) {
-      const start = Math.max(0, chunk.length - (merged.length - offset));
-      merged.set(chunk.subarray(start), offset);
-      offset += chunk.length - start;
-    }
-    return new TextDecoder().decode(merged);
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Launch strategies
 // ---------------------------------------------------------------------------
 
@@ -522,75 +445,63 @@ async function launchDirect(
 }
 
 /**
- * Launch Chrome via Flatpak: spawn with Deno.Command, poll CDP, then
- * connect with puppeteer.connect().
+ * Launch Flatpak Chrome via puppeteer pipe mode.
+ *
+ * Writes a small shell wrapper script that exec-replaces itself with
+ * `flatpak run --filesystem=<profileBaseDir> <appId> "$@"`, then passes it
+ * as `executablePath` to `puppeteer.launch({ pipe: true })`.
+ *
+ * Pipe mode communicates over inherited file descriptors (FDs 3 & 4), which
+ * work through `exec` regardless of Flatpak's network namespace configuration.
+ * Puppeteer owns the full process lifecycle — no manual port allocation or
+ * CDP polling required.
  */
 async function launchFlatpak(
   config: BrowserManagerConfig,
   detection: ChromeDetection,
   profilePath: string,
   timeoutMs: number,
-): Promise<
-  Result<{ browser: Browser; page: Page; process: Deno.ChildProcess; port: number }, string>
-> {
-  const port = await findFreePort();
+): Promise<Result<{ browser: Browser; page: Page }, string>> {
+  const wrapperPath = `${config.profileBaseDir}/.flatpak-chrome-wrapper.sh`;
+  const wrapperScript =
+    `#!/bin/sh\nexec ${detection.flatpakBin} run --filesystem=${config.profileBaseDir} ${detection.target} "$@"\n`;
 
-  const vp = config.viewport ?? DEFAULT_VIEWPORT;
-  const chromeArgs = [
-    `--remote-debugging-port=${port}`,
-    "--no-sandbox",
-    `--window-size=${vp.width},${vp.height}`,
-    ...(config.headless !== false ? ["--headless=new"] : []),
-    `--user-data-dir=${profilePath}`,
-    ...baseChromeArgs(config),
-  ];
-
-  const args = [
-    "run",
-    `--filesystem=${config.profileBaseDir}`,
-    detection.target,
-    ...chromeArgs,
-  ];
-
-  let proc: Deno.ChildProcess;
   try {
-    const cmd = new Deno.Command(detection.flatpakBin!, {
-      args,
-      stdout: "null",
-      stderr: "piped",
-      stdin: "null",
-    });
-    proc = cmd.spawn();
+    await Deno.writeTextFile(wrapperPath, wrapperScript);
+    await Deno.chmod(wrapperPath, 0o755);
   } catch (err) {
-    log.error("flatpak spawn exception", (err as Error).message);
-    return { ok: false, error: `Failed to spawn flatpak: ${(err as Error).message}` };
-  }
-
-  const getStderr = drainStderr(proc);
-
-  const cdpResult = await pollCdpReady(port, timeoutMs);
-  if (!cdpResult.ok) {
-    await killChromeProcess(proc);
-    const stderr = getStderr();
+    log.error("flatpak wrapper write failed", (err as Error).message);
     return {
       ok: false,
-      error: `Flatpak Chrome did not start in time. ${cdpResult.error}${stderr ? `\nstderr: ${stderr}` : ""}`,
+      error: `Failed to write Flatpak wrapper script: ${(err as Error).message}`,
     };
   }
 
+  const vp = config.viewport ?? DEFAULT_VIEWPORT;
+
   try {
-    const browser = await puppeteer.connect({
-      browserWSEndpoint: cdpResult.value.webSocketDebuggerUrl,
-    });
+    const browser = await withTimeout(
+      puppeteer.launch({
+        executablePath: wrapperPath,
+        pipe: true,
+        headless: config.headless !== false,
+        userDataDir: profilePath,
+        args: [
+          "--no-sandbox",
+          `--window-size=${vp.width},${vp.height}`,
+          ...baseChromeArgs(config),
+        ],
+      }),
+      timeoutMs,
+      `Flatpak Chrome did not start in time after ${timeoutMs}ms`,
+    );
 
     const pages = await browser.pages();
     const page = pages[0] ?? await browser.newPage();
-
-    return { ok: true, value: { browser, page, process: proc, port } };
+    return { ok: true, value: { browser, page } };
   } catch (err) {
-    log.error("puppeteer connect exception", (err as Error).message);
-    await killChromeProcess(proc);
-    return { ok: false, error: `puppeteer.connect() failed: ${(err as Error).message}` };
+    log.error("flatpak chrome launch failed", (err as Error).message);
+    return { ok: false, error: `Flatpak Chrome launch failed: ${(err as Error).message}` };
   }
 }
 
@@ -694,7 +605,7 @@ export function createBrowserManager(config: BrowserManagerConfig): BrowserManag
         log.debug("flatpak launch result", { ok: result.ok, error: result.ok ? undefined : result.error });
         if (!result.ok) return result;
 
-        const { browser, page, process: proc, port } = result.value;
+        const { browser, page } = result.value;
 
         const vp = config.viewport ?? DEFAULT_VIEWPORT;
         await page.setViewport({ width: vp.width, height: vp.height });
@@ -707,13 +618,7 @@ export function createBrowserManager(config: BrowserManagerConfig): BrowserManag
           page,
         };
 
-        instances.set(agentId, {
-          browser,
-          page,
-          instance,
-          chromeProcess: proc,
-          debugPort: port,
-        });
+        instances.set(agentId, { browser, page, instance });
 
         log.debug("browser launch success", { agentId, strategy: "flatpak", watermark });
         return { ok: true, value: instance };
@@ -751,11 +656,6 @@ export function createBrowserManager(config: BrowserManagerConfig): BrowserManag
         await running.browser.close();
       } catch {
         // ignore close errors
-      }
-
-      // Clean up Flatpak-spawned process
-      if (running.chromeProcess) {
-        await killChromeProcess(running.chromeProcess);
       }
 
       instances.delete(agentId);
