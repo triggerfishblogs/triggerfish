@@ -98,6 +98,7 @@ import type {
 } from "../scheduler/service.ts";
 import { createSkillLoader } from "../skills/loader.ts";
 import { buildSkillsSystemPrompt } from "../skills/prompts.ts";
+import { createSkillToolExecutor } from "../skills/mod.ts";
 import { getToolDefinitions, createToolExecutor } from "./agent_tools.ts";
 
 /**
@@ -331,6 +332,10 @@ export function createOrchestratorFactory(
           : undefined,
       );
 
+      const factorySkillExecutor = createSkillToolExecutor({
+        skillLoader: factorySkillLoader,
+      });
+
       const toolExecutor = createToolExecutor({
         execTools,
         cronManager,
@@ -353,6 +358,7 @@ export function createOrchestratorFactory(
           storageProvider: storage,
           skillLoader: factorySkillLoader,
         }),
+        skillExecutor: factorySkillExecutor,
         providerRegistry: registry,
       });
       // Build path classifier for scheduler workspace

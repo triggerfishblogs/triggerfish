@@ -32,6 +32,7 @@ import {
 } from "../tools/mod.ts";
 import { getTriggerToolDefinitions } from "./trigger_tools.ts";
 import { getClaudeToolDefinitions } from "../exec/claude.ts";
+import { getSkillToolDefinitions } from "../skills/mod.ts";
 import type { ToolDefinition, ToolExecutor } from "../agent/orchestrator.ts";
 import type { LlmProviderRegistry } from "../agent/llm.ts";
 import type { CronManager } from "../scheduler/cron.ts";
@@ -58,6 +59,7 @@ export function getToolDefinitions(): readonly ToolDefinition[] {
     ...getHealthcheckToolDefinitions(),
     ...getTriggerToolDefinitions(),
     ...getClaudeToolDefinitions(),
+    ...getSkillToolDefinitions(),
     {
       name: "read_file",
       description: "Read the contents of a file at an absolute path.",
@@ -307,6 +309,10 @@ export interface ToolExecutorOptions {
     name: string,
     input: Record<string, unknown>,
   ) => Promise<string | null>;
+  readonly skillExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
 }
 
 /**
@@ -435,6 +441,12 @@ export function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
     if (opts.triggerExecutor) {
       const triggerResult = await opts.triggerExecutor(name, input);
       if (triggerResult !== null) return triggerResult;
+    }
+
+    // Try skill tools (returns null if not a skill tool)
+    if (opts.skillExecutor) {
+      const skillResult = await opts.skillExecutor(name, input);
+      if (skillResult !== null) return skillResult;
     }
 
     // Try web tools (returns null if not a web tool)

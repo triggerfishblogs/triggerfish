@@ -140,6 +140,7 @@ import {
 import { parseClassification } from "../core/types/classification.ts";
 import { createSkillLoader } from "../skills/loader.ts";
 import type { Skill } from "../skills/loader.ts";
+import { createSkillToolExecutor } from "../skills/mod.ts";
 import {
   createFileWriter,
   createLogger,
@@ -731,6 +732,8 @@ export async function runStart(): Promise<void> {
     },
   });
 
+  const skillExecutor = createSkillToolExecutor({ skillLoader });
+
   const toolExecutor = createToolExecutor({
     execTools,
     cronManager,
@@ -761,6 +764,7 @@ export async function runStart(): Promise<void> {
     subagentFactory,
     secretExecutor,
     triggerExecutor,
+    skillExecutor,
     providerRegistry: registry,
   });
 
