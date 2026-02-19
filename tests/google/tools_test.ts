@@ -178,7 +178,7 @@ function createMockContext(): GoogleToolContext {
     tasks: createMockTasksService(),
     drive: createMockDriveService(),
     sheets: createMockSheetsService(),
-    sessionTaint: "INTERNAL",
+    sessionTaint: () => "INTERNAL",
     sourceSessionId: "test-session" as SessionId,
   };
 }
