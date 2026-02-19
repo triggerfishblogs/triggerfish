@@ -15,6 +15,8 @@ export {
 } from "./domains.ts";
 
 export {
+  applyStealthPatches,
+  baseChromeArgs,
   createBrowserManager,
   type BrowserInstance,
   type BrowserManager,
