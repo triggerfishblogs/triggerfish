@@ -366,7 +366,8 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     }
 
     // Identity context
-    const isOwner = config.isOwnerSession?.() ?? true;
+    // isOwner: undefined is always false — must be explicitly set (matches isTrigger pattern)
+    const isOwner = config.isOwnerSession?.() ?? false;
     hookInput.is_owner = isOwner;
     // isTrigger: undefined is always false — must be explicitly set
     const isTrigger = config.isTriggerSession?.() ?? false;
