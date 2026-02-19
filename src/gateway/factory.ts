@@ -88,11 +88,16 @@ import { createKeychain } from "../secrets/keychain.ts";
 import {
   createSessionToolExecutor,
 } from "./tools.ts";
+import {
+  createTriggerClassificationToolExecutor,
+  TRIGGER_SESSION_SYSTEM_PROMPT,
+} from "./trigger_tools.ts";
 import type { EnhancedSessionManager } from "./sessions.ts";
 import type { CronManager } from "../scheduler/cron.ts";
 import type { StorageProvider } from "../core/storage/provider.ts";
 import type {
   OrchestratorFactory,
+  OrchestratorCreateOptions,
   SchedulerServiceConfig,
   WebhookSourceConfig,
 } from "../scheduler/service.ts";
@@ -240,7 +245,7 @@ export function createOrchestratorFactory(
   let factorySkillsDiscovered = false;
 
   return {
-    async create(channelId: string) {
+    async create(channelId: string, options?: OrchestratorCreateOptions) {
       if (!factorySkillsDiscovered) {
         factorySkillsDiscovered = true;
         try {
@@ -250,6 +255,8 @@ export function createOrchestratorFactory(
           // Non-fatal
         }
       }
+      const isTrigger = options?.isTrigger ?? false;
+      const triggerCeiling = options?.ceiling ?? null;
       const agentId = `scheduler-${channelId}-${Date.now()}`;
       const workspace = await createWorkspace({
         agentId,
@@ -360,6 +367,11 @@ export function createOrchestratorFactory(
         }),
         skillExecutor: factorySkillExecutor,
         providerRegistry: registry,
+        // Trigger classification tool: available in all scheduler sessions,
+        // but only instructed to use in trigger sessions via system prompt.
+        triggerClassificationExecutor: createTriggerClassificationToolExecutor(
+          schedulerToolClassifications,
+        ),
       });
       // Build path classifier for scheduler workspace
       const schedulerPathClassifier = fsPathMap ? createPathClassifier(
@@ -386,6 +398,10 @@ export function createOrchestratorFactory(
           LLM_TASK_SYSTEM_PROMPT,
           SUMMARIZE_SYSTEM_PROMPT,
           factorySkillsPrompt,
+          // Inject trigger-specific classification ordering instructions when
+          // this session is a trigger session. Cron jobs and subagents do not
+          // get this section — it is only relevant for trigger sessions.
+          ...(isTrigger ? [TRIGGER_SESSION_SYSTEM_PROMPT] : []),
         ],
         visionProvider: schedulerVisionProvider,
         toolClassifications: schedulerToolClassifications,
@@ -396,6 +412,15 @@ export function createOrchestratorFactory(
         pathClassifier: schedulerPathClassifier,
         domainClassifier: schedulerDomainClassifier,
         toolFloorRegistry: schedulerToolFloorRegistry,
+        // Trigger sessions are not owner sessions but get built-in tool access
+        // and integration tools classified at or below their ceiling.
+        // isTriggerSession undefined is always false — must be explicitly set.
+        ...(isTrigger
+          ? {
+            isTriggerSession: () => true,
+            getNonOwnerCeiling: () => triggerCeiling,
+          }
+          : {}),
       });
 
       return { orchestrator, session };
@@ -435,7 +460,7 @@ export function buildSchedulerConfig(
           end: sched.trigger.quiet_hours.end ?? 7,
         }
         : { start: 22, end: 7 },
-      classificationCeiling: "INTERNAL" as ClassificationLevel,
+      classificationCeiling: (sched?.trigger?.classification_ceiling ?? "CONFIDENTIAL") as ClassificationLevel,
     },
     webhooks: {
       enabled: sched?.webhooks?.enabled ?? false,

@@ -19,6 +19,7 @@ import {
 import { createSchedulerService } from "../../src/scheduler/service.ts";
 import type {
   OrchestratorFactory,
+  OrchestratorCreateOptions,
   SchedulerServiceConfig,
 } from "../../src/scheduler/service.ts";
 
@@ -247,16 +248,19 @@ Deno.test("WebhookHandler: ignores unregistered event types", async () => {
 
 // ── SchedulerService ─────────────────────────────────────────────────
 
-/** Create a mock OrchestratorFactory that records calls. */
+/** Create a mock OrchestratorFactory that records calls and options. */
 function createMockFactory(): {
   factory: OrchestratorFactory;
   calls: string[];
+  options: (OrchestratorCreateOptions | undefined)[];
 } {
   const calls: string[] = [];
+  const options: (OrchestratorCreateOptions | undefined)[] = [];
   const factory: OrchestratorFactory = {
     // deno-lint-ignore require-await
-    async create(channelId: string) {
+    async create(channelId: string, opts?: OrchestratorCreateOptions) {
       calls.push(channelId);
+      options.push(opts);
       return {
         orchestrator: {
           // deno-lint-ignore require-await
@@ -275,7 +279,7 @@ function createMockFactory(): {
       };
     },
   };
-  return { factory, calls };
+  return { factory, calls, options };
 }
 
 function createTestConfig(
@@ -592,4 +596,53 @@ Deno.test("CLI: parses 'cron history' with job ID", () => {
   assertEquals(cmd.command, "cron");
   assertEquals(cmd.subcommand, "history");
   assertEquals(cmd.flags["job_id"], "abc-123");
+});
+
+// ── OrchestratorFactory trigger options ──────────────────────────────
+
+Deno.test("OrchestratorFactory: create() accepts isTrigger option", async () => {
+  const { factory, options } = createMockFactory();
+  await factory.create("trigger", { isTrigger: true, ceiling: "CONFIDENTIAL" });
+  assertEquals(options.length, 1);
+  assertEquals(options[0]?.isTrigger, true);
+  assertEquals(options[0]?.ceiling, "CONFIDENTIAL");
+});
+
+Deno.test("OrchestratorFactory: create() works without options (cron/subagent)", async () => {
+  const { factory, options } = createMockFactory();
+  await factory.create("cron");
+  assertEquals(options.length, 1);
+  assertEquals(options[0], undefined);
+});
+
+Deno.test("SchedulerService: trigger callback passes isTrigger=true and ceiling to factory", async () => {
+  const { factory, options } = createMockFactory();
+  const config: SchedulerServiceConfig = {
+    orchestratorFactory: factory,
+    triggerMdPath: "/tmp/nonexistent-trigger.md",
+    trigger: {
+      enabled: true,
+      intervalMinutes: 1,
+      classificationCeiling: "CONFIDENTIAL",
+    },
+    webhooks: { enabled: false, sources: {} },
+  };
+
+  const svc = createSchedulerService(config);
+  // Manually invoke the trigger by starting and stopping immediately.
+  // The trigger fires once immediately on start.
+  svc.start();
+  // Wait briefly for the async trigger callback
+  await new Promise((r) => setTimeout(r, 50));
+  svc.stop();
+
+  // At least one orchestrator was created, and it was for the trigger
+  const triggerOpts = options.find((_, i) => {
+    const call = (svc as unknown as { _calls?: string[] });
+    return true; // All calls in this test are from the trigger
+  });
+  // Verify the factory was called with trigger options
+  const triggerCall = options.find((o) => o?.isTrigger === true);
+  assert(triggerCall !== undefined, "Expected trigger to call factory with isTrigger=true");
+  assertEquals(triggerCall?.ceiling, "CONFIDENTIAL");
 });

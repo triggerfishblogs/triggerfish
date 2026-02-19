@@ -121,6 +121,13 @@ export interface OrchestratorConfig {
   /** Whether the active session belongs to the owner. */
   readonly isOwnerSession?: () => boolean;
   /**
+   * Whether the active session is a trigger session.
+   * Trigger sessions are not owner sessions but may call all built-in tools
+   * and integration tools classified at or below their ceiling.
+   * Undefined is always false — must be explicitly set to enable trigger behaviour.
+   */
+  readonly isTriggerSession?: () => boolean;
+  /**
    * Classification ceiling for the active non-owner session.
    * null = no explicit classification → all tools blocked.
    * Non-null = tools classified at or below this level are allowed.
@@ -292,6 +299,8 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     readonly resourceClassification: ClassificationLevel | null;
     readonly operationType: "read" | "write" | null;
     readonly isOwner: boolean;
+    /** True when the active session is a trigger session. Undefined isTriggerSession is always false. */
+    readonly isTrigger: boolean;
     readonly nonOwnerCeiling: ClassificationLevel | null;
     readonly resourceParam: string | null;
   }
@@ -359,6 +368,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     // Identity context
     const isOwner = config.isOwnerSession?.() ?? true;
     hookInput.is_owner = isOwner;
+    // isTrigger: undefined is always false — must be explicitly set
+    const isTrigger = config.isTriggerSession?.() ?? false;
+    hookInput.is_trigger = isTrigger;
     const nonOwnerCeiling = config.getNonOwnerCeiling?.() ?? null;
     if (nonOwnerCeiling !== null) {
       hookInput.non_owner_ceiling = nonOwnerCeiling;
@@ -366,7 +378,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
     return {
       input: hookInput,
-      ctx: { toolName, toolFloor, resourceClassification, operationType, isOwner, nonOwnerCeiling, resourceParam },
+      ctx: { toolName, toolFloor, resourceClassification, operationType, isOwner, isTrigger, nonOwnerCeiling, resourceParam },
     };
   }
 
@@ -418,8 +430,25 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   // blocked=true can be set on the tool_result event for channel notification.
   const toolExecutor: ToolExecutor | undefined = rawToolExecutor
     ? async (name: string, input: Record<string, unknown>): Promise<string> => {
-        // Non-owner tool access enforcement.
-        if (config.isOwnerSession && !config.isOwnerSession()) {
+        // Trigger session tool access enforcement.
+        // Trigger sessions are not owners but may call all built-in tools.
+        // Integration tools are ceiling-gated to the trigger's classification ceiling.
+        // isTriggerSession undefined is always false — must be explicitly set.
+        const isActiveTrigger = config.isTriggerSession?.() ?? false;
+        if (isActiveTrigger) {
+          const ceiling = config.getNonOwnerCeiling?.() ?? null;
+          if (ceiling !== null && config.toolClassifications) {
+            for (const [prefix, level] of config.toolClassifications) {
+              if (name.startsWith(prefix)) {
+                if (!canFlowTo(level, ceiling)) {
+                  return `Error: ${name} (classified ${level}) exceeds trigger ceiling ${ceiling}. Access denied.`;
+                }
+                break;
+              }
+            }
+          }
+        // Non-owner tool access enforcement (external channels only — not triggers).
+        } else if (config.isOwnerSession && !config.isOwnerSession()) {
           const ceiling = config.getNonOwnerCeiling?.() ?? null;
 
           // No explicit classification → all tools blocked.
@@ -905,12 +934,14 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
         if (resultText === undefined) {
           const { input: secInput, ctx: secCtx } = buildSecurityHookInput(call);
 
-          // Owner pre-escalation: escalate taint from the resolved resource
+          // Owner/trigger pre-escalation: escalate taint from the resolved resource
           // classification BEFORE the hook so tool floor checks see the
           // post-escalation taint. Owner sessions have no ceiling — reads
-          // are always allowed. Write-down checks still work because
-          // maxClassification only goes up (taint ≥ resource → no write-down).
-          if (secCtx.resourceClassification !== null && secCtx.isOwner && config.escalateTaint) {
+          // are always allowed. Trigger sessions are ceiling-gated but also
+          // pre-escalate so that tool floor checks work correctly.
+          // Write-down checks still work because maxClassification only goes up
+          // (taint ≥ resource → no write-down).
+          if (secCtx.resourceClassification !== null && (secCtx.isOwner || secCtx.isTrigger) && config.escalateTaint) {
             config.escalateTaint(secCtx.resourceClassification, `${call.name}: ${secCtx.resourceParam}`);
           }
 
@@ -949,8 +980,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
             }
 
             if (resultText === undefined) {
-              // Non-owner escalation: only after hook confirms the read/write is allowed
-              if (secCtx.resourceClassification !== null && !secCtx.isOwner && config.escalateTaint) {
+              // Non-owner escalation: only after hook confirms the read/write is allowed.
+              // Excludes trigger sessions — they escalate pre-hook (same as owners).
+              if (secCtx.resourceClassification !== null && !secCtx.isOwner && !secCtx.isTrigger && config.escalateTaint) {
                 config.escalateTaint(secCtx.resourceClassification, `${call.name}: ${secCtx.resourceParam}`);
               }
               resultText = await toolExecutor!(call.name, call.args);

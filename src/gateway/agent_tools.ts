@@ -309,6 +309,15 @@ export interface ToolExecutorOptions {
     name: string,
     input: Record<string, unknown>,
   ) => Promise<string | null>;
+  /**
+   * Executor for `get_tool_classification` — available in trigger sessions
+   * so the agent can look up tool classifications and order its work from
+   * lowest to highest classification before calling any integration tools.
+   */
+  readonly triggerClassificationExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
   readonly skillExecutor?: (
     name: string,
     input: Record<string, unknown>,
@@ -441,6 +450,12 @@ export function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
     if (opts.triggerExecutor) {
       const triggerResult = await opts.triggerExecutor(name, input);
       if (triggerResult !== null) return triggerResult;
+    }
+
+    // Try trigger classification tool (get_tool_classification — for trigger sessions)
+    if (opts.triggerClassificationExecutor) {
+      const triggerClassResult = await opts.triggerClassificationExecutor(name, input);
+      if (triggerClassResult !== null) return triggerClassResult;
     }
 
     // Try skill tools (returns null if not a skill tool)
