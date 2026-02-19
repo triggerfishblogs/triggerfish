@@ -395,3 +395,219 @@ Deno.test("Access control: sendTyping called on adapter during processing", asyn
 
   assert(typingSent.length > 0, "sendTyping should be called on the adapter during LLM processing");
 });
+
+// --- Test 12: Write-down blocked tool sends direct notification to channel ---
+//
+// When the owner's session taint (e.g. INTERNAL) exceeds an integration tool's
+// classification (e.g. PUBLIC for gmail_), the write-down check blocks the tool call
+// and sets blocked=true. buildSendEvent must forward the block reason to the channel
+// adapter so the user sees it — channels like Telegram don't surface tool results the
+// way the Tidepool webchat does.
+
+Deno.test("buildSendEvent: write-down blocked tool sends direct notification to channel adapter", async () => {
+  let callCount = 0;
+
+  // Mock LLM: first call returns a tool call for gmail_send; second returns final response
+  const mockLlm: LlmProvider = {
+    name: "mock-tool-llm",
+    supportsStreaming: false,
+    async complete(_messages, _tools, _options) {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          content: "",
+          toolCalls: [
+            {
+              function: {
+                name: "gmail_send",
+                arguments: JSON.stringify({ to: "test@example.com", subject: "Hi", body: "Hello" }),
+              },
+            },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5 },
+        };
+      }
+      // Second call: final response after receiving the blocked tool result
+      return {
+        content: "I was unable to send the email because your session taint is elevated.",
+        toolCalls: [],
+        usage: { inputTokens: 10, outputTokens: 5 },
+      };
+    },
+  };
+
+  const registry = createProviderRegistry();
+  registry.register(mockLlm);
+  registry.setDefault("mock-tool-llm");
+
+  const engine = createPolicyEngine();
+  const hookRunner = createHookRunner(engine);
+
+  const session = createSession({
+    userId: "owner" as UserId,
+    channelId: "telegram" as ChannelId,
+  });
+
+  // gmail_ tools are classified PUBLIC; session taint is INTERNAL → write-down blocked
+  const toolClassifications = new Map<string, ClassificationLevel>([
+    ["gmail_", "PUBLIC" as ClassificationLevel],
+  ]);
+
+  const chatSession = createChatSession({
+    hookRunner,
+    providerRegistry: registry,
+    session,
+    toolClassifications,
+    // Taint is INTERNAL — simulates owner session after reading an INTERNAL resource
+    getSessionTaint: () => "INTERNAL" as ClassificationLevel,
+    escalateTaint: (_level, _reason) => { /* no-op for this test */ },
+    tools: [
+      {
+        name: "gmail_send",
+        description: "Send an email",
+        parameters: {
+          to: { type: "string", description: "Recipient email address" },
+          subject: { type: "string", description: "Email subject" },
+          body: { type: "string", description: "Email body" },
+        },
+      },
+    ],
+    // toolExecutor is present so the orchestrator passes native tools to the LLM;
+    // it will NOT be reached because write-down blocks the call before execution.
+    toolExecutor: async (name, _input) => `Tool ${name} executed`,
+  });
+
+  const { adapter, sent } = createMockAdapter("INTERNAL" as ClassificationLevel);
+
+  await chatSession.registerChannel("telegram", {
+    adapter,
+    channelName: "Telegram",
+    classification: "INTERNAL" as ClassificationLevel,
+  });
+
+  await chatSession.handleChannelMessage({
+    content: "Send an email to test@example.com saying Hello",
+    sessionId: "telegram-owner-1",
+    isOwner: true,
+  }, "telegram");
+
+  // Should have received at least 2 messages:
+  //   1. The write-down block notification (tool_result with blocked=true)
+  //   2. The LLM's final response
+  assert(sent.length >= 2, `Expected ≥2 adapter messages (block notification + final response), got ${sent.length}: ${JSON.stringify(sent.map(m => m.content))}`);
+
+  // The first message should be the write-down block reason
+  const blockMsg = sent.find(
+    (m) => m.content.includes("cannot flow to") && m.content.includes("gmail_send"),
+  );
+  assert(
+    blockMsg !== undefined,
+    `Expected a write-down block notification mentioning 'gmail_send', got: ${JSON.stringify(sent.map(m => m.content))}`,
+  );
+});
+
+// --- Test 13: Non-owner with elevated taint still blocked (write-down preserved) ---
+//
+// Verifies that the write-down fix did not remove protection for non-owner sessions.
+// A non-owner whose taint has escalated to INTERNAL should still be blocked from PUBLIC tools.
+
+Deno.test("buildSendEvent: non-owner write-down block also notifies channel", async () => {
+  let callCount = 0;
+
+  const mockLlm: LlmProvider = {
+    name: "mock-nonowner-llm",
+    supportsStreaming: false,
+    async complete(_messages, _tools, _options) {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          content: "",
+          toolCalls: [
+            {
+              function: {
+                name: "gmail_send",
+                arguments: JSON.stringify({ to: "a@b.com", subject: "test", body: "test" }),
+              },
+            },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5 },
+        };
+      }
+      return {
+        content: "I cannot send the email.",
+        toolCalls: [],
+        usage: { inputTokens: 10, outputTokens: 5 },
+      };
+    },
+  };
+
+  const registry = createProviderRegistry();
+  registry.register(mockLlm);
+  registry.setDefault("mock-nonowner-llm");
+
+  const engine = createPolicyEngine();
+  const hookRunner = createHookRunner(engine);
+
+  // Non-owner session starts at PUBLIC but we simulate taint escalation to INTERNAL
+  const nonOwnerSession = createSession({
+    userId: "user-456" as UserId,
+    channelId: "telegram" as ChannelId,
+  });
+
+  let simulatedTaint: ClassificationLevel = "INTERNAL" as ClassificationLevel;
+
+  const toolClassifications = new Map<string, ClassificationLevel>([
+    ["gmail_", "PUBLIC" as ClassificationLevel],
+  ]);
+
+  const chatSession = createChatSession({
+    hookRunner,
+    providerRegistry: registry,
+    session: nonOwnerSession,
+    toolClassifications,
+    getSessionTaint: () => simulatedTaint,
+    escalateTaint: (level, _reason) => {
+      simulatedTaint = level;
+    },
+    tools: [
+      {
+        name: "gmail_send",
+        description: "Send an email",
+        parameters: {
+          to: { type: "string", description: "Recipient" },
+          subject: { type: "string", description: "Subject" },
+          body: { type: "string", description: "Body" },
+        },
+      },
+    ],
+    toolExecutor: async (name, _input) => `Sent via ${name}`,
+  });
+
+  const { adapter, sent } = createMockAdapter("INTERNAL" as ClassificationLevel);
+
+  await chatSession.registerChannel("telegram", {
+    adapter,
+    channelName: "Telegram",
+    classification: "INTERNAL" as ClassificationLevel,
+    userClassifications: { "user-456": "INTERNAL" },
+  });
+
+  await chatSession.handleChannelMessage({
+    content: "Send an email to a@b.com",
+    sessionId: "telegram-user-456",
+    senderId: "user-456",
+    isOwner: false,
+  }, "telegram");
+
+  // Tool should have been blocked — at minimum a final response should be sent
+  assert(sent.length >= 1, "Non-owner session should receive at least a final response");
+
+  // Verify the block notification was sent
+  const blockMsg = sent.find(
+    (m) => m.content.includes("cannot flow to") && m.content.includes("gmail_send"),
+  );
+  assert(
+    blockMsg !== undefined,
+    `Expected a write-down block notification for non-owner, got: ${JSON.stringify(sent.map(m => m.content))}`,
+  );
+});

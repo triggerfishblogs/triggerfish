@@ -413,7 +413,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   // Wrap tool executor with classification enforcement for integrations.
   // Only tools whose name matches a prefix in toolClassifications are gated.
   // Built-in tools (read_file, todo_, plan., etc.) have no entry and pass through.
-  // Matched integrations: escalate taint on entry, block write-down via canFlowTo.
+  // Matched integrations: escalate taint on entry.
+  // Write-down check is done in processMessage (before this wrapper) so that
+  // blocked=true can be set on the tool_result event for channel notification.
   const toolExecutor: ToolExecutor | undefined = rawToolExecutor
     ? async (name: string, input: Record<string, unknown>): Promise<string> => {
         // Non-owner tool access enforcement.
@@ -444,20 +446,13 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           }
         }
 
-        if (config.toolClassifications && config.getSessionTaint) {
+        if (config.toolClassifications && config.escalateTaint) {
           for (const [prefix, level] of config.toolClassifications) {
             if (name.startsWith(prefix)) {
-              // Write-down check: session taint must flow to integration level
-              const currentTaint = config.getSessionTaint();
-              if (!canFlowTo(currentTaint, level)) {
-                return `Error: Session taint ${currentTaint} cannot flow to ${name} (classified ${level}). ` +
-                  `Accessing a lower-classified tool from a higher-tainted session risks data leakage. ` +
-                  `Use /clear to reset your session context and taint before using ${level}-classified tools.`;
-              }
-              // Escalate session taint to integration level
-              if (config.escalateTaint) {
-                config.escalateTaint(level, `Tool call: ${name}`);
-              }
+              // Taint escalation for allowed integration calls.
+              // Write-down check has already run in processMessage (before toolExecutor is called),
+              // so this point is only reached when the call is permitted.
+              config.escalateTaint(level, `Tool call: ${name}`);
               break;
             }
           }
@@ -927,11 +922,33 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
             resultText = formatBlockReason(preToolResult.ruleId, secCtx, currentTaint);
             blocked = true;
           } else {
-            // Non-owner escalation: only after hook confirms the read/write is allowed
-            if (secCtx.resourceClassification !== null && !secCtx.isOwner && config.escalateTaint) {
-              config.escalateTaint(secCtx.resourceClassification, `${call.name}: ${secCtx.resourceParam}`);
+            // Integration write-down check — runs here (not inside toolExecutor) so that
+            // `blocked` can be set to true, enabling channels like Telegram to notify the
+            // user directly when a tool is blocked due to session taint exceeding the tool's
+            // classification level.
+            if (config.toolClassifications && config.getSessionTaint) {
+              const integrationTaint = config.getSessionTaint();
+              for (const [prefix, level] of config.toolClassifications) {
+                if (call.name.startsWith(prefix)) {
+                  if (!canFlowTo(integrationTaint, level)) {
+                    resultText =
+                      `Error: Session taint ${integrationTaint} cannot flow to ${call.name} (classified ${level}). ` +
+                      `Accessing a lower-classified tool from a higher-tainted session risks data leakage. ` +
+                      `Use /clear to reset your session context and taint before using ${level}-classified tools.`;
+                    blocked = true;
+                  }
+                  break;
+                }
+              }
             }
-            resultText = await toolExecutor!(call.name, call.args);
+
+            if (resultText === undefined) {
+              // Non-owner escalation: only after hook confirms the read/write is allowed
+              if (secCtx.resourceClassification !== null && !secCtx.isOwner && config.escalateTaint) {
+                config.escalateTaint(secCtx.resourceClassification, `${call.name}: ${secCtx.resourceParam}`);
+              }
+              resultText = await toolExecutor!(call.name, call.args);
+            }
           }
         }
 
