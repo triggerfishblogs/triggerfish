@@ -106,6 +106,8 @@ src/
 ├── core/policy/     # Policy engine, hooks, rule evaluation
 ├── core/session/    # Session manager, taint, lineage
 ├── core/storage/    # StorageProvider interface + implementations
+├── core/logger/     # Structured logging with file rotation and log levels
+├── core/security/   # Tool floors, path classification, filesystem security constants
 ├── web/             # [A1] SearchProvider, web_fetch, domain security config
 │                    #       domains.ts is shared with browser (A3) — single source of truth
 ├── memory/          # [A2] MemoryStore, MemorySearchProvider (FTS5), classification-gated CRUD
@@ -122,9 +124,14 @@ src/
 ├── plugin/          # Plugin SDK and sandbox
 ├── channels/        # Channel adapters (CLI, WhatsApp, Telegram, Slack, Discord, etc.)
 ├── agent/           # LLM orchestrator, tool dispatch, providers
+├── models/          # LLM provider failover and routing chain
 ├── exec/            # Agent execution environment
+├── tools/           # Agent tools (todo, task execution, summarization, health checks)
+├── explore/         # Structured codebase understanding via parallel sub-agents
+├── image/           # Image analysis, base64 encoding, multimodal content blocks
 ├── scheduler/       # Cron, triggers, webhooks
 ├── gateway/         # WebSocket control plane, session CRUD, notifications
+├── secrets/         # Secrets management — OS keychain, encrypted store, file-backed fallback
 ├── voice/           # STT, TTS, wake word
 ├── tidepool/        # A2UI host + tools
 ├── skills/          # Skill loader, author, scanner, Reef client
