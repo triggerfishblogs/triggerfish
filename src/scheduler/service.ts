@@ -264,10 +264,11 @@ export function createSchedulerService(
   /** Trigger callback: load TRIGGER.md and send to orchestrator. */
   async function triggerCallback(): Promise<void> {
     const triggerContent = await loadTriggerMd();
-    const message = triggerContent ??
-      "You are waking up on a periodic trigger. " +
-        "Check for anything worth reporting to the owner. " +
-        "If there is nothing to report, simply respond with a brief status.";
+    if (!triggerContent) {
+      log.debug("No TRIGGER.md found — skipping trigger run");
+      return;
+    }
+    const message = triggerContent;
 
     try {
       log.info("Creating trigger orchestrator session");
