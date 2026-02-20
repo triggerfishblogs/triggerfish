@@ -1,0 +1,185 @@
+/**
+ * Chrome launch strategies and stealth patches.
+ *
+ * Provides two launch paths (direct binary and Flatpak wrapper) and
+ * anti-automation-detection patches applied to every new page.
+ *
+ * @module
+ */
+
+import puppeteer from "puppeteer-core";
+import type { Browser, Page } from "puppeteer-core";
+import type { Result } from "../../core/types/classification.ts";
+import type { BrowserManagerConfig } from "./manager.ts";
+import { withTimeout } from "./manager_detection.ts";
+import type { ChromeDetection } from "./manager_detection.ts";
+import { DEFAULT_VIEWPORT } from "./manager_detection.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("browser-launch");
+
+/**
+ * Standard Chrome launch arguments shared by both strategies.
+ *
+ * Includes anti-automation-detection flags that prevent Chrome from
+ * advertising itself as WebDriver-controlled.
+ *
+ * @exported for testing
+ */
+export function baseChromeArgs(config: BrowserManagerConfig): string[] {
+  return [
+    "--no-first-run",
+    "--disable-default-apps",
+    "--disable-extensions",
+    "--disable-sync",
+    "--disable-background-networking",
+    // Remove Chrome's automation-mode advertising
+    "--disable-blink-features=AutomationControlled",
+    "--disable-infobars",
+    "--exclude-switches=enable-automation",
+    ...(config.credentialAutofill === true
+      ? []
+      : ["--disable-save-password-bubble"]),
+    ...(config.launchArgs ?? []),
+  ];
+}
+
+/**
+ * Apply stealth patches to a puppeteer Page to suppress automation fingerprints.
+ *
+ * Patches applied on every new document (via `evaluateOnNewDocument`):
+ * 1. `navigator.webdriver` → `undefined` (eliminates the #1 CDP detection signal)
+ * 2. `window.chrome` → `{ runtime: {} }` if absent (matches real Chrome environment)
+ *
+ * Additionally, strips `"HeadlessChrome"` from the live user-agent string and
+ * re-injects the cleaned UA for subsequent navigations.
+ *
+ * Must be called immediately after the page is obtained, before any navigation.
+ *
+ * @exported for testing
+ */
+export async function applyStealthPatches(page: Page): Promise<void> {
+  // 1. Override navigator.webdriver — the #1 automation detection signal
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+  });
+
+  // 2. Populate window.chrome so the environment looks like a real browser
+  await page.evaluateOnNewDocument(() => {
+    if (!("chrome" in window)) {
+      Object.defineProperty(window, "chrome", {
+        writable: true,
+        enumerable: true,
+        configurable: false,
+        value: { runtime: {} },
+      });
+    }
+  });
+
+  // 3. Strip "HeadlessChrome" token from the navigator.userAgent string.
+  //    Also re-override via evaluateOnNewDocument so navigations preserve the patch.
+  const ua = await page.evaluate(() => navigator.userAgent) as string;
+  const patchedUa = ua.replace(/HeadlessChrome\//g, "Chrome/");
+  if (patchedUa !== ua) {
+    await page.setUserAgent(patchedUa);
+    await page.evaluateOnNewDocument(
+      (cleanUa: string) => {
+        Object.defineProperty(navigator, "userAgent", {
+          get: () => cleanUa,
+          configurable: true,
+        });
+      },
+      patchedUa,
+    );
+  }
+}
+
+/** Launch Chrome via puppeteer.launch() for a direct binary, wrapped in a timeout. */
+export async function launchDirect(
+  config: BrowserManagerConfig,
+  execPath: string,
+  profilePath: string,
+  timeoutMs: number,
+): Promise<Result<{ browser: Browser; page: Page }, string>> {
+  try {
+    const browser = await withTimeout(
+      puppeteer.launch({
+        executablePath: execPath,
+        pipe: true,
+        headless: config.headless !== false,
+        userDataDir: profilePath,
+        args: baseChromeArgs(config),
+      }),
+      timeoutMs,
+      `Chrome launch timed out after ${timeoutMs}ms`,
+    );
+
+    const pages = await browser.pages();
+    const page = pages[0] ?? await browser.newPage();
+    return { ok: true, value: { browser, page } };
+  } catch (err) {
+    log.error("browser launch exception", (err as Error).message);
+    return { ok: false, error: `Browser launch failed: ${(err as Error).message}` };
+  }
+}
+
+/**
+ * Launch Flatpak Chrome via puppeteer pipe mode.
+ *
+ * Writes a small shell wrapper script that exec-replaces itself with
+ * `flatpak run --filesystem=<profileBaseDir> <appId> "$@"`, then passes it
+ * as `executablePath` to `puppeteer.launch({ pipe: true })`.
+ *
+ * Pipe mode communicates over inherited file descriptors (FDs 3 & 4), which
+ * work through `exec` regardless of Flatpak's network namespace configuration.
+ * Puppeteer owns the full process lifecycle — no manual port allocation or
+ * CDP polling required.
+ */
+export async function launchFlatpak(
+  config: BrowserManagerConfig,
+  detection: ChromeDetection,
+  profilePath: string,
+  timeoutMs: number,
+): Promise<Result<{ browser: Browser; page: Page }, string>> {
+  const wrapperPath = `${config.profileBaseDir}/.flatpak-chrome-wrapper.sh`;
+  const wrapperScript =
+    `#!/bin/sh\nexec ${detection.flatpakBin} run --filesystem=${config.profileBaseDir} ${detection.target} "$@"\n`;
+
+  try {
+    await Deno.writeTextFile(wrapperPath, wrapperScript);
+    await Deno.chmod(wrapperPath, 0o755);
+  } catch (err) {
+    log.error("flatpak wrapper write failed", (err as Error).message);
+    return {
+      ok: false,
+      error: `Failed to write Flatpak wrapper script: ${(err as Error).message}`,
+    };
+  }
+
+  const vp = config.viewport ?? DEFAULT_VIEWPORT;
+
+  try {
+    const browser = await withTimeout(
+      puppeteer.launch({
+        executablePath: wrapperPath,
+        pipe: true,
+        headless: config.headless !== false,
+        userDataDir: profilePath,
+        args: [
+          "--no-sandbox",
+          `--window-size=${vp.width},${vp.height}`,
+          ...baseChromeArgs(config),
+        ],
+      }),
+      timeoutMs,
+      `Flatpak Chrome did not start in time after ${timeoutMs}ms`,
+    );
+
+    const pages = await browser.pages();
+    const page = pages[0] ?? await browser.newPage();
+    return { ok: true, value: { browser, page } };
+  } catch (err) {
+    log.error("flatpak chrome launch failed", (err as Error).message);
+    return { ok: false, error: `Flatpak Chrome launch failed: ${(err as Error).message}` };
+  }
+}
