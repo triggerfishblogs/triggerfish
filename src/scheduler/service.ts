@@ -200,6 +200,10 @@ export function createSchedulerService(
         targetClassification: job.classificationCeiling,
       });
 
+      if (result.ok) {
+        const { inputTokens, outputTokens } = result.value.tokenUsage;
+        log.info(`[cron:${job.id}] Token usage — input: ${inputTokens}, output: ${outputTokens}, total: ${inputTokens + outputTokens}`);
+      }
       await deliverOutput(result, session.taint, `cron:${job.id}`);
 
       cronManager.recordExecution({
@@ -258,6 +262,10 @@ export function createSchedulerService(
       });
 
       log.info(`Trigger completed (ok: ${result.ok}, taint: ${session.taint})`);
+      if (result.ok) {
+        const { inputTokens, outputTokens } = result.value.tokenUsage;
+        log.info(`[trigger] Token usage — input: ${inputTokens}, output: ${outputTokens}, total: ${inputTokens + outputTokens}`);
+      }
       await deliverOutput(result, session.taint, "trigger");
     } catch (err) {
       log.error(`Trigger callback failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -343,6 +351,10 @@ export function createSchedulerService(
           targetClassification: source.classification,
         });
 
+        if (result.ok) {
+          const { inputTokens, outputTokens } = result.value.tokenUsage;
+          log.info(`[webhook:${sourceId}] Token usage — input: ${inputTokens}, output: ${outputTokens}, total: ${inputTokens + outputTokens}`);
+        }
         await deliverOutput(result, session.taint, `webhook:${sourceId}`);
       } catch {
         // Webhook processing failures are logged but don't fail the HTTP response
