@@ -861,6 +861,11 @@ export async function runStart(): Promise<void> {
   console.log(`  Tidepool: http://127.0.0.1:${TIDEPOOL_PORT}`);
   // Wire up MCP status indicator for Tidepool
   _mcpTidepoolRef = tidepoolHost;
+  // Register Tidepool for trigger/scheduler notification delivery
+  notificationService.registerChannel({
+    name: "tidepool",
+    send: async (msg) => { tidepoolHost.broadcastNotification(msg); },
+  });
 
   // Wrap the chatSession for CLI WebSocket clients so that secret_save prompts
   // are sent over the WebSocket (just like the Tidepool variant) instead of
@@ -890,6 +895,11 @@ export async function runStart(): Promise<void> {
   log.info(`Gateway listening on ${addr.hostname}:${addr.port}`);
   // Wire gateway server for MCP status broadcasting
   _mcpGatewayServerRef = server;
+  // Register CLI WebSocket for trigger/scheduler notification delivery
+  notificationService.registerChannel({
+    name: "cli-websocket",
+    send: async (msg) => { server.broadcastNotification(msg); },
+  });
 
   // --- Telegram channel wiring ---
   const telegramConfig = config.channels?.telegram as {

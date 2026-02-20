@@ -168,6 +168,18 @@ export async function runChat(): Promise<void> {
         return;
       }
 
+      if (evt.type === "notification") {
+        if (isTty) {
+          screen.writeOutput(`  \x1b[33m⚡ [trigger]\x1b[0m ${evt.message}`);
+          screen.writeOutput("");
+          screen.redrawInput(editor);
+        } else {
+          console.log(`\n  [trigger] ${evt.message}\n`);
+          renderPrompt();
+        }
+        return;
+      }
+
       if (evt.type === "secret_prompt") {
         if (isTty) {
           // Enter password mode — capture keystrokes for the secret value

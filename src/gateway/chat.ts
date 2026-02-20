@@ -105,6 +105,8 @@ export type ChatEvent =
     /** Optional human-readable hint for the user. */
     readonly hint?: string;
   }
+  /** Server → client: a trigger/scheduler notification delivered to the owner. */
+  | { readonly type: "notification"; readonly message: string }
   /** Server → client: cancel acknowledged — the in-flight request was aborted. */
   | { readonly type: "cancelled" };
 

@@ -93,6 +93,10 @@ export interface A2UIHost {
    * @param configured - Total number of configured (non-disabled) MCP servers
    */
   broadcastMcpStatus(connected: number, configured: number): void;
+  /**
+   * Broadcast a trigger/scheduler notification to all connected Tidepool clients.
+   */
+  broadcastNotification(message: string): void;
   /** The number of currently connected WebSocket clients. */
   readonly connections: number;
 }
@@ -319,6 +323,11 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
       lastMcpConnected = connected;
       lastMcpConfigured = configured;
       const json = JSON.stringify({ type: "mcp_status", connected, configured });
+      sendToAll(json);
+    },
+
+    broadcastNotification(message: string): void {
+      const json = JSON.stringify({ type: "notification", message });
       sendToAll(json);
     },
 
