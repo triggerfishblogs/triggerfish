@@ -101,7 +101,7 @@ export async function wireTelegramChannel(
 
     if (msg.isOwner !== false) {
       const sendEvent = buildSendEvent(telegramAdapter, "Telegram", msg);
-      chatSession.processMessage(msg.content, sendEvent)
+      chatSession.executeAgentTurn(msg.content, sendEvent)
         .catch((err) => log.error("Telegram message processing error:", err));
     } else {
       chatSession.handleChannelMessage(msg, "telegram")
@@ -186,7 +186,7 @@ export async function wireDiscordChannel(
 
       if (msg.isOwner !== false) {
         const sendEvent = buildSendEvent(discordAdapter, "Discord", msg);
-        chatSession.processMessage(msg.content, sendEvent)
+        chatSession.executeAgentTurn(msg.content, sendEvent)
           .catch((err) => log.error("Discord message processing error:", err));
       } else {
         chatSession.handleChannelMessage(msg, "discord")

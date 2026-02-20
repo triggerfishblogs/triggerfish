@@ -217,7 +217,7 @@ export function createSchedulerService(
       const { orchestrator, session } =
         await config.orchestratorFactory.create("cron");
 
-      const result = await orchestrator.processMessage({
+      const result = await orchestrator.executeAgentTurn({
         session,
         message: job.task,
         targetClassification: job.classificationCeiling,
@@ -279,7 +279,7 @@ export function createSchedulerService(
         });
 
       log.info("Trigger orchestrator processing TRIGGER.md");
-      const result = await orchestrator.processMessage({
+      const result = await orchestrator.executeAgentTurn({
         session,
         message,
         targetClassification: config.trigger.classificationCeiling,
@@ -374,7 +374,7 @@ export function createSchedulerService(
 
         const message =
           `Webhook event from ${sourceId}: ${event.event}\n\nPayload:\n${body}`;
-        const result = await orchestrator.processMessage({
+        const result = await orchestrator.executeAgentTurn({
           session,
           message,
           targetClassification: source.classification,

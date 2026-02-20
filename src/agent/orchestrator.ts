@@ -163,7 +163,7 @@ export interface ClassificationMapConfig {
  * Built-in tools are not in this map and pass through ungated.
  * Only external integrations, plugins, and channels are classified.
  */
-export function buildToolClassifications(config: ClassificationMapConfig): Map<string, ClassificationLevel> {
+export function mapToolPrefixClassifications(config: ClassificationMapConfig): Map<string, ClassificationLevel> {
   const m = new Map<string, ClassificationLevel>();
 
   // Google Workspace — gmail_, calendar_, drive_, sheets_, tasks_
@@ -216,7 +216,7 @@ export interface HistoryEntry {
 /** The orchestrator interface for processing messages. */
 export interface Orchestrator {
   /** Process a user message through the full agent loop. */
-  processMessage(
+  executeAgentTurn(
     options: ProcessMessageOptions,
   ): Promise<Result<ProcessMessageResult, string>>;
   /** Get conversation history for a session. */
@@ -258,7 +258,7 @@ export type OrchestratorEventCallback = (event: OrchestratorEvent) => void;
  * Load SPINE.md content from the filesystem.
  * Returns the file content or null if the file cannot be read.
  */
-async function loadSpine(spinePath: string | undefined): Promise<string | null> {
+async function readSpineFromDisk(spinePath: string | undefined): Promise<string | null> {
   if (!spinePath) return null;
   try {
     return await Deno.readTextFile(spinePath);
@@ -315,7 +315,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
    * Returns both the hook input (flat Record for policy engine) and
    * the structured SecurityContext (for building detailed error messages).
    */
-  function buildSecurityHookInput(
+  function assembleSecurityContext(
     call: ParsedToolCall,
   ): { input: Record<string, unknown>; ctx: SecurityContext } {
     const hookInput: Record<string, unknown> = { tool_call: call };
@@ -395,7 +395,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
    * check failed, then includes the actual classification levels and
    * remediation advice (e.g. /clear to reset session taint).
    */
-  function formatBlockReason(
+  function renderPolicyBlockExplanation(
     ruleId: string | null,
     ctx: SecurityContext,
     sessionTaint: ClassificationLevel,
@@ -432,7 +432,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   // Only tools whose name matches a prefix in toolClassifications are gated.
   // Built-in tools (read_file, todo_, plan., etc.) have no entry and pass through.
   // Matched integrations: escalate taint on entry.
-  // Write-down check is done in processMessage (before this wrapper) so that
+  // Write-down check is done in executeAgentTurn (before this wrapper) so that
   // blocked=true can be set on the tool_result event for channel notification.
   const toolExecutor: ToolExecutor | undefined = rawToolExecutor
     ? async (name: string, input: Record<string, unknown>): Promise<string> => {
@@ -485,7 +485,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           for (const [prefix, level] of config.toolClassifications) {
             if (name.startsWith(prefix)) {
               // Taint escalation for allowed integration calls.
-              // Write-down check has already run in processMessage (before toolExecutor is called),
+              // Write-down check has already run in executeAgentTurn (before toolExecutor is called),
               // so this point is only reached when the call is permitted.
               config.escalateTaint(level, `Tool call: ${name}`);
               break;
@@ -557,7 +557,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
    * Describe images using the vision provider.
    * Returns a text description for each image block.
    */
-  async function describeImages(
+  async function transcribeImagesForNonVisionModel(
     images: readonly ImageContentBlock[],
     signal?: AbortSignal,
   ): Promise<readonly string[]> {
@@ -585,7 +585,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     return descriptions;
   }
 
-  async function processMessage(
+  async function executeAgentTurn(
     options: ProcessMessageOptions,
   ): Promise<Result<ProcessMessageResult, string>> {
     const { session, message, targetClassification, signal } = options;
@@ -613,7 +613,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     }
 
     // 3. Build LLM context — load SPINE.md or use default prompt
-    const spineContent = await loadSpine(spinePath);
+    const spineContent = await readSpineFromDisk(spinePath);
     let systemPrompt = spineContent ?? DEFAULT_SYSTEM_PROMPT;
 
     // Append platform-level sections (layered after SPINE.md).
@@ -658,7 +658,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       emit({ type: "vision_start", imageCount: images.length });
       debugLog("vision", `describing ${images.length} image(s) via vision provider`);
 
-      const descriptions = await describeImages(images, signal);
+      const descriptions = await transcribeImagesForNonVisionModel(images, signal);
 
       emit({ type: "vision_complete", imageCount: images.length });
 
@@ -948,7 +948,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
         // Step 3: Universal security + execution path (runs if not handled above)
         if (resultText === undefined) {
-          const { input: secInput, ctx: secCtx } = buildSecurityHookInput(call);
+          const { input: secInput, ctx: secCtx } = assembleSecurityContext(call);
 
           // Owner/trigger pre-escalation: escalate taint from the resolved resource
           // classification BEFORE the hook so tool floor checks see the
@@ -972,7 +972,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
             input: secInput,
           });
           if (!preToolResult.allowed) {
-            resultText = formatBlockReason(preToolResult.ruleId, secCtx, currentTaint);
+            resultText = renderPolicyBlockExplanation(preToolResult.ruleId, secCtx, currentTaint);
             blocked = true;
           } else {
             // Integration write-down check — runs here (not inside toolExecutor) so that
@@ -1062,5 +1062,5 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     return { messagesBefore, messagesAfter: history.length, tokensBefore, tokensAfter };
   }
 
-  return { processMessage, getHistory, clearHistory, compactHistory };
+  return { executeAgentTurn, getHistory, clearHistory, compactHistory };
 }

@@ -148,7 +148,7 @@ Deno.test("Blocking: write_file is blocked in plan mode", async () => {
 
   const { orchestrator, session, toolResults } = createTestOrchestrator(responses, pm);
 
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "Build a new feature",
     targetClassification: "INTERNAL",
@@ -178,7 +178,7 @@ Deno.test("Blocking: read_file is allowed in plan mode", async () => {
 
   const { orchestrator, session, toolResults, wasExternalToolCalled } = createTestOrchestrator(responses, pm);
 
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session,
     message: "Explore the code",
     targetClassification: "INTERNAL",
@@ -218,7 +218,7 @@ Deno.test("Blocking: tools unblocked after plan_exit", async () => {
 
   const { orchestrator, session, toolResults } = createTestOrchestrator(responses, pm);
 
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session,
     message: "Build something",
     targetClassification: "INTERNAL",
@@ -241,7 +241,7 @@ Deno.test("Blocking: plan_enter itself is never blocked", async () => {
 
   const { orchestrator, session, toolResults } = createTestOrchestrator(responses, pm);
 
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session,
     message: "Plan something",
     targetClassification: "INTERNAL",
@@ -313,7 +313,7 @@ Deno.test("Blocking: cron_create blocked in plan mode", async () => {
     },
   });
 
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session: sess,
     message: "Create a cron job",
     targetClassification: "INTERNAL",

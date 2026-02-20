@@ -24,7 +24,7 @@ import {
   TIDEPOOL_SYSTEM_PROMPT,
 } from "../tools/tidepool/mod.ts";
 import {
-  buildToolClassifications,
+  mapToolPrefixClassifications,
 } from "../agent/orchestrator.ts";
 import type { ToolDefinition } from "../agent/orchestrator.ts";
 import { createProviderRegistry } from "../agent/llm.ts";
@@ -445,7 +445,7 @@ export async function runStart(): Promise<void> {
   );
 
   // Integration/plugin/channel classification map. Built-in tools pass through.
-  const toolClassifications = buildToolClassifications(config);
+  const toolClassifications = mapToolPrefixClassifications(config);
 
   // GitHub tools — resolve token from OS keychain
   const keychain = createKeychain();
@@ -469,7 +469,7 @@ export async function runStart(): Promise<void> {
       }
       : undefined,
   );
-  // GitHub classification is set by buildToolClassifications from config
+  // GitHub classification is set by mapToolPrefixClassifications from config
 
   // Obsidian vault tools (graceful degrade if not configured)
   let obsidianExecutor:
@@ -504,7 +504,7 @@ export async function runStart(): Promise<void> {
         getSessionTaint: () => session.taint,
         sessionId: session.id,
       });
-      // Obsidian classification is set by buildToolClassifications from config
+      // Obsidian classification is set by mapToolPrefixClassifications from config
       log.info(`Obsidian vault connected: ${obsCfg.vault_path}`);
     } else {
       log.error(`Obsidian vault error: ${vaultResult.error}`);
@@ -699,7 +699,7 @@ export async function runStart(): Promise<void> {
   // Mutable prompt callback ref — defaults to CLI terminal input.
   // Tidepool path swaps this to the browser WebSocket callback once the
   // chatSession is available. Access is safe because the mutex serializes
-  // processMessage calls and ensures no concurrent secret_save invocations.
+  // executeAgentTurn calls and ensures no concurrent secret_save invocations.
   let activeSecretPrompt: SecretPromptCallback = cliSecretPrompt;
   const secretExecutor = createSecretToolExecutor(
     mainKeychain,
@@ -814,20 +814,20 @@ export async function runStart(): Promise<void> {
   // Wire chat session for MCP status broadcasting (late-bound ref used in onStatusChange callback)
   _mcpChatSessionRef = chatSession;
 
-  // Wrap the chatSession processMessage for Tidepool so that each WebSocket
+  // Wrap the chatSession executeAgentTurn for Tidepool so that each WebSocket
   // message sets the active secret prompt callback to the Tidepool variant
   // (which sends a `secret_prompt` event over the browser WebSocket).
   // CLI path leaves activeSecretPrompt as the terminal hidden-input callback.
   const tidepoolChatSession = {
     ...chatSession,
-    processMessage: (
-      content: Parameters<typeof chatSession.processMessage>[0],
-      sendEvent: Parameters<typeof chatSession.processMessage>[1],
-      signal?: Parameters<typeof chatSession.processMessage>[2],
+    executeAgentTurn: (
+      content: Parameters<typeof chatSession.executeAgentTurn>[0],
+      sendEvent: Parameters<typeof chatSession.executeAgentTurn>[1],
+      signal?: Parameters<typeof chatSession.executeAgentTurn>[2],
     ) => {
       isTidepoolCall = true;
       activeSecretPrompt = chatSession.createTidepoolSecretPrompt(sendEvent);
-      return chatSession.processMessage(content, sendEvent, signal).finally(() => {
+      return chatSession.executeAgentTurn(content, sendEvent, signal).finally(() => {
         isTidepoolCall = false;
         activeSecretPrompt = cliSecretPrompt;
       });
@@ -854,13 +854,13 @@ export async function runStart(): Promise<void> {
   // trying to read from the daemon's stdin (which has no TTY).
   const gatewayChatSession = {
     ...chatSession,
-    processMessage: (
-      content: Parameters<typeof chatSession.processMessage>[0],
-      sendEvent: Parameters<typeof chatSession.processMessage>[1],
-      signal?: Parameters<typeof chatSession.processMessage>[2],
+    executeAgentTurn: (
+      content: Parameters<typeof chatSession.executeAgentTurn>[0],
+      sendEvent: Parameters<typeof chatSession.executeAgentTurn>[1],
+      signal?: Parameters<typeof chatSession.executeAgentTurn>[2],
     ) => {
       activeSecretPrompt = chatSession.createTidepoolSecretPrompt(sendEvent);
-      return chatSession.processMessage(content, sendEvent, signal).finally(() => {
+      return chatSession.executeAgentTurn(content, sendEvent, signal).finally(() => {
         activeSecretPrompt = cliSecretPrompt;
       });
     },

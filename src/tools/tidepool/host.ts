@@ -238,7 +238,7 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
                     }
                   };
 
-                  chatSession.processMessage(msg.content, send, signal).finally(() => {
+                  chatSession.executeAgentTurn(msg.content, send, signal).finally(() => {
                     abortController = null;
                   });
                 }

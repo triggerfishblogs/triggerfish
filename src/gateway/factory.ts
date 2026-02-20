@@ -19,7 +19,7 @@ import {
 } from "../agent/providers/config.ts";
 import type { ModelsConfig } from "../agent/providers/config.ts";
 import {
-  buildToolClassifications,
+  mapToolPrefixClassifications,
   createOrchestrator,
 } from "../agent/orchestrator.ts";
 // OrchestratorFactory is imported below with other scheduler types
@@ -160,7 +160,7 @@ export function buildSubagentFactory(
 ): (task: string, tools?: string) => Promise<string> {
   return async (task: string, _tools?: string): Promise<string> => {
     const { orchestrator, session } = await orchFactory.create("subagent");
-    const result = await orchestrator.processMessage({
+    const result = await orchestrator.executeAgentTurn({
       session,
       message: task,
       targetClassification: session.taint,
@@ -204,7 +204,7 @@ export function createOrchestratorFactory(
   const schedulerKeychain = createKeychain();
 
   // Shared by all scheduler orchestrators — same config-driven map
-  const schedulerToolClassifications = buildToolClassifications(config);
+  const schedulerToolClassifications = mapToolPrefixClassifications(config);
 
   // Discover skills for scheduler agents (same directories as main session)
   const factoryBundledSkillsDir = join(

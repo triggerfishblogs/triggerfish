@@ -232,7 +232,7 @@ interface ChannelState {
 /** Shared chat session that serializes access to the orchestrator. */
 export interface ChatSession {
   /** Process an owner message through the orchestrator. */
-  processMessage(
+  executeAgentTurn(
     content: MessageContent,
     sendEvent: ChatEventSender,
     signal?: AbortSignal,
@@ -459,10 +459,10 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
   // Keyed by nonce; values are resolve functions from awaited Promises.
   const pendingSecretPrompts = new Map<string, (value: string | null) => void>();
 
-  // Promise-chain mutex: each processMessage waits for the previous to finish
+  // Promise-chain mutex: each executeAgentTurn waits for the previous to finish
   let mutex: Promise<void> = Promise.resolve();
 
-  async function processMessage(
+  async function executeAgentTurn(
     content: MessageContent,
     sendEvent: ChatEventSender,
     signal?: AbortSignal,
@@ -479,7 +479,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     activeSessionId = ownerSessionId;
 
     try {
-      const result = await orchestrator.processMessage({
+      const result = await orchestrator.executeAgentTurn({
         session: getSession(),
         message: content,
         targetClassification: ownerTargetClassification,
@@ -544,7 +544,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     // Owner messages → build sendEvent from adapter → main daemon session
     if (msg.isOwner !== false) {
       const sendEvent = buildSendEvent(channelState.adapter, channelState.channelName, msg);
-      return processMessage(msg.content, sendEvent, signal);
+      return executeAgentTurn(msg.content, sendEvent, signal);
     }
 
     const senderId = msg.senderId ?? "";
@@ -605,7 +605,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
       : null;
 
     try {
-      const result = await orchestrator.processMessage({
+      const result = await orchestrator.executeAgentTurn({
         session: userSession,
         message: msg.content,
         targetClassification: userCls,
@@ -685,7 +685,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
   let mcpStatusConfigured = 0;
 
   return {
-    processMessage,
+    executeAgentTurn,
     registerChannel,
     handleChannelMessage,
     clear,

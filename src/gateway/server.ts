@@ -331,7 +331,7 @@ function handleChatWebSocket(
           }
         };
 
-        chat.processMessage(msg.content, send, signal).finally(() => {
+        chat.executeAgentTurn(msg.content, send, signal).finally(() => {
           abortController = null;
         });
       }

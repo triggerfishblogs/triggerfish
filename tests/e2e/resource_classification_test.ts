@@ -201,7 +201,7 @@ Deno.test("resource-classification: filesystem read escalates taint then blocks 
   let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
   session = updateTaint(session, "INTERNAL", "initial");
 
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "Read finance doc then write notes",
     targetClassification: "CONFIDENTIAL",
@@ -266,7 +266,7 @@ Deno.test("resource-classification: web_fetch escalates taint via domain classif
   let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
   session = updateTaint(session, "INTERNAL", "initial");
 
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "Fetch report then write notes",
     targetClassification: "CONFIDENTIAL",
@@ -401,7 +401,7 @@ Deno.test("resource-classification: write to higher-classified path escalates ta
   let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
   session = updateTaint(session, "INTERNAL", "initial");
 
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "Write reports",
     targetClassification: "CONFIDENTIAL",
@@ -457,7 +457,7 @@ Deno.test("resource-classification: unmapped URL uses default domain classificat
   let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
   session = updateTaint(session, "INTERNAL", "initial");
 
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session,
     message: "Fetch a random page",
     targetClassification: "CONFIDENTIAL",
@@ -490,7 +490,7 @@ Deno.test("resource-classification: plan tool handled without security path, non
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "read file",
     targetClassification: "INTERNAL",
@@ -538,7 +538,7 @@ Deno.test("resource-classification: filesystem classification takes precedence o
   let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
   session = updateTaint(session, "INTERNAL", "initial");
 
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session,
     message: "read finance file",
     targetClassification: "RESTRICTED",
