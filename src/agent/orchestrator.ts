@@ -15,8 +15,8 @@
 import { createLogger } from "../core/logger/mod.ts";
 import type { Result, ClassificationLevel } from "../core/types/classification.ts";
 import { canFlowTo } from "../core/types/classification.ts";
-import type { SecretStore } from "../secrets/keychain.ts";
-import { resolveSecretRefs } from "../secrets/resolver.ts";
+import type { SecretStore } from "../core/secrets/keychain.ts";
+import { resolveSecretRefs } from "../core/secrets/resolver.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
 import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
 import {
@@ -25,14 +25,14 @@ import {
   URL_READ_TOOLS,
   URL_WRITE_TOOLS,
 } from "../core/security/constants.ts";
-import type { DomainClassifier } from "../web/domains.ts";
+import type { DomainClassifier } from "../tools/web/domains.ts";
 import type { SessionState, SessionId } from "../core/types/session.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { LlmProviderRegistry, LlmMessage, LlmProvider } from "./llm.ts";
 import { createCompactor, estimateHistoryTokens, countTokens } from "./compactor.ts";
 import type { Compactor, CompactorConfig, CompactResult } from "./compactor.ts";
-import type { MessageContent, ImageContentBlock, ContentBlock } from "../image/content.ts";
-import { extractText, hasImages, normalizeContent } from "../image/content.ts";
+import type { MessageContent, ImageContentBlock, ContentBlock } from "../core/image/content.ts";
+import { extractText, hasImages, normalizeContent } from "../core/image/content.ts";
 import type { PlanManager } from "./plan.ts";
 import { createPlanToolExecutor } from "./plan.ts";
 import { buildPlanModePrompt, buildAwaitingApprovalPrompt, buildPlanExecutionPrompt } from "./plan_prompt.ts";

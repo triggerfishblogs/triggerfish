@@ -44,7 +44,7 @@ import {
   createMemoryStore,
   createMemoryToolExecutor,
   getMemoryToolDefinitions,
-} from "../memory/mod.ts";
+} from "../tools/memory/mod.ts";
 import {
   createBraveSearchProvider,
   createDomainClassifier,
@@ -52,13 +52,13 @@ import {
   createRateLimitedSearchProvider,
   createWebFetcher,
   getWebToolDefinitions,
-} from "../web/mod.ts";
+} from "../tools/web/mod.ts";
 import type {
   DomainClassifier,
   DomainSecurityConfig,
   SearchProvider,
   WebFetcher,
-} from "../web/mod.ts";
+} from "../tools/web/mod.ts";
 import { createPlanManager, createPlanToolExecutor } from "../agent/plan.ts";
 import {
   getPlanToolDefinitions,
@@ -78,7 +78,7 @@ import {
   createGitHubToolExecutor,
   resolveGitHubToken,
 } from "../integrations/github/mod.ts";
-import { createKeychain } from "../secrets/keychain.ts";
+import { createKeychain } from "../core/secrets/keychain.ts";
 import {
   createSessionToolExecutor,
 } from "./tools.ts";
@@ -95,9 +95,9 @@ import type {
   SchedulerServiceConfig,
   WebhookSourceConfig,
 } from "../scheduler/service.ts";
-import { createSkillLoader } from "../skills/loader.ts";
-import { buildSkillsSystemPrompt } from "../skills/prompts.ts";
-import { createSkillToolExecutor } from "../skills/mod.ts";
+import { createSkillLoader } from "../tools/skills/loader.ts";
+import { buildSkillsSystemPrompt } from "../tools/skills/prompts.ts";
+import { createSkillToolExecutor } from "../tools/skills/mod.ts";
 import { getToolsForProfile, getPromptsForProfile, createToolExecutor } from "./agent_tools.ts";
 
 /**

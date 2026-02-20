@@ -17,7 +17,7 @@ import { createPolicyEngine } from "../../src/core/policy/engine.ts";
 import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks.ts";
 import { createSession } from "../../src/core/types/session.ts";
 import type { UserId, ChannelId } from "../../src/core/types/session.ts";
-import type { ContentBlock } from "../../src/image/content.ts";
+import type { ContentBlock } from "../../src/core/image/content.ts";
 import { resolveVisionProvider } from "../../src/agent/providers/config.ts";
 import type { ModelsConfig } from "../../src/agent/providers/config.ts";
 

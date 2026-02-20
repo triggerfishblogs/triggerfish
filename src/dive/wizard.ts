@@ -24,8 +24,8 @@ import {
 import { expandTilde } from "../cli/paths.ts";
 import { promptChannelConfig } from "../cli/config.ts";
 import { verifyProvider } from "./verify.ts";
-import { createKeychain } from "../secrets/keychain.ts";
-import type { SecretStore } from "../secrets/keychain.ts";
+import { createKeychain } from "../core/secrets/keychain.ts";
+import type { SecretStore } from "../core/secrets/keychain.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -835,7 +835,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
           if (resp.ok) {
             const user = await resp.json();
             // Store in keychain
-            const { createKeychain } = await import("../secrets/keychain.ts");
+            const { createKeychain } = await import("../core/secrets/keychain.ts");
             const store = createKeychain();
             const storeResult = await store.setSecret("github-pat", trimmed);
             if (storeResult.ok) {

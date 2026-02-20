@@ -20,7 +20,7 @@ import {
   createTidepoolToolExecutor,
   generateRenderId,
   buildTidepoolHtml,
-} from "../../src/tidepool/mod.ts";
+} from "../../src/tools/tidepool/mod.ts";
 import type {
   A2UIComponent,
   A2UIHost,
@@ -28,7 +28,7 @@ import type {
   TidePoolTools,
   CanvasMessage,
   CanvasRenderComponentMessage,
-} from "../../src/tidepool/mod.ts";
+} from "../../src/tools/tidepool/mod.ts";
 
 // ---------------------------------------------------------------------------
 // Component constructors

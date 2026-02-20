@@ -31,12 +31,13 @@ import { loadInputHistory, saveInputHistory } from "../../cli/history.ts";
 import { createScreenManager, taintColor } from "../../cli/screen.ts";
 import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
 import type { ChatEvent } from "../../gateway/chat.ts";
-import { imageBlock, readClipboardImage } from "../../image/mod.ts";
+import { imageBlock } from "../../core/image/content.ts";
 import type {
   ContentBlock,
   ImageContentBlock,
   MessageContent,
-} from "../../image/mod.ts";
+} from "../../core/image/content.ts";
+import { readClipboardImage } from "../../tools/image/clipboard.ts";
 
 /**
  * Run an interactive chat REPL.

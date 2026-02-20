@@ -7,8 +7,8 @@
  */
 
 import { parse as parseYaml } from "@std/yaml";
-import { resolveConfigSecrets } from "../secrets/resolver.ts";
-import type { SecretStore } from "../secrets/keychain.ts";
+import { resolveConfigSecrets } from "./secrets/resolver.ts";
+import type { SecretStore } from "./secrets/keychain.ts";
 
 /** Triggerfish YAML configuration shape. */
 export interface TriggerFishConfig {

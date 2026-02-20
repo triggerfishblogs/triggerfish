@@ -17,7 +17,7 @@ import type { ClassificationLevel } from "../../src/core/types/classification.ts
 import type { LlmProvider } from "../../src/agent/llm.ts";
 import { createProviderRegistry } from "../../src/agent/llm.ts";
 import type { PathClassifier } from "../../src/core/security/path_classification.ts";
-import type { DomainClassifier } from "../../src/web/domains.ts";
+import type { DomainClassifier } from "../../src/tools/web/domains.ts";
 
 // ── Helpers ──
 

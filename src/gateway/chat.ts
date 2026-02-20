@@ -24,18 +24,18 @@ import type {
   ToolDefinition,
   ToolExecutor,
 } from "../agent/orchestrator.ts";
-import type { SecretStore } from "../secrets/keychain.ts";
+import type { SecretStore } from "../core/secrets/keychain.ts";
 import type { LlmProviderRegistry, LlmProvider } from "../agent/llm.ts";
 import type { PlanManager } from "../agent/plan.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
-import type { DomainClassifier } from "../web/domains.ts";
+import type { DomainClassifier } from "../tools/web/domains.ts";
 import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
 import type { SessionState } from "../core/types/session.ts";
 import { updateTaint } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import type { CompactorConfig } from "../agent/compactor.ts";
-import type { MessageContent } from "../image/content.ts";
+import type { MessageContent } from "../core/image/content.ts";
 import type { ChannelAdapter, ChannelMessage } from "../channels/types.ts";
 import {
   createUserSessionManager,

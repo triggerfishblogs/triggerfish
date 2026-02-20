@@ -13,8 +13,8 @@ import { Confirm, Input, Select } from "@cliffy/prompt";
 import { backupConfig, expandTilde, resolveConfigPath } from "./paths.ts";
 import { getDaemonStatus, installAndStartDaemon, stopDaemon } from "./daemon.ts";
 import { validateConfig } from "../core/config.ts";
-import { createKeychain } from "../secrets/keychain.ts";
-import { findSecretRefs } from "../secrets/resolver.ts";
+import { createKeychain } from "../core/secrets/keychain.ts";
+import { findSecretRefs } from "../core/secrets/resolver.ts";
 import {
   checkSignalCli,
   downloadSignalCli,

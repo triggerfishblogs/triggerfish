@@ -9,13 +9,13 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { createMemorySecretStore } from "../../src/secrets/keychain.ts";
+import { createMemorySecretStore } from "../../src/core/secrets/keychain.ts";
 import {
   findSecretRefs,
   resolveConfigSecrets,
   resolveSecretRef,
   resolveSecretRefs,
-} from "../../src/secrets/resolver.ts";
+} from "../../src/core/secrets/resolver.ts";
 
 // ─── resolveSecretRef ────────────────────────────────────────────────────────
 

@@ -9,7 +9,7 @@ import {
   estimateHistoryTokens,
 } from "../../src/agent/compactor.ts";
 import type { HistoryEntry } from "../../src/agent/orchestrator.ts";
-import type { ContentBlock } from "../../src/image/content.ts";
+import type { ContentBlock } from "../../src/core/image/content.ts";
 
 // ─── Compactor token estimation ─────────────────────────────────
 

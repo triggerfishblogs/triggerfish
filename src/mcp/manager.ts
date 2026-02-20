@@ -10,7 +10,7 @@
 
 import { createLogger } from "../core/logger/mod.ts";
 import type { Result, ClassificationLevel } from "../core/types/classification.ts";
-import type { SecretStore } from "../secrets/keychain.ts";
+import type { SecretStore } from "../core/secrets/keychain.ts";
 import type { McpClient, McpToolDefinition } from "./client/protocol.ts";
 import type { McpServer, McpServerToolResult } from "./gateway/gateway.ts";
 import { StdioTransport, SSETransport } from "./client/transport.ts";

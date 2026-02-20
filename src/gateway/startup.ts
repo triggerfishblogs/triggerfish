@@ -17,12 +17,12 @@ import type { RegisteredChannel } from "./tools.ts";
 import { createEnhancedSessionManager } from "./sessions.ts";
 import { createSessionManager } from "../core/session/manager.ts";
 import { buildSendEvent, createChatSession } from "./chat.ts";
-import { createA2UIHost } from "../tidepool/host.ts";
+import { createA2UIHost } from "../tools/tidepool/host.ts";
 import {
   createTidepoolToolExecutor,
   createTidePoolTools,
   TIDEPOOL_SYSTEM_PROMPT,
-} from "../tidepool/mod.ts";
+} from "../tools/tidepool/mod.ts";
 import {
   buildToolClassifications,
 } from "../agent/orchestrator.ts";
@@ -60,25 +60,25 @@ import {
   createFts5SearchProvider,
   createMemoryStore,
   createMemoryToolExecutor,
-} from "../memory/mod.ts";
+} from "../tools/memory/mod.ts";
 import {
   createDomainPolicy as createBrowserDomainPolicy,
   createAutoLaunchBrowserExecutor,
   createBrowserManager,
-} from "../browser/mod.ts";
+} from "../tools/browser/mod.ts";
 import {
   createDailyNoteManager,
   createLinkResolver,
   createNoteStore,
   createObsidianToolExecutor,
   createVaultContext,
-} from "../obsidian/mod.ts";
+} from "../tools/obsidian/mod.ts";
 import {
   createImageToolExecutor,
-} from "../image/mod.ts";
+} from "../tools/image/mod.ts";
 import {
   createExploreToolExecutor,
-} from "../explore/mod.ts";
+} from "../tools/explore/mod.ts";
 import {
   createCalendarService,
   createDriveService,
@@ -93,11 +93,11 @@ import {
   createGitHubToolExecutor,
   resolveGitHubToken,
 } from "../integrations/github/mod.ts";
-import { createKeychain } from "../secrets/keychain.ts";
+import { createKeychain } from "../core/secrets/keychain.ts";
 import {
   createSecretToolExecutor,
-} from "../secrets/tools.ts";
-import type { SecretPromptCallback } from "../secrets/tools.ts";
+} from "../tools/secrets.ts";
+import type { SecretPromptCallback } from "../tools/secrets.ts";
 import {
   buildMcpSystemPrompt,
   buildMcpToolClassifications,
@@ -127,9 +127,9 @@ import {
   createTriggerToolExecutor,
 } from "./trigger_tools.ts";
 import { parseClassification } from "../core/types/classification.ts";
-import { createSkillLoader } from "../skills/loader.ts";
-import type { Skill } from "../skills/loader.ts";
-import { createSkillToolExecutor } from "../skills/mod.ts";
+import { createSkillLoader } from "../tools/skills/loader.ts";
+import type { Skill } from "../tools/skills/loader.ts";
+import { createSkillToolExecutor } from "../tools/skills/mod.ts";
 import {
   createFileWriter,
   createLogger,
@@ -142,7 +142,7 @@ import { logDir as resolveLogDir } from "../cli/daemon.ts";
 import { loadConfigWithSecrets } from "../core/config.ts";
 import { resolveBaseDir, resolveConfigPath } from "../cli/paths.ts";
 import { TIDEPOOL_PORT } from "../cli/constants.ts";
-import { buildSkillsSystemPrompt, buildTriggersSystemPrompt } from "../skills/prompts.ts";
+import { buildSkillsSystemPrompt, buildTriggersSystemPrompt } from "../tools/skills/prompts.ts";
 import {
   buildGoogleExecutor,
   buildSchedulerConfig,
@@ -410,7 +410,7 @@ export async function runStart(): Promise<void> {
 
   // Tidepool tools (lazy getter — tools resolve after host creation)
   // deno-lint-ignore prefer-const
-  let tidepoolTools: import("../tidepool/mod.ts").TidePoolTools | undefined;
+  let tidepoolTools: import("../tools/tidepool/mod.ts").TidePoolTools | undefined;
   const tidepoolExecutor = createTidepoolToolExecutor(() => tidepoolTools);
 
   // Image analysis tools
@@ -612,7 +612,7 @@ export async function runStart(): Promise<void> {
   // Late-bound references for MCP status indicator callbacks (set after chatSession/server/host creation)
   let _mcpChatSessionRef: import("../gateway/chat.ts").ChatSession | null = null;
   let _mcpGatewayServerRef: import("../gateway/server.ts").GatewayServer | null = null;
-  let _mcpTidepoolRef: import("../tidepool/host.ts").A2UIHost | null = null;
+  let _mcpTidepoolRef: import("../tools/tidepool/host.ts").A2UIHost | null = null;
 
   // Discover skills from bundled, managed, and workspace directories
   const bundledSkillsDir = join(

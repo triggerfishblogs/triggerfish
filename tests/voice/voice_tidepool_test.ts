@@ -3,19 +3,19 @@
  * Tests MUST FAIL until voice and tide pool modules are implemented.
  */
 import { assertEquals, assertExists } from "@std/assert";
-import { createTidepoolHost, createTidepoolTools } from "../../src/tidepool/mod.ts";
+import { createTidepoolHost, createTidepoolTools } from "../../src/tools/tidepool/mod.ts";
 
 // --- Voice provider interfaces ---
 
 Deno.test("SttProvider: interface exists with transcribe method", async () => {
-  const { createSttProviderRegistry } = await import("../../src/voice/stt.ts");
+  const { createSttProviderRegistry } = await import("../../src/tools/voice/stt.ts");
   const registry = createSttProviderRegistry();
   assertExists(registry.register);
   assertExists(registry.get);
 });
 
 Deno.test("TtsProvider: interface exists with synthesize method", async () => {
-  const { createTtsProviderRegistry } = await import("../../src/voice/tts.ts");
+  const { createTtsProviderRegistry } = await import("../../src/tools/voice/tts.ts");
   const registry = createTtsProviderRegistry();
   assertExists(registry.register);
   assertExists(registry.get);
