@@ -5,8 +5,8 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { createMemorySecretStore } from "../../src/secrets/keychain.ts";
-import { createSecretToolExecutor, getSecretToolDefinitions, SECRET_TOOLS_SYSTEM_PROMPT } from "../../src/secrets/tools.ts";
+import { createMemorySecretStore } from "../../src/core/secrets/keychain.ts";
+import { createSecretToolExecutor, getSecretToolDefinitions, SECRET_TOOLS_SYSTEM_PROMPT } from "../../src/tools/secrets.ts";
 
 /** Create a test prompt callback that always returns the given value. */
 function makePrompt(value: string | null) {

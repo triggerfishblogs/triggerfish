@@ -4,7 +4,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { detectImageType } from "../../src/image/clipboard.ts";
+import { detectImageType } from "../../src/tools/image/clipboard.ts";
 
 Deno.test("detectImageType — PNG magic bytes", () => {
   const pngData = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00]);

@@ -5,7 +5,7 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { createFileSecretStore } from "../../src/secrets/file_provider.ts";
+import { createFileSecretStore } from "../../src/core/secrets/file_provider.ts";
 
 // Helper to temporarily set/unset env vars
 function withEnv(
@@ -149,7 +149,7 @@ Deno.test("FileSecretStore: handles missing file gracefully", async () => {
 // --- Auto-detection: Docker → file store ---
 
 Deno.test("createKeychain returns file store in Docker environment", async () => {
-  const { createKeychain } = await import("../../src/secrets/keychain.ts");
+  const { createKeychain } = await import("../../src/core/secrets/keychain.ts");
 
   withEnv({ TRIGGERFISH_DOCKER: "true" }, async () => {
     const store = createKeychain();

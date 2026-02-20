@@ -12,23 +12,23 @@
 import { createExecTools } from "../exec/tools.ts";
 import { createTodoToolExecutor, getTodoToolDefinitions, TODO_SYSTEM_PROMPT } from "../tools/mod.ts";
 import type { TodoManager } from "../tools/mod.ts";
-import { getMemoryToolDefinitions, MEMORY_SYSTEM_PROMPT } from "../memory/mod.ts";
-import { getSecretToolDefinitions, SECRET_TOOLS_SYSTEM_PROMPT } from "../secrets/tools.ts";
+import { getMemoryToolDefinitions, MEMORY_SYSTEM_PROMPT } from "../tools/memory/mod.ts";
+import { getSecretToolDefinitions, SECRET_TOOLS_SYSTEM_PROMPT } from "../tools/secrets.ts";
 import {
   createWebToolExecutor,
   getWebToolDefinitions,
   WEB_TOOLS_SYSTEM_PROMPT,
-} from "../web/mod.ts";
-import type { SearchProvider, WebFetcher } from "../web/mod.ts";
+} from "../tools/web/mod.ts";
+import type { SearchProvider, WebFetcher } from "../tools/web/mod.ts";
 import { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "../agent/plan_tools.ts";
-import { getBrowserToolDefinitions } from "../browser/mod.ts";
-import { getTidepoolToolDefinitions, TIDEPOOL_SYSTEM_PROMPT } from "../tidepool/mod.ts";
+import { getBrowserToolDefinitions } from "../tools/browser/mod.ts";
+import { getTidepoolToolDefinitions, TIDEPOOL_SYSTEM_PROMPT } from "../tools/tidepool/mod.ts";
 import { getSessionToolDefinitions, SESSION_TOOLS_SYSTEM_PROMPT } from "./tools.ts";
-import { getImageToolDefinitions, IMAGE_TOOLS_SYSTEM_PROMPT } from "../image/mod.ts";
-import { getExploreToolDefinitions, EXPLORE_SYSTEM_PROMPT } from "../explore/mod.ts";
-import { getGoogleToolDefinitions } from "../google/mod.ts";
-import { getGitHubToolDefinitions } from "../github/mod.ts";
-import { getObsidianToolDefinitions } from "../obsidian/mod.ts";
+import { getImageToolDefinitions, IMAGE_TOOLS_SYSTEM_PROMPT } from "../tools/image/mod.ts";
+import { getExploreToolDefinitions, EXPLORE_SYSTEM_PROMPT } from "../tools/explore/mod.ts";
+import { getGoogleToolDefinitions } from "../integrations/google/mod.ts";
+import { getGitHubToolDefinitions } from "../integrations/github/mod.ts";
+import { getObsidianToolDefinitions } from "../tools/obsidian/mod.ts";
 import {
   getLlmTaskToolDefinitions,
   getSummarizeToolDefinitions,
@@ -38,7 +38,7 @@ import {
 } from "../tools/mod.ts";
 import { getTriggerToolDefinitions, TRIGGER_TOOLS_SYSTEM_PROMPT } from "./trigger_tools.ts";
 import { getClaudeToolDefinitions, CLAUDE_SESSION_SYSTEM_PROMPT } from "../exec/claude.ts";
-import { getSkillToolDefinitions } from "../skills/mod.ts";
+import { getSkillToolDefinitions } from "../tools/skills/mod.ts";
 import type { ToolDefinition, ToolExecutor } from "../agent/orchestrator.ts";
 import type { LlmProviderRegistry } from "../agent/llm.ts";
 import type { CronManager } from "../scheduler/cron.ts";

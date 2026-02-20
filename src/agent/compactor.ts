@@ -21,7 +21,7 @@
 
 import type { HistoryEntry } from "./orchestrator.ts";
 import type { LlmProvider, LlmMessage } from "./llm.ts";
-import { extractText } from "../image/content.ts";
+import { extractText } from "../core/image/content.ts";
 import { encode } from "gpt-tokenizer";
 
 /** Configuration for the conversation compactor. */

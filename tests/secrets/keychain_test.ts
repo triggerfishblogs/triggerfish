@@ -6,7 +6,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { createMemorySecretStore } from "../../src/secrets/keychain.ts";
+import { createMemorySecretStore } from "../../src/core/secrets/keychain.ts";
 
 // --- Set and get a secret ---
 

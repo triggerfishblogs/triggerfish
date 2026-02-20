@@ -10,7 +10,7 @@
 import type { ToolDefinition } from "../agent/orchestrator.ts";
 import type { LlmProviderRegistry } from "../agent/llm.ts";
 import type { StorageProvider } from "../core/storage/provider.ts";
-import type { SkillLoader } from "../skills/loader.ts";
+import type { SkillLoader } from "./skills/loader.ts";
 
 /** Dependencies for the healthcheck executor. All optional — missing deps result in degraded/error status. */
 export interface HealthcheckDeps {

@@ -9,7 +9,7 @@
 import OpenAI from "openai";
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
 import { getModelInfo } from "../models.ts";
-import type { ContentBlock } from "../../image/content.ts";
+import type { ContentBlock } from "../../core/image/content.ts";
 
 /** Configuration for the OpenAI provider. */
 export interface OpenAiConfig {

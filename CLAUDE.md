@@ -76,19 +76,19 @@ Triggerfish is a secure, multi-channel AI agent platform with deterministic poli
 | 11 | `deno task test tests/exec/` |
 | 12 | `deno task test tests/e2e/` |
 | 13 | `deno task test tests/cli/` |
-| A1 | `deno task test tests/web/` |
-| A2 | `deno task test tests/memory/` |
-| A3 | `deno task test tests/browser/` |
+| A1 | `deno task test tests/tools/web/` |
+| A2 | `deno task test tests/tools/memory/` |
+| A3 | `deno task test tests/tools/browser/` |
 | 14 | `deno task test tests/gateway/` (includes `notifications_test.ts`) |
 | 15 | `deno task test tests/channels/` |
 | 16 | `deno task test tests/channels/ripple_test.ts tests/channels/groups_test.ts` |
 | 17 | `deno task test tests/scheduler/` |
 | ~~18~~ | SUPERSEDED by Phase A3 |
 | 19 | `deno task test tests/voice/ tests/tidepool/` |
-| 20 | `deno task test tests/skills/` |
+| 20 | `deno task test tests/tools/skills/` |
 | 21 | `deno task test tests/routing/ tests/models/ tests/dive/` |
-| B1 | `deno task test tests/google/` |
-| B3 | `deno task test tests/obsidian/` |
+| B1 | `deno task test tests/integrations/google/` |
+| B3 | `deno task test tests/tools/obsidian/` |
 
 ## File Organization
 
@@ -106,24 +106,39 @@ src/
 ├── core/policy/     # Policy engine, hooks, rule evaluation
 ├── core/session/    # Session manager, taint, lineage
 ├── core/storage/    # StorageProvider interface + implementations
-├── web/             # [A1] SearchProvider, web_fetch, domain security config
-│                    #       domains.ts is shared with browser (A3) — single source of truth
-├── memory/          # [A2] MemoryStore, MemorySearchProvider (FTS5), classification-gated CRUD
-├── browser/         # [A3] BrowserManager (CDP), profile watermarking, browser tools
-│                    #       imports domain security from src/web/domains.ts — no duplication
-├── google/          # [B1] Google Workspace — OAuth2 auth, Gmail, Calendar, Tasks, Drive, Sheets
-├── obsidian/        # [B3] Obsidian vault integration — note CRUD, wikilinks, daily notes
+├── core/logger/     # Structured logging with file rotation and log levels
+├── core/security/   # Tool floors, path classification, filesystem security constants
+├── core/secrets/    # Secrets management — OS keychain, encrypted store, file-backed fallback
+├── core/image/      # Multimodal content block types (TextContentBlock, ImageContentBlock, etc.)
+├── integrations/    # External service integrations
+│   ├── google/      # [B1] Google Workspace — OAuth2 auth, Gmail, Calendar, Tasks, Drive, Sheets
+│   ├── github/      # GitHub — repos, PRs, issues, Actions, code search
+│   ├── remote/      # Remote access tunnels — Tailscale, WireGuard, cloudflared
+│   └── filesystem/  # Local filesystem MCP server
 ├── mcp/client/      # MCP protocol client
 ├── mcp/gateway/     # Policy-enforced MCP proxy
 ├── plugin/          # Plugin SDK and sandbox
 ├── channels/        # Channel adapters (CLI, WhatsApp, Telegram, Slack, Discord, etc.)
 ├── agent/           # LLM orchestrator, tool dispatch, providers
+├── models/          # LLM provider failover and routing chain
 ├── exec/            # Agent execution environment
+├── tools/           # LLM-callable tool modules
+│   ├── todo.ts      # Todo list management
+│   ├── llm-task.ts  # Delegate sub-tasks to LLM
+│   ├── summarize.ts # Conversation summarization
+│   ├── healthcheck.ts # Platform health introspection
+│   ├── secrets.ts   # Secret save/list/delete tools
+│   ├── web/         # [A1] SearchProvider, web_fetch, domain security config
+│   ├── memory/      # [A2] MemoryStore, MemorySearchProvider (FTS5), classification-gated CRUD
+│   ├── browser/     # [A3] BrowserManager (CDP), profile watermarking, browser tools
+│   ├── obsidian/    # [B3] Obsidian vault integration — note CRUD, wikilinks, daily notes
+│   ├── explore/     # Structured codebase understanding via parallel sub-agents
+│   ├── image/       # Image analysis, clipboard reading
+│   ├── tidepool/    # A2UI host + tools
+│   ├── skills/      # Skill loader, author, scanner, Reef client
+│   └── voice/       # STT, TTS, wake word
 ├── scheduler/       # Cron, triggers, webhooks
 ├── gateway/         # WebSocket control plane, session CRUD, notifications
-├── voice/           # STT, TTS, wake word
-├── tidepool/        # A2UI host + tools
-├── skills/          # Skill loader, author, scanner, Reef client
 ├── routing/         # Multi-agent routing
 ├── dive/            # Onboarding wizard + patrol diagnostics
 └── cli/             # CLI entry point + commands
@@ -200,7 +215,7 @@ When using Claude Code on this project, configure these MCP servers:
 - Never use raw `Map` or in-memory structures for data that must survive restarts — use StorageProvider
 - Never implement ad-hoc "notify owner" logic — use NotificationService
 - Never hardcode a single LLM provider — use LlmProvider interface
-- Never duplicate domain security config — `src/web/domains.ts` is the single source of truth for SSRF, allowlist, denylist, and classification mappings. Browser imports from there.
+- Never duplicate domain security config — `src/tools/web/domains.ts` is the single source of truth for SSRF, allowlist, denylist, and classification mappings. Browser imports from there.
 - Never let the LLM choose memory classification — always force to `session.taint` in PRE_TOOL_CALL
 - Never allow memory reads above session taint — filter by `canFlowTo` in every query
 - Never skip DNS resolution before outbound HTTP — SSRF prevention requires checking resolved IP, not just hostname

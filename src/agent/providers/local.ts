@@ -15,7 +15,7 @@
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
 import { getModelInfo } from "../models.ts";
 import { parseSseStream } from "./sse.ts";
-import type { ContentBlock } from "../../image/content.ts";
+import type { ContentBlock } from "../../core/image/content.ts";
 
 /** Convert content blocks to OpenAI-compatible multimodal format. */
 function toOpenAiContent(content: string | unknown): string | unknown[] {

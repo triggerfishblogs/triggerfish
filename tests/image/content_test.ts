@@ -9,10 +9,10 @@ import {
   extractText,
   hasImages,
   imageBlock,
-} from "../../src/image/content.ts";
+} from "../../src/core/image/content.ts";
 import type {
   ContentBlock,
-} from "../../src/image/content.ts";
+} from "../../src/core/image/content.ts";
 
 Deno.test("normalizeContent — string input wraps in TextContentBlock", () => {
   const result = normalizeContent("hello");
