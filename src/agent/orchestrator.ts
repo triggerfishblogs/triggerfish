@@ -768,6 +768,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       // Accumulate token usage across all iterations in this turn.
       totalInputTokens += completion.usage.inputTokens;
       totalOutputTokens += completion.usage.outputTokens;
+      orchLog.debug(`iter${iterations} tokens — input: ${completion.usage.inputTokens}, output: ${completion.usage.outputTokens}, cumulative: ${totalInputTokens}+${totalOutputTokens}`);
 
       // Close the race window: if the signal was aborted while the LLM was finishing,
       // treat the response as cancelled rather than emitting it.

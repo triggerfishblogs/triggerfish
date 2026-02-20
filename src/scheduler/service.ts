@@ -149,6 +149,24 @@ export function createSchedulerService(
       return;
     }
 
+    // The LLM responds with NO_ACTION when there is nothing worth reporting.
+    // Persist to trigger store (for trigger_add_to_context) but do NOT notify.
+    if (text.trim() === "NO_ACTION") {
+      log.debug(`[${source}] LLM returned NO_ACTION — nothing to report`);
+      if (config.triggerStore) {
+        try {
+          await config.triggerStore.save({
+            id: crypto.randomUUID(),
+            source,
+            message: text,
+            classification: sessionTaint,
+            firedAt: new Date().toISOString(),
+          });
+        } catch { /* non-fatal */ }
+      }
+      return;
+    }
+
     // Persist result to trigger store (if configured) regardless of notification delivery
     if (config.triggerStore) {
       try {
