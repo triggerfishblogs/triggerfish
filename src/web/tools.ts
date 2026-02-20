@@ -42,13 +42,14 @@ export function getWebToolDefinitions(): readonly ToolDefinition[] {
       parameters: {
         url: {
           type: "string",
-          description: "The URL to fetch. Use URLs from web_search results.",
+          description:
+            "The URL to fetch. Can be a webpage URL from web_search results, or a direct API endpoint (e.g. from a skill's instructions). For JSON APIs, use mode 'raw'.",
           required: true,
         },
         mode: {
           type: "string",
           description:
-            "Extraction mode: 'readability' (default, article text) or 'raw' (full HTML). Use 'raw' if readability returns too little content.",
+            "Extraction mode: 'readability' (default, article text) or 'raw' (full HTML/JSON). Use 'raw' for JSON API endpoints or if readability returns too little content.",
           required: false,
         },
       },
