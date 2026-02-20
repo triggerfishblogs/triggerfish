@@ -475,6 +475,26 @@ export function createGatewayServer(
             return handleWebhookHttp(request, url, schedulerService);
           }
 
+          // Debug: force an immediate trigger run
+          if (
+            request.method === "POST" &&
+            url.pathname === "/debug/run-triggers"
+          ) {
+            if (!schedulerService) {
+              return new Response(
+                JSON.stringify({ error: "Scheduler not configured" }),
+                { status: 503, headers: { "content-type": "application/json" } },
+              );
+            }
+            schedulerService.runTrigger().catch(() => {
+              // fire-and-forget; errors are logged inside runTrigger
+            });
+            return new Response(
+              JSON.stringify({ ok: true, message: "Trigger fired" }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            );
+          }
+
           // Default HTTP response
           return new Response("Triggerfish Gateway", { status: 200 });
         },

@@ -114,6 +114,20 @@ Deno.test("CLI: parses 'config remove-channel' without type", async () => {
   assertEquals(cmd.flags.channel_type, undefined);
 });
 
+Deno.test("CLI: parses 'run-triggers' command", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["run-triggers"]);
+  assertEquals(cmd.command, "run-triggers");
+});
+
+Deno.test("CLI: 'run-triggers' does not fall through to help (hidden debug command)", async () => {
+  // run-triggers should parse as itself (not fall through to "help"),
+  // confirming it is a known command even though it is absent from showHelp().
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["run-triggers"]);
+  assertEquals(cmd.command, "run-triggers");
+});
+
 Deno.test("CLI: unknown command returns help suggestion", async () => {
   const { parseCommand } = await import("../../src/cli/main.ts");
   const cmd = parseCommand(["nonexistent"]);
