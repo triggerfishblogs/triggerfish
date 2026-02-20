@@ -22,13 +22,17 @@ export function buildSkillsSystemPrompt(skills: readonly Skill[]): string {
 
   return `## Available Skills
 
-You have the following skills available. To use a skill, call read_skill with the skill name and type for detailed instructions.
+Skills extend your capabilities for specific domains. **Skills are NOT tools you call directly.** To use a skill you MUST:
+1. Call \`read_skill\` with the skill's name and type to load its instructions.
+2. Follow those instructions using the standard tools (e.g. \`web_fetch\`).
+
+Skipping \`read_skill\` means you won't have the API endpoints, parameters, or steps needed to complete the task.
 
 | Skill | Description | Type |
 |-------|-------------|------|
 ${rows}
 
-When a task matches a skill, use read_skill to load it for detailed guidance before proceeding.`;
+**Rule:** Whenever a user's request matches a skill above, call \`read_skill\` first — before taking any other action.`;
 }
 
 /** Build a system prompt section about TRIGGER.md awareness. */
