@@ -77,7 +77,13 @@ web:
 
 # scheduler:
 #   trigger:
-#     enabled: true
+#     enabled: true                  # Set to false to disable periodic agent wakeups
+#     interval_minutes: 30           # How often the agent wakes up (default: 30).
+#                                    # Set to 0 to disable triggers without removing config.
+#     quiet_hours:
+#       start: 22                    # Don't wake between 10 PM …
+#       end: 7                       # … and 7 AM
+#     classification_ceiling: CONFIDENTIAL  # Max taint level for trigger sessions
 #   webhooks:
 #     sources:
 #       my-webhook:

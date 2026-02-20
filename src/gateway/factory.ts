@@ -452,7 +452,8 @@ export function buildSchedulerConfig(
     orchestratorFactory: factory,
     triggerMdPath: join(baseDir, "TRIGGER.md"),
     trigger: {
-      enabled: sched?.trigger?.enabled ?? true,
+      // interval_minutes: 0 disables triggers without requiring the enabled flag
+      enabled: (sched?.trigger?.enabled ?? true) && (sched?.trigger?.interval_minutes ?? 30) !== 0,
       intervalMinutes: sched?.trigger?.interval_minutes ?? 30,
       quietHours: sched?.trigger?.quiet_hours
         ? {

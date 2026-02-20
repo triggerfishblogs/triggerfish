@@ -102,16 +102,25 @@ Trigger timing and constraints are set in `triggerfish.yaml`:
 ```yaml
 scheduler:
   trigger:
-    interval: 30m              # Check every 30 minutes
-    classification: INTERNAL   # Max taint ceiling
-    quiet_hours: "22:00-07:00" # Don't wake during quiet hours
+    enabled: true              # Set to false to disable triggers (default: true)
+    interval_minutes: 30       # Check every 30 minutes (default: 30)
+                               # Set to 0 to disable triggers without removing config
+    classification_ceiling: CONFIDENTIAL  # Max taint ceiling (default: CONFIDENTIAL)
+    quiet_hours:
+      start: 22                # Don't wake between 10 PM ...
+      end: 7                   # ... and 7 AM
 ```
 
 | Setting | Description |
 |---------|-------------|
-| `interval` | How often the agent wakes up to check triggers |
-| `classification` | Maximum classification level the trigger session can reach |
-| `quiet_hours` | Time range during which triggers are suppressed |
+| `enabled` | Whether periodic trigger wakeups are active. Set to `false` to disable. |
+| `interval_minutes` | How often (in minutes) the agent wakes up to check triggers. Default: `30`. Set to `0` to disable triggers without removing the config block. |
+| `classification_ceiling` | Maximum classification level the trigger session can reach. Default: `CONFIDENTIAL`. |
+| `quiet_hours.start` / `quiet_hours.end` | Hour range (24h clock) during which triggers are suppressed. |
+
+::: tip
+To temporarily disable triggers, set `interval_minutes: 0`. This is equivalent to `enabled: false` and lets you keep your other trigger settings in place so you can re-enable easily.
+:::
 
 ### Trigger Execution
 
