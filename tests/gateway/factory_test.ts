@@ -76,3 +76,29 @@ Deno.test("buildSchedulerConfig: trigger interval defaults to 30 minutes", () =>
   const result = buildSchedulerConfig(config, "/base", makeMockFactory());
   assertEquals(result.trigger.intervalMinutes, 30);
 });
+
+Deno.test("buildSchedulerConfig: interval_minutes 0 disables triggers", () => {
+  const config: TriggerFishConfig = {
+    scheduler: {
+      trigger: {
+        interval_minutes: 0,
+      },
+    },
+  };
+  const result = buildSchedulerConfig(config, "/base", makeMockFactory());
+  assertEquals(result.trigger.enabled, false);
+  assertEquals(result.trigger.intervalMinutes, 0);
+});
+
+Deno.test("buildSchedulerConfig: interval_minutes 0 disables triggers even when enabled is true", () => {
+  const config: TriggerFishConfig = {
+    scheduler: {
+      trigger: {
+        enabled: true,
+        interval_minutes: 0,
+      },
+    },
+  };
+  const result = buildSchedulerConfig(config, "/base", makeMockFactory());
+  assertEquals(result.trigger.enabled, false);
+});
