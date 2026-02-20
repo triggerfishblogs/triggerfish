@@ -36,9 +36,6 @@ import {
   getLlmTaskToolDefinitions,
   getSummarizeToolDefinitions,
   getTodoToolDefinitions,
-  LLM_TASK_SYSTEM_PROMPT,
-  SUMMARIZE_SYSTEM_PROMPT,
-  TODO_SYSTEM_PROMPT,
   createHealthcheckToolExecutor,
   getHealthcheckToolDefinitions,
 } from "../tools/mod.ts";
@@ -47,7 +44,6 @@ import {
   createMemoryStore,
   createMemoryToolExecutor,
   getMemoryToolDefinitions,
-  MEMORY_SYSTEM_PROMPT,
 } from "../memory/mod.ts";
 import {
   createBraveSearchProvider,
@@ -56,7 +52,6 @@ import {
   createRateLimitedSearchProvider,
   createWebFetcher,
   getWebToolDefinitions,
-  WEB_TOOLS_SYSTEM_PROMPT,
 } from "../web/mod.ts";
 import type {
   DomainClassifier,
@@ -67,7 +62,6 @@ import type {
 import { createPlanManager, createPlanToolExecutor } from "../agent/plan.ts";
 import {
   getPlanToolDefinitions,
-  PLAN_SYSTEM_PROMPT,
 } from "../agent/plan_tools.ts";
 import {
   createCalendarService,
@@ -104,7 +98,7 @@ import type {
 import { createSkillLoader } from "../skills/loader.ts";
 import { buildSkillsSystemPrompt } from "../skills/prompts.ts";
 import { createSkillToolExecutor } from "../skills/mod.ts";
-import { getToolDefinitions, createToolExecutor } from "./agent_tools.ts";
+import { getToolsForProfile, getPromptsForProfile, createToolExecutor } from "./agent_tools.ts";
 
 /**
  * Build web search/fetch infrastructure from config.
@@ -206,7 +200,6 @@ export function createOrchestratorFactory(
   const hookRunner = createHookRunner(engine);
 
   const spinePath = join(baseDir, "SPINE.md");
-  const toolDefs = getToolDefinitions();
   const { searchProvider, webFetcher, domainClassifier: schedulerDomainClassifier } = buildWebTools(config);
   const schedulerKeychain = createKeychain();
 
@@ -384,19 +377,18 @@ export function createOrchestratorFactory(
         },
       ) : undefined;
 
+      // Select tool profile based on session type — triggers/cron/subagents
+      // each get only the tools they have wired executors for.
+      const toolProfile = isTrigger ? "triggerSession" : "cronJob";
+
       const orchestrator = createOrchestrator({
         hookRunner,
         providerRegistry: registry,
         spinePath,
-        tools: toolDefs,
+        tools: getToolsForProfile(toolProfile),
         toolExecutor,
         systemPromptSections: [
-          TODO_SYSTEM_PROMPT,
-          WEB_TOOLS_SYSTEM_PROMPT,
-          MEMORY_SYSTEM_PROMPT,
-          PLAN_SYSTEM_PROMPT,
-          LLM_TASK_SYSTEM_PROMPT,
-          SUMMARIZE_SYSTEM_PROMPT,
+          ...getPromptsForProfile(toolProfile),
           factorySkillsPrompt,
           // Inject trigger-specific classification ordering instructions when
           // this session is a trigger session. Cron jobs and subagents do not
