@@ -49,6 +49,7 @@ const KNOWN_COMMANDS = new Set([
   "cron",
   "disconnect",
   "run",
+  "run-triggers",
   "start",
   "stop",
   "status",
@@ -625,6 +626,11 @@ async function main(): Promise<void> {
     case "run": {
       const { runStart } = await import("../gateway/startup.ts");
       await runStart();
+      break;
+    }
+    case "run-triggers": {
+      const { runTriggers } = await import("./run_triggers.ts");
+      await runTriggers();
       break;
     }
     case "start":

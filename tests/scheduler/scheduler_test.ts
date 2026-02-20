@@ -665,6 +665,18 @@ Deno.test("SchedulerService: token usage from processMessage is logged without e
   assertEquals(result.ok, true);
 });
 
+Deno.test("SchedulerService: runTrigger() fires trigger callback immediately", async () => {
+  const { factory, calls, options } = createMockFactory();
+  const svc = createSchedulerService(createTestConfig(factory));
+
+  await svc.runTrigger();
+
+  // The trigger callback should have created exactly one orchestrator session
+  assertEquals(calls.length, 1);
+  assertEquals(calls[0], "trigger");
+  assertEquals(options[0]?.isTrigger, true);
+});
+
 Deno.test("SchedulerService: trigger callback passes isTrigger=true and ceiling to factory", async () => {
   const { factory, options } = createMockFactory();
   const config: SchedulerServiceConfig = {

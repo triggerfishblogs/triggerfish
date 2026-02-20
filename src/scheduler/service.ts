@@ -112,6 +112,11 @@ export interface SchedulerService {
     body: string,
     signature: string,
   ): Promise<Result<void, string>>;
+  /**
+   * Force an immediate trigger run, bypassing the interval timer.
+   * Used for debugging via `triggerfish run-triggers`.
+   */
+  runTrigger(): Promise<void>;
 }
 
 /**
@@ -304,6 +309,11 @@ export function createSchedulerService(
         trigger.stop();
         trigger = undefined;
       }
+    },
+
+    async runTrigger(): Promise<void> {
+      log.info("Forced trigger run requested");
+      await triggerCallback();
     },
 
     async handleWebhookRequest(

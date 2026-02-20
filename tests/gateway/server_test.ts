@@ -23,6 +23,55 @@ Deno.test("GatewayServer: starts on configurable port", async () => {
   }
 });
 
+Deno.test("GatewayServer: POST /debug/run-triggers returns 503 when no scheduler", async () => {
+  const server = createGatewayServer({ port: 0 });
+  try {
+    const addr = await server.start();
+    const response = await fetch(
+      `http://127.0.0.1:${addr.port}/debug/run-triggers`,
+      { method: "POST" },
+    );
+    assertEquals(response.status, 503);
+    const body = await response.json();
+    assertEquals(body.error, "Scheduler not configured");
+  } finally {
+    await server.stop();
+  }
+});
+
+Deno.test("GatewayServer: POST /debug/run-triggers fires trigger when scheduler present", async () => {
+  // Minimal mock scheduler service
+  let runTriggerCalled = false;
+  const mockScheduler = {
+    start() {},
+    stop() {},
+    cronManager: { list: () => [], create: () => ({ ok: true as const, value: {} as never }), delete: () => ({ ok: true as const, value: undefined }), history: () => [], recordExecution: () => {} },
+    webhookHandler: { on: () => {}, handle: async () => {} },
+    // deno-lint-ignore require-await
+    async handleWebhookRequest() { return { ok: false as const, error: "unused" }; },
+    // deno-lint-ignore require-await
+    async runTrigger() { runTriggerCalled = true; },
+  };
+
+  // deno-lint-ignore no-explicit-any
+  const server = createGatewayServer({ port: 0, schedulerService: mockScheduler as any });
+  try {
+    const addr = await server.start();
+    const response = await fetch(
+      `http://127.0.0.1:${addr.port}/debug/run-triggers`,
+      { method: "POST" },
+    );
+    assertEquals(response.status, 200);
+    const body = await response.json();
+    assertEquals(body.ok, true);
+    // Give the fire-and-forget a moment to execute
+    await new Promise((r) => setTimeout(r, 20));
+    assertEquals(runTriggerCalled, true);
+  } finally {
+    await server.stop();
+  }
+});
+
 // --- Enhanced session manager ---
 
 Deno.test("EnhancedSessionManager: sessions_list returns active sessions", async () => {
