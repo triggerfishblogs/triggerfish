@@ -98,7 +98,7 @@ import type {
 import { createSkillLoader } from "../tools/skills/loader.ts";
 import { buildSkillsSystemPrompt } from "../tools/skills/prompts.ts";
 import { createSkillToolExecutor } from "../tools/skills/mod.ts";
-import { getToolsForProfile, getPromptsForProfile, createToolExecutor } from "./agent_tools.ts";
+import { resolveToolsForProfile, resolvePromptsForProfile, createToolExecutor } from "./agent_tools.ts";
 
 /**
  * Build web search/fetch infrastructure from config.
@@ -385,10 +385,10 @@ export function createOrchestratorFactory(
         hookRunner,
         providerRegistry: registry,
         spinePath,
-        tools: getToolsForProfile(toolProfile),
+        tools: resolveToolsForProfile(toolProfile),
         toolExecutor,
         systemPromptSections: [
-          ...getPromptsForProfile(toolProfile),
+          ...resolvePromptsForProfile(toolProfile),
           factorySkillsPrompt,
           // Inject trigger-specific classification ordering instructions when
           // this session is a trigger session. Cron jobs and subagents do not

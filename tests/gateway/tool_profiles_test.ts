@@ -5,8 +5,8 @@
 
 import { assertEquals, assertNotEquals } from "@std/assert";
 import {
-  getToolsForProfile,
-  getPromptsForProfile,
+  resolveToolsForProfile,
+  resolvePromptsForProfile,
   TOOL_GROUPS,
   TOOL_PROFILES,
   TOOL_GROUP_PROMPTS,
@@ -14,7 +14,7 @@ import {
 
 // Helper: collect all tool names from a profile
 function toolNamesFor(profile: string): Set<string> {
-  const tools = getToolsForProfile(profile);
+  const tools = resolveToolsForProfile(profile);
   return new Set(tools.map((t) => t.name));
 }
 
@@ -135,22 +135,22 @@ Deno.test("cli profile is a superset of triggerSession profile", () => {
 // ─── Tool count sanity checks ──────────────────────────────────────────────
 
 Deno.test("triggerSession has fewer tools than cli", () => {
-  const trigger = getToolsForProfile("triggerSession");
-  const cli = getToolsForProfile("cli");
+  const trigger = resolveToolsForProfile("triggerSession");
+  const cli = resolveToolsForProfile("cli");
   assertEquals(trigger.length < cli.length, true,
     `trigger (${trigger.length}) should be < cli (${cli.length})`);
 });
 
 Deno.test("cli has fewer tools than tidepool", () => {
-  const cli = getToolsForProfile("cli");
-  const tidepool = getToolsForProfile("tidepool");
+  const cli = resolveToolsForProfile("cli");
+  const tidepool = resolveToolsForProfile("tidepool");
   assertEquals(cli.length < tidepool.length, true,
     `cli (${cli.length}) should be < tidepool (${tidepool.length})`);
 });
 
 Deno.test("all profiles return non-empty tool lists", () => {
   for (const profileName of Object.keys(TOOL_PROFILES)) {
-    const tools = getToolsForProfile(profileName);
+    const tools = resolveToolsForProfile(profileName);
     assertNotEquals(tools.length, 0, `${profileName} should have tools`);
   }
 });
@@ -158,7 +158,7 @@ Deno.test("all profiles return non-empty tool lists", () => {
 // ─── System prompt profile tests ───────────────────────────────────────────
 
 Deno.test("triggerSession prompts exclude tidepool/plan/session/image/explore/claude/secrets prompts", () => {
-  const prompts = getPromptsForProfile("triggerSession");
+  const prompts = resolvePromptsForProfile("triggerSession");
   const excluded = [
     TOOL_GROUP_PROMPTS.tidepool,
     TOOL_GROUP_PROMPTS.plan,
@@ -177,7 +177,7 @@ Deno.test("triggerSession prompts exclude tidepool/plan/session/image/explore/cl
 });
 
 Deno.test("triggerSession prompts include web/todo/memory prompts", () => {
-  const prompts = getPromptsForProfile("triggerSession");
+  const prompts = resolvePromptsForProfile("triggerSession");
   const included = [
     TOOL_GROUP_PROMPTS.web,
     TOOL_GROUP_PROMPTS.todo,
@@ -192,7 +192,7 @@ Deno.test("triggerSession prompts include web/todo/memory prompts", () => {
 });
 
 Deno.test("cli prompts exclude tidepool prompt", () => {
-  const prompts = getPromptsForProfile("cli");
+  const prompts = resolvePromptsForProfile("cli");
   if (TOOL_GROUP_PROMPTS.tidepool) {
     assertEquals(prompts.includes(TOOL_GROUP_PROMPTS.tidepool), false,
       "cli should not include tidepool prompt");
@@ -200,7 +200,7 @@ Deno.test("cli prompts exclude tidepool prompt", () => {
 });
 
 Deno.test("tidepool prompts include tidepool prompt", () => {
-  const prompts = getPromptsForProfile("tidepool");
+  const prompts = resolvePromptsForProfile("tidepool");
   if (TOOL_GROUP_PROMPTS.tidepool) {
     assertEquals(prompts.includes(TOOL_GROUP_PROMPTS.tidepool), true,
       "tidepool should include tidepool prompt");
@@ -208,16 +208,16 @@ Deno.test("tidepool prompts include tidepool prompt", () => {
 });
 
 Deno.test("triggerSession has fewer prompts than cli", () => {
-  const trigger = getPromptsForProfile("triggerSession");
-  const cli = getPromptsForProfile("cli");
+  const trigger = resolvePromptsForProfile("triggerSession");
+  const cli = resolvePromptsForProfile("cli");
   assertEquals(trigger.length < cli.length, true,
     `trigger prompts (${trigger.length}) should be < cli prompts (${cli.length})`);
 });
 
 // ─── Ad-hoc profile test ────────────────────────────────────────────────────
 
-Deno.test("getToolsForProfile accepts ad-hoc group list", () => {
-  const tools = getToolsForProfile(["exec", "todo"]);
+Deno.test("resolveToolsForProfile accepts ad-hoc group list", () => {
+  const tools = resolveToolsForProfile(["exec", "todo"]);
   const names = new Set(tools.map((t) => t.name));
   // Should have exec tools
   const execNames = TOOL_GROUPS.exec().map((t) => t.name);
@@ -239,7 +239,7 @@ Deno.test("getToolsForProfile accepts ad-hoc group list", () => {
 // ─── No duplicate tool names ────────────────────────────────────────────────
 
 Deno.test("tidepool profile has no duplicate tool names", () => {
-  const tools = getToolsForProfile("tidepool");
+  const tools = resolveToolsForProfile("tidepool");
   const names = tools.map((t) => t.name);
   const unique = new Set(names);
   assertEquals(names.length, unique.size, "tidepool profile has duplicate tool names");

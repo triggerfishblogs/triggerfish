@@ -146,7 +146,7 @@ import {
   buildWebTools,
   createOrchestratorFactory,
 } from "./factory.ts";
-import { createToolExecutor, getToolsForProfile, getPromptsForProfile, TOOL_GROUPS } from "./agent_tools.ts";
+import { createToolExecutor, resolveToolsForProfile, resolvePromptsForProfile, TOOL_GROUPS } from "./agent_tools.ts";
 import { createPlanManager, createPlanToolExecutor } from "../agent/plan.ts";
 
 /**
@@ -764,7 +764,7 @@ export async function runStart(): Promise<void> {
     hookRunner,
     providerRegistry: registry,
     spinePath,
-    tools: getToolsForProfile("cli"),
+    tools: resolveToolsForProfile("cli"),
     getExtraTools: () => [
       ...(getMcpToolDefinitions(mcpManager.getConnected()) as readonly ToolDefinition[]),
       ...(isTidepoolCall && tidepoolTools ? TOOL_GROUPS.tidepool() : []),
@@ -778,7 +778,7 @@ export async function runStart(): Promise<void> {
     },
     toolExecutor,
     systemPromptSections: [
-      ...getPromptsForProfile("cli"),
+      ...resolvePromptsForProfile("cli"),
       SKILLS_SYSTEM_PROMPT,
       TRIGGERS_SYSTEM_PROMPT,
     ],
