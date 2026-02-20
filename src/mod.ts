@@ -1,4 +1,8 @@
-/** Triggerfish — Secure, multi-channel AI agent platform. */
+/**
+ * Triggerfish runtime — root exports for version and package metadata.
+ *
+ * @module
+ */
 
 /** Semantic version of the Triggerfish runtime. */
 export const VERSION = "0.1.0";
