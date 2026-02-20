@@ -313,7 +313,8 @@ export interface GoogleToolContext {
   readonly tasks: TasksService;
   readonly drive: DriveService;
   readonly sheets: SheetsService;
-  readonly sessionTaint: ClassificationLevel;
+  /** Live getter for current session taint. Returns the taint at call time, not at creation time. */
+  readonly sessionTaint: () => ClassificationLevel;
   readonly sourceSessionId: SessionId;
   readonly lineageStore?: LineageStore;
   readonly classificationFloors?: Readonly<

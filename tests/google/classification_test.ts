@@ -166,7 +166,7 @@ function createContextWithTaint(
     tasks: createMinimalTasksService(),
     drive: createMinimalDriveService(),
     sheets: createMinimalSheetsService(),
-    sessionTaint: taint,
+    sessionTaint: () => taint,
     sourceSessionId: "test-session" as SessionId,
     classificationFloors: floors,
   };
@@ -176,17 +176,17 @@ function createContextWithTaint(
 
 Deno.test("classification: Google tool context carries session taint", () => {
   const ctx = createContextWithTaint("CONFIDENTIAL");
-  assertEquals(ctx.sessionTaint, "CONFIDENTIAL");
+  assertEquals(ctx.sessionTaint(), "CONFIDENTIAL");
 });
 
 Deno.test("classification: PUBLIC session has PUBLIC taint", () => {
   const ctx = createContextWithTaint("PUBLIC");
-  assertEquals(ctx.sessionTaint, "PUBLIC");
+  assertEquals(ctx.sessionTaint(), "PUBLIC");
 });
 
 Deno.test("classification: RESTRICTED session has RESTRICTED taint", () => {
   const ctx = createContextWithTaint("RESTRICTED");
-  assertEquals(ctx.sessionTaint, "RESTRICTED");
+  assertEquals(ctx.sessionTaint(), "RESTRICTED");
 });
 
 // ─── Test 2: Classification floors escalate taint ───────────────────────────
@@ -200,7 +200,7 @@ Deno.test("classification: per-service floors can escalate taint", () => {
   // Gmail floor is CONFIDENTIAL — accessing Gmail data should escalate
   // a PUBLIC session to at least CONFIDENTIAL
   const gmailFloor = ctx.classificationFloors?.["gmail"] ?? "PUBLIC";
-  const escalated = maxClassification(ctx.sessionTaint, gmailFloor);
+  const escalated = maxClassification(ctx.sessionTaint(), gmailFloor);
   assertEquals(escalated, "CONFIDENTIAL");
 });
 
@@ -210,7 +210,7 @@ Deno.test("classification: floor does not downgrade taint", () => {
   });
 
   const gmailFloor = ctx.classificationFloors?.["gmail"] ?? "PUBLIC";
-  const result = maxClassification(ctx.sessionTaint, gmailFloor);
+  const result = maxClassification(ctx.sessionTaint(), gmailFloor);
   // RESTRICTED is higher than INTERNAL — stays RESTRICTED
   assertEquals(result, "RESTRICTED");
 });
