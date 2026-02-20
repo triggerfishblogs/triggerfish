@@ -133,7 +133,15 @@ You are running in a trigger session. Your session taint starts at PUBLIC and es
 
 Your output is stored in the trigger store and stamped with your final session taint. The owner can then optionally pull it into their session via \`trigger_add_to_context\`, at which point their session taint may escalate to match yours.
 
-If you skip classification ordering and call a higher-classified tool before a lower one, subsequent lower-classified calls will be blocked by write-down enforcement. Always call \`get_tool_classification\` first.`;
+If you skip classification ordering and call a higher-classified tool before a lower one, subsequent lower-classified calls will be blocked by write-down enforcement. Always call \`get_tool_classification\` first.
+
+**Notification policy — CRITICAL:**
+
+You are a background process. The owner does NOT want to hear from you unless you found something worth reporting. After checking the items in your instructions:
+
+- If there is **nothing actionable or noteworthy**, respond with exactly \`NO_ACTION\` and nothing else. Do NOT say "nothing to report", "all clear", or any variation — just \`NO_ACTION\`.
+- If there **is** something worth reporting (urgent email, upcoming meeting, important message, etc.), respond with a concise summary of ONLY the relevant findings.
+- Never pad your response with filler like "I checked your email and calendar and found nothing." That is noise, not signal.`;
 
 /**
  * Create a tool executor for the `get_tool_classification` tool.

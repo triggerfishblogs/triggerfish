@@ -12,7 +12,6 @@ import { isDockerEnvironment } from "../core/env.ts";
 import { createGatewayServer } from "./server.ts";
 import {
   createSessionToolExecutor,
-  SESSION_TOOLS_SYSTEM_PROMPT,
 } from "./tools.ts";
 import type { RegisteredChannel } from "./tools.ts";
 import { createEnhancedSessionManager } from "./sessions.ts";
@@ -42,7 +41,6 @@ import type { ClassificationLevel } from "../core/types/classification.ts";
 import { createWorkspace } from "../exec/workspace.ts";
 import { createExecTools } from "../exec/tools.ts";
 import {
-  CLAUDE_SESSION_SYSTEM_PROMPT,
   createClaudeSessionManager,
   createClaudeToolExecutor,
 } from "../exec/claude.ts";
@@ -57,17 +55,12 @@ import {
   createLlmTaskToolExecutor,
   createSummarizeToolExecutor,
   createTodoManager,
-  LLM_TASK_SYSTEM_PROMPT,
-  SUMMARIZE_SYSTEM_PROMPT,
-  TODO_SYSTEM_PROMPT,
 } from "../tools/mod.ts";
 import {
   createFts5SearchProvider,
   createMemoryStore,
   createMemoryToolExecutor,
-  MEMORY_SYSTEM_PROMPT,
 } from "../memory/mod.ts";
-import { WEB_TOOLS_SYSTEM_PROMPT } from "../web/mod.ts";
 import {
   createDomainPolicy as createBrowserDomainPolicy,
   createAutoLaunchBrowserExecutor,
@@ -82,11 +75,9 @@ import {
 } from "../obsidian/mod.ts";
 import {
   createImageToolExecutor,
-  IMAGE_TOOLS_SYSTEM_PROMPT,
 } from "../image/mod.ts";
 import {
   createExploreToolExecutor,
-  EXPLORE_SYSTEM_PROMPT,
 } from "../explore/mod.ts";
 import {
   createCalendarService,
@@ -105,7 +96,6 @@ import {
 import { createKeychain } from "../secrets/keychain.ts";
 import {
   createSecretToolExecutor,
-  SECRET_TOOLS_SYSTEM_PROMPT,
 } from "../secrets/tools.ts";
 import type { SecretPromptCallback } from "../secrets/tools.ts";
 import {
@@ -135,7 +125,6 @@ import type { DaemonHandle } from "../channels/signal/setup.ts";
 import { createNotificationService } from "./notifications.ts";
 import {
   createTriggerToolExecutor,
-  TRIGGER_TOOLS_SYSTEM_PROMPT,
 } from "./trigger_tools.ts";
 import { parseClassification } from "../core/types/classification.ts";
 import { createSkillLoader } from "../skills/loader.ts";
@@ -161,11 +150,8 @@ import {
   buildWebTools,
   createOrchestratorFactory,
 } from "./factory.ts";
-import { createToolExecutor, getToolDefinitions } from "./agent_tools.ts";
+import { createToolExecutor, getToolsForProfile, getPromptsForProfile, TOOL_GROUPS } from "./agent_tools.ts";
 import { createPlanManager, createPlanToolExecutor } from "../agent/plan.ts";
-import {
-  PLAN_SYSTEM_PROMPT,
-} from "../agent/plan_tools.ts";
 
 /**
  * Start the gateway server with scheduler and persistent cron storage.
@@ -774,33 +760,31 @@ export async function runStart(): Promise<void> {
   const modelsConfig = config.models as Record<string, unknown> | undefined;
   const streamingPref = modelsConfig?.streaming;
 
+  // Tidepool call flag — toggled by the tidepoolChatSession wrapper so that
+  // tidepool tools and system prompts are only injected for Tidepool calls.
+  let isTidepoolCall = false;
+
   const chatSession = createChatSession({
     hookRunner,
     providerRegistry: registry,
     spinePath,
-    tools: getToolDefinitions(),
-    getExtraTools: () => getMcpToolDefinitions(mcpManager.getConnected()) as readonly ToolDefinition[],
+    tools: getToolsForProfile("cli"),
+    getExtraTools: () => [
+      ...(getMcpToolDefinitions(mcpManager.getConnected()) as readonly ToolDefinition[]),
+      ...(isTidepoolCall && tidepoolTools ? TOOL_GROUPS.tidepool() : []),
+    ],
     getExtraSystemPromptSections: () => {
+      const sections: string[] = [];
       const mcpPrompt = buildMcpSystemPrompt(mcpManager.getConnected());
-      return mcpPrompt ? [mcpPrompt] : [];
+      if (mcpPrompt) sections.push(mcpPrompt);
+      if (isTidepoolCall) sections.push(TIDEPOOL_SYSTEM_PROMPT);
+      return sections;
     },
     toolExecutor,
     systemPromptSections: [
-      TODO_SYSTEM_PROMPT,
-      WEB_TOOLS_SYSTEM_PROMPT,
-      MEMORY_SYSTEM_PROMPT,
-      PLAN_SYSTEM_PROMPT,
-      TIDEPOOL_SYSTEM_PROMPT,
-      SESSION_TOOLS_SYSTEM_PROMPT,
-      IMAGE_TOOLS_SYSTEM_PROMPT,
-      EXPLORE_SYSTEM_PROMPT,
+      ...getPromptsForProfile("cli"),
       SKILLS_SYSTEM_PROMPT,
       TRIGGERS_SYSTEM_PROMPT,
-      TRIGGER_TOOLS_SYSTEM_PROMPT,
-      LLM_TASK_SYSTEM_PROMPT,
-      SUMMARIZE_SYSTEM_PROMPT,
-      CLAUDE_SESSION_SYSTEM_PROMPT,
-      SECRET_TOOLS_SYSTEM_PROMPT,
     ],
     secretStore: mainKeychain,
     session,
@@ -845,8 +829,10 @@ export async function runStart(): Promise<void> {
       sendEvent: Parameters<typeof chatSession.processMessage>[1],
       signal?: Parameters<typeof chatSession.processMessage>[2],
     ) => {
+      isTidepoolCall = true;
       activeSecretPrompt = chatSession.createTidepoolSecretPrompt(sendEvent);
       return chatSession.processMessage(content, sendEvent, signal).finally(() => {
+        isTidepoolCall = false;
         activeSecretPrompt = cliSecretPrompt;
       });
     },
