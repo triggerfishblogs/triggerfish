@@ -48,6 +48,10 @@ export interface GatewayServer {
    * Used for push notifications such as MCP server status changes.
    */
   broadcastChatEvent(event: Record<string, unknown>): void;
+  /**
+   * Broadcast a trigger/scheduler notification to all connected /chat WebSocket clients.
+   */
+  broadcastNotification(message: string): void;
 }
 
 /** JSON-RPC 2.0 request. */
@@ -378,6 +382,19 @@ export function createGatewayServer(
   return {
     broadcastChatEvent(event: Record<string, unknown>): void {
       const json = JSON.stringify(event);
+      for (const ws of chatSockets) {
+        try {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(json);
+          }
+        } catch {
+          chatSockets.delete(ws);
+        }
+      }
+    },
+
+    broadcastNotification(message: string): void {
+      const json = JSON.stringify({ type: "notification", message });
       for (const ws of chatSockets) {
         try {
           if (ws.readyState === WebSocket.OPEN) {

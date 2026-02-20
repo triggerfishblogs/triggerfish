@@ -148,6 +148,25 @@ Deno.test("deliver: fans out to multiple channels", async () => {
   assertEquals((await svc.getPending(USER)).length, 0);
 });
 
+Deno.test("deliver: cli-websocket channel receives trigger notifications via fan-out", async () => {
+  const storage = createMemoryStorage();
+  const svc = createNotificationService(storage);
+  const received: string[] = [];
+
+  svc.registerChannel({
+    name: "cli-websocket",
+    // deno-lint-ignore require-await
+    send: async (msg) => { received.push(msg); },
+  });
+
+  await svc.deliver({ userId: USER, message: "trigger fired", priority: "normal" });
+
+  assertEquals(received.length, 1);
+  assertEquals(received[0], "trigger fired");
+  // Auto-acknowledged after successful delivery
+  assertEquals((await svc.getPending(USER)).length, 0);
+});
+
 // ── flushPending ──────────────────────────────────────────────────────
 
 Deno.test("flushPending: delivers queued notifications when channel becomes available", async () => {
