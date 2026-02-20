@@ -16,6 +16,7 @@ import { createPatrolCheck } from "../dive/patrol.ts";
 import type { PatrolInput } from "../dive/patrol.ts";
 import { runWizard, runWizardSelective } from "../dive/wizard.ts";
 import {
+  bundleLogs,
   cleanupOldBinary,
   getDaemonStatus,
   installAndStartDaemon,
@@ -162,6 +163,10 @@ export function parseCommand(
     const sub = positional[1];
     return { command, subcommand: sub, flags };
   }
+  if (command === "logs" && positional.length > 1) {
+    const sub = positional[1];
+    return { command, subcommand: sub, flags };
+  }
   if (command === "tidepool" && positional.length > 1) {
     const sub = positional[1];
     return { command, subcommand: sub, flags };
@@ -193,7 +198,7 @@ COMMANDS:
   start       Install and start the daemon
   stop        Stop the daemon
   status      Show daemon status
-  logs        View daemon logs (--tail to follow)
+  logs        View or bundle daemon logs
   patrol      Run health diagnostics
   tidepool    Tidepool A2UI controls
   update      Pull latest code, recompile, and restart
@@ -210,14 +215,18 @@ CONFIG SUBCOMMANDS:
   config get-secret <key>                  Retrieve a secret from OS keychain
   config migrate-secrets                   Migrate plaintext secrets to keychain
 
+LOGS SUBCOMMANDS:
+  logs view                              View daemon logs (default, --tail to follow)
+  logs bundle                            Bundle all log files into a temporary directory
+
+TIDEPOOL SUBCOMMANDS:
+  tidepool url                           Print Tidepool A2UI URL (if running)
+
 CRON SUBCOMMANDS:
   cron list                              List all cron jobs
   cron add "<schedule>" <task>           Create a new cron job
   cron delete <job_id>                   Delete a cron job
   cron history <job_id>                  Show execution history
-
-TIDEPOOL SUBCOMMANDS:
-  tidepool url                           Print Tidepool A2UI URL (if running)
 
 INTEGRATIONS:
   connect google                         Authenticate with Google Workspace
@@ -242,7 +251,8 @@ EXAMPLES:
   triggerfish start                                 # Install and start daemon
   triggerfish stop                                  # Stop the daemon
   triggerfish status                                # Check daemon status
-  triggerfish logs --tail                           # Follow daemon logs
+  triggerfish logs view --tail                      # Follow daemon logs
+  triggerfish logs bundle                           # Bundle logs into a temp directory
   triggerfish connect google                          # Link Google account
   triggerfish disconnect google                       # Remove Google account
   triggerfish patrol                                # Health check
@@ -436,11 +446,21 @@ async function runDaemonStatus(): Promise<void> {
 }
 
 /**
- * Tail daemon logs.
+ * Tail or bundle daemon logs.
+ *
+ * Subcommands:
+ * - `view` (default) — stream the log file to stdout, optionally following.
+ * - `bundle` — copy all log files to a temporary directory and print the path.
  */
 async function runDaemonLogs(
+  subcommand: string | undefined,
   flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
+  if (subcommand === "bundle") {
+    await bundleLogs();
+    return;
+  }
+  // "view" or no subcommand → old streaming behaviour
   const follow = flags.tail === true;
   const levelFilter = typeof flags.level === "string" ? flags.level : undefined;
   await tailLogs(follow, 50, levelFilter);
@@ -617,7 +637,7 @@ async function main(): Promise<void> {
       await runDaemonStatus();
       break;
     case "logs":
-      await runDaemonLogs(parsed.flags);
+      await runDaemonLogs(parsed.subcommand, parsed.flags);
       break;
     case "tidepool": {
       const { runTidepool } = await import("./tidepool.ts");

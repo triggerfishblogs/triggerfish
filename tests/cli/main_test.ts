@@ -43,6 +43,35 @@ Deno.test("CLI: parses 'logs' command with --tail flag", async () => {
   assertEquals(cmd.flags.tail, true);
 });
 
+Deno.test("CLI: parses 'logs view' subcommand", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["logs", "view"]);
+  assertEquals(cmd.command, "logs");
+  assertEquals(cmd.subcommand, "view");
+});
+
+Deno.test("CLI: parses 'logs view' subcommand with --tail flag", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["logs", "view", "--tail"]);
+  assertEquals(cmd.command, "logs");
+  assertEquals(cmd.subcommand, "view");
+  assertEquals(cmd.flags.tail, true);
+});
+
+Deno.test("CLI: parses 'logs bundle' subcommand", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["logs", "bundle"]);
+  assertEquals(cmd.command, "logs");
+  assertEquals(cmd.subcommand, "bundle");
+});
+
+Deno.test("CLI: parses 'tidepool url' subcommand", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["tidepool", "url"]);
+  assertEquals(cmd.command, "tidepool");
+  assertEquals(cmd.subcommand, "url");
+});
+
 Deno.test("CLI: parses 'dive' command", async () => {
   const { parseCommand } = await import("../../src/cli/main.ts");
   const cmd = parseCommand(["dive"]);
