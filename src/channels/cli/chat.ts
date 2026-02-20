@@ -4,12 +4,16 @@
  * Connects to the gateway WebSocket and provides a full terminal UI
  * (TTY mode with scroll regions, raw keypress handling, history, suggestions)
  * and a simple line-buffered fallback for piped/non-TTY input.
+ *
+ * Sub-modules:
+ * - chat_ws_router.ts: WebSocket message routing
+ * - chat_simple_repl.ts: Non-TTY fallback REPL
+ *
  * @module
  */
 
 import { join } from "@std/path";
 import { loadConfig } from "../../core/config.ts";
-import type { TriggerFishConfig } from "../../core/config.ts";
 import { resolveBaseDir, resolveConfigPath } from "../../cli/paths.ts";
 import {
   createEventHandler,
@@ -17,8 +21,6 @@ import {
   formatBanner,
   formatError,
   printBanner,
-  renderError,
-  renderPrompt,
 } from "../../cli/chat_ui.ts";
 import type { ToolDisplayMode } from "../../cli/chat_ui.ts";
 import {
@@ -30,7 +32,6 @@ import type { LineEditor } from "../../cli/terminal.ts";
 import { loadInputHistory, saveInputHistory } from "../../cli/history.ts";
 import { createScreenManager, taintColor } from "../../cli/screen.ts";
 import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
-import type { ChatEvent } from "../../gateway/chat.ts";
 import { imageBlock } from "../../core/image/content.ts";
 import type {
   ContentBlock,
@@ -38,6 +39,15 @@ import type {
   MessageContent,
 } from "../../core/image/content.ts";
 import { readClipboardImage } from "../../tools/image/clipboard.ts";
+import {
+  createWsMessageRouter,
+  sendNextQueuedMessage,
+} from "./chat_ws_router.ts";
+import type { WsRouterState } from "./chat_ws_router.ts";
+import { runSimpleWsRepl } from "./chat_simple_repl.ts";
+
+// Re-export for external importers
+export { runSimpleWsRepl } from "./chat_simple_repl.ts";
 
 /**
  * Run an interactive chat REPL.
@@ -76,8 +86,6 @@ export async function runChat(): Promise<void> {
   }
 
   // Wait for connection + connected event
-  let providerName = "unknown";
-  let _modelName = "";
   const connected = Promise.withResolvers<void>();
 
   ws.addEventListener("error", () => {
@@ -95,189 +103,38 @@ export async function runChat(): Promise<void> {
 
   // Set up display mode toggle (Ctrl+O)
   let displayMode: ToolDisplayMode = "compact";
-  const getDisplayMode = (): ToolDisplayMode => displayMode;
 
   // Set up screen manager
   const screen = createScreenManager();
 
   // Create event handler — use screen-aware handler for TTY, legacy for pipes
   const eventHandler = isTty
-    ? createScreenEventHandler(screen, getDisplayMode)
+    ? createScreenEventHandler(screen, () => displayMode)
     : createEventHandler();
 
-  // State tracking
-  const state = { isProcessing: false };
+  // Shared mutable state
+  const state: WsRouterState = {
+    isProcessing: false,
+    passwordMode: null,
+    providerName: "unknown",
+  };
   const messageQueue: string[] = [];
 
-  // Password mode state — active when the daemon sends a secret_prompt event.
-  // While active, keypress input collects characters for the secret value
-  // instead of the normal line editor.
-  interface PasswordModeState {
-    readonly nonce: string;
-    readonly name: string;
-    readonly hint?: string;
-    readonly chars: string[];
-  }
-  let passwordMode: PasswordModeState | null = null;
+  // Create line editor (needed by WS router for redraw)
+  let editor: LineEditor = createLineEditor();
 
-  /** Send the next queued message (if any). */
-  function drainQueue(): void {
-    if (messageQueue.length === 0) return;
-    const next = messageQueue.shift()!;
-    screen.writeOutput(`  ${taintColor(screen.getTaint())}\x1b[1m❯\x1b[0m ${next}`);
-    screen.writeOutput(`  \x1b[2m(queued)\x1b[0m`);
-    screen.writeOutput("");
-    state.isProcessing = true;
-    try {
-      ws.send(JSON.stringify({ type: "message", content: next }));
-    } catch {
-      screen.writeOutput(formatError("Lost connection to daemon"));
-      state.isProcessing = false;
-      screen.redrawInput(editor);
-    }
-  }
-
-  // Route incoming WebSocket events to the event handler
-  ws.addEventListener("message", (event: MessageEvent) => {
-    try {
-      const data = typeof event.data === "string"
-        ? event.data
-        : new TextDecoder().decode(event.data as ArrayBuffer);
-      const evt = JSON.parse(data) as ChatEvent;
-
-      if (evt.type === "connected") {
-        providerName = evt.provider;
-        _modelName = evt.model;
-        if (evt.taint) {
-          screen.setTaint(evt.taint);
-        }
-        connected.resolve();
-        return;
-      }
-
-      if (evt.type === "taint_changed") {
-        screen.setTaint(evt.level);
-        if (isTty) screen.redrawInput(editor);
-        return;
-      }
-
-      if (evt.type === "mcp_status") {
-        if (isTty) {
-          screen.setMcpStatus(evt.connected, evt.configured);
-          screen.redrawInput(editor);
-        }
-        return;
-      }
-
-      if (evt.type === "notification") {
-        if (isTty) {
-          screen.writeOutput(`  \x1b[33m⚡ [trigger]\x1b[0m ${evt.message}`);
-          screen.writeOutput("");
-          screen.redrawInput(editor);
-        } else {
-          console.log(`\n  [trigger] ${evt.message}\n`);
-          renderPrompt();
-        }
-        return;
-      }
-
-      if (evt.type === "secret_prompt") {
-        if (isTty) {
-          // Enter password mode — capture keystrokes for the secret value
-          passwordMode = {
-            nonce: evt.nonce,
-            name: evt.name,
-            hint: evt.hint,
-            chars: [],
-          };
-          screen.stopSpinner();
-          const hintStr = evt.hint ? ` (${evt.hint})` : "";
-          screen.writeOutput(`  \x1b[33m\u{1f512} Enter value for '${evt.name}'${hintStr}\x1b[0m`);
-          screen.setStatus("\u{1f512} Type secret, Enter to submit, Esc to cancel");
-          screen.redrawInput(editor);
-        }
-        // Non-TTY path is handled in runSimpleWsRepl
-        return;
-      }
-
-      if (evt.type === "cancelled") {
-        if (isTty) {
-          screen.stopSpinner();
-          screen.redrawInput(editor);
-        }
-        state.isProcessing = false;
-        drainQueue();
-        return;
-      }
-
-      if (evt.type === "error") {
-        if (isTty) {
-          screen.stopSpinner();
-          screen.writeOutput(formatError(evt.message));
-          screen.writeOutput("");
-          screen.redrawInput(editor);
-        } else {
-          renderError(evt.message);
-          renderPrompt();
-        }
-        state.isProcessing = false;
-        drainQueue();
-        return;
-      }
-
-      if (evt.type === "compact_start") {
-        if (isTty) {
-          screen.startSpinner("Summarizing history...");
-        } else {
-          console.log("  Summarizing history...");
-        }
-        return;
-      }
-
-      if (evt.type === "compact_complete") {
-        const saved = evt.tokensBefore - evt.tokensAfter;
-        const msg =
-          `  Compacted: ${evt.messagesBefore} → ${evt.messagesAfter} messages (saved ~${saved} tokens)`;
-        if (isTty) {
-          screen.stopSpinner();
-          screen.writeOutput(msg);
-          screen.redrawInput(editor);
-        } else {
-          console.log(msg);
-          renderPrompt();
-        }
-        return;
-      }
-
-      if (evt.type === "response_chunk") {
-        eventHandler(evt as OrchestratorEvent);
-        if (isTty) screen.redrawInput(editor);
-        return;
-      }
-
-      if (evt.type === "response") {
-        // The event handler will render the response text
-        eventHandler(evt as OrchestratorEvent);
-        state.isProcessing = false;
-        if (isTty) {
-          screen.writeOutput("");
-          screen.redrawInput(editor);
-        } else {
-          renderPrompt();
-        }
-        drainQueue();
-        return;
-      }
-
-      // Forward all other events (llm_start, llm_complete, tool_call, tool_result)
-      eventHandler(evt as OrchestratorEvent);
-      if (isTty) {
-        screen.redrawInput(editor);
-      }
-    } catch {
-      // Ignore parse errors
-    }
+  // Install WebSocket message router
+  const wsRouter = createWsMessageRouter({
+    screen,
+    isTty,
+    getEditor: () => editor,
+    eventHandler: eventHandler as (evt: OrchestratorEvent) => void,
+    state,
+    messageQueue,
+    ws,
+    resolveConnected: () => connected.resolve(),
   });
+  ws.addEventListener("message", wsRouter);
 
   // Handle WebSocket close
   ws.addEventListener("close", () => {
@@ -311,8 +168,8 @@ export async function runChat(): Promise<void> {
 
   // If not a TTY, fall back to the simple line-buffered REPL
   if (!isTty) {
-    printBanner(providerName, config.models.primary.model, "");
-    await runSimpleWsRepl(ws, providerName, config);
+    printBanner(state.providerName, config.models.primary.model, "");
+    await runSimpleWsRepl(ws, state.providerName, config);
     return;
   }
 
@@ -321,12 +178,11 @@ export async function runChat(): Promise<void> {
   // Print banner via screen manager
   screen.init();
   screen.writeOutput(
-    formatBanner(providerName, config.models.primary.model, ""),
+    formatBanner(state.providerName, config.models.primary.model, ""),
   );
 
-  // Create keypress reader and line editor
+  // Create keypress reader
   const keypressReader = createKeypressReader();
-  let editor: LineEditor = createLineEditor();
   let stashedInput = ""; // Stash current input when entering history navigation
   let pendingImages: ImageContentBlock[] = []; // Images pasted with Ctrl+V, sent with next message
 
@@ -409,10 +265,9 @@ export async function runChat(): Promise<void> {
     }
 
     // ─── Password mode (secret_prompt active) ─────────────
-    if (passwordMode !== null) {
-      const pm: PasswordModeState = passwordMode; // capture for TypeScript narrowing
+    if (state.passwordMode !== null) {
+      const pm = state.passwordMode;
       if (keypress.key === "enter") {
-        // Submit the secret value
         const value = pm.chars.join("");
         try {
           ws.send(JSON.stringify({
@@ -423,12 +278,11 @@ export async function runChat(): Promise<void> {
         } catch { /* ignore */ }
         screen.writeOutput(`  \x1b[32m\u2713 Secret submitted\x1b[0m`);
         screen.clearStatus();
-        passwordMode = null;
+        state.passwordMode = null;
         screen.redrawInput(editor);
         continue;
       }
       if (keypress.key === "esc" || keypress.key === "ctrl+c") {
-        // Cancel the secret prompt
         try {
           ws.send(JSON.stringify({
             type: "secret_prompt_response",
@@ -438,7 +292,7 @@ export async function runChat(): Promise<void> {
         } catch { /* ignore */ }
         screen.writeOutput(`  \x1b[33m\u2717 Secret entry cancelled\x1b[0m`);
         screen.clearStatus();
-        passwordMode = null;
+        state.passwordMode = null;
         screen.redrawInput(editor);
         continue;
       }
@@ -450,21 +304,18 @@ export async function runChat(): Promise<void> {
         }
         continue;
       }
-      // Printable character → accumulate
       if (keypress.char !== null) {
         pm.chars.push(keypress.char);
         const masked = "\u25cf".repeat(pm.chars.length);
         screen.setStatus(`\u{1f512} ${pm.name}: ${masked}`);
         continue;
       }
-      // Ignore all other keys in password mode
       continue;
     }
 
     // ─── Input handling (works in both idle and processing) ─
     switch (keypress.key) {
       case "shift+enter": {
-        // Insert newline for multi-line input
         editor = editor.insert("\n");
         editor = editor.setSuggestion("");
         screen.redrawInput(editor);
@@ -509,7 +360,7 @@ export async function runChat(): Promise<void> {
             screen.cleanup();
             screen.init();
             screen.writeOutput(
-              formatBanner(providerName, config.models.primary.model, ""),
+              formatBanner(state.providerName, config.models.primary.model, ""),
             );
             screen.redrawInput(editor);
             break;
@@ -581,13 +432,13 @@ export async function runChat(): Promise<void> {
 
       case "backspace":
         editor = editor.backspace();
-        updateSuggestion();
+        refreshAutocompleteSuggestion();
         screen.redrawInput(editor);
         break;
 
       case "delete":
         editor = editor.deleteChar();
-        updateSuggestion();
+        refreshAutocompleteSuggestion();
         screen.redrawInput(editor);
         break;
 
@@ -713,7 +564,7 @@ export async function runChat(): Promise<void> {
           editor = editor.insert(keypress.char);
           inputHistory = inputHistory.resetNavigation();
           stashedInput = "";
-          updateSuggestion();
+          refreshAutocompleteSuggestion();
           screen.redrawInput(editor);
         }
         break;
@@ -723,8 +574,8 @@ export async function runChat(): Promise<void> {
   // EOF reached
   cleanup();
 
-  /** Update the suggestion based on current editor text. */
-  function updateSuggestion(): void {
+  /** Refresh the autocomplete suggestion based on current editor text. */
+  function refreshAutocompleteSuggestion(): void {
     const suggestion = suggestionEngine.suggest(
       editor.text,
       inputHistory.entries as string[],
@@ -736,112 +587,4 @@ export async function runChat(): Promise<void> {
       editor = editor.setSuggestion("");
     }
   }
-}
-
-/**
- * Simple line-buffered REPL for non-TTY environments (piped input).
- *
- * Connects to the daemon via WebSocket. Falls back to the original
- * stdin.read() approach for compatibility with piped input.
- */
-export async function runSimpleWsRepl(
-  ws: WebSocket,
-  providerName: string,
-  config: TriggerFishConfig,
-): Promise<void> {
-  const decoder = new TextDecoder();
-  const buf = new Uint8Array(8192);
-  let partial = "";
-
-  renderPrompt();
-
-  while (true) {
-    const n = await Deno.stdin.read(buf);
-    if (n === null) break;
-
-    partial += decoder.decode(buf.subarray(0, n));
-
-    let newlineIdx: number;
-    while ((newlineIdx = partial.indexOf("\n")) !== -1) {
-      const line = partial.slice(0, newlineIdx).trimEnd();
-      partial = partial.slice(newlineIdx + 1);
-
-      if (line === "/quit" || line === "/exit" || line === "/q") {
-        console.log("\n  Goodbye.\n");
-        ws.close();
-        return;
-      }
-
-      if (line === "/clear") {
-        ws.send(JSON.stringify({ type: "clear" }));
-        console.log("\x1b[2J\x1b[H");
-        printBanner(providerName, config.models.primary.model, "");
-        renderPrompt();
-        continue;
-      }
-
-      if (line === "/compact") {
-        console.log("  Compacting conversation history...");
-        ws.send(JSON.stringify({ type: "compact" }));
-        // compact_start/compact_complete handled by the main event handler
-        renderPrompt();
-        continue;
-      }
-
-      if (line.length === 0) {
-        renderPrompt();
-        continue;
-      }
-
-      // Send to daemon and wait for response
-      console.log();
-      const responsePromise = Promise.withResolvers<void>();
-
-      const handler = async (event: MessageEvent) => {
-        try {
-          const data = typeof event.data === "string"
-            ? event.data
-            : new TextDecoder().decode(event.data as ArrayBuffer);
-          const evt = JSON.parse(data) as ChatEvent;
-
-          // Handle secret prompt in non-TTY mode: read a line from stdin
-          if (evt.type === "secret_prompt") {
-            const hintStr = evt.hint ? ` (${evt.hint})` : "";
-            const enc = new TextEncoder();
-            Deno.stderr.writeSync(enc.encode(`  Enter value for '${evt.name}'${hintStr}: `));
-            const lineBuf = new Uint8Array(4096);
-            const nRead = await Deno.stdin.read(lineBuf);
-            const value = nRead !== null
-              ? new TextDecoder().decode(lineBuf.subarray(0, nRead)).trimEnd()
-              : null;
-            try {
-              ws.send(JSON.stringify({
-                type: "secret_prompt_response",
-                nonce: evt.nonce,
-                value: value && value.length > 0 ? value : null,
-              }));
-            } catch { /* ignore */ }
-            return;
-          }
-
-          if (evt.type === "response" || evt.type === "error") {
-            if (evt.type === "error") {
-              renderError(evt.message);
-            }
-            ws.removeEventListener("message", handler);
-            responsePromise.resolve();
-          }
-        } catch {
-          // ignore
-        }
-      };
-
-      ws.addEventListener("message", handler);
-      ws.send(JSON.stringify({ type: "message", content: line }));
-      await responsePromise.promise;
-
-      renderPrompt();
-    }
-  }
-  ws.close();
 }
