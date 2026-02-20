@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../core/types/classification.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
 
 /** GitHub repository visibility. */
 export type RepoVisibility = "public" | "private" | "internal";

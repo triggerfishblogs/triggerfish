@@ -87,12 +87,12 @@ import {
   createGoogleAuthManager,
   createSheetsService,
   createTasksService,
-} from "../google/mod.ts";
+} from "../integrations/google/mod.ts";
 import {
   createGitHubClient,
   createGitHubToolExecutor,
   resolveGitHubToken,
-} from "../github/mod.ts";
+} from "../integrations/github/mod.ts";
 import { createKeychain } from "../secrets/keychain.ts";
 import {
   createSecretToolExecutor,

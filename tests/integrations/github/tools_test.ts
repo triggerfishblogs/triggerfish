@@ -9,11 +9,11 @@ import {
   getGitHubToolDefinitions,
   createGitHubToolExecutor,
   GITHUB_TOOLS_SYSTEM_PROMPT,
-} from "../../src/github/tools.ts";
-import type { GitHubToolContext } from "../../src/github/tools.ts";
-import type { GitHubClient } from "../../src/github/client.ts";
-import type { SessionId } from "../../src/core/types/session.ts";
-import type { Result } from "../../src/core/types/classification.ts";
+} from "../../../src/integrations/github/tools.ts";
+import type { GitHubToolContext } from "../../../src/integrations/github/tools.ts";
+import type { GitHubClient } from "../../../src/integrations/github/client.ts";
+import type { SessionId } from "../../../src/core/types/session.ts";
+import type { Result } from "../../../src/core/types/classification.ts";
 
 // ─── Tool Definitions ────────────────────────────────────────────────────────
 

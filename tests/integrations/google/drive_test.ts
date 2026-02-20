@@ -5,8 +5,8 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { createDriveService } from "../../src/google/drive.ts";
-import type { GoogleApiClient, GoogleApiResult } from "../../src/google/types.ts";
+import { createDriveService } from "../../../src/integrations/google/drive.ts";
+import type { GoogleApiClient, GoogleApiResult } from "../../../src/integrations/google/types.ts";
 
 function createMockClient(
   responses: Record<string, GoogleApiResult<unknown>>,

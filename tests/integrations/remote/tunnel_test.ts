@@ -9,12 +9,12 @@ import {
   assertEquals,
   assertStringIncludes,
 } from "@std/assert";
-import { createTunnelService } from "../../src/remote/tunnel.ts";
+import { createTunnelService } from "../../../src/integrations/remote/tunnel.ts";
 import type {
   CommandResult,
   CommandRunner,
   TunnelConfig,
-} from "../../src/remote/tunnel.ts";
+} from "../../../src/integrations/remote/tunnel.ts";
 
 // ---------------------------------------------------------------------------
 // Mock command runner

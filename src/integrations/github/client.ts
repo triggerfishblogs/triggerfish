@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { Result, ClassificationLevel } from "../core/types/classification.ts";
+import type { Result, ClassificationLevel } from "../../core/types/classification.ts";
 import type {
   GitHubRepo,
   GitHubFileContent,

@@ -5,8 +5,8 @@
  * that API responses carry the correct _classification field.
  */
 import { assertEquals } from "@std/assert";
-import { visibilityToClassification, createGitHubClient } from "../../src/github/client.ts";
-import type { ClassificationLevel } from "../../src/core/types/classification.ts";
+import { visibilityToClassification, createGitHubClient } from "../../../src/integrations/github/client.ts";
+import type { ClassificationLevel } from "../../../src/core/types/classification.ts";
 
 // ─── Pure Function: Default Mapping ──────────────────────────────────────────
 

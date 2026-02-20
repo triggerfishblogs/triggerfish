@@ -7,8 +7,8 @@
  * @module
  */
 
-import type { Result } from "../core/types/classification.ts";
-import type { SecretStore } from "../secrets/keychain.ts";
+import type { Result } from "../../core/types/classification.ts";
+import type { SecretStore } from "../../secrets/keychain.ts";
 
 /** Options for resolving a GitHub token. */
 export interface ResolveGitHubTokenOptions {

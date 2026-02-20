@@ -11,7 +11,7 @@ import {
   createGoogleToolExecutor,
   getGoogleToolDefinitions,
   GOOGLE_TOOLS_SYSTEM_PROMPT,
-} from "../../src/google/tools.ts";
+} from "../../../src/integrations/google/tools.ts";
 import type {
   GoogleToolContext,
   GmailService,
@@ -19,8 +19,8 @@ import type {
   TasksService,
   DriveService,
   SheetsService,
-} from "../../src/google/types.ts";
-import type { SessionId } from "../../src/core/types/session.ts";
+} from "../../../src/integrations/google/types.ts";
+import type { SessionId } from "../../../src/core/types/session.ts";
 
 // ─── Tool Definitions ───────────────────────────────────────────────────────
 

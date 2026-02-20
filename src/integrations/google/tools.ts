@@ -9,7 +9,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../agent/orchestrator.ts";
+import type { ToolDefinition } from "../../agent/orchestrator.ts";
 import type { GoogleToolContext } from "./types.ts";
 
 // ─── Tool Definitions ───────────────────────────────────────────────────────

@@ -26,8 +26,8 @@ import { getTidepoolToolDefinitions, TIDEPOOL_SYSTEM_PROMPT } from "../tidepool/
 import { getSessionToolDefinitions, SESSION_TOOLS_SYSTEM_PROMPT } from "./tools.ts";
 import { getImageToolDefinitions, IMAGE_TOOLS_SYSTEM_PROMPT } from "../image/mod.ts";
 import { getExploreToolDefinitions, EXPLORE_SYSTEM_PROMPT } from "../explore/mod.ts";
-import { getGoogleToolDefinitions } from "../google/mod.ts";
-import { getGitHubToolDefinitions } from "../github/mod.ts";
+import { getGoogleToolDefinitions } from "../integrations/google/mod.ts";
+import { getGitHubToolDefinitions } from "../integrations/github/mod.ts";
 import { getObsidianToolDefinitions } from "../obsidian/mod.ts";
 import {
   getLlmTaskToolDefinitions,

@@ -5,8 +5,8 @@
  * error handling, base64 decode, rate limit errors, and classification mapping.
  */
 import { assertEquals } from "@std/assert";
-import { createGitHubClient, visibilityToClassification } from "../../src/github/client.ts";
-import type { GitHubClient } from "../../src/github/client.ts";
+import { createGitHubClient, visibilityToClassification } from "../../../src/integrations/github/client.ts";
+import type { GitHubClient } from "../../../src/integrations/github/client.ts";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

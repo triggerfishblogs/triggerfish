@@ -9,7 +9,7 @@
  * @module
  */
 
-import type { Result } from "../core/types/classification.ts";
+import type { Result } from "../../core/types/classification.ts";
 
 /** Supported tunnel provider types. */
 export type TunnelProvider = "tailscale" | "wireguard" | "cloudflared";

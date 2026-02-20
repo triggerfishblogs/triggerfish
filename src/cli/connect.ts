@@ -11,8 +11,8 @@ import { createKeychain } from "../secrets/keychain.ts";
 import type { SecretStore } from "../secrets/keychain.ts";
 import {
   createGoogleAuthManager,
-} from "../google/mod.ts";
-import type { GoogleAuthConfig } from "../google/mod.ts";
+} from "../integrations/google/mod.ts";
+import type { GoogleAuthConfig } from "../integrations/google/mod.ts";
 
 /** Google OAuth2 scopes for all Workspace services. */
 export const GOOGLE_SCOPES: readonly string[] = [

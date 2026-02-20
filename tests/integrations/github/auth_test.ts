@@ -4,8 +4,8 @@
  * Tests resolveGitHubToken with OS keychain (SecretStore).
  */
 import { assertEquals } from "@std/assert";
-import { resolveGitHubToken } from "../../src/github/auth.ts";
-import { createMemorySecretStore } from "../../src/secrets/keychain.ts";
+import { resolveGitHubToken } from "../../../src/integrations/github/auth.ts";
+import { createMemorySecretStore } from "../../../src/secrets/keychain.ts";
 
 // ─── Keychain Lookup ─────────────────────────────────────────────────────────
 

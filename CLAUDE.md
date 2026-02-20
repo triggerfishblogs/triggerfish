@@ -87,7 +87,7 @@ Triggerfish is a secure, multi-channel AI agent platform with deterministic poli
 | 19 | `deno task test tests/voice/ tests/tidepool/` |
 | 20 | `deno task test tests/skills/` |
 | 21 | `deno task test tests/routing/ tests/models/ tests/dive/` |
-| B1 | `deno task test tests/google/` |
+| B1 | `deno task test tests/integrations/google/` |
 | B3 | `deno task test tests/obsidian/` |
 
 ## File Organization
@@ -111,7 +111,11 @@ src/
 ├── memory/          # [A2] MemoryStore, MemorySearchProvider (FTS5), classification-gated CRUD
 ├── browser/         # [A3] BrowserManager (CDP), profile watermarking, browser tools
 │                    #       imports domain security from src/web/domains.ts — no duplication
-├── google/          # [B1] Google Workspace — OAuth2 auth, Gmail, Calendar, Tasks, Drive, Sheets
+├── integrations/    # External service integrations
+│   ├── google/      # [B1] Google Workspace — OAuth2 auth, Gmail, Calendar, Tasks, Drive, Sheets
+│   ├── github/      # GitHub — repos, PRs, issues, Actions, code search
+│   ├── remote/      # Remote access tunnels — Tailscale, WireGuard, cloudflared
+│   └── filesystem/  # Local filesystem MCP server
 ├── obsidian/        # [B3] Obsidian vault integration — note CRUD, wikilinks, daily notes
 ├── mcp/client/      # MCP protocol client
 ├── mcp/gateway/     # Policy-enforced MCP proxy

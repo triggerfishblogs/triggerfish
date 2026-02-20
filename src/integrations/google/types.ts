@@ -7,9 +7,9 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { SessionId } from "../core/types/session.ts";
-import type { LineageStore } from "../core/session/lineage.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { SessionId } from "../../core/types/session.ts";
+import type { LineageStore } from "../../core/session/lineage.ts";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
