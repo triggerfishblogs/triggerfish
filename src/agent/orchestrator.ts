@@ -200,6 +200,11 @@ export interface ProcessMessageOptions {
 /** Successful response from message processing. */
 export interface ProcessMessageResult {
   readonly response: string;
+  /** Cumulative token usage across all LLM calls made during this message turn. */
+  readonly tokenUsage: {
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+  };
 }
 
 /** A conversation history entry. */
@@ -696,6 +701,8 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     let iterations = 0;
     let emptyNudgeCount = 0; // Track empty-response recovery attempts
     const MAX_EMPTY_NUDGES = 2;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
     while (iterations < MAX_TOOL_ITERATIONS) {
       iterations++;
 
@@ -757,6 +764,10 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       const completion = await provider.complete(messages, nativeTools, {
         ...(signal ? { signal } : {}),
       });
+
+      // Accumulate token usage across all iterations in this turn.
+      totalInputTokens += completion.usage.inputTokens;
+      totalOutputTokens += completion.usage.outputTokens;
 
       // Close the race window: if the signal was aborted while the LLM was finishing,
       // treat the response as cancelled rather than emitting it.
@@ -880,7 +891,10 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
         return {
           ok: true,
-          value: { response: responseText },
+          value: {
+            response: responseText,
+            tokenUsage: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens },
+          },
         };
       }
 

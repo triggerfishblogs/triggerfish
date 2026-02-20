@@ -264,7 +264,7 @@ function createMockFactory(): {
       return {
         orchestrator: {
           // deno-lint-ignore require-await
-          processMessage: async () => ({ ok: true as const, value: { response: "done" } }),
+          processMessage: async () => ({ ok: true as const, value: { response: "done", tokenUsage: { inputTokens: 100, outputTokens: 50 } } }),
         // deno-lint-ignore no-explicit-any
         } as any,
         session: {
@@ -613,6 +613,56 @@ Deno.test("OrchestratorFactory: create() works without options (cron/subagent)",
   await factory.create("cron");
   assertEquals(options.length, 1);
   assertEquals(options[0], undefined);
+});
+
+// ── Token usage logging ──────────────────────────────────────────────
+
+/**
+ * Create a factory whose orchestrator returns a specific tokenUsage.
+ * Used to verify the scheduler correctly handles and logs token data.
+ */
+function createTokenAwareMockFactory(tokenUsage: { inputTokens: number; outputTokens: number }): {
+  factory: OrchestratorFactory;
+  calls: string[];
+} {
+  const calls: string[] = [];
+  const factory: OrchestratorFactory = {
+    // deno-lint-ignore require-await
+    async create(channelId: string) {
+      calls.push(channelId);
+      return {
+        orchestrator: {
+          // deno-lint-ignore require-await
+          processMessage: async () => ({
+            ok: true as const,
+            value: { response: "token test response", tokenUsage },
+          }),
+        // deno-lint-ignore no-explicit-any
+        } as any,
+        session: {
+          id: "mock-session",
+          taint: "PUBLIC",
+          createdAt: new Date(),
+          lastActivityAt: new Date(),
+          messages: [],
+          context: {},
+        // deno-lint-ignore no-explicit-any
+        } as any,
+      };
+    },
+  };
+  return { factory, calls };
+}
+
+Deno.test("SchedulerService: token usage from processMessage is logged without error (webhook)", async () => {
+  const { factory } = createTokenAwareMockFactory({ inputTokens: 1234, outputTokens: 567 });
+  const svc = createSchedulerService(createTestConfig(factory));
+
+  const body = '{"event":"push","data":{"ref":"main"}}';
+  const sig = await computeHmac(body, "gh-secret");
+  // Should succeed — the token logging code path runs without throwing
+  const result = await svc.handleWebhookRequest("github", body, sig);
+  assertEquals(result.ok, true);
 });
 
 Deno.test("SchedulerService: trigger callback passes isTrigger=true and ceiling to factory", async () => {
