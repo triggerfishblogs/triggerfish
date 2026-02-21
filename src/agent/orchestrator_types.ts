@@ -10,13 +10,20 @@
 
 import type { Result, ClassificationLevel } from "../core/types/classification.ts";
 import type { ToolDefinition, ToolExecutor } from "../core/types/tool.ts";
+import type {
+  Orchestrator,
+  ProcessMessageOptions,
+  ProcessMessageResult,
+  HistoryEntry,
+  CompactResult,
+} from "../core/types/orchestrator.ts";
 import type { SecretStore } from "../core/secrets/keychain.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
 import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
 import type { DomainClassifier } from "../core/types/domain.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { LlmProviderRegistry, LlmProvider } from "./llm.ts";
-import type { CompactorConfig, CompactResult } from "./compactor.ts";
+import type { CompactorConfig } from "./compactor.ts";
 import type { MessageContent } from "../core/image/content.ts";
 import type { PlanManager } from "./plan.ts";
 import type { SessionState, SessionId } from "../core/types/session.ts";
@@ -155,44 +162,13 @@ export function mapToolPrefixClassifications(config: ClassificationMapConfig): M
   return m;
 }
 
-/** Options for processing a single message. */
-export interface ProcessMessageOptions {
-  readonly session: SessionState;
-  readonly message: MessageContent;
-  readonly targetClassification: ClassificationLevel;
-  /** Optional signal to abort the operation. */
-  readonly signal?: AbortSignal;
-}
-
-/** Successful response from message processing. */
-export interface ProcessMessageResult {
-  readonly response: string;
-  /** Cumulative token usage across all LLM calls made during this message turn. */
-  readonly tokenUsage: {
-    readonly inputTokens: number;
-    readonly outputTokens: number;
-  };
-}
-
-/** A conversation history entry. */
-export interface HistoryEntry {
-  readonly role: string;
-  readonly content: MessageContent;
-}
-
-/** The orchestrator interface for processing messages. */
-export interface Orchestrator {
-  /** Process a user message through the full agent loop. */
-  executeAgentTurn(
-    options: ProcessMessageOptions,
-  ): Promise<Result<ProcessMessageResult, string>>;
-  /** Get conversation history for a session. */
-  getHistory(sessionId: SessionId): readonly HistoryEntry[];
-  /** Clear conversation history for a session. */
-  clearHistory(sessionId: SessionId): void;
-  /** Force LLM-based summarization of a session's history. */
-  compactHistory(sessionId: SessionId): Promise<CompactResult>;
-}
+export type {
+  Orchestrator,
+  ProcessMessageOptions,
+  ProcessMessageResult,
+  HistoryEntry,
+  CompactResult,
+} from "../core/types/orchestrator.ts";
 
 /** Events emitted by the orchestrator during message processing. */
 export type OrchestratorEvent =

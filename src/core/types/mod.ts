@@ -51,3 +51,11 @@ export type {
   DomainClassificationResult,
   DomainClassifier,
 } from "./domain.ts";
+
+export type {
+  Orchestrator,
+  ProcessMessageOptions,
+  ProcessMessageResult,
+  HistoryEntry,
+  CompactResult,
+} from "./orchestrator.ts";
