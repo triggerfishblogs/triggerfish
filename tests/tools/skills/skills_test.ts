@@ -51,15 +51,15 @@ classification_ceiling: PUBLIC
 });
 
 Deno.test("SkillLoader: discovers all bundled skills", async () => {
-  const bundledDir = new URL("../../../skills/bundled", import.meta.url).pathname;
+  const bundledDir = new URL("../../../src/skills/bundled", import.meta.url).pathname;
   const loader = createSkillLoader({
     directories: [bundledDir],
     dirTypes: { [bundledDir]: "bundled" },
   });
   const skills = await loader.discover();
 
-  // Should find all 18 bundled skills
-  assertEquals(skills.length, 18);
+  // Should find all 19 bundled skills
+  assertEquals(skills.length, 19);
 
   const names = skills.map((s) => s.name).sort();
   assertEquals(names, [
@@ -79,6 +79,7 @@ Deno.test("SkillLoader: discovers all bundled skills", async () => {
     "signal",
     "skill-builder",
     "tdd",
+    "triggerfish",
     "triggers",
     "weather",
   ]);
