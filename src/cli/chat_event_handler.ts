@@ -16,7 +16,8 @@ import type { ToolDisplayMode } from "./chat_ansi.ts";
 import type { Spinner } from "./chat_spinner.ts";
 import { createSpinner } from "./chat_spinner.ts";
 import { writeln } from "./chat_ansi.ts";
-import { renderResponse, formatResponse, renderToolResult } from "./chat_format.ts";
+import { renderResponse, formatResponse } from "./chat_format.ts";
+import { renderToolResult } from "./chat_tool_display.ts";
 import {
   type EventCallback,
   isTodoTool,

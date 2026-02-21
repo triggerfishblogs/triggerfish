@@ -67,8 +67,8 @@ export interface ToolExecutorOptions {
  */
 async function dispatchToSubsystems(
   opts: ToolExecutorOptions,
-  todoExecutor: ToolExecutor | null,
-  webExecutor: ToolExecutor,
+  todoExecutor: SubsystemExecutor | null,
+  webExecutor: SubsystemExecutor,
   name: string,
   input: Record<string, unknown>,
 ): Promise<string | null> {

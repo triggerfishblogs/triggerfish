@@ -10,7 +10,7 @@
 
 import { join } from "@std/path";
 import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { SessionState } from "../core/types/session.ts";
+import type { SessionId, SessionState } from "../core/types/session.ts";
 import type { SecretStore } from "../core/secrets/keychain.ts";
 import type { SecretPromptCallback } from "../tools/secrets.ts";
 import {
@@ -51,7 +51,7 @@ export interface ObsidianPluginConfig {
 export async function buildObsidianExecutor(
   obsConfig: ObsidianPluginConfig,
   getSessionTaint: () => ClassificationLevel,
-  sessionId: string,
+  sessionId: SessionId,
 ): Promise<
   | ((name: string, input: Record<string, unknown>) => Promise<string | null>)
   | undefined

@@ -24,6 +24,7 @@ import type {
   ChannelChoice,
   DiveResult,
   ProviderChoice,
+  SearchProviderChoice,
   ToneChoice,
   WizardAnswers,
   WizardSection,
