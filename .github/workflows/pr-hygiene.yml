@@ -11,6 +11,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: anthropics/claude-code-action@v1
@@ -24,4 +25,4 @@ jobs:
             - Any new file not re-exported by its directory's mod.ts?
             - Any .claude/rules/ paths frontmatter that should be updated given the changes?
             Post findings as a PR comment. If everything is clean, comment "Hygiene check passed."
-          claude_args: "--model opus --max-turns 5"
+          claude_args: "--model sonnet --max-turns 10"
