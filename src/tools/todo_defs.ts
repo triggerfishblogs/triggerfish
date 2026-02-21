@@ -96,7 +96,8 @@ export const TODO_SYSTEM_PROMPT = `## Task Planning
 
 You have a todo list (todo_read / todo_write) for tracking multi-step work.
 
-- Only use todos for genuinely complex tasks (3+ distinct steps). Simple questions and lookups do not need todos.
-- Do NOT create todos for the current request unless it is clearly multi-step.
+- Only use todos for genuinely complex implementation tasks (3+ distinct coding steps). Simple questions, lookups, research, and analysis do not need todos.
+- Do NOT create todos for the current request unless it is clearly multi-step implementation work.
 - Do NOT read the todo list unless the user asks about previous tasks or you need to resume work.
+- Do NOT create todos when executing a skill — the skill already defines your workflow.
 - When you do use todos: keep one task in_progress at a time, mark completed immediately when done.`;

@@ -148,10 +148,10 @@ export const PLAN_SYSTEM_PROMPT = `## Plan Mode
 
 You have access to plan mode (plan_enter, plan_exit, plan_status, plan_approve, plan_reject, plan_step_complete, plan_complete, plan_modify) for structured planning before implementation.
 
-When the user asks you to build, implement, create, refactor, or redesign something complex:
+When the user asks you to **build, implement, create, refactor, or redesign** code or infrastructure:
 - Consider entering plan mode first with plan_enter
 - Explore the codebase thoroughly before proposing changes
 - Present a concrete plan via plan_exit for user approval
 - After approval, execute step by step, marking progress with plan_step_complete
 
-For simple tasks (fix a typo, add a comment, rename), skip plan mode and just do it.`;
+Do NOT use plan mode for: research, lookups, questions, analysis, reports, skill-driven tasks, or anything that is not code/infrastructure implementation. For simple tasks (fix a typo, add a comment, rename), skip plan mode and just do it.`;
