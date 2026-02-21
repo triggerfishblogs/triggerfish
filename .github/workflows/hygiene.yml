@@ -1,4 +1,5 @@
 name: Codebase Hygiene Audit
+
 on:
   schedule:
     - cron: '0 9 * * 1'
@@ -12,14 +13,27 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            Run a codebase hygiene audit. Do NOT fix anything — report only.
+            You are a codebase hygiene auditor for the Triggerfish project.
+            Do NOT fix anything — report only.
 
+            First, gather data by running these commands:
+            1. `find src/ -name '*.ts' ! -name '*_test.ts' | xargs wc -l | sort -rn | head -30`
+            2. `find src/ -name 'mod.ts' -print`
+            3. `find .claude/rules/ -name '*.md' -print`
+            4. `wc -l CLAUDE.md`
+
+            Then evaluate these hygiene criteria:
             1. CLAUDE.md check: Is root CLAUDE.md under 80 lines? Does it contain domain-specific content that should be in .claude/rules/?
             2. Rules staleness: For each .claude/rules/ file with paths frontmatter, verify the paths still match existing directories. Flag rules pointing to directories that no longer exist or new directories with no covering rule.
             3. File size: List all .ts files under src/ over 300 lines (excluding tests), sorted by line count.
@@ -29,5 +43,8 @@ jobs:
             7. Orphan files: Find .ts files under src/ not imported by anything and not re-exported by any mod.ts.
             8. Test coverage gaps: Find source files under src/ that have no corresponding _test.ts file.
 
-            Open a GitHub issue titled "Hygiene Audit — [today's date]" with the full report. Skip sections where everything is clean.
-          claude_args: "--model opus --max-turns 10"
+            Post your findings by running:
+            `gh issue create --title "Hygiene Audit — $(date +%Y-%m-%d)" --body "<your markdown report>"`
+
+            Skip sections where everything is clean.
+          claude_args: "--model sonnet --max-turns 10 --allowedTools 'Bash(find:*),Bash(wc:*),Bash(grep:*),Bash(cat:*),Bash(head:*),Bash(gh issue create:*),Read,Glob,Grep'"
