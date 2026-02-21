@@ -91,12 +91,12 @@ export {
 export type {
   PlanManager,
   PlanManagerOptions,
-} from "./plan.ts";
+} from "./plan/mod.ts";
 
 export {
   createPlanManager,
   createPlanToolExecutor,
-} from "./plan.ts";
+} from "./plan/mod.ts";
 
 export type {
   AgentMode,
@@ -107,22 +107,22 @@ export type {
   PlanComplexity,
   PlanStatus,
   PlanRecord,
-} from "./plan_types.ts";
+} from "./plan/mod.ts";
 
 export {
   DEFAULT_PLAN_STATE,
   PLAN_BLOCKED_TOOLS,
   PLAN_ALLOWED_TOOLS,
-} from "./plan_types.ts";
+} from "./plan/mod.ts";
 
 export {
   buildPlanModePrompt,
   buildAwaitingApprovalPrompt,
   buildPlanExecutionPrompt,
   formatPlanAsMarkdown,
-} from "./plan_prompt.ts";
+} from "./plan/mod.ts";
 
 export {
   getPlanToolDefinitions,
   PLAN_SYSTEM_PROMPT,
-} from "./plan_tools.ts";
+} from "./plan/mod.ts";

@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { ActivePlan, ImplementationPlan } from "./plan_types.ts";
+import type { ActivePlan, ImplementationPlan } from "./types.ts";
 
 /**
  * Build the plan mode system prompt injection.

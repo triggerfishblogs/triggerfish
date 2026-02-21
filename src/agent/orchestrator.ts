@@ -31,8 +31,8 @@ import { createCompactor, estimateHistoryTokens, countTokens } from "./compactor
 import type { Compactor, CompactResult } from "./compactor.ts";
 import type { ImageContentBlock, ContentBlock } from "../core/image/content.ts";
 import { extractText, hasImages, normalizeContent } from "../core/image/content.ts";
-import { createPlanToolExecutor } from "./plan.ts";
-import { buildPlanModePrompt, buildAwaitingApprovalPrompt, buildPlanExecutionPrompt } from "./plan_prompt.ts";
+import { createPlanToolExecutor } from "./plan/plan.ts";
+import { buildPlanModePrompt, buildAwaitingApprovalPrompt, buildPlanExecutionPrompt } from "./plan/prompt.ts";
 import type {
   HistoryEntry,
   Orchestrator,

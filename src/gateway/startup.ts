@@ -126,7 +126,7 @@ import {
   createOrchestratorFactory,
 } from "./factory.ts";
 import { createToolExecutor, resolveToolsForProfile, resolvePromptsForProfile, TOOL_GROUPS } from "./agent_tools.ts";
-import { createPlanManager, createPlanToolExecutor } from "../agent/plan.ts";
+import { createPlanManager, createPlanToolExecutor } from "../agent/plan/plan.ts";
 import { wireMcpServers } from "./startup_mcp.ts";
 import type { McpBroadcastRefs } from "./startup_mcp.ts";
 import {

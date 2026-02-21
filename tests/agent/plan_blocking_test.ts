@@ -17,8 +17,8 @@ import {
 } from "../../src/core/policy/hooks.ts";
 import { createSession } from "../../src/core/types/session.ts";
 import type { UserId, ChannelId } from "../../src/core/types/session.ts";
-import { createPlanManager } from "../../src/agent/plan.ts";
-import { getPlanToolDefinitions } from "../../src/agent/plan_tools.ts";
+import { createPlanManager } from "../../src/agent/plan/plan.ts";
+import { getPlanToolDefinitions } from "../../src/agent/plan/tools.ts";
 
 /** A mock response: text content and/or native tool calls. */
 interface MockResponse {

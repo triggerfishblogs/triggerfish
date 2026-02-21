@@ -12,7 +12,7 @@ import type {
   ImplementationPlan,
   PlanComplexity,
   PlanStep,
-} from "./plan_types.ts";
+} from "./types.ts";
 import type { PlanManager } from "./plan.ts";
 
 /**

@@ -14,7 +14,7 @@ import {
   EXPLORE_SYSTEM_PROMPT,
 } from "../../src/tools/explore/mod.ts";
 import type { ExploreResult } from "../../src/tools/explore/mod.ts";
-import { PLAN_ALLOWED_TOOLS } from "../../src/agent/plan_types.ts";
+import { PLAN_ALLOWED_TOOLS } from "../../src/agent/plan/types.ts";
 
 // ─── Tool definitions ──────────────────────────────────────────
 

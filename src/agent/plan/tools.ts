@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "./orchestrator.ts";
+import type { ToolDefinition } from "../../core/types/tool.ts";
 
 /** Tool definitions for plan mode tools. */
 export function getPlanToolDefinitions(): readonly ToolDefinition[] {

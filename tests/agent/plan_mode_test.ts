@@ -5,9 +5,9 @@
  * correctly injects plan mode context into the system prompt.
  */
 import { assertEquals, assert, assertStringIncludes } from "@std/assert";
-import { createPlanManager } from "../../src/agent/plan.ts";
-import type { PlanManager } from "../../src/agent/plan.ts";
-import type { ImplementationPlan } from "../../src/agent/plan_types.ts";
+import { createPlanManager } from "../../src/agent/plan/plan.ts";
+import type { PlanManager } from "../../src/agent/plan/plan.ts";
+import type { ImplementationPlan } from "../../src/agent/plan/types.ts";
 
 const TEST_SESSION = "test-session-001";
 

@@ -14,15 +14,15 @@ import type {
   ImplementationPlan,
   PlanModeState,
   PlanStep,
-} from "./plan_types.ts";
+} from "./types.ts";
 import {
   DEFAULT_PLAN_STATE,
   PLAN_BLOCKED_TOOLS,
-} from "./plan_types.ts";
-import { formatPlanAsMarkdown } from "./plan_prompt.ts";
+} from "./types.ts";
+import { formatPlanAsMarkdown } from "./prompt.ts";
 
 // Re-export tool executor for backward compatibility
-export { createPlanToolExecutor } from "./plan_executor.ts";
+export { createPlanToolExecutor } from "./executor.ts";
 
 /** Options for creating a PlanManager. */
 export interface PlanManagerOptions {

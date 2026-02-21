@@ -13,7 +13,7 @@ import { getTodoToolDefinitions, TODO_SYSTEM_PROMPT } from "../tools/mod.ts";
 import { getMemoryToolDefinitions, MEMORY_SYSTEM_PROMPT } from "../tools/memory/mod.ts";
 import { getSecretToolDefinitions, SECRET_TOOLS_SYSTEM_PROMPT } from "../tools/secrets.ts";
 import { getWebToolDefinitions, WEB_TOOLS_SYSTEM_PROMPT } from "../tools/web/mod.ts";
-import { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "../agent/plan_tools.ts";
+import { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "../agent/plan/tools.ts";
 import { getBrowserToolDefinitions } from "../tools/browser/mod.ts";
 import { getTidepoolToolDefinitions, TIDEPOOL_SYSTEM_PROMPT } from "../tools/tidepool/mod.ts";
 import { getSessionToolDefinitions, SESSION_TOOLS_SYSTEM_PROMPT } from "./tools.ts";

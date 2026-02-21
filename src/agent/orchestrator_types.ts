@@ -25,7 +25,7 @@ import type { HookRunner } from "../core/policy/hooks.ts";
 import type { LlmProviderRegistry, LlmProvider } from "./llm.ts";
 import type { CompactorConfig } from "./compactor.ts";
 import type { MessageContent } from "../core/image/content.ts";
-import type { PlanManager } from "./plan.ts";
+import type { PlanManager } from "./plan/plan.ts";
 import type { SessionState, SessionId } from "../core/types/session.ts";
 
 /** Default system prompt used when no SPINE.md is found. */

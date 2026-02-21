@@ -59,10 +59,10 @@ import type {
   SearchProvider,
   WebFetcher,
 } from "../tools/web/mod.ts";
-import { createPlanManager, createPlanToolExecutor } from "../agent/plan.ts";
+import { createPlanManager, createPlanToolExecutor } from "../agent/plan/plan.ts";
 import {
   getPlanToolDefinitions,
-} from "../agent/plan_tools.ts";
+} from "../agent/plan/tools.ts";
 import {
   createCalendarService,
   createDriveService,
