@@ -4,9 +4,10 @@ export default defineConfig({
   title: 'Triggerfish',
   description: 'Secure, multi-channel AI agent platform with deterministic policy enforcement below the LLM layer.',
   lang: 'en-US',
+  appearance: 'force-dark',
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
+    ['link', { rel: 'icon', type: 'image/png', href: '/triggerfish.png' }],
     ['meta', { property: 'og:title', content: 'Triggerfish' }],
     ['meta', { property: 'og:description', content: 'Secure AI agents. Every channel. No exceptions.' }],
     ['meta', { property: 'og:type', content: 'website' }],
@@ -15,7 +16,7 @@ export default defineConfig({
   ],
 
   themeConfig: {
-    logo: '/logo.svg',
+    logo: { src: '/triggerfish.png', alt: 'Triggerfish' },
     siteTitle: 'Triggerfish',
 
     nav: [
@@ -139,7 +140,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the Apache 2.0 License.',
-      copyright: 'Copyright 2025 Triggerfish Contributors',
+      copyright: 'Copyright 2026 Triggerfish Contributors',
     },
 
     search: {
@@ -153,6 +154,6 @@ export default defineConfig({
   },
 
   markdown: {
-    theme: { light: 'github-light', dark: 'github-dark' },
+    theme: 'github-dark',
   },
 })
