@@ -58,29 +58,14 @@ The binary installers download a pre-built release, verify its checksum, and run
 
 ## How It Works
 
-```
-                          The Reef
-                       (Skill Marketplace)
-                              |
-   Telegram  Slack  Discord  WhatsApp  WebChat  Email  CLI
-      |        |       |        |         |       |     |
-      +--------+-------+--------+---------+-------+-----+
-                              |
-                        Channel Router
-                     (classification gate)
-                              |
-                        Gateway Server
-                     (WebSocket control plane)
-                              |
-                  +-----------+-----------+
-                  |                       |
-            Policy Engine            Agent Loop
-           (deterministic)          (LLM provider)
-                  |                       |
-            +-----+-----+          +-----+-----+
-            |     |     |          |     |     |
-          Hooks Taint  Audit    Claude  GPT  Gemini
-                Track   Log    API    API   API
-```
+Triggerfish puts a **deterministic policy layer between your AI agent and everything it touches**. The LLM proposes actions — pure-code hooks decide whether they're allowed. No randomness, no LLM influence on security decisions, no exceptions.
 
-Every message passes through deterministic policy hooks before and after the LLM sees it. The AI requests actions — the policy layer decides. [Learn more about the architecture.](/architecture/)
+**Information flow control** tracks data sensitivity across every interaction. Four classification levels — PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED — propagate automatically through session taint. Once your agent touches confidential data, that session is permanently tainted. Data can never flow downward to a less secure context.
+
+**Six enforcement hooks** gate every stage of the data pipeline: what enters the LLM context, which tools get called, what results come back, and what leaves the system. Each hook is a pure function — same input, same decision, every time. Every decision is audit-logged with full context.
+
+**Default deny** means nothing is silently allowed. Unclassified tools, integrations, and data sources are rejected until explicitly configured. SSRF prevention resolves DNS and checks against a hardcoded IP denylist on all outbound HTTP.
+
+Your agent's identity lives in **SPINE.md** (system prompt) and **TRIGGER.md** (proactive behaviors). Skills extend capabilities through simple folder conventions. The Reef marketplace lets you discover and share them.
+
+[Learn more about the architecture.](/architecture/)
