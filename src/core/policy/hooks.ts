@@ -57,8 +57,8 @@ export interface HookRunnerOptions {
 
 /** Runner that evaluates hooks against the policy engine. */
 export interface HookRunner {
-  /** Run a hook evaluation. Returns a promise resolving to the decision. */
-  run(hook: HookType, context: HookContext): Promise<HookResult>;
+  /** Evaluate a hook against the policy engine. Returns a promise resolving to the decision. */
+  evaluateHook(hook: HookType, context: HookContext): Promise<HookResult>;
 }
 
 /** Default timeout for hook evaluation in milliseconds. */
@@ -150,7 +150,7 @@ export function createHookRunner(
   const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const logger = options?.logger;
 
-  async function run(hook: HookType, context: HookContext): Promise<HookResult> {
+  async function evaluateHook(hook: HookType, context: HookContext): Promise<HookResult> {
     const start = performance.now();
 
     try {
@@ -202,7 +202,7 @@ export function createHookRunner(
     }
   }
 
-  return { run };
+  return { evaluateHook };
 }
 
 /**

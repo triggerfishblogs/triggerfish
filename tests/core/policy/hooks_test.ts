@@ -21,17 +21,17 @@ function makeSession(taint = "PUBLIC" as const) {
 
 // --- HookRunner basics ---
 
-Deno.test("createHookRunner: returns runner with run method", () => {
+Deno.test("createHookRunner: returns runner with evaluateHook method", () => {
   const engine = createPolicyEngine();
   const runner = createHookRunner(engine);
-  assertExists(runner.run);
+  assertExists(runner.evaluateHook);
 });
 
 Deno.test("run: returns HookResult with allowed, action, ruleId, duration", async () => {
   const engine = createPolicyEngine();
   const runner = createHookRunner(engine);
   const session = makeSession();
-  const result = await runner.run("PRE_OUTPUT", { session, input: {} });
+  const result = await runner.evaluateHook("PRE_OUTPUT", { session, input: {} });
   assertExists(result.allowed);
   assertExists(result.action);
   assert(typeof result.duration === "number");
@@ -41,7 +41,7 @@ Deno.test("run: default ALLOW when no rules match", async () => {
   const engine = createPolicyEngine();
   const runner = createHookRunner(engine);
   const session = makeSession();
-  const result = await runner.run("PRE_OUTPUT", { session, input: {} });
+  const result = await runner.evaluateHook("PRE_OUTPUT", { session, input: {} });
   assertEquals(result.allowed, true);
   assertEquals(result.action, "ALLOW");
 });
@@ -55,8 +55,8 @@ Deno.test("run: same input produces same output (deterministic)", async () => {
   const session = makeSession("CONFIDENTIAL");
   const input = { target_classification: "PUBLIC" };
 
-  const r1 = await runner.run("PRE_OUTPUT", { session, input });
-  const r2 = await runner.run("PRE_OUTPUT", { session, input });
+  const r1 = await runner.evaluateHook("PRE_OUTPUT", { session, input });
+  const r2 = await runner.evaluateHook("PRE_OUTPUT", { session, input });
   assertEquals(r1.allowed, r2.allowed);
   assertEquals(r1.action, r2.action);
   assertEquals(r1.ruleId, r2.ruleId);
@@ -69,7 +69,7 @@ Deno.test("default no-write-down rule: blocks CONFIDENTIAL -> PUBLIC", async () 
   for (const rule of createDefaultRules()) engine.addRule(rule);
   const runner = createHookRunner(engine);
   const session = makeSession("CONFIDENTIAL");
-  const result = await runner.run("PRE_OUTPUT", {
+  const result = await runner.evaluateHook("PRE_OUTPUT", {
     session,
     input: { target_classification: "PUBLIC" },
   });
@@ -82,7 +82,7 @@ Deno.test("default no-write-down rule: allows PUBLIC -> INTERNAL", async () => {
   for (const rule of createDefaultRules()) engine.addRule(rule);
   const runner = createHookRunner(engine);
   const session = makeSession("PUBLIC");
-  const result = await runner.run("PRE_OUTPUT", {
+  const result = await runner.evaluateHook("PRE_OUTPUT", {
     session,
     input: { target_classification: "INTERNAL" },
   });
@@ -94,7 +94,7 @@ Deno.test("default untrusted-input rule: blocks UNTRUSTED source", async () => {
   for (const rule of createDefaultRules()) engine.addRule(rule);
   const runner = createHookRunner(engine);
   const session = makeSession();
-  const result = await runner.run("PRE_CONTEXT_INJECTION", {
+  const result = await runner.evaluateHook("PRE_CONTEXT_INJECTION", {
     session,
     input: { source_type: "UNTRUSTED" },
   });
@@ -110,7 +110,7 @@ Deno.test("run: logs every execution when logger provided", async () => {
   const logger = { log: (entry: HookLogEntry) => entries.push(entry) };
   const runner = createHookRunner(engine, { logger });
   const session = makeSession();
-  await runner.run("PRE_OUTPUT", { session, input: {} });
+  await runner.evaluateHook("PRE_OUTPUT", { session, input: {} });
   assertEquals(entries.length, 1);
   assertExists(entries[0].timestamp);
   assertEquals(entries[0].hook, "PRE_OUTPUT");
@@ -132,7 +132,7 @@ Deno.test("run: timeout causes BLOCK rejection", async () => {
   });
   const runner = createHookRunner(engine, { timeoutMs: 0 }); // instant timeout
   const session = makeSession();
-  const result = await runner.run("PRE_OUTPUT", { session, input: { x: "1" } });
+  const result = await runner.evaluateHook("PRE_OUTPUT", { session, input: { x: "1" } });
   // With 0ms timeout, should BLOCK
   assertEquals(result.allowed, false);
   assertEquals(result.action, "BLOCK");

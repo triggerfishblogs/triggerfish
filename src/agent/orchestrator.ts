@@ -403,7 +403,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     const { session, message, targetClassification, signal } = options;
 
     // 1. Fire PRE_CONTEXT_INJECTION hook
-    const preContextResult = await hookRunner.run("PRE_CONTEXT_INJECTION", {
+    const preContextResult = await hookRunner.evaluateHook("PRE_CONTEXT_INJECTION", {
       session,
       input: { content: extractText(message), source_type: "OWNER" },
     });
@@ -682,7 +682,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           ? outputTaint
           : targetClassification;
 
-        const preOutputResult = await hookRunner.run("PRE_OUTPUT", {
+        const preOutputResult = await hookRunner.evaluateHook("PRE_OUTPUT", {
           session: outputSession,
           input: {
             content: responseText,
@@ -779,7 +779,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           const hookSession = currentTaint !== session.taint
             ? { ...session, taint: currentTaint }
             : session;
-          const preToolResult = await hookRunner.run("PRE_TOOL_CALL", {
+          const preToolResult = await hookRunner.evaluateHook("PRE_TOOL_CALL", {
             session: hookSession,
             input: secInput,
           });

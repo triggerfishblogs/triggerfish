@@ -295,7 +295,7 @@ Deno.test("resource-classification: hook evaluates domain classification for web
   const updatedSession = updateTaint(session, "RESTRICTED", "setup");
 
   // Write-down: RESTRICTED session writing to PUBLIC domain
-  const result = await hookRunner.run("PRE_TOOL_CALL", {
+  const result = await hookRunner.evaluateHook("PRE_TOOL_CALL", {
     session: updatedSession,
     input: {
       tool_call: { name: "browser_type", args: { url: "https://public-forum.com/post", text: "secret" } },
@@ -317,7 +317,7 @@ Deno.test("resource-classification: non-owner blocked when URL domain exceeds ce
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
   const updatedSession = updateTaint(session, "INTERNAL", "setup");
 
-  const result = await hookRunner.run("PRE_TOOL_CALL", {
+  const result = await hookRunner.evaluateHook("PRE_TOOL_CALL", {
     session: updatedSession,
     input: {
       tool_call: { name: "web_fetch", args: { url: "https://intranet.corp/confidential" } },
@@ -340,7 +340,7 @@ Deno.test("resource-classification: write-down blocked on URL domain", async () 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
   const updatedSession = updateTaint(session, "RESTRICTED", "setup");
 
-  const result = await hookRunner.run("PRE_TOOL_CALL", {
+  const result = await hookRunner.evaluateHook("PRE_TOOL_CALL", {
     session: updatedSession,
     input: {
       tool_call: { name: "browser_type", args: { url: "https://public-forum.com/post", text: "secret data" } },
