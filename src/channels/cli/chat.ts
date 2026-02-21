@@ -268,13 +268,25 @@ export async function runChat(): Promise<void> {
     if (state.passwordMode !== null) {
       const pm = state.passwordMode;
       if (keypress.key === "enter") {
+        if (pm.needsUsername && !pm.usernameCollected) {
+          // Transition from username phase to password phase
+          pm.usernameCollected = true;
+          screen.writeOutput(`  \x1b[33m\u{1f512} Now enter password for '${pm.name}'\x1b[0m`);
+          screen.setStatus(`\u{1f512} ${pm.name} password: `);
+          screen.redrawInput(editor);
+          continue;
+        }
+        // Password phase: submit response
         const value = pm.chars.join("");
+        const username = pm.needsUsername ? pm.usernameChars.join("") : undefined;
+        const responseMsg: Record<string, unknown> = {
+          type: "secret_prompt_response",
+          nonce: pm.nonce,
+          value,
+        };
+        if (username !== undefined) responseMsg.username = username;
         try {
-          ws.send(JSON.stringify({
-            type: "secret_prompt_response",
-            nonce: pm.nonce,
-            value,
-          }));
+          ws.send(JSON.stringify(responseMsg));
         } catch { /* ignore */ }
         screen.writeOutput(`  \x1b[32m\u2713 Secret submitted\x1b[0m`);
         screen.clearStatus();
@@ -297,17 +309,33 @@ export async function runChat(): Promise<void> {
         continue;
       }
       if (keypress.key === "backspace") {
-        if (pm.chars.length > 0) {
-          pm.chars.pop();
-          const masked = "\u25cf".repeat(pm.chars.length);
-          screen.setStatus(`\u{1f512} ${pm.name}: ${masked}`);
+        if (!pm.usernameCollected) {
+          // Username phase: visible characters
+          if (pm.usernameChars.length > 0) {
+            pm.usernameChars.pop();
+            screen.setStatus(`\u{1f512} ${pm.name} username: ${pm.usernameChars.join("")}`);
+          }
+        } else {
+          // Password phase: masked characters
+          if (pm.chars.length > 0) {
+            pm.chars.pop();
+            const masked = "\u25cf".repeat(pm.chars.length);
+            screen.setStatus(`\u{1f512} ${pm.name}: ${masked}`);
+          }
         }
         continue;
       }
       if (keypress.char !== null) {
-        pm.chars.push(keypress.char);
-        const masked = "\u25cf".repeat(pm.chars.length);
-        screen.setStatus(`\u{1f512} ${pm.name}: ${masked}`);
+        if (!pm.usernameCollected) {
+          // Username phase: collect visible characters
+          pm.usernameChars.push(keypress.char);
+          screen.setStatus(`\u{1f512} ${pm.name} username: ${pm.usernameChars.join("")}`);
+        } else {
+          // Password phase: collect masked characters
+          pm.chars.push(keypress.char);
+          const masked = "\u25cf".repeat(pm.chars.length);
+          screen.setStatus(`\u{1f512} ${pm.name}: ${masked}`);
+        }
         continue;
       }
       continue;

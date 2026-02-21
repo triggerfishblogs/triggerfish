@@ -514,7 +514,7 @@ export async function runStart(): Promise<void> {
   let activeSecretPrompt: SecretPromptCallback = cliSecretPrompt;
   const secretExecutor = createSecretToolExecutor(
     mainKeychain,
-    (name, hint) => activeSecretPrompt(name, hint),
+    (name, hint, options) => activeSecretPrompt(name, hint, options),
   );
 
   const triggerExecutor = createTriggerToolExecutor({

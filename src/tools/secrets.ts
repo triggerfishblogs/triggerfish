@@ -18,44 +18,59 @@ import type { ToolDefinition } from "../core/types/tool.ts";
 import type { SecretStore } from "../core/secrets/keychain.ts";
 
 /**
- * Platform-supplied callback to collect a secret value from the user
- * through a secure, out-of-LLM-context channel.
+ * Platform-supplied callback to collect a secret value (and optional username)
+ * from the user through a secure, out-of-LLM-context channel.
  *
  * For CLI: shows a hidden terminal prompt (input not echoed).
  * For Tidepool: sends a `secret_prompt` WebSocket event and awaits browser response.
  *
  * @param name - The secret name (shown to the user as a hint)
  * @param hint - Optional descriptive hint about what the secret is for
- * @returns The entered secret value, or null if the user cancelled
+ * @param options - Optional flags controlling prompt behavior
+ * @param options.withUsername - When true, also collect a username alongside the secret value
+ * @returns The entered value (and optional username), or null if the user cancelled
  */
 export type SecretPromptCallback = (
   name: string,
   hint?: string,
-) => Promise<string | null>;
+  options?: { readonly withUsername: boolean },
+) => Promise<{ readonly value: string; readonly username?: string } | null>;
 
 /** System prompt section explaining secret tool usage to the LLM. */
 export const SECRET_TOOLS_SYSTEM_PROMPT = `## Secret Management
 
 You have access to secure secret storage tools for managing passwords, API keys, and tokens.
 
-### How to save a secret
+### How to save a secret (value only)
 Call \`secret_save\` with a descriptive name and an optional hint. The user will be prompted
 to enter the value through a secure input channel — the actual value is NEVER passed through
 your context and you will NEVER see it.
 
-### How to reference a secret
-Use the reference syntax \`{{secret:name}}\` anywhere in a tool argument where a password,
-API key, or token is required. The Triggerfish runtime resolves these references to the real
-values before executing the tool — the values are never visible to you.
+Reference syntax: \`{{secret:name}}\`
 
-Example: to use a stored API key named "openai_key" in a tool argument:
+### How to save a credential pair (username + password)
+Call \`secret_save\` with \`with_username: true\` when you need to store both a username and
+a password together (e.g. email login, database credentials). The user will be prompted to
+enter both values through a secure channel.
+
+This stores two secrets automatically:
+  - \`name:username\` — referenced as \`{{secret:name:username}}\`
+  - \`name:password\` — referenced as \`{{secret:name:password}}\`
+
+### How to reference a secret
+Use \`{{secret:name}}\` anywhere in a tool argument. The Triggerfish runtime resolves these
+references to the real values before executing the tool — the values are never visible to you.
+
+Examples:
   \`{"api_key": "{{secret:openai_key}}"}\`
+  \`{"user": "{{secret:smtp:username}}", "pass": "{{secret:smtp:password}}"}\`
 
 ### Rules
 - You MUST use the reference syntax. Never ask the user to type secrets in chat.
 - Call \`secret_list\` to see which secrets are already stored before asking to save a new one.
 - Do not log, repeat, or reveal secret values. They are never in your context.
-- Secret names should be lowercase with underscores (e.g. "github_token", "smtp_password").`;
+- Secret names should be lowercase with underscores (e.g. "github_token", "smtp_password").
+- Use \`with_username: true\` whenever a username is needed alongside a password.`;
 
 /** Tool definitions for the secret management tools. */
 export function getSecretToolDefinitions(): readonly ToolDefinition[] {
@@ -66,7 +81,9 @@ export function getSecretToolDefinitions(): readonly ToolDefinition[] {
         "Prompt the user to securely enter a secret value (password, API key, token) " +
         "through a private input channel and store it under the given name. " +
         "The value is NEVER passed through LLM context. " +
-        "Use secret_list first to check if the secret already exists.",
+        "Use secret_list first to check if the secret already exists. " +
+        "Set with_username=true to also collect a username alongside the password — " +
+        "the pair is stored as 'name:username' and 'name:password'.",
       parameters: {
         name: {
           type: "string",
@@ -80,6 +97,13 @@ export function getSecretToolDefinitions(): readonly ToolDefinition[] {
           description:
             "Optional human-readable description shown to the user when prompting " +
             "for the value. Example: 'GitHub personal access token with repo scope'.",
+        },
+        with_username: {
+          type: "boolean",
+          description:
+            "When true, also collect a username alongside the secret value. " +
+            "Stores two secrets: 'name:username' and 'name:password'. " +
+            "Use for login credentials that require both a username and a password.",
         },
       },
     },
@@ -128,19 +152,41 @@ export function createSecretToolExecutor(
         const trimmedName = secretName.trim();
         const hint =
           typeof input.hint === "string" ? input.hint.trim() : undefined;
+        const withUsername = input.with_username === true;
 
-        // Collect the value through the out-of-band channel — never from LLM args.
-        const value = await prompt(trimmedName, hint);
-        if (value === null) {
+        // Collect the value (and optional username) through the out-of-band channel.
+        const result = await prompt(trimmedName, hint, withUsername ? { withUsername: true } : undefined);
+        if (result === null) {
           return `Secret '${trimmedName}' was not saved — input was cancelled.`;
         }
-        if (value.length === 0) {
+        if (result.value.length === 0) {
           return `Error: Secret value cannot be empty. Secret '${trimmedName}' was not saved.`;
         }
 
-        const result = await store.setSecret(trimmedName, value);
-        if (!result.ok) {
-          return `Error saving secret '${trimmedName}': ${result.error}`;
+        if (withUsername) {
+          // Store as two separate keys: name:password and name:username
+          const passwordKey = `${trimmedName}:password`;
+          const usernameKey = `${trimmedName}:username`;
+          const username = result.username ?? "";
+
+          const pwResult = await store.setSecret(passwordKey, result.value);
+          if (!pwResult.ok) {
+            return `Error saving secret '${passwordKey}': ${pwResult.error}`;
+          }
+          const unResult = await store.setSecret(usernameKey, username);
+          if (!unResult.ok) {
+            return `Error saving secret '${usernameKey}': ${unResult.error}`;
+          }
+          return (
+            `Credential pair saved for '${trimmedName}'. ` +
+            `Reference password as {{secret:${passwordKey}}}, ` +
+            `username as {{secret:${usernameKey}}}.`
+          );
+        }
+
+        const saveResult = await store.setSecret(trimmedName, result.value);
+        if (!saveResult.ok) {
+          return `Error saving secret '${trimmedName}': ${saveResult.error}`;
         }
         return `Secret '${trimmedName}' saved successfully. Reference it in tool arguments as {{secret:${trimmedName}}}.`;
       }

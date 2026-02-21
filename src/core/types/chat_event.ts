@@ -68,6 +68,11 @@ export type ChatEvent =
     readonly name: string;
     /** Optional human-readable hint for the user. */
     readonly hint?: string;
+    /**
+     * When true, the UI must also collect a username alongside the password.
+     * The username is returned in the `username` field of `secret_prompt_response`.
+     */
+    readonly needsUsername?: boolean;
   }
   /** Server → client: a trigger/scheduler notification delivered to the owner. */
   | { readonly type: "notification"; readonly message: string }
@@ -90,6 +95,11 @@ export type ChatClientMessage =
     readonly nonce: string;
     /** The secret value entered by the user, or null if cancelled. */
     readonly value: string | null;
+    /**
+     * The username entered by the user, present when `needsUsername` was true
+     * in the originating `secret_prompt` event.
+     */
+    readonly username?: string;
   };
 
 /** Callback to send a chat event to a specific client. */
