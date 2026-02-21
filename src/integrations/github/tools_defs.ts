@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../../agent/orchestrator.ts";
+import type { ToolDefinition } from "../../core/types/tool.ts";
 
 /**
  * Get GitHub tool definitions for the agent system prompt.

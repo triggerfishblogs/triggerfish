@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../agent/orchestrator.ts";
+import type { ToolDefinition } from "../core/types/tool.ts";
 import type { LlmProviderRegistry } from "../agent/llm.ts";
 import type { StorageProvider } from "../core/storage/provider.ts";
 import type { SkillLoader } from "./skills/loader.ts";

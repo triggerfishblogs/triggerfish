@@ -32,3 +32,8 @@ export {
   resetSession,
   updateTaint,
 } from "./session.ts";
+
+export type {
+  ToolDefinition,
+  ToolExecutor,
+} from "./tool.ts";

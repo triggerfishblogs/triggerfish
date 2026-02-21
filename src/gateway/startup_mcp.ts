@@ -26,7 +26,7 @@ import {
 } from "../mcp/mod.ts";
 import type { McpServerConfig, McpServerManager } from "../mcp/mod.ts";
 import { createLogger } from "../core/logger/mod.ts";
-import type { ToolDefinition } from "../agent/orchestrator.ts";
+import type { ToolDefinition } from "../core/types/tool.ts";
 
 const log = createLogger("startup-mcp");
 

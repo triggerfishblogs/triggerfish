@@ -25,7 +25,7 @@ import type { PairingService } from "../channels/pairing.ts";
 import type {
   ToolDefinition,
   ToolExecutor,
-} from "../agent/orchestrator.ts";
+} from "../core/types/tool.ts";
 
 /** Events sent over the chat wire protocol. */
 export type ChatEvent =

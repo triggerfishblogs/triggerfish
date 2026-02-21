@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../../agent/orchestrator.ts";
+import type { ToolDefinition } from "../../core/types/tool.ts";
 
 /** Get all 14 Google Workspace tool definitions. */
 export function getGoogleToolDefinitions(): readonly ToolDefinition[] {

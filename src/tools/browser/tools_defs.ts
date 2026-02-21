@@ -9,7 +9,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../../agent/orchestrator.ts";
+import type { ToolDefinition } from "../../core/types/tool.ts";
 
 /**
  * Get browser tool definitions for the agent orchestrator.

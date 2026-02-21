@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../../agent/orchestrator.ts";
+import type { ToolDefinition } from "../../core/types/tool.ts";
 import type { SearchProvider } from "./search.ts";
 import type { WebFetcher } from "./fetch.ts";
 

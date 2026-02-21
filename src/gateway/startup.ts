@@ -32,7 +32,7 @@ import {
 import {
   mapToolPrefixClassifications,
 } from "../agent/orchestrator.ts";
-import type { ToolDefinition } from "../agent/orchestrator.ts";
+import type { ToolDefinition } from "../core/types/tool.ts";
 import { createProviderRegistry } from "../agent/llm.ts";
 import {
   loadProvidersFromConfig,

@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../../agent/orchestrator.ts";
+import type { ToolDefinition } from "../../core/types/tool.ts";
 
 /** A key file identified during exploration. */
 export interface KeyFile {

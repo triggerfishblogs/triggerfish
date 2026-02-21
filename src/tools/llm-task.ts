@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../agent/orchestrator.ts";
+import type { ToolDefinition } from "../core/types/tool.ts";
 import type { LlmProviderRegistry } from "../agent/llm.ts";
 
 /** Input shape for the llm_task tool. */

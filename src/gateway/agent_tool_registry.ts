@@ -32,7 +32,7 @@ import {
 import { getTriggerToolDefinitions, TRIGGER_TOOLS_SYSTEM_PROMPT } from "./trigger_tools.ts";
 import { getClaudeToolDefinitions, CLAUDE_SESSION_SYSTEM_PROMPT } from "../exec/claude.ts";
 import { getSkillToolDefinitions } from "../tools/skills/mod.ts";
-import type { ToolDefinition } from "../agent/orchestrator.ts";
+import type { ToolDefinition } from "../core/types/tool.ts";
 
 // ─── Inline tool definition groups ─────────────────────────────────────────
 

@@ -9,6 +9,7 @@
  */
 
 import type { Result, ClassificationLevel } from "../core/types/classification.ts";
+import type { ToolDefinition, ToolExecutor } from "../core/types/tool.ts";
 import type { SecretStore } from "../core/secrets/keychain.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
 import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
@@ -39,24 +40,7 @@ export const SOFT_LIMIT_ITERATIONS = 20;
 export const LEAKED_INTENT_PATTERN =
   /\b(?:(?:I(?:'ll| will| need to| should| can| am going to)\s+(?:search|fetch|look up|find|check|browse|retrieve|use web_))|(?:(?:Let|let) me (?:search|fetch|look|find|check|browse|retrieve|use))|(?:(?:We|I) need to (?:fetch|search|look up|find|check|browse|retrieve)))/i;
 
-/** A tool definition for prompt-based tool calling. */
-export interface ToolDefinition {
-  readonly name: string;
-  readonly description: string;
-  readonly parameters: Readonly<Record<string, {
-    readonly type: string;
-    readonly description: string;
-    readonly required?: boolean;
-    readonly items?: Readonly<Record<string, unknown>>;
-    readonly enum?: readonly string[];
-  }>>;
-}
-
-/** Handler that executes a tool call and returns the result text. */
-export type ToolExecutor = (
-  name: string,
-  input: Record<string, unknown>,
-) => Promise<string>;
+export type { ToolDefinition, ToolExecutor } from "../core/types/tool.ts";
 
 /** Configuration for creating an orchestrator. */
 export interface OrchestratorConfig {

@@ -9,7 +9,7 @@
  */
 
 import type { StorageProvider } from "../core/storage/provider.ts";
-import type { ToolDefinition } from "../agent/orchestrator.ts";
+import type { ToolDefinition } from "../core/types/tool.ts";
 
 /** Priority level for a todo item. */
 export type TodoPriority = "high" | "medium" | "low";

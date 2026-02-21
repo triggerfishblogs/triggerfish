@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../agent/orchestrator.ts";
+import type { ToolDefinition } from "../core/types/tool.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import type { SessionId } from "../core/types/session.ts";
 import type { ChannelAdapter } from "../channels/types.ts";

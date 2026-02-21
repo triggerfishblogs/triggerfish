@@ -11,7 +11,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../../agent/orchestrator.ts";
+import type { ToolDefinition } from "../../core/types/tool.ts";
 
 /** Get Tidepool A2UI tool definitions for the agent orchestrator. */
 export function getTidepoolToolDefinitions(): readonly ToolDefinition[] {

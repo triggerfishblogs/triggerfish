@@ -12,7 +12,7 @@
  */
 
 import { join } from "@std/path";
-import type { ToolDefinition } from "../../agent/orchestrator.ts";
+import type { ToolDefinition } from "../../core/types/tool.ts";
 import type { SkillLoader } from "./loader.ts";
 
 /** Skill type argument accepted by read_skill. */

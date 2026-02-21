@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../agent/orchestrator.ts";
+import type { ToolDefinition } from "../core/types/tool.ts";
 import type { ClaudeSessionConfig, ClaudeSessionManager } from "./claude.ts";
 
 /** Tool definitions for Claude session management. */
