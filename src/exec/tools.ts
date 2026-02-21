@@ -55,7 +55,7 @@ export interface ExecTools {
   /** Read a file from the workspace. Path is relative to workspace root. */
   read(path: string): Promise<Result<string, string>>;
   /** Run a shell command in the workspace directory. */
-  run(command: string): Promise<Result<RunResult, string>>;
+  runCommand(command: string): Promise<Result<RunResult, string>>;
   /** List files in the workspace (or a subdirectory). */
   ls(path?: string): Promise<Result<readonly FileEntry[], string>>;
 }
@@ -144,7 +144,7 @@ export function createExecTools(
       }
     },
 
-    async run(command: string): Promise<Result<RunResult, string>> {
+    async runCommand(command: string): Promise<Result<RunResult, string>> {
       try {
         const start = performance.now();
         const proc = new Deno.Command("sh", {

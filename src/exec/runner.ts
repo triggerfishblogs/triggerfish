@@ -76,7 +76,7 @@ export function createExecRunner(
         return { ok: false, error: `Command denied by policy: "${command}"` };
       }
 
-      const result = await tools.run(command);
+      const result = await tools.runCommand(command);
 
       history.push({
         command,

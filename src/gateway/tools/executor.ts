@@ -166,7 +166,7 @@ async function executeRunCommand(
   if (typeof command !== "string" || command.length === 0) {
     return "Error: run_command requires a 'command' argument (string).";
   }
-  const result = await execTools.run(command);
+  const result = await execTools.runCommand(command);
   if (!result.ok) return `Error: ${result.error}`;
   const out = result.value;
   const parts: string[] = [];
