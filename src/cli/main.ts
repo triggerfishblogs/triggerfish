@@ -174,7 +174,7 @@ export async function runPatrol(): Promise<void> {
   };
 
   const checker = createPatrolCheck(input);
-  const report = await checker.run();
+  const report = await checker.runHealthChecks();
 
   // Show daemon info
   if (daemonStatus.running) {

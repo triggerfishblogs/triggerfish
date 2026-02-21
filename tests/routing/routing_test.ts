@@ -85,7 +85,7 @@ Deno.test("Patrol: returns health status object", async () => {
     policyRulesLoaded: 3,
     skillsInstalled: 0,
   });
-  const report = await patrol.run();
+  const report = await patrol.runHealthChecks();
   assertExists(report.overall);
   assert(["HEALTHY", "WARNING", "CRITICAL"].includes(report.overall));
   assertExists(report.checks);
@@ -100,6 +100,6 @@ Deno.test("Patrol: reports CRITICAL when LLM not connected", async () => {
     policyRulesLoaded: 0,
     skillsInstalled: 0,
   });
-  const report = await patrol.run();
+  const report = await patrol.runHealthChecks();
   assertEquals(report.overall, "CRITICAL");
 });
