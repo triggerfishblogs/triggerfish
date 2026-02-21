@@ -16,7 +16,7 @@ import type { SecretStore } from "../core/secrets/keychain.ts";
 import type { LlmProviderRegistry, LlmProvider } from "../core/types/llm.ts";
 import type { PlanManager } from "../agent/plan.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
-import type { DomainClassifier } from "../tools/web/domains.ts";
+import type { DomainClassifier } from "../core/types/domain.ts";
 import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
 import type { CompactorConfig } from "../agent/compactor.ts";
 import type { MessageContent } from "../core/image/content.ts";

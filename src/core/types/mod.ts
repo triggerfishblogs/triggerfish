@@ -46,3 +46,8 @@ export type {
   LlmProvider,
   LlmProviderRegistry,
 } from "./llm.ts";
+
+export type {
+  DomainClassificationResult,
+  DomainClassifier,
+} from "./domain.ts";

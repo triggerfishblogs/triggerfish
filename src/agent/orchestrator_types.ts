@@ -13,7 +13,7 @@ import type { ToolDefinition, ToolExecutor } from "../core/types/tool.ts";
 import type { SecretStore } from "../core/secrets/keychain.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
 import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
-import type { DomainClassifier } from "../tools/web/domains.ts";
+import type { DomainClassifier } from "../core/types/domain.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { LlmProviderRegistry, LlmProvider } from "./llm.ts";
 import type { CompactorConfig, CompactResult } from "./compactor.ts";
