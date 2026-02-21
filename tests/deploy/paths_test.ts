@@ -6,7 +6,7 @@
 
 import { assertEquals } from "@std/assert";
 import { isDockerEnvironment } from "../../src/core/env.ts";
-import { resolveBaseDir, resolveConfigPath } from "../../src/cli/paths.ts";
+import { resolveBaseDir, resolveConfigPath } from "../../src/cli/config/paths.ts";
 
 // Helper to temporarily set/unset env vars for testing
 function withEnv(

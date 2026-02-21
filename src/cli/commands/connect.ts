@@ -7,12 +7,12 @@
  */
 
 import { Input } from "@cliffy/prompt";
-import { createKeychain } from "../core/secrets/keychain.ts";
-import type { SecretStore } from "../core/secrets/keychain.ts";
+import { createKeychain } from "../../core/secrets/keychain.ts";
+import type { SecretStore } from "../../core/secrets/keychain.ts";
 import {
   createGoogleAuthManager,
-} from "../integrations/google/mod.ts";
-import type { GoogleAuthConfig } from "../integrations/google/mod.ts";
+} from "../../integrations/google/mod.ts";
+import type { GoogleAuthConfig } from "../../integrations/google/mod.ts";
 
 /** Google OAuth2 scopes for all Workspace services. */
 export const GOOGLE_SCOPES: readonly string[] = [

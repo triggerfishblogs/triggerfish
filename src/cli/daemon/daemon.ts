@@ -8,7 +8,7 @@
  */
 
 import { join } from "@std/path";
-import { resolveBaseDir } from "./paths.ts";
+import { resolveBaseDir } from "../config/paths.ts";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -238,9 +238,9 @@ export {
   getDaemonStatus,
   uninstallDaemon,
   cleanupOldBinary,
-} from "./daemon_lifecycle.ts";
+} from "./lifecycle.ts";
 
-export { tailLogs, bundleLogs } from "./daemon_logs.ts";
+export { tailLogs, bundleLogs } from "./logs.ts";
 
-export type { UpdateResult } from "./daemon_updater.ts";
-export { updateTriggerfish } from "./daemon_updater.ts";
+export type { UpdateResult } from "./updater.ts";
+export { updateTriggerfish } from "./updater.ts";

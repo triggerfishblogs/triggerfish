@@ -113,9 +113,9 @@ import {
   shutdownLogger,
   USER_LEVEL_MAP,
 } from "../../core/logger/mod.ts";
-import { logDir as resolveLogDir } from "../../cli/daemon.ts";
+import { logDir as resolveLogDir } from "../../cli/daemon/daemon.ts";
 import { loadConfigWithSecrets } from "../../core/config.ts";
-import { resolveBaseDir, resolveConfigPath } from "../../cli/paths.ts";
+import { resolveBaseDir, resolveConfigPath } from "../../cli/config/paths.ts";
 import { TIDEPOOL_PORT } from "../../cli/constants.ts";
 import { buildSkillsSystemPrompt, buildTriggersSystemPrompt } from "../../tools/skills/prompts.ts";
 import {

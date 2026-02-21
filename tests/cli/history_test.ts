@@ -9,7 +9,7 @@ import {
   createInputHistory,
   loadInputHistory,
   saveInputHistory,
-} from "../../src/cli/history.ts";
+} from "../../src/cli/chat/history.ts";
 
 // ─── Basic navigation ───────────────────────────────────────────
 

@@ -14,14 +14,14 @@
  */
 
 // ─── ANSI + constants ────────────────────────────────────────────
-export type { ToolDisplayMode } from "./chat_ansi.ts";
+export type { ToolDisplayMode } from "./ansi.ts";
 
 // ─── Banner ──────────────────────────────────────────────────────
-export { printBanner, formatBanner } from "./chat_banner.ts";
+export { printBanner, formatBanner } from "./banner.ts";
 
 // ─── Spinner ─────────────────────────────────────────────────────
-export type { Spinner } from "./chat_spinner.ts";
-export { createSpinner } from "./chat_spinner.ts";
+export type { Spinner } from "./spinner.ts";
+export { createSpinner } from "./spinner.ts";
 
 // ─── Formatting ──────────────────────────────────────────────────
 export {
@@ -30,7 +30,7 @@ export {
   renderError,
   formatError,
   renderPrompt,
-} from "./chat_format.ts";
+} from "./format.ts";
 
 // ─── Tool display ────────────────────────────────────────────────
 export {
@@ -40,11 +40,11 @@ export {
   formatToolCallExpanded,
   formatToolResultExpanded,
   formatToolCompact,
-} from "./chat_tool_display.ts";
-export type { EventCallback } from "./chat_tool_display.ts";
+} from "./tool_display.ts";
+export type { EventCallback } from "./tool_display.ts";
 
 // ─── Event handlers ──────────────────────────────────────────────
 export {
   createEventHandler,
   createScreenEventHandler,
-} from "./chat_event_handler.ts";
+} from "./event_handler.ts";

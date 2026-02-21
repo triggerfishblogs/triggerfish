@@ -3,8 +3,8 @@
  * @module
  */
 
-import { RESET, BOLD, DIM, CYAN, BLUE, write, writeln } from "./chat_ansi.ts";
-import { VERSION } from "./version.ts";
+import { RESET, BOLD, DIM, CYAN, BLUE, write, writeln } from "./ansi.ts";
+import { VERSION } from "../version.ts";
 
 /** Print the Triggerfish ASCII art banner with session info. */
 export function printBanner(

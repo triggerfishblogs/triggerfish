@@ -8,16 +8,16 @@
  * @module
  */
 
-import type { OrchestratorEvent } from "../agent/orchestrator.ts";
-import type { ScreenManager } from "./screen.ts";
-import { extractTodosFromEvent, formatTodoListAnsi } from "../tools/todo.ts";
-import { RESET, BOLD, DIM, GREEN, YELLOW, RED } from "./chat_ansi.ts";
-import type { ToolDisplayMode } from "./chat_ansi.ts";
-import type { Spinner } from "./chat_spinner.ts";
-import { createSpinner } from "./chat_spinner.ts";
-import { writeln } from "./chat_ansi.ts";
-import { renderResponse, formatResponse } from "./chat_format.ts";
-import { renderToolResult } from "./chat_tool_display.ts";
+import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
+import type { ScreenManager } from "../terminal/screen.ts";
+import { extractTodosFromEvent, formatTodoListAnsi } from "../../tools/todo.ts";
+import { RESET, BOLD, DIM, GREEN, YELLOW, RED } from "./ansi.ts";
+import type { ToolDisplayMode } from "./ansi.ts";
+import type { Spinner } from "./spinner.ts";
+import { createSpinner } from "./spinner.ts";
+import { writeln } from "./ansi.ts";
+import { renderResponse, formatResponse } from "./format.ts";
+import { renderToolResult } from "./tool_display.ts";
 import {
   type EventCallback,
   isTodoTool,
@@ -26,8 +26,8 @@ import {
   formatToolCallExpanded,
   formatToolResultExpanded,
   formatPlanMarkdown,
-} from "./chat_tool_display.ts";
-import { createThinkingFilter } from "./chat_think_filter.ts";
+} from "./tool_display.ts";
+import { createThinkingFilter } from "./think_filter.ts";
 
 export type { EventCallback };
 

@@ -7,7 +7,7 @@
  * @module
  */
 
-import { TIDEPOOL_PORT } from "./constants.ts";
+import { TIDEPOOL_PORT } from "../constants.ts";
 
 /**
  * Returns the URL at which the Tidepool A2UI server is expected to listen.

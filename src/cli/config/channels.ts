@@ -7,7 +7,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
 import { Confirm, Select } from "@cliffy/prompt";
 import { backupConfig, resolveConfigPath } from "./paths.ts";
 import { CHANNEL_TYPES, PLUGIN_TYPES, promptDaemonRestart } from "./config.ts";
-import { promptChannelConfig, promptPluginConfig } from "./config_channel_prompts.ts";
+import { promptChannelConfig, promptPluginConfig } from "./channel_prompts.ts";
 
 type ChannelType = typeof CHANNEL_TYPES[number];
 type PluginType = typeof PLUGIN_TYPES[number];

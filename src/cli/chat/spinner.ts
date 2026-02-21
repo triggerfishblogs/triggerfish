@@ -3,7 +3,7 @@
  * @module
  */
 
-import { RESET, DIM, CYAN, write, SPINNER_FRAMES } from "./chat_ansi.ts";
+import { RESET, DIM, CYAN, write, SPINNER_FRAMES } from "./ansi.ts";
 
 /** An animated terminal spinner. */
 export interface Spinner {

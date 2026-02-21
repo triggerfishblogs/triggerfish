@@ -10,8 +10,8 @@
 import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
 import { Confirm } from "@cliffy/prompt";
 import { backupConfig, resolveConfigPath } from "./paths.ts";
-import { getDaemonStatus, installAndStartDaemon, stopDaemon } from "./daemon.ts";
-import { validateConfig } from "../core/config.ts";
+import { getDaemonStatus, installAndStartDaemon, stopDaemon } from "../daemon/daemon.ts";
+import { validateConfig } from "../../core/config.ts";
 
 // ─── Constants ───────────────────────────────────────────────────
 
@@ -262,9 +262,9 @@ export function runConfigValidate(): void {
 
 // ─── Re-exports ─────────────────────────────────────────────────
 
-export { promptChannelConfig, promptPluginConfig } from "./config_channel_prompts.ts";
-export { runConfigAddChannel, runConfigRemoveChannel, runConfigAddPlugin } from "./config_channels.ts";
-export { runConfigSetSecret, runConfigGetSecret, runConfigMigrateSecrets } from "./config_secrets.ts";
+export { promptChannelConfig, promptPluginConfig } from "./channel_prompts.ts";
+export { runConfigAddChannel, runConfigRemoveChannel, runConfigAddPlugin } from "./channels.ts";
+export { runConfigSetSecret, runConfigGetSecret, runConfigMigrateSecrets } from "./secrets.ts";
 
 // ─── Dispatcher ─────────────────────────────────────────────────
 
@@ -277,17 +277,17 @@ export async function runConfig(
 ): Promise<void> {
   switch (subcommand) {
     case "add-channel": {
-      const { runConfigAddChannel } = await import("./config_channels.ts");
+      const { runConfigAddChannel } = await import("./channels.ts");
       await runConfigAddChannel(flags);
       break;
     }
     case "remove-channel": {
-      const { runConfigRemoveChannel } = await import("./config_channels.ts");
+      const { runConfigRemoveChannel } = await import("./channels.ts");
       await runConfigRemoveChannel(flags);
       break;
     }
     case "add-plugin": {
-      const { runConfigAddPlugin } = await import("./config_channels.ts");
+      const { runConfigAddPlugin } = await import("./channels.ts");
       await runConfigAddPlugin(flags);
       break;
     }
@@ -301,17 +301,17 @@ export async function runConfig(
       runConfigValidate();
       break;
     case "set-secret": {
-      const { runConfigSetSecret } = await import("./config_secrets.ts");
+      const { runConfigSetSecret } = await import("./secrets.ts");
       await runConfigSetSecret(flags);
       break;
     }
     case "get-secret": {
-      const { runConfigGetSecret } = await import("./config_secrets.ts");
+      const { runConfigGetSecret } = await import("./secrets.ts");
       await runConfigGetSecret(flags);
       break;
     }
     case "migrate-secrets": {
-      const { runConfigMigrateSecrets } = await import("./config_secrets.ts");
+      const { runConfigMigrateSecrets } = await import("./secrets.ts");
       await runConfigMigrateSecrets();
       break;
     }

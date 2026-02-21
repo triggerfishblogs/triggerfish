@@ -4,7 +4,7 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
-import { resolveBaseDir } from "../../cli/paths.ts";
+import { resolveBaseDir } from "../../cli/config/paths.ts";
 
 /**
  * Minimum known-good signal-cli version. Warn (but don't block) if the

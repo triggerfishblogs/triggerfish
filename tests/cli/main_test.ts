@@ -213,13 +213,13 @@ Deno.test("Config: validates required fields", async () => {
 // --- Daemon management ---
 
 Deno.test("Daemon: detects current OS", async () => {
-  const { detectDaemonManager } = await import("../../src/cli/daemon.ts");
+  const { detectDaemonManager } = await import("../../src/cli/daemon/daemon.ts");
   const manager = detectDaemonManager();
   assert(["launchd", "systemd", "windows-service", "unsupported"].includes(manager));
 });
 
 Deno.test("Daemon: generates launchd plist content", async () => {
-  const { generateLaunchdPlist } = await import("../../src/cli/daemon.ts");
+  const { generateLaunchdPlist } = await import("../../src/cli/daemon/daemon.ts");
   const plist = generateLaunchdPlist({ binaryPath: "/usr/local/bin/triggerfish" });
   assertStringIncludes(plist, "dev.triggerfish.agent");
   assertStringIncludes(plist, "/usr/local/bin/triggerfish");
@@ -227,7 +227,7 @@ Deno.test("Daemon: generates launchd plist content", async () => {
 });
 
 Deno.test("Daemon: generates systemd unit content", async () => {
-  const { generateSystemdUnit } = await import("../../src/cli/daemon.ts");
+  const { generateSystemdUnit } = await import("../../src/cli/daemon/daemon.ts");
   const unit = generateSystemdUnit({ binaryPath: "/usr/local/bin/triggerfish" });
   assertStringIncludes(unit, "[Service]");
   assertStringIncludes(unit, "/usr/local/bin/triggerfish");
@@ -235,7 +235,7 @@ Deno.test("Daemon: generates systemd unit content", async () => {
 });
 
 Deno.test("Daemon: logDir does not contain undefined", async () => {
-  const { logDir } = await import("../../src/cli/daemon.ts");
+  const { logDir } = await import("../../src/cli/daemon/daemon.ts");
   const dir = logDir();
   assert(!dir.includes("undefined"), `logDir() should not contain 'undefined', got: ${dir}`);
 });

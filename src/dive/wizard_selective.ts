@@ -14,8 +14,8 @@ import {
   stringify as stringifyYaml,
 } from "@std/yaml";
 
-import { expandTilde } from "../cli/paths.ts";
-import { promptChannelConfig } from "../cli/config.ts";
+import { expandTilde } from "../cli/config/paths.ts";
+import { promptChannelConfig } from "../cli/config/config.ts";
 import { verifyProvider } from "./verify.ts";
 import { generateSpine } from "./wizard_generators.ts";
 import { runWizard } from "./wizard.ts";

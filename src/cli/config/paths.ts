@@ -8,7 +8,7 @@
  */
 
 import { join } from "@std/path";
-import { isDockerEnvironment } from "../core/env.ts";
+import { isDockerEnvironment } from "../../core/env.ts";
 
 /**
  * Expand a leading `~` to the user's home directory.

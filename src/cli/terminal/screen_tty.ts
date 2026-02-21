@@ -9,7 +9,7 @@
  */
 
 import type { LineEditor } from "./terminal.ts";
-import type { ClassificationLevel } from "../core/types/classification.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
 import type { ScreenManager } from "./screen.ts";
 import {
   CYAN,

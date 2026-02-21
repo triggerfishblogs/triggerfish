@@ -14,7 +14,7 @@
  */
 
 import type { LineEditor } from "./terminal.ts";
-import type { ClassificationLevel } from "../core/types/classification.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { createTtyScreenManager } from "./screen_tty.ts";
 
 // ─── ANSI color codes (exported for sub-modules) ─────────────────

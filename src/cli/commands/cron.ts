@@ -6,10 +6,10 @@
  */
 
 import { join } from "@std/path";
-import { resolveBaseDir } from "./paths.ts";
-import { createSqliteStorage } from "../core/storage/sqlite.ts";
-import { createPersistentCronManager } from "../scheduler/cron/cron.ts";
-import { parseClassification } from "../core/types/classification.ts";
+import { resolveBaseDir } from "../config/paths.ts";
+import { createSqliteStorage } from "../../core/storage/sqlite.ts";
+import { createPersistentCronManager } from "../../scheduler/cron/cron.ts";
+import { parseClassification } from "../../core/types/classification.ts";
 
 /**
  * Manage cron jobs via CLI subcommands.

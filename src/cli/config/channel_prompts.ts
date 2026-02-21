@@ -15,7 +15,7 @@ import {
   startDaemon,
   startLinkProcess,
   waitForDaemon,
-} from "../channels/signal/setup.ts";
+} from "../../channels/signal/setup.ts";
 
 import type { CHANNEL_TYPES, PLUGIN_TYPES } from "./config.ts";
 

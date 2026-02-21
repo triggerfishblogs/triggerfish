@@ -6,11 +6,11 @@
  * @module
  */
 
-import { formatError, renderError, renderPrompt } from "../../cli/chat_ui.ts";
-import type { ToolDisplayMode } from "../../cli/chat_ui.ts";
-import type { ScreenManager } from "../../cli/screen.ts";
-import { taintColor } from "../../cli/screen.ts";
-import type { LineEditor } from "../../cli/terminal.ts";
+import { formatError, renderError, renderPrompt } from "../../cli/chat/chat_ui.ts";
+import type { ToolDisplayMode } from "../../cli/chat/chat_ui.ts";
+import type { ScreenManager } from "../../cli/terminal/screen.ts";
+import { taintColor } from "../../cli/terminal/screen.ts";
+import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
 import type { ChatEvent } from "../../core/types/chat_event.ts";
 

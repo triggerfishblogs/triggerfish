@@ -3,11 +3,11 @@
  * @module
  */
 
-import type { OrchestratorEvent } from "../agent/orchestrator.ts";
+import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
 import {
   RESET, BOLD, DIM, CYAN, GREEN, YELLOW, RED, writeln, enc,
-} from "./chat_ansi.ts";
-import { truncate, extractLeadToolArgument, formatBytes } from "./chat_format.ts";
+} from "./ansi.ts";
+import { truncate, extractLeadToolArgument, formatBytes } from "./format.ts";
 
 /** Event callback type matching orchestrator. */
 export type EventCallback = (event: OrchestratorEvent) => void;

@@ -4,10 +4,10 @@
  */
 
 import { join, dirname } from "@std/path";
-import { resolveBaseDir } from "./paths.ts";
-import { VERSION } from "./version.ts";
+import { resolveBaseDir } from "../config/paths.ts";
+import { VERSION } from "../version.ts";
 import { runCommand } from "./daemon.ts";
-import { getDaemonStatus, stopDaemon, installAndStartDaemon } from "./daemon_lifecycle.ts";
+import { getDaemonStatus, stopDaemon, installAndStartDaemon } from "./lifecycle.ts";
 
 /** Result of an update operation. */
 export interface UpdateResult {
