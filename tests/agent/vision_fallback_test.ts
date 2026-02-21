@@ -100,7 +100,7 @@ Deno.test("Vision fallback: describes images when visionProvider is configured",
     visionProvider,
   });
 
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session: makeSession(),
     message: makeImageMessage(),
     targetClassification: "INTERNAL",
@@ -146,7 +146,7 @@ Deno.test("Vision fallback: no fallback when visionProvider not configured", asy
     // No visionProvider — images pass through
   });
 
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session: makeSession(),
     message: makeImageMessage(),
     targetClassification: "INTERNAL",
@@ -179,7 +179,7 @@ Deno.test("Vision fallback: emits vision_start and vision_complete events", asyn
     onEvent: (evt) => events.push(evt),
   });
 
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session: makeSession(),
     message: makeImageMessage(),
     targetClassification: "INTERNAL",
@@ -228,7 +228,7 @@ Deno.test("Vision fallback: reports correct imageCount", async () => {
     { type: "text", text: "Compare these" },
   ];
 
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session: makeSession(),
     message: twoImageMessage,
     targetClassification: "INTERNAL",
@@ -262,7 +262,7 @@ Deno.test("Vision fallback: handles vision provider error gracefully", async () 
   });
 
   // Should not throw — graceful degradation
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session: makeSession(),
     message: makeImageMessage(),
     targetClassification: "INTERNAL",
@@ -293,7 +293,7 @@ Deno.test("Vision fallback: skips for string-only messages", async () => {
     visionProvider,
   });
 
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session: makeSession(),
     message: "just a text message",
     targetClassification: "INTERNAL",
@@ -329,7 +329,7 @@ Deno.test("Vision fallback: skips for text-only content blocks", async () => {
     { type: "text", text: "just text blocks" },
   ];
 
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session: makeSession(),
     message: textBlocks,
     targetClassification: "INTERNAL",

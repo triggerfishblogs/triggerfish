@@ -8,8 +8,8 @@
  * @module
  */
 
-import type { ToolDefinition } from "../../agent/orchestrator.ts";
-import type { LlmProviderRegistry, LlmProvider } from "../../agent/llm.ts";
+import type { ToolDefinition } from "../../core/types/tool.ts";
+import type { LlmProviderRegistry, LlmProvider } from "../../core/types/llm.ts";
 
 /** MIME type mapping for common image extensions. */
 const MIME_TYPES: Readonly<Record<string, string>> = {

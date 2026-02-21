@@ -32,3 +32,44 @@ export {
   resetSession,
   updateTaint,
 } from "./session.ts";
+
+export type {
+  ToolDefinition,
+  ToolExecutor,
+} from "./tool.ts";
+
+export type {
+  LlmMessage,
+  LlmUsage,
+  LlmCompletionResult,
+  LlmStreamChunk,
+  LlmProvider,
+  LlmProviderRegistry,
+} from "./llm.ts";
+
+export type {
+  DomainClassificationResult,
+  DomainClassifier,
+} from "./domain.ts";
+
+export type {
+  Orchestrator,
+  ProcessMessageOptions,
+  ProcessMessageResult,
+  HistoryEntry,
+  CompactResult,
+} from "./orchestrator.ts";
+
+export type {
+  NotificationPriority,
+  Notification,
+  DeliverOptions,
+  DeliveryChannel,
+  NotificationService,
+} from "./notification.ts";
+
+export type {
+  ChatEvent,
+  ChatClientMessage,
+  ChatEventSender,
+} from "./chat_event.ts";

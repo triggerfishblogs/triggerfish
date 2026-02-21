@@ -1,8 +1,12 @@
 /**
  * CLI entry point and command router for Triggerfish.
  *
- * Parses command-line arguments, loads configuration from YAML,
- * and validates config structure.
+ * Parses command-line arguments, dispatches to the appropriate command
+ * handler, and manages daemon lifecycle operations.
+ *
+ * Sub-modules:
+ * - main_commands.ts: Argument parsing, help text, version display
+ *
  * @module
  */
 
@@ -24,9 +28,9 @@ import {
   tailLogs,
   updateTriggerfish,
 } from "./daemon.ts";
-import { VERSION } from "./version.ts";
 import { TIDEPOOL_PORT } from "./constants.ts";
 import { Confirm } from "@cliffy/prompt";
+import { parseCommand, showHelp, showVersion } from "./main_commands.ts";
 
 // Re-export config types and functions for backward-compatibility (tests and other modules import from here)
 export {
@@ -40,236 +44,14 @@ export type { Ok, Err, Result } from "../core/config.ts";
 // Re-export performGoogleOAuth for backward-compatibility (wizard.ts imports it via dynamic import)
 export { performGoogleOAuth } from "./connect.ts";
 
-// ─── Command parsing ──────────────────────────────────────────────────────────
-
-/** Known CLI commands. */
-const KNOWN_COMMANDS = new Set([
-  "chat",
-  "connect",
-  "cron",
-  "disconnect",
-  "run",
-  "run-triggers",
-  "start",
-  "stop",
-  "status",
-  "logs",
-  "config",
-  "dive",
-  "patrol",
-  "tidepool",
-  "update",
-  "help",
-  "version",
-]);
-
-/** Options that influence default command selection. */
-export interface ParseOptions {
-  readonly configExists?: boolean;
-}
-
-/** Result of parsing CLI arguments. */
-export interface ParsedCommand {
-  readonly command: string;
-  readonly subcommand?: string;
-  readonly flags: Readonly<Record<string, boolean | string>>;
-}
-
-/**
- * Parse CLI arguments into a structured command object.
- *
- * @param args - Raw command-line argument array (without the binary name).
- * @param options - Optional context influencing defaults.
- * @returns Parsed command with optional subcommand and flags.
- */
-export function parseCommand(
-  args: readonly string[],
-  options: ParseOptions = {},
-): ParsedCommand {
-  const flags: Record<string, boolean | string> = {};
-
-  // Handle special flags first
-  if (args.includes("--version")) {
-    return { command: "version", flags };
-  }
-
-  // Extract flags from args (supports --key and --key=value)
-  const positional: string[] = [];
-  for (const arg of args) {
-    if (arg.startsWith("--")) {
-      const eqIdx = arg.indexOf("=");
-      if (eqIdx !== -1) {
-        const key = arg.slice(2, eqIdx);
-        flags[key] = arg.slice(eqIdx + 1);
-      } else {
-        const key = arg.slice(2);
-        flags[key] = true;
-      }
-    } else {
-      positional.push(arg);
-    }
-  }
-
-  // No positional args
-  if (positional.length === 0) {
-    const configExists = options.configExists ?? true;
-    return { command: configExists ? "help" : "dive", flags };
-  }
-
-  const command = positional[0];
-
-  // Unknown command → help
-  if (!KNOWN_COMMANDS.has(command)) {
-    return { command: "help", flags };
-  }
-
-  // Commands with subcommands
-  if (command === "config" && positional.length > 1) {
-    const sub = positional[1];
-    if (sub === "add-channel" && positional.length > 2) {
-      flags["channel_type"] = positional[2];
-    } else if (sub === "remove-channel" && positional.length > 2) {
-      flags["channel_type"] = positional[2];
-    } else if (sub === "add-plugin" && positional.length > 2) {
-      flags["plugin_type"] = positional[2];
-    } else if (sub === "set" && positional.length >= 4) {
-      flags["config_key"] = positional[2];
-      flags["config_value"] = positional.slice(3).join(" ");
-    } else if (sub === "get" && positional.length >= 3) {
-      flags["config_key"] = positional[2];
-    } else if (sub === "set-secret" && positional.length >= 4) {
-      flags["secret_key"] = positional[2];
-      flags["secret_value"] = positional.slice(3).join(" ");
-    } else if (sub === "get-secret" && positional.length >= 3) {
-      flags["secret_key"] = positional[2];
-    }
-    return { command, subcommand: sub, flags };
-  }
-  if (command === "cron" && positional.length > 1) {
-    // Capture remaining positional args as flags for cron subcommands
-    const sub = positional[1];
-    if (sub === "add" && positional.length >= 4) {
-      flags["expression"] = positional[2];
-      flags["task"] = positional.slice(3).join(" ");
-    } else if (
-      (sub === "delete" || sub === "history") && positional.length > 2
-    ) {
-      flags["job_id"] = positional[2];
-    }
-    return { command, subcommand: sub, flags };
-  }
-  if (
-    (command === "connect" || command === "disconnect") && positional.length > 1
-  ) {
-    const sub = positional[1];
-    return { command, subcommand: sub, flags };
-  }
-  if (command === "logs" && positional.length > 1) {
-    const sub = positional[1];
-    return { command, subcommand: sub, flags };
-  }
-  if (command === "tidepool" && positional.length > 1) {
-    const sub = positional[1];
-    return { command, subcommand: sub, flags };
-  }
-
-  return { command, flags };
-}
-
-// ─── Help / Version ───────────────────────────────────────────────────────────
-
-/**
- * Display help text.
- */
-function showHelp(): void {
-  console.log(`
-Triggerfish - Secure Multi-Channel AI Agent Platform
-
-USAGE:
-  triggerfish [command] [options]
-
-COMMANDS:
-  chat        Start an interactive chat session
-  config      Manage configuration (add channels, etc.)
-  connect     Connect an external service (e.g. Google)
-  cron        Manage scheduled cron jobs
-  disconnect  Disconnect an external service
-  dive        First-run setup wizard (creates triggerfish.yaml)
-  run         Run the gateway server in foreground
-  start       Install and start the daemon
-  stop        Stop the daemon
-  status      Show daemon status
-  logs        View or bundle daemon logs
-  patrol      Run health diagnostics
-  tidepool    Tidepool A2UI controls
-  update      Pull latest code, recompile, and restart
-  help        Show this help message
-  version     Show version information
-
-CONFIG SUBCOMMANDS:
-  config set <key> <value>                 Set a config value (dotted YAML path)
-  config get <key>                         Get a config value
-  config validate                          Validate configuration
-  config add-channel [type]                Add a channel (telegram, slack, discord, etc.)
-  config add-plugin [name]                 Add a plugin (obsidian)
-  config set-secret <key> <value>          Store a secret in OS keychain
-  config get-secret <key>                  Retrieve a secret from OS keychain
-  config migrate-secrets                   Migrate plaintext secrets to keychain
-
-LOGS SUBCOMMANDS:
-  logs view                              View daemon logs (default, --tail to follow)
-  logs bundle                            Bundle all log files into a temporary directory
-
-TIDEPOOL SUBCOMMANDS:
-  tidepool url                           Print Tidepool A2UI URL (if running)
-
-CRON SUBCOMMANDS:
-  cron list                              List all cron jobs
-  cron add "<schedule>" <task>           Create a new cron job
-  cron delete <job_id>                   Delete a cron job
-  cron history <job_id>                  Show execution history
-
-INTEGRATIONS:
-  connect google                         Authenticate with Google Workspace
-  connect github                         Authenticate with GitHub
-  disconnect google                      Remove Google authentication
-  disconnect github                      Remove GitHub authentication
-
-EXAMPLES:
-  triggerfish chat                                  # Start chatting with your agent
-  triggerfish cron add "0 9 * * *" morning briefing # Daily 9am task
-  triggerfish cron list                             # Show all cron jobs
-  triggerfish cron delete <uuid>                    # Remove a job
-  triggerfish cron history <uuid>                   # View execution log
-  triggerfish config set <key> <value>                  # Set any config value
-  triggerfish config get <key>                          # Read any config value
-  triggerfish config add-channel telegram              # Add Telegram channel
-  triggerfish config add-channel                       # Interactive channel selection
-  triggerfish config add-plugin obsidian              # Add Obsidian vault plugin
-  triggerfish config add-plugin                       # Interactive plugin selection
-  triggerfish dive                                  # Interactive setup
-  triggerfish run                                   # Run gateway in foreground
-  triggerfish start                                 # Install and start daemon
-  triggerfish stop                                  # Stop the daemon
-  triggerfish status                                # Check daemon status
-  triggerfish logs view --tail                      # Follow daemon logs
-  triggerfish logs bundle                           # Bundle logs into a temp directory
-  triggerfish connect google                          # Link Google account
-  triggerfish disconnect google                       # Remove Google account
-  triggerfish patrol                                # Health check
-  triggerfish tidepool url                          # Show Tidepool A2UI URL
-  triggerfish update                                # Update to latest version
-
-For more information, visit: https://trigger.fish/docs
-`);
-}
-
-/**
- * Display version information.
- */
-function showVersion(): void {
-  console.log(`Triggerfish ${VERSION}`);
-}
+// Re-export command parsing for backward-compatibility (tests import from here)
+export {
+  parseCommand,
+  showHelp,
+  showVersion,
+  type ParsedCommand,
+  type ParseOptions,
+} from "./main_commands.ts";
 
 // ─── Dive / Patrol ────────────────────────────────────────────────────────────
 
@@ -429,9 +211,7 @@ export async function runPatrol(): Promise<void> {
 
 // ─── Daemon control ───────────────────────────────────────────────────────────
 
-/**
- * Show daemon status.
- */
+/** Show daemon status. */
 async function runDaemonStatus(): Promise<void> {
   const status = await getDaemonStatus();
 
@@ -467,9 +247,7 @@ async function runDaemonLogs(
   await tailLogs(follow, 50, levelFilter);
 }
 
-/**
- * Download and install the latest release binary.
- */
+/** Download and install the latest release binary. */
 async function runUpdate(): Promise<void> {
   console.log("Updating Triggerfish...\n");
 
@@ -503,9 +281,7 @@ async function runUpdate(): Promise<void> {
   }
 }
 
-/**
- * Install the Triggerfish daemon and start it.
- */
+/** Install the Triggerfish daemon and start it. */
 async function runDaemonStart(): Promise<void> {
   const result = await installAndStartDaemon(Deno.execPath());
   if (result.ok) {
@@ -517,9 +293,7 @@ async function runDaemonStart(): Promise<void> {
   }
 }
 
-/**
- * Stop the Triggerfish daemon.
- */
+/** Stop the Triggerfish daemon. */
 async function runDaemonStop(): Promise<void> {
   const result = await stopDaemon();
   if (result.ok) {
@@ -568,9 +342,7 @@ export function enableWindowsAnsi(): void {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-/**
- * Main CLI entry point.
- */
+/** Main CLI entry point. */
 async function main(): Promise<void> {
   enableWindowsAnsi();
 

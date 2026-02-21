@@ -1,181 +1,77 @@
 /**
- * Obsidian tools — LLM-callable operations for vault interaction.
+ * Obsidian tool executor — LLM-callable operations for vault interaction.
  *
- * Provides 6 tool definitions (obsidian_read, obsidian_write, obsidian_search,
- * obsidian_list, obsidian_daily, obsidian_links) and a tool executor factory.
- *
- * Classification enforcement:
+ * Implements the 6 obsidian tool handlers with classification enforcement:
  * - Reads: verify canFlowTo(noteClassification, sessionTaint)
  * - Writes: verify canFlowTo(sessionTaint, folderClassification) — prevent write-down
+ *
+ * Types, tool definitions, and system prompt live in `tools_defs.ts`.
  *
  * @module
  */
 
-import type { ToolDefinition } from "../../agent/orchestrator.ts";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { canFlowTo } from "../../core/types/classification.ts";
-import type { SessionId } from "../../core/types/session.ts";
-import type { LineageStore, LineageOrigin, LineageClassification } from "../../core/session/lineage.ts";
-import type { VaultContext } from "./vault.ts";
+import type { LineageOrigin, LineageClassification } from "../../core/session/lineage.ts";
 import { getClassificationForPath } from "./vault.ts";
-import type { NoteStore } from "./notes.ts";
-import type { DailyNoteManager } from "./daily.ts";
-import type { LinkResolver } from "./links.ts";
 
-/** Context required by the obsidian tool executor. */
-export interface ObsidianToolContext {
-  readonly vaultContext: VaultContext;
-  readonly noteStore: NoteStore;
-  readonly dailyNoteManager: DailyNoteManager;
-  readonly linkResolver: LinkResolver;
-  readonly getSessionTaint: () => ClassificationLevel;
-  readonly sessionId: SessionId;
-  readonly lineageStore?: LineageStore;
+import type { ObsidianToolContext } from "./tools_defs.ts";
+
+// ─── Barrel re-exports from tools_defs.ts ───────────────────────────────────
+
+export {
+  getObsidianToolDefinitions,
+  OBSIDIAN_SYSTEM_PROMPT,
+} from "./tools_defs.ts";
+export type { ObsidianToolContext } from "./tools_defs.ts";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Convert a note name to a vault-relative path. */
+function resolveNotePath(name: string): string {
+  // Already has .md extension or contains a path separator
+  if (name.endsWith(".md")) return name;
+  // Has path separators — treat as relative path
+  if (name.includes("/")) return name + ".md";
+  // Just a name — return as top-level .md file
+  return name + ".md";
 }
 
-/** Tool definitions for the 6 obsidian operations. */
-export function getObsidianToolDefinitions(): readonly ToolDefinition[] {
-  return [
-    {
-      name: "obsidian_read",
-      description:
-        "Read an Obsidian note by name or path. Returns the note content, " +
-        "frontmatter, tags, and wikilinks. The name can be a filename (without " +
-        ".md) or a vault-relative path.",
-      parameters: {
-        name: {
-          type: "string",
-          description: "Note name or vault-relative path (e.g. 'My Note' or 'folder/note.md')",
-          required: true,
-        },
-      },
-    },
-    {
-      name: "obsidian_write",
-      description:
-        "Create or update an Obsidian note. Specify content for full replacement, " +
-        "or use append/prepend for incremental updates. Frontmatter is merged " +
-        "with existing values. Classification is enforced — you cannot write to " +
-        "a folder with higher classification than the current session.",
-      parameters: {
-        name: {
-          type: "string",
-          description: "Note name or vault-relative path",
-          required: true,
-        },
-        content: {
-          type: "string",
-          description: "Full note content (replaces body if updating)",
-        },
-        append: {
-          type: "string",
-          description: "Text to append to end of note",
-        },
-        prepend: {
-          type: "string",
-          description: "Text to prepend after frontmatter",
-        },
-        folder: {
-          type: "string",
-          description: "Folder to create note in (for new notes)",
-        },
-        frontmatter: {
-          type: "object",
-          description: "Frontmatter fields to set/merge (e.g. {\"tags\": [\"project\"]})",
-        },
-        template: {
-          type: "string",
-          description: "Template path to use for new notes",
-        },
-      },
-    },
-    {
-      name: "obsidian_search",
-      description:
-        "Search Obsidian notes by content and filename. Case-insensitive " +
-        "substring matching. Optionally filter by folder and tags.",
-      parameters: {
-        query: {
-          type: "string",
-          description: "Search query (matches content and filenames)",
-          required: true,
-        },
-        folder: {
-          type: "string",
-          description: "Restrict search to a folder",
-        },
-        tags: {
-          type: "array",
-          description: "Filter by tags (notes must have all specified tags)",
-          items: { type: "string" },
-        },
-        max_results: {
-          type: "number",
-          description: "Maximum results to return (default: 20)",
-        },
-      },
-    },
-    {
-      name: "obsidian_list",
-      description:
-        "List notes in the Obsidian vault. Optionally filter by folder and " +
-        "tags, and sort by name, modified date, or creation date.",
-      parameters: {
-        folder: {
-          type: "string",
-          description: "Restrict to a folder",
-        },
-        tags: {
-          type: "array",
-          description: "Filter by tags",
-          items: { type: "string" },
-        },
-        sort_by: {
-          type: "string",
-          description: "Sort by 'name', 'modified', or 'created' (default: 'name')",
-        },
-        max_results: {
-          type: "number",
-          description: "Maximum results (default: 100)",
-        },
-      },
-    },
-    {
-      name: "obsidian_daily",
-      description:
-        "Get or create today's daily note (or a specific date). " +
-        "Returns the note content. Creates the note from template if it " +
-        "doesn't exist yet.",
-      parameters: {
-        date: {
-          type: "string",
-          description: "Date in YYYY-MM-DD format (default: today)",
-        },
-        template: {
-          type: "string",
-          description: "Template path for new daily notes",
-        },
-      },
-    },
-    {
-      name: "obsidian_links",
-      description:
-        "Explore wikilink connections. Get backlinks (notes linking TO a note), " +
-        "outlinks (notes a note links TO), or resolve a specific wikilink.",
-      parameters: {
-        note: {
-          type: "string",
-          description: "Note name to find links for",
-          required: true,
-        },
-        direction: {
-          type: "string",
-          description: "'backlinks', 'outlinks', or 'resolve' (default: 'backlinks')",
-        },
-      },
-    },
-  ];
+/** Record a lineage entry for an obsidian operation. */
+async function recordLineage(
+  ctx: ObsidianToolContext,
+  notePath: string,
+  classification: ClassificationLevel,
+  operation: string,
+): Promise<void> {
+  if (!ctx.lineageStore) return;
+
+  const origin: LineageOrigin = {
+    source_type: "obsidian_vault",
+    source_name: notePath,
+    accessed_at: new Date().toISOString(),
+    accessed_by: ctx.sessionId as string,
+    access_method: `obsidian_${operation}`,
+  };
+
+  const lineageClassification: LineageClassification = {
+    level: classification,
+    reason: `Obsidian vault ${operation}: ${notePath}`,
+  };
+
+  try {
+    await ctx.lineageStore.create({
+      content: notePath,
+      origin,
+      classification: lineageClassification,
+      sessionId: ctx.sessionId,
+    });
+  } catch {
+    // Lineage failure should not block the operation
+  }
 }
+
+// ─── Executor ────────────────────────────────────────────────────────────────
 
 /**
  * Create a tool executor for obsidian operations.
@@ -393,59 +289,4 @@ export function createObsidianToolExecutor(
         return null;
     }
   };
-}
-
-/** System prompt section for obsidian tools. */
-export const OBSIDIAN_SYSTEM_PROMPT = `## Obsidian Vault
-
-You have tools to interact with the user's Obsidian vault (obsidian_read, obsidian_write, obsidian_search, obsidian_list, obsidian_daily, obsidian_links).
-
-Use [[wikilinks]] when referencing notes in content you write. Use obsidian_daily for journal entries and daily logs. Use obsidian_links to explore note connections.
-
-When creating notes, use descriptive names and add relevant tags in frontmatter. Respect the vault's folder structure.
-
-Classification is enforced — you can only read notes at or below the current session's security level, and cannot write classified data to lower-classification folders.`;
-
-/** Convert a note name to a vault-relative path. */
-function resolveNotePath(name: string): string {
-  // Already has .md extension or contains a path separator
-  if (name.endsWith(".md")) return name;
-  // Has path separators — treat as relative path
-  if (name.includes("/")) return name + ".md";
-  // Just a name — return as top-level .md file
-  return name + ".md";
-}
-
-/** Record a lineage entry for an obsidian operation. */
-async function recordLineage(
-  ctx: ObsidianToolContext,
-  notePath: string,
-  classification: ClassificationLevel,
-  operation: string,
-): Promise<void> {
-  if (!ctx.lineageStore) return;
-
-  const origin: LineageOrigin = {
-    source_type: "obsidian_vault",
-    source_name: notePath,
-    accessed_at: new Date().toISOString(),
-    accessed_by: ctx.sessionId as string,
-    access_method: `obsidian_${operation}`,
-  };
-
-  const lineageClassification: LineageClassification = {
-    level: classification,
-    reason: `Obsidian vault ${operation}: ${notePath}`,
-  };
-
-  try {
-    await ctx.lineageStore.create({
-      content: notePath,
-      origin,
-      classification: lineageClassification,
-      sessionId: ctx.sessionId,
-    });
-  } catch {
-    // Lineage failure should not block the operation
-  }
 }

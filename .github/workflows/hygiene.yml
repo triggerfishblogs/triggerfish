@@ -1,0 +1,33 @@
+name: Codebase Hygiene Audit
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Run a codebase hygiene audit. Do NOT fix anything — report only.
+
+            1. CLAUDE.md check: Is root CLAUDE.md under 80 lines? Does it contain domain-specific content that should be in .claude/rules/?
+            2. Rules staleness: For each .claude/rules/ file with paths frontmatter, verify the paths still match existing directories. Flag rules pointing to directories that no longer exist or new directories with no covering rule.
+            3. File size: List all .ts files under src/ over 300 lines (excluding tests), sorted by line count.
+            4. Barrel integrity: For each mod.ts under src/, check if any sibling file exports public symbols not re-exported by the barrel, or if the barrel re-exports internal implementation details.
+            5. Naming smells: Search src/ for exported functions named process, handle, run, execute, check, validate, do, perform, manage, or get/set with no domain noun. List each with file path and line number.
+            6. Missing metadata: List source files (not tests) under src/ with no top-level JSDoc @module comment.
+            7. Orphan files: Find .ts files under src/ not imported by anything and not re-exported by any mod.ts.
+            8. Test coverage gaps: Find source files under src/ that have no corresponding _test.ts file.
+
+            Open a GitHub issue titled "Hygiene Audit — [today's date]" with the full report. Skip sections where everything is clean.
+          claude_args: "--model opus --max-turns 10"

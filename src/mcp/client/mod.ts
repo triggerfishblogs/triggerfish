@@ -3,6 +3,8 @@
  *
  * Provides JSON-RPC 2.0 message formatting, MCP protocol client,
  * and transport layer abstractions for communicating with MCP servers.
+ *
+ * @module
  */
 
 export {

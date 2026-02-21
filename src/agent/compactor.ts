@@ -30,17 +30,8 @@ export interface CompactorConfig {
   readonly contextBudget: number;
 }
 
-/** Result returned by an explicit compactHistory call. */
-export interface CompactResult {
-  /** Number of messages before compaction. */
-  readonly messagesBefore: number;
-  /** Number of messages after compaction. */
-  readonly messagesAfter: number;
-  /** Estimated tokens before compaction. */
-  readonly tokensBefore: number;
-  /** Estimated tokens after compaction. */
-  readonly tokensAfter: number;
-}
+export type { CompactResult } from "../core/types/orchestrator.ts";
+import type { CompactResult } from "../core/types/orchestrator.ts";
 
 /** The compactor interface for managing conversation history size. */
 export interface Compactor {

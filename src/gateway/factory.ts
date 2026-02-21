@@ -19,7 +19,7 @@ import {
 } from "../agent/providers/config.ts";
 import type { ModelsConfig } from "../agent/providers/config.ts";
 import {
-  buildToolClassifications,
+  mapToolPrefixClassifications,
   createOrchestrator,
 } from "../agent/orchestrator.ts";
 // OrchestratorFactory is imported below with other scheduler types
@@ -98,7 +98,7 @@ import type {
 import { createSkillLoader } from "../tools/skills/loader.ts";
 import { buildSkillsSystemPrompt } from "../tools/skills/prompts.ts";
 import { createSkillToolExecutor } from "../tools/skills/mod.ts";
-import { getToolsForProfile, getPromptsForProfile, createToolExecutor } from "./agent_tools.ts";
+import { resolveToolsForProfile, resolvePromptsForProfile, createToolExecutor } from "./agent_tools.ts";
 
 /**
  * Build web search/fetch infrastructure from config.
@@ -160,7 +160,7 @@ export function buildSubagentFactory(
 ): (task: string, tools?: string) => Promise<string> {
   return async (task: string, _tools?: string): Promise<string> => {
     const { orchestrator, session } = await orchFactory.create("subagent");
-    const result = await orchestrator.processMessage({
+    const result = await orchestrator.executeAgentTurn({
       session,
       message: task,
       targetClassification: session.taint,
@@ -204,7 +204,7 @@ export function createOrchestratorFactory(
   const schedulerKeychain = createKeychain();
 
   // Shared by all scheduler orchestrators — same config-driven map
-  const schedulerToolClassifications = buildToolClassifications(config);
+  const schedulerToolClassifications = mapToolPrefixClassifications(config);
 
   // Discover skills for scheduler agents (same directories as main session)
   const factoryBundledSkillsDir = join(
@@ -385,10 +385,10 @@ export function createOrchestratorFactory(
         hookRunner,
         providerRegistry: registry,
         spinePath,
-        tools: getToolsForProfile(toolProfile),
+        tools: resolveToolsForProfile(toolProfile),
         toolExecutor,
         systemPromptSections: [
-          ...getPromptsForProfile(toolProfile),
+          ...resolvePromptsForProfile(toolProfile),
           factorySkillsPrompt,
           // Inject trigger-specific classification ordering instructions when
           // this session is a trigger session. Cron jobs and subagents do not

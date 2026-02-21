@@ -264,7 +264,7 @@ function createMockFactory(): {
       return {
         orchestrator: {
           // deno-lint-ignore require-await
-          processMessage: async () => ({ ok: true as const, value: { response: "done", tokenUsage: { inputTokens: 100, outputTokens: 50 } } }),
+          executeAgentTurn: async () => ({ ok: true as const, value: { response: "done", tokenUsage: { inputTokens: 100, outputTokens: 50 } } }),
         // deno-lint-ignore no-explicit-any
         } as any,
         session: {
@@ -633,7 +633,7 @@ function createTokenAwareMockFactory(tokenUsage: { inputTokens: number; outputTo
       return {
         orchestrator: {
           // deno-lint-ignore require-await
-          processMessage: async () => ({
+          executeAgentTurn: async () => ({
             ok: true as const,
             value: { response: "token test response", tokenUsage },
           }),
@@ -654,7 +654,7 @@ function createTokenAwareMockFactory(tokenUsage: { inputTokens: number; outputTo
   return { factory, calls };
 }
 
-Deno.test("SchedulerService: token usage from processMessage is logged without error (webhook)", async () => {
+Deno.test("SchedulerService: token usage from executeAgentTurn is logged without error (webhook)", async () => {
   const { factory } = createTokenAwareMockFactory({ inputTokens: 1234, outputTokens: 567 });
   const svc = createSchedulerService(createTestConfig(factory));
 

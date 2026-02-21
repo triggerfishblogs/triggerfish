@@ -251,17 +251,8 @@ export function createDomainPolicy(config: DomainSecurityConfig): DomainPolicy {
 
 // ─── Domain Classifier (for orchestrator resource classification) ────────────
 
-/** Result of classifying a URL's domain. */
-export interface DomainClassificationResult {
-  readonly classification: ClassificationLevel;
-  readonly source: string;
-}
-
-/** Classifier that resolves a URL to a classification level. Mirrors PathClassifier. */
-export interface DomainClassifier {
-  /** Classify a URL by its domain. */
-  classify(url: string): DomainClassificationResult;
-}
+export type { DomainClassificationResult, DomainClassifier } from "../../core/types/domain.ts";
+import type { DomainClassificationResult, DomainClassifier } from "../../core/types/domain.ts";
 
 /**
  * Create a domain classifier from a domain policy.

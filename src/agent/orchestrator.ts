@@ -9,268 +9,80 @@
  * their API (OpenAI tools format). All supported providers handle native
  * tool calls, so text-based fallback is not needed.
  *
+ * Sub-modules:
+ * - orchestrator_types.ts: Public types, events, constants, classification map builder
+ *
  * @module
  */
 
 import { createLogger } from "../core/logger/mod.ts";
 import type { Result, ClassificationLevel } from "../core/types/classification.ts";
 import { canFlowTo } from "../core/types/classification.ts";
-import type { SecretStore } from "../core/secrets/keychain.ts";
 import { resolveSecretRefs } from "../core/secrets/resolver.ts";
-import type { PathClassifier } from "../core/security/path_classification.ts";
-import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
 import {
   FILESYSTEM_READ_TOOLS,
   FILESYSTEM_WRITE_TOOLS,
   URL_READ_TOOLS,
   URL_WRITE_TOOLS,
 } from "../core/security/constants.ts";
-import type { DomainClassifier } from "../tools/web/domains.ts";
-import type { SessionState, SessionId } from "../core/types/session.ts";
-import type { HookRunner } from "../core/policy/hooks.ts";
-import type { LlmProviderRegistry, LlmMessage, LlmProvider } from "./llm.ts";
+import type { SessionId } from "../core/types/session.ts";
+import type { LlmMessage } from "./llm.ts";
 import { createCompactor, estimateHistoryTokens, countTokens } from "./compactor.ts";
-import type { Compactor, CompactorConfig, CompactResult } from "./compactor.ts";
-import type { MessageContent, ImageContentBlock, ContentBlock } from "../core/image/content.ts";
+import type { Compactor, CompactResult } from "./compactor.ts";
+import type { ImageContentBlock, ContentBlock } from "../core/image/content.ts";
 import { extractText, hasImages, normalizeContent } from "../core/image/content.ts";
-import type { PlanManager } from "./plan.ts";
 import { createPlanToolExecutor } from "./plan.ts";
 import { buildPlanModePrompt, buildAwaitingApprovalPrompt, buildPlanExecutionPrompt } from "./plan_prompt.ts";
+import type {
+  HistoryEntry,
+  Orchestrator,
+  OrchestratorConfig,
+  ParsedToolCall,
+  ProcessMessageOptions,
+  ProcessMessageResult,
+  ToolExecutor,
+} from "./orchestrator_types.ts";
+import {
+  DEFAULT_SYSTEM_PROMPT,
+  LEAKED_INTENT_PATTERN,
+  MAX_TOOL_ITERATIONS,
+  SOFT_LIMIT_ITERATIONS,
+} from "./orchestrator_types.ts";
 
-/** Default system prompt used when no SPINE.md is found. */
-const DEFAULT_SYSTEM_PROMPT =
-  "You are a helpful AI assistant powered by Triggerfish. " +
-  "Follow the user's instructions and respond clearly and concisely.";
+// Re-export full public API from types module for backward compatibility
+export type {
+  ClassificationMapConfig,
+  HistoryEntry,
+  Orchestrator,
+  OrchestratorConfig,
+  OrchestratorEvent,
+  OrchestratorEventCallback,
+  ParsedToolCall,
+  ProcessMessageOptions,
+  ProcessMessageResult,
+  ToolDefinition,
+  ToolExecutor,
+} from "./orchestrator_types.ts";
 
-/** Maximum tool call iterations to prevent infinite loops. */
-const MAX_TOOL_ITERATIONS = 25;
-
-/** Iteration at which the LLM is warned to wrap up. */
-const SOFT_LIMIT_ITERATIONS = 20;
-
-/**
- * Pattern detecting leaked tool-intent narration in LLM responses.
- * Matches phrases like "I'll search", "Let me fetch", "I need to look up", etc.
- * Used as a defense-in-depth guard — the primary fix is prompt hardening.
- */
-export const LEAKED_INTENT_PATTERN =
-  /\b(?:(?:I(?:'ll| will| need to| should| can| am going to)\s+(?:search|fetch|look up|find|check|browse|retrieve|use web_))|(?:(?:Let|let) me (?:search|fetch|look|find|check|browse|retrieve|use))|(?:(?:We|I) need to (?:fetch|search|look up|find|check|browse|retrieve)))/i;
-
-/** A tool definition for prompt-based tool calling. */
-export interface ToolDefinition {
-  readonly name: string;
-  readonly description: string;
-  readonly parameters: Readonly<Record<string, {
-    readonly type: string;
-    readonly description: string;
-    readonly required?: boolean;
-    readonly items?: Readonly<Record<string, unknown>>;
-    readonly enum?: readonly string[];
-  }>>;
-}
-
-/** Handler that executes a tool call and returns the result text. */
-export type ToolExecutor = (
-  name: string,
-  input: Record<string, unknown>,
-) => Promise<string>;
-
-/** Configuration for creating an orchestrator. */
-export interface OrchestratorConfig {
-  readonly hookRunner: HookRunner;
-  readonly providerRegistry: LlmProviderRegistry;
-  readonly spinePath?: string;
-  /** Tool definitions available to the agent. */
-  readonly tools?: readonly ToolDefinition[];
-  /**
-   * Live getter for additional tool definitions resolved at each LLM call.
-   * Used for dynamically-connected sources such as MCP servers.
-   */
-  readonly getExtraTools?: () => readonly ToolDefinition[];
-  /**
-   * Live getter for additional system prompt sections resolved at each LLM call.
-   * Used for dynamically-connected sources such as MCP servers.
-   */
-  readonly getExtraSystemPromptSections?: () => readonly string[];
-  /** Callback to execute tool calls. */
-  readonly toolExecutor?: ToolExecutor;
-  /** Event callback for real-time progress reporting. */
-  readonly onEvent?: OrchestratorEventCallback;
-  /** Configuration for conversation compactor. */
-  readonly compactorConfig?: Partial<CompactorConfig>;
-  /**
-   * Additional system prompt sections injected by the platform.
-   * Appended AFTER SPINE.md and tool definitions. SPINE.md remains
-   * the foundation — these sections layer platform behaviour on top.
-   */
-  readonly systemPromptSections?: readonly string[];
-  /** Plan manager for plan mode state tracking and tool execution. */
-  readonly planManager?: PlanManager;
-  /** Enable streaming responses from the LLM provider. Default: true. */
-  readonly enableStreaming?: boolean;
-  /** Enable verbose logging of LLM responses and tool calls to stderr. */
-  readonly debug?: boolean;
-  /** Vision-capable LLM provider for describing images when the primary model lacks vision. */
-  readonly visionProvider?: LlmProvider;
-  /** Tool prefix → classification level. Enforced before every tool dispatch. */
-  readonly toolClassifications?: ReadonlyMap<string, ClassificationLevel>;
-  /** Read current session taint for canFlowTo checks. */
-  readonly getSessionTaint?: () => ClassificationLevel;
-  /** Escalate session taint after tool dispatch (upward only via maxClassification). */
-  readonly escalateTaint?: (level: ClassificationLevel, reason: string) => void;
-  /** Whether the active session belongs to the owner. */
-  readonly isOwnerSession?: () => boolean;
-  /**
-   * Whether the active session is a trigger session.
-   * Trigger sessions are not owner sessions but may call all built-in tools
-   * and integration tools classified at or below their ceiling.
-   * Undefined is always false — must be explicitly set to enable trigger behaviour.
-   */
-  readonly isTriggerSession?: () => boolean;
-  /**
-   * Classification ceiling for the active non-owner session.
-   * null = no explicit classification → all tools blocked.
-   * Non-null = tools classified at or below this level are allowed.
-   */
-  readonly getNonOwnerCeiling?: () => ClassificationLevel | null;
-  /** Path classifier for filesystem tool security checks. */
-  readonly pathClassifier?: PathClassifier;
-  /** Domain classifier for URL-based tool security checks. Uses same infrastructure as pathClassifier. */
-  readonly domainClassifier?: DomainClassifier;
-  /** Tool floor registry for minimum classification enforcement. */
-  readonly toolFloorRegistry?: ToolFloorRegistry;
-  /**
-   * Secret store for resolving `{{secret:name}}` references in tool arguments.
-   * When provided, all tool input arguments are scanned and references substituted
-   * before dispatch. The resolved values are never logged or returned to the LLM.
-   */
-  readonly secretStore?: SecretStore;
-}
-
-/** Config shape for building integration/plugin/channel classification map. */
-export interface ClassificationMapConfig {
-  /** Google Workspace classification. */
-  readonly google?: { readonly classification?: string };
-  /** GitHub integration classification. */
-  readonly github?: { readonly classification?: string };
-  /** Plugins keyed by name — each with enabled + classification. */
-  readonly plugins?: Readonly<Record<string, { readonly enabled?: boolean; readonly classification?: string } | undefined>>;
-}
-
-/**
- * Build tool prefix → classification map for integrations, plugins, and channels.
- *
- * Built-in tools are not in this map and pass through ungated.
- * Only external integrations, plugins, and channels are classified.
- */
-export function buildToolClassifications(config: ClassificationMapConfig): Map<string, ClassificationLevel> {
-  const m = new Map<string, ClassificationLevel>();
-
-  // Google Workspace — gmail_, calendar_, drive_, sheets_, tasks_
-  const googleClassification = (config.google?.classification ?? "PUBLIC") as ClassificationLevel;
-  for (const prefix of ["gmail_", "calendar_", "drive_", "sheets_", "tasks_"]) {
-    m.set(prefix, googleClassification);
-  }
-
-  // GitHub — all tools start with github_
-  m.set("github_", (config.github?.classification ?? "PUBLIC") as ClassificationLevel);
-
-  // Plugins — each plugin's tools use {pluginName}_ prefix convention
-  if (config.plugins) {
-    for (const [name, pluginConfig] of Object.entries(config.plugins)) {
-      const cfg = pluginConfig as { enabled?: boolean; classification?: string } | undefined;
-      if (cfg?.enabled) {
-        m.set(`${name}_`, (cfg.classification ?? "INTERNAL") as ClassificationLevel);
-      }
-    }
-  }
-
-  return m;
-}
-
-/** Options for processing a single message. */
-export interface ProcessMessageOptions {
-  readonly session: SessionState;
-  readonly message: MessageContent;
-  readonly targetClassification: ClassificationLevel;
-  /** Optional signal to abort the operation. */
-  readonly signal?: AbortSignal;
-}
-
-/** Successful response from message processing. */
-export interface ProcessMessageResult {
-  readonly response: string;
-  /** Cumulative token usage across all LLM calls made during this message turn. */
-  readonly tokenUsage: {
-    readonly inputTokens: number;
-    readonly outputTokens: number;
-  };
-}
-
-/** A conversation history entry. */
-export interface HistoryEntry {
-  readonly role: string;
-  readonly content: MessageContent;
-}
-
-/** The orchestrator interface for processing messages. */
-export interface Orchestrator {
-  /** Process a user message through the full agent loop. */
-  processMessage(
-    options: ProcessMessageOptions,
-  ): Promise<Result<ProcessMessageResult, string>>;
-  /** Get conversation history for a session. */
-  getHistory(sessionId: SessionId): readonly HistoryEntry[];
-  /** Clear conversation history for a session. */
-  clearHistory(sessionId: SessionId): void;
-  /** Force LLM-based summarization of a session's history. */
-  compactHistory(sessionId: SessionId): Promise<CompactResult>;
-}
-
-/** Events emitted by the orchestrator during message processing. */
-export type OrchestratorEvent =
-  | { readonly type: "llm_start"; readonly iteration: number; readonly maxIterations: number }
-  | {
-    readonly type: "llm_complete";
-    readonly iteration: number;
-    readonly hasToolCalls: boolean;
-  }
-  | {
-    readonly type: "tool_call";
-    readonly name: string;
-    readonly args: Record<string, unknown>;
-  }
-  | {
-    readonly type: "tool_result";
-    readonly name: string;
-    readonly result: string;
-    readonly blocked: boolean;
-  }
-  | { readonly type: "response"; readonly text: string }
-  | { readonly type: "response_chunk"; readonly text: string; readonly done: boolean }
-  | { readonly type: "vision_start"; readonly imageCount: number }
-  | { readonly type: "vision_complete"; readonly imageCount: number };
-
-/** Callback for real-time orchestrator event reporting. */
-export type OrchestratorEventCallback = (event: OrchestratorEvent) => void;
+export {
+  DEFAULT_SYSTEM_PROMPT,
+  LEAKED_INTENT_PATTERN,
+  mapToolPrefixClassifications,
+  MAX_TOOL_ITERATIONS,
+  SOFT_LIMIT_ITERATIONS,
+} from "./orchestrator_types.ts";
 
 /**
  * Load SPINE.md content from the filesystem.
  * Returns the file content or null if the file cannot be read.
  */
-async function loadSpine(spinePath: string | undefined): Promise<string | null> {
+async function readSpineFromDisk(spinePath: string | undefined): Promise<string | null> {
   if (!spinePath) return null;
   try {
     return await Deno.readTextFile(spinePath);
   } catch {
     return null;
   }
-}
-
-/** A parsed tool call from LLM text output. */
-interface ParsedToolCall {
-  readonly name: string;
-  readonly args: Record<string, unknown>;
 }
 
 /**
@@ -315,7 +127,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
    * Returns both the hook input (flat Record for policy engine) and
    * the structured SecurityContext (for building detailed error messages).
    */
-  function buildSecurityHookInput(
+  function assembleSecurityContext(
     call: ParsedToolCall,
   ): { input: Record<string, unknown>; ctx: SecurityContext } {
     const hookInput: Record<string, unknown> = { tool_call: call };
@@ -395,7 +207,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
    * check failed, then includes the actual classification levels and
    * remediation advice (e.g. /clear to reset session taint).
    */
-  function formatBlockReason(
+  function renderPolicyBlockExplanation(
     ruleId: string | null,
     ctx: SecurityContext,
     sessionTaint: ClassificationLevel,
@@ -432,7 +244,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   // Only tools whose name matches a prefix in toolClassifications are gated.
   // Built-in tools (read_file, todo_, plan., etc.) have no entry and pass through.
   // Matched integrations: escalate taint on entry.
-  // Write-down check is done in processMessage (before this wrapper) so that
+  // Write-down check is done in executeAgentTurn (before this wrapper) so that
   // blocked=true can be set on the tool_result event for channel notification.
   const toolExecutor: ToolExecutor | undefined = rawToolExecutor
     ? async (name: string, input: Record<string, unknown>): Promise<string> => {
@@ -485,7 +297,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           for (const [prefix, level] of config.toolClassifications) {
             if (name.startsWith(prefix)) {
               // Taint escalation for allowed integration calls.
-              // Write-down check has already run in processMessage (before toolExecutor is called),
+              // Write-down check has already run in executeAgentTurn (before toolExecutor is called),
               // so this point is only reached when the call is permitted.
               config.escalateTaint(level, `Tool call: ${name}`);
               break;
@@ -557,7 +369,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
    * Describe images using the vision provider.
    * Returns a text description for each image block.
    */
-  async function describeImages(
+  async function transcribeImagesForNonVisionModel(
     images: readonly ImageContentBlock[],
     signal?: AbortSignal,
   ): Promise<readonly string[]> {
@@ -585,7 +397,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     return descriptions;
   }
 
-  async function processMessage(
+  async function executeAgentTurn(
     options: ProcessMessageOptions,
   ): Promise<Result<ProcessMessageResult, string>> {
     const { session, message, targetClassification, signal } = options;
@@ -613,7 +425,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     }
 
     // 3. Build LLM context — load SPINE.md or use default prompt
-    const spineContent = await loadSpine(spinePath);
+    const spineContent = await readSpineFromDisk(spinePath);
     let systemPrompt = spineContent ?? DEFAULT_SYSTEM_PROMPT;
 
     // Append platform-level sections (layered after SPINE.md).
@@ -658,7 +470,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       emit({ type: "vision_start", imageCount: images.length });
       debugLog("vision", `describing ${images.length} image(s) via vision provider`);
 
-      const descriptions = await describeImages(images, signal);
+      const descriptions = await transcribeImagesForNonVisionModel(images, signal);
 
       emit({ type: "vision_complete", imageCount: images.length });
 
@@ -948,7 +760,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
         // Step 3: Universal security + execution path (runs if not handled above)
         if (resultText === undefined) {
-          const { input: secInput, ctx: secCtx } = buildSecurityHookInput(call);
+          const { input: secInput, ctx: secCtx } = assembleSecurityContext(call);
 
           // Owner/trigger pre-escalation: escalate taint from the resolved resource
           // classification BEFORE the hook so tool floor checks see the
@@ -972,7 +784,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
             input: secInput,
           });
           if (!preToolResult.allowed) {
-            resultText = formatBlockReason(preToolResult.ruleId, secCtx, currentTaint);
+            resultText = renderPolicyBlockExplanation(preToolResult.ruleId, secCtx, currentTaint);
             blocked = true;
           } else {
             // Integration write-down check — runs here (not inside toolExecutor) so that
@@ -1062,5 +874,5 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     return { messagesBefore, messagesAfter: history.length, tokensBefore, tokensAfter };
   }
 
-  return { processMessage, getHistory, clearHistory, compactHistory };
+  return { executeAgentTurn, getHistory, clearHistory, compactHistory };
 }

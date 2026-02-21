@@ -120,7 +120,7 @@ Deno.test("SMOKE: full taint lifecycle — read → escalate → write-down bloc
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "Do all the things",
     targetClassification: "RESTRICTED",
@@ -225,7 +225,7 @@ Deno.test("SMOKE: browser_navigate with no floor — PUBLIC session allowed dire
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "Open ibm.com",
     targetClassification: "PUBLIC",

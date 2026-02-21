@@ -92,7 +92,7 @@ Deno.test("Orchestrator: processes message through full loop", async () => {
     channelId: "c" as ChannelId,
   });
 
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "Hello agent",
     targetClassification: "INTERNAL",
@@ -123,7 +123,7 @@ Deno.test("Orchestrator: blocks output when write-down would occur", async () =>
   session = updateTaint(session, "RESTRICTED", "secret doc");
 
   // Trying to output to PUBLIC channel should be blocked
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "tell me the secret",
     targetClassification: "PUBLIC",
@@ -145,7 +145,7 @@ Deno.test("Orchestrator: maintains conversation history per session", async () =
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
 
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session,
     message: "first message",
     targetClassification: "INTERNAL",
@@ -181,7 +181,7 @@ Deno.test("Orchestrator: loads SPINE.md as system prompt foundation", async () =
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session,
     message: "hi",
     targetClassification: "INTERNAL",
@@ -205,7 +205,7 @@ Deno.test("Orchestrator: uses default prompt when SPINE.md absent", async () => 
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "hi",
     targetClassification: "INTERNAL",

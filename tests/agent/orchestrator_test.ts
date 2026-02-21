@@ -92,7 +92,7 @@ Deno.test("Orchestrator: processes message through full loop", async () => {
     channelId: "c" as ChannelId,
   });
 
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "Hello agent",
     targetClassification: "INTERNAL",
@@ -123,7 +123,7 @@ Deno.test("Orchestrator: blocks output when write-down would occur", async () =>
   session = updateTaint(session, "RESTRICTED", "secret doc");
 
   // Trying to output to PUBLIC channel should be blocked
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "tell me the secret",
     targetClassification: "PUBLIC",
@@ -145,7 +145,7 @@ Deno.test("Orchestrator: maintains conversation history per session", async () =
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
 
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session,
     message: "first message",
     targetClassification: "INTERNAL",
@@ -182,7 +182,7 @@ Deno.test("Orchestrator: loads SPINE.md as system prompt foundation", async () =
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session,
     message: "hi",
     targetClassification: "INTERNAL",
@@ -231,7 +231,7 @@ Deno.test("Orchestrator: parses native tool calls (OpenAI format)", async () => 
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  await orchestrator.processMessage({ session, message: "read it", targetClassification: "INTERNAL" });
+  await orchestrator.executeAgentTurn({ session, message: "read it", targetClassification: "INTERNAL" });
   assertEquals(executedArgs.path, "/tmp/test.txt");
 });
 
@@ -274,7 +274,7 @@ Deno.test("Orchestrator: parses native tool calls (Anthropic format)", async () 
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  await orchestrator.processMessage({ session, message: "run ls", targetClassification: "INTERNAL" });
+  await orchestrator.executeAgentTurn({ session, message: "run ls", targetClassification: "INTERNAL" });
   assertEquals(executedArgs.command, "ls -la");
 });
 
@@ -316,7 +316,7 @@ Deno.test("Orchestrator: parses native tool calls with nested arguments", async 
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  await orchestrator.processMessage({ session, message: "list home", targetClassification: "INTERNAL" });
+  await orchestrator.executeAgentTurn({ session, message: "list home", targetClassification: "INTERNAL" });
   assertEquals(executedArgs.path, "/home");
 });
 
@@ -358,7 +358,7 @@ Deno.test("Orchestrator: parses native tool calls with content alongside", async
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  await orchestrator.processMessage({ session, message: "echo", targetClassification: "INTERNAL" });
+  await orchestrator.executeAgentTurn({ session, message: "echo", targetClassification: "INTERNAL" });
   assertEquals(executedArgs.command, "echo hello");
 });
 
@@ -376,7 +376,7 @@ Deno.test("Orchestrator: uses default prompt when SPINE.md absent", async () => 
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "hi",
     targetClassification: "INTERNAL",
@@ -451,7 +451,7 @@ Deno.test("Orchestrator: isTriggerSession=undefined is always false (default den
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
   // With no isOwnerSession or isTriggerSession set, the non-owner check is bypassed
   // (legacy behaviour). The tool runs because neither check activates.
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "do something",
     targetClassification: "INTERNAL",
@@ -482,7 +482,7 @@ Deno.test("Orchestrator: trigger session allows built-in tools (not blocked as n
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  const result = await orchestrator.processMessage({
+  const result = await orchestrator.executeAgentTurn({
     session,
     message: "use memory tool",
     targetClassification: "CONFIDENTIAL",
@@ -536,7 +536,7 @@ Deno.test("Orchestrator: trigger session blocks integration tool above ceiling",
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session,
     message: "list gmail",
     targetClassification: "INTERNAL",
@@ -586,7 +586,7 @@ Deno.test("Orchestrator: trigger session allows integration tool at ceiling leve
   });
 
   const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  await orchestrator.processMessage({
+  await orchestrator.executeAgentTurn({
     session,
     message: "search repos",
     targetClassification: "INTERNAL",

@@ -8,8 +8,8 @@
  * @module
  */
 
-import type { ToolDefinition } from "../agent/orchestrator.ts";
-import type { LlmProviderRegistry } from "../agent/llm.ts";
+import type { ToolDefinition } from "../core/types/tool.ts";
+import type { LlmProviderRegistry } from "../core/types/llm.ts";
 
 /** Valid summary length options. */
 type SummarizeLength = "brief" | "standard" | "detailed";
