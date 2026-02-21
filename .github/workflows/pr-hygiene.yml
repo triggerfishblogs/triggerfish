@@ -1,7 +1,8 @@
 name: PR Hygiene Check
+
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, ready_for_review, reopened]
 
 permissions:
   contents: read
@@ -9,20 +10,35 @@ permissions:
   id-token: write
 
 jobs:
-  check:
+  hygiene:
+    if: "!github.event.pull_request.draft"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          use_sticky_comment: true
           prompt: |
-            Review only the files changed in this PR for hygiene issues:
-            - Any new file over 300 lines?
-            - Any new exported function with a vague name (process, handle, run, execute, check, validate, do, perform, manage)?
-            - Any new file missing a JSDoc @module comment?
-            - Any new file not re-exported by its directory's mod.ts?
-            - Any .claude/rules/ paths frontmatter that should be updated given the changes?
-            Post findings as a PR comment. If everything is clean, comment "Hygiene check passed."
-          claude_args: "--model sonnet --max-turns 10"
+            You are a PR hygiene checker for the Triggerfish project.
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            First, gather data by running these two commands:
+            1. `gh pr diff ${{ github.event.pull_request.number }} --stat`
+            2. `gh pr diff ${{ github.event.pull_request.number }}`
+
+            Then evaluate these hygiene criteria on the changed files ONLY:
+            1. Any new file over 300 lines?
+            2. Any new exported function with a vague name (process, handle, run, execute, check, validate, do, perform, manage)?
+            3. Any new file missing a JSDoc @module comment?
+            4. Any new file not re-exported by its directory's mod.ts?
+            5. Any .claude/rules/ paths frontmatter that should be updated?
+
+            Post a single PR comment with your findings as a markdown table.
+            If everything is clean, comment "Hygiene check passed."
+          claude_args: "--model sonnet --max-turns 6 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)'"
