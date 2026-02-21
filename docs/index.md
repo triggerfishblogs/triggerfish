@@ -58,29 +58,12 @@ The binary installers download a pre-built release, verify its checksum, and run
 
 ## How It Works
 
-```
-                          The Reef
-                       (Skill Marketplace)
-                              |
-   Telegram  Slack  Discord  WhatsApp  WebChat  Email  CLI
-      |        |       |        |         |       |     |
-      +--------+-------+--------+---------+-------+-----+
-                              |
-                        Channel Router
-                     (classification gate)
-                              |
-                        Gateway Server
-                     (WebSocket control plane)
-                              |
-                  +-----------+-----------+
-                  |                       |
-            Policy Engine            Agent Loop
-           (deterministic)          (LLM provider)
-                  |                       |
-            +-----+-----+          +-----+-----+
-            |     |     |          |     |     |
-          Hooks Taint  Audit    Claude  GPT  Gemini
-                Track   Log    API    API   API
-```
+Triggerfish puts a deterministic policy layer between your AI agent and everything it touches. The LLM proposes actions — pure-code hooks decide whether they're allowed.
 
-Every message passes through deterministic policy hooks before and after the LLM sees it. The AI requests actions — the policy layer decides. [Learn more about the architecture.](/architecture/)
+- **Deterministic Policy** — Security decisions are pure code. No randomness, no LLM influence, no exceptions. Same input, same decision, every time.
+- **Information Flow Control** — Four classification levels (PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED) propagate automatically through session taint. Data can never flow downward to a less secure context.
+- **Six Enforcement Hooks** — Every stage of the data pipeline is gated: what enters the LLM context, which tools get called, what results come back, and what leaves the system. Every decision is audit-logged.
+- **Default Deny** — Nothing is silently allowed. Unclassified tools, integrations, and data sources are rejected until explicitly configured.
+- **Agent Identity** — Your agent's mission lives in SPINE.md, proactive behaviors in TRIGGER.md. Skills extend capabilities through simple folder conventions. The Reef marketplace lets you discover and share them.
+
+[Learn more about the architecture.](/architecture/)
