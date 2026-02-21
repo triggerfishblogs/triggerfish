@@ -5,6 +5,9 @@ hero:
   name: Triggerfish
   text: Secure AI Agents
   tagline: Deterministic policy enforcement below the LLM layer. Every channel. No exceptions.
+  image:
+    src: /triggerfish.png
+    alt: Triggerfish — roaming the digital sea
   actions:
     - theme: brand
       text: Get Started
