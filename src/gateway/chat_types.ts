@@ -13,7 +13,7 @@ import type { ClassificationLevel } from "../core/types/classification.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { SessionState } from "../core/types/session.ts";
 import type { SecretStore } from "../core/secrets/keychain.ts";
-import type { LlmProviderRegistry, LlmProvider } from "../agent/llm.ts";
+import type { LlmProviderRegistry, LlmProvider } from "../core/types/llm.ts";
 import type { PlanManager } from "../agent/plan.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
 import type { DomainClassifier } from "../tools/web/domains.ts";

@@ -37,3 +37,12 @@ export type {
   ToolDefinition,
   ToolExecutor,
 } from "./tool.ts";
+
+export type {
+  LlmMessage,
+  LlmUsage,
+  LlmCompletionResult,
+  LlmStreamChunk,
+  LlmProvider,
+  LlmProviderRegistry,
+} from "./llm.ts";

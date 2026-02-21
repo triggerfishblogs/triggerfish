@@ -11,7 +11,7 @@ import type {
   LlmCompletionResult,
   LlmMessage,
   LlmProvider,
-} from "../agent/llm.ts";
+} from "../core/types/llm.ts";
 
 /** A failover chain that tries providers in order. */
 export interface FailoverChain {

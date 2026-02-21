@@ -9,7 +9,7 @@
  */
 
 import type { ToolDefinition } from "../core/types/tool.ts";
-import type { LlmProviderRegistry } from "../agent/llm.ts";
+import type { LlmProviderRegistry } from "../core/types/llm.ts";
 
 /** Input shape for the llm_task tool. */
 interface LlmTaskInput {

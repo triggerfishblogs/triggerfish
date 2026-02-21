@@ -9,7 +9,7 @@
  */
 
 import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type { LlmProvider } from "../../agent/llm.ts";
+import type { LlmProvider } from "../../core/types/llm.ts";
 import type { BrowserManager } from "./manager.ts";
 import type { BrowserTools, ScrollDirection } from "./tools.ts";
 import { createBrowserTools } from "./tools.ts";
