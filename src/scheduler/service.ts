@@ -313,7 +313,7 @@ export function createSchedulerService(
       }
 
       // Also dispatch through the event handler for registered listeners
-      await webhookHandler.handle(event);
+      await webhookHandler.handleWebhookEvent(event);
 
       return { ok: true, value: undefined };
     },

@@ -32,7 +32,7 @@ export interface WebhookHandler {
   /** Register a handler for a specific event type. */
   on(eventType: string, handler: WebhookEventHandler): void;
   /** Handle an inbound webhook event by routing to the appropriate handler. */
-  handle(event: WebhookEvent): Promise<void>;
+  handleWebhookEvent(event: WebhookEvent): Promise<void>;
 }
 
 /**
@@ -170,7 +170,7 @@ export function createWebhookHandler(): WebhookHandler {
       handlers.set(eventType, [...existing, handler]);
     },
 
-    async handle(event: WebhookEvent): Promise<void> {
+    async handleWebhookEvent(event: WebhookEvent): Promise<void> {
       const eventHandlers = handlers.get(event.event);
       if (!eventHandlers) return;
 

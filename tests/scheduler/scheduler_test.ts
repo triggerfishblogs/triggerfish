@@ -233,7 +233,7 @@ Deno.test("WebhookHandler: routes events to handlers", async () => {
   let received: unknown = null;
   // deno-lint-ignore require-await
   handler.on("push", async (event) => { received = event; });
-  await handler.handle({ event: "push", data: { ref: "main" } });
+  await handler.handleWebhookEvent({ event: "push", data: { ref: "main" } });
   assertExists(received);
 });
 
@@ -242,7 +242,7 @@ Deno.test("WebhookHandler: ignores unregistered event types", async () => {
   let called = false;
   // deno-lint-ignore require-await
   handler.on("push", async () => { called = true; });
-  await handler.handle({ event: "release", data: {} });
+  await handler.handleWebhookEvent({ event: "release", data: {} });
   assertEquals(called, false);
 });
 
