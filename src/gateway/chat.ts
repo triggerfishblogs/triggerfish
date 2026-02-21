@@ -13,6 +13,8 @@
  * access control: pairing enforcement, respondToUnclassified gating,
  * and send-event construction. Adapters are dumb pipes.
  *
+ * Types and interfaces live in `chat_types.ts`.
+ *
  * @module
  */
 
@@ -21,20 +23,10 @@ import { createOrchestrator } from "../agent/orchestrator.ts";
 import type {
   OrchestratorEvent,
   OrchestratorEventCallback,
-  ToolDefinition,
-  ToolExecutor,
 } from "../agent/orchestrator.ts";
-import type { SecretStore } from "../core/secrets/keychain.ts";
-import type { LlmProviderRegistry, LlmProvider } from "../agent/llm.ts";
-import type { PlanManager } from "../agent/plan.ts";
-import type { HookRunner } from "../core/policy/hooks.ts";
-import type { PathClassifier } from "../core/security/path_classification.ts";
-import type { DomainClassifier } from "../tools/web/domains.ts";
-import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
 import type { SessionState } from "../core/types/session.ts";
 import { updateTaint } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { CompactorConfig } from "../agent/compactor.ts";
 import type { MessageContent } from "../core/image/content.ts";
 import type { ChannelAdapter, ChannelMessage } from "../channels/types.ts";
 import {
@@ -42,182 +34,30 @@ import {
   parseUserOverrides,
 } from "../channels/user_sessions.ts";
 import type { UserSessionManager } from "../channels/user_sessions.ts";
-import type { PairingService } from "../channels/pairing.ts";
+
+import type {
+  ChatEvent,
+  ChatEventSender,
+  ChatSession,
+  ChatSessionConfig,
+  ChannelRegistrationConfig,
+} from "./chat_types.ts";
+
+// ─── Barrel re-exports from chat_types.ts ───────────────────────────────────
+
+export type {
+  ChatEvent,
+  ChatClientMessage,
+  ChatEventSender,
+  ChatSession,
+  ChatSessionConfig,
+  ChannelClassificationConfig,
+  ChannelRegistrationConfig,
+} from "./chat_types.ts";
 
 const chatLog = createLogger("chat");
 
-/** Events sent over the chat wire protocol. */
-export type ChatEvent =
-  | { readonly type: "connected"; readonly provider: string; readonly model: string; readonly taint?: ClassificationLevel }
-  | { readonly type: "llm_start"; readonly iteration: number; readonly maxIterations: number }
-  | {
-    readonly type: "llm_complete";
-    readonly iteration: number;
-    readonly hasToolCalls: boolean;
-  }
-  | {
-    readonly type: "tool_call";
-    readonly name: string;
-    readonly args: Record<string, unknown>;
-  }
-  | {
-    readonly type: "tool_result";
-    readonly name: string;
-    readonly result: string;
-    readonly blocked: boolean;
-  }
-  | { readonly type: "response"; readonly text: string }
-  | { readonly type: "response_chunk"; readonly text: string; readonly done: boolean }
-  | { readonly type: "error"; readonly message: string }
-  | { readonly type: "vision_start"; readonly imageCount: number }
-  | { readonly type: "vision_complete"; readonly imageCount: number }
-  | { readonly type: "compact_start" }
-  | {
-    readonly type: "compact_complete";
-    readonly messagesBefore: number;
-    readonly messagesAfter: number;
-    readonly tokensBefore: number;
-    readonly tokensAfter: number;
-  }
-  | { readonly type: "taint_changed"; readonly level: ClassificationLevel }
-  | {
-    /**
-     * Server → client: MCP server connection status indicator.
-     * Sent on new connection and whenever connection state changes.
-     */
-    readonly type: "mcp_status";
-    /** Number of currently connected MCP servers. */
-    readonly connected: number;
-    /** Total number of configured (non-disabled) MCP servers. */
-    readonly configured: number;
-  }
-  | {
-    /**
-     * Server → browser: request the user to securely enter a secret value.
-     * The browser must show a password input form and respond with
-     * `secret_prompt_response`.
-     */
-    readonly type: "secret_prompt";
-    /** Unique nonce correlating this request with the response. */
-    readonly nonce: string;
-    /** The secret name being collected. */
-    readonly name: string;
-    /** Optional human-readable hint for the user. */
-    readonly hint?: string;
-  }
-  /** Server → client: a trigger/scheduler notification delivered to the owner. */
-  | { readonly type: "notification"; readonly message: string }
-  /** Server → client: cancel acknowledged — the in-flight request was aborted. */
-  | { readonly type: "cancelled" };
-
-/** Messages the client can send. */
-export type ChatClientMessage =
-  | { readonly type: "message"; readonly content: MessageContent }
-  | { readonly type: "cancel" }
-  | { readonly type: "clear" }
-  | { readonly type: "compact" }
-  | {
-    /**
-     * Browser → server: the user has entered a secret value in the password
-     * form triggered by a `secret_prompt` event.
-     */
-    readonly type: "secret_prompt_response";
-    /** The nonce from the originating `secret_prompt` event. */
-    readonly nonce: string;
-    /** The secret value entered by the user, or null if cancelled. */
-    readonly value: string | null;
-  };
-
-/** Callback to send a chat event to a specific client. */
-export type ChatEventSender = (event: ChatEvent) => void;
-
-/**
- * Per-channel classification config for non-owner user sessions.
- *
- * @deprecated Use ChannelRegistrationConfig instead.
- */
-export interface ChannelClassificationConfig {
-  /** Default classification ceiling for non-owner users on this channel. */
-  readonly classification: ClassificationLevel;
-  /** Optional per-user classification overrides keyed by platform-native ID. */
-  readonly userClassifications?: Record<string, string>;
-  /** Whether to respond to users not listed in userClassifications. Default: true. */
-  readonly respondToUnclassified?: boolean;
-}
-
-/** Full channel registration config including adapter and access control. */
-export interface ChannelRegistrationConfig {
-  /** The channel adapter instance. */
-  readonly adapter: ChannelAdapter;
-  /** Human-readable channel name (e.g. "Signal", "Telegram"). */
-  readonly channelName: string;
-  /** Default classification ceiling for non-owner users on this channel. */
-  readonly classification: ClassificationLevel;
-  /** Optional per-user classification overrides keyed by platform-native ID. */
-  readonly userClassifications?: Record<string, string>;
-  /** Whether to respond to users not listed in userClassifications. Default: true. */
-  readonly respondToUnclassified?: boolean;
-  /** Whether pairing is required for this channel. Default: false. */
-  readonly pairing?: boolean;
-  /** Classification level assigned to paired users. Default: INTERNAL. */
-  readonly pairingClassification?: ClassificationLevel;
-}
-
-/** Configuration for creating a ChatSession. */
-export interface ChatSessionConfig {
-  readonly hookRunner: HookRunner;
-  readonly providerRegistry: LlmProviderRegistry;
-  readonly spinePath?: string;
-  readonly tools?: readonly ToolDefinition[];
-  /** Live getter for extra tools resolved at each LLM call (e.g. MCP servers). */
-  readonly getExtraTools?: () => readonly ToolDefinition[];
-  /** Live getter for extra system prompt sections resolved at each LLM call (e.g. MCP servers). */
-  readonly getExtraSystemPromptSections?: () => readonly string[];
-  readonly toolExecutor?: ToolExecutor;
-  readonly systemPromptSections?: readonly string[];
-  readonly compactorConfig?: Partial<CompactorConfig>;
-  readonly session: SessionState;
-  readonly targetClassification?: ClassificationLevel;
-  /** Plan manager for plan mode state tracking. */
-  readonly planManager?: PlanManager;
-  /** Enable streaming responses from the LLM provider. Default: true. */
-  readonly enableStreaming?: boolean;
-  /** Enable verbose logging of LLM responses to stderr. */
-  readonly debug?: boolean;
-  /** Vision-capable LLM provider for image fallback. */
-  readonly visionProvider?: LlmProvider;
-  /** Tool prefix → classification level. Enforced before every tool dispatch. */
-  readonly toolClassifications?: ReadonlyMap<string, ClassificationLevel>;
-  /** Read current session taint for canFlowTo checks. */
-  readonly getSessionTaint?: () => ClassificationLevel;
-  /** Escalate session taint after tool dispatch. */
-  readonly escalateTaint?: (level: ClassificationLevel, reason: string) => void;
-  /** Reset session state (taint back to PUBLIC). Called on /clear. */
-  readonly resetSession?: () => void;
-  /** Pairing service for verifying channel pairing codes. */
-  readonly pairingService?: PairingService;
-  /** Return the current owner session state (tracks taint reassignment in main.ts). */
-  readonly getSession?: () => SessionState;
-  /** Path classifier for filesystem tool security checks. */
-  readonly pathClassifier?: PathClassifier;
-  /** Domain classifier for URL-based tool security checks. */
-  readonly domainClassifier?: DomainClassifier;
-  /** Tool floor registry for minimum classification enforcement. */
-  readonly toolFloorRegistry?: ToolFloorRegistry;
-  /** Primary model identifier (e.g. "gpt-5.2-codex") for display. */
-  readonly primaryModelName?: string;
-  /**
-   * Secret store for resolving `{{secret:name}}` references in tool arguments.
-   * Passed through to the orchestrator for substitution below the LLM layer.
-   */
-  readonly secretStore?: SecretStore;
-  /**
-   * Callback invoked when a `secret_prompt` response arrives from the browser.
-   * Used by the Tidepool WebSocket handler to route browser responses to the
-   * waiting `secret_save` tool executor.
-   */
-  readonly onSecretPromptResponse?: (nonce: string, value: string | null) => void;
-}
+// ─── Internal per-channel state ─────────────────────────────────────────────
 
 /** Internal per-channel state tracked by ChatSession. */
 interface ChannelState {
@@ -229,78 +69,7 @@ interface ChannelState {
   readonly pairingClassification: ClassificationLevel;
 }
 
-/** Shared chat session that serializes access to the orchestrator. */
-export interface ChatSession {
-  /** Process an owner message through the orchestrator. */
-  executeAgentTurn(
-    content: MessageContent,
-    sendEvent: ChatEventSender,
-    signal?: AbortSignal,
-  ): Promise<void>;
-  /**
-   * Register a channel for routing through handleChannelMessage.
-   *
-   * Pre-loads paired senders from storage when pairing is enabled.
-   * Must be called before `handleChannelMessage` for a given channel type.
-   */
-  registerChannel(channelType: string, config: ChannelRegistrationConfig): Promise<void>;
-  /**
-   * Route a channel message to the correct session.
-   *
-   * Owner messages (`msg.isOwner !== false`) use the main daemon session.
-   * Non-owner messages pass through pairing and respondToUnclassified gates,
-   * then get independent per-user sessions with classification ceilings
-   * derived from the registered channel config.
-   *
-   * Builds the ChatEventSender internally from the registered adapter —
-   * callers do not provide sendEvent.
-   */
-  handleChannelMessage(
-    msg: ChannelMessage,
-    channelType: string,
-    signal?: AbortSignal,
-  ): Promise<void>;
-  /** Clear conversation history and reset session state. */
-  clear(): void;
-  /** Force LLM-based summarization of conversation history. */
-  compact(sendEvent: ChatEventSender): Promise<void>;
-  /** The name of the default LLM provider. */
-  readonly providerName: string;
-  /** The primary model identifier from config. */
-  readonly modelName: string;
-  /** Read the current owner session taint. */
-  readonly sessionTaint: ClassificationLevel;
-  /**
-   * Route a `secret_prompt_response` from the Tidepool browser client to the
-   * waiting `secret_save` tool executor.
-   *
-   * @param nonce - The nonce from the originating `secret_prompt` event.
-   * @param value - The entered secret value, or null if the user cancelled.
-   */
-  handleSecretPromptResponse(nonce: string, value: string | null): void;
-  /**
-   * Create a `SecretPromptCallback` suitable for use with `createSecretToolExecutor`
-   * in Tidepool mode.
-   *
-   * When called, the callback sends a `secret_prompt` WebSocket event to the
-   * currently-active Tidepool client (via `sendEvent`) and awaits the
-   * corresponding `secret_prompt_response` from the browser.
-   *
-   * @param sendEvent - The function that sends events to the active WebSocket client.
-   * @returns A SecretPromptCallback that resolves when the browser responds.
-   */
-  createTidepoolSecretPrompt(sendEvent: ChatEventSender): (name: string, hint?: string) => Promise<string | null>;
-  /**
-   * Get the last known MCP server connection status for sending to new clients.
-   * Returns null if MCP status has not been set yet (no MCP servers configured).
-   */
-  getMcpStatus?: () => { readonly connected: number; readonly configured: number } | null;
-  /**
-   * Update the stored MCP server connection status.
-   * Called by the daemon when MCP connection state changes.
-   */
-  setMcpStatus?: (connected: number, configured: number) => void;
-}
+// ─── buildSendEvent ─────────────────────────────────────────────────────────
 
 /**
  * Build a ChatEventSender for a channel adapter that handles typing
@@ -323,9 +92,6 @@ export function buildSendEvent(
     }
 
     if (event.type === "tool_result" && event.blocked) {
-      // A tool call was blocked (e.g. write-down: session taint > tool classification).
-      // Notify the user directly so they see the reason — channels like Telegram do not
-      // surface individual tool results the way Tidepool/webchat does via WebSocket events.
       adapter.send({
         content: event.result,
         sessionId: msg.sessionId,
@@ -356,6 +122,8 @@ export function buildSendEvent(
     }
   };
 }
+
+// ─── createChatSession ──────────────────────────────────────────────────────
 
 /**
  * Create a chat session that owns the orchestrator and serializes access.
