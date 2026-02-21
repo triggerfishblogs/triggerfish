@@ -4,6 +4,12 @@
  * Loads config, wires all subsystems (orchestrator, scheduler, channels,
  * MCP servers, Tidepool, gateway WebSocket server), and keeps the process
  * alive until SIGTERM/SIGINT.
+ *
+ * Sub-modules:
+ * - startup_channels.ts: Channel adapter wiring (Telegram, Discord, Signal)
+ * - startup_mcp.ts: MCP server connection and status broadcasting
+ * - startup_subsystems.ts: Obsidian, skill discovery, CLI secret prompt
+ *
  * @module
  */
 
@@ -67,27 +73,11 @@ import {
   createBrowserManager,
 } from "../tools/browser/mod.ts";
 import {
-  createDailyNoteManager,
-  createLinkResolver,
-  createNoteStore,
-  createObsidianToolExecutor,
-  createVaultContext,
-} from "../tools/obsidian/mod.ts";
-import {
   createImageToolExecutor,
 } from "../tools/image/mod.ts";
 import {
   createExploreToolExecutor,
 } from "../tools/explore/mod.ts";
-import {
-  createCalendarService,
-  createDriveService,
-  createGmailService,
-  createGoogleApiClient,
-  createGoogleAuthManager,
-  createSheetsService,
-  createTasksService,
-} from "../integrations/google/mod.ts";
 import {
   createGitHubClient,
   createGitHubToolExecutor,
@@ -98,15 +88,6 @@ import {
   createSecretToolExecutor,
 } from "../tools/secrets.ts";
 import type { SecretPromptCallback } from "../tools/secrets.ts";
-import {
-  buildMcpSystemPrompt,
-  buildMcpToolClassifications,
-  createMcpExecutor,
-  createMcpGateway,
-  createMcpServerManager,
-  getMcpToolDefinitions,
-} from "../mcp/mod.ts";
-import type { McpServerConfig } from "../mcp/mod.ts";
 import { createPairingService } from "../channels/pairing.ts";
 import {
   wireDiscordChannel,
@@ -123,8 +104,6 @@ import {
   createTriggerToolExecutor,
 } from "./trigger_tools.ts";
 import { parseClassification } from "../core/types/classification.ts";
-import { createSkillLoader } from "../tools/skills/loader.ts";
-import type { Skill } from "../tools/skills/loader.ts";
 import { createSkillToolExecutor } from "../tools/skills/mod.ts";
 import {
   createFileWriter,
@@ -148,6 +127,14 @@ import {
 } from "./factory.ts";
 import { createToolExecutor, resolveToolsForProfile, resolvePromptsForProfile, TOOL_GROUPS } from "./agent_tools.ts";
 import { createPlanManager, createPlanToolExecutor } from "../agent/plan.ts";
+import { wireMcpServers } from "./startup_mcp.ts";
+import type { McpBroadcastRefs } from "./startup_mcp.ts";
+import {
+  buildObsidianExecutor,
+  createCliSecretPrompt,
+  discoverSkills,
+} from "./startup_subsystems.ts";
+import type { ObsidianPluginConfig } from "./startup_subsystems.ts";
 
 /**
  * Start the gateway server with scheduler and persistent cron storage.
@@ -472,171 +459,42 @@ export async function runStart(): Promise<void> {
   // GitHub classification is set by mapToolPrefixClassifications from config
 
   // Obsidian vault tools (graceful degrade if not configured)
-  let obsidianExecutor:
-    | ((name: string, input: Record<string, unknown>) => Promise<string | null>)
-    | undefined;
-  const obsVaultPath = config.plugins?.obsidian?.vault_path;
-  if (config.plugins?.obsidian?.enabled && obsVaultPath) {
-    const obsCfg = config.plugins.obsidian;
-    const vaultResult = await createVaultContext({
-      vaultPath: obsVaultPath,
-      classification:
-        (obsCfg.classification ?? "INTERNAL") as ClassificationLevel,
-      dailyNotes: obsCfg.daily_notes
-        ? {
-          folder: obsCfg.daily_notes.folder ?? "daily",
-          dateFormat: obsCfg.daily_notes.date_format ?? "YYYY-MM-DD",
-          template: obsCfg.daily_notes.template,
-        }
-        : undefined,
-      excludeFolders: obsCfg.exclude_folders as string[] | undefined,
-      folderClassifications: obsCfg.folder_classifications as
-        | Record<string, ClassificationLevel>
-        | undefined,
-    });
-    if (vaultResult.ok) {
-      const noteStore = createNoteStore(vaultResult.value);
-      obsidianExecutor = createObsidianToolExecutor({
-        vaultContext: vaultResult.value,
-        noteStore,
-        dailyNoteManager: createDailyNoteManager(vaultResult.value, noteStore),
-        linkResolver: createLinkResolver(vaultResult.value),
-        getSessionTaint: () => session.taint,
-        sessionId: session.id,
-      });
-      // Obsidian classification is set by mapToolPrefixClassifications from config
-      log.info(`Obsidian vault connected: ${obsCfg.vault_path}`);
-    } else {
-      log.error(`Obsidian vault error: ${vaultResult.error}`);
-    }
-  }
+  const obsidianExecutor = config.plugins?.obsidian
+    ? await buildObsidianExecutor(
+      config.plugins.obsidian as ObsidianPluginConfig,
+      () => session.taint,
+      session.id,
+    )
+    : undefined;
 
   // --- MCP server wiring ---
   // MCP servers are connected in the background (non-blocking). Tools are injected
   // dynamically as servers come online. The daemon and chat session start immediately
   // without waiting for MCP servers to be available.
-  const mcpManager = createMcpServerManager();
+  const mcpBroadcastRefs: McpBroadcastRefs = {
+    chatSession: null,
+    gatewayServer: null,
+    tidepoolHost: null,
+  };
   let mcpExecutor:
     | ((name: string, input: Record<string, unknown>) => Promise<string | null>)
     | undefined;
+  let mcpWiring: ReturnType<typeof wireMcpServers> | null = null;
 
   if (config.mcp_servers && Object.keys(config.mcp_servers).length > 0) {
-    const mcpConfigs: McpServerConfig[] = [];
-    for (const [id, serverCfg] of Object.entries(config.mcp_servers)) {
-      let classification: ClassificationLevel | undefined;
-      if (serverCfg.classification) {
-        const parsed = parseClassification(serverCfg.classification);
-        if (parsed.ok) classification = parsed.value;
-      }
-      mcpConfigs.push({
-        id,
-        command: serverCfg.command,
-        args: serverCfg.args,
-        env: serverCfg.env,
-        url: serverCfg.url,
-        classification,
-        enabled: serverCfg.enabled,
-      });
-    }
-
-    // Create MCP gateway for policy enforcement (always, regardless of connectivity)
-    const mcpGateway = createMcpGateway({ hookRunner });
-
-    // Create MCP executor with live getter — picks up newly connected servers automatically
-    mcpExecutor = createMcpExecutor({
-      gateway: mcpGateway,
-      getServers: () => mcpManager.getConnected(),
-      getSession: () => session,
-    });
-
-    // Register a status change callback that:
-    // 1. Re-registers newly connected servers with the gateway
-    // 2. Updates tool classifications live
-    // 3. Broadcasts MCP status to CLI and Tidepool clients
-    mcpManager.onStatusChange((statuses) => {
-      // Re-register all currently connected servers with the gateway
-      for (const status of statuses) {
-        if (status.state === "connected" && status.server) {
-          mcpGateway.registerServer({
-            uri: `mcp://${status.server.id}`,
-            name: status.server.id,
-            status: status.server.classification ? "CLASSIFIED" : "UNTRUSTED",
-            classification: status.server.classification,
-          });
-        }
-      }
-
-      // Rebuild MCP tool classifications into the main map
-      const connectedServers = statuses
-        .filter((s) => s.state === "connected" && s.server !== undefined)
-        .map((s) => s.server!);
-      const mcpClassifications = buildMcpToolClassifications(connectedServers);
-      // Clear old MCP prefix entries then apply new ones
-      for (const key of [...toolClassifications.keys()]) {
-        if (key.startsWith("mcp_")) {
-          toolClassifications.delete(key);
-        }
-      }
-      for (const [prefix, level] of mcpClassifications) {
-        toolClassifications.set(prefix, level);
-      }
-
-      // Broadcast MCP status to CLI clients (via gateway WebSocket) and Tidepool clients.
-      // _mcpGatewayServerRef and _mcpTidepoolRef are set after server/host are created.
-      const mcpConnected = statuses.filter((s) => s.state === "connected").length;
-      const mcpConfigured = mcpManager.getConfiguredCount();
-      if (_mcpChatSessionRef !== null) {
-        _mcpChatSessionRef.setMcpStatus?.(mcpConnected, mcpConfigured);
-      }
-      if (_mcpGatewayServerRef !== null) {
-        _mcpGatewayServerRef.broadcastChatEvent({
-          type: "mcp_status",
-          connected: mcpConnected,
-          configured: mcpConfigured,
-        });
-      }
-      if (_mcpTidepoolRef !== null) {
-        _mcpTidepoolRef.broadcastMcpStatus(mcpConnected, mcpConfigured);
-      }
-    });
-
-    // Start background connection loops (non-blocking — daemon starts immediately)
-    log.info("Starting MCP server connection loops (background)...");
-    mcpManager.startAll(mcpConfigs, keychain);
+    mcpWiring = wireMcpServers(
+      config.mcp_servers,
+      hookRunner,
+      () => session,
+      toolClassifications,
+      mcpBroadcastRefs,
+      keychain,
+    );
+    mcpExecutor = mcpWiring.executor;
   }
-
-  // Late-bound references for MCP status indicator callbacks (set after chatSession/server/host creation)
-  let _mcpChatSessionRef: import("../gateway/chat.ts").ChatSession | null = null;
-  let _mcpGatewayServerRef: import("../gateway/server.ts").GatewayServer | null = null;
-  let _mcpTidepoolRef: import("../tools/tidepool/host.ts").A2UIHost | null = null;
 
   // Discover skills from bundled, managed, and workspace directories
-  const bundledSkillsDir = join(
-    import.meta.dirname ?? ".",
-    "..",
-    "..",
-    "skills",
-    "bundled",
-  );
-  const managedSkillsDir = join(baseDir, "skills");
-  const workspaceSkillsDir = join(baseDir, "workspaces", "main", "skills");
-  const skillLoader = createSkillLoader({
-    directories: [bundledSkillsDir, managedSkillsDir, workspaceSkillsDir],
-    dirTypes: {
-      [bundledSkillsDir]: "bundled",
-      [managedSkillsDir]: "managed",
-      [workspaceSkillsDir]: "workspace",
-    },
-  });
-  let discoveredSkills: readonly Skill[] = [];
-  try {
-    discoveredSkills = await skillLoader.discover();
-    if (discoveredSkills.length > 0) {
-      log.info(`Discovered ${discoveredSkills.length} skill(s)`);
-    }
-  } catch {
-    // Skill discovery failure is non-fatal
-  }
+  const { skills: discoveredSkills, loader: skillLoader } = await discoverSkills(baseDir);
   const SKILLS_SYSTEM_PROMPT = buildSkillsSystemPrompt(discoveredSkills);
   const TRIGGERS_SYSTEM_PROMPT = buildTriggersSystemPrompt(baseDir);
 
@@ -647,55 +505,8 @@ export async function runStart(): Promise<void> {
   const claudeExecutor = createClaudeToolExecutor(claudeSessionManager);
 
   // Secret store and CLI prompt callback for secure out-of-context secret input.
-  // The prompt writes directly to the terminal TTY to keep the value off-screen
-  // and out of any pipe or log. The LLM never sees the entered value.
   const mainKeychain = createKeychain();
-  const cliSecretPrompt: SecretPromptCallback = async (
-    name: string,
-    hint?: string,
-  ): Promise<string | null> => {
-    const promptText = hint
-      ? `Enter value for '${name}' (${hint}): `
-      : `Enter value for '${name}': `;
-    // Write prompt to stderr so it shows on terminal even when stdout is piped.
-    Deno.stderr.writeSync(new TextEncoder().encode(promptText));
-    // Read from stdin with raw mode to suppress echo.
-    try {
-      Deno.stdin.setRaw(true);
-    } catch {
-      // setRaw may fail in non-TTY environments; proceed without it.
-    }
-    const chars: number[] = [];
-    const buf = new Uint8Array(1);
-    try {
-      while (true) {
-        const n = await Deno.stdin.read(buf);
-        if (n === null) break;
-        const byte = buf[0];
-        // Enter key
-        if (byte === 13 || byte === 10) break;
-        // Ctrl-C
-        if (byte === 3) {
-          Deno.stderr.writeSync(new TextEncoder().encode("\n"));
-          return null;
-        }
-        // Backspace
-        if (byte === 127 || byte === 8) {
-          if (chars.length > 0) chars.pop();
-        } else {
-          chars.push(byte);
-        }
-      }
-    } finally {
-      try {
-        Deno.stdin.setRaw(false);
-      } catch {
-        // Ignore
-      }
-      Deno.stderr.writeSync(new TextEncoder().encode("\n"));
-    }
-    return new TextDecoder().decode(new Uint8Array(chars));
-  };
+  const cliSecretPrompt: SecretPromptCallback = createCliSecretPrompt();
   // Mutable prompt callback ref — defaults to CLI terminal input.
   // Tidepool path swaps this to the browser WebSocket callback once the
   // chatSession is available. Access is safe because the mutex serializes
@@ -766,13 +577,15 @@ export async function runStart(): Promise<void> {
     spinePath,
     tools: resolveToolsForProfile("cli"),
     getExtraTools: () => [
-      ...(getMcpToolDefinitions(mcpManager.getConnected()) as readonly ToolDefinition[]),
+      ...(mcpWiring ? mcpWiring.getToolDefinitions() : []),
       ...(isTidepoolCall && tidepoolTools ? TOOL_GROUPS.tidepool() : []),
     ],
     getExtraSystemPromptSections: () => {
       const sections: string[] = [];
-      const mcpPrompt = buildMcpSystemPrompt(mcpManager.getConnected());
-      if (mcpPrompt) sections.push(mcpPrompt);
+      if (mcpWiring) {
+        const mcpPrompt = mcpWiring.getSystemPrompt();
+        if (mcpPrompt) sections.push(mcpPrompt);
+      }
       if (isTidepoolCall) sections.push(TIDEPOOL_SYSTEM_PROMPT);
       return sections;
     },
@@ -812,7 +625,7 @@ export async function runStart(): Promise<void> {
 
   log.info("Main session created");
   // Wire chat session for MCP status broadcasting (late-bound ref used in onStatusChange callback)
-  _mcpChatSessionRef = chatSession;
+  mcpBroadcastRefs.chatSession = chatSession;
 
   // Wrap the chatSession executeAgentTurn for Tidepool so that each WebSocket
   // message sets the active secret prompt callback to the Tidepool variant
@@ -842,7 +655,7 @@ export async function runStart(): Promise<void> {
   log.info(`Tidepool listening on http://127.0.0.1:${TIDEPOOL_PORT}`);
   console.log(`  Tidepool: http://127.0.0.1:${TIDEPOOL_PORT}`);
   // Wire up MCP status indicator for Tidepool
-  _mcpTidepoolRef = tidepoolHost;
+  mcpBroadcastRefs.tidepoolHost = tidepoolHost;
   // Register Tidepool for trigger/scheduler notification delivery
   notificationService.registerChannel({
     name: "tidepool",
@@ -876,7 +689,7 @@ export async function runStart(): Promise<void> {
   const addr = await server.start();
   log.info(`Gateway listening on ${addr.hostname}:${addr.port}`);
   // Wire gateway server for MCP status broadcasting
-  _mcpGatewayServerRef = server;
+  mcpBroadcastRefs.gatewayServer = server;
   // Register CLI WebSocket for trigger/scheduler notification delivery
   notificationService.registerChannel({
     name: "cli-websocket",
