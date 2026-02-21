@@ -61,8 +61,8 @@ export interface CommandResult {
  * Tailscale/WireGuard/cloudflared binary is needed.
  */
 export interface CommandRunner {
-  /** Run a command with the given arguments. */
-  run(cmd: string, args: readonly string[]): Promise<CommandResult>;
+  /** Run a system command with the given arguments. */
+  runCommand(cmd: string, args: readonly string[]): Promise<CommandResult>;
 }
 
 /**
@@ -86,7 +86,7 @@ export interface TunnelService {
  */
 export function createDefaultCommandRunner(): CommandRunner {
   return {
-    async run(cmd: string, args: readonly string[]): Promise<CommandResult> {
+    async runCommand(cmd: string, args: readonly string[]): Promise<CommandResult> {
       const command = new Deno.Command(cmd, {
         args: [...args],
         stdout: "piped",
@@ -131,7 +131,7 @@ function createTailscaleService(
         upArgs.push(`--authkey=${config.authKey}`);
       }
 
-      const upResult = await runner.run("tailscale", upArgs);
+      const upResult = await runner.runCommand("tailscale", upArgs);
       if (!upResult.success) {
         return {
           ok: false,
@@ -140,7 +140,7 @@ function createTailscaleService(
       }
 
       // Retrieve status to obtain the Tailscale IP.
-      const statusResult = await runner.run("tailscale", [
+      const statusResult = await runner.runCommand("tailscale", [
         "status",
         "--json",
       ]);
@@ -161,7 +161,7 @@ function createTailscaleService(
     },
 
     async disable(): Promise<Result<void, string>> {
-      const result = await runner.run("tailscale", ["down"]);
+      const result = await runner.runCommand("tailscale", ["down"]);
       if (!result.success) {
         return {
           ok: false,
@@ -172,7 +172,7 @@ function createTailscaleService(
     },
 
     async status(): Promise<TunnelStatus> {
-      const result = await runner.run("tailscale", ["status", "--json"]);
+      const result = await runner.runCommand("tailscale", ["status", "--json"]);
       if (!result.success) {
         return {
           connected: false,
@@ -233,7 +233,7 @@ function createWireGuardService(
 ): TunnelService {
   return {
     async enable(): Promise<Result<string, string>> {
-      const result = await runner.run("wg-quick", ["up", WG_INTERFACE]);
+      const result = await runner.runCommand("wg-quick", ["up", WG_INTERFACE]);
       if (!result.success) {
         return {
           ok: false,
@@ -242,7 +242,7 @@ function createWireGuardService(
       }
 
       // After bringing the interface up, query it for the endpoint IP.
-      const showResult = await runner.run("wg", ["show", WG_INTERFACE]);
+      const showResult = await runner.runCommand("wg", ["show", WG_INTERFACE]);
       if (!showResult.success) {
         // Interface is up but we cannot determine the IP -- still a success
         // but without a URL.
@@ -263,7 +263,7 @@ function createWireGuardService(
     },
 
     async disable(): Promise<Result<void, string>> {
-      const result = await runner.run("wg-quick", ["down", WG_INTERFACE]);
+      const result = await runner.runCommand("wg-quick", ["down", WG_INTERFACE]);
       if (!result.success) {
         return {
           ok: false,
@@ -274,7 +274,7 @@ function createWireGuardService(
     },
 
     async status(): Promise<TunnelStatus> {
-      const result = await runner.run("wg", ["show", WG_INTERFACE]);
+      const result = await runner.runCommand("wg", ["show", WG_INTERFACE]);
       if (!result.success) {
         return {
           connected: false,
@@ -323,7 +323,7 @@ function createCloudflaredService(
 
   return {
     async enable(): Promise<Result<string, string>> {
-      const result = await runner.run("cloudflared", [
+      const result = await runner.runCommand("cloudflared", [
         "tunnel",
         "--url",
         `http://localhost:${config.gatewayPort}`,
@@ -351,7 +351,7 @@ function createCloudflaredService(
     async disable(): Promise<Result<void, string>> {
       // Signal cloudflared to stop. In practice this may be a SIGTERM;
       // here we use `pkill` via the command runner.
-      const result = await runner.run("pkill", ["-f", "cloudflared"]);
+      const result = await runner.runCommand("pkill", ["-f", "cloudflared"]);
       cloudflaredUrl = null;
       if (!result.success && result.code !== 1) {
         // code 1 means no matching process, which is fine
@@ -365,7 +365,7 @@ function createCloudflaredService(
 
     async status(): Promise<TunnelStatus> {
       // Check whether a cloudflared process is running.
-      const result = await runner.run("pgrep", ["-f", "cloudflared"]);
+      const result = await runner.runCommand("pgrep", ["-f", "cloudflared"]);
       if (!result.success) {
         cloudflaredUrl = null;
         return {

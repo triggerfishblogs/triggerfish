@@ -30,7 +30,7 @@ Deno.test("e2e: tool floor blocks INTERNAL session from run_command", async () =
   const runner = makeHookRunner();
   const session = makeSession("INTERNAL");
 
-  const result = await runner.run("PRE_TOOL_CALL", {
+  const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
       tool_call: { name: "run_command", args: { command: "echo test" } },
@@ -47,7 +47,7 @@ Deno.test("e2e: tool floor allows CONFIDENTIAL session for run_command", async (
   const runner = makeHookRunner();
   const session = makeSession("CONFIDENTIAL");
 
-  const result = await runner.run("PRE_TOOL_CALL", {
+  const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
       tool_call: { name: "run_command", args: { command: "echo test" } },
@@ -62,7 +62,7 @@ Deno.test("e2e: tool floor allows PUBLIC session to use browser_navigate (no flo
   const runner = makeHookRunner();
   const session = makeSession("PUBLIC");
 
-  const result = await runner.run("PRE_TOOL_CALL", {
+  const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
       tool_call: { name: "browser_navigate", args: { url: "https://example.com" } },
@@ -77,7 +77,7 @@ Deno.test("e2e: tool floor blocks PUBLIC session from browser_click (INTERNAL fl
   const runner = makeHookRunner();
   const session = makeSession("PUBLIC");
 
-  const result = await runner.run("PRE_TOOL_CALL", {
+  const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
       tool_call: { name: "browser_click", args: { selector: "#submit" } },
@@ -95,7 +95,7 @@ Deno.test("e2e: path write-down blocks CONFIDENTIAL session writing to INTERNAL 
   const runner = makeHookRunner();
   const session = makeSession("CONFIDENTIAL");
 
-  const result = await runner.run("PRE_TOOL_CALL", {
+  const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
       tool_call: { name: "write_file", args: { path: "/tmp/workspace/internal/file.txt" } },
@@ -114,7 +114,7 @@ Deno.test("e2e: path write allows CONFIDENTIAL session writing to CONFIDENTIAL p
   const runner = makeHookRunner();
   const session = makeSession("CONFIDENTIAL");
 
-  const result = await runner.run("PRE_TOOL_CALL", {
+  const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
       tool_call: { name: "write_file", args: { path: "/tmp/workspace/confidential/file.txt" } },
@@ -131,7 +131,7 @@ Deno.test("e2e: path write allows INTERNAL session writing to CONFIDENTIAL path 
   const runner = makeHookRunner();
   const session = makeSession("INTERNAL");
 
-  const result = await runner.run("PRE_TOOL_CALL", {
+  const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
       tool_call: { name: "write_file", args: { path: "/tmp/workspace/confidential/file.txt" } },
@@ -150,7 +150,7 @@ Deno.test("e2e: non-owner ceiling blocks read of CONFIDENTIAL file with INTERNAL
   const runner = makeHookRunner();
   const session = makeSession("INTERNAL");
 
-  const result = await runner.run("PRE_TOOL_CALL", {
+  const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
       tool_call: { name: "read_file", args: { path: "/tmp/finance/q4.xlsx" } },
@@ -170,7 +170,7 @@ Deno.test("e2e: non-owner ceiling allows read of CONFIDENTIAL file with CONFIDEN
   const runner = makeHookRunner();
   const session = makeSession("CONFIDENTIAL");
 
-  const result = await runner.run("PRE_TOOL_CALL", {
+  const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
       tool_call: { name: "read_file", args: { path: "/tmp/finance/q4.xlsx" } },
@@ -188,7 +188,7 @@ Deno.test("e2e: owner read is not blocked by ceiling (owner auto-escalation)", a
   const runner = makeHookRunner();
   const session = makeSession("INTERNAL");
 
-  const result = await runner.run("PRE_TOOL_CALL", {
+  const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
       tool_call: { name: "read_file", args: { path: "/tmp/finance/q4.xlsx" } },
@@ -208,7 +208,7 @@ Deno.test("e2e: tool without floor and no path classification passes through", a
   const runner = makeHookRunner();
   const session = makeSession("INTERNAL");
 
-  const result = await runner.run("PRE_TOOL_CALL", {
+  const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
       tool_call: { name: "todo_read", args: {} },
@@ -223,7 +223,7 @@ Deno.test("e2e: write-down prevention is universal — blocks owner too", async 
   const runner = makeHookRunner();
   const session = makeSession("RESTRICTED");
 
-  const result = await runner.run("PRE_TOOL_CALL", {
+  const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
       tool_call: { name: "write_file", args: { path: "/tmp/workspace/internal/report.txt" } },

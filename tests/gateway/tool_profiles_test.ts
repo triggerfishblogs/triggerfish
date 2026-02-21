@@ -10,7 +10,7 @@ import {
   TOOL_GROUPS,
   TOOL_PROFILES,
   TOOL_GROUP_PROMPTS,
-} from "../../src/gateway/agent_tools.ts";
+} from "../../src/gateway/tools/agent_tools.ts";
 
 // Helper: collect all tool names from a profile
 function toolNamesFor(profile: string): Set<string> {

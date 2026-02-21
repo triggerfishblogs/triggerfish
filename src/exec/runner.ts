@@ -34,8 +34,8 @@ export interface ExecRunnerOptions {
 
 /** An execution runner with denylist enforcement and history. */
 export interface ExecRunner {
-  /** Execute a command, subject to denylist checks. */
-  execute(command: string): Promise<Result<RunResult, string>>;
+  /** Execute a shell command, subject to denylist checks. */
+  executeCommand(command: string): Promise<Result<RunResult, string>>;
   /** Retrieve the full execution history. */
   getHistory(): Promise<readonly ExecHistoryEntry[]>;
 }
@@ -64,7 +64,7 @@ export function createExecRunner(
   const tools = createExecTools(workspace);
 
   return {
-    async execute(command: string): Promise<Result<RunResult, string>> {
+    async executeCommand(command: string): Promise<Result<RunResult, string>> {
       if (isDenied(command, denyList)) {
         history.push({
           command,
@@ -76,7 +76,7 @@ export function createExecRunner(
         return { ok: false, error: `Command denied by policy: "${command}"` };
       }
 
-      const result = await tools.run(command);
+      const result = await tools.runCommand(command);
 
       history.push({
         command,

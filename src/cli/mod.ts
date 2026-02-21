@@ -22,34 +22,34 @@ export {
   detectDaemonManager,
   generateLaunchdPlist,
   generateSystemdUnit,
-} from "./daemon.ts";
+} from "./daemon/daemon.ts";
 
-export type { DaemonManagerType, DaemonOptions } from "./daemon.ts";
+export type { DaemonManagerType, DaemonOptions } from "./daemon/daemon.ts";
 
 export {
   createKeypressReader,
   createLineEditor,
   createSuggestionEngine,
   parseKeypresses,
-} from "./terminal.ts";
+} from "./terminal/terminal.ts";
 
 export type {
   Keypress,
   KeypressReader,
   LineEditor,
   SuggestionEngine,
-} from "./terminal.ts";
+} from "./terminal/terminal.ts";
 
 export {
   createInputHistory,
   loadInputHistory,
   saveInputHistory,
-} from "./history.ts";
+} from "./chat/history.ts";
 
-export type { InputHistory } from "./history.ts";
+export type { InputHistory } from "./chat/history.ts";
 
-export { createScreenManager } from "./screen.ts";
-export type { ScreenManager } from "./screen.ts";
+export { createScreenManager } from "./terminal/screen.ts";
+export type { ScreenManager } from "./terminal/screen.ts";
 
 export {
   formatBanner,
@@ -60,5 +60,5 @@ export {
   formatResponse,
   formatError,
   createScreenEventHandler,
-} from "./chat_ui.ts";
-export type { ToolDisplayMode } from "./chat_ui.ts";
+} from "./chat/chat_ui.ts";
+export type { ToolDisplayMode } from "./chat/chat_ui.ts";

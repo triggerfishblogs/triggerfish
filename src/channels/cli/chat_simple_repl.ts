@@ -11,7 +11,7 @@ import {
   printBanner,
   renderError,
   renderPrompt,
-} from "../../cli/chat_ui.ts";
+} from "../../cli/chat/chat_ui.ts";
 import type { ChatEvent } from "../../core/types/chat_event.ts";
 
 /**

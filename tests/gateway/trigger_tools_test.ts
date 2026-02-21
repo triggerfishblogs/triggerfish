@@ -4,15 +4,15 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
-import { createTriggerStore } from "../../src/scheduler/trigger_store.ts";
-import type { TriggerResult } from "../../src/scheduler/trigger_store.ts";
+import { createTriggerStore } from "../../src/scheduler/triggers/store.ts";
+import type { TriggerResult } from "../../src/scheduler/triggers/store.ts";
 import {
   createTriggerToolExecutor,
   createTriggerClassificationToolExecutor,
   getTriggerToolDefinitions,
   getTriggerContextToolDefinitions,
-} from "../../src/gateway/trigger_tools.ts";
-import type { TriggerToolContext } from "../../src/gateway/trigger_tools.ts";
+} from "../../src/gateway/tools/trigger_tools.ts";
+import type { TriggerToolContext } from "../../src/gateway/tools/trigger_tools.ts";
 
 function makeResult(
   overrides: Partial<TriggerResult> = {},

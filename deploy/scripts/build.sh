@@ -7,7 +7,7 @@ set -e
 
 DIST_DIR="dist"
 ENTRY="src/cli/main.ts"
-INCLUDE_FLAGS="--include config/ --include skills/ --include src/tidepool/tmpl_base.html --include src/tidepool/tmpl_styles.html --include src/tidepool/tmpl_chat.html --include src/tidepool/tmpl_canvas.html --include src/tidepool/tmpl_chat_script.html --include src/tidepool/tmpl_canvas_script.html"
+INCLUDE_FLAGS="--include config/ --include src/skills/ --include src/tidepool/tmpl_base.html --include src/tidepool/tmpl_styles.html --include src/tidepool/tmpl_chat.html --include src/tidepool/tmpl_canvas.html --include src/tidepool/tmpl_chat_script.html --include src/tidepool/tmpl_canvas_script.html"
 VERSION_TAG="${1:-dev}"
 
 TARGETS=(

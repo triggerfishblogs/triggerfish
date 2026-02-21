@@ -7,21 +7,21 @@ import {
   createCronManager,
   createPersistentCronManager,
   matchesNow,
-} from "../../src/scheduler/cron.ts";
+} from "../../src/scheduler/cron/cron.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
-import { createTrigger } from "../../src/scheduler/trigger.ts";
+import { createTrigger } from "../../src/scheduler/triggers/trigger.ts";
 import {
   createWebhookHandler,
   verifyHmac,
   verifyHmacAsync,
   computeHmac,
-} from "../../src/scheduler/webhooks.ts";
+} from "../../src/scheduler/webhooks/webhooks.ts";
 import { createSchedulerService } from "../../src/scheduler/service.ts";
 import type {
   OrchestratorFactory,
   OrchestratorCreateOptions,
   SchedulerServiceConfig,
-} from "../../src/scheduler/service.ts";
+} from "../../src/scheduler/service_types.ts";
 
 // ── Cron Parser ──────────────────────────────────────────────────────
 
@@ -233,7 +233,7 @@ Deno.test("WebhookHandler: routes events to handlers", async () => {
   let received: unknown = null;
   // deno-lint-ignore require-await
   handler.on("push", async (event) => { received = event; });
-  await handler.handle({ event: "push", data: { ref: "main" } });
+  await handler.handleWebhookEvent({ event: "push", data: { ref: "main" } });
   assertExists(received);
 });
 
@@ -242,7 +242,7 @@ Deno.test("WebhookHandler: ignores unregistered event types", async () => {
   let called = false;
   // deno-lint-ignore require-await
   handler.on("push", async () => { called = true; });
-  await handler.handle({ event: "release", data: {} });
+  await handler.handleWebhookEvent({ event: "release", data: {} });
   assertEquals(called, false);
 });
 
@@ -496,7 +496,7 @@ Deno.test("PersistentCronManager: records execution history to storage", async (
 
 // ── Notification delivery wiring ─────────────────────────────────────
 
-import { createNotificationService } from "../../src/gateway/notifications.ts";
+import { createNotificationService } from "../../src/gateway/notifications/notifications.ts";
 import type { UserId } from "../../src/core/types/session.ts";
 
 Deno.test("SchedulerService: webhook output delivered via notificationService", async () => {

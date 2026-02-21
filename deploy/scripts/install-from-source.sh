@@ -57,7 +57,7 @@ fi
 
 echo "Compiling (this may take a minute)..."
 cd "${SRC_DIR}"
-deno compile --allow-all --include config/ --include skills/ --include src/tidepool/tmpl_base.html --include src/tidepool/tmpl_styles.html --include src/tidepool/tmpl_chat.html --include src/tidepool/tmpl_canvas.html --include src/tidepool/tmpl_chat_script.html --include src/tidepool/tmpl_canvas_script.html --output=triggerfish src/cli/main.ts
+deno compile --allow-all --include config/ --include src/skills/ --include src/tidepool/tmpl_base.html --include src/tidepool/tmpl_styles.html --include src/tidepool/tmpl_chat.html --include src/tidepool/tmpl_canvas.html --include src/tidepool/tmpl_chat_script.html --include src/tidepool/tmpl_canvas_script.html --output=triggerfish src/cli/main.ts
 echo "[ok] Compiled successfully"
 
 # --- Step 5: Install binary ---

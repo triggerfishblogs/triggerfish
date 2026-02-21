@@ -11,7 +11,7 @@ import {
   parseKeypresses,
   createLineEditor,
   createSuggestionEngine,
-} from "../../src/cli/terminal.ts";
+} from "../../src/cli/terminal/terminal.ts";
 
 // ─── Keypress parsing ──────────────────────────────────────────
 

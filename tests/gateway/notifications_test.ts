@@ -3,7 +3,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { createNotificationService } from "../../src/gateway/notifications.ts";
+import { createNotificationService } from "../../src/gateway/notifications/notifications.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import type { UserId } from "../../src/core/types/session.ts";
 import type { ClassificationLevel } from "../../src/core/types/classification.ts";

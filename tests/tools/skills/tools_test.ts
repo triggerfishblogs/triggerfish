@@ -12,7 +12,7 @@ import {
   getSkillToolDefinitions,
 } from "../../../src/tools/skills/tools.ts";
 
-const bundledDir = new URL("../../../skills/bundled", import.meta.url).pathname;
+const bundledDir = new URL("../../../src/skills/bundled", import.meta.url).pathname;
 
 function makeBundledLoader() {
   return createSkillLoader({

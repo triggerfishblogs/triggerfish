@@ -17,11 +17,26 @@ model failover, and multi-agent routing.
 
 ## Agent (`src/agent/`)
 
-- `orchestrator.ts` — Core orchestrator, tool dispatch, policy hook integration
-- `llm.ts` — LlmProvider interface, provider registry
-- `compactor.ts` — Conversation compaction (sliding window + LLM summary)
-- `plan.ts` / `plan_tools.ts` — Plan manager and plan tools
-- `providers/` — LLM provider implementations (Anthropic, OpenAI, Google, Local, OpenRouter, ZenMux, Zai)
+### Directory Structure
+
+```
+src/agent/
+├── orchestrator.ts       # Core orchestrator, tool dispatch, policy hook integration
+├── orchestrator_types.ts # Orchestrator type definitions
+├── llm.ts                # LlmProvider interface, provider registry
+├── models.ts             # Model definitions
+├── compactor.ts          # Conversation compaction (sliding window + LLM summary)
+├── rate_limiter.ts       # Rate limiting
+├── mod.ts                # Barrel exports
+├── plan/                 # Plan manager and tools
+│   ├── plan.ts           # Plan manager
+│   ├── tools.ts          # Plan LLM-callable tools
+│   ├── executor.ts       # Plan step executor
+│   ├── prompt.ts         # Plan prompt templates
+│   └── types.ts          # Plan type definitions
+└── providers/            # LLM provider implementations
+    └── (Anthropic, OpenAI, Google, Local, OpenRouter, ZenMux, Zai)
+```
 
 ## LLM Provider Auth
 

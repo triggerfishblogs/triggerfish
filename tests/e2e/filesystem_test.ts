@@ -135,7 +135,7 @@ Deno.test("E2E: write-down blocked after taint escalation", async () => {
   const tainted = updateTaint(session, "CONFIDENTIAL", "read secret file");
 
   // PRE_OUTPUT to PUBLIC should be blocked
-  const result = await runner.run("PRE_OUTPUT", {
+  const result = await runner.evaluateHook("PRE_OUTPUT", {
     session: tainted,
     input: { target_classification: "PUBLIC" },
   });

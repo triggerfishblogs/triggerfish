@@ -35,15 +35,16 @@ src/
 ├── mcp/             # MCP protocol client + policy-enforced proxy
 ├── plugin/          # Plugin SDK and sandbox
 ├── channels/        # Channel adapters (CLI, WhatsApp, Telegram, Slack, Discord, etc.)
-├── agent/           # LLM orchestrator, tool dispatch, providers
+├── agent/           # LLM orchestrator, tool dispatch, providers, plan/
 ├── models/          # LLM provider failover and routing chain
 ├── exec/            # Agent execution environment
 ├── tools/           # LLM-callable tools (todo, web, memory, browser, skills, etc.)
-├── scheduler/       # Cron, triggers, webhooks
-├── gateway/         # WebSocket control plane, session CRUD, notifications
+├── scheduler/       # Cron (cron/), triggers (triggers/), webhooks (webhooks/)
+├── gateway/         # WebSocket server (server/), startup (startup/), notifications/, tools/
+├── skills/          # Bundled skill definitions (SKILL.md files)
 ├── routing/         # Multi-agent routing
 ├── dive/            # Onboarding wizard + patrol diagnostics
-└── cli/             # CLI entry point + commands
+└── cli/             # Entry point, chat/, terminal/, config/, daemon/, commands/
 ```
 
 ## MCP Servers for Development

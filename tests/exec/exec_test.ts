@@ -46,7 +46,7 @@ Deno.test("ExecTools: run returns stdout, stderr, exit code", async () => {
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   const tools = createExecTools(ws);
   try {
-    const result = await tools.run("echo hello");
+    const result = await tools.runCommand("echo hello");
     assertEquals(result.ok, true);
     if (result.ok) {
       assertStringIncludes(result.value.stdout, "hello");
@@ -63,7 +63,7 @@ Deno.test("ExecTools: run captures stderr and nonzero exit", async () => {
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   const tools = createExecTools(ws);
   try {
-    const result = await tools.run("ls /nonexistent_directory_xyz");
+    const result = await tools.runCommand("ls /nonexistent_directory_xyz");
     assertEquals(result.ok, true); // The tool succeeds in running, exit code is nonzero
     if (result.ok) {
       assert(result.value.exitCode !== 0);
@@ -93,7 +93,7 @@ Deno.test("ExecRunner: blocks denied commands", async () => {
     denyList: ["rm -rf /", "sudo", "chmod 777"],
   });
   try {
-    const result = await runner.execute("sudo rm -rf /");
+    const result = await runner.executeCommand("sudo rm -rf /");
     assertEquals(result.ok, false);
   } finally {
     await ws.destroy();
@@ -123,7 +123,7 @@ Deno.test("ExecRunner: logs all executions", async () => {
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   const runner = createExecRunner(ws);
   try {
-    await runner.execute("echo test");
+    await runner.executeCommand("echo test");
     const history = await runner.getHistory();
     assert(history.length >= 1);
     assertExists(history[0].command);
@@ -283,7 +283,7 @@ Deno.test("ExecTools: cwdOverride sets command working directory", async () => {
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   const tools = createExecTools(ws, { cwdOverride: ws.confidentialPath });
   try {
-    const result = await tools.run("pwd");
+    const result = await tools.runCommand("pwd");
     assertEquals(result.ok, true);
     if (result.ok) {
       assertStringIncludes(result.value.stdout.trim(), "confidential");

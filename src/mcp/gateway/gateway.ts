@@ -112,7 +112,7 @@ export function createMcpGateway(options: GatewayOptions): McpGateway {
 
       // Unknown server
       if (!server) {
-        await hookRunner.run("MCP_TOOL_CALL", {
+        await hookRunner.evaluateHook("MCP_TOOL_CALL", {
           session,
           input: {
             server_uri: serverUri,
@@ -124,7 +124,7 @@ export function createMcpGateway(options: GatewayOptions): McpGateway {
       }
 
       // Fire MCP_TOOL_CALL hook for logging/policy
-      await hookRunner.run("MCP_TOOL_CALL", {
+      await hookRunner.evaluateHook("MCP_TOOL_CALL", {
         session,
         input: {
           server_uri: serverUri,

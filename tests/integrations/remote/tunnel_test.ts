@@ -41,7 +41,7 @@ function createMockCommandRunner(
       return calls;
     },
     // deno-lint-ignore require-await
-    async run(cmd: string, args: readonly string[]): Promise<CommandResult> {
+    async runCommand(cmd: string, args: readonly string[]): Promise<CommandResult> {
       calls.push({ cmd, args });
       const key = [cmd, ...args].join(" ");
 

@@ -15,7 +15,7 @@ import { join } from "@std/path";
 import {
   resolveBaseDir,
   resolveConfigPath,
-} from "./paths.ts";
+} from "./config/paths.ts";
 import { createPatrolCheck } from "../dive/patrol.ts";
 import type { PatrolInput } from "../dive/patrol.ts";
 import { runWizard, runWizardSelective } from "../dive/wizard.ts";
@@ -27,7 +27,7 @@ import {
   stopDaemon,
   tailLogs,
   updateTriggerfish,
-} from "./daemon.ts";
+} from "./daemon/daemon.ts";
 import { TIDEPOOL_PORT } from "./constants.ts";
 import { Confirm } from "@cliffy/prompt";
 import { parseCommand, showHelp, showVersion } from "./main_commands.ts";
@@ -42,7 +42,7 @@ export type { TriggerFishConfig } from "../core/config.ts";
 export type { Ok, Err, Result } from "../core/config.ts";
 
 // Re-export performGoogleOAuth for backward-compatibility (wizard.ts imports it via dynamic import)
-export { performGoogleOAuth } from "./connect.ts";
+export { performGoogleOAuth } from "./commands/connect.ts";
 
 // Re-export command parsing for backward-compatibility (tests import from here)
 export {
@@ -174,7 +174,7 @@ export async function runPatrol(): Promise<void> {
   };
 
   const checker = createPatrolCheck(input);
-  const report = await checker.run();
+  const report = await checker.runHealthChecks();
 
   // Show daemon info
   if (daemonStatus.running) {
@@ -370,22 +370,22 @@ async function main(): Promise<void> {
       break;
     }
     case "config": {
-      const { runConfig } = await import("./config.ts");
+      const { runConfig } = await import("./config/config.ts");
       await runConfig(parsed.subcommand, parsed.flags);
       break;
     }
     case "connect": {
-      const { runConnect } = await import("./connect.ts");
+      const { runConnect } = await import("./commands/connect.ts");
       await runConnect(parsed.subcommand, parsed.flags);
       break;
     }
     case "cron": {
-      const { runCron } = await import("./cron.ts");
+      const { runCron } = await import("./commands/cron.ts");
       await runCron(parsed.subcommand, parsed.flags);
       break;
     }
     case "disconnect": {
-      const { runDisconnect } = await import("./connect.ts");
+      const { runDisconnect } = await import("./commands/connect.ts");
       await runDisconnect(parsed.subcommand, parsed.flags);
       break;
     }
@@ -396,12 +396,12 @@ async function main(): Promise<void> {
       await runPatrol();
       break;
     case "run": {
-      const { runStart } = await import("../gateway/startup.ts");
+      const { runStart } = await import("../gateway/startup/startup.ts");
       await runStart();
       break;
     }
     case "run-triggers": {
-      const { runTriggers } = await import("./run_triggers.ts");
+      const { runTriggers } = await import("./commands/run_triggers.ts");
       await runTriggers();
       break;
     }
@@ -418,7 +418,7 @@ async function main(): Promise<void> {
       await runDaemonLogs(parsed.subcommand, parsed.flags);
       break;
     case "tidepool": {
-      const { runTidepool } = await import("./tidepool.ts");
+      const { runTidepool } = await import("./commands/tidepool.ts");
       await runTidepool(parsed.subcommand, parsed.flags);
       break;
     }

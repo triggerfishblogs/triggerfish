@@ -3,8 +3,8 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { createPriorityRouter } from "../../src/gateway/priority_router.ts";
-import type { DeliverOptions } from "../../src/gateway/notifications.ts";
+import { createPriorityRouter } from "../../src/gateway/notifications/priority_router.ts";
+import type { DeliverOptions } from "../../src/gateway/notifications/notifications.ts";
 import type { UserId } from "../../src/core/types/session.ts";
 
 // ---------------------------------------------------------------------------

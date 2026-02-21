@@ -14,23 +14,23 @@
 
 import { join } from "@std/path";
 import { loadConfig } from "../../core/config.ts";
-import { resolveBaseDir, resolveConfigPath } from "../../cli/paths.ts";
+import { resolveBaseDir, resolveConfigPath } from "../../cli/config/paths.ts";
 import {
   createEventHandler,
   createScreenEventHandler,
   formatBanner,
   formatError,
   printBanner,
-} from "../../cli/chat_ui.ts";
-import type { ToolDisplayMode } from "../../cli/chat_ui.ts";
+} from "../../cli/chat/chat_ui.ts";
+import type { ToolDisplayMode } from "../../cli/chat/chat_ui.ts";
 import {
   createKeypressReader,
   createLineEditor,
   createSuggestionEngine,
-} from "../../cli/terminal.ts";
-import type { LineEditor } from "../../cli/terminal.ts";
-import { loadInputHistory, saveInputHistory } from "../../cli/history.ts";
-import { createScreenManager, taintColor } from "../../cli/screen.ts";
+} from "../../cli/terminal/terminal.ts";
+import type { LineEditor } from "../../cli/terminal/terminal.ts";
+import { loadInputHistory, saveInputHistory } from "../../cli/chat/history.ts";
+import { createScreenManager, taintColor } from "../../cli/terminal/screen.ts";
 import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
 import { imageBlock } from "../../core/image/content.ts";
 import type {

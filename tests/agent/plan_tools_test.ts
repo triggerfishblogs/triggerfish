@@ -5,8 +5,8 @@
  * including validation of untrusted LLM input.
  */
 import { assertEquals, assert, assertStringIncludes } from "@std/assert";
-import { createPlanManager, createPlanToolExecutor } from "../../src/agent/plan.ts";
-import type { PlanManager } from "../../src/agent/plan.ts";
+import { createPlanManager, createPlanToolExecutor } from "../../src/agent/plan/plan.ts";
+import type { PlanManager } from "../../src/agent/plan/plan.ts";
 
 const SESSION = "test-session";
 

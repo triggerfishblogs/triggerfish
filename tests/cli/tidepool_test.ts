@@ -18,7 +18,7 @@ Deno.test("tidepool: GATEWAY_PORT is 18789", async () => {
 // ─── getTidepoolUrl ───────────────────────────────────────────────────────────
 
 Deno.test("tidepool: getTidepoolUrl returns expected URL", async () => {
-  const { getTidepoolUrl } = await import("../../src/cli/tidepool.ts");
+  const { getTidepoolUrl } = await import("../../src/cli/commands/tidepool.ts");
   assertEquals(getTidepoolUrl(), "http://127.0.0.1:18790");
 });
 

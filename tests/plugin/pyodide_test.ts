@@ -277,7 +277,7 @@ Deno.test("PythonSandbox: destroy prevents further execution", async () => {
 
   // JS execution should also fail
   await assertRejects(
-    () => sandbox.execute("return 1"),
+    () => sandbox.executePluginCode("return 1"),
     Error,
     "Sandbox has been destroyed",
   );
@@ -298,7 +298,7 @@ Deno.test("PythonSandbox: JS execute still works through base sandbox", async ()
   });
   try {
     // The PythonSandbox also exposes the base execute() for JS code
-    const result = await sandbox.execute("return 3 * 7");
+    const result = await sandbox.executePluginCode("return 3 * 7");
     assertEquals(result, 21);
   } finally {
     await sandbox.destroy();

@@ -5,12 +5,12 @@
  * @module
  */
 
-export { createGatewayServer } from "./server.ts";
+export { createGatewayServer } from "./server/server.ts";
 export type {
   GatewayAddr,
   GatewayServer,
   GatewayServerOptions,
-} from "./server.ts";
+} from "./server/server.ts";
 
 export { createEnhancedSessionManager } from "./sessions.ts";
 export type {
@@ -19,34 +19,34 @@ export type {
   SessionType,
 } from "./sessions.ts";
 
-export { createNotificationService } from "./notifications.ts";
+export { createNotificationService } from "./notifications/notifications.ts";
 export type {
   DeliverOptions,
   DeliveryChannel,
   Notification,
   NotificationPriority,
   NotificationService,
-} from "./notifications.ts";
+} from "./notifications/notifications.ts";
 
-export { createPriorityRouter } from "./priority_router.ts";
+export { createPriorityRouter } from "./notifications/priority_router.ts";
 export type {
   PriorityRouter,
   PriorityRouterConfig,
   RoutingDecision,
-} from "./priority_router.ts";
+} from "./notifications/priority_router.ts";
 
-export { createConfigWatcher } from "./config_watcher.ts";
+export { createConfigWatcher } from "./startup/config_watcher.ts";
 export type {
   ConfigChangeCallback,
   ConfigWatcher,
-} from "./config_watcher.ts";
+} from "./startup/config_watcher.ts";
 
 export {
   getSessionToolDefinitions,
   createSessionToolExecutor,
   SESSION_TOOLS_SYSTEM_PROMPT,
-} from "./tools.ts";
-export type { SessionToolContext } from "./tools.ts";
+} from "./tools/session_tools.ts";
+export type { SessionToolContext } from "./tools/session_tools.ts";
 
 export { createChatSession } from "./chat.ts";
 export type {
@@ -61,5 +61,5 @@ export {
   getTriggerToolDefinitions,
   createTriggerToolExecutor,
   TRIGGER_TOOLS_SYSTEM_PROMPT,
-} from "./trigger_tools.ts";
-export type { TriggerToolContext } from "./trigger_tools.ts";
+} from "./tools/trigger_tools.ts";
+export type { TriggerToolContext } from "./tools/trigger_tools.ts";

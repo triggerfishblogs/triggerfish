@@ -17,8 +17,8 @@
 import { Checkbox, Confirm, Input, Select } from "@cliffy/prompt";
 import { join } from "@std/path";
 
-import { expandTilde } from "../cli/paths.ts";
-import { promptChannelConfig } from "../cli/config.ts";
+import { expandTilde } from "../cli/config/paths.ts";
+import { promptChannelConfig } from "../cli/config/config.ts";
 import { verifyProvider } from "./verify.ts";
 import { createKeychain } from "../core/secrets/keychain.ts";
 
@@ -454,7 +454,7 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
 
     if (readyNow) {
       console.log("");
-      const { performGoogleOAuth } = await import("../cli/connect.ts");
+      const { performGoogleOAuth } = await import("../cli/commands/connect.ts");
       const success = await performGoogleOAuth();
       if (success) {
         console.log("");

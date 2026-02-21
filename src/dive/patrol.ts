@@ -35,7 +35,7 @@ export interface PatrolInput {
 /** A patrol check runner. */
 export interface PatrolChecker {
   /** Run all health checks and return a report. */
-  run(): Promise<PatrolReport>;
+  runHealthChecks(): Promise<PatrolReport>;
 }
 
 /**
@@ -53,7 +53,7 @@ export interface PatrolChecker {
 export function createPatrolCheck(input: PatrolInput): PatrolChecker {
   return {
     // deno-lint-ignore require-await
-    async run(): Promise<PatrolReport> {
+    async runHealthChecks(): Promise<PatrolReport> {
       const checks: PatrolCheckResult[] = [];
 
       // Gateway check
