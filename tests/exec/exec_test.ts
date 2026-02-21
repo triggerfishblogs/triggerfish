@@ -93,7 +93,7 @@ Deno.test("ExecRunner: blocks denied commands", async () => {
     denyList: ["rm -rf /", "sudo", "chmod 777"],
   });
   try {
-    const result = await runner.execute("sudo rm -rf /");
+    const result = await runner.executeCommand("sudo rm -rf /");
     assertEquals(result.ok, false);
   } finally {
     await ws.destroy();
@@ -123,7 +123,7 @@ Deno.test("ExecRunner: logs all executions", async () => {
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   const runner = createExecRunner(ws);
   try {
-    await runner.execute("echo test");
+    await runner.executeCommand("echo test");
     const history = await runner.getHistory();
     assert(history.length >= 1);
     assertExists(history[0].command);
