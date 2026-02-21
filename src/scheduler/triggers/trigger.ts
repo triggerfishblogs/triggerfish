@@ -10,8 +10,8 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../core/types/classification.ts";
-import { createLogger } from "../core/logger/mod.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("scheduler.trigger");
 

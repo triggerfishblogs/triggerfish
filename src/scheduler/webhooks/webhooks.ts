@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../core/types/classification.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
 
 /** Inbound webhook event structure. */
 export interface WebhookEvent {

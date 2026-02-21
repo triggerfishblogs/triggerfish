@@ -7,21 +7,21 @@ import {
   createCronManager,
   createPersistentCronManager,
   matchesNow,
-} from "../../src/scheduler/cron.ts";
+} from "../../src/scheduler/cron/cron.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
-import { createTrigger } from "../../src/scheduler/trigger.ts";
+import { createTrigger } from "../../src/scheduler/triggers/trigger.ts";
 import {
   createWebhookHandler,
   verifyHmac,
   verifyHmacAsync,
   computeHmac,
-} from "../../src/scheduler/webhooks.ts";
+} from "../../src/scheduler/webhooks/webhooks.ts";
 import { createSchedulerService } from "../../src/scheduler/service.ts";
 import type {
   OrchestratorFactory,
   OrchestratorCreateOptions,
   SchedulerServiceConfig,
-} from "../../src/scheduler/service.ts";
+} from "../../src/scheduler/service_types.ts";
 
 // ── Cron Parser ──────────────────────────────────────────────────────
 

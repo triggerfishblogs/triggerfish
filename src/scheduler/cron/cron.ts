@@ -10,30 +10,30 @@
  * @module
  */
 
-import type { Result } from "../core/types/classification.ts";
-import type { StorageProvider } from "../core/storage/provider.ts";
+import type { Result } from "../../core/types/classification.ts";
+import type { StorageProvider } from "../../core/storage/provider.ts";
 
 import type {
   CronJob,
   CronJobExecution,
   CronJobOptions,
   CronManager,
-} from "./cron_parser.ts";
-import { parseCronExpression } from "./cron_parser.ts";
+} from "./parser.ts";
+import { parseCronExpression } from "./parser.ts";
 
 // ─── Barrel re-exports from cron_parser.ts ──────────────────────────────────
 
 export {
   parseCronExpression,
   matchesNow,
-} from "./cron_parser.ts";
+} from "./parser.ts";
 export type {
   CronExpression,
   CronJob,
   CronJobExecution,
   CronJobOptions,
   CronManager,
-} from "./cron_parser.ts";
+} from "./parser.ts";
 
 // ─── Serialization helpers ──────────────────────────────────────────────────
 

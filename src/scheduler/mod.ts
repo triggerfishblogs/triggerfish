@@ -14,14 +14,14 @@ export {
   type CronJobOptions,
   type CronJobExecution,
   type CronManager,
-} from "./cron.ts";
+} from "./cron/mod.ts";
 
 export {
   createTrigger,
   type Trigger,
   type TriggerOptions,
   type QuietHours,
-} from "./trigger.ts";
+} from "./triggers/mod.ts";
 
 export {
   verifyHmac,
@@ -32,7 +32,7 @@ export {
   type WebhookEventHandler,
   type WebhookSource,
   type WebhookHandler,
-} from "./webhooks.ts";
+} from "./webhooks/mod.ts";
 
 export {
   createSchedulerService,
@@ -42,10 +42,10 @@ export {
   type WebhookSourceConfig,
 } from "./service.ts";
 
-export { signWebhook, verifyWebhookSignature } from "./webhook_security.ts";
+export { signWebhook, verifyWebhookSignature } from "./webhooks/mod.ts";
 
 export {
   createTriggerStore,
   type TriggerResult,
   type TriggerStore,
-} from "./trigger_store.ts";
+} from "./triggers/mod.ts";

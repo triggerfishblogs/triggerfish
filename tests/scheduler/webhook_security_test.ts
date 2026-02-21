@@ -5,7 +5,7 @@ import { assertEquals, assert } from "@std/assert";
 import {
   signWebhook,
   verifyWebhookSignature,
-} from "../../src/scheduler/webhook_security.ts";
+} from "../../src/scheduler/webhooks/security.ts";
 
 // ── Round-trip ──────────────────────────────────────────────────────
 

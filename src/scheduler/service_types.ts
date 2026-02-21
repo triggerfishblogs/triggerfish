@@ -13,9 +13,9 @@ import type { UserId } from "../core/types/session.ts";
 import type { Orchestrator } from "../core/types/orchestrator.ts";
 import type { SessionState } from "../core/types/session.ts";
 import type { NotificationService } from "../core/types/notification.ts";
-import type { CronManager } from "./cron.ts";
-import type { WebhookHandler } from "./webhooks.ts";
-import type { TriggerStore } from "./trigger_store.ts";
+import type { CronManager } from "./cron/parser.ts";
+import type { WebhookHandler } from "./webhooks/webhooks.ts";
+import type { TriggerStore } from "./triggers/store.ts";
 
 /** Options passed to OrchestratorFactory.create() to configure the session type. */
 export interface OrchestratorCreateOptions {

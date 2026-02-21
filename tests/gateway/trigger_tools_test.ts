@@ -4,8 +4,8 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
-import { createTriggerStore } from "../../src/scheduler/trigger_store.ts";
-import type { TriggerResult } from "../../src/scheduler/trigger_store.ts";
+import { createTriggerStore } from "../../src/scheduler/triggers/store.ts";
+import type { TriggerResult } from "../../src/scheduler/triggers/store.ts";
 import {
   createTriggerToolExecutor,
   createTriggerClassificationToolExecutor,

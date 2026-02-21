@@ -14,7 +14,7 @@
 import type {
   ClassificationLevel,
   Result,
-} from "../core/types/classification.ts";
+} from "../../core/types/classification.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

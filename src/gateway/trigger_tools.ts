@@ -21,7 +21,7 @@
 import type { ToolDefinition } from "../core/types/tool.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import { canFlowTo } from "../core/types/classification.ts";
-import type { TriggerResult, TriggerStore } from "../scheduler/trigger_store.ts";
+import type { TriggerResult, TriggerStore } from "../scheduler/triggers/store.ts";
 
 /** Context required by trigger tool executors. */
 export interface TriggerToolContext {

@@ -53,8 +53,8 @@ import {
 import { createPathClassifier } from "../core/security/path_classification.ts";
 import { createToolFloorRegistry } from "../core/security/tool_floors.ts";
 import { createSchedulerService } from "../scheduler/service.ts";
-import { createTriggerStore } from "../scheduler/trigger_store.ts";
-import { createPersistentCronManager } from "../scheduler/cron.ts";
+import { createTriggerStore } from "../scheduler/triggers/store.ts";
+import { createPersistentCronManager } from "../scheduler/cron/cron.ts";
 import { createSqliteStorage } from "../core/storage/sqlite.ts";
 import {
   createHealthcheckToolExecutor,

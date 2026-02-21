@@ -15,7 +15,7 @@ import { createWebToolExecutor } from "../tools/web/mod.ts";
 import type { SearchProvider, WebFetcher } from "../tools/web/mod.ts";
 import type { ToolExecutor } from "../core/types/tool.ts";
 import type { LlmProviderRegistry } from "../core/types/llm.ts";
-import type { CronManager } from "../scheduler/cron.ts";
+import type { CronManager } from "../scheduler/cron/parser.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 
 /** Generic executor signature used by optional subsystem executors. */

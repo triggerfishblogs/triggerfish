@@ -9,8 +9,8 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { StorageProvider } from "../core/storage/provider.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { StorageProvider } from "../../core/storage/provider.ts";
 
 /** A persisted trigger execution result. */
 export interface TriggerResult {

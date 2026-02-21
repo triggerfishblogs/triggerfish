@@ -11,7 +11,7 @@
  * @module
  */
 
-import type { SchedulerService } from "../scheduler/service.ts";
+import type { SchedulerService } from "../scheduler/service_types.ts";
 import type { EnhancedSessionManager } from "./sessions.ts";
 import type { NotificationService } from "./notifications.ts";
 import type { ChatSession } from "./chat.ts";

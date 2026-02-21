@@ -87,14 +87,14 @@ import {
   TRIGGER_SESSION_SYSTEM_PROMPT,
 } from "./trigger_tools.ts";
 import type { EnhancedSessionManager } from "./sessions.ts";
-import type { CronManager } from "../scheduler/cron.ts";
+import type { CronManager } from "../scheduler/cron/parser.ts";
 import type { StorageProvider } from "../core/storage/provider.ts";
 import type {
   OrchestratorFactory,
   OrchestratorCreateOptions,
   SchedulerServiceConfig,
   WebhookSourceConfig,
-} from "../scheduler/service.ts";
+} from "../scheduler/service_types.ts";
 import { createSkillLoader } from "../tools/skills/loader.ts";
 import { buildSkillsSystemPrompt } from "../tools/skills/prompts.ts";
 import { createSkillToolExecutor } from "../tools/skills/mod.ts";

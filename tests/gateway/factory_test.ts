@@ -4,7 +4,7 @@
 import { assertEquals } from "@std/assert";
 import { buildSchedulerConfig } from "../../src/gateway/factory.ts";
 import type { TriggerFishConfig } from "../../src/core/config.ts";
-import type { OrchestratorFactory } from "../../src/scheduler/service.ts";
+import type { OrchestratorFactory } from "../../src/scheduler/service_types.ts";
 
 function makeMockFactory(): OrchestratorFactory {
   return {

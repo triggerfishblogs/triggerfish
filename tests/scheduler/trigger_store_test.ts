@@ -6,8 +6,8 @@ import { assertEquals, assertExists } from "@std/assert";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import {
   createTriggerStore,
-} from "../../src/scheduler/trigger_store.ts";
-import type { TriggerResult } from "../../src/scheduler/trigger_store.ts";
+} from "../../src/scheduler/triggers/store.ts";
+import type { TriggerResult } from "../../src/scheduler/triggers/store.ts";
 
 function makeResult(
   overrides: Partial<TriggerResult> = {},
