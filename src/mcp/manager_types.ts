@@ -1,0 +1,76 @@
+/**
+ * MCP Server Manager types and interfaces.
+ *
+ * Defines McpServerConfig, ConnectedMcpServer, McpServerManager, and
+ * related status types. Separated from the manager implementation in
+ * `manager.ts` for lighter type-only imports.
+ *
+ * @module
+ */
+
+import type { ClassificationLevel } from "../core/types/classification.ts";
+import type { SecretStore } from "../core/secrets/keychain.ts";
+import type { McpClient, McpToolDefinition } from "./client/protocol.ts";
+import type { McpServer } from "./gateway/gateway.ts";
+import type { Transport } from "./client/transport.ts";
+
+/** Parsed configuration for a single MCP server. */
+export interface McpServerConfig {
+  readonly id: string;
+  readonly command?: string;
+  readonly args?: readonly string[];
+  readonly env?: Readonly<Record<string, string>>;
+  readonly url?: string;
+  readonly classification?: ClassificationLevel;
+  readonly enabled?: boolean;
+}
+
+/** A connected MCP server with its tools and metadata. */
+export interface ConnectedMcpServer {
+  readonly id: string;
+  readonly classification: ClassificationLevel | undefined;
+  readonly tools: readonly McpToolDefinition[];
+  readonly server: McpServer;
+  readonly client: McpClient;
+  readonly transport: Transport;
+}
+
+/** Connection state for a configured MCP server. */
+export type McpServerState = "connecting" | "connected" | "disconnected" | "failed";
+
+/** Full status of a configured MCP server (connected or not). */
+export interface McpServerStatus {
+  readonly id: string;
+  readonly config: McpServerConfig;
+  readonly state: McpServerState;
+  /** Only present when state is "connected". */
+  readonly server?: ConnectedMcpServer;
+  readonly lastError?: string;
+}
+
+/** Manager interface for MCP server lifecycle. */
+export interface McpServerManager {
+  /** Connect to all configured servers. Graceful degradation on failure. */
+  connectAll(
+    configs: readonly McpServerConfig[],
+    secretStore?: SecretStore,
+  ): Promise<readonly ConnectedMcpServer[]>;
+  /** Disconnect all connected servers. */
+  disconnectAll(): Promise<void>;
+  /** Get currently connected servers. */
+  getConnected(): readonly ConnectedMcpServer[];
+  /**
+   * Start background connection loops for all configured servers. Non-blocking.
+   * Servers that fail to connect are retried with exponential backoff.
+   */
+  startAll(configs: readonly McpServerConfig[], secretStore?: SecretStore): void;
+  /** Get full status (connected + disconnected) for all configured servers. */
+  getStatus(): readonly McpServerStatus[];
+  /** Get count of configured (non-disabled) servers. */
+  getConfiguredCount(): number;
+  /**
+   * Register a callback invoked whenever connection state changes.
+   * Returns an unsubscribe function.
+   */
+  onStatusChange(cb: (status: readonly McpServerStatus[]) => void): () => void;
+}
