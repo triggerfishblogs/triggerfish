@@ -10,22 +10,22 @@
  * @module
  */
 
-import { canFlowTo } from "../core/types/classification.ts";
-import type { SessionId } from "../core/types/session.ts";
-import type { SignalChannelAdapter } from "../channels/signal/adapter.ts";
+import { canFlowTo } from "../../core/types/classification.ts";
+import type { SessionId } from "../../core/types/session.ts";
+import type { SignalChannelAdapter } from "../../channels/signal/adapter.ts";
 
-import type { SessionToolContext } from "./tools_defs.ts";
+import type { SessionToolContext } from "./session_tools_defs.ts";
 
-// ─── Barrel re-exports from tools_defs.ts ───────────────────────────────────
+// ─── Barrel re-exports from session_tools_defs.ts ───────────────────────────
 
 export {
   getSessionToolDefinitions,
   SESSION_TOOLS_SYSTEM_PROMPT,
-} from "./tools_defs.ts";
+} from "./session_tools_defs.ts";
 export type {
   RegisteredChannel,
   SessionToolContext,
-} from "./tools_defs.ts";
+} from "./session_tools_defs.ts";
 
 /**
  * Create a tool executor for session management tools.

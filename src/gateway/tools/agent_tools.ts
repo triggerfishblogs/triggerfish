@@ -19,10 +19,10 @@ export {
   type ToolGroupName,
   type ToolProfile,
   type ToolProfileName,
-} from "./agent_tool_registry.ts";
+} from "./registry.ts";
 
 // ─── Executor: dispatch factory ──────────────────────────────────
 export {
   createToolExecutor,
   type ToolExecutorOptions,
-} from "./agent_tool_executor.ts";
+} from "./executor.ts";

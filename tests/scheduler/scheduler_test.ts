@@ -496,7 +496,7 @@ Deno.test("PersistentCronManager: records execution history to storage", async (
 
 // ── Notification delivery wiring ─────────────────────────────────────
 
-import { createNotificationService } from "../../src/gateway/notifications.ts";
+import { createNotificationService } from "../../src/gateway/notifications/notifications.ts";
 import type { UserId } from "../../src/core/types/session.ts";
 
 Deno.test("SchedulerService: webhook output delivered via notificationService", async () => {

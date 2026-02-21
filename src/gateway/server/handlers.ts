@@ -7,12 +7,12 @@
  * @module
  */
 
-import type { SchedulerService } from "../scheduler/service_types.ts";
-import type { EnhancedSessionManager } from "./sessions.ts";
-import type { NotificationService } from "./notifications.ts";
-import type { ChatSession, ChatClientMessage } from "./chat.ts";
-import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { SessionId, UserId, ChannelId } from "../core/types/session.ts";
+import type { SchedulerService } from "../../scheduler/service_types.ts";
+import type { EnhancedSessionManager } from "../sessions.ts";
+import type { NotificationService } from "../notifications/notifications.ts";
+import type { ChatSession, ChatClientMessage } from "../chat.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { SessionId, UserId, ChannelId } from "../../core/types/session.ts";
 
 // ─── JSON-RPC types ──────────────────────────────────────────────────────────
 

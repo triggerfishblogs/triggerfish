@@ -7,11 +7,11 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { UserId } from "../core/types/session.ts";
-import { createTelegramChannel } from "../channels/telegram/adapter.ts";
-import { createDiscordChannel } from "../channels/discord/adapter.ts";
-import { createSignalChannel } from "../channels/signal/adapter.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { UserId } from "../../core/types/session.ts";
+import { createTelegramChannel } from "../../channels/telegram/adapter.ts";
+import { createDiscordChannel } from "../../channels/discord/adapter.ts";
+import { createSignalChannel } from "../../channels/signal/adapter.ts";
 import {
   checkSignalCli,
   isDaemonHealthy,
@@ -21,13 +21,13 @@ import {
   startDaemonUnix,
   waitForDaemon,
   waitForDaemonUnix,
-} from "../channels/signal/setup.ts";
-import type { DaemonHandle } from "../channels/signal/setup.ts";
-import { buildSendEvent } from "./chat.ts";
-import type { ChatSession } from "./chat.ts";
-import type { RegisteredChannel } from "./tools.ts";
-import type { NotificationService } from "./notifications.ts";
-import { createLogger } from "../core/logger/mod.ts";
+} from "../../channels/signal/setup.ts";
+import type { DaemonHandle } from "../../channels/signal/setup.ts";
+import { buildSendEvent } from "../chat.ts";
+import type { ChatSession } from "../chat.ts";
+import type { RegisteredChannel } from "../tools/session_tools.ts";
+import type { NotificationService } from "../notifications/notifications.ts";
+import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("startup-channels");
 

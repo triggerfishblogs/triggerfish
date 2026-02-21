@@ -14,97 +14,97 @@
  */
 
 import { join } from "@std/path";
-import { isDockerEnvironment } from "../core/env.ts";
-import { createGatewayServer } from "./server.ts";
+import { isDockerEnvironment } from "../../core/env.ts";
+import { createGatewayServer } from "../server/server.ts";
 import {
   createSessionToolExecutor,
-} from "./tools.ts";
-import type { RegisteredChannel } from "./tools.ts";
-import { createEnhancedSessionManager } from "./sessions.ts";
-import { createSessionManager } from "../core/session/manager.ts";
-import { createChatSession } from "./chat.ts";
-import { createA2UIHost } from "../tools/tidepool/host.ts";
+} from "../tools/session_tools.ts";
+import type { RegisteredChannel } from "../tools/session_tools.ts";
+import { createEnhancedSessionManager } from "../sessions.ts";
+import { createSessionManager } from "../../core/session/manager.ts";
+import { createChatSession } from "../chat.ts";
+import { createA2UIHost } from "../../tools/tidepool/host.ts";
 import {
   createTidepoolToolExecutor,
   createTidePoolTools,
   TIDEPOOL_SYSTEM_PROMPT,
-} from "../tools/tidepool/mod.ts";
+} from "../../tools/tidepool/mod.ts";
 import {
   mapToolPrefixClassifications,
-} from "../agent/orchestrator.ts";
-import type { ToolDefinition } from "../core/types/tool.ts";
-import { createProviderRegistry } from "../agent/llm.ts";
+} from "../../agent/orchestrator.ts";
+import type { ToolDefinition } from "../../core/types/tool.ts";
+import { createProviderRegistry } from "../../agent/llm.ts";
 import {
   loadProvidersFromConfig,
   resolveVisionProvider,
-} from "../agent/providers/config.ts";
-import type { ModelsConfig } from "../agent/providers/config.ts";
-import { createPolicyEngine } from "../core/policy/engine.ts";
-import { createDefaultRules, createHookRunner } from "../core/policy/hooks.ts";
-import { createSession, updateTaint } from "../core/types/session.ts";
-import type { ChannelId, UserId } from "../core/types/session.ts";
-import type { ClassificationLevel } from "../core/types/classification.ts";
-import { createWorkspace } from "../exec/workspace.ts";
-import { createExecTools } from "../exec/tools.ts";
+} from "../../agent/providers/config.ts";
+import type { ModelsConfig } from "../../agent/providers/config.ts";
+import { createPolicyEngine } from "../../core/policy/engine.ts";
+import { createDefaultRules, createHookRunner } from "../../core/policy/hooks.ts";
+import { createSession, updateTaint } from "../../core/types/session.ts";
+import type { ChannelId, UserId } from "../../core/types/session.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+import { createWorkspace } from "../../exec/workspace.ts";
+import { createExecTools } from "../../exec/tools.ts";
 import {
   createClaudeSessionManager,
   createClaudeToolExecutor,
-} from "../exec/claude.ts";
-import { createPathClassifier } from "../core/security/path_classification.ts";
-import { createToolFloorRegistry } from "../core/security/tool_floors.ts";
-import { createSchedulerService } from "../scheduler/service.ts";
-import { createTriggerStore } from "../scheduler/triggers/store.ts";
-import { createPersistentCronManager } from "../scheduler/cron/cron.ts";
-import { createSqliteStorage } from "../core/storage/sqlite.ts";
+} from "../../exec/claude.ts";
+import { createPathClassifier } from "../../core/security/path_classification.ts";
+import { createToolFloorRegistry } from "../../core/security/tool_floors.ts";
+import { createSchedulerService } from "../../scheduler/service.ts";
+import { createTriggerStore } from "../../scheduler/triggers/store.ts";
+import { createPersistentCronManager } from "../../scheduler/cron/cron.ts";
+import { createSqliteStorage } from "../../core/storage/sqlite.ts";
 import {
   createHealthcheckToolExecutor,
   createLlmTaskToolExecutor,
   createSummarizeToolExecutor,
   createTodoManager,
-} from "../tools/mod.ts";
+} from "../../tools/mod.ts";
 import {
   createFts5SearchProvider,
   createMemoryStore,
   createMemoryToolExecutor,
-} from "../tools/memory/mod.ts";
+} from "../../tools/memory/mod.ts";
 import {
   createDomainPolicy as createBrowserDomainPolicy,
   createAutoLaunchBrowserExecutor,
   createBrowserManager,
-} from "../tools/browser/mod.ts";
+} from "../../tools/browser/mod.ts";
 import {
   createImageToolExecutor,
-} from "../tools/image/mod.ts";
+} from "../../tools/image/mod.ts";
 import {
   createExploreToolExecutor,
-} from "../tools/explore/mod.ts";
+} from "../../tools/explore/mod.ts";
 import {
   createGitHubClient,
   createGitHubToolExecutor,
   resolveGitHubToken,
-} from "../integrations/github/mod.ts";
-import { createKeychain } from "../core/secrets/keychain.ts";
+} from "../../integrations/github/mod.ts";
+import { createKeychain } from "../../core/secrets/keychain.ts";
 import {
   createSecretToolExecutor,
-} from "../tools/secrets.ts";
-import type { SecretPromptCallback } from "../tools/secrets.ts";
-import { createPairingService } from "../channels/pairing.ts";
+} from "../../tools/secrets.ts";
+import type { SecretPromptCallback } from "../../tools/secrets.ts";
+import { createPairingService } from "../../channels/pairing.ts";
 import {
   wireDiscordChannel,
   wireSignalChannel,
   wireTelegramChannel,
-} from "./startup_channels.ts";
+} from "./channels.ts";
 import type {
   DiscordChannelConfig,
   SignalChannelConfig,
   TelegramChannelConfig,
-} from "./startup_channels.ts";
-import { createNotificationService } from "./notifications.ts";
+} from "./channels.ts";
+import { createNotificationService } from "../notifications/notifications.ts";
 import {
   createTriggerToolExecutor,
-} from "./trigger_tools.ts";
-import { parseClassification } from "../core/types/classification.ts";
-import { createSkillToolExecutor } from "../tools/skills/mod.ts";
+} from "../tools/trigger_tools.ts";
+import { parseClassification } from "../../core/types/classification.ts";
+import { createSkillToolExecutor } from "../../tools/skills/mod.ts";
 import {
   createFileWriter,
   createLogger,
@@ -112,12 +112,12 @@ import {
   parseUserLogLevel,
   shutdownLogger,
   USER_LEVEL_MAP,
-} from "../core/logger/mod.ts";
-import { logDir as resolveLogDir } from "../cli/daemon.ts";
-import { loadConfigWithSecrets } from "../core/config.ts";
-import { resolveBaseDir, resolveConfigPath } from "../cli/paths.ts";
-import { TIDEPOOL_PORT } from "../cli/constants.ts";
-import { buildSkillsSystemPrompt, buildTriggersSystemPrompt } from "../tools/skills/prompts.ts";
+} from "../../core/logger/mod.ts";
+import { logDir as resolveLogDir } from "../../cli/daemon.ts";
+import { loadConfigWithSecrets } from "../../core/config.ts";
+import { resolveBaseDir, resolveConfigPath } from "../../cli/paths.ts";
+import { TIDEPOOL_PORT } from "../../cli/constants.ts";
+import { buildSkillsSystemPrompt, buildTriggersSystemPrompt } from "../../tools/skills/prompts.ts";
 import {
   buildGoogleExecutor,
   buildSchedulerConfig,
@@ -125,16 +125,16 @@ import {
   buildWebTools,
   createOrchestratorFactory,
 } from "./factory.ts";
-import { createToolExecutor, resolveToolsForProfile, resolvePromptsForProfile, TOOL_GROUPS } from "./agent_tools.ts";
-import { createPlanManager, createPlanToolExecutor } from "../agent/plan/plan.ts";
-import { wireMcpServers } from "./startup_mcp.ts";
-import type { McpBroadcastRefs } from "./startup_mcp.ts";
+import { createToolExecutor, resolveToolsForProfile, resolvePromptsForProfile, TOOL_GROUPS } from "../tools/agent_tools.ts";
+import { createPlanManager, createPlanToolExecutor } from "../../agent/plan/plan.ts";
+import { wireMcpServers } from "./mcp.ts";
+import type { McpBroadcastRefs } from "./mcp.ts";
 import {
   buildObsidianExecutor,
   createCliSecretPrompt,
   discoverSkills,
-} from "./startup_subsystems.ts";
-import type { ObsidianPluginConfig } from "./startup_subsystems.ts";
+} from "./subsystems.ts";
+import type { ObsidianPluginConfig } from "./subsystems.ts";
 
 /**
  * Start the gateway server with scheduler and persistent cron storage.
@@ -393,7 +393,7 @@ export async function runStart(): Promise<void> {
 
   // Tidepool tools (lazy getter — tools resolve after host creation)
   // deno-lint-ignore prefer-const
-  let tidepoolTools: import("../tools/tidepool/mod.ts").TidePoolTools | undefined;
+  let tidepoolTools: import("../../tools/tidepool/mod.ts").TidePoolTools | undefined;
   const tidepoolExecutor = createTidepoolToolExecutor(() => tidepoolTools);
 
   // Image analysis tools

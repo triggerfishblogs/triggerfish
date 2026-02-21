@@ -11,19 +11,19 @@
  * @module
  */
 
-import type { SchedulerService } from "../scheduler/service_types.ts";
-import type { EnhancedSessionManager } from "./sessions.ts";
-import type { NotificationService } from "./notifications.ts";
-import type { ChatSession } from "./chat.ts";
+import type { SchedulerService } from "../../scheduler/service_types.ts";
+import type { EnhancedSessionManager } from "../sessions.ts";
+import type { NotificationService } from "../notifications/notifications.ts";
+import type { ChatSession } from "../chat.ts";
 import {
   dispatchJsonRpc,
   routeWebhookHttp,
   upgradeChatWebSocket,
-} from "./server_handlers.ts";
-import type { JsonRpcRequest } from "./server_handlers.ts";
+} from "./handlers.ts";
+import type { JsonRpcRequest } from "./handlers.ts";
 
 // Re-export handler types for backward compatibility
-export type { JsonRpcRequest, JsonRpcResponse } from "./server_handlers.ts";
+export type { JsonRpcRequest, JsonRpcResponse } from "./handlers.ts";
 
 /** Options for creating a gateway server. */
 export interface GatewayServerOptions {

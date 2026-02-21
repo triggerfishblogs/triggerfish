@@ -9,20 +9,20 @@
  */
 
 import { join } from "@std/path";
-import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { SessionId, SessionState } from "../core/types/session.ts";
-import type { SecretStore } from "../core/secrets/keychain.ts";
-import type { SecretPromptCallback } from "../tools/secrets.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { SessionId, SessionState } from "../../core/types/session.ts";
+import type { SecretStore } from "../../core/secrets/keychain.ts";
+import type { SecretPromptCallback } from "../../tools/secrets.ts";
 import {
   createDailyNoteManager,
   createLinkResolver,
   createNoteStore,
   createObsidianToolExecutor,
   createVaultContext,
-} from "../tools/obsidian/mod.ts";
-import { createSkillLoader } from "../tools/skills/loader.ts";
-import type { Skill, SkillLoader } from "../tools/skills/loader.ts";
-import { createLogger } from "../core/logger/mod.ts";
+} from "../../tools/obsidian/mod.ts";
+import { createSkillLoader } from "../../tools/skills/loader.ts";
+import type { Skill, SkillLoader } from "../../tools/skills/loader.ts";
+import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("startup-subsystems");
 

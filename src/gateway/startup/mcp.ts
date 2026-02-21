@@ -8,14 +8,14 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { HookRunner } from "../core/policy/hooks.ts";
-import type { SessionState } from "../core/types/session.ts";
-import type { SecretStore } from "../core/secrets/keychain.ts";
-import type { ChatSession } from "./chat.ts";
-import type { GatewayServer } from "./server.ts";
-import type { A2UIHost } from "../tools/tidepool/host.ts";
-import { parseClassification } from "../core/types/classification.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { HookRunner } from "../../core/policy/hooks.ts";
+import type { SessionState } from "../../core/types/session.ts";
+import type { SecretStore } from "../../core/secrets/keychain.ts";
+import type { ChatSession } from "../chat.ts";
+import type { GatewayServer } from "../server/server.ts";
+import type { A2UIHost } from "../../tools/tidepool/host.ts";
+import { parseClassification } from "../../core/types/classification.ts";
 import {
   buildMcpSystemPrompt,
   buildMcpToolClassifications,
@@ -23,10 +23,10 @@ import {
   createMcpGateway,
   createMcpServerManager,
   getMcpToolDefinitions,
-} from "../mcp/mod.ts";
-import type { McpServerConfig, McpServerManager } from "../mcp/mod.ts";
-import { createLogger } from "../core/logger/mod.ts";
-import type { ToolDefinition } from "../core/types/tool.ts";
+} from "../../mcp/mod.ts";
+import type { McpServerConfig, McpServerManager } from "../../mcp/mod.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+import type { ToolDefinition } from "../../core/types/tool.ts";
 
 const log = createLogger("startup-mcp");
 

@@ -7,28 +7,28 @@
  */
 
 import { join } from "@std/path";
-import type { TriggerFishConfig } from "../core/config.ts";
-import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { SessionId } from "../core/types/session.ts";
-import { createSession, updateTaint } from "../core/types/session.ts";
-import type { ChannelId, UserId } from "../core/types/session.ts";
-import { createProviderRegistry } from "../agent/llm.ts";
+import type { TriggerFishConfig } from "../../core/config.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { SessionId } from "../../core/types/session.ts";
+import { createSession, updateTaint } from "../../core/types/session.ts";
+import type { ChannelId, UserId } from "../../core/types/session.ts";
+import { createProviderRegistry } from "../../agent/llm.ts";
 import {
   loadProvidersFromConfig,
   resolveVisionProvider,
-} from "../agent/providers/config.ts";
-import type { ModelsConfig } from "../agent/providers/config.ts";
+} from "../../agent/providers/config.ts";
+import type { ModelsConfig } from "../../agent/providers/config.ts";
 import {
   mapToolPrefixClassifications,
   createOrchestrator,
-} from "../agent/orchestrator.ts";
+} from "../../agent/orchestrator.ts";
 // OrchestratorFactory is imported below with other scheduler types
-import { createPolicyEngine } from "../core/policy/engine.ts";
-import { createDefaultRules, createHookRunner } from "../core/policy/hooks.ts";
-import { createWorkspace } from "../exec/workspace.ts";
-import { createExecTools } from "../exec/tools.ts";
-import { createPathClassifier } from "../core/security/path_classification.ts";
-import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
+import { createPolicyEngine } from "../../core/policy/engine.ts";
+import { createDefaultRules, createHookRunner } from "../../core/policy/hooks.ts";
+import { createWorkspace } from "../../exec/workspace.ts";
+import { createExecTools } from "../../exec/tools.ts";
+import { createPathClassifier } from "../../core/security/path_classification.ts";
+import type { ToolFloorRegistry } from "../../core/security/tool_floors.ts";
 import {
   createLlmTaskToolExecutor,
   createSummarizeToolExecutor,
@@ -38,13 +38,13 @@ import {
   getTodoToolDefinitions,
   createHealthcheckToolExecutor,
   getHealthcheckToolDefinitions,
-} from "../tools/mod.ts";
-import type { TodoManager } from "../tools/mod.ts";
+} from "../../tools/mod.ts";
+import type { TodoManager } from "../../tools/mod.ts";
 import {
   createMemoryStore,
   createMemoryToolExecutor,
   getMemoryToolDefinitions,
-} from "../tools/memory/mod.ts";
+} from "../../tools/memory/mod.ts";
 import {
   createBraveSearchProvider,
   createDomainClassifier,
@@ -52,17 +52,17 @@ import {
   createRateLimitedSearchProvider,
   createWebFetcher,
   getWebToolDefinitions,
-} from "../tools/web/mod.ts";
+} from "../../tools/web/mod.ts";
 import type {
   DomainClassifier,
   DomainSecurityConfig,
   SearchProvider,
   WebFetcher,
-} from "../tools/web/mod.ts";
-import { createPlanManager, createPlanToolExecutor } from "../agent/plan/plan.ts";
+} from "../../tools/web/mod.ts";
+import { createPlanManager, createPlanToolExecutor } from "../../agent/plan/plan.ts";
 import {
   getPlanToolDefinitions,
-} from "../agent/plan/tools.ts";
+} from "../../agent/plan/tools.ts";
 import {
   createCalendarService,
   createDriveService,
@@ -72,33 +72,33 @@ import {
   createGoogleToolExecutor,
   createSheetsService,
   createTasksService,
-} from "../integrations/google/mod.ts";
+} from "../../integrations/google/mod.ts";
 import {
   createGitHubClient,
   createGitHubToolExecutor,
   resolveGitHubToken,
-} from "../integrations/github/mod.ts";
-import { createKeychain } from "../core/secrets/keychain.ts";
+} from "../../integrations/github/mod.ts";
+import { createKeychain } from "../../core/secrets/keychain.ts";
 import {
   createSessionToolExecutor,
-} from "./tools.ts";
+} from "../tools/session_tools.ts";
 import {
   createTriggerClassificationToolExecutor,
   TRIGGER_SESSION_SYSTEM_PROMPT,
-} from "./trigger_tools.ts";
-import type { EnhancedSessionManager } from "./sessions.ts";
-import type { CronManager } from "../scheduler/cron/parser.ts";
-import type { StorageProvider } from "../core/storage/provider.ts";
+} from "../tools/trigger_tools.ts";
+import type { EnhancedSessionManager } from "../sessions.ts";
+import type { CronManager } from "../../scheduler/cron/parser.ts";
+import type { StorageProvider } from "../../core/storage/provider.ts";
 import type {
   OrchestratorFactory,
   OrchestratorCreateOptions,
   SchedulerServiceConfig,
   WebhookSourceConfig,
-} from "../scheduler/service_types.ts";
-import { createSkillLoader } from "../tools/skills/loader.ts";
-import { buildSkillsSystemPrompt } from "../tools/skills/prompts.ts";
-import { createSkillToolExecutor } from "../tools/skills/mod.ts";
-import { resolveToolsForProfile, resolvePromptsForProfile, createToolExecutor } from "./agent_tools.ts";
+} from "../../scheduler/service_types.ts";
+import { createSkillLoader } from "../../tools/skills/loader.ts";
+import { buildSkillsSystemPrompt } from "../../tools/skills/prompts.ts";
+import { createSkillToolExecutor } from "../../tools/skills/mod.ts";
+import { resolveToolsForProfile, resolvePromptsForProfile, createToolExecutor } from "../tools/agent_tools.ts";
 
 /**
  * Build web search/fetch infrastructure from config.

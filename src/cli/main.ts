@@ -396,7 +396,7 @@ async function main(): Promise<void> {
       await runPatrol();
       break;
     case "run": {
-      const { runStart } = await import("../gateway/startup.ts");
+      const { runStart } = await import("../gateway/startup/startup.ts");
       await runStart();
       break;
     }

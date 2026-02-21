@@ -8,12 +8,12 @@
  * @module
  */
 
-import type { ToolDefinition } from "../core/types/tool.ts";
-import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { SessionId } from "../core/types/session.ts";
-import type { ChannelAdapter } from "../channels/types.ts";
-import type { EnhancedSessionManager } from "./sessions.ts";
-import type { PairingService } from "../channels/pairing.ts";
+import type { ToolDefinition } from "../../core/types/tool.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { SessionId } from "../../core/types/session.ts";
+import type { ChannelAdapter } from "../../channels/types.ts";
+import type { EnhancedSessionManager } from "../sessions.ts";
+import type { PairingService } from "../../channels/pairing.ts";
 
 /** A registered channel adapter with its classification and metadata. */
 export interface RegisteredChannel {

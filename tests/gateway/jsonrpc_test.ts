@@ -2,9 +2,9 @@
  * Tests for Gateway JSON-RPC 2.0 handler.
  */
 import { assertEquals, assert } from "@std/assert";
-import { createGatewayServer } from "../../src/gateway/server.ts";
+import { createGatewayServer } from "../../src/gateway/server/server.ts";
 import { createEnhancedSessionManager } from "../../src/gateway/sessions.ts";
-import { createNotificationService } from "../../src/gateway/notifications.ts";
+import { createNotificationService } from "../../src/gateway/notifications/notifications.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import { createSessionManager } from "../../src/core/session/manager.ts";
 import type { UserId, ChannelId } from "../../src/core/types/session.ts";

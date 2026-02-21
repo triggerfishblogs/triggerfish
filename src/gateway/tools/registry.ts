@@ -9,30 +9,30 @@
  * @module
  */
 
-import { getTodoToolDefinitions, TODO_SYSTEM_PROMPT } from "../tools/mod.ts";
-import { getMemoryToolDefinitions, MEMORY_SYSTEM_PROMPT } from "../tools/memory/mod.ts";
-import { getSecretToolDefinitions, SECRET_TOOLS_SYSTEM_PROMPT } from "../tools/secrets.ts";
-import { getWebToolDefinitions, WEB_TOOLS_SYSTEM_PROMPT } from "../tools/web/mod.ts";
-import { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "../agent/plan/tools.ts";
-import { getBrowserToolDefinitions } from "../tools/browser/mod.ts";
-import { getTidepoolToolDefinitions, TIDEPOOL_SYSTEM_PROMPT } from "../tools/tidepool/mod.ts";
-import { getSessionToolDefinitions, SESSION_TOOLS_SYSTEM_PROMPT } from "./tools.ts";
-import { getImageToolDefinitions, IMAGE_TOOLS_SYSTEM_PROMPT } from "../tools/image/mod.ts";
-import { getExploreToolDefinitions, EXPLORE_SYSTEM_PROMPT } from "../tools/explore/mod.ts";
-import { getGoogleToolDefinitions } from "../integrations/google/mod.ts";
-import { getGitHubToolDefinitions } from "../integrations/github/mod.ts";
-import { getObsidianToolDefinitions } from "../tools/obsidian/mod.ts";
+import { getTodoToolDefinitions, TODO_SYSTEM_PROMPT } from "../../tools/mod.ts";
+import { getMemoryToolDefinitions, MEMORY_SYSTEM_PROMPT } from "../../tools/memory/mod.ts";
+import { getSecretToolDefinitions, SECRET_TOOLS_SYSTEM_PROMPT } from "../../tools/secrets.ts";
+import { getWebToolDefinitions, WEB_TOOLS_SYSTEM_PROMPT } from "../../tools/web/mod.ts";
+import { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "../../agent/plan/tools.ts";
+import { getBrowserToolDefinitions } from "../../tools/browser/mod.ts";
+import { getTidepoolToolDefinitions, TIDEPOOL_SYSTEM_PROMPT } from "../../tools/tidepool/mod.ts";
+import { getSessionToolDefinitions, SESSION_TOOLS_SYSTEM_PROMPT } from "./session_tools.ts";
+import { getImageToolDefinitions, IMAGE_TOOLS_SYSTEM_PROMPT } from "../../tools/image/mod.ts";
+import { getExploreToolDefinitions, EXPLORE_SYSTEM_PROMPT } from "../../tools/explore/mod.ts";
+import { getGoogleToolDefinitions } from "../../integrations/google/mod.ts";
+import { getGitHubToolDefinitions } from "../../integrations/github/mod.ts";
+import { getObsidianToolDefinitions } from "../../tools/obsidian/mod.ts";
 import {
   getLlmTaskToolDefinitions,
   getSummarizeToolDefinitions,
   getHealthcheckToolDefinitions,
   LLM_TASK_SYSTEM_PROMPT,
   SUMMARIZE_SYSTEM_PROMPT,
-} from "../tools/mod.ts";
+} from "../../tools/mod.ts";
 import { getTriggerToolDefinitions, TRIGGER_TOOLS_SYSTEM_PROMPT } from "./trigger_tools.ts";
-import { getClaudeToolDefinitions, CLAUDE_SESSION_SYSTEM_PROMPT } from "../exec/claude.ts";
-import { getSkillToolDefinitions } from "../tools/skills/mod.ts";
-import type { ToolDefinition } from "../core/types/tool.ts";
+import { getClaudeToolDefinitions, CLAUDE_SESSION_SYSTEM_PROMPT } from "../../exec/claude.ts";
+import { getSkillToolDefinitions } from "../../tools/skills/mod.ts";
+import type { ToolDefinition } from "../../core/types/tool.ts";
 
 // ─── Inline tool definition groups ─────────────────────────────────────────
 

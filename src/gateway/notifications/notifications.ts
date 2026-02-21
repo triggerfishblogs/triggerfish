@@ -8,9 +8,9 @@
  * @module
  */
 
-import type { UserId } from "../core/types/session.ts";
-import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { StorageProvider } from "../core/storage/provider.ts";
+import type { UserId } from "../../core/types/session.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { StorageProvider } from "../../core/storage/provider.ts";
 
 export type {
   NotificationPriority,
@@ -18,7 +18,7 @@ export type {
   DeliverOptions,
   DeliveryChannel,
   NotificationService,
-} from "../core/types/notification.ts";
+} from "../../core/types/notification.ts";
 
 import type {
   NotificationPriority,
@@ -26,7 +26,7 @@ import type {
   DeliverOptions,
   DeliveryChannel,
   NotificationService,
-} from "../core/types/notification.ts";
+} from "../../core/types/notification.ts";
 
 /** Serialized notification shape for storage. */
 interface StoredNotification {
