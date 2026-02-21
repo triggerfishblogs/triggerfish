@@ -15,16 +15,35 @@ and scheduling infrastructure.
 
 ## Gateway (`src/gateway/`)
 
-- `startup.ts` — Full runtime startup, wires all subsystems
-- `agent_tools.ts` — Tool definitions, profiles, and executor (biggest import hub)
-- `factory.ts` — Orchestrator factories, web tools, Google executor builders
-- `chat.ts` — Chat session management
-- `config_watcher.ts` — Hot-reload config with secret resolution
-- `server.ts` — WebSocket server
-- `sessions.ts` — Enhanced session manager
-- `notifications.ts` — Notification service
-- `tools.ts` — Session management tools (gateway-specific)
-- `trigger_tools.ts` — Trigger context tools
+### Directory Structure
+
+```
+src/gateway/
+├── chat.ts           # Chat session management
+├── chat_types.ts     # Chat type definitions
+├── sessions.ts       # Enhanced session manager
+├── mod.ts            # Barrel exports
+├── startup/          # Full runtime startup and wiring
+│   ├── startup.ts    # Main startup, wires all subsystems
+│   ├── factory.ts    # Orchestrator factories, web tools, Google executor builders
+│   ├── config_watcher.ts # Hot-reload config with secret resolution
+│   ├── channels.ts   # Channel connection startup
+│   ├── mcp.ts        # MCP server startup
+│   └── subsystems.ts # Subsystem initialization helpers
+├── server/           # WebSocket control plane
+│   ├── server.ts     # WebSocket server
+│   └── handlers.ts   # WebSocket message handlers
+├── notifications/    # Notification service
+│   ├── notifications.ts  # Core notification service
+│   └── priority_router.ts # Notification priority routing
+└── tools/            # Gateway-specific tools
+    ├── agent_tools.ts    # Tool definitions, profiles, and executor (biggest import hub)
+    ├── executor.ts       # Tool executor
+    ├── registry.ts       # Tool registry
+    ├── session_tools.ts  # Session management tools
+    ├── session_tools_defs.ts # Session tool definitions
+    └── trigger_tools.ts  # Trigger context tools
+```
 
 ## Channels (`src/channels/`)
 
@@ -37,6 +56,24 @@ Discord (discord.js), Signal, WebChat, Email.
 - Router enhanced with `sendWithRetry()` (exponential backoff), `connectAll()`, `disconnectAll()`
 
 ## Scheduler (`src/scheduler/`)
+
+### Directory Structure
+
+```
+src/scheduler/
+├── service.ts        # Scheduler service interface
+├── service_types.ts  # Service type definitions
+├── mod.ts            # Barrel exports
+├── cron/             # Cron tick loop
+│   ├── cron.ts       # Cron job execution
+│   └── parser.ts     # Cron expression parsing
+├── triggers/         # TRIGGER.md-based agent wakeups
+│   ├── trigger.ts    # Trigger execution
+│   └── store.ts      # Trigger state persistence
+└── webhooks/         # Webhook HTTP endpoints
+    ├── webhooks.ts   # Webhook handler
+    └── security.ts   # Webhook security (signature verification)
+```
 
 Cron tick loop, trigger (TRIGGER.md), webhook HTTP endpoints, OrchestratorFactory isolation.
 

@@ -34,9 +34,9 @@ Layer 2 — Multi-dependency modules
 
 2. **Layer 1 modules import only from core/.** agent/, exec/, models/, tools/, channels/, scheduler/, mcp/, plugin/ must not import from each other. Cross-module wiring happens in gateway/ or cli/.
 
-3. **gateway/ is the wiring layer.** It has broad import permissions because it assembles the full runtime (`startup.ts`, `factory.ts`, `agent_tools.ts`). This is expected — the cost is that gateway/ is the hardest module to test in isolation.
+3. **gateway/ is the wiring layer.** It has broad import permissions because it assembles the full runtime (`startup/startup.ts`, `startup/factory.ts`, `tools/agent_tools.ts`). This is expected — the cost is that gateway/ is the hardest module to test in isolation.
 
-4. **cli/ and dive/ are tightly coupled.** cli/main.ts dispatches to dive/wizard.ts and dive/patrol.ts. dive/wizard.ts imports cli/paths.ts and cli/config.ts. This bidirectional dependency is accepted but must not spread — no other module should import from cli/ or dive/ except gateway/ (for path constants).
+4. **cli/ and dive/ are tightly coupled.** cli/main.ts dispatches to dive/wizard.ts and dive/patrol.ts. dive/wizard.ts imports cli/config/paths.ts and cli/config/config.ts. This bidirectional dependency is accepted but must not spread — no other module should import from cli/ or dive/ except gateway/ (for path constants).
 
 5. **routing/ is self-contained.** No cross-module dependencies. Keep it that way.
 
@@ -45,11 +45,11 @@ Layer 2 — Multi-dependency modules
 ## Thresholds
 
 - **Fan-in > 8 importers** = hotspot. If 8+ files across different top-level modules import from the same file, consider moving it to core/ or splitting it.
-- **Fan-out > 6 top-level modules from one file** = too much responsibility. Only gateway/startup.ts and gateway/agent_tools.ts should exceed this (they are wiring code). Any other file importing from 6+ top-level modules needs refactoring.
+- **Fan-out > 6 top-level modules from one file** = too much responsibility. Only gateway/startup/startup.ts and gateway/tools/agent_tools.ts should exceed this (they are wiring code). Any other file importing from 6+ top-level modules needs refactoring.
 
 ## Current Hotspots (Accepted)
 
 - `core/types/classification.ts` — imported by nearly every module (foundation type)
 - `core/types/session.ts` — imported by most modules (session is the unit of state)
-- `gateway/startup.ts` — imports from 10+ modules (wiring layer, expected)
-- `gateway/agent_tools.ts` — imports from tools/, agent/, core/ (tool registration hub)
+- `gateway/startup/startup.ts` — imports from 10+ modules (wiring layer, expected)
+- `gateway/tools/agent_tools.ts` — imports from tools/, agent/, core/ (tool registration hub)

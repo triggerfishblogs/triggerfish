@@ -16,7 +16,7 @@
 - One concept per file
 - Export via `mod.ts` barrel files per module
 - Tests adjacent to source: `foo.ts` → `foo_test.ts`
-- Flat file structure within each module directory — no nested subdirectories
+- Directories with fewer than 8 source files stay flat. Directories with 8+ files should be split into subdirectories grouped by domain concept (2-5 files each). Every subdirectory needs a mod.ts barrel.
 - No relative path references across module boundaries — use barrel imports
 
 ## Commit Messages
