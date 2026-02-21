@@ -1,53 +1,38 @@
 /**
- * Todo tool — agent task tracking and planning.
+ * Todo tool — manager, executor, and display formatters.
  *
- * Provides `todo_read` and `todo_write` operations that let the agent
- * maintain a structured task list. Todos are scoped per-agent (not per-session)
- * so they persist across sessions, trigger wakeups, and restarts.
+ * Implements the TodoManager factory, tool executor, ANSI/HTML formatters
+ * for todo list rendering, and todo event extraction.
  *
- * Storage key: `todos:<agentId>` — a single JSON blob of the full list,
- * replaced atomically on each write (same pattern as Claude Code / Gemini CLI).
+ * Types, tool definitions, and system prompt live in `todo_defs.ts`.
  *
  * @module
  */
 
-import type { StorageProvider } from "../core/storage/provider.ts";
-import type { ToolDefinition } from "../agent/orchestrator.ts";
+import type {
+  TodoItem,
+  TodoList,
+  TodoManager,
+  TodoManagerOptions,
+  TodoStatus,
+} from "./todo_defs.ts";
 
-/** Priority level for a todo item. */
-export type TodoPriority = "high" | "medium" | "low";
+// ─── Barrel re-exports from todo_defs.ts ────────────────────────────────────
 
-/** Status of a todo item. */
-export type TodoStatus = "pending" | "in_progress" | "completed";
+export {
+  getTodoToolDefinitions,
+  TODO_SYSTEM_PROMPT,
+} from "./todo_defs.ts";
+export type {
+  TodoItem,
+  TodoList,
+  TodoManager,
+  TodoManagerOptions,
+  TodoPriority,
+  TodoStatus,
+} from "./todo_defs.ts";
 
-/** A single todo item. */
-export interface TodoItem {
-  readonly id: string;
-  readonly content: string;
-  readonly status: TodoStatus;
-  readonly priority: TodoPriority;
-  readonly created_at: string;
-  readonly updated_at: string;
-}
-
-/** The full todo list payload for read/write operations. */
-export interface TodoList {
-  readonly todos: readonly TodoItem[];
-}
-
-/** Options for creating a TodoManager. */
-export interface TodoManagerOptions {
-  readonly storage: StorageProvider;
-  readonly agentId: string;
-}
-
-/** Manager for agent todo operations. */
-export interface TodoManager {
-  /** Read the full todo list. */
-  read(): Promise<TodoList>;
-  /** Replace the full todo list. */
-  write(todos: readonly TodoItem[]): Promise<TodoList>;
-}
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 /**
  * Build the storage key for an agent's todo list.
@@ -70,8 +55,8 @@ function validateTodoItem(raw: unknown): TodoItem | null {
   const validStatuses: readonly TodoStatus[] = ["pending", "in_progress", "completed"];
   if (!validStatuses.includes(obj.status as TodoStatus)) return null;
 
-  const validPriorities: readonly TodoPriority[] = ["high", "medium", "low"];
-  if (!validPriorities.includes(obj.priority as TodoPriority)) return null;
+  const validPriorities = ["high", "medium", "low"];
+  if (!validPriorities.includes(obj.priority as string)) return null;
 
   if (typeof obj.created_at !== "string" || obj.created_at.length === 0) return null;
   if (typeof obj.updated_at !== "string" || obj.updated_at.length === 0) return null;
@@ -80,11 +65,13 @@ function validateTodoItem(raw: unknown): TodoItem | null {
     id: obj.id as string,
     content: obj.content as string,
     status: obj.status as TodoStatus,
-    priority: obj.priority as TodoPriority,
+    priority: obj.priority as TodoItem["priority"],
     created_at: obj.created_at as string,
     updated_at: obj.updated_at as string,
   };
 }
+
+// ─── Manager ────────────────────────────────────────────────────────────────
 
 /**
  * Create a TodoManager bound to a specific agent and storage provider.
@@ -162,43 +149,7 @@ export function createTodoManager(options: TodoManagerOptions): TodoManager {
   };
 }
 
-/** Tool definitions for todo_read and todo_write. */
-export function getTodoToolDefinitions(): readonly ToolDefinition[] {
-  return [
-    {
-      name: "todo_read",
-      description:
-        "Read the current todo list. Returns all todo items with their id, content, status, priority, and timestamps.",
-      parameters: {},
-    },
-    {
-      name: "todo_write",
-      description:
-        "Replace the entire todo list. Takes the full list of todos — this is a complete replacement, not a partial update. " +
-        "Each todo must have: id (string), content (string), status (pending|in_progress|completed), " +
-        "priority (high|medium|low), created_at (ISO timestamp), updated_at (ISO timestamp).",
-      parameters: {
-        todos: {
-          type: "array",
-          description:
-            "The complete list of todo items. Each item: {id, content, status, priority, created_at, updated_at}",
-          required: true,
-          items: {
-            type: "object",
-            properties: {
-              id: { type: "string" },
-              content: { type: "string" },
-              status: { type: "string" },
-              priority: { type: "string" },
-              created_at: { type: "string" },
-              updated_at: { type: "string" },
-            },
-          },
-        },
-      },
-    },
-  ];
-}
+// ─── Tool executor ──────────────────────────────────────────────────────────
 
 /**
  * Create a tool executor function for todo operations.
@@ -234,7 +185,7 @@ export function createTodoToolExecutor(
   };
 }
 
-// ─── ANSI escape codes (duplicated from chat_ui to avoid circular deps) ───
+// ─── Display formatters ─────────────────────────────────────────────────────
 
 const RESET = "\x1b[0m";
 const BOLD = "\x1b[1m";
@@ -253,9 +204,9 @@ function visibleLength(s: string): number {
 /**
  * Format a todo list as ANSI-styled text for CLI display inside a box.
  *
- * - Completed items: ✓ with strikethrough + dim
- * - In-progress items: ▶ bold + yellow (highlighted)
- * - Pending items: ○ normal
+ * - Completed items: checkmark with strikethrough + dim
+ * - In-progress items: arrow bold + yellow (highlighted)
+ * - Pending items: circle normal
  */
 export function formatTodoListAnsi(todos: readonly TodoItem[]): string {
   if (todos.length === 0) {
@@ -351,20 +302,3 @@ export function extractTodosFromEvent(
   }
   return null;
 }
-
-/**
- * Platform-level system prompt section for the todo tool.
- *
- * This is appended to the system prompt AFTER SPINE.md and tool definitions.
- * SPINE.md remains the foundation of the agent's identity and mission.
- * This section layers on platform behaviour that every agent gets regardless
- * of user configuration — the user never needs to know about it or set it up.
- */
-export const TODO_SYSTEM_PROMPT = `## Task Planning
-
-You have a todo list (todo_read / todo_write) for tracking multi-step work.
-
-- Only use todos for genuinely complex tasks (3+ distinct steps). Simple questions and lookups do not need todos.
-- Do NOT create todos for the current request unless it is clearly multi-step.
-- Do NOT read the todo list unless the user asks about previous tasks or you need to resume work.
-- When you do use todos: keep one task in_progress at a time, mark completed immediately when done.`;
