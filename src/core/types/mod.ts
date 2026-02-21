@@ -59,3 +59,11 @@ export type {
   HistoryEntry,
   CompactResult,
 } from "./orchestrator.ts";
+
+export type {
+  NotificationPriority,
+  Notification,
+  DeliverOptions,
+  DeliveryChannel,
+  NotificationService,
+} from "./notification.ts";
