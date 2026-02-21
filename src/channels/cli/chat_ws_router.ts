@@ -12,7 +12,7 @@ import type { ScreenManager } from "../../cli/screen.ts";
 import { taintColor } from "../../cli/screen.ts";
 import type { LineEditor } from "../../cli/terminal.ts";
 import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
-import type { ChatEvent } from "../../gateway/chat.ts";
+import type { ChatEvent } from "../../core/types/chat_event.ts";
 
 /** Password-mode state — active when the daemon sends a secret_prompt event. */
 export interface PasswordModeState {

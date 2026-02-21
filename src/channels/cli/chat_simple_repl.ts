@@ -12,7 +12,7 @@ import {
   renderError,
   renderPrompt,
 } from "../../cli/chat_ui.ts";
-import type { ChatEvent } from "../../gateway/chat.ts";
+import type { ChatEvent } from "../../core/types/chat_event.ts";
 
 /**
  * Simple line-buffered REPL for non-TTY environments (piped input).

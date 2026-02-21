@@ -67,3 +67,9 @@ export type {
   DeliveryChannel,
   NotificationService,
 } from "./notification.ts";
+
+export type {
+  ChatEvent,
+  ChatClientMessage,
+  ChatEventSender,
+} from "./chat_event.ts";
