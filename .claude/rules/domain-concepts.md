@@ -1,29 +1,21 @@
 # Key Domain Concepts
 
 - **Classification** — Data sensitivity level (RESTRICTED > CONFIDENTIAL > INTERNAL > PUBLIC)
-- **Taint** — Session-level classification that escalates as classified data is accessed
-- **Write-down** — Prohibited flow of data to a lower classification level
+- **Taint** — Session-level classification that escalates as classified data is accessed. Can only go up, never down.
+- **Write-down** — Prohibited flow of data to a lower classification level. CONFIDENTIAL data cannot reach a PUBLIC channel.
 - **Hook** — Deterministic enforcement point in the data flow (PRE_CONTEXT_INJECTION, PRE_TOOL_CALL, POST_TOOL_RESPONSE, PRE_OUTPUT, etc.)
 - **Gateway** — WebSocket control plane managing sessions, channels, tools, and events
+- **Session** — Fundamental unit of conversation state with independent taint tracking
 - **Exec Environment** — Agent's code workspace for writing, running, and debugging code in a tight write→run→fix feedback loop (distinct from Plugin Sandbox which protects FROM untrusted code)
 - **Workspace** — Per-agent filesystem directory where the agent writes and executes its own code
-- **Session** — Fundamental unit of conversation state with independent taint tracking
 - **Skill** — Folder with SKILL.md giving the agent new capabilities (bundled, managed, or workspace)
-- **Buoy** — Companion app providing device capabilities (camera, location, etc.)
-- **Trigger** — Periodic agent wakeup for proactive autonomous behavior, configured via TRIGGER.md
+- **The Reef** — Skill marketplace for discovering, installing, and publishing skills
 - **SPINE.md** — Agent identity & mission file (system prompt foundation). Triggerfish's equivalent of CLAUDE.md
 - **TRIGGER.md** — Agent's proactive behavior definition: what to check, monitor, and act on during trigger wakeups
-- **Tide Pool** — Visual workspace rendered via A2UI (Agent-to-UI) protocol
-- **Patrol** — Diagnostic health check command (`triggerfish patrol`)
+- **Trigger** — Periodic agent wakeup for proactive autonomous behavior, configured via TRIGGER.md
 - **Dive** — First-run setup wizard (`triggerfish dive`), scaffolds SPINE.md and triggerfish.yaml
+- **Patrol** — Diagnostic health check command (`triggerfish patrol`)
+- **Tide Pool** — Visual workspace rendered via A2UI (Agent-to-UI) protocol
 - **Ripple** — Typing indicators and online status signals
-- **The Reef** — Skill marketplace for discovering, installing, and publishing skills
-- **SSRF** — Server-Side Request Forgery. Prevented by hardcoded IP denylist checked after DNS resolution on all outbound HTTP (web_fetch + browser.navigate)
-- **Domain classification mapping** — Maps domain patterns to classification floors. PRE_TOOL_CALL blocks access when domain classification exceeds session channel classification. Configured in `web.domains.classifications` in triggerfish.yaml.
-- **Memory shadowing** — When the same user-facing memory key exists at multiple classification levels, only the highest-classified version visible to the current session is returned
-- **Auto-extraction** — Prompt-level behavior (via SPINE.md) where the agent proactively calls `memory_save` to persist facts. LLM picks WHAT to save, policy forces AT WHAT LEVEL.
-- **Auto-injection** — Opt-in feature that injects relevant memories into session context at start. Respects classification gating.
-- **Browser profile watermark** — Highest classification at which an agent's browser profile has been used. Escalation only. Lower sessions blocked from higher-watermarked profiles.
-- **SearchProvider** — Interface for web search backends (Brave default). Extensible to SearXNG, Google, etc.
-- **MemoryStore** — Classification-gated CRUD over StorageProvider for cross-session memory
-- **MemorySearchProvider** — FTS5 full-text search interface over memory records with classification filtering and shadowing
+- **Buoy** — Companion app providing device capabilities (camera, location, etc.)
+- **SSRF** — Server-Side Request Forgery. Prevented by hardcoded IP denylist checked after DNS resolution on all outbound HTTP.
