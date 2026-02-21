@@ -29,8 +29,8 @@ export interface SandboxConfig {
 
 /** Sandbox instance for executing plugin code. */
 export interface Sandbox {
-  /** Execute code in the sandbox and return the result. */
-  execute(code: string): Promise<unknown>;
+  /** Execute plugin code in the sandbox and return the result. */
+  executePluginCode(code: string): Promise<unknown>;
   /** Destroy the sandbox and release resources. */
   destroy(): Promise<void>;
 }
@@ -58,7 +58,7 @@ export async function createSandbox(config: SandboxConfig): Promise<Sandbox> {
   let destroyed = false;
 
   return {
-    async execute(code: string): Promise<unknown> {
+    async executePluginCode(code: string): Promise<unknown> {
       if (destroyed) {
         throw new Error("Sandbox has been destroyed");
       }
@@ -226,11 +226,11 @@ export async function createPythonSandbox(
 
   return {
     // deno-lint-ignore require-await
-    async execute(code: string): Promise<unknown> {
+    async executePluginCode(code: string): Promise<unknown> {
       if (destroyed) {
         throw new Error("Sandbox has been destroyed");
       }
-      return baseSandbox.execute(code);
+      return baseSandbox.executePluginCode(code);
     },
 
     // deno-lint-ignore require-await
