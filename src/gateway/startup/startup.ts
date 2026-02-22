@@ -614,7 +614,11 @@ export async function runStart(): Promise<void> {
         channelId: "daemon" as ChannelId,
       });
       // Close browser so next session gets a fresh launch
-      browserHandle.close().catch(() => {});
+      browserHandle.close().catch((err: unknown) => {
+        log.debug("Browser close failed during session reset", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     },
     pairingService,
     pathClassifier,
