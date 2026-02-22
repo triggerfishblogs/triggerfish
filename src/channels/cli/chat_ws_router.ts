@@ -6,6 +6,7 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/logger.ts";
 import { formatError, renderError, renderPrompt } from "../../cli/chat/chat_ui.ts";
 import type { ToolDisplayMode } from "../../cli/chat/chat_ui.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
@@ -13,6 +14,8 @@ import { taintColor } from "../../cli/terminal/screen.ts";
 import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
 import type { ChatEvent } from "../../core/types/chat_event.ts";
+
+const log = createLogger("cli");
 
 /** Password-mode state — active when the daemon sends a secret_prompt event. */
 export interface PasswordModeState {
@@ -68,7 +71,8 @@ export function sendNextQueuedMessage(deps: WsRouterDeps): void {
   state.isProcessing = true;
   try {
     ws.send(JSON.stringify({ type: "message", content: next }));
-  } catch {
+  } catch (err: unknown) {
+    log.debug("WebSocket send failed: connection closed", { error: err });
     screen.writeOutput(formatError("Lost connection to daemon"));
     state.isProcessing = false;
     screen.redrawInput(editor);
@@ -226,8 +230,8 @@ export function createWsMessageRouter(deps: WsRouterDeps): (event: MessageEvent)
       if (isTty) {
         screen.redrawInput(editor);
       }
-    } catch {
-      // Ignore parse errors
+    } catch (err: unknown) {
+      log.warn("Message parse failed", { error: err });
     }
   };
 }
