@@ -27,6 +27,9 @@ import { dirname } from "@std/path";
 import type { Result } from "../types/classification.ts";
 import type { SecretStore } from "./keychain.ts";
 import { loadOrCreateMachineKey } from "./key_manager.ts";
+import { createLogger } from "../logger/logger.ts";
+
+const log = createLogger("secrets");
 
 /** Options for creating an encrypted file-backed secret store. */
 export interface EncryptedFileSecretStoreOptions {
@@ -237,6 +240,7 @@ export function createEncryptedFileSecretStore(
 
   return {
     async getSecret(name: string): Promise<Result<string, string>> {
+      log.debug("Secret read requested", { name });
       const fileResult = await loadFile();
       if (!fileResult.ok) {
         return { ok: false, error: fileResult.error };
@@ -244,6 +248,7 @@ export function createEncryptedFileSecretStore(
 
       const entry = fileResult.value.entries[name];
       if (entry === undefined) {
+        log.warn("Secret not found", { name, store: secretsPath });
         return { ok: false, error: `Secret '${name}' not found in ${secretsPath}` };
       }
 
@@ -256,6 +261,7 @@ export function createEncryptedFileSecretStore(
     },
 
     async setSecret(name: string, value: string): Promise<Result<true, string>> {
+      log.warn("Secret write requested", { name, store: secretsPath });
       const keyResult = await getKey();
       if (!keyResult.ok) {
         return { ok: false, error: keyResult.error };
@@ -290,6 +296,7 @@ export function createEncryptedFileSecretStore(
     },
 
     async deleteSecret(name: string): Promise<Result<true, string>> {
+      log.warn("Secret delete requested", { name, store: secretsPath });
       const fileResult = await loadFile();
       if (!fileResult.ok) {
         return { ok: false, error: fileResult.error };
