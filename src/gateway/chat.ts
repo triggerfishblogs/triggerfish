@@ -85,9 +85,19 @@ export function buildSendEvent(
   return (event) => {
     if (event.type === "llm_start") {
       clearInterval(typingInterval);
-      adapter.sendTyping?.(msg.sessionId ?? "").catch(() => {});
+      adapter.sendTyping?.(msg.sessionId ?? "").catch((err: unknown) => {
+        chatLog.debug("Typing indicator send failed", {
+          channel: channelName,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
       typingInterval = setInterval(() => {
-        adapter.sendTyping?.(msg.sessionId ?? "").catch(() => {});
+        adapter.sendTyping?.(msg.sessionId ?? "").catch((err: unknown) => {
+          chatLog.debug("Typing indicator send failed", {
+            channel: channelName,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
       }, 4000) as unknown as number;
     }
 
@@ -336,7 +346,12 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
               await channelState.adapter.send({
                 content: "Paired successfully. You can now chat with me.",
                 sessionId: msg.sessionId,
-              }).catch(() => {});
+              }).catch((err: unknown) => {
+                chatLog.debug("Pairing confirmation send failed", {
+                  channel: channelType,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              });
             }
             // Invalid/expired code: stay silent.
           }
