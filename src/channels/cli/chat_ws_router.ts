@@ -8,7 +8,6 @@
 
 import { createLogger } from "../../core/logger/logger.ts";
 import { formatError, renderError, renderPrompt } from "../../cli/chat/chat_ui.ts";
-import type { ToolDisplayMode } from "../../cli/chat/chat_ui.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
 import { taintColor } from "../../cli/terminal/screen.ts";
 import type { LineEditor } from "../../cli/terminal/terminal.ts";

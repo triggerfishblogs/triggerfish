@@ -439,12 +439,11 @@ Deno.test("Orchestrator: isTriggerSession=undefined is always false (default den
   registry.register(createMockProvider("mock", "response"));
   registry.setDefault("mock");
 
-  let calledTool = "";
   const orchestrator = createOrchestrator({
     hookRunner: runner,
     providerRegistry: registry,
     tools: [{ name: "read_file", description: "Read a file", parameters: { path: { type: "string", description: "path" } } }],
-    toolExecutor: async (name) => { calledTool = name; return "result"; },
+    toolExecutor: (name) => `${name} result`,
     // isTriggerSession not set — must be false per "undefined is always false" rule
   });
 
@@ -468,12 +467,11 @@ Deno.test("Orchestrator: trigger session allows built-in tools (not blocked as n
   registry.register(createMockProvider("mock", "result"));
   registry.setDefault("mock");
 
-  let calledTool = "";
   const orchestrator = createOrchestrator({
     hookRunner: runner,
     providerRegistry: registry,
     tools: [{ name: "memory_save", description: "Save memory", parameters: { key: { type: "string", description: "key" }, value: { type: "string", description: "value" } } }],
-    toolExecutor: async (name) => { calledTool = name; return "saved"; },
+    toolExecutor: (name) => `${name} saved`,
     isTriggerSession: () => true,
     getNonOwnerCeiling: () => "CONFIDENTIAL" as const,
     toolClassifications: new Map([["gmail_", "CONFIDENTIAL" as const]]),
@@ -523,7 +521,7 @@ Deno.test("Orchestrator: trigger session blocks integration tool above ceiling",
     hookRunner: runner,
     providerRegistry: registry,
     tools: [{ name: "gmail_list", description: "List gmail", parameters: {} }],
-    toolExecutor: async (name) => { return `${name} result`; },
+    toolExecutor: (name) => `${name} result`,
     isTriggerSession: () => true,
     // Ceiling is INTERNAL — gmail (CONFIDENTIAL) is above ceiling → blocked
     getNonOwnerCeiling: () => "INTERNAL" as const,
@@ -576,7 +574,7 @@ Deno.test("Orchestrator: trigger session allows integration tool at ceiling leve
     hookRunner: runner,
     providerRegistry: registry,
     tools: [{ name: "github_search_repos", description: "Search GitHub repos", parameters: {} }],
-    toolExecutor: async () => { toolExecuted = true; return "repos found"; },
+    toolExecutor: () => { toolExecuted = true; return "repos found"; },
     isTriggerSession: () => true,
     // Ceiling is INTERNAL — github (INTERNAL) is at ceiling → allowed
     getNonOwnerCeiling: () => "INTERNAL" as const,

@@ -244,7 +244,7 @@ Deno.test(
   },
 );
 
-Deno.test("McpServerManager: startAll with no-transport server marks it as failed", async () => {
+Deno.test("McpServerManager: startAll with no-transport server marks it as failed", () => {
   const manager = createMcpServerManager();
   manager.startAll([{ id: "no-transport" }]);
   // no-transport entry goes directly to "failed"

@@ -139,7 +139,7 @@ export function createConfigWatcher(
           }
           debounceTimer = setTimeout(() => {
             handleChange();
-          }, debounceMs);
+          }, resolvedDebounceMs);
         }
       }
     } catch {

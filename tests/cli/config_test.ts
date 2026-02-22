@@ -7,7 +7,7 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { join } from "@std/path";
+
 import { createMemorySecretStore } from "../../src/core/secrets/keychain.ts";
 
 // ─── loadConfigWithSecrets ────────────────────────────────────────────────────

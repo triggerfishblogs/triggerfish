@@ -165,6 +165,7 @@ You are a background process. The owner does NOT want to hear from you unless yo
 export function createTriggerClassificationToolExecutor(
   toolClassifications: ReadonlyMap<string, ClassificationLevel>,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
+  // deno-lint-ignore require-await
   return async (
     name: string,
     input: Record<string, unknown>,

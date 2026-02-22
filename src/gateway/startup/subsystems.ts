@@ -10,8 +10,7 @@
 
 import { join } from "@std/path";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type { SessionId, SessionState } from "../../core/types/session.ts";
-import type { SecretStore } from "../../core/secrets/keychain.ts";
+import type { SessionId } from "../../core/types/session.ts";
 import type { SecretPromptCallback } from "../../tools/secrets.ts";
 import {
   createDailyNoteManager,

@@ -42,7 +42,6 @@ import type {
 import { readClipboardImage } from "../../tools/image/clipboard.ts";
 import {
   createWsMessageRouter,
-  sendNextQueuedMessage,
 } from "./chat_ws_router.ts";
 import type { WsRouterState } from "./chat_ws_router.ts";
 import { runSimpleWsRepl } from "./chat_simple_repl.ts";

@@ -8,15 +8,8 @@
  * @module
  */
 
-import type { Result, ClassificationLevel } from "../core/types/classification.ts";
+import type { ClassificationLevel } from "../core/types/classification.ts";
 import type { ToolDefinition, ToolExecutor } from "../core/types/tool.ts";
-import type {
-  Orchestrator,
-  ProcessMessageOptions,
-  ProcessMessageResult,
-  HistoryEntry,
-  CompactResult,
-} from "../core/types/orchestrator.ts";
 import type { SecretStore } from "../core/secrets/keychain.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
 import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
@@ -24,9 +17,7 @@ import type { DomainClassifier } from "../core/types/domain.ts";
 import type { HookRunner } from "../core/policy/hooks.ts";
 import type { LlmProviderRegistry, LlmProvider } from "./llm.ts";
 import type { CompactorConfig } from "./compactor.ts";
-import type { MessageContent } from "../core/image/content.ts";
 import type { PlanManager } from "./plan/plan.ts";
-import type { SessionState, SessionId } from "../core/types/session.ts";
 
 /** Default system prompt used when no SPINE.md is found. */
 export const DEFAULT_SYSTEM_PROMPT =

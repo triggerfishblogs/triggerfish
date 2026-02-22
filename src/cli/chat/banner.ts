@@ -3,7 +3,7 @@
  * @module
  */
 
-import { RESET, BOLD, DIM, CYAN, BLUE, write, writeln } from "./ansi.ts";
+import { RESET, BOLD, DIM, CYAN, BLUE, writeln } from "./ansi.ts";
 import { VERSION } from "../version.ts";
 
 /** Print the Triggerfish ASCII art banner with session info. */

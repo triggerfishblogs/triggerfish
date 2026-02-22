@@ -184,6 +184,7 @@ Deno.test("buildMcpSystemPrompt: shows 'No tools' for server with empty tool lis
 function makeMockGateway(responseText: string = "ok"): McpGateway {
   return {
     registerServer: () => {},
+    // deno-lint-ignore require-await
     callTool: async (_opts) => ({
       ok: true,
       value: {

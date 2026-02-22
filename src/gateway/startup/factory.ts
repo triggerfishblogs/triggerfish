@@ -33,17 +33,11 @@ import {
   createLlmTaskToolExecutor,
   createSummarizeToolExecutor,
   createTodoManager,
-  getLlmTaskToolDefinitions,
-  getSummarizeToolDefinitions,
-  getTodoToolDefinitions,
   createHealthcheckToolExecutor,
-  getHealthcheckToolDefinitions,
 } from "../../tools/mod.ts";
-import type { TodoManager } from "../../tools/mod.ts";
 import {
   createMemoryStore,
   createMemoryToolExecutor,
-  getMemoryToolDefinitions,
 } from "../../tools/memory/mod.ts";
 import {
   createBraveSearchProvider,
@@ -51,7 +45,6 @@ import {
   createDomainPolicy,
   createRateLimitedSearchProvider,
   createWebFetcher,
-  getWebToolDefinitions,
 } from "../../tools/web/mod.ts";
 import type {
   DomainClassifier,
@@ -60,9 +53,6 @@ import type {
   WebFetcher,
 } from "../../tools/web/mod.ts";
 import { createPlanManager, createPlanToolExecutor } from "../../agent/plan/plan.ts";
-import {
-  getPlanToolDefinitions,
-} from "../../agent/plan/tools.ts";
 import {
   createCalendarService,
   createDriveService,

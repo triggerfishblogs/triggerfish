@@ -698,11 +698,6 @@ Deno.test("SchedulerService: trigger callback passes isTrigger=true and ceiling 
   await new Promise((r) => setTimeout(r, 50));
   svc.stop();
 
-  // At least one orchestrator was created, and it was for the trigger
-  const triggerOpts = options.find((_, i) => {
-    const call = (svc as unknown as { _calls?: string[] });
-    return true; // All calls in this test are from the trigger
-  });
   // Verify the factory was called with trigger options
   const triggerCall = options.find((o) => o?.isTrigger === true);
   assert(triggerCall !== undefined, "Expected trigger to call factory with isTrigger=true");
