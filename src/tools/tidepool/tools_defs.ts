@@ -13,96 +13,116 @@
 
 import type { ToolDefinition } from "../../core/types/tool.ts";
 
+function buildRenderComponentDef(): ToolDefinition {
+  return {
+    name: "tidepool_render_component",
+    description: "Render a visual component tree in the Tidepool canvas. " +
+      "The tree is broadcast to all connected Tidepool clients and displayed in the canvas panel.",
+    parameters: {
+      label: {
+        type: "string",
+        description:
+          "Short label shown in the chat timeline (e.g. 'Dashboard', 'Results')",
+        required: true,
+      },
+      tree: {
+        type: "object",
+        description:
+          "Component tree object: { root: { type, id, props, children? }, version }",
+        required: true,
+      },
+    },
+  };
+}
+
+function buildRenderHtmlDef(): ToolDefinition {
+  return {
+    name: "tidepool_render_html",
+    description: "Render raw HTML or SVG in the Tidepool canvas. " +
+      "The content is displayed in a sandboxed iframe.",
+    parameters: {
+      label: {
+        type: "string",
+        description: "Short label shown in the chat timeline",
+        required: true,
+      },
+      html: {
+        type: "string",
+        description: "Raw HTML or SVG string to render",
+        required: true,
+      },
+    },
+  };
+}
+
+function buildRenderFileDef(): ToolDefinition {
+  return {
+    name: "tidepool_render_file",
+    description:
+      "Render a file with preview and download in the Tidepool canvas. " +
+      "Supports images, PDFs, text/code files, and archives.",
+    parameters: {
+      label: {
+        type: "string",
+        description: "Short label shown in the chat timeline",
+        required: true,
+      },
+      filename: {
+        type: "string",
+        description: "Original filename (e.g. 'report.pdf', 'chart.png')",
+        required: true,
+      },
+      mime: {
+        type: "string",
+        description:
+          "MIME type (e.g. 'image/png', 'application/pdf', 'text/plain')",
+        required: true,
+      },
+      data: {
+        type: "string",
+        description: "Base64-encoded file data",
+        required: true,
+      },
+    },
+  };
+}
+
+function buildUpdateDef(): ToolDefinition {
+  return {
+    name: "tidepool_update",
+    description:
+      "Update a single component's props by ID in the current Tidepool canvas tree.",
+    parameters: {
+      component_id: {
+        type: "string",
+        description: "The unique ID of the component to update",
+        required: true,
+      },
+      props: {
+        type: "object",
+        description: "New props to merge into the component",
+        required: true,
+      },
+    },
+  };
+}
+
+function buildClearDef(): ToolDefinition {
+  return {
+    name: "tidepool_clear",
+    description: "Clear the Tidepool canvas, removing all rendered content.",
+    parameters: {},
+  };
+}
+
 /** Get Tidepool A2UI tool definitions for the agent orchestrator. */
 export function getTidepoolToolDefinitions(): readonly ToolDefinition[] {
   return [
-    {
-      name: "tidepool_render_component",
-      description:
-        "Render a visual component tree in the Tidepool canvas. " +
-        "The tree is broadcast to all connected Tidepool clients and displayed in the canvas panel.",
-      parameters: {
-        label: {
-          type: "string",
-          description: "Short label shown in the chat timeline (e.g. 'Dashboard', 'Results')",
-          required: true,
-        },
-        tree: {
-          type: "object",
-          description:
-            "Component tree object: { root: { type, id, props, children? }, version }",
-          required: true,
-        },
-      },
-    },
-    {
-      name: "tidepool_render_html",
-      description:
-        "Render raw HTML or SVG in the Tidepool canvas. " +
-        "The content is displayed in a sandboxed iframe.",
-      parameters: {
-        label: {
-          type: "string",
-          description: "Short label shown in the chat timeline",
-          required: true,
-        },
-        html: {
-          type: "string",
-          description: "Raw HTML or SVG string to render",
-          required: true,
-        },
-      },
-    },
-    {
-      name: "tidepool_render_file",
-      description:
-        "Render a file with preview and download in the Tidepool canvas. " +
-        "Supports images, PDFs, text/code files, and archives.",
-      parameters: {
-        label: {
-          type: "string",
-          description: "Short label shown in the chat timeline",
-          required: true,
-        },
-        filename: {
-          type: "string",
-          description: "Original filename (e.g. 'report.pdf', 'chart.png')",
-          required: true,
-        },
-        mime: {
-          type: "string",
-          description: "MIME type (e.g. 'image/png', 'application/pdf', 'text/plain')",
-          required: true,
-        },
-        data: {
-          type: "string",
-          description: "Base64-encoded file data",
-          required: true,
-        },
-      },
-    },
-    {
-      name: "tidepool_update",
-      description:
-        "Update a single component's props by ID in the current Tidepool canvas tree.",
-      parameters: {
-        component_id: {
-          type: "string",
-          description: "The unique ID of the component to update",
-          required: true,
-        },
-        props: {
-          type: "object",
-          description: "New props to merge into the component",
-          required: true,
-        },
-      },
-    },
-    {
-      name: "tidepool_clear",
-      description: "Clear the Tidepool canvas, removing all rendered content.",
-      parameters: {},
-    },
+    buildRenderComponentDef(),
+    buildRenderHtmlDef(),
+    buildRenderFileDef(),
+    buildUpdateDef(),
+    buildClearDef(),
   ];
 }
 
