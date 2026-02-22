@@ -10,6 +10,9 @@
 
 import type { Result } from "../core/types/classification.ts";
 import type { StorageProvider } from "../core/storage/provider.ts";
+import { createLogger } from "../core/logger/logger.ts";
+
+const log = createLogger("security");
 
 /** A signed certificate granting permissions from one agent to another. */
 export interface DelegationCertificate {
@@ -220,6 +223,10 @@ export function createDelegationService(
       try {
         // Check expiry first
         if (cert.expiry.getTime() < Date.now()) {
+          log.warn("Delegation certificate expired", {
+            delegator: cert.delegator,
+            delegate: cert.delegate,
+          });
           return { ok: false, error: "Certificate has expired" };
         }
 
@@ -251,6 +258,10 @@ export function createDelegationService(
         );
 
         if (!valid) {
+          log.warn("Delegation certificate signature invalid", {
+            delegator: cert.delegator,
+            delegate: cert.delegate,
+          });
           return { ok: false, error: "Invalid certificate signature" };
         }
 
@@ -285,6 +296,11 @@ export function createDelegationService(
         const current = chain.certificates[i];
         const next = chain.certificates[i + 1];
         if (next.delegator !== current.delegate) {
+          log.warn("Delegation chain linkage broken", {
+            index: i,
+            delegate: current.delegate,
+            nextDelegator: next.delegator,
+          });
           return {
             ok: false,
             error: `Chain broken at index ${i}: delegate "${current.delegate}" does not match next delegator "${next.delegator}"`,
