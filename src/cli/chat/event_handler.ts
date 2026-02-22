@@ -11,25 +11,303 @@
 import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
 import type { ScreenManager } from "../terminal/screen.ts";
 import { extractTodosFromEvent, formatTodoListAnsi } from "../../tools/todo.ts";
-import { RESET, BOLD, DIM, GREEN, YELLOW, RED } from "./ansi.ts";
+import { BOLD, DIM, GREEN, RED, RESET, YELLOW } from "./ansi.ts";
 import type { ToolDisplayMode } from "./ansi.ts";
 import type { Spinner } from "./spinner.ts";
 import { createSpinner } from "./spinner.ts";
 import { writeln } from "./ansi.ts";
-import { renderResponse, formatResponse } from "./format.ts";
+import { formatResponse, renderResponse } from "./format.ts";
 import { renderToolResult } from "./tool_display.ts";
 import {
   type EventCallback,
-  isTodoTool,
-  isPlanExitTool,
-  formatToolCompact,
-  formatToolCallExpanded,
-  formatToolResultExpanded,
   formatPlanMarkdown,
+  formatToolCallExpanded,
+  formatToolCompact,
+  formatToolResultExpanded,
+  isPlanExitTool,
+  isTodoTool,
 } from "./tool_display.ts";
 import { createThinkingFilter } from "./think_filter.ts";
 
 export type { EventCallback };
+
+// ─── Mutable state for screen event handler ──────────────────────────────────
+
+/** Mutable state shared across screen event handler callbacks. */
+interface ScreenHandlerState {
+  spinner: Spinner | null;
+  pendingToolCall: { name: string; args: Record<string, unknown> } | null;
+  isStreaming: boolean;
+  headerWritten: boolean;
+  atLineStart: boolean;
+  thinkingHeaderWritten: boolean;
+  readonly thinkFilter: ReturnType<typeof createThinkingFilter>;
+}
+
+// ─── Shared helpers ──────────────────────────────────────────────────────────
+
+/** Start spinner (screen or fallback) for thinking/vision. */
+function stopSpinnerFallback(
+  state: ScreenHandlerState,
+  screen: ScreenManager,
+): void {
+  if (screen.isTty) {
+    screen.stopSpinner();
+  } else if (state.spinner) {
+    state.spinner.stop();
+    state.spinner = null;
+  }
+}
+
+/** Ensure streaming mode is active and spinner is stopped. */
+function ensureStreamingActive(
+  state: ScreenHandlerState,
+  screen: ScreenManager,
+): void {
+  if (state.isStreaming) return;
+  state.isStreaming = true;
+  stopSpinnerFallback(state, screen);
+}
+
+/** Write the triggerfish response header if not yet written. */
+function writeStreamingHeader(
+  state: ScreenHandlerState,
+  screen: ScreenManager,
+): void {
+  if (state.headerWritten) return;
+  screen.writeOutput(`  ${GREEN}${BOLD}triggerfish${RESET}`);
+  screen.writeOutput("");
+  state.headerWritten = true;
+}
+
+/** Write text with 2-space indent at line starts. Returns updated atLineStart. */
+function writeIndentedChunk(
+  screen: ScreenManager,
+  text: string,
+  atLineStart: boolean,
+): boolean {
+  let output = "";
+  let lineStart = atLineStart;
+  for (const ch of text) {
+    if (lineStart) {
+      output += "  ";
+      lineStart = false;
+    }
+    output += ch;
+    if (ch === "\n") lineStart = true;
+  }
+  screen.writeChunk(output);
+  return lineStart;
+}
+
+/** Reset all streaming-related state fields. */
+function resetScreenStreamingState(state: ScreenHandlerState): void {
+  state.isStreaming = false;
+  state.headerWritten = false;
+  state.atLineStart = true;
+  state.thinkingHeaderWritten = false;
+  state.thinkFilter.reset();
+}
+
+// ─── Screen event case handlers ──────────────────────────────────────────────
+
+/** Handle llm_start event. */
+function handleScreenLlmStart(
+  state: ScreenHandlerState,
+  screen: ScreenManager,
+  event: { iteration: number; maxIterations: number },
+): void {
+  if (screen.isTty) {
+    screen.startSpinner(
+      event.iteration > 1
+        ? `step ${event.iteration}/${event.maxIterations}`
+        : "",
+    );
+  } else {
+    state.spinner = createSpinner(
+      event.iteration === 1
+        ? "Thinking\u2026"
+        : `Thinking\u2026 (step ${event.iteration}/${event.maxIterations})`,
+    );
+  }
+}
+
+/** Handle llm_complete event. */
+function handleScreenLlmComplete(
+  state: ScreenHandlerState,
+  screen: ScreenManager,
+  hasToolCalls: boolean,
+): void {
+  stopSpinnerFallback(state, screen);
+  if (hasToolCalls) {
+    if (state.isStreaming) screen.writeChunk("\n");
+    resetScreenStreamingState(state);
+  }
+}
+
+/** Handle thinking content from a response chunk. */
+function handleThinkingChunk(
+  state: ScreenHandlerState,
+  screen: ScreenManager,
+  thinking: string,
+  enteredThinking: boolean,
+  exitedThinking: boolean,
+): void {
+  ensureStreamingActive(state, screen);
+  writeStreamingHeader(state, screen);
+  if (enteredThinking && !state.thinkingHeaderWritten) {
+    screen.writeChunk(`  ${DIM}`);
+    state.thinkingHeaderWritten = true;
+  }
+  if (thinking.length > 0) {
+    state.atLineStart = writeIndentedChunk(screen, thinking, state.atLineStart);
+  }
+  if (exitedThinking) {
+    screen.writeChunk(`${RESET}\n`);
+    state.atLineStart = true;
+    state.thinkingHeaderWritten = false;
+  }
+}
+
+/** Handle response_chunk event (streaming text). */
+function handleScreenResponseChunk(
+  state: ScreenHandlerState,
+  screen: ScreenManager,
+  getDisplayMode: () => ToolDisplayMode,
+  text: string,
+): void {
+  const { visible, thinking, enteredThinking, exitedThinking } = state
+    .thinkFilter.filter(text);
+
+  const hasThinkingContent = thinking.length > 0 || enteredThinking ||
+    exitedThinking;
+  if (hasThinkingContent && getDisplayMode() === "expanded") {
+    handleThinkingChunk(
+      state,
+      screen,
+      thinking,
+      enteredThinking,
+      exitedThinking,
+    );
+  }
+
+  if (visible.length > 0) {
+    ensureStreamingActive(state, screen);
+    writeStreamingHeader(state, screen);
+    state.atLineStart = writeIndentedChunk(
+      screen,
+      visible,
+      state.atLineStart,
+    );
+  }
+}
+
+/** Handle tool_call event. */
+function handleScreenToolCall(
+  state: ScreenHandlerState,
+  screen: ScreenManager,
+  getDisplayMode: () => ToolDisplayMode,
+  event: { name: string; args: Record<string, unknown> },
+): void {
+  if (isTodoTool(event.name) || isPlanExitTool(event.name)) {
+    state.pendingToolCall = { name: event.name, args: event.args };
+  } else if (getDisplayMode() === "compact") {
+    state.pendingToolCall = { name: event.name, args: event.args };
+  } else {
+    screen.writeOutput(formatToolCallExpanded(event.name, event.args));
+  }
+  if (screen.isTty) screen.startSpinner(event.name);
+}
+
+/** Handle tool_result for todo tools. */
+function handleTodoToolResult(
+  state: ScreenHandlerState,
+  screen: ScreenManager,
+  event: { name: string; result: string },
+): void {
+  const todos = extractTodosFromEvent(event.name, {
+    args: state.pendingToolCall?.args,
+    result: event.result,
+  });
+  state.pendingToolCall = null;
+  if (todos) screen.writeOutput(formatTodoListAnsi(todos) + "\n");
+}
+
+/** Handle tool_result for plan_exit tool. */
+function handlePlanExitToolResult(
+  state: ScreenHandlerState,
+  screen: ScreenManager,
+  event: { result: string; blocked: boolean },
+): void {
+  state.pendingToolCall = null;
+  if (!event.blocked) {
+    screen.writeOutput(formatPlanMarkdown(event.result));
+  } else {
+    screen.writeOutput(
+      `  ${YELLOW}\u26a1${RESET} plan_exit  ${RED}\u2717${RESET} ${DIM}blocked${RESET}`,
+    );
+  }
+}
+
+/** Handle tool_result event. */
+function handleScreenToolResult(
+  state: ScreenHandlerState,
+  screen: ScreenManager,
+  getDisplayMode: () => ToolDisplayMode,
+  event: { name: string; result: string; blocked: boolean },
+): void {
+  if (isTodoTool(event.name)) {
+    handleTodoToolResult(state, screen, event);
+  } else if (isPlanExitTool(event.name)) {
+    handlePlanExitToolResult(state, screen, event);
+  } else if (getDisplayMode() === "compact" && state.pendingToolCall) {
+    screen.writeOutput(
+      formatToolCompact(
+        state.pendingToolCall.name,
+        state.pendingToolCall.args,
+        event.result,
+        event.blocked,
+      ),
+    );
+    state.pendingToolCall = null;
+  } else {
+    screen.writeOutput(formatToolResultExpanded(event.result, event.blocked));
+  }
+}
+
+/** Handle vision_start event. */
+function handleScreenVisionStart(
+  state: ScreenHandlerState,
+  screen: ScreenManager,
+  event: { imageCount: number },
+): void {
+  const label = event.imageCount === 1
+    ? "Analyzing image"
+    : `Analyzing ${event.imageCount} images`;
+  if (screen.isTty) {
+    screen.startSpinner(label);
+  } else {
+    state.spinner = createSpinner(label + "\u2026");
+  }
+}
+
+/** Handle response event (final response). */
+function handleScreenResponse(
+  state: ScreenHandlerState,
+  screen: ScreenManager,
+  text: string,
+): void {
+  if (screen.isTty) screen.stopSpinner();
+  if (state.isStreaming) {
+    screen.writeOutput("");
+    resetScreenStreamingState(state);
+  } else {
+    screen.writeOutput(formatResponse(text));
+    state.thinkFilter.reset();
+  }
+}
+
+// ─── Public factories ────────────────────────────────────────────────────────
 
 /**
  * Create a UI event handler that renders orchestrator events
@@ -68,7 +346,6 @@ export function createEventHandler(): EventCallback {
         if (isTodoTool(event.name)) {
           pendingTodoArgs = event.args;
         } else {
-          // Buffer all tool calls — render with bullet style when result arrives
           pendingTool = { name: event.name, args: event.args };
         }
         break;
@@ -136,247 +413,55 @@ export function createScreenEventHandler(
   screen: ScreenManager,
   getDisplayMode: () => ToolDisplayMode,
 ): EventCallback {
-  let spinner: Spinner | null = null;
-  let pendingToolCall: { name: string; args: Record<string, unknown> } | null =
-    null;
-
-  // Streaming state
-  let isStreaming = false;
-  let headerWritten = false;
-  let atLineStart = true;
-  let thinkingHeaderWritten = false;
-  const thinkFilter = createThinkingFilter();
+  const state: ScreenHandlerState = {
+    spinner: null,
+    pendingToolCall: null,
+    isStreaming: false,
+    headerWritten: false,
+    atLineStart: true,
+    thinkingHeaderWritten: false,
+    thinkFilter: createThinkingFilter(),
+  };
 
   return (event: OrchestratorEvent) => {
     switch (event.type) {
       case "llm_start":
-        if (screen.isTty) {
-          screen.startSpinner(
-            event.iteration > 1
-              ? `step ${event.iteration}/${event.maxIterations}`
-              : "",
-          );
-        } else {
-          spinner = createSpinner(
-            event.iteration === 1
-              ? "Thinking\u2026"
-              : `Thinking\u2026 (step ${event.iteration}/${event.maxIterations})`,
-          );
-        }
+        handleScreenLlmStart(state, screen, event);
         break;
-
       case "llm_complete":
-        if (screen.isTty) {
-          screen.stopSpinner();
-        } else if (spinner) {
-          spinner.stop();
-          spinner = null;
-        }
-        // If tool calls are coming, reset streaming state for next iteration
-        if (event.hasToolCalls) {
-          if (isStreaming) {
-            // End the current streaming block with a newline
-            screen.writeChunk("\n");
-          }
-          isStreaming = false;
-          headerWritten = false;
-          atLineStart = true;
-          thinkingHeaderWritten = false;
-          thinkFilter.reset();
-        }
+        handleScreenLlmComplete(state, screen, event.hasToolCalls);
         break;
-
       case "response_chunk": {
-        const chunkEvt = event as { readonly type: "response_chunk"; readonly text: string; readonly done: boolean };
-        if (chunkEvt.done) {
-          // Stream complete — don't need to do anything here;
-          // the response event will finalize
-          break;
-        }
-
-        // Filter thinking tags — separates visible from thinking content
-        const { visible, thinking, enteredThinking, exitedThinking } = thinkFilter.filter(chunkEvt.text);
-
-        // Handle thinking content
-        if (thinking.length > 0 || enteredThinking || exitedThinking) {
-          if (getDisplayMode() === "expanded") {
-            // Expanded mode: stream thinking content dimmed
-            if (!isStreaming) {
-              isStreaming = true;
-              if (screen.isTty) {
-                screen.stopSpinner();
-              } else if (spinner) {
-                spinner.stop();
-                spinner = null;
-              }
-            }
-            if (!headerWritten) {
-              screen.writeOutput(`  ${GREEN}${BOLD}triggerfish${RESET}`);
-              screen.writeOutput("");
-              headerWritten = true;
-            }
-            if (enteredThinking && !thinkingHeaderWritten) {
-              screen.writeChunk(`  ${DIM}`);
-              thinkingHeaderWritten = true;
-            }
-            if (thinking.length > 0) {
-              // Add 2-space indent at line starts, dimmed
-              let output = "";
-              for (const ch of thinking) {
-                if (atLineStart) {
-                  output += "  ";
-                  atLineStart = false;
-                }
-                output += ch;
-                if (ch === "\n") {
-                  atLineStart = true;
-                }
-              }
-              screen.writeChunk(output);
-            }
-            if (exitedThinking) {
-              screen.writeChunk(`${RESET}\n`);
-              atLineStart = true;
-              thinkingHeaderWritten = false;
-            }
-          }
-          // Compact mode: do nothing — spinner keeps running naturally
-        }
-
-        // Handle visible (non-thinking) content
-        if (visible.length > 0) {
-          if (!isStreaming) {
-            // First visible content — stop spinner and write header
-            isStreaming = true;
-            if (screen.isTty) {
-              screen.stopSpinner();
-            } else if (spinner) {
-              spinner.stop();
-              spinner = null;
-            }
-          }
-          if (!headerWritten) {
-            screen.writeOutput(`  ${GREEN}${BOLD}triggerfish${RESET}`);
-            screen.writeOutput("");
-            headerWritten = true;
-          }
-          // Add 2-space indent at the start of each line, tracking
-          // line boundaries across chunk boundaries
-          let output = "";
-          for (const ch of visible) {
-            if (atLineStart) {
-              output += "  ";
-              atLineStart = false;
-            }
-            output += ch;
-            if (ch === "\n") {
-              atLineStart = true;
-            }
-          }
-          screen.writeChunk(output);
+        const chunkEvt = event as {
+          readonly type: "response_chunk";
+          readonly text: string;
+          readonly done: boolean;
+        };
+        if (!chunkEvt.done) {
+          handleScreenResponseChunk(
+            state,
+            screen,
+            getDisplayMode,
+            chunkEvt.text,
+          );
         }
         break;
       }
-
       case "tool_call":
-        if (isTodoTool(event.name) || isPlanExitTool(event.name)) {
-          // Buffer — render formatted output when result arrives
-          pendingToolCall = { name: event.name, args: event.args };
-        } else if (getDisplayMode() === "compact") {
-          // Buffer all tool calls in compact mode — render with bullet style when result arrives
-          pendingToolCall = { name: event.name, args: event.args };
-        } else {
-          screen.writeOutput(formatToolCallExpanded(event.name, event.args));
-        }
-        // Show spinner during tool execution so the CLI doesn't look hung
-        if (screen.isTty) {
-          screen.startSpinner(event.name);
-        }
+        handleScreenToolCall(state, screen, getDisplayMode, event);
         break;
-
       case "tool_result":
-        // Stop the tool-execution spinner
-        if (screen.isTty) {
-          screen.stopSpinner();
-        }
-        if (isTodoTool(event.name)) {
-          const todos = extractTodosFromEvent(event.name, {
-            args: pendingToolCall?.args,
-            result: event.result,
-          });
-          pendingToolCall = null;
-          if (todos) {
-            screen.writeOutput(formatTodoListAnsi(todos) + "\n");
-          }
-        } else if (isPlanExitTool(event.name)) {
-          pendingToolCall = null;
-          if (!event.blocked) {
-            screen.writeOutput(formatPlanMarkdown(event.result));
-          } else {
-            screen.writeOutput(
-              `  ${YELLOW}\u26a1${RESET} plan_exit  ${RED}\u2717${RESET} ${DIM}blocked${RESET}`,
-            );
-          }
-        } else if (getDisplayMode() === "compact" && pendingToolCall) {
-          screen.writeOutput(
-            formatToolCompact(
-              pendingToolCall.name,
-              pendingToolCall.args,
-              event.result,
-              event.blocked,
-            ),
-          );
-          pendingToolCall = null;
-        } else {
-          screen.writeOutput(
-            formatToolResultExpanded(event.result, event.blocked),
-          );
-        }
+        if (screen.isTty) screen.stopSpinner();
+        handleScreenToolResult(state, screen, getDisplayMode, event);
         break;
-
       case "vision_start":
-        if (screen.isTty) {
-          screen.startSpinner(
-            event.imageCount === 1
-              ? "Analyzing image"
-              : `Analyzing ${event.imageCount} images`,
-          );
-        } else {
-          spinner = createSpinner(
-            event.imageCount === 1
-              ? "Analyzing image\u2026"
-              : `Analyzing ${event.imageCount} images\u2026`,
-          );
-        }
+        handleScreenVisionStart(state, screen, event);
         break;
-
       case "vision_complete":
-        if (screen.isTty) {
-          screen.stopSpinner();
-        } else if (spinner) {
-          spinner.stop();
-          spinner = null;
-        }
+        stopSpinnerFallback(state, screen);
         break;
-
       case "response":
-        // Ensure spinner is cleared — stopSpinner is idempotent
-        if (screen.isTty) {
-          screen.stopSpinner();
-        }
-        if (isStreaming) {
-          // Already streamed — just finalize with newline
-          screen.writeOutput("");
-          isStreaming = false;
-          headerWritten = false;
-          atLineStart = true;
-          thinkingHeaderWritten = false;
-          thinkFilter.reset();
-        } else {
-          // Non-streaming fallback — render normally
-          screen.writeOutput(formatResponse(event.text));
-          thinkFilter.reset();
-        }
+        handleScreenResponse(state, screen, event.text);
         break;
     }
   };
