@@ -13,8 +13,11 @@
 import { canFlowTo } from "../../core/types/classification.ts";
 import type { SessionId } from "../../core/types/session.ts";
 import type { SignalChannelAdapter } from "../../channels/signal/adapter.ts";
+import { createLogger } from "../../core/logger/logger.ts";
 
 import type { SessionToolContext } from "./session_tools_defs.ts";
+
+const log = createLogger("security");
 
 // ─── Barrel re-exports from session_tools_defs.ts ───────────────────────────
 
@@ -90,6 +93,11 @@ export function createSessionToolExecutor(
           if (!session) return `Session not found: ${sessionId}`;
           // Block if target session's taint cannot flow to caller
           if (!canFlowTo(session.taint, ctx.callerTaint)) {
+            log.warn("Session history access denied: taint exceeds caller", {
+              targetSessionId: sessionId,
+              targetTaint: session.taint,
+              callerTaint: ctx.callerTaint,
+            });
             return `Access denied: session ${sessionId} is at ${session.taint}, your session is at ${ctx.callerTaint}.`;
           }
           return JSON.stringify({
@@ -203,6 +211,11 @@ export function createSessionToolExecutor(
         // Use live taint getter to reflect any escalation during the session.
         const currentTaint = ctx.getCallerTaint?.() ?? ctx.callerTaint;
         if (!canFlowTo(currentTaint, registered.classification)) {
+          log.warn("Message write-down blocked", {
+            channel,
+            sessionTaint: currentTaint,
+            channelClassification: registered.classification,
+          });
           return `Write-down blocked: your session taint is ${currentTaint}, but channel "${channel}" is classified as ${registered.classification}. Data cannot flow from ${currentTaint} to ${registered.classification}.`;
         }
 
