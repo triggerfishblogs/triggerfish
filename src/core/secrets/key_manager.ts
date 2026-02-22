@@ -10,6 +10,9 @@
 
 import { dirname } from "@std/path";
 import type { Result } from "../types/classification.ts";
+import { createLogger } from "../logger/logger.ts";
+
+const log = createLogger("secrets");
 
 /** Options for loading or creating the machine key. */
 export interface MachineKeyOptions {
@@ -39,11 +42,17 @@ export async function loadOrCreateMachineKey(
     try {
       const fileBytes = await Deno.readFile(keyPath);
       if (fileBytes.byteLength !== 32) {
+        log.warn("Machine key file corrupt", {
+          keyPath,
+          expectedBytes: 32,
+          actualBytes: fileBytes.byteLength,
+        });
         return {
           ok: false,
           error: `Key file '${keyPath}' is corrupt: expected 32 bytes, got ${fileBytes.byteLength}`,
         };
       }
+      log.info("Machine key loaded from disk", { keyPath });
       rawBytes = fileBytes;
     } catch {
       // Key file does not exist — generate a new key
@@ -57,6 +66,7 @@ export async function loadOrCreateMachineKey(
 
       // Write key file with restrictive permissions
       await Deno.mkdir(dirname(keyPath), { recursive: true });
+      log.warn("Machine key generated", { keyPath });
       await Deno.writeFile(keyPath, rawBytes, { mode: 0o600 });
 
       // Explicitly chmod on Unix (writeFile mode may be masked by umask)
