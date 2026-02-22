@@ -15,6 +15,9 @@ import type {
   PolicyCondition,
   PolicyRule,
 } from "./rules.ts";
+import { createLogger } from "../logger/logger.ts";
+
+const log = createLogger("policy");
 
 /** Result of evaluating policy rules against a context. */
 export interface EvaluationResult {
@@ -146,6 +149,13 @@ export function createPolicyEngine(): PolicyEngine {
       );
 
       if (allConditionsMet) {
+        if (rule.action === "BLOCK") {
+          log.warn("Policy rule blocked action", {
+            hook,
+            ruleId: rule.id,
+            message: rule.message,
+          });
+        }
         return {
           action: rule.action,
           ruleId: rule.id,
