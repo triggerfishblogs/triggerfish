@@ -19,6 +19,9 @@ import type {
   ChannelStatus,
   MessageHandler,
 } from "../types.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("signal");
 import { chunkMessage } from "../telegram/adapter.ts";
 import { createSignalClient } from "./client.ts";
 import type {
@@ -120,6 +123,7 @@ export function createSignalChannel(config: SignalConfig): SignalChannelAdapter 
 
       const _groupClassification = config.groups?.[groupId]?.classification ?? classification;
 
+      log.debug("Group message received", { groupId, sender: senderPhone });
       handler({
         content: messageText,
         sessionId: `signal-group-${groupId}`,
@@ -129,6 +133,7 @@ export function createSignalChannel(config: SignalConfig): SignalChannelAdapter 
       });
     } else {
       // DM — access control handled by ChatSession.handleChannelMessage()
+      log.debug("DM received", { sender: senderPhone });
       handler({
         content: messageText,
         sessionId: `signal-${senderPhone}`,
@@ -170,6 +175,7 @@ export function createSignalChannel(config: SignalConfig): SignalChannelAdapter 
       }
 
       connected = true;
+      log.info("Signal adapter connected", { endpoint: config.endpoint });
     },
 
     async disconnect(): Promise<void> {
@@ -177,6 +183,7 @@ export function createSignalChannel(config: SignalConfig): SignalChannelAdapter 
         await client.disconnect();
       }
       connected = false;
+      log.info("Signal adapter disconnected");
     },
 
     async send(message: ChannelMessage): Promise<void> {
