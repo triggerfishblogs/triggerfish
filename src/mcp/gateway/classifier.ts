@@ -8,6 +8,9 @@
  */
 
 import type { ClassificationLevel } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("security");
 
 /** Trust state of an MCP server. */
 export type ServerStatus = "UNTRUSTED" | "CLASSIFIED" | "BLOCKED";
@@ -39,6 +42,12 @@ export interface ClassifyServerOptions {
  */
 export function classifyServer(options: ClassifyServerOptions): ServerState {
   const status = options.status ?? "UNTRUSTED";
+  log.info("MCP server classified", {
+    uri: options.uri,
+    name: options.name,
+    status,
+    classification: options.classification,
+  });
 
   if (status === "CLASSIFIED" && options.classification !== undefined) {
     return {
