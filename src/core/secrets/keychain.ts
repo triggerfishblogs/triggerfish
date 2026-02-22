@@ -12,6 +12,9 @@ import { join } from "@std/path";
 import type { Result } from "../types/classification.ts";
 import { isDockerEnvironment } from "../env.ts";
 import { createEncryptedFileSecretStore } from "./encrypted_file_provider.ts";
+import { createLogger } from "../logger/logger.ts";
+
+const log = createLogger("secrets");
 
 /** Service name used for all keychain entries. */
 const SERVICE_NAME = "triggerfish";
@@ -360,6 +363,7 @@ export function createMemorySecretStore(): SecretStore {
  */
 export function createKeychain(): SecretStore {
   if (isDockerEnvironment()) {
+    log.info("Secret backend selected: encrypted-file (Docker)");
     return createEncryptedFileSecretStore({
       secretsPath: "/data/secrets.json",
       keyPath: "/data/secrets.key",
@@ -370,8 +374,10 @@ export function createKeychain(): SecretStore {
 
   switch (os) {
     case "linux":
+      log.info("Secret backend selected: libsecret (Linux)");
       return createLinuxKeychain();
     case "darwin":
+      log.info("Secret backend selected: Keychain (macOS)");
       return createMacKeychain();
     case "windows": {
       // Store secrets alongside triggerfish.yaml so the Windows Service
@@ -382,12 +388,14 @@ export function createKeychain(): SecretStore {
           Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".",
           ".triggerfish",
         );
+      log.info("Secret backend selected: encrypted-file (Windows)");
       return createEncryptedFileSecretStore({
         secretsPath: join(dataDir, "secrets.json"),
         keyPath: join(dataDir, "secrets.key"),
       });
     }
     default:
+      log.warn("Secret backend selected: in-memory (unsupported OS)", { os });
       return createMemorySecretStore();
   }
 }
