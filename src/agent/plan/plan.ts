@@ -10,6 +10,10 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("plan");
+
 import type {
   ImplementationPlan,
   PlanModeState,
@@ -143,8 +147,11 @@ export function createPlanManager(options: PlanManagerOptions): PlanManager {
     try {
       await Deno.mkdir(options.plansDir, { recursive: true });
       await Deno.writeTextFile(`${options.plansDir}/${planId}.md`, markdown);
-    } catch {
-      // Persistence failure is non-fatal — plan is still returned
+    } catch (err: unknown) {
+      log.warn("Plan persistence failed", {
+        planId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
 
     // Transition to awaiting_approval
