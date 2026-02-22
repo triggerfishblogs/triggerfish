@@ -11,52 +11,33 @@ import { stringify as stringifyYaml } from "@std/yaml";
 
 import type { ToneChoice, WizardAnswers } from "./wizard_types.ts";
 
-// ─── Config generation ───────────────────────────────────────────────────────
+// ─── Config section builders ─────────────────────────────────────────────────
 
-/**
- * Generate triggerfish.yaml content from wizard answers.
- *
- * All API keys and tokens are written as `secret:<key>` references
- * rather than plaintext. The actual values must be stored in the OS
- * keychain separately (see `storeWizardSecrets()`).
- */
-export function generateConfig(answers: WizardAnswers): string {
-  // Build providers section
+/** Build the providers section of the config from wizard answers. */
+function buildProviderConfigSection(
+  answers: WizardAnswers,
+): Record<string, Record<string, string>> {
   const providers: Record<string, Record<string, string>> = {};
-
-  if (answers.provider === "anthropic") {
-    const anthropicConfig: Record<string, string> = {
-      model: answers.providerModel,
-    };
-    if (answers.apiKey.length > 0) {
-      // Store reference, not plaintext
-      anthropicConfig["apiKey"] = `secret:provider:${answers.provider}:apiKey`;
-    }
-    providers["anthropic"] = anthropicConfig;
-  } else if (answers.provider === "ollama") {
-    providers["ollama"] = {
+  if (answers.provider === "ollama" || answers.provider === "lmstudio") {
+    providers[answers.provider] = {
       model: answers.providerModel,
       endpoint: answers.localEndpoint,
     };
-  } else if (answers.provider === "lmstudio") {
-    providers["lmstudio"] = {
-      model: answers.providerModel,
-      endpoint: answers.localEndpoint,
-    };
-  } else {
-    const providerConfig: Record<string, string> = {
-      model: answers.providerModel,
-    };
-    if (answers.apiKey.length > 0) {
-      // Store reference, not plaintext
-      providerConfig["apiKey"] = `secret:provider:${answers.provider}:apiKey`;
-    }
-    providers[answers.provider] = providerConfig;
+    return providers;
   }
+  const cfg: Record<string, string> = { model: answers.providerModel };
+  if (answers.apiKey.length > 0) {
+    cfg["apiKey"] = `secret:provider:${answers.provider}:apiKey`;
+  }
+  providers[answers.provider] = cfg;
+  return providers;
+}
 
-  // Build channels section
+/** Build the channels section of the config from wizard answers. */
+function buildChannelConfigSection(
+  answers: WizardAnswers,
+): Record<string, Record<string, unknown>> {
   const channels: Record<string, Record<string, unknown>> = {};
-
   for (const ch of answers.channels) {
     if (ch === "webchat") {
       channels["webchat"] = {
@@ -64,75 +45,55 @@ export function generateConfig(answers: WizardAnswers): string {
         classification: "PUBLIC",
       };
     } else if (ch === "telegram" && answers.telegramBotToken.length > 0) {
-      const telegramConfig: Record<string, unknown> = {
-        // Store reference, not plaintext
+      const cfg: Record<string, unknown> = {
         botToken: "secret:telegram:botToken",
         classification: "INTERNAL",
       };
       if (answers.telegramOwnerId.length > 0) {
-        telegramConfig["ownerId"] = parseInt(answers.telegramOwnerId, 10) || 0;
+        cfg["ownerId"] = parseInt(answers.telegramOwnerId, 10) || 0;
       }
-      channels["telegram"] = telegramConfig;
+      channels["telegram"] = cfg;
     } else if (ch === "discord" && answers.discordBotToken.length > 0) {
-      const discordConfig: Record<string, unknown> = {
-        // Store reference, not plaintext
+      const cfg: Record<string, unknown> = {
         botToken: "secret:discord:botToken",
         classification: "PUBLIC",
       };
       if (answers.discordOwnerId.length > 0) {
-        discordConfig["ownerId"] = answers.discordOwnerId;
+        cfg["ownerId"] = answers.discordOwnerId;
       }
-      channels["discord"] = discordConfig;
+      channels["discord"] = cfg;
     } else if (ch === "signal" && answers.signalPhoneNumber.length > 0) {
-      const signalConfig: Record<string, unknown> = {
+      channels["signal"] = {
         endpoint: answers.signalEndpoint || "tcp://127.0.0.1:7583",
         account: answers.signalPhoneNumber,
         classification: "INTERNAL",
         ownerPhone: answers.signalPhoneNumber,
       };
-      channels["signal"] = signalConfig;
     }
-    // CLI is always available, no config needed
   }
+  return channels;
+}
 
-  // Build web section (if search provider selected)
-  const web: Record<string, unknown> = {};
+/** Build the web search section of the config from wizard answers. */
+function buildWebSearchConfigSection(
+  answers: WizardAnswers,
+): Record<string, unknown> {
   if (answers.searchProvider === "brave" && answers.searchApiKey.length > 0) {
-    web["search"] = {
-      provider: "brave",
-      // Store reference, not plaintext
-      api_key: "secret:web:search:apiKey",
-    };
-  } else if (
-    answers.searchProvider === "searxng" && answers.searxngUrl.length > 0
-  ) {
-    web["search"] = {
-      provider: "searxng",
-      endpoint: answers.searxngUrl,
+    return {
+      search: { provider: "brave", api_key: "secret:web:search:apiKey" },
     };
   }
-
-  // Build full config object
-  const config: Record<string, unknown> = {
-    models: {
-      primary: {
-        provider: answers.provider,
-        model: answers.providerModel,
-      },
-      providers,
-    },
-    channels: Object.keys(channels).length > 0 ? channels : {},
-    classification: {
-      mode: "personal",
-      levels: "standard",
-    },
-  };
-
-  if (Object.keys(web).length > 0) {
-    config["web"] = web;
+  if (answers.searchProvider === "searxng" && answers.searxngUrl.length > 0) {
+    return { search: { provider: "searxng", endpoint: answers.searxngUrl } };
   }
+  return {};
+}
 
-  // Build plugins section
+/** Append plugins config to the config object if applicable. */
+function appendPluginsConfig(
+  config: Record<string, unknown>,
+  answers: WizardAnswers,
+): void {
   if (
     answers.selectedPlugins.includes("obsidian") &&
     answers.obsidianVaultPath.length > 0
@@ -146,11 +107,38 @@ export function generateConfig(answers: WizardAnswers): string {
       },
     };
   }
+}
 
-  // Logging defaults
+// ─── Config generation ───────────────────────────────────────────────────────
+
+/**
+ * Generate triggerfish.yaml content from wizard answers.
+ *
+ * All API keys and tokens are written as `secret:<key>` references
+ * rather than plaintext. The actual values must be stored in the OS
+ * keychain separately (see `storeWizardSecrets()`).
+ */
+export function generateConfig(answers: WizardAnswers): string {
+  const providers = buildProviderConfigSection(answers);
+  const channels = buildChannelConfigSection(answers);
+  const web = buildWebSearchConfigSection(answers);
+
+  const config: Record<string, unknown> = {
+    models: {
+      primary: {
+        provider: answers.provider,
+        model: answers.providerModel,
+      },
+      providers,
+    },
+    channels: Object.keys(channels).length > 0 ? channels : {},
+    classification: { mode: "personal", levels: "standard" },
+  };
+
+  if (Object.keys(web).length > 0) config["web"] = web;
+  appendPluginsConfig(config, answers);
   config["logging"] = { level: "normal" };
 
-  // Generate YAML with a header comment
   const yaml = stringifyYaml(config);
   return `# Triggerfish Configuration\n# Generated by triggerfish dive\n\n${yaml}`;
 }
@@ -184,7 +172,10 @@ ${toneGuidelines}
 }
 
 /** Build tone-specific guidelines for SPINE.md. */
-export function buildToneGuidelines(tone: ToneChoice, customTone: string): string {
+export function buildToneGuidelines(
+  tone: ToneChoice,
+  customTone: string,
+): string {
   switch (tone) {
     case "professional":
       return `- Respond clearly, concisely, and formally
