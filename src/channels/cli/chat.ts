@@ -13,6 +13,7 @@
  */
 
 import { join } from "@std/path";
+import { createLogger } from "../../core/logger/logger.ts";
 import { loadConfig } from "../../core/config.ts";
 import { resolveBaseDir, resolveConfigPath } from "../../cli/config/paths.ts";
 import {
@@ -58,6 +59,7 @@ export { runSimpleWsRepl } from "./chat_simple_repl.ts";
  * The daemon owns the session, orchestrator, and policy engine.
  */
 export async function runChat(): Promise<void> {
+  const log = createLogger("cli");
   const configPath = resolveConfigPath();
 
   // Load config (for banner display only)
@@ -193,7 +195,9 @@ export async function runChat(): Promise<void> {
     saveInputHistory(historyFilePath, inputHistory).catch(() => {});
     try {
       ws.close();
-    } catch { /* already closed */ }
+    } catch (_err: unknown) {
+      log.debug("WebSocket send failed: connection closed");
+    }
   }
 
   // Handle SIGINT (Ctrl+C from outside raw mode, e.g. kill signal)
@@ -202,15 +206,17 @@ export async function runChat(): Promise<void> {
       if (state.isProcessing) {
         try {
           ws.send(JSON.stringify({ type: "cancel" }));
-        } catch { /* ignore */ }
+        } catch (_err: unknown) {
+          log.debug("WebSocket send failed: connection closed");
+        }
         screen.writeOutput(`  \x1b[33m⚠ Interrupted\x1b[0m`);
       } else {
         cleanup();
         Deno.exit(0);
       }
     });
-  } catch {
-    // Signal listeners may not be supported on all platforms
+  } catch (_err: unknown) {
+    log.debug("Signal listener not supported", { signal: "SIGINT" });
   }
 
   // Handle terminal resize — SIGWINCH on Unix, polling fallback on Windows
@@ -220,7 +226,8 @@ export async function runChat(): Promise<void> {
   };
   try {
     Deno.addSignalListener("SIGWINCH", resizeHandler);
-  } catch {
+  } catch (_err: unknown) {
+    log.debug("Signal listener not supported", { signal: "SIGWINCH" });
     // SIGWINCH not supported (Windows/PowerShell) — poll for size changes
     screen.startResizePolling(resizeHandler);
   }
@@ -238,7 +245,9 @@ export async function runChat(): Promise<void> {
     if (keypress.key === "esc" && state.isProcessing) {
       try {
         ws.send(JSON.stringify({ type: "cancel" }));
-      } catch { /* ignore */ }
+      } catch (_err: unknown) {
+        log.debug("WebSocket send failed: connection closed");
+      }
       screen.writeOutput(`  \x1b[33m⚠ Interrupted\x1b[0m`);
       continue;
     }
@@ -253,7 +262,9 @@ export async function runChat(): Promise<void> {
         lastCtrlCTime = now;
         try {
           ws.send(JSON.stringify({ type: "cancel" }));
-        } catch { /* ignore */ }
+        } catch (_err: unknown) {
+          log.debug("WebSocket send failed: connection closed");
+        }
         screen.writeOutput(
           `  \x1b[33m⚠ Interrupted (Ctrl+C again to exit)\x1b[0m`,
         );
@@ -287,7 +298,9 @@ export async function runChat(): Promise<void> {
         if (username !== undefined) responseMsg.username = username;
         try {
           ws.send(JSON.stringify(responseMsg));
-        } catch { /* ignore */ }
+        } catch (_err: unknown) {
+          log.debug("WebSocket send failed: connection closed");
+        }
         screen.writeOutput(`  \x1b[32m\u2713 Secret submitted\x1b[0m`);
         screen.clearStatus();
         state.passwordMode = null;
@@ -301,7 +314,9 @@ export async function runChat(): Promise<void> {
             nonce: pm.nonce,
             value: null,
           }));
-        } catch { /* ignore */ }
+        } catch (_err: unknown) {
+          log.debug("WebSocket send failed: connection closed");
+        }
         screen.writeOutput(`  \x1b[33m\u2717 Secret entry cancelled\x1b[0m`);
         screen.clearStatus();
         state.passwordMode = null;
@@ -441,7 +456,8 @@ export async function runChat(): Promise<void> {
             ws.send(
               JSON.stringify({ type: "message", content: messageContent }),
             );
-          } catch {
+          } catch (err: unknown) {
+            log.debug("WebSocket send failed: connection closed", { error: err });
             screen.writeOutput(formatError("Lost connection to daemon"));
             state.isProcessing = false;
             screen.writeOutput("");
