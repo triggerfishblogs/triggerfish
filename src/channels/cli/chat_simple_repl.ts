@@ -6,6 +6,7 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/logger.ts";
 import type { TriggerFishConfig } from "../../core/config.ts";
 import {
   printBanner,
@@ -25,6 +26,7 @@ export async function runSimpleWsRepl(
   providerName: string,
   config: TriggerFishConfig,
 ): Promise<void> {
+  const log = createLogger("cli");
   const decoder = new TextDecoder();
   const buf = new Uint8Array(8192);
   let partial = "";
@@ -110,7 +112,9 @@ export async function runSimpleWsRepl(
             if (username !== undefined) responseMsg.username = username;
             try {
               ws.send(JSON.stringify(responseMsg));
-            } catch { /* ignore */ }
+            } catch (_err: unknown) {
+              log.debug("WebSocket send failed: connection closed");
+            }
             return;
           }
 
@@ -121,8 +125,8 @@ export async function runSimpleWsRepl(
             ws.removeEventListener("message", handler);
             responsePromise.resolve();
           }
-        } catch {
-          // ignore
+        } catch (err: unknown) {
+          log.warn("Message parse failed", { error: err });
         }
       };
 
