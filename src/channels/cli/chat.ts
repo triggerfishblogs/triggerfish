@@ -192,7 +192,11 @@ export async function runChat(): Promise<void> {
   function cleanup(): void {
     keypressReader.stop();
     screen.cleanup();
-    saveInputHistory(historyFilePath, inputHistory).catch(() => {});
+    saveInputHistory(historyFilePath, inputHistory).catch((err: unknown) => {
+      log.debug("Input history save failed during cleanup", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
     try {
       ws.close();
     } catch (_err: unknown) {
@@ -382,7 +386,11 @@ export async function runChat(): Promise<void> {
         // Add to history and save
         inputHistory = inputHistory.push(text);
         inputHistory = inputHistory.resetNavigation();
-        saveInputHistory(historyFilePath, inputHistory).catch(() => {});
+        saveInputHistory(historyFilePath, inputHistory).catch((err: unknown) => {
+          log.debug("Input history save failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
 
         // Clear editor
         editor = editor.clear();
