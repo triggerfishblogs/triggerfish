@@ -263,7 +263,7 @@ export async function runConnectGithub(): Promise<void> {
       },
     });
     if (!resp.ok) {
-      const body = await resp.json().catch(() => ({}));
+      const body = await resp.json().catch(() => ({}) as Record<string, unknown>);
       console.log(
         `\nToken verification failed (${resp.status}): ${
           (body as Record<string, string>).message ?? "Unknown error"

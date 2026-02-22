@@ -11,6 +11,9 @@
  */
 
 import type { Result } from "../types/classification.ts";
+import { createLogger } from "../logger/logger.ts";
+
+const log = createLogger("audit");
 
 /**
  * Minimal audit entry for chaining. Compatible with HookLogEntry but
@@ -187,6 +190,11 @@ export function createAuditChain(secret: string): AuditChain {
         : chainEntries[i - 1].hash;
 
       if (current.previousHash !== expectedPreviousHash) {
+        log.warn("Audit chain tamper detected: previousHash mismatch", {
+          index: i,
+          expected: expectedPreviousHash,
+          got: current.previousHash,
+        });
         return {
           ok: false,
           error:
@@ -202,6 +210,9 @@ export function createAuditChain(secret: string): AuditChain {
       );
 
       if (recomputed !== current.hash) {
+        log.warn("Audit chain tamper detected: HMAC mismatch", {
+          index: i,
+        });
         return {
           ok: false,
           error:
@@ -258,6 +269,11 @@ export async function verifyAuditChain(
       : chainedEntries[i - 1].hash;
 
     if (current.previousHash !== expectedPreviousHash) {
+      log.warn("Audit chain verification failed: previousHash mismatch", {
+        index: i,
+        expected: expectedPreviousHash,
+        got: current.previousHash,
+      });
       return {
         ok: false,
         error:
@@ -273,6 +289,9 @@ export async function verifyAuditChain(
     );
 
     if (recomputed !== current.hash) {
+      log.warn("Audit chain verification failed: HMAC mismatch", {
+        index: i,
+      });
       return {
         ok: false,
         error:

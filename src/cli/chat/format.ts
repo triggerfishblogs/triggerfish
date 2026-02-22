@@ -4,7 +4,7 @@
  * @module
  */
 
-import { RESET, BOLD, DIM, CYAN, GREEN, RED, write, writeln } from "./ansi.ts";
+import { RESET, BOLD, CYAN, GREEN, RED, write, writeln } from "./ansi.ts";
 
 /** Truncate text for compact preview display. */
 export function truncate(text: string, max: number): string {

@@ -19,6 +19,9 @@ import {
   CLASSIFICATION_DIRS,
   WORKSPACE_SUBDIRS,
 } from "../core/security/constants.ts";
+import { createLogger } from "../core/logger/logger.ts";
+
+const log = createLogger("security");
 
 /** Options for creating a new workspace. */
 export interface WorkspaceOptions {
@@ -191,6 +194,11 @@ export async function createWorkspace(
       if (operation === "read") {
         // Read: session taint must be >= path classification
         if (!canFlowTo(level, sessionTaint)) {
+          log.warn("Workspace read blocked: insufficient taint level", {
+            path: relativePath,
+            pathClassification: level,
+            sessionTaint,
+          });
           return {
             ok: false,
             error:
@@ -200,6 +208,11 @@ export async function createWorkspace(
       } else {
         // Write: session taint must be able to flow to target (no write-down)
         if (!canFlowTo(sessionTaint, level)) {
+          log.warn("Workspace write-down blocked", {
+            path: relativePath,
+            sessionTaint,
+            targetClassification: level,
+          });
           return {
             ok: false,
             error:

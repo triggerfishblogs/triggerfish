@@ -22,6 +22,9 @@ import type { Result } from "../../core/types/classification.ts";
 import type { MemoryRecord, MemoryError } from "./types.ts";
 import type { MemorySearchProvider } from "./search.ts";
 import { serialiseRecord, deserialiseRecord } from "./search.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("memory");
 
 /** Classification levels ordered from highest to lowest for shadowing. */
 const LEVELS_DESCENDING: readonly ClassificationLevel[] = (
@@ -138,6 +141,11 @@ export function createMemoryStore(
         ? deserialiseRecord(existingJson)
         : null;
 
+      log.info("Memory write: classification forced to session taint", {
+        key: opts.key,
+        agentId: opts.agentId,
+        classification: opts.sessionTaint,
+      });
       const record: MemoryRecord = {
         key: opts.key,
         agentId: opts.agentId,

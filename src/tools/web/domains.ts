@@ -12,6 +12,9 @@ import type {
   ClassificationLevel,
   Result,
 } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("security");
 
 // ─── SSRF Denylist (hardcoded, non-overridable) ─────────────────────────────
 
@@ -120,6 +123,10 @@ export async function resolveAndCheck(
   const ip = String(addresses[0]);
 
   if (isPrivateIp(ip)) {
+    log.warn("SSRF blocked: hostname resolves to private IP", {
+      hostname,
+      resolvedIp: ip,
+    });
     return {
       ok: false,
       error: `SSRF blocked: ${hostname} resolves to private IP ${ip}`,

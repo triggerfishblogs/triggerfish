@@ -8,6 +8,7 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/logger.ts";
 import type { Result } from "../../core/types/classification.ts";
 import type {
   JsonRpcRequest,
@@ -46,6 +47,7 @@ interface PendingRequest {
  * @returns A SignalClientInterface for communicating with signal-cli.
  */
 export function createSignalClient(options: SignalClientOptions): SignalClientInterface {
+  const log = createLogger("signal");
   const _maxRetries = options.maxRetries ?? 5;
   const _baseDelay = options.baseDelay ?? 1000;
 
@@ -117,13 +119,13 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
           try {
             const parsed = JSON.parse(line) as Record<string, unknown>;
             dispatchMessage(parsed);
-          } catch {
-            // Skip malformed JSON
+          } catch (err: unknown) {
+            log.warn("Signal JSON-RPC message parse failed", { error: err });
           }
         }
       }
-    } catch {
-      // Connection closed or errored
+    } catch (err: unknown) {
+      log.warn("Signal TCP read loop exited with error", { error: err });
       readLoopActive = false;
       conn = null;
       // Reject pending requests
@@ -159,7 +161,8 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
         startReadLoop();
         reconnecting = false;
         return;
-      } catch {
+      } catch (err: unknown) {
+        log.debug("Signal TCP reconnect attempt failed", { attempt, error: err });
         conn = null;
       }
     }
@@ -259,8 +262,8 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
       if (conn) {
         try {
           conn.close();
-        } catch {
-          // Already closed
+        } catch (_err: unknown) {
+          log.debug("Signal disconnect: connection already closed");
         }
         conn = null;
       }

@@ -11,6 +11,9 @@
 import { dirname } from "@std/path";
 import type { Result } from "../types/classification.ts";
 import type { SecretStore } from "./keychain.ts";
+import { createLogger } from "../logger/logger.ts";
+
+const log = createLogger("secrets");
 
 /** Options for creating a file-backed secret store. */
 export interface FileSecretStoreOptions {
@@ -170,6 +173,7 @@ export function createFileSecretStore(
     },
 
     setSecret(name: string, value: string): Promise<Result<true, string>> {
+      log.warn("Secret write requested", { name, store: path });
       const data = loadCache();
       data[name] = value;
       try {
@@ -185,6 +189,7 @@ export function createFileSecretStore(
     },
 
     deleteSecret(name: string): Promise<Result<true, string>> {
+      log.warn("Secret delete requested", { name, store: path });
       const data = loadCache();
       if (!(name in data)) {
         return Promise.resolve({

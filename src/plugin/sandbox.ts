@@ -14,6 +14,9 @@
 
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import type { PluginSdk } from "./sdk.ts";
+import { createLogger } from "../core/logger/logger.ts";
+
+const log = createLogger("security");
 
 /** Configuration for a plugin sandbox. */
 export interface SandboxConfig {
@@ -76,6 +79,10 @@ export async function createSandbox(config: SandboxConfig): Promise<Sandbox> {
         try {
           const url = new URL(urlStr);
           if (!allowedHosts.has(url.host)) {
+            log.warn("Plugin network access blocked", {
+              plugin: config.name,
+              host: url.host,
+            });
             throw new Error(
               `Network access blocked: ${url.host} not in declared endpoints`,
             );

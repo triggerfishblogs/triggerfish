@@ -9,6 +9,9 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("search");
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -104,7 +107,11 @@ export function createRateLimitedSearchProvider(
         lastRequestTime = Date.now();
         return provider.search(query, options);
       });
-      pending = job.catch(() => {}); // errors don't break the chain
+      pending = job.catch((err: unknown) => {
+        log.debug("Rate-limited search job failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
       return job;
     },
   };

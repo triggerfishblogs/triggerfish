@@ -11,6 +11,9 @@
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { canFlowTo, maxClassification } from "../../core/types/classification.ts";
 import type { StorageProvider } from "../../core/storage/provider.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("security");
 
 /** Persistent watermark state for a browser profile. */
 export interface ProfileWatermark {
@@ -58,6 +61,14 @@ export async function escalateWatermark(
   const effective = current === null
     ? sessionTaint
     : maxClassification(current, sessionTaint);
+
+  if (current !== null && effective !== current) {
+    log.warn("Browser profile watermark escalated", {
+      agentId,
+      from: current,
+      to: effective,
+    });
+  }
 
   await storage.set(watermarkKey(agentId), effective);
   return effective;

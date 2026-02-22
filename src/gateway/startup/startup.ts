@@ -32,7 +32,6 @@ import {
 import {
   mapToolPrefixClassifications,
 } from "../../agent/orchestrator.ts";
-import type { ToolDefinition } from "../../core/types/tool.ts";
 import { createProviderRegistry } from "../../agent/llm.ts";
 import {
   loadProvidersFromConfig,
@@ -614,7 +613,11 @@ export async function runStart(): Promise<void> {
         channelId: "daemon" as ChannelId,
       });
       // Close browser so next session gets a fresh launch
-      browserHandle.close().catch(() => {});
+      browserHandle.close().catch((err: unknown) => {
+        log.debug("Browser close failed during session reset", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     },
     pairingService,
     pathClassifier,
@@ -659,6 +662,7 @@ export async function runStart(): Promise<void> {
   // Register Tidepool for trigger/scheduler notification delivery
   notificationService.registerChannel({
     name: "tidepool",
+    // deno-lint-ignore require-await
     send: async (msg) => { tidepoolHost.broadcastNotification(msg); },
   });
 
@@ -693,6 +697,7 @@ export async function runStart(): Promise<void> {
   // Register CLI WebSocket for trigger/scheduler notification delivery
   notificationService.registerChannel({
     name: "cli-websocket",
+    // deno-lint-ignore require-await
     send: async (msg) => { server.broadcastNotification(msg); },
   });
 

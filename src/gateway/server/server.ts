@@ -20,6 +20,9 @@ import {
   routeWebhookHttp,
   upgradeChatWebSocket,
 } from "./handlers.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("gateway");
 import type { JsonRpcRequest } from "./handlers.ts";
 
 // Re-export handler types for backward compatibility
@@ -193,8 +196,10 @@ export function createGatewayServer(
                 { status: 503, headers: { "content-type": "application/json" } },
               );
             }
-            schedulerService.runTrigger().catch(() => {
-              // fire-and-forget; errors are logged inside runTrigger
+            schedulerService.runTrigger().catch((err: unknown) => {
+              log.warn("Trigger execution failed", {
+                error: err instanceof Error ? err.message : String(err),
+              });
             });
             return new Response(
               JSON.stringify({ ok: true, message: "Trigger fired" }),

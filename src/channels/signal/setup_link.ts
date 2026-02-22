@@ -3,7 +3,10 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/logger.ts";
 import type { Result } from "../../core/types/classification.ts";
+
+const log = createLogger("signal");
 
 /**
  * Run `signal-cli link` and capture the sgnl:// URI.
@@ -77,7 +80,8 @@ export async function renderQrCode(uri: string): Promise<void> {
       errorCorrectionLevel: "L",
     });
     console.log("\n" + qrText);
-  } catch {
+  } catch (err: unknown) {
+    log.debug("QR code library not available, trying qrencode", { error: err });
     try {
       const cmd = new Deno.Command("qrencode", {
         args: ["-t", "UTF8", "-o", "-", uri],
@@ -89,7 +93,9 @@ export async function renderQrCode(uri: string): Promise<void> {
         console.log("\n" + new TextDecoder().decode(output.stdout));
         return;
       }
-    } catch { /* qrencode not available */ }
+    } catch (_fallbackErr: unknown) {
+      log.debug("qrencode binary not available");
+    }
 
     console.log("\nCould not render QR code. Open this URI in a QR code generator:");
     console.log(`\n  ${uri}\n`);

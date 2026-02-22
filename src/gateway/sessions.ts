@@ -17,6 +17,9 @@ import type {
   SessionState,
 } from "../core/types/session.ts";
 import type { SessionManager } from "../core/session/manager.ts";
+import { createLogger } from "../core/logger/logger.ts";
+
+const log = createLogger("session");
 
 /** Session types for classification and routing. */
 export type SessionType = "MAIN" | "CHANNEL" | "BACKGROUND" | "AGENT";
@@ -130,6 +133,11 @@ export function createEnhancedSessionManager(
 
       // Enforce no write-down: source taint must be able to flow to target
       if (!canFlowTo(source.taint, targetClassification)) {
+        log.warn("Inter-session write-down blocked", {
+          fromSessionId: fromId,
+          sourceTaint: source.taint,
+          targetClassification,
+        });
         return {
           ok: false,
           error:

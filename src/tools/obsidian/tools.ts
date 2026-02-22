@@ -14,8 +14,11 @@ import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { canFlowTo } from "../../core/types/classification.ts";
 import type { LineageOrigin, LineageClassification } from "../../core/session/lineage.ts";
 import { getClassificationForPath } from "./vault.ts";
+import { createLogger } from "../../core/logger/logger.ts";
 
 import type { ObsidianToolContext } from "./tools_defs.ts";
+
+const log = createLogger("security");
 
 // ─── Barrel re-exports from tools_defs.ts ───────────────────────────────────
 
@@ -98,6 +101,11 @@ export function createObsidianToolExecutor(
         // Classification check: note classification must flow to session taint
         const noteClassification = getClassificationForPath(ctx.vaultContext, notePath);
         if (!canFlowTo(noteClassification, ctx.getSessionTaint())) {
+          log.warn("Obsidian read blocked: classification exceeds session taint", {
+            notePath,
+            noteClassification,
+            sessionTaint: ctx.getSessionTaint(),
+          });
           return `Error: Access denied — note classification ${noteClassification} exceeds session level ${ctx.getSessionTaint()}.`;
         }
 
@@ -135,6 +143,11 @@ export function createObsidianToolExecutor(
         // Session taint must flow to folder classification
         const folderClassification = getClassificationForPath(ctx.vaultContext, notePath);
         if (!canFlowTo(ctx.getSessionTaint(), folderClassification)) {
+          log.warn("Obsidian write-down blocked", {
+            notePath,
+            sessionTaint: ctx.getSessionTaint(),
+            folderClassification,
+          });
           return `Error: Write-down prevented — session taint ${ctx.getSessionTaint()} cannot write to folder classified ${folderClassification}.`;
         }
 

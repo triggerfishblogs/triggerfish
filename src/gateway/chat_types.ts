@@ -28,7 +28,7 @@ import type {
 } from "../core/types/tool.ts";
 
 export type { ChatEvent, ChatClientMessage, ChatEventSender } from "../core/types/chat_event.ts";
-import type { ChatEvent, ChatClientMessage, ChatEventSender } from "../core/types/chat_event.ts";
+import type { ChatEventSender } from "../core/types/chat_event.ts";
 
 /**
  * Per-channel classification config for non-owner user sessions.

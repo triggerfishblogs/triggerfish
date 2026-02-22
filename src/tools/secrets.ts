@@ -16,6 +16,9 @@
 
 import type { ToolDefinition } from "../core/types/tool.ts";
 import type { SecretStore } from "../core/secrets/keychain.ts";
+import { createLogger } from "../core/logger/logger.ts";
+
+const log = createLogger("secrets");
 
 /**
  * Platform-supplied callback to collect a secret value from the user
@@ -126,6 +129,7 @@ export function createSecretToolExecutor(
           return "Error: secret_save requires a 'name' argument (string).";
         }
         const trimmedName = secretName.trim();
+        log.warn("Secret save requested via LLM tool", { name: trimmedName });
         const hint =
           typeof input.hint === "string" ? input.hint.trim() : undefined;
 
@@ -163,6 +167,7 @@ export function createSecretToolExecutor(
           return "Error: secret_delete requires a 'name' argument (string).";
         }
         const trimmedName = secretName.trim();
+        log.warn("Secret delete requested via LLM tool", { name: trimmedName });
         const result = await store.deleteSecret(trimmedName);
         if (!result.ok) {
           return `Error deleting secret '${trimmedName}': ${result.error}`;

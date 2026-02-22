@@ -15,6 +15,9 @@ import type {
   ChannelStatus,
   MessageHandler,
 } from "../types.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("webchat");
 
 /** Configuration for the WebChat channel adapter. */
 export interface WebChatConfig {
@@ -65,6 +68,7 @@ export function createWebChatChannel(config: WebChatConfig = {}): ChannelAdapter
           const sessionId = `webchat-${crypto.randomUUID()}`;
 
           socket.onopen = () => {
+            log.debug("WebSocket client connected", { sessionId });
             connections.set(sessionId, socket);
             // Send session ID to client
             socket.send(JSON.stringify({
@@ -92,6 +96,7 @@ export function createWebChatChannel(config: WebChatConfig = {}): ChannelAdapter
           };
 
           socket.onclose = () => {
+            log.debug("WebSocket client disconnected", { sessionId });
             connections.delete(sessionId);
           };
 
@@ -103,6 +108,7 @@ export function createWebChatChannel(config: WebChatConfig = {}): ChannelAdapter
       });
 
       connected = true;
+      log.info("WebChat adapter connected", { port });
     },
 
     async disconnect(): Promise<void> {
@@ -121,6 +127,7 @@ export function createWebChatChannel(config: WebChatConfig = {}): ChannelAdapter
         server = null;
       }
       connected = false;
+      log.info("WebChat adapter disconnected");
     },
 
     // deno-lint-ignore require-await

@@ -8,6 +8,7 @@
  */
 
 import type { LlmProviderRegistry, LlmProvider } from "../llm.ts";
+import { createLogger } from "../../core/logger/logger.ts";
 import { createAnthropicProvider } from "./anthropic.ts";
 import { createOpenAiProvider } from "./openai.ts";
 import { createGoogleProvider } from "./google.ts";
@@ -57,6 +58,7 @@ export function loadProvidersFromConfig(
   modelsConfig: ModelsConfig,
   registry: LlmProviderRegistry,
 ): void {
+  const log = createLogger("providers");
   const providers = modelsConfig.providers;
 
   if (providers.anthropic) {
@@ -120,6 +122,9 @@ export function loadProvidersFromConfig(
   const defaultProvider = modelsConfig.primary.provider;
   if (defaultProvider && registry.get(defaultProvider)) {
     registry.setDefault(defaultProvider);
+    log.info("Primary provider set", { provider: defaultProvider, model: modelsConfig.primary.model });
+  } else {
+    log.warn("Primary provider not found in registry", { provider: defaultProvider });
   }
 }
 

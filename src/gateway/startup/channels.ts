@@ -79,7 +79,7 @@ export async function wireTelegramChannel(
       telegramAdapter.send({
         content: "Triggerfish connected. You can chat with me here.",
         sessionId: msg.sessionId,
-      }).catch((err) => log.error("Telegram send error:", err));
+      }).catch((err) => log.error("Telegram /start greeting send failed", err));
       return;
     }
 
@@ -95,17 +95,17 @@ export async function wireTelegramChannel(
           })
         )
         .then(() => notificationService.flushPending("owner" as UserId))
-        .catch((err) => log.error("Telegram clear error:", err));
+        .catch((err) => log.error("Telegram /clear session reset failed", err));
       return;
     }
 
     if (msg.isOwner !== false) {
       const sendEvent = buildSendEvent(telegramAdapter, "Telegram", msg);
       chatSession.executeAgentTurn(msg.content, sendEvent)
-        .catch((err) => log.error("Telegram message processing error:", err));
+        .catch((err) => log.error("Telegram owner executeAgentTurn failed", err));
     } else {
       chatSession.handleChannelMessage(msg, "telegram")
-        .catch((err) => log.error("Telegram message processing error:", err));
+        .catch((err) => log.error("Telegram external handleChannelMessage failed", err));
     }
   });
 
@@ -180,17 +180,17 @@ export async function wireDiscordChannel(
             "Session cleared. Your context and taint level have been reset to PUBLIC.\n\nWhat would you like to do?",
           sessionId: msg.sessionId,
         }).then(() => notificationService.flushPending("owner" as UserId))
-          .catch((err) => log.error("Discord send error:", err));
+          .catch((err) => log.error("Discord /clear session reset send failed", err));
         return;
       }
 
       if (msg.isOwner !== false) {
         const sendEvent = buildSendEvent(discordAdapter, "Discord", msg);
         chatSession.executeAgentTurn(msg.content, sendEvent)
-          .catch((err) => log.error("Discord message processing error:", err));
+          .catch((err) => log.error("Discord owner executeAgentTurn failed", err));
       } else {
         chatSession.handleChannelMessage(msg, "discord")
-          .catch((err) => log.error("Discord message processing error:", err));
+          .catch((err) => log.error("Discord external handleChannelMessage failed", err));
       }
     });
 
@@ -396,7 +396,7 @@ export function wireSignalChannel(
 
       signalAdapter.onMessage((msg) => {
         chatSession.handleChannelMessage(msg, "signal")
-          .catch((err) => log.error("Signal message processing error:", err));
+          .catch((err) => log.error("Signal handleChannelMessage failed", err));
       });
 
       if (signalOwnerPhone) {

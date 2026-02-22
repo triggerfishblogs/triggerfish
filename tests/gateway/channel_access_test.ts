@@ -411,6 +411,7 @@ Deno.test("buildSendEvent: write-down blocked tool sends direct notification to 
   const mockLlm: LlmProvider = {
     name: "mock-tool-llm",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete(_messages, _tools, _options) {
       callCount++;
       if (callCount === 1) {
@@ -474,7 +475,7 @@ Deno.test("buildSendEvent: write-down blocked tool sends direct notification to 
     ],
     // toolExecutor is present so the orchestrator passes native tools to the LLM;
     // it will NOT be reached because write-down blocks the call before execution.
-    toolExecutor: async (name, _input) => `Tool ${name} executed`,
+    toolExecutor: (name: string, _input: unknown) => `Tool ${name} executed`,
   });
 
   const { adapter, sent } = createMockAdapter("INTERNAL" as ClassificationLevel);
@@ -517,6 +518,7 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
   const mockLlm: LlmProvider = {
     name: "mock-nonowner-llm",
     supportsStreaming: false,
+    // deno-lint-ignore require-await
     async complete(_messages, _tools, _options) {
       callCount++;
       if (callCount === 1) {
@@ -580,7 +582,7 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
         },
       },
     ],
-    toolExecutor: async (name, _input) => `Sent via ${name}`,
+    toolExecutor: (name: string, _input: unknown) => `Sent via ${name}`,
   });
 
   const { adapter, sent } = createMockAdapter("INTERNAL" as ClassificationLevel);

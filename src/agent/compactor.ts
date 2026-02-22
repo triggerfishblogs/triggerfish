@@ -31,7 +31,6 @@ export interface CompactorConfig {
 }
 
 export type { CompactResult } from "../core/types/orchestrator.ts";
-import type { CompactResult } from "../core/types/orchestrator.ts";
 
 /** The compactor interface for managing conversation history size. */
 export interface Compactor {

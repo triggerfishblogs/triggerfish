@@ -1,0 +1,144 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  lint:
+    if: "!github.event.pull_request.draft"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Lint
+        run: deno task lint
+
+      - name: Type check
+        run: deno task check
+
+  hygiene:
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          use_sticky_comment: true
+          prompt: |
+            You are a PR hygiene checker for the Triggerfish project.
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            First, gather data by running these two commands:
+            1. `gh pr diff ${{ github.event.pull_request.number }} --stat`
+            2. `gh pr diff ${{ github.event.pull_request.number }}`
+
+            Then evaluate these hygiene criteria on the changed files ONLY:
+            1. Any new file over 300 lines?
+            2. Any new exported function with a vague name (process, handle, run, execute, check, validate, do, perform, manage)?
+            3. Any new file missing a JSDoc @module comment?
+            4. Any new file not re-exported by its directory's mod.ts?
+            5. Any .claude/rules/ paths frontmatter that should be updated?
+
+            Post a single PR comment with your findings as a markdown table.
+            If everything is clean, comment "Hygiene check passed."
+          allowed_bots: 'claude'
+          claude_args: "--model sonnet --max-turns 6 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Read,Glob,Grep'"
+
+  serviceability:
+    needs: hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          use_sticky_comment: true
+          prompt: |
+            You are a serviceability auditor for the Triggerfish project.
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            First, gather data by running these two commands:
+            1. `gh pr diff ${{ github.event.pull_request.number }} --stat`
+            2. `gh pr diff ${{ github.event.pull_request.number }}`
+
+            Then evaluate ONLY the changed .ts files (skip tests, type-only files, barrel mod.ts) against these rules:
+
+            BLOCKING (report as ❌):
+            - R001: catch blocks that don't log, rethrow, or return a typed Result/error. Silent error swallowing is a defect.
+            - R010: empty .catch() handlers — .catch(() => {}), .catch(() => undefined), .catch((_) => null). Invisible promise failures.
+            - R013: log messages that don't identify the specific operation. Defects include:
+              - Generic: "error occurred", "something went wrong", "failed", "there was an error", "processing failed", "request failed", "operation failed", "unexpected error"
+              - Meaningless: "here", "debug", "test", "TODO", "???"
+              - Boolean-only: "success", "done", "ok", "complete" with no indication of WHAT
+              The message string alone must tell someone with zero codebase knowledge what happened. Good: "LLM provider request failed", "Webhook HMAC verification failed", "Slack message delivery timed out". Bad: "there was an error", "failed".
+
+            WARNINGS (report as ⚠️):
+            - R002: logger.error() with only a string message and no structured context object { operation, ids, err }.
+            - R004: raw console.log/warn/error usage instead of the structured logger.
+            - R005: security operations (escalateTaint, classify, canFlowTo, hookRunner.run, verifyHmac, authenticate, authorize) without logging within ±5 lines.
+            - R007: logging err.message instead of the full error object. Stack traces matter.
+            - R011: channel adapter files (src/channels/) missing message lifecycle logging (connect, receive, deliver, errors).
+            - R012: security events (denied, blocked, violation, taint change) logged at DEBUG/TRACE instead of WARN+.
+            - R014: branching logic in security, routing, provider selection, or tool dispatch where only one path logs or where the log doesn't capture decision inputs (which rule matched, session taint, target classification, which provider failed and which was selected next). The log must reconstruct the decision chain without a debugger.
+
+            Post a single PR comment with your findings as a markdown table.
+            Group by severity (blocking first, then warnings).
+            Include file path, line number, rule ID, and the offending code snippet for each finding.
+            If everything is clean, comment "Serviceability check passed ✅"
+          allowed_bots: 'claude'
+          claude_args: "--model sonnet --max-turns 8 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep'"
+
+  code-review:
+    needs: serviceability
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: 'https://github.com/anthropics/claude-plugins-official.git'
+          plugins: 'code-review@claude-plugins-official'
+          additional_permissions: |
+            actions: read
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Run /code-review on this pull request.
+          allowed_bots: 'claude'
+          claude_args: "--model sonnet --max-turns 15"

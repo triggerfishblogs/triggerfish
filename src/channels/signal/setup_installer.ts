@@ -3,6 +3,7 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/logger.ts";
 import type { Result } from "../../core/types/classification.ts";
 import type { GitHubRelease } from "./setup_resolver.ts";
 import {
@@ -13,6 +14,8 @@ import {
   tryJava,
   trySignalCli,
 } from "./setup_resolver.ts";
+
+const log = createLogger("signal");
 
 /** Adoptium API response shape for asset metadata (subset). */
 interface AdoptiumAsset {
@@ -130,7 +133,12 @@ export async function downloadJre(): Promise<Result<string, string>> {
         stderr: "piped",
       });
       const psOut = await ps.output();
-      await Deno.remove(tmpZip).catch(() => {});
+      await Deno.remove(tmpZip).catch((err: unknown) => {
+        log.debug("Temp zip cleanup failed", {
+          path: tmpZip,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
       if (!psOut.success) {
         const stderr = new TextDecoder().decode(psOut.stderr);
         return { ok: false, error: `JRE zip extraction failed: ${stderr}` };
@@ -167,7 +175,9 @@ export async function downloadJre(): Promise<Result<string, string>> {
     const entries: string[] = [];
     try {
       for await (const e of Deno.readDir(javaDir)) entries.push(e.name);
-    } catch { /* */ }
+    } catch (_err: unknown) {
+      log.debug("JRE directory listing failed", { path: javaDir });
+    }
     return { ok: false, error: `JRE extracted but JAVA_HOME not found. Contents: [${entries.join(", ")}]` };
   }
 
@@ -261,7 +271,7 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
   // Extract via tar — pipe download stream to `tar xzf - -C binDir`
   try {
     // Clean any previous install of this version
-    try { await Deno.remove(installDir, { recursive: true }); } catch { /* doesn't exist */ }
+    try { await Deno.remove(installDir, { recursive: true }); } catch (_err: unknown) { log.debug("Previous signal-cli install directory removal skipped", { path: installDir }); }
 
     const tar = new Deno.Command("tar", {
       args: ["xzf", "-", "-C", binDir],
@@ -305,7 +315,9 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
       await Deno.stat(candidate);
       binaryPath = candidate;
       break;
-    } catch { /* try next */ }
+    } catch (_err: unknown) {
+      log.debug("Signal-cli binary candidate not found", { path: candidate });
+    }
   }
 
   if (!binaryPath) {
@@ -315,7 +327,9 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
       for await (const e of Deno.readDir(binDir)) {
         entries.push(e.name);
       }
-    } catch { /* */ }
+    } catch (_err: unknown) {
+      log.debug("Signal-cli bin directory listing failed", { path: binDir });
+    }
     return { ok: false, error: `Binary not found after extraction. binDir contents: [${entries.join(", ")}]` };
   }
 
@@ -323,7 +337,9 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
   if (Deno.build.os !== "windows") {
     try {
       await Deno.chmod(binaryPath, 0o755);
-    } catch { /* already executable */ }
+    } catch (_err: unknown) {
+      log.debug("Signal-cli binary chmod failed", { path: binaryPath });
+    }
   }
 
   // Verify it runs (pass JAVA_HOME for JVM builds)

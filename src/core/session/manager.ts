@@ -20,6 +20,9 @@ import {
   updateTaint,
 } from "../types/session.ts";
 import type { StorageProvider } from "../storage/provider.ts";
+import { createLogger } from "../logger/logger.ts";
+
+const log = createLogger("session");
 
 /** Key prefix for sessions stored via StorageProvider. */
 const SESSION_PREFIX = "sessions:";
@@ -122,6 +125,14 @@ export function createSessionManager(
       }
       const current = deserialise(raw);
       const updated = updateTaint(current, level, reason);
+      if (updated.taint !== current.taint) {
+        log.warn("Session taint updated", {
+          sessionId: id,
+          from: current.taint,
+          to: updated.taint,
+          reason,
+        });
+      }
       await storage.set(SESSION_PREFIX + id, serialise(updated));
       return updated;
     },
@@ -132,6 +143,12 @@ export function createSessionManager(
         throw new Error(`Session not found: ${id}`);
       }
       const current = deserialise(raw);
+      log.warn("Session reset", {
+        oldSessionId: id,
+        previousTaint: current.taint,
+        userId: current.userId,
+        channelId: current.channelId,
+      });
       // Delete old session
       await storage.delete(SESSION_PREFIX + id);
       // Create fresh session preserving user/channel

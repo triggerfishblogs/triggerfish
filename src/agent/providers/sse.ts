@@ -7,6 +7,9 @@
  */
 
 import type { LlmStreamChunk } from "../llm.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("llm");
 
 /**
  * Parse an SSE response stream from an OpenAI-compatible endpoint.
@@ -86,8 +89,10 @@ export async function* parseSseStream(
             inputTokens = parsed.usage.prompt_tokens ?? 0;
             outputTokens = parsed.usage.completion_tokens ?? 0;
           }
-        } catch {
-          // Skip unparseable lines
+        } catch (parseErr: unknown) {
+          log.debug("SSE line parse failed", {
+            error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+          });
         }
       }
     }

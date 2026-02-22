@@ -10,6 +10,7 @@
  * @module
  */
 
+import { createLogger } from "../core/logger/logger.ts";
 import type { ChannelAdapter, ChannelMessage } from "./types.ts";
 
 /** Configuration for router retry behavior. */
@@ -56,6 +57,7 @@ export interface ChannelRouter {
 export function createChannelRouter(
   retryConfig: RouterRetryConfig = {},
 ): ChannelRouter {
+  const log = createLogger("router");
   const adapters = new Map<string, ChannelAdapter>();
   const maxRetries = retryConfig.maxRetries ?? 3;
   const baseDelay = retryConfig.baseDelay ?? 1000;
@@ -88,7 +90,8 @@ export function createChannelRouter(
         try {
           await adapter.send(message);
           return true;
-        } catch {
+        } catch (err: unknown) {
+          log.warn("Channel send failed", { channelId, attempt, error: err });
           if (attempt === maxRetries) return false;
           // Exponential backoff: baseDelay * 2^attempt
           const delay = baseDelay * Math.pow(2, attempt);

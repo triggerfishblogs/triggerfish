@@ -9,6 +9,10 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("security");
+
 /**
  * Sign a webhook payload with HMAC-SHA256.
  *
@@ -63,11 +67,18 @@ export async function verifyWebhookSignature(
   const expected = await signWebhook(secret, payload);
 
   // Constant-time comparison to prevent timing attacks
-  if (expected.length !== signature.length) return false;
+  if (expected.length !== signature.length) {
+    log.warn("Webhook signature verification failed: length mismatch");
+    return false;
+  }
 
   let diff = 0;
   for (let i = 0; i < expected.length; i++) {
     diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
+  }
+
+  if (diff !== 0) {
+    log.warn("Webhook signature verification failed: signature mismatch");
   }
 
   return diff === 0;

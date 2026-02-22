@@ -10,6 +10,9 @@
 
 import type { ClassificationLevel } from "./classification.ts";
 import { canFlowTo, maxClassification } from "./classification.ts";
+import { createLogger } from "../logger/logger.ts";
+
+const log = createLogger("session");
 
 /** Branded type for session identifiers. */
 export type SessionId = string & { readonly __brand: unique symbol };
@@ -80,6 +83,14 @@ export function updateTaint(
     return { ...session };
   }
 
+  log.warn("Taint escalation", {
+    sessionId: session.id,
+    from: session.taint,
+    to: newTaint,
+    reason,
+    sourceId,
+  });
+
   const event: TaintEvent = {
     timestamp: new Date(),
     previousLevel: session.taint,
@@ -104,7 +115,15 @@ export function canOutput(
   session: SessionState,
   targetClassification: ClassificationLevel,
 ): boolean {
-  return canFlowTo(session.taint, targetClassification);
+  const allowed = canFlowTo(session.taint, targetClassification);
+  if (!allowed) {
+    log.warn("Write-down blocked", {
+      sessionId: session.id,
+      sessionTaint: session.taint,
+      targetClassification,
+    });
+  }
+  return allowed;
 }
 
 /**

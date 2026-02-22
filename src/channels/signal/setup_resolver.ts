@@ -3,8 +3,11 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/logger.ts";
 import type { Result } from "../../core/types/classification.ts";
 import { resolveBaseDir } from "../../cli/config/paths.ts";
+
+const log = createLogger("signal");
 
 /**
  * Minimum known-good signal-cli version. Warn (but don't block) if the
@@ -75,7 +78,7 @@ export async function trySignalCli(path: string, env?: Record<string, string>): 
 
     if (result === null) {
       // Timeout — kill the hung process
-      try { child.kill(); } catch { /* already dead */ }
+      try { child.kill(); } catch (_err: unknown) { log.debug("Process cleanup: already terminated"); }
       return { ok: false, error: "timed out" };
     }
 
@@ -84,7 +87,8 @@ export async function trySignalCli(path: string, env?: Record<string, string>): 
       return { ok: true, value: { version, path } };
     }
     return { ok: false, error: "non-zero exit" };
-  } catch {
+  } catch (_err: unknown) {
+    log.debug("Signal-cli binary not found", { path });
     return { ok: false, error: "not found" };
   }
 }
@@ -133,8 +137,8 @@ export async function checkSignalCli(): Promise<Result<{ version: string; path: 
         if (result.ok) return result;
       }
     }
-  } catch {
-    // binDir doesn't exist yet
+  } catch (_err: unknown) {
+    log.debug("File access failed", { path: binDir });
   }
 
   return { ok: false, error: "signal-cli not found" };
@@ -155,7 +159,7 @@ export async function tryJava(path: string): Promise<Result<string, string>> {
     ]);
 
     if (output === null) {
-      try { child.kill(); } catch { /* already dead */ }
+      try { child.kill(); } catch (_err: unknown) { log.debug("Process cleanup: already terminated"); }
       return { ok: false, error: "timed out" };
     }
 
@@ -172,7 +176,8 @@ export async function tryJava(path: string): Promise<Result<string, string>> {
       return { ok: false, error: `Java ${major} found, but signal-cli requires Java 21+` };
     }
     return { ok: true, value: versionText.split("\n")[0] };
-  } catch {
+  } catch (_err: unknown) {
+    log.debug("Java binary not found", { path });
     return { ok: false, error: "not found" };
   }
 }
@@ -190,18 +195,22 @@ export function resolveJavaHome(): string | null {
           try {
             Deno.statSync(`${macHome}/bin/java`);
             return macHome;
-          } catch { /* not macOS layout */ }
+          } catch (_err: unknown) {
+            log.debug("File access failed", { path: `${macHome}/bin/java` });
+          }
         }
         // Linux / Windows / direct layout
         const javaBinName = Deno.build.os === "windows" ? "java.exe" : "java";
         try {
           Deno.statSync(`${candidate}/bin/${javaBinName}`);
           return candidate;
-        } catch { /* try next */ }
+        } catch (_err: unknown) {
+          log.debug("File access failed", { path: `${candidate}/bin/${javaBinName}` });
+        }
       }
     }
-  } catch {
-    // java dir doesn't exist yet
+  } catch (_err: unknown) {
+    log.debug("File access failed", { path: javaDir });
   }
   return null;
 }

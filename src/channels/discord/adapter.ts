@@ -13,6 +13,7 @@ import {
   GatewayIntentBits,
   Partials,
 } from "discord.js";
+import { createLogger } from "../../core/logger/logger.ts";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import type {
   ChannelAdapter,
@@ -51,6 +52,7 @@ export interface DiscordChannelAdapter extends ChannelAdapter {
  * @returns A DiscordChannelAdapter wired to Discord.
  */
 export function createDiscordChannel(config: DiscordConfig): DiscordChannelAdapter {
+  const log = createLogger("discord");
   const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
   const ownerId = config.ownerId;
   let connected = false;
@@ -75,6 +77,7 @@ export function createDiscordChannel(config: DiscordConfig): DiscordChannelAdapt
       ? message.author.id === ownerId
       : true;
 
+    log.debug("Message received", { channelId: message.channelId, senderId: message.author.id, isOwner });
     handler({
       content: message.content,
       sessionId: `discord-${message.channelId}`,
@@ -91,11 +94,13 @@ export function createDiscordChannel(config: DiscordConfig): DiscordChannelAdapt
     async connect(): Promise<void> {
       await client.login(config.botToken);
       connected = true;
+      log.info("Discord adapter connected");
     },
 
     async disconnect(): Promise<void> {
       await client.destroy();
       connected = false;
+      log.info("Discord adapter disconnected");
     },
 
     async send(message: ChannelMessage): Promise<void> {
@@ -131,8 +136,8 @@ export function createDiscordChannel(config: DiscordConfig): DiscordChannelAdapt
         if (channel && "sendTyping" in channel) {
           await (channel as { sendTyping: () => Promise<void> }).sendTyping();
         }
-      } catch {
-        // Best-effort: typing indicators are non-critical
+      } catch (err: unknown) {
+        log.debug("Discord typing indicator send failed", { channelId, error: err });
       }
     },
   };

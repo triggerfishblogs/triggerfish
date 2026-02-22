@@ -140,7 +140,7 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
       try {
         textContent = response.text();
       } catch {
-        // No text content (function-call-only response)
+        // Expected: Gemini throws when response contains only function calls and no text
       }
 
       return {

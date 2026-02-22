@@ -8,6 +8,7 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/logger.ts";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import type {
   ChannelAdapter,
@@ -54,6 +55,7 @@ export interface EmailConfig {
  * @returns A ChannelAdapter wired to email.
  */
 export function createEmailChannel(config: EmailConfig): ChannelAdapter {
+  const log = createLogger("email");
   const classification = (config.classification ?? "CONFIDENTIAL") as ClassificationLevel;
   const pollInterval = config.pollInterval ?? 30000;
   let connected = false;
@@ -84,6 +86,7 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
       // Do initial poll
       await pollEmails();
       connected = true;
+      log.info("Email adapter connected", { imapHost: config.imapHost });
     },
 
     async disconnect(): Promise<void> {
@@ -93,6 +96,7 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
       }
       await imapClient.disconnect();
       connected = false;
+      log.info("Email adapter disconnected");
     },
 
     async send(message: ChannelMessage): Promise<void> {
@@ -145,6 +149,7 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
           ? msg.from === config.ownerEmail
           : true;
 
+        log.debug("Email received", { from: msg.from, subject: msg.subject, isOwner });
         handler({
           content: msg.body || msg.subject,
           sessionId,
@@ -153,8 +158,8 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
           sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
         });
       }
-    } catch {
-      // IMAP fetch failed — will retry on next poll
+    } catch (err: unknown) {
+      log.warn("IMAP unseen email poll failed", { error: err });
     }
   }
 }

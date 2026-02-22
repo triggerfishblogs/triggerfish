@@ -13,6 +13,9 @@ import type { NotificationService } from "../notifications/notifications.ts";
 import type { ChatSession, ChatClientMessage } from "../chat.ts";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import type { SessionId, UserId, ChannelId } from "../../core/types/session.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("gateway");
 
 // ─── JSON-RPC types ──────────────────────────────────────────────────────────
 
@@ -278,8 +281,10 @@ export function upgradeChatWebSocket(
             // Client disconnected
           }
         };
-        chat.compact(send).catch(() => {
-          // Error already sent via compact_error event
+        chat.compact(send).catch((err: unknown) => {
+          log.debug("Compact failed after compact_error event sent", {
+            error: err instanceof Error ? err.message : String(err),
+          });
         });
         return;
       }
