@@ -103,7 +103,11 @@ export function createLogger(component: string): Logger {
 
     if (globalFileWriter) {
       // Fire-and-forget write — do not block the caller
-      globalFileWriter.write(line).catch(() => {});
+      globalFileWriter.write(line).catch((err: unknown) => {
+        Deno.stderr.writeSync(new TextEncoder().encode(
+          `[logger] File write failed: ${err instanceof Error ? err.message : String(err)}\n`,
+        ));
+      });
     }
   }
 
