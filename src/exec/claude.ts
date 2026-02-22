@@ -12,6 +12,9 @@
  */
 
 import type { Result } from "../core/types/classification.ts";
+import { createLogger } from "../core/logger/logger.ts";
+
+const log = createLogger("exec");
 
 // ─── Re-exports from claude_tools.ts ─────────────────────────────
 export {
@@ -288,7 +291,11 @@ export function createClaudeSessionManager(
         clearTimeout(entry.timeoutId);
       }
       // Close stdin writer to prevent resource leaks
-      entry.stdinWriter.close().catch(() => {});
+      entry.stdinWriter.close().catch((err: unknown) => {
+        log.debug("Stdin writer close failed on session exit", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     });
   }
 
@@ -494,7 +501,11 @@ export function createClaudeSessionManager(
       }
 
       try {
-        entry.stdinWriter.close().catch(() => {});
+        entry.stdinWriter.close().catch((err: unknown) => {
+          log.debug("Stdin writer close failed during termination", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
       } catch {
         // Already closed
       }
