@@ -108,7 +108,9 @@ async function dispatchToSubsystems(
 // ─── Built-in tool handlers ──────────────────────────────────────────────────
 
 /** Handle read_file tool call. */
-async function executeReadFile(input: Record<string, unknown>): Promise<string> {
+async function executeReadFile(
+  input: Record<string, unknown>,
+): Promise<string> {
   const path = input.path;
   if (typeof path !== "string" || path.length === 0) {
     return "Error: read_file requires a 'path' argument (string).";
@@ -116,7 +118,9 @@ async function executeReadFile(input: Record<string, unknown>): Promise<string> 
   try {
     return await Deno.readTextFile(path);
   } catch (err) {
-    return `Error reading file: ${err instanceof Error ? err.message : String(err)}`;
+    return `Error reading file: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   }
 }
 
@@ -140,7 +144,9 @@ async function executeWriteFile(
 }
 
 /** Handle list_directory tool call. */
-async function executeListDirectory(input: Record<string, unknown>): Promise<string> {
+async function executeListDirectory(
+  input: Record<string, unknown>,
+): Promise<string> {
   const path = input.path;
   if (typeof path !== "string" || path.length === 0) {
     return "Error: list_directory requires a 'path' argument (string).";
@@ -153,7 +159,9 @@ async function executeListDirectory(input: Record<string, unknown>): Promise<str
     }
     return entries.length > 0 ? entries.join("\n") : "(empty directory)";
   } catch (err) {
-    return `Error listing directory: ${err instanceof Error ? err.message : String(err)}`;
+    return `Error listing directory: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   }
 }
 
@@ -176,8 +184,26 @@ async function executeRunCommand(
   return parts.join("\n");
 }
 
+/** Run a search command and return stdout or a fallback message. */
+async function runSearchCommand(
+  cmd: string,
+  args: string[],
+  emptyMessage: string,
+): Promise<string> {
+  const proc = new Deno.Command(cmd, {
+    args,
+    stdout: "piped",
+    stderr: "piped",
+  });
+  const output = await proc.output();
+  const stdout = new TextDecoder().decode(output.stdout).trim();
+  return stdout.length > 0 ? stdout : emptyMessage;
+}
+
 /** Handle search_files tool call (glob or content search). */
-async function executeSearchFiles(input: Record<string, unknown>): Promise<string> {
+async function executeSearchFiles(
+  input: Record<string, unknown>,
+): Promise<string> {
   const searchPath = input.path;
   const pattern = input.pattern;
   if (typeof searchPath !== "string" || searchPath.length === 0) {
@@ -186,34 +212,30 @@ async function executeSearchFiles(input: Record<string, unknown>): Promise<strin
   if (typeof pattern !== "string" || pattern.length === 0) {
     return "Error: search_files requires a 'pattern' argument (string).";
   }
-  const contentSearch = input.content_search === true;
   try {
-    if (contentSearch) {
-      const proc = new Deno.Command("grep", {
-        args: ["-rl", pattern, searchPath],
-        stdout: "piped",
-        stderr: "piped",
-      });
-      const output = await proc.output();
-      const stdout = new TextDecoder().decode(output.stdout).trim();
-      return stdout.length > 0 ? stdout : "No matches found.";
-    } else {
-      const proc = new Deno.Command("find", {
-        args: [searchPath, "-name", pattern, "-type", "f"],
-        stdout: "piped",
-        stderr: "piped",
-      });
-      const output = await proc.output();
-      const stdout = new TextDecoder().decode(output.stdout).trim();
-      return stdout.length > 0 ? stdout : "No files found matching pattern.";
+    if (input.content_search === true) {
+      return await runSearchCommand(
+        "grep",
+        ["-rl", pattern, searchPath],
+        "No matches found.",
+      );
     }
+    return await runSearchCommand(
+      "find",
+      [searchPath, "-name", pattern, "-type", "f"],
+      "No files found matching pattern.",
+    );
   } catch (err) {
-    return `Error searching: ${err instanceof Error ? err.message : String(err)}`;
+    return `Error searching: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   }
 }
 
 /** Handle edit_file tool call (find-and-replace unique string). */
-async function executeEditFile(input: Record<string, unknown>): Promise<string> {
+async function executeEditFile(
+  input: Record<string, unknown>,
+): Promise<string> {
   const path = input.path;
   const oldText = input.old_text;
   const newText = input.new_text;
@@ -237,7 +259,9 @@ async function executeEditFile(input: Record<string, unknown>): Promise<string> 
     await Deno.writeTextFile(path, updated);
     return `Edited ${path} (${updated.length} bytes written)`;
   } catch (err) {
-    return `Error editing file: ${err instanceof Error ? err.message : String(err)}`;
+    return `Error editing file: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   }
 }
 
@@ -254,7 +278,9 @@ async function executeSubagent(
   try {
     return await factory(task, toolsArg);
   } catch (err) {
-    return `Error spawning sub-agent: ${err instanceof Error ? err.message : String(err)}`;
+    return `Error spawning sub-agent: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   }
 }
 
@@ -263,7 +289,8 @@ function executeAgentsList(registry: LlmProviderRegistry): string {
   const defaultProvider = registry.getDefault();
   return JSON.stringify({
     default: defaultProvider?.name ?? "none",
-    note: "Use 'llm_task' with 'model' parameter to target a specific provider.",
+    note:
+      "Use 'llm_task' with 'model' parameter to target a specific provider.",
   });
 }
 
@@ -336,12 +363,22 @@ export function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
   const todoExecutor = opts.todoManager
     ? createTodoToolExecutor(opts.todoManager)
     : null;
-  const webExecutor = createWebToolExecutor(opts.searchProvider, opts.webFetcher);
+  const webExecutor = createWebToolExecutor(
+    opts.searchProvider,
+    opts.webFetcher,
+  );
 
-  return async (name: string, input: Record<string, unknown>): Promise<string> => {
+  return async (
+    name: string,
+    input: Record<string, unknown>,
+  ): Promise<string> => {
     // Try subsystem executors first
     const subsystemResult = await dispatchToSubsystems(
-      opts, todoExecutor, webExecutor, name, input,
+      opts,
+      todoExecutor,
+      webExecutor,
+      name,
+      input,
     );
     if (subsystemResult !== null) return subsystemResult;
 
