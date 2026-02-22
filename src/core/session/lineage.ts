@@ -89,6 +89,15 @@ export interface LineageStore {
   export(sessionId: SessionId): Promise<LineageRecord[]>;
 }
 
+/** Stored shape for a single transformation (timestamp as ISO string). */
+interface StoredTransformation {
+  readonly type: string;
+  readonly description: string;
+  readonly timestamp: string;
+  readonly agent_id?: string;
+  readonly input_lineage_ids?: readonly string[];
+}
+
 /** Serialisable shape stored in the StorageProvider. */
 interface StoredLineageRecord {
   readonly lineage_id: string;
@@ -97,13 +106,7 @@ interface StoredLineageRecord {
   readonly classification: LineageClassification;
   readonly sessionId: string;
   readonly inputLineageIds?: readonly string[];
-  readonly transformations?: readonly {
-    readonly type: string;
-    readonly description: string;
-    readonly timestamp: string;
-    readonly agent_id?: string;
-    readonly input_lineage_ids?: readonly string[];
-  }[];
+  readonly transformations?: readonly StoredTransformation[];
   readonly current_location?: LineageLocation;
 }
 
@@ -119,6 +122,21 @@ async function sha256(content: string): Promise<string> {
     .join("");
 }
 
+/** Serialise a single transformation to its stored shape. */
+function serialiseTransformation(
+  t: LineageTransformation,
+): StoredTransformation {
+  return {
+    type: t.type,
+    description: t.description,
+    timestamp: t.timestamp.toISOString(),
+    ...(t.agent_id !== undefined ? { agent_id: t.agent_id } : {}),
+    ...(t.input_lineage_ids !== undefined
+      ? { input_lineage_ids: t.input_lineage_ids }
+      : {}),
+  };
+}
+
 /** Convert a LineageRecord to its serialisable form. */
 function serialise(record: LineageRecord): string {
   const stored: StoredLineageRecord = {
@@ -131,23 +149,28 @@ function serialise(record: LineageRecord): string {
       ? { inputLineageIds: record.inputLineageIds }
       : {}),
     ...(record.transformations !== undefined
-      ? {
-          transformations: record.transformations.map((t) => ({
-            type: t.type,
-            description: t.description,
-            timestamp: t.timestamp.toISOString(),
-            ...(t.agent_id !== undefined ? { agent_id: t.agent_id } : {}),
-            ...(t.input_lineage_ids !== undefined
-              ? { input_lineage_ids: t.input_lineage_ids }
-              : {}),
-          })),
-        }
+      ? { transformations: record.transformations.map(serialiseTransformation) }
       : {}),
     ...(record.current_location !== undefined
       ? { current_location: record.current_location }
       : {}),
   };
   return JSON.stringify(stored);
+}
+
+/** Deserialise a single stored transformation back to its runtime shape. */
+function deserialiseTransformation(
+  t: StoredTransformation,
+): LineageTransformation {
+  return {
+    type: t.type,
+    description: t.description,
+    timestamp: new Date(t.timestamp),
+    ...(t.agent_id !== undefined ? { agent_id: t.agent_id } : {}),
+    ...(t.input_lineage_ids !== undefined
+      ? { input_lineage_ids: t.input_lineage_ids }
+      : {}),
+  };
 }
 
 /** Deserialise a stored JSON string back to a LineageRecord. */
@@ -164,16 +187,8 @@ function deserialise(json: string): LineageRecord {
       : {}),
     ...(stored.transformations !== undefined
       ? {
-          transformations: stored.transformations.map((t) => ({
-            type: t.type,
-            description: t.description,
-            timestamp: new Date(t.timestamp),
-            ...(t.agent_id !== undefined ? { agent_id: t.agent_id } : {}),
-            ...(t.input_lineage_ids !== undefined
-              ? { input_lineage_ids: t.input_lineage_ids }
-              : {}),
-          })),
-        }
+        transformations: stored.transformations.map(deserialiseTransformation),
+      }
       : {}),
     ...(stored.current_location !== undefined
       ? { current_location: stored.current_location }
@@ -191,6 +206,101 @@ function sessionIndexKey(sessionId: SessionId, lineageId: string): string {
   return `lineage-session:${sessionId as string}:${lineageId}`;
 }
 
+/** Build a LineageRecord from creation input, computing content hash. */
+async function buildLineageRecord(
+  input: LineageCreateInput,
+): Promise<LineageRecord> {
+  return {
+    lineage_id: crypto.randomUUID(),
+    content_hash: await sha256(input.content),
+    origin: input.origin,
+    classification: input.classification,
+    sessionId: input.sessionId,
+    ...(input.inputLineageIds !== undefined
+      ? { inputLineageIds: input.inputLineageIds }
+      : {}),
+    ...(input.transformations !== undefined
+      ? { transformations: input.transformations }
+      : {}),
+    ...(input.current_location !== undefined
+      ? { current_location: input.current_location }
+      : {}),
+  };
+}
+
+/** Persist a new lineage record and its session index entry. */
+async function persistLineageRecord(
+  storage: StorageProvider,
+  record: LineageRecord,
+): Promise<void> {
+  await storage.set(recordKey(record.lineage_id), serialise(record));
+  await storage.set(
+    sessionIndexKey(record.sessionId, record.lineage_id),
+    record.lineage_id,
+  );
+}
+
+/** Fetch a single lineage record by ID from storage. */
+async function fetchLineageRecord(
+  storage: StorageProvider,
+  id: string,
+): Promise<LineageRecord | null> {
+  const json = await storage.get(recordKey(id));
+  if (json === null) return null;
+  return deserialise(json);
+}
+
+/** Fetch all lineage records for a session via the secondary index. */
+async function fetchLineageRecordsBySession(
+  storage: StorageProvider,
+  sessionId: SessionId,
+): Promise<LineageRecord[]> {
+  const prefix = `lineage-session:${sessionId as string}:`;
+  const keys = await storage.list(prefix);
+  const records: LineageRecord[] = [];
+  for (const key of keys) {
+    const lineageId = await storage.get(key);
+    if (lineageId !== null) {
+      const record = await fetchLineageRecord(storage, lineageId);
+      if (record !== null) records.push(record);
+    }
+  }
+  return records;
+}
+
+/** Find all records that were derived from a given record (forward trace). */
+async function traceLineageForward(
+  storage: StorageProvider,
+  id: string,
+): Promise<LineageRecord[]> {
+  const allKeys = await storage.list("lineage:");
+  const results: LineageRecord[] = [];
+  for (const key of allKeys) {
+    const json = await storage.get(key);
+    if (json === null) continue;
+    const record = deserialise(json);
+    if (record.inputLineageIds?.includes(id)) {
+      results.push(record);
+    }
+  }
+  return results;
+}
+
+/** Find all source records that contributed to a given record (backward trace). */
+async function traceLineageBackward(
+  storage: StorageProvider,
+  id: string,
+): Promise<LineageRecord[]> {
+  const record = await fetchLineageRecord(storage, id);
+  if (record === null || record.inputLineageIds === undefined) return [];
+  const results: LineageRecord[] = [];
+  for (const inputId of record.inputLineageIds) {
+    const source = await fetchLineageRecord(storage, inputId);
+    if (source !== null) results.push(source);
+  }
+  return results;
+}
+
 /**
  * Create a new {@link LineageStore} backed by the given {@link StorageProvider}.
  *
@@ -200,94 +310,20 @@ function sessionIndexKey(sessionId: SessionId, lineageId: string): string {
 export function createLineageStore(
   storage: StorageProvider,
 ): LineageStore {
-  const store: LineageStore = {
+  return {
     async create(input: LineageCreateInput): Promise<LineageRecord> {
-      const lineageId = crypto.randomUUID();
-      const contentHash = await sha256(input.content);
-
-      const record: LineageRecord = {
-        lineage_id: lineageId,
-        content_hash: contentHash,
-        origin: input.origin,
-        classification: input.classification,
-        sessionId: input.sessionId,
-        ...(input.inputLineageIds !== undefined
-          ? { inputLineageIds: input.inputLineageIds }
-          : {}),
-        ...(input.transformations !== undefined
-          ? { transformations: input.transformations }
-          : {}),
-        ...(input.current_location !== undefined
-          ? { current_location: input.current_location }
-          : {}),
-      };
-
-      await storage.set(recordKey(lineageId), serialise(record));
-      await storage.set(
-        sessionIndexKey(input.sessionId, lineageId),
-        lineageId,
-      );
-
+      const record = await buildLineageRecord(input);
+      await persistLineageRecord(storage, record);
       return record;
     },
-
-    async get(id: string): Promise<LineageRecord | null> {
-      const json = await storage.get(recordKey(id));
-      if (json === null) return null;
-      return deserialise(json);
-    },
-
-    async getBySession(sessionId: SessionId): Promise<LineageRecord[]> {
-      const prefix = `lineage-session:${sessionId as string}:`;
-      const keys = await storage.list(prefix);
-      const records: LineageRecord[] = [];
-      for (const key of keys) {
-        const lineageId = await storage.get(key);
-        if (lineageId !== null) {
-          const record = await store.get(lineageId);
-          if (record !== null) {
-            records.push(record);
-          }
-        }
-      }
-      return records;
-    },
-
-    async trace_forward(id: string): Promise<LineageRecord[]> {
-      const allKeys = await storage.list("lineage:");
-      const results: LineageRecord[] = [];
-      for (const key of allKeys) {
-        const json = await storage.get(key);
-        if (json === null) continue;
-        const record = deserialise(json);
-        if (
-          record.inputLineageIds !== undefined &&
-          record.inputLineageIds.includes(id)
-        ) {
-          results.push(record);
-        }
-      }
-      return results;
-    },
-
-    async trace_backward(id: string): Promise<LineageRecord[]> {
-      const record = await store.get(id);
-      if (record === null || record.inputLineageIds === undefined) return [];
-      const results: LineageRecord[] = [];
-      for (const inputId of record.inputLineageIds) {
-        const source = await store.get(inputId);
-        if (source !== null) {
-          results.push(source);
-        }
-      }
-      return results;
-    },
-
+    get: (id: string) => fetchLineageRecord(storage, id),
+    getBySession: (sessionId: SessionId) =>
+      fetchLineageRecordsBySession(storage, sessionId),
+    trace_forward: (id: string) => traceLineageForward(storage, id),
+    trace_backward: (id: string) => traceLineageBackward(storage, id),
     // deno-lint-ignore require-await
     async export(sessionId: SessionId): Promise<LineageRecord[]> {
-      return store.getBySession(sessionId);
+      return fetchLineageRecordsBySession(storage, sessionId);
     },
   };
-
-  return store;
 }
