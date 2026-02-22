@@ -9,9 +9,7 @@
 import { Input } from "@cliffy/prompt";
 import { createKeychain } from "../../core/secrets/keychain.ts";
 import type { SecretStore } from "../../core/secrets/keychain.ts";
-import {
-  createGoogleAuthManager,
-} from "../../integrations/google/mod.ts";
+import { createGoogleAuthManager } from "../../integrations/google/mod.ts";
 import type { GoogleAuthConfig } from "../../integrations/google/mod.ts";
 
 /** Google OAuth2 scopes for all Workspace services. */
@@ -31,6 +29,35 @@ export const OAUTH_SUCCESS_HTML = `<!DOCTYPE html>
 h1{color:#22c55e;margin-bottom:0.5rem}p{color:#666}</style></head>
 <body><div class="card"><h1>Connected</h1><p>Google account linked to Triggerfish.<br>You can close this window.</p></div></body></html>`;
 
+/** Build the OAuth callback HTTP request handler. */
+function buildOAuthRequestHandler(
+  resolveCode: (code: string) => void,
+  rejectCode: (err: Error) => void,
+): (req: Request) => Response {
+  return (req: Request): Response => {
+    const url = new URL(req.url);
+    const code = url.searchParams.get("code");
+    const error = url.searchParams.get("error");
+
+    if (error) {
+      rejectCode(new Error(`Google returned error: ${error}`));
+      return new Response(
+        "Authorization failed. You can close this window.",
+        { status: 400, headers: { "Content-Type": "text/plain" } },
+      );
+    }
+    if (code) {
+      resolveCode(code);
+      return new Response(OAUTH_SUCCESS_HTML, {
+        headers: { "Content-Type": "text/html" },
+      });
+    }
+    return new Response("Waiting for OAuth callback...", {
+      headers: { "Content-Type": "text/plain" },
+    });
+  };
+}
+
 /**
  * Create a temporary localhost server that captures the OAuth callback code.
  *
@@ -48,48 +75,54 @@ export function createOAuthCallbackServer(): {
     rejectCode = reject;
   });
 
+  const handler = buildOAuthRequestHandler(resolveCode!, rejectCode!);
   const server = Deno.serve(
     { hostname: "127.0.0.1", port: 0, onListen() {} },
-    (req) => {
-      const url = new URL(req.url);
-      const code = url.searchParams.get("code");
-      const error = url.searchParams.get("error");
-
-      if (error) {
-        rejectCode(new Error(`Google returned error: ${error}`));
-        return new Response(
-          "Authorization failed. You can close this window.",
-          {
-            status: 400,
-            headers: { "Content-Type": "text/plain" },
-          },
-        );
-      }
-
-      if (code) {
-        resolveCode(code);
-        return new Response(OAUTH_SUCCESS_HTML, {
-          headers: { "Content-Type": "text/html" },
-        });
-      }
-
-      return new Response("Waiting for OAuth callback...", {
-        headers: { "Content-Type": "text/plain" },
-      });
-    },
+    handler,
   );
-
   const addr = server.addr as Deno.NetAddr;
 
-  // 5-minute timeout
   const timeout = setTimeout(() => {
     rejectCode(new Error("OAuth callback timed out after 5 minutes"));
   }, 5 * 60 * 1000);
-
-  // Clean up timeout when code is received
   codePromise.finally(() => clearTimeout(timeout));
 
   return { server, port: addr.port, codePromise };
+}
+
+/** Prompt for Google OAuth client credentials. Returns null if cancelled. */
+async function promptGoogleCredentials(): Promise<
+  {
+    clientId: string;
+    clientSecret: string;
+  } | null
+> {
+  const clientId = await Input.prompt({ message: "Google OAuth Client ID" });
+  if (!clientId.trim()) {
+    console.log("Client ID is required.");
+    return null;
+  }
+  const clientSecret = await Input.prompt({
+    message: "Google OAuth Client Secret",
+  });
+  if (!clientSecret.trim()) {
+    console.log("Client Secret is required.");
+    return null;
+  }
+  return { clientId: clientId.trim(), clientSecret: clientSecret.trim() };
+}
+
+/** Wait for the OAuth callback code, racing against server shutdown. */
+async function awaitOAuthCode(
+  codePromise: Promise<string>,
+  server: Deno.HttpServer,
+): Promise<string> {
+  return Promise.race([
+    codePromise,
+    server.finished.then(() => {
+      throw new Error("OAuth callback server stopped unexpectedly");
+    }),
+  ]);
 }
 
 /**
@@ -102,36 +135,18 @@ export function createOAuthCallbackServer(): {
 export async function performGoogleOAuth(
   secretStore?: SecretStore,
 ): Promise<boolean> {
-  const clientId = await Input.prompt({
-    message: "Google OAuth Client ID",
-  });
-  if (!clientId.trim()) {
-    console.log("Client ID is required.");
-    return false;
-  }
-
-  const clientSecret = await Input.prompt({
-    message: "Google OAuth Client Secret",
-  });
-  if (!clientSecret.trim()) {
-    console.log("Client Secret is required.");
-    return false;
-  }
+  const creds = await promptGoogleCredentials();
+  if (!creds) return false;
 
   const store = secretStore ?? createKeychain();
   const authManager = createGoogleAuthManager(store);
-
-  // Start localhost callback server
   const { server, port, codePromise } = createOAuthCallbackServer();
-
-  // Keep-alive interval to prevent the Deno event loop from exiting
-  // while waiting for the browser OAuth redirect
   const keepAlive = setInterval(() => {}, 60_000);
 
   try {
     const config: GoogleAuthConfig = {
-      clientId: clientId.trim(),
-      clientSecret: clientSecret.trim(),
+      clientId: creds.clientId,
+      clientSecret: creds.clientSecret,
       redirectUri: `http://127.0.0.1:${port}`,
       scopes: GOOGLE_SCOPES,
     };
@@ -141,16 +156,7 @@ export async function performGoogleOAuth(
     console.log(`  ${consentUrl}\n`);
     console.log("Waiting for authorization...\n");
 
-    // Race the code promise against server.finished to keep the process alive.
-    // Deno may exit if no refs keep the event loop running; server.finished
-    // ensures the HTTP server ref keeps the process alive until we shut it down.
-    const code = await Promise.race([
-      codePromise,
-      server.finished.then(() => {
-        throw new Error("OAuth callback server stopped unexpectedly");
-      }),
-    ]);
-
+    const code = await awaitOAuthCode(codePromise, server);
     console.log("Authorization received. Exchanging code for tokens...");
     const result = await authManager.exchangeCode(code, config);
 
@@ -173,10 +179,8 @@ export async function performGoogleOAuth(
   }
 }
 
-/**
- * Interactive Google OAuth2 authentication flow.
- */
-export async function runConnectGoogle(): Promise<void> {
+/** Print Google Workspace OAuth setup instructions. */
+function printGoogleSetupInstructions(): void {
   console.log("Connect Google Workspace\n");
   console.log(
     "This will connect your Google account for Gmail, Calendar, Tasks, Drive, and Sheets.\n",
@@ -214,13 +218,18 @@ export async function runConnectGoogle(): Promise<void> {
   console.log(
     "  Enable them at: https://console.cloud.google.com/apis/library\n",
   );
-  await performGoogleOAuth();
 }
 
 /**
- * Interactive GitHub PAT setup flow.
+ * Interactive Google OAuth2 authentication flow.
  */
-export async function runConnectGithub(): Promise<void> {
+export async function runConnectGoogle(): Promise<void> {
+  printGoogleSetupInstructions();
+  await performGoogleOAuth();
+}
+
+/** Print GitHub PAT setup instructions. */
+function printGithubSetupInstructions(): void {
   console.log("Connect GitHub\n");
   console.log(
     "This will connect your GitHub account for repos, PRs, issues, and Actions.\n",
@@ -237,6 +246,50 @@ export async function runConnectGithub(): Promise<void> {
   console.log("       - Pull requests: Read and Write");
   console.log("       - Actions: Read-only");
   console.log("    6. Click Generate token and copy it\n");
+}
+
+/** Verify a GitHub PAT against the API. Returns login name or null on failure. */
+async function verifyGithubToken(token: string): Promise<string | null> {
+  try {
+    const resp = await fetch("https://api.github.com/user", {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(
+        () => ({}) as Record<string, unknown>,
+      );
+      console.log(
+        `\nToken verification failed (${resp.status}): ${
+          (body as Record<string, string>).message ?? "Unknown error"
+        }`,
+      );
+      console.log(
+        "Check that your token is correct and has the required permissions.",
+      );
+      return null;
+    }
+    const user = await resp.json();
+    return (user as Record<string, string>).login;
+  } catch (err: unknown) {
+    console.log(
+      `\nCould not reach GitHub API: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    console.log("Check your network connection and try again.");
+    return null;
+  }
+}
+
+/**
+ * Interactive GitHub PAT setup flow.
+ */
+export async function runConnectGithub(): Promise<void> {
+  printGithubSetupInstructions();
 
   const token = await Input.prompt({ message: "Paste your token" });
   if (!token.trim()) {
@@ -252,43 +305,11 @@ export async function runConnectGithub(): Promise<void> {
     console.log("Continuing anyway...\n");
   }
 
-  // Verify the token works
   console.log("Verifying token...");
-  try {
-    const resp = await fetch("https://api.github.com/user", {
-      headers: {
-        "Authorization": `Bearer ${trimmed}`,
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    });
-    if (!resp.ok) {
-      const body = await resp.json().catch(() => ({}) as Record<string, unknown>);
-      console.log(
-        `\nToken verification failed (${resp.status}): ${
-          (body as Record<string, string>).message ?? "Unknown error"
-        }`,
-      );
-      console.log(
-        "Check that your token is correct and has the required permissions.",
-      );
-      return;
-    }
-    const user = await resp.json();
-    console.log(
-      `\nAuthenticated as: ${(user as Record<string, string>).login}`,
-    );
-  } catch (err: unknown) {
-    console.log(
-      `\nCould not reach GitHub API: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
-    console.log("Check your network connection and try again.");
-    return;
-  }
+  const login = await verifyGithubToken(trimmed);
+  if (login === null) return;
+  console.log(`\nAuthenticated as: ${login}`);
 
-  // Store in keychain
   const secretStore = createKeychain();
   const result = await secretStore.setSecret("github-pat", trimmed);
   if (!result.ok) {
