@@ -22,17 +22,7 @@ export interface PasswordModeState {
   readonly nonce: string;
   readonly name: string;
   readonly hint?: string;
-  /** Whether to also collect a username (username-collection phase comes first). */
-  readonly needsUsername: boolean;
-  /** Password characters collected in masked mode. */
   readonly chars: string[];
-  /** Username characters collected in visible mode (used when needsUsername is true). */
-  readonly usernameChars: string[];
-  /**
-   * When needsUsername is true, false = currently collecting username,
-   * true = currently collecting password. Always true when needsUsername is false.
-   */
-  usernameCollected: boolean;
 }
 
 /** Mutable refs shared between the WS router and the keypress loop. */
@@ -133,25 +123,16 @@ export function createWsMessageRouter(deps: WsRouterDeps): (event: MessageEvent)
 
       if (evt.type === "secret_prompt") {
         if (isTty) {
-          const needsUsername = evt.needsUsername === true;
           state.passwordMode = {
             nonce: evt.nonce,
             name: evt.name,
             hint: evt.hint,
-            needsUsername,
             chars: [],
-            usernameChars: [],
-            usernameCollected: !needsUsername,
           };
           screen.stopSpinner();
           const hintStr = evt.hint ? ` (${evt.hint})` : "";
-          if (needsUsername) {
-            screen.writeOutput(`  \x1b[33m\u{1f512} Enter credentials for '${evt.name}'${hintStr}\x1b[0m`);
-            screen.setStatus(`\u{1f512} ${evt.name} username: `);
-          } else {
-            screen.writeOutput(`  \x1b[33m\u{1f512} Enter value for '${evt.name}'${hintStr}\x1b[0m`);
-            screen.setStatus("\u{1f512} Type secret, Enter to submit, Esc to cancel");
-          }
+          screen.writeOutput(`  \x1b[33m\u{1f512} Enter value for '${evt.name}'${hintStr}\x1b[0m`);
+          screen.setStatus("\u{1f512} Type secret, Enter to submit, Esc to cancel");
           screen.redrawInput(editor);
         }
         return;

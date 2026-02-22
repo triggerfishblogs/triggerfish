@@ -235,10 +235,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
 
   // Registry of pending secret prompt requests from the Tidepool browser client.
   // Keyed by nonce; values are resolve functions from awaited Promises.
-  const pendingSecretPrompts = new Map<
-    string,
-    (result: { readonly value: string; readonly username?: string } | null) => void
-  >();
+  const pendingSecretPrompts = new Map<string, (value: string | null) => void>();
 
   // Promise-chain mutex: each executeAgentTurn waits for the previous to finish
   let mutex: Promise<void> = Promise.resolve();
@@ -443,40 +440,24 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     }
   }
 
-  function handleSecretPromptResponse(nonce: string, value: string | null, username?: string): void {
+  function handleSecretPromptResponse(nonce: string, value: string | null): void {
     const resolve = pendingSecretPrompts.get(nonce);
     if (resolve) {
       pendingSecretPrompts.delete(nonce);
-      resolve(value === null ? null : { value, username });
+      resolve(value);
     }
   }
 
   function createTidepoolSecretPrompt(
     sendEvent: ChatEventSender,
-  ): (
-    name: string,
-    hint?: string,
-    options?: { readonly withUsername: boolean },
-  ) => Promise<{ readonly value: string; readonly username?: string } | null> {
-    return (
-      name: string,
-      hint?: string,
-      options?: { readonly withUsername: boolean },
-    ): Promise<{ readonly value: string; readonly username?: string } | null> => {
+  ): (name: string, hint?: string) => Promise<string | null> {
+    return (name: string, hint?: string): Promise<string | null> => {
       const nonce = crypto.randomUUID();
-      const needsUsername = options?.withUsername === true;
-      return new Promise<{ readonly value: string; readonly username?: string } | null>((resolve) => {
+      return new Promise<string | null>((resolve) => {
         pendingSecretPrompts.set(nonce, resolve);
-        let promptEvent: ChatEvent;
-        if (hint !== undefined && needsUsername) {
-          promptEvent = { type: "secret_prompt", nonce, name, hint, needsUsername: true };
-        } else if (hint !== undefined) {
-          promptEvent = { type: "secret_prompt", nonce, name, hint };
-        } else if (needsUsername) {
-          promptEvent = { type: "secret_prompt", nonce, name, needsUsername: true };
-        } else {
-          promptEvent = { type: "secret_prompt", nonce, name };
-        }
+        const promptEvent: ChatEvent = hint !== undefined
+          ? { type: "secret_prompt", nonce, name, hint }
+          : { type: "secret_prompt", nonce, name };
         sendEvent(promptEvent);
       });
     };

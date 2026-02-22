@@ -82,36 +82,22 @@ export async function runSimpleWsRepl(
             : new TextDecoder().decode(event.data as ArrayBuffer);
           const evt = JSON.parse(data) as ChatEvent;
 
-          // Handle secret prompt in non-TTY mode: read value(s) from stdin
+          // Handle secret prompt in non-TTY mode: read a line from stdin
           if (evt.type === "secret_prompt") {
             const hintStr = evt.hint ? ` (${evt.hint})` : "";
             const enc = new TextEncoder();
+            Deno.stderr.writeSync(enc.encode(`  Enter value for '${evt.name}'${hintStr}: `));
             const lineBuf = new Uint8Array(4096);
-
-            let username: string | undefined;
-            if (evt.needsUsername) {
-              Deno.stderr.writeSync(enc.encode(`  Enter username for '${evt.name}'${hintStr}: `));
-              const nUser = await Deno.stdin.read(lineBuf);
-              username = nUser !== null
-                ? new TextDecoder().decode(lineBuf.subarray(0, nUser)).trimEnd()
-                : "";
-              Deno.stderr.writeSync(enc.encode(`  Enter password for '${evt.name}': `));
-            } else {
-              Deno.stderr.writeSync(enc.encode(`  Enter value for '${evt.name}'${hintStr}: `));
-            }
-
             const nRead = await Deno.stdin.read(lineBuf);
             const value = nRead !== null
               ? new TextDecoder().decode(lineBuf.subarray(0, nRead)).trimEnd()
               : null;
-            const responseMsg: Record<string, unknown> = {
-              type: "secret_prompt_response",
-              nonce: evt.nonce,
-              value: value && value.length > 0 ? value : null,
-            };
-            if (username !== undefined) responseMsg.username = username;
             try {
-              ws.send(JSON.stringify(responseMsg));
+              ws.send(JSON.stringify({
+                type: "secret_prompt_response",
+                nonce: evt.nonce,
+                value: value && value.length > 0 ? value : null,
+              }));
             } catch (_err: unknown) {
               log.debug("WebSocket send failed: connection closed");
             }

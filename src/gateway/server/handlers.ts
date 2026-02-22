@@ -267,7 +267,7 @@ export function upgradeChatWebSocket(
       }
 
       if (msg.type === "secret_prompt_response") {
-        chat.handleSecretPromptResponse(msg.nonce, msg.value, msg.username);
+        chat.handleSecretPromptResponse(msg.nonce, msg.value);
         return;
       }
 
