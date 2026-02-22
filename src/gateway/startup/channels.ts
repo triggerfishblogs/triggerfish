@@ -49,6 +49,48 @@ export interface TelegramChannelConfig {
   readonly respond_to_unclassified?: boolean;
 }
 
+/** Handle incoming Telegram messages, dispatching commands and chat. */
+function handleTelegramMessage(
+  msg: import("../../channels/types.ts").ChannelMessage,
+  adapter: ReturnType<typeof createTelegramChannel>,
+  chatSession: ChannelWiringDeps["chatSession"],
+  notificationService: NotificationService,
+): void {
+  if (msg.content === "/start") {
+    adapter.send({
+      content: "Triggerfish connected. You can chat with me here.",
+      sessionId: msg.sessionId,
+    }).catch((err) => log.error("Telegram /start greeting send failed", err));
+    return;
+  }
+
+  if (msg.content === "/clear" && msg.isOwner !== false) {
+    chatSession.clear();
+    adapter.clearChat(msg.sessionId ?? "")
+      .then(() =>
+        adapter.send({
+          content:
+            "Session cleared. Your context and taint level have been reset to PUBLIC.\n\nWhat would you like to do?",
+          sessionId: msg.sessionId,
+        })
+      )
+      .then(() => notificationService.flushPending("owner" as UserId))
+      .catch((err) => log.error("Telegram /clear session reset failed", err));
+    return;
+  }
+
+  if (msg.isOwner !== false) {
+    const sendEvent = buildSendEvent(adapter, "Telegram", msg);
+    chatSession.executeAgentTurn(msg.content, sendEvent)
+      .catch((err) => log.error("Telegram owner executeAgentTurn failed", err));
+  } else {
+    chatSession.handleChannelMessage(msg, "telegram")
+      .catch((err) =>
+        log.error("Telegram external handleChannelMessage failed", err)
+      );
+  }
+}
+
 /** Wire and connect Telegram channel adapter. */
 export async function wireTelegramChannel(
   telegramConfig: TelegramChannelConfig,
@@ -57,7 +99,8 @@ export async function wireTelegramChannel(
   if (!telegramConfig.botToken) return;
 
   const { chatSession, notificationService, channelAdapters } = deps;
-  const classification = (telegramConfig.classification ?? "PUBLIC") as ClassificationLevel;
+  const classification =
+    (telegramConfig.classification ?? "PUBLIC") as ClassificationLevel;
 
   const telegramAdapter = createTelegramChannel({
     botToken: telegramConfig.botToken,
@@ -73,43 +116,15 @@ export async function wireTelegramChannel(
     respondToUnclassified: telegramConfig.respond_to_unclassified,
   });
 
-  telegramAdapter.onMessage((msg) => {
-    // Handle /start — greet the user on first contact
-    if (msg.content === "/start") {
-      telegramAdapter.send({
-        content: "Triggerfish connected. You can chat with me here.",
-        sessionId: msg.sessionId,
-      }).catch((err) => log.error("Telegram /start greeting send failed", err));
-      return;
-    }
+  telegramAdapter.onMessage((msg) =>
+    handleTelegramMessage(
+      msg,
+      telegramAdapter,
+      chatSession,
+      notificationService,
+    )
+  );
 
-    // /clear must call chatSession.clear() — same as the CLI/gateway path.
-    if (msg.content === "/clear" && msg.isOwner !== false) {
-      chatSession.clear();
-      telegramAdapter.clearChat(msg.sessionId ?? "")
-        .then(() =>
-          telegramAdapter.send({
-            content:
-              "Session cleared. Your context and taint level have been reset to PUBLIC.\n\nWhat would you like to do?",
-            sessionId: msg.sessionId,
-          })
-        )
-        .then(() => notificationService.flushPending("owner" as UserId))
-        .catch((err) => log.error("Telegram /clear session reset failed", err));
-      return;
-    }
-
-    if (msg.isOwner !== false) {
-      const sendEvent = buildSendEvent(telegramAdapter, "Telegram", msg);
-      chatSession.executeAgentTurn(msg.content, sendEvent)
-        .catch((err) => log.error("Telegram owner executeAgentTurn failed", err));
-    } else {
-      chatSession.handleChannelMessage(msg, "telegram")
-        .catch((err) => log.error("Telegram external handleChannelMessage failed", err));
-    }
-  });
-
-  // Register Telegram for notification delivery
   const ownerChatId = telegramConfig.ownerId
     ? `telegram-${telegramConfig.ownerId}`
     : undefined;
@@ -122,13 +137,11 @@ export async function wireTelegramChannel(
   }
 
   await telegramAdapter.connect();
-
   channelAdapters.set("telegram", {
     adapter: telegramAdapter,
     classification,
     name: "Telegram",
   });
-
   log.info("Telegram channel connected");
 }
 
@@ -143,6 +156,38 @@ export interface DiscordChannelConfig {
   readonly respond_to_unclassified?: boolean;
 }
 
+/** Handle incoming Discord messages, dispatching commands and chat. */
+function handleDiscordMessage(
+  msg: import("../../channels/types.ts").ChannelMessage,
+  adapter: ReturnType<typeof createDiscordChannel>,
+  chatSession: ChannelWiringDeps["chatSession"],
+  notificationService: NotificationService,
+): void {
+  if (msg.content === "/clear" && msg.isOwner !== false) {
+    chatSession.clear();
+    adapter.send({
+      content:
+        "Session cleared. Your context and taint level have been reset to PUBLIC.\n\nWhat would you like to do?",
+      sessionId: msg.sessionId,
+    }).then(() => notificationService.flushPending("owner" as UserId))
+      .catch((err) =>
+        log.error("Discord /clear session reset send failed", err)
+      );
+    return;
+  }
+
+  if (msg.isOwner !== false) {
+    const sendEvent = buildSendEvent(adapter, "Discord", msg);
+    chatSession.executeAgentTurn(msg.content, sendEvent)
+      .catch((err) => log.error("Discord owner executeAgentTurn failed", err));
+  } else {
+    chatSession.handleChannelMessage(msg, "discord")
+      .catch((err) =>
+        log.error("Discord external handleChannelMessage failed", err)
+      );
+  }
+}
+
 /** Wire and connect Discord channel adapter. */
 export async function wireDiscordChannel(
   discordConfig: DiscordChannelConfig,
@@ -154,7 +199,8 @@ export async function wireDiscordChannel(
   }
 
   const { chatSession, notificationService, channelAdapters } = deps;
-  const classification = (discordConfig.classification ?? "PUBLIC") as ClassificationLevel;
+  const classification =
+    (discordConfig.classification ?? "PUBLIC") as ClassificationLevel;
 
   log.info("Discord channel configured, connecting...");
   try {
@@ -172,36 +218,21 @@ export async function wireDiscordChannel(
       respondToUnclassified: discordConfig.respond_to_unclassified,
     });
 
-    discordAdapter.onMessage((msg) => {
-      if (msg.content === "/clear" && msg.isOwner !== false) {
-        chatSession.clear();
-        discordAdapter.send({
-          content:
-            "Session cleared. Your context and taint level have been reset to PUBLIC.\n\nWhat would you like to do?",
-          sessionId: msg.sessionId,
-        }).then(() => notificationService.flushPending("owner" as UserId))
-          .catch((err) => log.error("Discord /clear session reset send failed", err));
-        return;
-      }
-
-      if (msg.isOwner !== false) {
-        const sendEvent = buildSendEvent(discordAdapter, "Discord", msg);
-        chatSession.executeAgentTurn(msg.content, sendEvent)
-          .catch((err) => log.error("Discord owner executeAgentTurn failed", err));
-      } else {
-        chatSession.handleChannelMessage(msg, "discord")
-          .catch((err) => log.error("Discord external handleChannelMessage failed", err));
-      }
-    });
+    discordAdapter.onMessage((msg) =>
+      handleDiscordMessage(
+        msg,
+        discordAdapter,
+        chatSession,
+        notificationService,
+      )
+    );
 
     await discordAdapter.connect();
-
     channelAdapters.set("discord", {
       adapter: discordAdapter,
       classification,
       name: "Discord",
     });
-
     log.info("Discord channel connected");
   } catch (err) {
     log.error("Discord channel failed to connect:", err);
@@ -229,6 +260,41 @@ export interface SignalDaemonState {
   handle: DaemonHandle | null;
 }
 
+/** Log daemon startup result (success or timeout with stderr). */
+async function logDaemonStartResult(
+  ready: boolean,
+  handle: DaemonHandle,
+  transport: string,
+): Promise<void> {
+  if (ready) {
+    log.info(`signal-cli daemon started (${transport})`);
+    const versionCheck = await checkSignalCli();
+    if (versionCheck.ok) {
+      log.info(`signal-cli version: ${versionCheck.value.version}`);
+    }
+  } else {
+    const earlyErr = await handle.earlyStderr;
+    if (earlyErr) log.error(`signal-cli early stderr: ${earlyErr}`);
+    const stderr = await handle.stderrText();
+    log.error(`signal-cli daemon (${transport}) not reachable within 60s`);
+    if (stderr) log.error(`signal-cli stderr: ${stderr}`);
+  }
+}
+
+/** Kill an unhealthy daemon process and wait briefly. */
+async function killUnhealthyDaemon(state: SignalDaemonState): Promise<void> {
+  log.warn(
+    "signal-cli daemon is occupying the port but not responding to JSON-RPC",
+  );
+  if (state.handle) {
+    try {
+      state.handle.child.kill("SIGTERM");
+    } catch { /* already dead */ }
+    state.handle = null;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
+
 /** Start signal-cli TCP daemon if not already running. */
 async function ensureTcpDaemon(
   tcpHost: string,
@@ -238,50 +304,32 @@ async function ensureTcpDaemon(
 ): Promise<void> {
   const running = await isDaemonRunning(tcpHost, tcpPort);
   const healthy = running ? await isDaemonHealthy(tcpHost, tcpPort) : false;
+  if (running && healthy) return;
 
-  if (!running || !healthy) {
-    if (running && !healthy) {
-      log.warn("signal-cli daemon is occupying the port but not responding to JSON-RPC");
-      if (state.handle) {
-        try { state.handle.child.kill("SIGTERM"); } catch { /* already dead */ }
-        state.handle = null;
-        await new Promise((r) => setTimeout(r, 1000));
-      }
-    }
+  if (running && !healthy) await killUnhealthyDaemon(state);
 
-    log.info("signal-cli daemon not running, starting...");
-    const cliCheck = await checkSignalCli();
-    if (cliCheck.ok) {
-      const daemonResult = startDaemon(
-        account,
-        tcpHost,
-        tcpPort,
-        cliCheck.value.path,
-        cliCheck.value.javaHome,
-      );
-      if (daemonResult.ok) {
-        state.handle = daemonResult.value;
-        const ready = await waitForDaemon(tcpHost, tcpPort);
-        if (ready) {
-          log.info("signal-cli daemon started");
-          const versionCheck = await checkSignalCli();
-          if (versionCheck.ok) {
-            log.info(`signal-cli version: ${versionCheck.value.version}`);
-          }
-        } else {
-          const earlyErr = await daemonResult.value.earlyStderr;
-          if (earlyErr) log.error(`signal-cli early stderr: ${earlyErr}`);
-          const stderr = await daemonResult.value.stderrText();
-          log.error("signal-cli daemon started but not reachable within 60s");
-          if (stderr) log.error(`signal-cli stderr: ${stderr}`);
-        }
-      } else {
-        log.error(`Failed to start signal-cli daemon: ${daemonResult.error}`);
-      }
-    } else {
-      log.error("signal-cli not found — cannot auto-start daemon");
-    }
+  log.info("signal-cli daemon not running, starting...");
+  const cliCheck = await checkSignalCli();
+  if (!cliCheck.ok) {
+    log.error("signal-cli not found — cannot auto-start daemon");
+    return;
   }
+
+  const daemonResult = startDaemon(
+    account,
+    tcpHost,
+    tcpPort,
+    cliCheck.value.path,
+    cliCheck.value.javaHome,
+  );
+  if (!daemonResult.ok) {
+    log.error(`Failed to start signal-cli daemon: ${daemonResult.error}`);
+    return;
+  }
+
+  state.handle = daemonResult.value;
+  const ready = await waitForDaemon(tcpHost, tcpPort);
+  await logDaemonStartResult(ready, daemonResult.value, "TCP");
 }
 
 /** Start signal-cli Unix socket daemon if not already running. */
@@ -291,39 +339,115 @@ async function ensureUnixDaemon(
   state: SignalDaemonState,
 ): Promise<void> {
   const running = await isDaemonRunningUnix(socketPath);
-  if (!running) {
-    log.info("signal-cli daemon not running (Unix socket), starting...");
-    const cliCheck = await checkSignalCli();
-    if (cliCheck.ok) {
-      const daemonResult = startDaemonUnix(
-        account,
-        socketPath,
-        cliCheck.value.path,
-        cliCheck.value.javaHome,
-      );
-      if (daemonResult.ok) {
-        state.handle = daemonResult.value;
-        const ready = await waitForDaemonUnix(socketPath);
-        if (ready) {
-          log.info("signal-cli daemon started (Unix socket)");
-          const versionCheck = await checkSignalCli();
-          if (versionCheck.ok) {
-            log.info(`signal-cli version: ${versionCheck.value.version}`);
-          }
-        } else {
-          const earlyErr = await daemonResult.value.earlyStderr;
-          if (earlyErr) log.error(`signal-cli early stderr: ${earlyErr}`);
-          const stderr = await daemonResult.value.stderrText();
-          log.error("signal-cli daemon (Unix socket) not reachable within 60s");
-          if (stderr) log.error(`signal-cli stderr: ${stderr}`);
-        }
-      } else {
-        log.error(`Failed to start signal-cli daemon: ${daemonResult.error}`);
-      }
-    } else {
-      log.error("signal-cli not found — cannot auto-start daemon");
-    }
+  if (running) return;
+
+  log.info("signal-cli daemon not running (Unix socket), starting...");
+  const cliCheck = await checkSignalCli();
+  if (!cliCheck.ok) {
+    log.error("signal-cli not found — cannot auto-start daemon");
+    return;
   }
+
+  const daemonResult = startDaemonUnix(
+    account,
+    socketPath,
+    cliCheck.value.path,
+    cliCheck.value.javaHome,
+  );
+  if (!daemonResult.ok) {
+    log.error(`Failed to start signal-cli daemon: ${daemonResult.error}`);
+    return;
+  }
+
+  state.handle = daemonResult.value;
+  const ready = await waitForDaemonUnix(socketPath);
+  await logDaemonStartResult(ready, daemonResult.value, "Unix socket");
+}
+
+/** Ensure the signal-cli daemon is running for the given endpoint. */
+async function ensureSignalDaemon(
+  endpoint: string,
+  account: string,
+  state: SignalDaemonState,
+): Promise<void> {
+  const tcpMatch = endpoint.match(/^tcp:\/\/([^:]+):(\d+)$/);
+  const unixMatch = endpoint.match(/^unix:\/\/(.+)$/);
+  if (tcpMatch) {
+    await ensureTcpDaemon(
+      tcpMatch[1],
+      parseInt(tcpMatch[2], 10),
+      account,
+      state,
+    );
+  } else if (unixMatch) {
+    await ensureUnixDaemon(unixMatch[1], account, state);
+  }
+}
+
+/** Connect Signal adapter and register message handler + notifications. */
+async function connectSignalAdapter(
+  signalConfig: SignalChannelConfig,
+  deps: ChannelWiringDeps,
+  classification: ClassificationLevel,
+): Promise<void> {
+  const { chatSession, notificationService, channelAdapters } = deps;
+  const groupMode = (signalConfig.defaultGroupMode ?? "always") as
+    | "always"
+    | "mentioned-only"
+    | "owner-only";
+  const groups = signalConfig.groups as
+    | Record<
+      string,
+      {
+        readonly mode: "always" | "mentioned-only" | "owner-only";
+        readonly classification?: ClassificationLevel;
+      }
+    >
+    | undefined;
+
+  const signalAdapter = createSignalChannel({
+    endpoint: signalConfig.endpoint!,
+    account: signalConfig.account!,
+    ownerPhone: signalConfig.ownerPhone,
+    classification,
+    defaultGroupMode: groupMode,
+    groups,
+  });
+
+  await chatSession.registerChannel("signal", {
+    adapter: signalAdapter,
+    channelName: "Signal",
+    classification,
+    userClassifications: signalConfig.user_classifications,
+    respondToUnclassified: signalConfig.respond_to_unclassified,
+    pairing: signalConfig.pairing,
+    pairingClassification: (signalConfig.pairing_classification ??
+      "INTERNAL") as ClassificationLevel,
+  });
+
+  signalAdapter.onMessage((msg) => {
+    chatSession.handleChannelMessage(msg, "signal")
+      .catch((err) => log.error("Signal handleChannelMessage failed", err));
+  });
+
+  if (signalConfig.ownerPhone) {
+    notificationService.registerChannel({
+      name: "signal",
+      send: (notifMsg) =>
+        signalAdapter.send({
+          content: notifMsg,
+          sessionId: `signal-${signalConfig.ownerPhone}`,
+        }),
+    });
+  }
+
+  await signalAdapter.connect();
+  channelAdapters.set("signal", {
+    adapter: signalAdapter,
+    classification,
+    name: "Signal",
+  });
+  log.info("Signal channel connected");
 }
 
 /**
@@ -336,89 +460,20 @@ export function wireSignalChannel(
   deps: ChannelWiringDeps,
 ): SignalDaemonState {
   const state: SignalDaemonState = { handle: null };
-
   if (!signalConfig.endpoint || !signalConfig.account) return state;
 
-  const { chatSession, notificationService, channelAdapters } = deps;
-  const signalEndpoint = signalConfig.endpoint;
-  const signalAccount = signalConfig.account;
-  const signalOwnerPhone = signalConfig.ownerPhone;
-  const signalClassification = (signalConfig.classification ?? "PUBLIC") as ClassificationLevel;
-  const signalDefaultGroupMode = (signalConfig.defaultGroupMode ?? "always") as
-    | "always"
-    | "mentioned-only"
-    | "owner-only";
-  const signalGroups = signalConfig.groups as
-    | Record<
-      string,
-      {
-        readonly mode: "always" | "mentioned-only" | "owner-only";
-        readonly classification?: ClassificationLevel;
-      }
-    >
-    | undefined;
-  const signalPairing = signalConfig.pairing;
-  const signalPairingClassification = (signalConfig.pairing_classification ??
-    "INTERNAL") as ClassificationLevel;
-
+  const classification =
+    (signalConfig.classification ?? "PUBLIC") as ClassificationLevel;
   log.info("Signal channel setup starting (background)...");
 
   (async () => {
     try {
-      const tcpMatch = signalEndpoint.match(/^tcp:\/\/([^:]+):(\d+)$/);
-      const unixMatch = signalEndpoint.match(/^unix:\/\/(.+)$/);
-
-      if (tcpMatch) {
-        const [, tcpHost, tcpPortStr] = tcpMatch;
-        await ensureTcpDaemon(tcpHost, parseInt(tcpPortStr, 10), signalAccount, state);
-      } else if (unixMatch) {
-        await ensureUnixDaemon(unixMatch[1], signalAccount, state);
-      }
-
-      const signalAdapter = createSignalChannel({
-        endpoint: signalEndpoint,
-        account: signalAccount,
-        ownerPhone: signalOwnerPhone,
-        classification: signalClassification,
-        defaultGroupMode: signalDefaultGroupMode,
-        groups: signalGroups,
-      });
-
-      await chatSession.registerChannel("signal", {
-        adapter: signalAdapter,
-        channelName: "Signal",
-        classification: signalClassification,
-        userClassifications: signalConfig.user_classifications,
-        respondToUnclassified: signalConfig.respond_to_unclassified,
-        pairing: signalPairing,
-        pairingClassification: signalPairingClassification,
-      });
-
-      signalAdapter.onMessage((msg) => {
-        chatSession.handleChannelMessage(msg, "signal")
-          .catch((err) => log.error("Signal handleChannelMessage failed", err));
-      });
-
-      if (signalOwnerPhone) {
-        notificationService.registerChannel({
-          name: "signal",
-          send: (notifMsg) =>
-            signalAdapter.send({
-              content: notifMsg,
-              sessionId: `signal-${signalOwnerPhone}`,
-            }),
-        });
-      }
-
-      await signalAdapter.connect();
-
-      channelAdapters.set("signal", {
-        adapter: signalAdapter,
-        classification: signalClassification,
-        name: "Signal",
-      });
-
-      log.info("Signal channel connected");
+      await ensureSignalDaemon(
+        signalConfig.endpoint!,
+        signalConfig.account!,
+        state,
+      );
+      await connectSignalAdapter(signalConfig, deps, classification);
     } catch (err) {
       log.error(
         `Signal channel failed to connect: ${
