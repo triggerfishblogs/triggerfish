@@ -14,6 +14,9 @@ import type {
   ChannelStatus,
   MessageHandler,
 } from "../types.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("whatsapp");
 
 /** Maximum message length for WhatsApp. */
 const MAX_MESSAGE_LENGTH = 4096;
@@ -87,6 +90,7 @@ export function createWhatsAppChannel(config: WhatsAppConfig): ChannelAdapter {
       });
 
       connected = true;
+      log.info("WhatsApp adapter connected", { port: webhookPort });
     },
 
     async disconnect(): Promise<void> {
@@ -95,6 +99,7 @@ export function createWhatsAppChannel(config: WhatsAppConfig): ChannelAdapter {
         server = null;
       }
       connected = false;
+      log.info("WhatsApp adapter disconnected");
     },
 
     async send(message: ChannelMessage): Promise<void> {
@@ -164,6 +169,7 @@ export function createWhatsAppChannel(config: WhatsAppConfig): ChannelAdapter {
             ? from === config.ownerPhone
             : true;
 
+          log.debug("Message received", { from, isOwner });
           handler({
             content: textObj.body,
             sessionId: `whatsapp-${from}`,
