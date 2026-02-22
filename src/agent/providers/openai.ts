@@ -7,7 +7,12 @@
  */
 
 import OpenAI from "openai";
-import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import type {
+  LlmCompletionResult,
+  LlmMessage,
+  LlmProvider,
+  LlmStreamChunk,
+} from "../llm.ts";
 import { getModelInfo } from "../models.ts";
 import type { ContentBlock } from "../../core/image/content.ts";
 
@@ -19,6 +24,78 @@ export interface OpenAiConfig {
   readonly model?: string;
   /** Maximum tokens for completion. Default: 4096 */
   readonly maxTokens?: number;
+}
+
+/** Convert content blocks to OpenAI's multimodal format. */
+function convertOpenAiContent(content: string | unknown): string | unknown[] {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return JSON.stringify(content);
+  return (content as ContentBlock[]).map((block) => {
+    if (block.type === "text") return { type: "text", text: block.text };
+    if (block.type === "image") {
+      return {
+        type: "image_url",
+        image_url: {
+          url: `data:${block.source.media_type};base64,${block.source.data}`,
+        },
+      };
+    }
+    return block;
+  });
+}
+
+/** Convert LLM messages to OpenAI chat format. */
+// deno-lint-ignore no-explicit-any
+function convertToOpenAiMessages(messages: readonly LlmMessage[]): any[] {
+  return messages.map((m) => ({
+    role: m.role as "system" | "user" | "assistant",
+    content: convertOpenAiContent(m.content),
+  }));
+}
+
+/** Build OpenAI tools parameter, returning empty object if no tools. */
+// deno-lint-ignore no-explicit-any
+function buildOpenAiToolsParam(
+  tools: readonly unknown[],
+): { tools?: any[] } {
+  // deno-lint-ignore no-explicit-any
+  return (Array.isArray(tools) && tools.length > 0)
+    ? { tools: tools as any[] }
+    : {};
+}
+
+/** Accumulate streaming tool_calls deltas into accumulator map. */
+function accumulateOpenAiToolCallDelta(
+  accum: Map<number, { id?: string; name: string; arguments: string }>,
+  // deno-lint-ignore no-explicit-any
+  deltas: any[],
+): void {
+  for (const tc of deltas) {
+    const idx = tc.index ?? 0;
+    const existing = accum.get(idx);
+    if (existing) {
+      if (tc.function?.arguments) existing.arguments += tc.function.arguments;
+    } else {
+      accum.set(idx, {
+        id: tc.id ?? undefined,
+        name: tc.function?.name ?? "",
+        arguments: tc.function?.arguments ?? "",
+      });
+    }
+  }
+}
+
+/** Assemble accumulated tool call deltas into final tool calls array. */
+function assembleOpenAiToolCalls(
+  accum: Map<number, { id?: string; name: string; arguments: string }>,
+): unknown[] {
+  return [...accum.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([_, tc]) => ({
+      id: tc.id,
+      type: "function",
+      function: { name: tc.name, arguments: tc.arguments },
+    }));
 }
 
 /**
@@ -43,24 +120,6 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
     return client;
   }
 
-  /** Convert content blocks to OpenAI's multimodal format. */
-  function toOpenAiContent(content: string | unknown): string | unknown[] {
-    if (typeof content === "string") return content;
-    if (!Array.isArray(content)) return JSON.stringify(content);
-    return (content as ContentBlock[]).map((block) => {
-      if (block.type === "text") return { type: "text", text: block.text };
-      if (block.type === "image") {
-        return {
-          type: "image_url",
-          image_url: {
-            url: `data:${block.source.media_type};base64,${block.source.data}`,
-          },
-        };
-      }
-      return block;
-    });
-  }
-
   return {
     name: "openai",
     supportsStreaming: true,
@@ -71,31 +130,17 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
       tools: readonly unknown[],
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
-      const openaiClient = getClient();
       const signal = options.signal as AbortSignal | undefined;
-
-      // Convert messages to OpenAI format
-      // deno-lint-ignore no-explicit-any
-      const openaiMessages: any[] = messages.map((m) => ({
-        role: m.role as "system" | "user" | "assistant",
-        content: toOpenAiContent(m.content),
-      }));
-
-      // deno-lint-ignore no-explicit-any
-      const toolsParam = (Array.isArray(tools) && tools.length > 0) ? { tools: tools as any[] } : {};
-
-      const response = await openaiClient.chat.completions.create(
+      const response = await getClient().chat.completions.create(
         {
           model,
           max_tokens: maxTokens,
-          messages: openaiMessages,
-          ...toolsParam,
+          messages: convertToOpenAiMessages(messages),
+          ...buildOpenAiToolsParam(tools),
         },
         signal ? { signal } : undefined,
       );
-
       const choice = response.choices[0];
-
       return {
         content: choice?.message?.content ?? "",
         toolCalls: choice?.message?.tool_calls ?? [],
@@ -111,58 +156,31 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
       tools: readonly unknown[],
       options: Record<string, unknown>,
     ): AsyncIterable<LlmStreamChunk> {
-      const openaiClient = getClient();
       const signal = options.signal as AbortSignal | undefined;
-
-      // deno-lint-ignore no-explicit-any
-      const openaiMessages: any[] = messages.map((m) => ({
-        role: m.role as "system" | "user" | "assistant",
-        content: toOpenAiContent(m.content),
-      }));
-
-      // deno-lint-ignore no-explicit-any
-      const toolsParam = (Array.isArray(tools) && tools.length > 0) ? { tools: tools as any[] } : {};
-
-      const stream = await openaiClient.chat.completions.create(
+      const stream = await getClient().chat.completions.create(
         {
           model,
           max_tokens: maxTokens,
-          messages: openaiMessages,
+          messages: convertToOpenAiMessages(messages),
           stream: true,
           stream_options: { include_usage: true },
-          ...toolsParam,
+          ...buildOpenAiToolsParam(tools),
         },
         signal ? { signal } : undefined,
       );
 
       let inputTokens = 0;
       let outputTokens = 0;
-
-      // Accumulate streaming tool call deltas keyed by index
-      const toolCallAccum = new Map<number, { id?: string; name: string; arguments: string }>();
+      const toolCallAccum = new Map<
+        number,
+        { id?: string; name: string; arguments: string }
+      >();
 
       for await (const chunk of stream) {
         const delta = chunk.choices?.[0]?.delta;
-        if (delta?.content) {
-          yield { text: delta.content, done: false };
-        }
-        // Accumulate tool_calls deltas
+        if (delta?.content) yield { text: delta.content, done: false };
         if (Array.isArray(delta?.tool_calls)) {
-          for (const tc of delta.tool_calls) {
-            const idx = tc.index ?? 0;
-            const existing = toolCallAccum.get(idx);
-            if (existing) {
-              if (tc.function?.arguments) {
-                existing.arguments += tc.function.arguments;
-              }
-            } else {
-              toolCallAccum.set(idx, {
-                id: tc.id ?? undefined,
-                name: tc.function?.name ?? "",
-                arguments: tc.function?.arguments ?? "",
-              });
-            }
-          }
+          accumulateOpenAiToolCallDelta(toolCallAccum, delta.tool_calls);
         }
         if (chunk.usage) {
           inputTokens = chunk.usage.prompt_tokens ?? 0;
@@ -170,19 +188,7 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
         }
       }
 
-      // Assemble accumulated tool calls
-      const toolCalls: unknown[] = [];
-      for (const [_, tc] of [...toolCallAccum.entries()].sort((a, b) => a[0] - b[0])) {
-        toolCalls.push({
-          id: tc.id,
-          type: "function",
-          function: {
-            name: tc.name,
-            arguments: tc.arguments,
-          },
-        });
-      }
-
+      const toolCalls = assembleOpenAiToolCalls(toolCallAccum);
       yield {
         text: "",
         done: true,
