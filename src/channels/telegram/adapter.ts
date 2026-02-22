@@ -16,6 +16,9 @@ import type {
   ChannelStatus,
   MessageHandler,
 } from "../types.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("telegram");
 
 /** Maximum message length for Telegram. */
 const MAX_MESSAGE_LENGTH = 4096;
@@ -77,6 +80,7 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
 
     trackMessage(ctx.chat.id, ctx.message.message_id);
 
+    log.debug("Message received", { chatId: ctx.chat.id, senderId: ctx.from.id, isOwner });
     handler({
       content: ctx.message.text,
       sessionId: `telegram-${ctx.chat.id}`,
@@ -131,11 +135,13 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
       }
       bot.start();
       connected = true;
+      log.info("Telegram adapter connected");
     },
 
     async disconnect(): Promise<void> {
       await bot.stop();
       connected = false;
+      log.info("Telegram adapter disconnected");
     },
 
     async send(message: ChannelMessage): Promise<void> {
