@@ -77,6 +77,7 @@ export function createDiscordChannel(config: DiscordConfig): DiscordChannelAdapt
       ? message.author.id === ownerId
       : true;
 
+    log.debug("Message received", { channelId: message.channelId, senderId: message.author.id, isOwner });
     handler({
       content: message.content,
       sessionId: `discord-${message.channelId}`,
@@ -93,11 +94,13 @@ export function createDiscordChannel(config: DiscordConfig): DiscordChannelAdapt
     async connect(): Promise<void> {
       await client.login(config.botToken);
       connected = true;
+      log.info("Discord adapter connected");
     },
 
     async disconnect(): Promise<void> {
       await client.destroy();
       connected = false;
+      log.info("Discord adapter disconnected");
     },
 
     async send(message: ChannelMessage): Promise<void> {
