@@ -11,7 +11,10 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../core/types/classification.ts";
 import {
   createCronManager,
   matchesNow,
@@ -33,14 +36,107 @@ import type {
 export type {
   OrchestratorCreateOptions,
   OrchestratorFactory,
-  WebhookSourceConfig,
-  SchedulerServiceConfig,
   SchedulerService,
+  SchedulerServiceConfig,
+  WebhookSourceConfig,
 } from "./service_types.ts";
 
 // ─── Service implementation ──────────────────────────────────────────────────
 
 const log = createLogger("scheduler");
+
+/** Persist a scheduler result to the trigger store. */
+async function persistTriggerResult(
+  config: SchedulerServiceConfig,
+  source: string,
+  text: string,
+  classification: ClassificationLevel,
+): Promise<void> {
+  if (!config.triggerStore) return;
+  try {
+    await config.triggerStore.save({
+      id: crypto.randomUUID(),
+      source,
+      message: text,
+      classification,
+      firedAt: new Date().toISOString(),
+    });
+    log.info(`[${source}] Result persisted to trigger store`);
+  } catch (err) {
+    log.error(
+      `[${source}] Failed to persist to trigger store: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
+
+/** Deliver a notification to the owner via NotificationService. */
+async function deliverSchedulerNotification(
+  config: SchedulerServiceConfig,
+  source: string,
+  text: string,
+  classification: ClassificationLevel,
+): Promise<void> {
+  if (!config.notificationService || !config.ownerId) {
+    log.warn(
+      `[${source}] No notification service or ownerId — output not delivered`,
+    );
+    return;
+  }
+  try {
+    await config.notificationService.deliver({
+      userId: config.ownerId,
+      message: `[${source}] ${text}`,
+      priority: "normal",
+      classification,
+    });
+    log.info(`[${source}] Notification delivered`);
+  } catch (err) {
+    log.error(
+      `[${source}] Notification delivery failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
+
+/** Validate a webhook request: check enabled, source, HMAC, and parse JSON. */
+async function validateAndParseWebhookRequest(
+  config: SchedulerServiceConfig,
+  sourceId: string,
+  body: string,
+  signature: string,
+): Promise<
+  Result<{ event: WebhookEvent; classification: ClassificationLevel }, string>
+> {
+  if (!config.webhooks.enabled) {
+    return { ok: false, error: "Webhooks are disabled" };
+  }
+  const source = config.webhooks.sources[sourceId];
+  if (!source) {
+    return { ok: false, error: `Unknown webhook source: ${sourceId}` };
+  }
+  const valid = await verifyHmacAsync(body, signature, source.secret);
+  if (!valid) {
+    return { ok: false, error: "Invalid HMAC signature" };
+  }
+  try {
+    const parsed = JSON.parse(body);
+    return {
+      ok: true,
+      value: {
+        event: {
+          event: parsed.event ?? "unknown",
+          data: parsed.data ?? parsed,
+        },
+        classification: source.classification,
+      },
+    };
+  } catch {
+    return { ok: false, error: "Invalid JSON body" };
+  }
+}
 
 /**
  * Create a scheduler service that manages cron jobs, triggers, and webhooks.
@@ -71,56 +167,14 @@ export function createSchedulerService(
       log.debug(`[${source}] No output to deliver (empty response)`);
       return;
     }
-
-    // The LLM responds with NO_ACTION when there is nothing worth reporting.
-    // Persist to trigger store (for trigger_add_to_context) but do NOT notify.
+    // NO_ACTION: persist but do NOT notify
     if (text.trim() === "NO_ACTION") {
       log.debug(`[${source}] LLM returned NO_ACTION — nothing to report`);
-      if (config.triggerStore) {
-        try {
-          await config.triggerStore.save({
-            id: crypto.randomUUID(),
-            source,
-            message: text,
-            classification: sessionTaint,
-            firedAt: new Date().toISOString(),
-          });
-        } catch { /* non-fatal */ }
-      }
+      await persistTriggerResult(config, source, text, sessionTaint);
       return;
     }
-
-    // Persist result to trigger store (if configured) regardless of notification delivery
-    if (config.triggerStore) {
-      try {
-        await config.triggerStore.save({
-          id: crypto.randomUUID(),
-          source,
-          message: text,
-          classification: sessionTaint,
-          firedAt: new Date().toISOString(),
-        });
-        log.info(`[${source}] Result persisted to trigger store`);
-      } catch (err) {
-        log.error(`[${source}] Failed to persist to trigger store: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-
-    if (!config.notificationService || !config.ownerId) {
-      log.warn(`[${source}] No notification service or ownerId — output not delivered`);
-      return;
-    }
-    try {
-      await config.notificationService.deliver({
-        userId: config.ownerId,
-        message: `[${source}] ${text}`,
-        priority: "normal",
-        classification: sessionTaint,
-      });
-      log.info(`[${source}] Notification delivered`);
-    } catch (err) {
-      log.error(`[${source}] Notification delivery failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    await persistTriggerResult(config, source, text, sessionTaint);
+    await deliverSchedulerNotification(config, source, text, sessionTaint);
   }
 
   /** Load TRIGGER.md content, returning null if not found. */
@@ -137,8 +191,9 @@ export function createSchedulerService(
     log.info(`Executing cron job: ${job.id}`);
     const startTime = performance.now();
     try {
-      const { orchestrator, session } =
-        await config.orchestratorFactory.create("cron");
+      const { orchestrator, session } = await config.orchestratorFactory.create(
+        "cron",
+      );
 
       const result = await orchestrator.executeAgentTurn({
         session,
@@ -148,7 +203,11 @@ export function createSchedulerService(
 
       if (result.ok) {
         const { inputTokens, outputTokens } = result.value.tokenUsage;
-        log.info(`[cron:${job.id}] Token usage — input: ${inputTokens}, output: ${outputTokens}, total: ${inputTokens + outputTokens}`);
+        log.info(
+          `[cron:${job.id}] Token usage — input: ${inputTokens}, output: ${outputTokens}, total: ${
+            inputTokens + outputTokens
+          }`,
+        );
       }
       await deliverOutput(result, session.taint, `cron:${job.id}`);
 
@@ -195,11 +254,13 @@ export function createSchedulerService(
 
     try {
       log.info("Creating trigger orchestrator session");
-      const { orchestrator, session } =
-        await config.orchestratorFactory.create("trigger", {
+      const { orchestrator, session } = await config.orchestratorFactory.create(
+        "trigger",
+        {
           isTrigger: true,
           ceiling: config.trigger.classificationCeiling,
-        });
+        },
+      );
 
       log.info("Trigger orchestrator processing TRIGGER.md");
       const result = await orchestrator.executeAgentTurn({
@@ -211,11 +272,19 @@ export function createSchedulerService(
       log.info(`Trigger completed (ok: ${result.ok}, taint: ${session.taint})`);
       if (result.ok) {
         const { inputTokens, outputTokens } = result.value.tokenUsage;
-        log.info(`[trigger] Token usage — input: ${inputTokens}, output: ${outputTokens}, total: ${inputTokens + outputTokens}`);
+        log.info(
+          `[trigger] Token usage — input: ${inputTokens}, output: ${outputTokens}, total: ${
+            inputTokens + outputTokens
+          }`,
+        );
       }
       await deliverOutput(result, session.taint, "trigger");
     } catch (err) {
-      log.error(`Trigger callback failed: ${err instanceof Error ? err.message : String(err)}`);
+      log.error(
+        `Trigger callback failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 
@@ -263,58 +332,39 @@ export function createSchedulerService(
       body: string,
       signature: string,
     ): Promise<Result<void, string>> {
-      if (!config.webhooks.enabled) {
-        return { ok: false, error: "Webhooks are disabled" };
-      }
+      const validation = await validateAndParseWebhookRequest(
+        config,
+        sourceId,
+        body,
+        signature,
+      );
+      if (!validation.ok) return validation;
+      const { event, classification } = validation.value;
 
-      const source = config.webhooks.sources[sourceId];
-      if (!source) {
-        return { ok: false, error: `Unknown webhook source: ${sourceId}` };
-      }
-
-      // Verify HMAC signature
-      const valid = await verifyHmacAsync(body, signature, source.secret);
-      if (!valid) {
-        return { ok: false, error: "Invalid HMAC signature" };
-      }
-
-      // Parse event from body
-      let event: WebhookEvent;
       try {
-        const parsed = JSON.parse(body);
-        event = {
-          event: parsed.event ?? "unknown",
-          data: parsed.data ?? parsed,
-        };
-      } catch {
-        return { ok: false, error: "Invalid JSON body" };
-      }
-
-      // Spawn isolated session and process
-      try {
-        const { orchestrator, session } =
-          await config.orchestratorFactory.create(`webhook-${sourceId}`);
-
+        const { orchestrator, session } = await config.orchestratorFactory
+          .create(`webhook-${sourceId}`);
         const message =
           `Webhook event from ${sourceId}: ${event.event}\n\nPayload:\n${body}`;
         const result = await orchestrator.executeAgentTurn({
           session,
           message,
-          targetClassification: source.classification,
+          targetClassification: classification,
         });
-
         if (result.ok) {
           const { inputTokens, outputTokens } = result.value.tokenUsage;
-          log.info(`[webhook:${sourceId}] Token usage — input: ${inputTokens}, output: ${outputTokens}, total: ${inputTokens + outputTokens}`);
+          log.info(
+            `[webhook:${sourceId}] Token usage — input: ${inputTokens}, output: ${outputTokens}, total: ${
+              inputTokens + outputTokens
+            }`,
+          );
         }
         await deliverOutput(result, session.taint, `webhook:${sourceId}`);
       } catch {
         // Webhook processing failures are logged but don't fail the HTTP response
       }
 
-      // Also dispatch through the event handler for registered listeners
       await webhookHandler.handleWebhookEvent(event);
-
       return { ok: true, value: undefined };
     },
   };
