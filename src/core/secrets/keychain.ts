@@ -62,6 +62,30 @@ export interface SecretStore {
   readonly listSecrets: () => Promise<Result<string[], string>>;
 }
 
+/** Pipe stdin data to a child process writer. */
+async function pipeStdinData(
+  process: Deno.ChildProcess,
+  data: string,
+): Promise<void> {
+  const writer = process.stdin.getWriter();
+  await writer.write(new TextEncoder().encode(data));
+  await writer.close();
+}
+
+/** Decode command output and return Result based on exit status. */
+function decodeCommandOutput(
+  output: Deno.CommandOutput,
+  cmd: string,
+): Result<string, string> {
+  const stdout = new TextDecoder().decode(output.stdout).trim();
+  const stderr = new TextDecoder().decode(output.stderr).trim();
+  if (output.success) return { ok: true, value: stdout };
+  return {
+    ok: false,
+    error: stderr || `Command '${cmd}' failed with exit code ${output.code}`,
+  };
+}
+
 /**
  * Run a Deno.Command and capture stdout/stderr.
  *
@@ -82,30 +106,102 @@ async function runCommand(
       stderr: "piped",
       stdin: stdin !== undefined ? "piped" : "null",
     });
-
     const process = command.spawn();
-
-    if (stdin !== undefined) {
-      const writer = process.stdin.getWriter();
-      await writer.write(new TextEncoder().encode(stdin));
-      await writer.close();
-    }
-
+    if (stdin !== undefined) await pipeStdinData(process, stdin);
     const output = await process.output();
-    const stdout = new TextDecoder().decode(output.stdout).trim();
-    const stderr = new TextDecoder().decode(output.stderr).trim();
-
-    if (output.success) {
-      return { ok: true, value: stdout };
-    }
-    return {
-      ok: false,
-      error: stderr || `Command '${cmd}' failed with exit code ${output.code}`,
-    };
+    return decodeCommandOutput(output, cmd);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `Failed to execute '${cmd}': ${message}` };
   }
+}
+
+/** Lookup a secret from Linux libsecret. */
+async function lookupLinuxSecret(
+  name: string,
+): Promise<Result<string, string>> {
+  const result = await runCommand("secret-tool", [
+    "lookup",
+    "service",
+    SERVICE_NAME,
+    "key",
+    name,
+  ]);
+  if (!result.ok) {
+    return { ok: false, error: `Secret '${name}' not found: ${result.error}` };
+  }
+  if (result.value === "") {
+    return { ok: false, error: `Secret '${name}' not found` };
+  }
+  return { ok: true, value: result.value };
+}
+
+/** Store a secret in Linux libsecret. */
+async function storeLinuxSecret(
+  name: string,
+  value: string,
+): Promise<Result<true, string>> {
+  const result = await runCommand(
+    "secret-tool",
+    [
+      "store",
+      "--label",
+      `triggerfish:${name}`,
+      "service",
+      SERVICE_NAME,
+      "key",
+      name,
+    ],
+    value,
+  );
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: `Failed to store secret '${name}': ${result.error}`,
+    };
+  }
+  return { ok: true, value: true };
+}
+
+/** Delete a secret from Linux libsecret. */
+async function deleteLinuxSecret(
+  name: string,
+): Promise<Result<true, string>> {
+  const result = await runCommand("secret-tool", [
+    "clear",
+    "service",
+    SERVICE_NAME,
+    "key",
+    name,
+  ]);
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: `Failed to delete secret '${name}': ${result.error}`,
+    };
+  }
+  return { ok: true, value: true };
+}
+
+/** Parse secret-tool search output for attribute key names. */
+function parseLinuxSecretSearchOutput(output: string): string[] {
+  const names: string[] = [];
+  for (const line of output.split("\n")) {
+    const match = line.match(/^attribute\.key\s*=\s*(.+)$/);
+    if (match) names.push(match[1].trim());
+  }
+  return names;
+}
+
+/** List all secrets from Linux libsecret. */
+async function listLinuxSecrets(): Promise<Result<string[], string>> {
+  const result = await runCommand("secret-tool", [
+    "search",
+    "service",
+    SERVICE_NAME,
+  ]);
+  if (!result.ok) return { ok: true, value: [] };
+  return { ok: true, value: parseLinuxSecretSearchOutput(result.value) };
 }
 
 /**
@@ -115,91 +211,110 @@ async function runCommand(
  */
 function createLinuxKeychain(): SecretStore {
   return {
-    async getSecret(name: string): Promise<Result<string, string>> {
-      const result = await runCommand("secret-tool", [
-        "lookup",
-        "service",
-        SERVICE_NAME,
-        "key",
-        name,
-      ]);
-      if (!result.ok) {
-        return {
-          ok: false,
-          error: `Secret '${name}' not found: ${result.error}`,
-        };
-      }
-      if (result.value === "") {
-        return { ok: false, error: `Secret '${name}' not found` };
-      }
-      return { ok: true, value: result.value };
-    },
-
-    async setSecret(
-      name: string,
-      value: string,
-    ): Promise<Result<true, string>> {
-      const result = await runCommand(
-        "secret-tool",
-        [
-          "store",
-          "--label",
-          `triggerfish:${name}`,
-          "service",
-          SERVICE_NAME,
-          "key",
-          name,
-        ],
-        value,
-      );
-      if (!result.ok) {
-        return {
-          ok: false,
-          error: `Failed to store secret '${name}': ${result.error}`,
-        };
-      }
-      return { ok: true, value: true };
-    },
-
-    async deleteSecret(name: string): Promise<Result<true, string>> {
-      const result = await runCommand("secret-tool", [
-        "clear",
-        "service",
-        SERVICE_NAME,
-        "key",
-        name,
-      ]);
-      if (!result.ok) {
-        return {
-          ok: false,
-          error: `Failed to delete secret '${name}': ${result.error}`,
-        };
-      }
-      return { ok: true, value: true };
-    },
-
-    async listSecrets(): Promise<Result<string[], string>> {
-      // secret-tool search returns all matching attributes
-      const result = await runCommand("secret-tool", [
-        "search",
-        "service",
-        SERVICE_NAME,
-      ]);
-      if (!result.ok) {
-        // If no secrets exist, search may return non-zero
-        return { ok: true, value: [] };
-      }
-      // Parse output: lines like "attribute.key = <name>"
-      const names: string[] = [];
-      for (const line of result.value.split("\n")) {
-        const match = line.match(/^attribute\.key\s*=\s*(.+)$/);
-        if (match) {
-          names.push(match[1].trim());
-        }
-      }
-      return { ok: true, value: names };
-    },
+    getSecret: lookupLinuxSecret,
+    setSecret: storeLinuxSecret,
+    deleteSecret: deleteLinuxSecret,
+    listSecrets: listLinuxSecrets,
   };
+}
+
+/** Lookup a secret from macOS Keychain. */
+async function lookupMacSecret(
+  name: string,
+): Promise<Result<string, string>> {
+  const result = await runCommand("security", [
+    "find-generic-password",
+    "-s",
+    SERVICE_NAME,
+    "-a",
+    name,
+    "-w",
+  ]);
+  if (!result.ok) {
+    return { ok: false, error: `Secret '${name}' not found: ${result.error}` };
+  }
+  return { ok: true, value: result.value };
+}
+
+/** Store a secret in macOS Keychain (deletes existing entry first). */
+async function storeMacSecret(
+  name: string,
+  value: string,
+): Promise<Result<true, string>> {
+  await runCommand("security", [
+    "delete-generic-password",
+    "-s",
+    SERVICE_NAME,
+    "-a",
+    name,
+  ]);
+  const result = await runCommand("security", [
+    "add-generic-password",
+    "-s",
+    SERVICE_NAME,
+    "-a",
+    name,
+    "-w",
+    value,
+  ]);
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: `Failed to store secret '${name}': ${result.error}`,
+    };
+  }
+  return { ok: true, value: true };
+}
+
+/** Delete a secret from macOS Keychain. */
+async function deleteMacSecret(
+  name: string,
+): Promise<Result<true, string>> {
+  const result = await runCommand("security", [
+    "delete-generic-password",
+    "-s",
+    SERVICE_NAME,
+    "-a",
+    name,
+  ]);
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: `Failed to delete secret '${name}': ${result.error}`,
+    };
+  }
+  return { ok: true, value: true };
+}
+
+/** Parse macOS keychain dump output for triggerfish account names. */
+function parseMacKeychainDump(dump: string): string[] {
+  const names: string[] = [];
+  let inTriggerfishEntry = false;
+  for (const line of dump.split("\n")) {
+    if (line.includes(`"svce"<blob>="${SERVICE_NAME}"`)) {
+      inTriggerfishEntry = true;
+    }
+    if (inTriggerfishEntry) {
+      const match = line.match(/"acct"<blob>="([^"]+)"/);
+      if (match) {
+        names.push(match[1]);
+        inTriggerfishEntry = false;
+      }
+    }
+    if (line.startsWith("keychain:") || line.startsWith("class:")) {
+      if (!line.includes(SERVICE_NAME)) {
+        inTriggerfishEntry = false;
+      }
+    }
+  }
+  return names;
+}
+
+/** List all secrets from macOS Keychain. */
+async function listMacSecrets(): Promise<Result<string[], string>> {
+  const result = await runCommand("security", ["dump-keychain"]);
+  if (!result.ok) return { ok: true, value: [] };
+  return { ok: true, value: parseMacKeychainDump(result.value) };
 }
 
 /**
@@ -209,104 +324,35 @@ function createLinuxKeychain(): SecretStore {
  */
 function createMacKeychain(): SecretStore {
   return {
-    async getSecret(name: string): Promise<Result<string, string>> {
-      const result = await runCommand("security", [
-        "find-generic-password",
-        "-s",
-        SERVICE_NAME,
-        "-a",
-        name,
-        "-w",
-      ]);
-      if (!result.ok) {
-        return {
-          ok: false,
-          error: `Secret '${name}' not found: ${result.error}`,
-        };
-      }
-      return { ok: true, value: result.value };
-    },
-
-    async setSecret(
-      name: string,
-      value: string,
-    ): Promise<Result<true, string>> {
-      // Delete existing entry first (ignore errors if it doesn't exist)
-      await runCommand("security", [
-        "delete-generic-password",
-        "-s",
-        SERVICE_NAME,
-        "-a",
-        name,
-      ]);
-      const result = await runCommand("security", [
-        "add-generic-password",
-        "-s",
-        SERVICE_NAME,
-        "-a",
-        name,
-        "-w",
-        value,
-      ]);
-      if (!result.ok) {
-        return {
-          ok: false,
-          error: `Failed to store secret '${name}': ${result.error}`,
-        };
-      }
-      return { ok: true, value: true };
-    },
-
-    async deleteSecret(name: string): Promise<Result<true, string>> {
-      const result = await runCommand("security", [
-        "delete-generic-password",
-        "-s",
-        SERVICE_NAME,
-        "-a",
-        name,
-      ]);
-      if (!result.ok) {
-        return {
-          ok: false,
-          error: `Failed to delete secret '${name}': ${result.error}`,
-        };
-      }
-      return { ok: true, value: true };
-    },
-
-    async listSecrets(): Promise<Result<string[], string>> {
-      // Dump all generic passwords and filter by service
-      const result = await runCommand("security", [
-        "dump-keychain",
-      ]);
-      if (!result.ok) {
-        return { ok: true, value: [] };
-      }
-      const names: string[] = [];
-      let inTriggerfishEntry = false;
-      for (const line of result.value.split("\n")) {
-        // Detect service match
-        if (line.includes(`"svce"<blob>="${SERVICE_NAME}"`)) {
-          inTriggerfishEntry = true;
-        }
-        // Extract account name from matching entry
-        if (inTriggerfishEntry) {
-          const match = line.match(/"acct"<blob>="([^"]+)"/);
-          if (match) {
-            names.push(match[1]);
-            inTriggerfishEntry = false;
-          }
-        }
-        // Reset on new entry boundary
-        if (line.startsWith("keychain:") || line.startsWith("class:")) {
-          if (!line.includes(SERVICE_NAME)) {
-            inTriggerfishEntry = false;
-          }
-        }
-      }
-      return { ok: true, value: names };
-    },
+    getSecret: lookupMacSecret,
+    setSecret: storeMacSecret,
+    deleteSecret: deleteMacSecret,
+    listSecrets: listMacSecrets,
   };
+}
+
+/** Lookup a secret from an in-memory store. */
+function lookupMemorySecret(
+  store: Map<string, string>,
+  name: string,
+): Promise<Result<string, string>> {
+  const value = store.get(name);
+  if (value === undefined) {
+    return Promise.resolve({ ok: false, error: `Secret '${name}' not found` });
+  }
+  return Promise.resolve({ ok: true, value });
+}
+
+/** Delete a secret from an in-memory store. */
+function deleteMemorySecret(
+  store: Map<string, string>,
+  name: string,
+): Promise<Result<true, string>> {
+  if (!store.has(name)) {
+    return Promise.resolve({ ok: false, error: `Secret '${name}' not found` });
+  }
+  store.delete(name);
+  return Promise.resolve({ ok: true, value: true });
 }
 
 /**
@@ -317,38 +363,15 @@ function createMacKeychain(): SecretStore {
  */
 export function createMemorySecretStore(): SecretStore {
   const store = new Map<string, string>();
-
   return {
-    getSecret(name: string): Promise<Result<string, string>> {
-      const value = store.get(name);
-      if (value === undefined) {
-        return Promise.resolve({
-          ok: false,
-          error: `Secret '${name}' not found`,
-        });
-      }
-      return Promise.resolve({ ok: true, value });
-    },
-
+    getSecret: (name) => lookupMemorySecret(store, name),
     setSecret(name: string, value: string): Promise<Result<true, string>> {
       store.set(name, value);
       return Promise.resolve({ ok: true, value: true });
     },
-
-    deleteSecret(name: string): Promise<Result<true, string>> {
-      if (!store.has(name)) {
-        return Promise.resolve({
-          ok: false,
-          error: `Secret '${name}' not found`,
-        });
-      }
-      store.delete(name);
-      return Promise.resolve({ ok: true, value: true });
-    },
-
-    listSecrets(): Promise<Result<string[], string>> {
-      return Promise.resolve({ ok: true, value: [...store.keys()] });
-    },
+    deleteSecret: (name) => deleteMemorySecret(store, name),
+    listSecrets: () =>
+      Promise.resolve({ ok: true, value: [...store.keys()] } as const),
   };
 }
 
@@ -361,6 +384,27 @@ export function createMemorySecretStore(): SecretStore {
  *
  * @returns A SecretStore implementation appropriate for the current OS
  */
+/** Resolve encrypted-file secret store paths for Windows. */
+function resolveWindowsSecretStorePaths(): {
+  secretsPath: string;
+  keyPath: string;
+} {
+  const dataDir = Deno.env.get("TRIGGERFISH_DATA_DIR") ??
+    join(
+      Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".",
+      ".triggerfish",
+    );
+  return {
+    secretsPath: join(dataDir, "secrets.json"),
+    keyPath: join(dataDir, "secrets.key"),
+  };
+}
+
+/**
+ * Detect the current OS and return the appropriate keychain backend.
+ *
+ * @returns A SecretStore implementation appropriate for the current OS
+ */
 export function createKeychain(): SecretStore {
   if (isDockerEnvironment()) {
     log.info("Secret backend selected: encrypted-file (Docker)");
@@ -369,9 +413,7 @@ export function createKeychain(): SecretStore {
       keyPath: "/data/secrets.key",
     });
   }
-
   const os = Deno.build.os;
-
   switch (os) {
     case "linux":
       log.info("Secret backend selected: libsecret (Linux)");
@@ -379,21 +421,9 @@ export function createKeychain(): SecretStore {
     case "darwin":
       log.info("Secret backend selected: Keychain (macOS)");
       return createMacKeychain();
-    case "windows": {
-      // Store secrets alongside triggerfish.yaml so the Windows Service
-      // (which runs under a different account) resolves the same path
-      // as the interactive CLI user.
-      const dataDir = Deno.env.get("TRIGGERFISH_DATA_DIR") ??
-        join(
-          Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".",
-          ".triggerfish",
-        );
+    case "windows":
       log.info("Secret backend selected: encrypted-file (Windows)");
-      return createEncryptedFileSecretStore({
-        secretsPath: join(dataDir, "secrets.json"),
-        keyPath: join(dataDir, "secrets.key"),
-      });
-    }
+      return createEncryptedFileSecretStore(resolveWindowsSecretStorePaths());
     default:
       log.warn("Secret backend selected: in-memory (unsupported OS)", { os });
       return createMemorySecretStore();
