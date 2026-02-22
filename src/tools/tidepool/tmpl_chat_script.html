@@ -175,68 +175,40 @@
         break;
       }
       case "secret_prompt":
-        handleSecretPrompt(evt.nonce, evt.name, evt.hint, evt.needsUsername);
+        handleSecretPrompt(evt.nonce, evt.name, evt.hint);
         break;
     }
   }
 
-  function handleSecretPrompt(nonce, name, hint, needsUsername) {
+  function handleSecretPrompt(nonce, name, hint) {
     var overlay = document.getElementById("secret-prompt-overlay");
     var title = document.getElementById("secret-prompt-title");
     var desc = document.getElementById("secret-prompt-hint");
-    var usernameInput = document.getElementById("secret-prompt-username");
     var valueInput = document.getElementById("secret-prompt-value");
     var submitBtn = document.getElementById("secret-prompt-submit");
     var cancelBtn = document.getElementById("secret-prompt-cancel");
 
     if (!overlay || !title || !valueInput || !submitBtn || !cancelBtn) return;
 
-    if (needsUsername) {
-      title.textContent = "Enter credentials: " + name;
-      if (usernameInput) {
-        usernameInput.style.display = "";
-        usernameInput.value = "";
-        usernameInput.placeholder = "Username...";
-      }
-      valueInput.placeholder = "Password...";
-    } else {
-      title.textContent = "Enter secret: " + name;
-      if (usernameInput) usernameInput.style.display = "none";
-      valueInput.placeholder = "Enter value...";
-    }
+    title.textContent = "Enter secret: " + name;
     if (desc) desc.textContent = hint || "";
     valueInput.value = "";
     overlay.style.display = "flex";
-    setTimeout(function() {
-      if (needsUsername && usernameInput) {
-        usernameInput.focus();
-      } else {
-        valueInput.focus();
-      }
-    }, 50);
+    setTimeout(function() { valueInput.focus(); }, 50);
 
     function cleanup() {
       overlay.style.display = "none";
       valueInput.value = "";
-      if (usernameInput) {
-        usernameInput.value = "";
-        usernameInput.style.display = "none";
-      }
       submitBtn.removeEventListener("click", onSubmit);
       cancelBtn.removeEventListener("click", onCancel);
       valueInput.removeEventListener("keydown", onKeydown);
-      if (usernameInput) usernameInput.removeEventListener("keydown", onUsernameKeydown);
     }
 
     function onSubmit() {
       var val = valueInput.value;
-      var msg = { type: "secret_prompt_response", nonce: nonce, value: val || null };
-      if (needsUsername && usernameInput) {
-        msg.username = usernameInput.value || "";
-      }
       cleanup();
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(msg));
+        ws.send(JSON.stringify({ type: "secret_prompt_response", nonce: nonce, value: val || null }));
       }
     }
 
@@ -252,17 +224,9 @@
       if (e.key === "Escape") { e.preventDefault(); onCancel(); }
     }
 
-    function onUsernameKeydown(e) {
-      if (e.key === "Enter") { e.preventDefault(); valueInput.focus(); }
-      if (e.key === "Escape") { e.preventDefault(); onCancel(); }
-    }
-
     submitBtn.addEventListener("click", onSubmit);
     cancelBtn.addEventListener("click", onCancel);
     valueInput.addEventListener("keydown", onKeydown);
-    if (needsUsername && usernameInput) {
-      usernameInput.addEventListener("keydown", onUsernameKeydown);
-    }
   }
 
   function addRenderLabel(evt) {
