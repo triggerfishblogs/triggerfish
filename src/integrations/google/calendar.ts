@@ -53,6 +53,77 @@ function toCalendarEvent(event: CalendarApiEvent): CalendarEvent {
   };
 }
 
+/** List calendar events with optional time range filter. */
+async function listCalendarEvents(
+  client: GoogleApiClient,
+  options: CalendarListOptions,
+): Promise<GoogleApiResult<readonly CalendarEvent[]>> {
+  const calendarId = options.calendarId ?? "primary";
+  const params: Record<string, string> = {
+    singleEvents: "true",
+    orderBy: "startTime",
+    maxResults: String(options.maxResults ?? 10),
+  };
+  if (options.timeMin) params.timeMin = options.timeMin;
+  if (options.timeMax) params.timeMax = options.timeMax;
+
+  const result = await client.get<{
+    readonly items?: readonly CalendarApiEvent[];
+  }>(`${CALENDAR_BASE}/calendars/${calendarId}/events`, params);
+
+  if (!result.ok) return result;
+  return { ok: true, value: (result.value.items ?? []).map(toCalendarEvent) };
+}
+
+/** Create a new calendar event. */
+async function createCalendarEvent(
+  client: GoogleApiClient,
+  options: CalendarCreateOptions,
+): Promise<GoogleApiResult<CalendarEvent>> {
+  const calendarId = options.calendarId ?? "primary";
+  const body: Record<string, unknown> = {
+    summary: options.summary,
+    start: { dateTime: options.start },
+    end: { dateTime: options.end },
+  };
+  if (options.description) body.description = options.description;
+  if (options.location) body.location = options.location;
+  if (options.attendees) {
+    body.attendees = options.attendees.map((email) => ({ email }));
+  }
+
+  const result = await client.post<CalendarApiEvent>(
+    `${CALENDAR_BASE}/calendars/${calendarId}/events`,
+    body,
+  );
+  if (!result.ok) return result;
+  return { ok: true, value: toCalendarEvent(result.value) };
+}
+
+/** Update an existing calendar event with partial fields. */
+async function updateCalendarEvent(
+  client: GoogleApiClient,
+  options: CalendarUpdateOptions,
+): Promise<GoogleApiResult<CalendarEvent>> {
+  const calendarId = options.calendarId ?? "primary";
+  const body: Record<string, unknown> = {};
+  if (options.summary !== undefined) body.summary = options.summary;
+  if (options.description !== undefined) body.description = options.description;
+  if (options.location !== undefined) body.location = options.location;
+  if (options.start !== undefined) body.start = { dateTime: options.start };
+  if (options.end !== undefined) body.end = { dateTime: options.end };
+  if (options.attendees !== undefined) {
+    body.attendees = options.attendees.map((email) => ({ email }));
+  }
+
+  const result = await client.patch<CalendarApiEvent>(
+    `${CALENDAR_BASE}/calendars/${calendarId}/events/${options.eventId}`,
+    body,
+  );
+  if (!result.ok) return result;
+  return { ok: true, value: toCalendarEvent(result.value) };
+}
+
 /**
  * Create a Google Calendar service.
  *
@@ -62,70 +133,8 @@ export function createCalendarService(
   client: GoogleApiClient,
 ): CalendarService {
   return {
-    async list(
-      options: CalendarListOptions,
-    ): Promise<GoogleApiResult<readonly CalendarEvent[]>> {
-      const calendarId = options.calendarId ?? "primary";
-      const params: Record<string, string> = {
-        singleEvents: "true",
-        orderBy: "startTime",
-        maxResults: String(options.maxResults ?? 10),
-      };
-      if (options.timeMin) params.timeMin = options.timeMin;
-      if (options.timeMax) params.timeMax = options.timeMax;
-
-      const result = await client.get<{
-        readonly items?: readonly CalendarApiEvent[];
-      }>(`${CALENDAR_BASE}/calendars/${calendarId}/events`, params);
-
-      if (!result.ok) return result;
-      const events = (result.value.items ?? []).map(toCalendarEvent);
-      return { ok: true, value: events };
-    },
-
-    async create(
-      options: CalendarCreateOptions,
-    ): Promise<GoogleApiResult<CalendarEvent>> {
-      const calendarId = options.calendarId ?? "primary";
-      const body: Record<string, unknown> = {
-        summary: options.summary,
-        start: { dateTime: options.start },
-        end: { dateTime: options.end },
-      };
-      if (options.description) body.description = options.description;
-      if (options.location) body.location = options.location;
-      if (options.attendees) {
-        body.attendees = options.attendees.map((email) => ({ email }));
-      }
-
-      const result = await client.post<CalendarApiEvent>(
-        `${CALENDAR_BASE}/calendars/${calendarId}/events`,
-        body,
-      );
-      if (!result.ok) return result;
-      return { ok: true, value: toCalendarEvent(result.value) };
-    },
-
-    async update(
-      options: CalendarUpdateOptions,
-    ): Promise<GoogleApiResult<CalendarEvent>> {
-      const calendarId = options.calendarId ?? "primary";
-      const body: Record<string, unknown> = {};
-      if (options.summary !== undefined) body.summary = options.summary;
-      if (options.description !== undefined) body.description = options.description;
-      if (options.location !== undefined) body.location = options.location;
-      if (options.start !== undefined) body.start = { dateTime: options.start };
-      if (options.end !== undefined) body.end = { dateTime: options.end };
-      if (options.attendees !== undefined) {
-        body.attendees = options.attendees.map((email) => ({ email }));
-      }
-
-      const result = await client.patch<CalendarApiEvent>(
-        `${CALENDAR_BASE}/calendars/${calendarId}/events/${options.eventId}`,
-        body,
-      );
-      if (!result.ok) return result;
-      return { ok: true, value: toCalendarEvent(result.value) };
-    },
+    list: (options) => listCalendarEvents(client, options),
+    create: (options) => createCalendarEvent(client, options),
+    update: (options) => updateCalendarEvent(client, options),
   };
 }
