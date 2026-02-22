@@ -12,10 +12,7 @@
 
 import { parse as parseYaml } from "@std/yaml";
 import { join } from "@std/path";
-import {
-  resolveBaseDir,
-  resolveConfigPath,
-} from "./config/paths.ts";
+import { resolveBaseDir, resolveConfigPath } from "./config/paths.ts";
 import { createPatrolCheck } from "../dive/patrol.ts";
 import type { PatrolInput } from "../dive/patrol.ts";
 import { runWizard, runWizardSelective } from "../dive/wizard.ts";
@@ -39,7 +36,7 @@ export {
   validateConfig,
 } from "../core/config.ts";
 export type { TriggerFishConfig } from "../core/config.ts";
-export type { Ok, Err, Result } from "../core/config.ts";
+export type { Err, Ok, Result } from "../core/config.ts";
 
 // Re-export performGoogleOAuth for backward-compatibility (wizard.ts imports it via dynamic import)
 export { performGoogleOAuth } from "./commands/connect.ts";
@@ -47,10 +44,10 @@ export { performGoogleOAuth } from "./commands/connect.ts";
 // Re-export command parsing for backward-compatibility (tests import from here)
 export {
   parseCommand,
-  showHelp,
-  showVersion,
   type ParsedCommand,
   type ParseOptions,
+  showHelp,
+  showVersion,
 } from "./main_commands.ts";
 
 // ─── Dive / Patrol ────────────────────────────────────────────────────────────
@@ -149,42 +146,38 @@ function countInstalledSkills(): number {
   }
 }
 
-/**
- * Run patrol health diagnostics using real runtime state.
- */
-export async function runPatrol(): Promise<void> {
-  console.log("🔍 Running Triggerfish health diagnostics...\n");
-
-  // Check real state
+/** Collect real runtime state for patrol diagnostics. */
+async function collectPatrolInput(): Promise<{
+  readonly input: PatrolInput;
+  readonly daemonStatus: Awaited<ReturnType<typeof getDaemonStatus>>;
+}> {
   const daemonStatus = await getDaemonStatus();
   const gatewayAlive = daemonStatus.running ? await probeGateway() : false;
-  const channelCount = countConfiguredChannels();
-  const skillCount = countInstalledSkills();
-
-  // LLM is "connected" if gateway is alive (provider is loaded at startup)
-  // A more thorough check would query the gateway, but this is good enough
-  const llmConnected = gatewayAlive;
-
-  const input: PatrolInput = {
-    gatewayRunning: gatewayAlive,
-    llmConnected,
-    channelsActive: channelCount,
-    policyRulesLoaded: gatewayAlive ? 4 : 0, // Fixed rules always loaded when running
-    skillsInstalled: skillCount,
+  return {
+    input: {
+      gatewayRunning: gatewayAlive,
+      llmConnected: gatewayAlive,
+      channelsActive: countConfiguredChannels(),
+      policyRulesLoaded: gatewayAlive ? 4 : 0,
+      skillsInstalled: countInstalledSkills(),
+    },
+    daemonStatus,
   };
+}
 
-  const checker = createPatrolCheck(input);
-  const report = await checker.runHealthChecks();
-
-  // Show daemon info
+/** Display patrol health check results to the console. */
+function displayPatrolReport(
+  report: {
+    overall: string;
+    checks: readonly { status: string; name: string; message: string }[];
+  },
+  daemonStatus: { running: boolean; pid?: number; uptime?: string },
+): void {
   if (daemonStatus.running) {
     console.log(`  Daemon: running (PID ${daemonStatus.pid ?? "?"})`);
-    if (daemonStatus.uptime) {
-      console.log(`  Since:  ${daemonStatus.uptime}`);
-    }
+    if (daemonStatus.uptime) console.log(`  Since:  ${daemonStatus.uptime}`);
   }
   console.log("");
-
   console.log(`Overall Status: ${report.overall}\n`);
   console.log("Health Checks:");
   for (const check of report.checks) {
@@ -196,7 +189,6 @@ export async function runPatrol(): Promise<void> {
     console.log(`  ${icon} ${check.name}: ${check.message}`);
   }
   console.log();
-
   if (report.overall === "CRITICAL") {
     console.log(
       "❌ Critical issues detected. Run 'triggerfish start' to launch the gateway.\n",
@@ -207,6 +199,17 @@ export async function runPatrol(): Promise<void> {
   } else {
     console.log("✅ All systems healthy.\n");
   }
+}
+
+/**
+ * Run patrol health diagnostics using real runtime state.
+ */
+export async function runPatrol(): Promise<void> {
+  console.log("🔍 Running Triggerfish health diagnostics...\n");
+  const { input, daemonStatus } = await collectPatrolInput();
+  const checker = createPatrolCheck(input);
+  const report = await checker.runHealthChecks();
+  displayPatrolReport(report, daemonStatus);
 }
 
 // ─── Daemon control ───────────────────────────────────────────────────────────
@@ -259,7 +262,9 @@ async function runUpdate(): Promise<void> {
     } else {
       console.log("✓", result.message);
       if (result.wasRunning) {
-        console.log("\nRun 'triggerfish status' to verify the daemon restarted.");
+        console.log(
+          "\nRun 'triggerfish status' to verify the daemon restarted.",
+        );
       } else {
         const startIt = await Confirm.prompt({
           message: "Daemon was not running. Start it now?",
@@ -286,7 +291,9 @@ async function runDaemonStart(): Promise<void> {
   const result = await installAndStartDaemon(Deno.execPath());
   if (result.ok) {
     console.log("✓ Daemon installed and started");
-    console.log(`  Tidepool: http://127.0.0.1:${TIDEPOOL_PORT} (available once daemon is ready)`);
+    console.log(
+      `  Tidepool: http://127.0.0.1:${TIDEPOOL_PORT} (available once daemon is ready)`,
+    );
   } else {
     console.log(`✗ ${result.message}`);
     Deno.exit(1);
