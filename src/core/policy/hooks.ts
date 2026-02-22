@@ -16,6 +16,9 @@ import type { PolicyAction, HookType, PolicyRule } from "./rules.ts";
 import type { PolicyEngine } from "./engine.ts";
 import { CLASSIFICATION_ORDER, canFlowTo } from "../types/classification.ts";
 import type { ClassificationLevel } from "../types/classification.ts";
+import { createLogger } from "../logger/logger.ts";
+
+const log = createLogger("policy");
 
 /** Context provided to a hook for evaluation. */
 export interface HookContext {
@@ -173,9 +176,16 @@ export function createHookRunner(
       }
 
       return hookResult;
-    } catch {
+    } catch (err: unknown) {
       // Any error (including timeout) results in BLOCK
       const duration = performance.now() - start;
+      const errMsg = err instanceof Error ? err.message : String(err);
+      log.warn("Hook evaluation failed, defaulting to BLOCK", {
+        hook,
+        sessionId: context.session.id,
+        error: errMsg,
+        durationMs: Math.round(duration),
+      });
       const blockResult: HookResult = {
         allowed: false,
         action: "BLOCK",
