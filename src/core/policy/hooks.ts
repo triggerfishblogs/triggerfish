@@ -11,10 +11,10 @@
  * @module
  */
 
-import type { SessionState, SessionId, UserId } from "../types/session.ts";
-import type { PolicyAction, HookType, PolicyRule } from "./rules.ts";
+import type { SessionId, SessionState, UserId } from "../types/session.ts";
+import type { HookType, PolicyAction, PolicyRule } from "./rules.ts";
 import type { PolicyEngine } from "./engine.ts";
-import { CLASSIFICATION_ORDER, canFlowTo } from "../types/classification.ts";
+import { canFlowTo, CLASSIFICATION_ORDER } from "../types/classification.ts";
 import type { ClassificationLevel } from "../types/classification.ts";
 import { createLogger } from "../logger/logger.ts";
 
@@ -67,6 +67,53 @@ export interface HookRunner {
 /** Default timeout for hook evaluation in milliseconds. */
 const DEFAULT_TIMEOUT_MS = 5000;
 
+/** Check if session taint cannot flow to the target classification. */
+function detectWriteDownViolation(
+  input: Record<string, unknown>,
+  sessionTaint: ClassificationLevel,
+): boolean {
+  const target = input.target_classification as ClassificationLevel | undefined;
+  return target !== undefined &&
+    target in CLASSIFICATION_ORDER &&
+    !canFlowTo(sessionTaint, target);
+}
+
+/** Check if session taint is below the tool's required minimum floor. */
+function detectToolFloorViolation(
+  input: Record<string, unknown>,
+  sessionTaint: ClassificationLevel,
+): boolean {
+  const toolFloor = input.tool_floor as ClassificationLevel | undefined;
+  return toolFloor !== undefined &&
+    toolFloor in CLASSIFICATION_ORDER &&
+    CLASSIFICATION_ORDER[sessionTaint] < CLASSIFICATION_ORDER[toolFloor];
+}
+
+/** Check if session taint exceeds a resource's classification level. */
+function detectResourceWriteDownViolation(
+  input: Record<string, unknown>,
+  sessionTaint: ClassificationLevel,
+): boolean {
+  const rc = input.resource_classification as ClassificationLevel | undefined;
+  return rc !== undefined &&
+    rc in CLASSIFICATION_ORDER &&
+    !canFlowTo(sessionTaint, rc);
+}
+
+/** Check if a non-owner read exceeds the user's classification ceiling. */
+function detectResourceReadCeilingViolation(
+  input: Record<string, unknown>,
+): boolean {
+  const rc = input.resource_classification as ClassificationLevel | undefined;
+  const ceiling = input.non_owner_ceiling as ClassificationLevel | undefined;
+  return rc !== undefined &&
+    input.operation_type === "read" &&
+    input.is_owner === false &&
+    ceiling !== undefined &&
+    ceiling in CLASSIFICATION_ORDER &&
+    !canFlowTo(rc, ceiling);
+}
+
 /**
  * Build the evaluation context by merging session state fields into the input.
  *
@@ -79,60 +126,52 @@ function buildEvaluationContext(
 ): Record<string, unknown> {
   const { session, input } = context;
 
-  const targetClassification = input.target_classification as
-    | ClassificationLevel
-    | undefined;
-
-  // Compute write-down violation flag: true if session taint cannot flow to target
-  const writeDownViolation =
-    targetClassification !== undefined &&
-    targetClassification in CLASSIFICATION_ORDER &&
-    !canFlowTo(session.taint, targetClassification);
-
-  // Tool floor violation: session taint is below the tool's required floor
-  const toolFloor = input.tool_floor as ClassificationLevel | undefined;
-  const toolFloorViolation =
-    toolFloor !== undefined &&
-    toolFloor in CLASSIFICATION_ORDER &&
-    CLASSIFICATION_ORDER[session.taint] < CLASSIFICATION_ORDER[toolFloor];
-
-  // Resource classification violations (filesystem paths and URL domains)
-  const resourceClassification = input.resource_classification as
-    | ClassificationLevel
-    | undefined;
-  const operationType = input.operation_type as "read" | "write" | undefined;
-  const isOwner = input.is_owner as boolean | undefined;
-  const nonOwnerCeiling = input.non_owner_ceiling as
-    | ClassificationLevel
-    | undefined;
-
-  // Resource taint violation: session taint exceeds resource classification.
-  // Applies to ALL tools (read, write, fetch) — once tainted, the session
-  // cannot interact with any lower-classified resource.
-  const resourceWriteDownViolation =
-    resourceClassification !== undefined &&
-    resourceClassification in CLASSIFICATION_ORDER &&
-    !canFlowTo(session.taint, resourceClassification);
-
-  // Read ceiling: non-owner resource classification exceeds ceiling
-  const resourceReadCeilingViolation =
-    resourceClassification !== undefined &&
-    operationType === "read" &&
-    isOwner === false &&
-    nonOwnerCeiling !== undefined &&
-    nonOwnerCeiling in CLASSIFICATION_ORDER &&
-    !canFlowTo(resourceClassification, nonOwnerCeiling);
-
   return {
     ...input,
     session_id: session.id,
     user_id: session.userId,
     channel_id: session.channelId,
     session_taint: session.taint,
-    write_down_violation: writeDownViolation ? "true" : "false",
-    tool_floor_violation: toolFloorViolation ? "true" : "false",
-    resource_write_down_violation: resourceWriteDownViolation ? "true" : "false",
-    resource_read_ceiling_violation: resourceReadCeilingViolation ? "true" : "false",
+    write_down_violation: detectWriteDownViolation(input, session.taint)
+      ? "true"
+      : "false",
+    tool_floor_violation: detectToolFloorViolation(input, session.taint)
+      ? "true"
+      : "false",
+    resource_write_down_violation:
+      detectResourceWriteDownViolation(input, session.taint) ? "true" : "false",
+    resource_read_ceiling_violation: detectResourceReadCeilingViolation(input)
+      ? "true"
+      : "false",
+  };
+}
+
+/** Build a structured log entry for a hook evaluation. */
+function buildHookLogEntry(
+  engine: PolicyEngine,
+  hook: HookType,
+  context: HookContext,
+  result: HookResult,
+): HookLogEntry {
+  return {
+    timestamp: new Date(),
+    hook,
+    sessionId: context.session.id,
+    userId: context.session.userId,
+    input: context.input,
+    result,
+    rulesEvaluated: engine.getRules(hook).map((r) => r.id),
+  };
+}
+
+/** Build a BLOCK result for error/timeout cases. */
+function buildTimeoutBlockResult(duration: number): HookResult {
+  return {
+    allowed: false,
+    action: "BLOCK",
+    ruleId: null,
+    message: "Hook evaluation timed out",
+    duration,
   };
 }
 
@@ -151,68 +190,39 @@ export function createHookRunner(
   options?: HookRunnerOptions,
 ): HookRunner {
   const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const logger = options?.logger;
+  const hookLogger = options?.logger;
 
-  async function evaluateHook(hook: HookType, context: HookContext): Promise<HookResult> {
-    const start = performance.now();
+  return {
+    async evaluateHook(hook, context) {
+      const start = performance.now();
 
-    try {
-      const result = await evaluateWithTimeout(engine, hook, context, timeoutMs);
-      const duration = performance.now() - start;
-      const hookResult: HookResult = { ...result, duration };
-
-      if (logger) {
-        const rules = engine.getRules(hook);
-        const entry: HookLogEntry = {
-          timestamp: new Date(),
+      try {
+        const result = await evaluateWithTimeout(
+          engine,
+          hook,
+          context,
+          timeoutMs,
+        );
+        const hookResult: HookResult = {
+          ...result,
+          duration: performance.now() - start,
+        };
+        hookLogger?.log(buildHookLogEntry(engine, hook, context, hookResult));
+        return hookResult;
+      } catch (err: unknown) {
+        const duration = performance.now() - start;
+        log.warn("Hook evaluation failed, defaulting to BLOCK", {
           hook,
           sessionId: context.session.id,
-          userId: context.session.userId,
-          input: context.input,
-          result: hookResult,
-          rulesEvaluated: rules.map((r) => r.id),
-        };
-        logger.log(entry);
+          error: err instanceof Error ? err.message : String(err),
+          durationMs: Math.round(duration),
+        });
+        const blockResult = buildTimeoutBlockResult(duration);
+        hookLogger?.log(buildHookLogEntry(engine, hook, context, blockResult));
+        return blockResult;
       }
-
-      return hookResult;
-    } catch (err: unknown) {
-      // Any error (including timeout) results in BLOCK
-      const duration = performance.now() - start;
-      const errMsg = err instanceof Error ? err.message : String(err);
-      log.warn("Hook evaluation failed, defaulting to BLOCK", {
-        hook,
-        sessionId: context.session.id,
-        error: errMsg,
-        durationMs: Math.round(duration),
-      });
-      const blockResult: HookResult = {
-        allowed: false,
-        action: "BLOCK",
-        ruleId: null,
-        message: "Hook evaluation timed out",
-        duration,
-      };
-
-      if (logger) {
-        const rules = engine.getRules(hook);
-        const entry: HookLogEntry = {
-          timestamp: new Date(),
-          hook,
-          sessionId: context.session.id,
-          userId: context.session.userId,
-          input: context.input,
-          result: blockResult,
-          rulesEvaluated: rules.map((r) => r.id),
-        };
-        logger.log(entry);
-      }
-
-      return blockResult;
-    }
-  }
-
-  return { evaluateHook };
+    },
+  };
 }
 
 /**
@@ -255,103 +265,107 @@ function evaluateWithTimeout(
   });
 }
 
+function buildNoWriteDownRule(): PolicyRule {
+  return {
+    id: "no-write-down",
+    priority: 1000,
+    hook: "PRE_OUTPUT",
+    conditions: [{
+      field: "write_down_violation",
+      operator: "equals",
+      value: "true",
+    }],
+    action: "BLOCK",
+    message:
+      "Write-down violation: session taint exceeds target classification",
+  };
+}
+
+function buildUntrustedInputRule(): PolicyRule {
+  return {
+    id: "untrusted-input",
+    priority: 1000,
+    hook: "PRE_CONTEXT_INJECTION",
+    conditions: [{
+      field: "source_type",
+      operator: "equals",
+      value: "UNTRUSTED",
+    }],
+    action: "BLOCK",
+    message: "Untrusted input source blocked",
+  };
+}
+
+function buildToolFloorRule(): PolicyRule {
+  return {
+    id: "tool-floor-enforcement",
+    priority: 1000,
+    hook: "PRE_TOOL_CALL",
+    conditions: [{
+      field: "tool_floor_violation",
+      operator: "equals",
+      value: "true",
+    }],
+    action: "BLOCK",
+    message: "Tool requires minimum classification level",
+  };
+}
+
+function buildResourceWriteDownRule(): PolicyRule {
+  return {
+    id: "resource-write-down",
+    priority: 1000,
+    hook: "PRE_TOOL_CALL",
+    conditions: [{
+      field: "resource_write_down_violation",
+      operator: "equals",
+      value: "true",
+    }],
+    action: "BLOCK",
+    message: "Write-down: session taint exceeds target resource classification",
+  };
+}
+
+function buildResourceReadCeilingRule(): PolicyRule {
+  return {
+    id: "resource-read-ceiling",
+    priority: 1000,
+    hook: "PRE_TOOL_CALL",
+    conditions: [{
+      field: "resource_read_ceiling_violation",
+      operator: "equals",
+      value: "true",
+    }],
+    action: "BLOCK",
+    message: "Resource classification exceeds session ceiling",
+  };
+}
+
+function buildRateLimitBaseRule(): PolicyRule {
+  return {
+    id: "rate-limit-base",
+    priority: 500,
+    hook: "PRE_TOOL_CALL",
+    conditions: [],
+    action: "ALLOW",
+    message: "Rate limit placeholder",
+  };
+}
+
 /**
  * Create the default system policy rules.
  *
- * These rules enforce core security invariants that cannot be disabled:
- * - **no-write-down** (priority 1000): PRE_OUTPUT hook, blocks when session
- *   taint is higher than the target classification level.
- * - **untrusted-input** (priority 1000): PRE_CONTEXT_INJECTION hook, blocks
- *   input from UNTRUSTED sources.
- * - **tool-floor-enforcement** (priority 1000): PRE_TOOL_CALL hook, blocks
- *   tool calls when session taint is below the tool's minimum floor.
- * - **resource-write-down** (priority 1000): PRE_TOOL_CALL hook, blocks resource
- *   writes when session taint exceeds target resource classification.
- * - **resource-read-ceiling** (priority 1000): PRE_TOOL_CALL hook, blocks non-owner
- *   reads when resource classification exceeds user ceiling.
- * - **rate-limit-base** (priority 500): Basic rate limiting placeholder.
+ * These rules enforce core security invariants that cannot be disabled.
  *
  * @returns Array of default PolicyRule objects
  */
 export function createDefaultRules(): PolicyRule[] {
   return [
-    {
-      id: "no-write-down",
-      priority: 1000,
-      hook: "PRE_OUTPUT",
-      conditions: [
-        {
-          field: "write_down_violation",
-          operator: "equals",
-          value: "true",
-        },
-      ],
-      action: "BLOCK",
-      message: "Write-down violation: session taint exceeds target classification",
-    },
-    {
-      id: "untrusted-input",
-      priority: 1000,
-      hook: "PRE_CONTEXT_INJECTION",
-      conditions: [
-        {
-          field: "source_type",
-          operator: "equals",
-          value: "UNTRUSTED",
-        },
-      ],
-      action: "BLOCK",
-      message: "Untrusted input source blocked",
-    },
-    {
-      id: "tool-floor-enforcement",
-      priority: 1000,
-      hook: "PRE_TOOL_CALL",
-      conditions: [
-        {
-          field: "tool_floor_violation",
-          operator: "equals",
-          value: "true",
-        },
-      ],
-      action: "BLOCK",
-      message: "Tool requires minimum classification level",
-    },
-    {
-      id: "resource-write-down",
-      priority: 1000,
-      hook: "PRE_TOOL_CALL",
-      conditions: [
-        {
-          field: "resource_write_down_violation",
-          operator: "equals",
-          value: "true",
-        },
-      ],
-      action: "BLOCK",
-      message: "Write-down: session taint exceeds target resource classification",
-    },
-    {
-      id: "resource-read-ceiling",
-      priority: 1000,
-      hook: "PRE_TOOL_CALL",
-      conditions: [
-        {
-          field: "resource_read_ceiling_violation",
-          operator: "equals",
-          value: "true",
-        },
-      ],
-      action: "BLOCK",
-      message: "Resource classification exceeds session ceiling",
-    },
-    {
-      id: "rate-limit-base",
-      priority: 500,
-      hook: "PRE_TOOL_CALL",
-      conditions: [],
-      action: "ALLOW",
-      message: "Rate limit placeholder",
-    },
+    buildNoWriteDownRule(),
+    buildUntrustedInputRule(),
+    buildToolFloorRule(),
+    buildResourceWriteDownRule(),
+    buildResourceReadCeilingRule(),
+    buildRateLimitBaseRule(),
   ];
 }
