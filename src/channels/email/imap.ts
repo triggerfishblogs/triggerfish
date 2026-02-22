@@ -226,7 +226,7 @@ export function createImapClient(config: ImapClientConfig): ImapClient {
           // Mark as seen
           await sendCommand(`STORE ${uid} +FLAGS (\\Seen)`);
         } catch (err: unknown) {
-          log.warn("IMAP operation failed", { error: err, uid });
+          log.warn("IMAP message body fetch failed", { error: err, uid });
         }
       }
 
