@@ -13,6 +13,9 @@ import type {
   Result,
 } from "../../core/types/classification.ts";
 import type { ObsidianVaultConfig } from "./types.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("security");
 
 /** Resolved vault context used by all note operations. */
 export interface VaultContext {
@@ -110,6 +113,7 @@ export async function resolveVaultPath(
     normalized.startsWith("/") || normalized.startsWith("..") ||
     normalized.includes("/../") || normalized.endsWith("/..")
   ) {
+    log.warn("Path traversal rejected", { relativePath });
     return { ok: false, error: `Path traversal rejected: ${relativePath}` };
   }
 
@@ -117,6 +121,7 @@ export async function resolveVaultPath(
   const parts = normalized.split("/");
   for (const part of parts) {
     if (part === "..") {
+      log.warn("Path traversal rejected", { relativePath });
       return { ok: false, error: `Path traversal rejected: ${relativePath}` };
     }
   }
@@ -130,6 +135,10 @@ export async function resolveVaultPath(
       !realPath.startsWith(ctx.realVaultPath + SEPARATOR) &&
       realPath !== ctx.realVaultPath
     ) {
+      log.warn("Path escapes vault boundary", {
+        relativePath,
+        resolvedPath: realPath,
+      });
       return {
         ok: false,
         error: `Path escapes vault boundary: ${relativePath}`,
