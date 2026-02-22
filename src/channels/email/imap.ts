@@ -7,6 +7,10 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("email");
+
 /** A parsed email message from IMAP. */
 export interface ImapMessage {
   /** Server-assigned message UID. */
@@ -149,8 +153,8 @@ export function createImapClient(config: ImapClientConfig): ImapClient {
         if (writer) {
           await sendCommand("LOGOUT");
         }
-      } catch {
-        // Ignore logout errors
+      } catch (err: unknown) {
+        log.debug("IMAP logout: connection already closed", { error: err });
       }
 
       try {
@@ -166,8 +170,8 @@ export function createImapClient(config: ImapClientConfig): ImapClient {
           conn.close();
           conn = undefined;
         }
-      } catch {
-        // Cleanup errors are non-fatal
+      } catch (err: unknown) {
+        log.debug("IMAP cleanup: resource already released", { error: err });
       }
       buffer = "";
       tagCounter = 0;
@@ -221,8 +225,8 @@ export function createImapClient(config: ImapClientConfig): ImapClient {
 
           // Mark as seen
           await sendCommand(`STORE ${uid} +FLAGS (\\Seen)`);
-        } catch {
-          // Skip messages that fail to fetch
+        } catch (err: unknown) {
+          log.warn("IMAP operation failed", { error: err, uid });
         }
       }
 
