@@ -7,8 +7,16 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import type { MessageCreateParamsNonStreaming, MessageParam } from "@anthropic-ai/sdk/resources/messages.js";
-import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import type {
+  MessageCreateParamsNonStreaming,
+  MessageParam,
+} from "@anthropic-ai/sdk/resources/messages.js";
+import type {
+  LlmCompletionResult,
+  LlmMessage,
+  LlmProvider,
+  LlmStreamChunk,
+} from "../llm.ts";
 import { getModelInfo } from "../models.ts";
 
 /** Configuration for the Anthropic provider. */
@@ -19,157 +27,6 @@ export interface AnthropicConfig {
   readonly model?: string;
   /** Maximum tokens for completion. Default: 4096 */
   readonly maxTokens?: number;
-}
-
-/**
- * Create an Anthropic LLM provider.
- *
- * @param config - Provider configuration
- * @returns An LlmProvider backed by the Anthropic API
- */
-export function createAnthropicProvider(config: AnthropicConfig = {}): LlmProvider {
-  const model = config.model ?? "claude-sonnet-4-5-20250929";
-  const maxTokens = config.maxTokens ?? 4096;
-
-  // Defer client creation to first use — avoids throwing during
-  // provider registration when credentials aren't yet available.
-  let client: Anthropic | undefined;
-
-  function getClient(): Anthropic {
-    if (!client) {
-      const apiKey = config.apiKey ?? Deno.env.get("ANTHROPIC_API_KEY");
-
-      if (!apiKey) {
-        throw new Error(
-          "Anthropic API key not configured. " +
-          "Set apiKey in triggerfish.yaml under models.providers.anthropic, " +
-          "or run 'triggerfish dive' to reconfigure.",
-        );
-      }
-
-      client = new Anthropic({ apiKey });
-    }
-    return client;
-  }
-
-  return {
-    name: "anthropic",
-    supportsStreaming: true,
-    contextWindow: getModelInfo(model).contextWindow,
-
-    async complete(
-      messages: readonly LlmMessage[],
-      tools: readonly unknown[],
-      options: Record<string, unknown>,
-    ): Promise<LlmCompletionResult> {
-      const anthropicClient = getClient();
-      const signal = options.signal as AbortSignal | undefined;
-
-      // Extract system prompt from messages
-      const systemMessage = messages.find((m) => m.role === "system");
-      const systemPrompt = systemMessage
-        ? (typeof systemMessage.content === "string"
-          ? systemMessage.content
-          : JSON.stringify(systemMessage.content))
-        : undefined;
-
-      // Convert remaining messages to Anthropic format.
-      // Structured content (tool_use blocks, tool_result arrays) passes through as-is.
-      const anthropicMessages: MessageParam[] = messages
-        .filter((m) => m.role !== "system")
-        .map((m) => ({
-          role: m.role as "user" | "assistant",
-          content: m.content as MessageParam["content"],
-        }));
-
-      // Convert OpenAI-format tool definitions to Anthropic format
-      const anthropicTools = convertToolsToAnthropicFormat(tools);
-
-      const requestParams: MessageCreateParamsNonStreaming = {
-        model,
-        max_tokens: maxTokens,
-        messages: anthropicMessages,
-        ...(systemPrompt ? { system: systemPrompt } : {}),
-        ...(anthropicTools.length > 0 ? { tools: anthropicTools } : {}),
-      };
-
-      const response = await anthropicClient.messages.create(
-        requestParams,
-        signal ? { signal } : undefined,
-      );
-
-      // Extract text from response content blocks
-      const textContent = response.content
-        .filter((block) => block.type === "text")
-        .map((block) => block.type === "text" ? block.text : "")
-        .join("");
-
-      return {
-        content: textContent,
-        toolCalls: response.content
-          .filter((block) => block.type === "tool_use"),
-        usage: {
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-        },
-      };
-    },
-
-    async *stream(
-      messages: readonly LlmMessage[],
-      tools: readonly unknown[],
-      options: Record<string, unknown>,
-    ): AsyncIterable<LlmStreamChunk> {
-      const anthropicClient = getClient();
-      const signal = options.signal as AbortSignal | undefined;
-
-      const systemMessage = messages.find((m) => m.role === "system");
-      const systemPrompt = systemMessage
-        ? (typeof systemMessage.content === "string"
-          ? systemMessage.content
-          : JSON.stringify(systemMessage.content))
-        : undefined;
-
-      const anthropicMessages: MessageParam[] = messages
-        .filter((m) => m.role !== "system")
-        .map((m) => ({
-          role: m.role as "user" | "assistant",
-          content: m.content as MessageParam["content"],
-        }));
-
-      const anthropicTools = convertToolsToAnthropicFormat(tools);
-
-      const stream = anthropicClient.messages.stream({
-        model,
-        max_tokens: maxTokens,
-        messages: anthropicMessages,
-        ...(systemPrompt ? { system: systemPrompt } : {}),
-        ...(anthropicTools.length > 0 ? { tools: anthropicTools } : {}),
-      }, signal ? { signal } : undefined);
-
-      for await (const event of stream) {
-        if (event.type === "content_block_delta" && "delta" in event) {
-          const delta = event.delta as { type: string; text?: string };
-          if (delta.type === "text_delta" && delta.text) {
-            yield { text: delta.text, done: false };
-          }
-        }
-      }
-
-      const finalMessage = await stream.finalMessage();
-      const toolUseBlocks = finalMessage.content
-        .filter((block: { type: string }) => block.type === "tool_use");
-      yield {
-        text: "",
-        done: true,
-        usage: {
-          inputTokens: finalMessage.usage.input_tokens,
-          outputTokens: finalMessage.usage.output_tokens,
-        },
-        ...(toolUseBlocks.length > 0 ? { toolCalls: toolUseBlocks } : {}),
-      };
-    },
-  };
 }
 
 /** OpenAI-format tool definition shape. */
@@ -199,4 +56,167 @@ function convertToolsToAnthropicFormat(
       description: t.function.description,
       input_schema: t.function.parameters,
     }));
+}
+
+/** Extract system prompt string from LLM messages. */
+function extractAnthropicSystemPrompt(
+  messages: readonly LlmMessage[],
+): string | undefined {
+  const systemMessage = messages.find((m) => m.role === "system");
+  if (!systemMessage) return undefined;
+  return typeof systemMessage.content === "string"
+    ? systemMessage.content
+    : JSON.stringify(systemMessage.content);
+}
+
+/** Convert LLM messages to Anthropic MessageParam format (excluding system). */
+function convertToAnthropicMessages(
+  messages: readonly LlmMessage[],
+): MessageParam[] {
+  return messages
+    .filter((m) => m.role !== "system")
+    .map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content as MessageParam["content"],
+    }));
+}
+
+/** Build Anthropic request parameters from messages and tools. */
+function buildAnthropicRequestParams(
+  model: string,
+  maxTokens: number,
+  messages: readonly LlmMessage[],
+  tools: readonly unknown[],
+): MessageCreateParamsNonStreaming {
+  const systemPrompt = extractAnthropicSystemPrompt(messages);
+  const anthropicMessages = convertToAnthropicMessages(messages);
+  const anthropicTools = convertToolsToAnthropicFormat(tools);
+  return {
+    model,
+    max_tokens: maxTokens,
+    messages: anthropicMessages,
+    ...(systemPrompt ? { system: systemPrompt } : {}),
+    ...(anthropicTools.length > 0 ? { tools: anthropicTools } : {}),
+  };
+}
+
+/** Extract text and tool use blocks from an Anthropic response. */
+function parseAnthropicCompletionResponse(
+  content: readonly { type: string; text?: string }[],
+  usage: { readonly input_tokens: number; readonly output_tokens: number },
+): LlmCompletionResult {
+  const textContent = content
+    .filter((block) => block.type === "text")
+    .map((block) => block.type === "text" ? (block.text ?? "") : "")
+    .join("");
+  return {
+    content: textContent,
+    toolCalls: content.filter((block) => block.type === "tool_use"),
+    usage: {
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+    },
+  };
+}
+
+/**
+ * Create an Anthropic LLM provider.
+ *
+ * @param config - Provider configuration
+ * @returns An LlmProvider backed by the Anthropic API
+ */
+export function createAnthropicProvider(
+  config: AnthropicConfig = {},
+): LlmProvider {
+  const model = config.model ?? "claude-sonnet-4-5-20250929";
+  const maxTokens = config.maxTokens ?? 4096;
+
+  // Defer client creation to first use — avoids throwing during
+  // provider registration when credentials aren't yet available.
+  let client: Anthropic | undefined;
+
+  function getClient(): Anthropic {
+    if (!client) {
+      const apiKey = config.apiKey ?? Deno.env.get("ANTHROPIC_API_KEY");
+
+      if (!apiKey) {
+        throw new Error(
+          "Anthropic API key not configured. " +
+            "Set apiKey in triggerfish.yaml under models.providers.anthropic, " +
+            "or run 'triggerfish dive' to reconfigure.",
+        );
+      }
+
+      client = new Anthropic({ apiKey });
+    }
+    return client;
+  }
+
+  return {
+    name: "anthropic",
+    supportsStreaming: true,
+    contextWindow: getModelInfo(model).contextWindow,
+
+    async complete(
+      messages: readonly LlmMessage[],
+      tools: readonly unknown[],
+      options: Record<string, unknown>,
+    ): Promise<LlmCompletionResult> {
+      const signal = options.signal as AbortSignal | undefined;
+      const params = buildAnthropicRequestParams(
+        model,
+        maxTokens,
+        messages,
+        tools,
+      );
+      const response = await getClient().messages.create(
+        params,
+        signal ? { signal } : undefined,
+      );
+      return parseAnthropicCompletionResponse(
+        response.content,
+        response.usage,
+      );
+    },
+
+    async *stream(
+      messages: readonly LlmMessage[],
+      tools: readonly unknown[],
+      options: Record<string, unknown>,
+    ): AsyncIterable<LlmStreamChunk> {
+      const signal = options.signal as AbortSignal | undefined;
+      const params = buildAnthropicRequestParams(
+        model,
+        maxTokens,
+        messages,
+        tools,
+      );
+      const stream = getClient().messages.stream(
+        params,
+        signal ? { signal } : undefined,
+      );
+
+      for await (const event of stream) {
+        if (event.type === "content_block_delta" && "delta" in event) {
+          const delta = event.delta as { type: string; text?: string };
+          if (delta.type === "text_delta" && delta.text) {
+            yield { text: delta.text, done: false };
+          }
+        }
+      }
+
+      const finalMessage = await stream.finalMessage();
+      const toolUseBlocks = finalMessage.content
+        .filter((block: { type: string }) => block.type === "tool_use");
+      yield {
+        text: "",
+        done: true,
+        usage: {
+          inputTokens: finalMessage.usage.input_tokens,
+          outputTokens: finalMessage.usage.output_tokens,
+        },
+        ...(toolUseBlocks.length > 0 ? { toolCalls: toolUseBlocks } : {}),
+      };
+    },
+  };
 }
