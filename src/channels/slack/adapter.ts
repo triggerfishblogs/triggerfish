@@ -17,6 +17,9 @@ import type {
   ChannelStatus,
   MessageHandler,
 } from "../types.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("slack");
 
 /** Maximum message length for Slack. */
 const MAX_MESSAGE_LENGTH = 40000;
@@ -68,6 +71,7 @@ export function createSlackChannel(config: SlackConfig): ChannelAdapter {
 
     const isOwner = ownerId !== undefined ? msg.user === ownerId : true;
 
+    log.debug("Message received", { channel: msg.channel, senderId: msg.user, isOwner });
     handler({
       content: msg.text,
       sessionId: `slack-${msg.channel}`,
@@ -84,11 +88,13 @@ export function createSlackChannel(config: SlackConfig): ChannelAdapter {
     async connect(): Promise<void> {
       await app.start();
       connected = true;
+      log.info("Slack adapter connected");
     },
 
     async disconnect(): Promise<void> {
       await app.stop();
       connected = false;
+      log.info("Slack adapter disconnected");
     },
 
     async send(message: ChannelMessage): Promise<void> {
