@@ -137,7 +137,7 @@ export function createDiscordChannel(config: DiscordConfig): DiscordChannelAdapt
           await (channel as { sendTyping: () => Promise<void> }).sendTyping();
         }
       } catch (err: unknown) {
-        log.debug("Typing indicator failed", { error: err });
+        log.debug("Discord typing indicator send failed", { channelId, error: err });
       }
     },
   };
