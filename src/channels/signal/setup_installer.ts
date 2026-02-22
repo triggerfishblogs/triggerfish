@@ -176,7 +176,7 @@ export async function downloadJre(): Promise<Result<string, string>> {
     try {
       for await (const e of Deno.readDir(javaDir)) entries.push(e.name);
     } catch (_err: unknown) {
-      log.debug("File access failed", { path: javaDir });
+      log.debug("JRE directory listing failed", { path: javaDir });
     }
     return { ok: false, error: `JRE extracted but JAVA_HOME not found. Contents: [${entries.join(", ")}]` };
   }
@@ -271,7 +271,7 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
   // Extract via tar — pipe download stream to `tar xzf - -C binDir`
   try {
     // Clean any previous install of this version
-    try { await Deno.remove(installDir, { recursive: true }); } catch (_err: unknown) { log.debug("File access failed", { path: installDir }); }
+    try { await Deno.remove(installDir, { recursive: true }); } catch (_err: unknown) { log.debug("Previous signal-cli install directory removal skipped", { path: installDir }); }
 
     const tar = new Deno.Command("tar", {
       args: ["xzf", "-", "-C", binDir],
@@ -316,7 +316,7 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
       binaryPath = candidate;
       break;
     } catch (_err: unknown) {
-      log.debug("File access failed", { path: candidate });
+      log.debug("Signal-cli binary candidate not found", { path: candidate });
     }
   }
 
@@ -328,7 +328,7 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
         entries.push(e.name);
       }
     } catch (_err: unknown) {
-      log.debug("File access failed", { path: binDir });
+      log.debug("Signal-cli bin directory listing failed", { path: binDir });
     }
     return { ok: false, error: `Binary not found after extraction. binDir contents: [${entries.join(", ")}]` };
   }
@@ -338,7 +338,7 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
     try {
       await Deno.chmod(binaryPath, 0o755);
     } catch (_err: unknown) {
-      log.debug("File access failed", { path: binaryPath });
+      log.debug("Signal-cli binary chmod failed", { path: binaryPath });
     }
   }
 
