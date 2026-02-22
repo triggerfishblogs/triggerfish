@@ -11,6 +11,9 @@
 import type { ClassificationLevel } from "../types/classification.ts";
 import { CLASSIFICATION_ORDER, maxClassification } from "../types/classification.ts";
 import { HARDCODED_TOOL_FLOORS } from "./constants.ts";
+import { createLogger } from "../logger/logger.ts";
+
+const log = createLogger("security");
 
 /** Registry that resolves tool classification floors. */
 export interface ToolFloorRegistry {
@@ -50,7 +53,16 @@ export function createToolFloorRegistry(
   ): boolean {
     const floor = getFloor(toolName);
     if (floor === null) return true;
-    return CLASSIFICATION_ORDER[sessionTaint] >= CLASSIFICATION_ORDER[floor];
+    const allowed =
+      CLASSIFICATION_ORDER[sessionTaint] >= CLASSIFICATION_ORDER[floor];
+    if (!allowed) {
+      log.warn("Tool floor violation", {
+        tool: toolName,
+        sessionTaint,
+        requiredFloor: floor,
+      });
+    }
+    return allowed;
   }
 
   return { getFloor, canInvoke };
