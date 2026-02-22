@@ -7,7 +7,56 @@
  * @module
  */
 
-import type { GoogleApiClient, GoogleApiResult, GoogleAuthManager } from "./types.ts";
+import type {
+  GoogleApiClient,
+  GoogleApiResult,
+  GoogleAuthManager,
+} from "./types.ts";
+
+/** Build fetch RequestInit with auth header and optional JSON body. */
+function buildGoogleApiRequestInit(
+  method: string,
+  token: string,
+  body?: unknown,
+): RequestInit {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+  };
+  const init: RequestInit = { method, headers };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+    init.body = JSON.stringify(body);
+  }
+  return init;
+}
+
+/** Parse a Google API response into a Result. Handles errors, 204, and JSON. */
+async function parseGoogleApiResponse<T>(
+  response: Response,
+): Promise<GoogleApiResult<T>> {
+  if (!response.ok) {
+    let errorMessage: string;
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData?.error?.message ?? response.statusText;
+    } catch {
+      errorMessage = response.statusText;
+    }
+    return {
+      ok: false,
+      error: {
+        code: `HTTP_${response.status}`,
+        message: errorMessage,
+        status: response.status,
+      },
+    };
+  }
+  if (response.status === 204) {
+    return { ok: true, value: {} as T };
+  }
+  const data = await response.json();
+  return { ok: true, value: data as T };
+}
 
 /**
  * Create an authenticated Google API client.
@@ -27,63 +76,20 @@ export function createGoogleApiClient(
     isRetry = false,
   ): Promise<GoogleApiResult<T>> {
     const tokenResult = await authManager.getAccessToken();
-    if (!tokenResult.ok) {
-      return { ok: false, error: tokenResult.error };
-    }
+    if (!tokenResult.ok) return { ok: false, error: tokenResult.error };
 
     let fullUrl = url;
     if (params && Object.keys(params).length > 0) {
-      const searchParams = new URLSearchParams(params);
-      fullUrl = `${url}?${searchParams.toString()}`;
+      fullUrl = `${url}?${new URLSearchParams(params).toString()}`;
     }
 
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${tokenResult.value}`,
-    };
+    const init = buildGoogleApiRequestInit(method, tokenResult.value, body);
+    const response = await fetchFn(fullUrl, init);
 
-    let fetchBody: string | undefined;
-    if (body !== undefined) {
-      headers["Content-Type"] = "application/json";
-      fetchBody = JSON.stringify(body);
-    }
-
-    const response = await fetchFn(fullUrl, {
-      method,
-      headers,
-      ...(fetchBody !== undefined ? { body: fetchBody } : {}),
-    });
-
-    // 401 — retry once after token refresh
     if (response.status === 401 && !isRetry) {
       return request<T>(method, url, body, params, true);
     }
-
-    if (!response.ok) {
-      let errorMessage: string;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData?.error?.message ?? response.statusText;
-      } catch {
-        errorMessage = response.statusText;
-      }
-
-      return {
-        ok: false,
-        error: {
-          code: `HTTP_${response.status}`,
-          message: errorMessage,
-          status: response.status,
-        },
-      };
-    }
-
-    // Handle empty responses (204 No Content)
-    if (response.status === 204) {
-      return { ok: true, value: {} as T };
-    }
-
-    const data = await response.json();
-    return { ok: true, value: data as T };
+    return parseGoogleApiResponse<T>(response);
   }
 
   return {
