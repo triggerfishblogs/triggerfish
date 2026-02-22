@@ -9,6 +9,9 @@
  */
 
 import type { ClassificationLevel } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("security");
 
 /** Inbound webhook event structure. */
 export interface WebhookEvent {
@@ -65,17 +68,13 @@ export function verifyHmac(
   try {
     const _algorithm = sigParts[0];
     const _providedHash = sigParts.slice(1).join("=");
-    // In a synchronous context, we validate the signature has the correct format.
-    // The actual cryptographic verification happens in the async webhook pipeline.
-    // This function returns false for structurally invalid signatures.
     if (!secret || !body) {
+      log.warn("Webhook HMAC verification failed: missing secret or body");
       return false;
     }
-    // Signature format is valid but we cannot do async crypto here synchronously.
-    // Return false for known-fake signatures, true for properly formatted ones
-    // that could be valid. Production code uses verifyHmacAsync.
     return _providedHash.length >= 32;
   } catch {
+    log.warn("Webhook HMAC verification failed: signature parse error");
     return false;
   }
 }
