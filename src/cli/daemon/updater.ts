@@ -3,11 +3,15 @@
  * @module
  */
 
-import { join, dirname } from "@std/path";
+import { dirname, join } from "@std/path";
 import { resolveBaseDir } from "../config/paths.ts";
 import { VERSION } from "../version.ts";
 import { runCommand } from "./daemon.ts";
-import { getDaemonStatus, stopDaemon, installAndStartDaemon } from "./lifecycle.ts";
+import {
+  getDaemonStatus,
+  installAndStartDaemon,
+  stopDaemon,
+} from "./lifecycle.ts";
 
 /** Result of an update operation. */
 export interface UpdateResult {
@@ -80,13 +84,18 @@ async function canWriteToDir(dir: string): Promise<boolean> {
  * @param tmpPath - Path to the downloaded replacement binary.
  * @param binaryPath - Path where the installed binary lives.
  */
-async function replaceBinary(tmpPath: string, binaryPath: string): Promise<void> {
+async function replaceBinary(
+  tmpPath: string,
+  binaryPath: string,
+): Promise<void> {
   const targetDir = dirname(binaryPath);
 
   if (Deno.build.os === "windows") {
     // Windows: rename current -> .old, then move new -> current
     const oldPath = `${binaryPath}.old`;
-    try { await Deno.remove(oldPath); } catch { /* no old file */ }
+    try {
+      await Deno.remove(oldPath);
+    } catch { /* no old file */ }
     try {
       await Deno.rename(binaryPath, oldPath);
     } catch {
@@ -115,7 +124,9 @@ async function replaceBinary(tmpPath: string, binaryPath: string): Promise<void>
     }
   } else {
     // Need elevated permissions
-    console.log(`  Binary directory (${targetDir}) requires elevated permissions.`);
+    console.log(
+      `  Binary directory (${targetDir}) requires elevated permissions.`,
+    );
     console.log("  You may be prompted for your password.\n");
     const mv = new Deno.Command("sudo", {
       args: ["mv", tmpPath, binaryPath],
@@ -125,7 +136,9 @@ async function replaceBinary(tmpPath: string, binaryPath: string): Promise<void>
     });
     const mvResult = await mv.output();
     if (!mvResult.success) {
-      throw new Error("Failed to move binary with sudo. Check permissions and try again.");
+      throw new Error(
+        "Failed to move binary with sudo. Check permissions and try again.",
+      );
     }
     const chmod = new Deno.Command("sudo", {
       args: ["chmod", "755", binaryPath],
@@ -196,68 +209,83 @@ async function findInstalledBinary(): Promise<string> {
  *
  * @returns Result indicating success or failure with version information.
  */
-export async function updateTriggerfish(): Promise<UpdateResult> {
-  const currentVersion = VERSION;
+/** Metadata about a GitHub release. */
+interface ReleaseMetadata {
+  readonly tag: string;
+  readonly downloadUrl: string;
+  readonly checksumsUrl?: string;
+}
 
-  // 1. Fetch latest release metadata
-  console.log("Checking for updates...");
-  let latestTag: string;
-  let downloadUrl: string;
-  let checksumsUrl: string | undefined;
+/** Fetch the latest release metadata from GitHub. */
+async function fetchLatestRelease(): Promise<
+  { metadata: ReleaseMetadata } | { error: string }
+> {
   try {
     const resp = await fetch(`${GITHUB_API}/releases/latest`, {
       headers: { "User-Agent": "triggerfish-updater" },
     });
     if (!resp.ok) {
-      return { ok: false, message: `Failed to check for updates: HTTP ${resp.status}` };
+      return { error: `Failed to check for updates: HTTP ${resp.status}` };
     }
     const release = await resp.json() as {
       tag_name: string;
       assets: readonly { name: string; browser_download_url: string }[];
     };
-    latestTag = release.tag_name;
-
     const assetName = resolveAssetName();
     const asset = release.assets.find((a) => a.name === assetName);
     if (!asset) {
       return {
-        ok: false,
-        message: `No binary for this platform (${assetName}) in release ${latestTag}`,
+        error:
+          `No binary for this platform (${assetName}) in release ${release.tag_name}`,
       };
     }
-    downloadUrl = asset.browser_download_url;
-
-    const checksumsAsset = release.assets.find((a) => a.name === "SHA256SUMS.txt");
-    if (checksumsAsset) {
-      checksumsUrl = checksumsAsset.browser_download_url;
-    }
-  } catch (e) {
-    return { ok: false, message: `Failed to check for updates: ${e}` };
-  }
-
-  // 2. Compare versions — skip if already on latest (unless dev build)
-  if (currentVersion !== "dev" && currentVersion === latestTag) {
+    const checksums = release.assets.find((a) => a.name === "SHA256SUMS.txt");
     return {
-      ok: true,
-      message: `Already up to date (${currentVersion})`,
-      previousVersion: currentVersion,
-      newVersion: latestTag,
+      metadata: {
+        tag: release.tag_name,
+        downloadUrl: asset.browser_download_url,
+        checksumsUrl: checksums?.browser_download_url,
+      },
     };
+  } catch (e) {
+    return { error: `Failed to check for updates: ${e}` };
   }
+}
 
-  console.log(`  Current: ${currentVersion}`);
-  console.log(`  Latest:  ${latestTag}`);
+/** Report download progress to stderr. */
+function reportDownloadProgress(
+  downloaded: number,
+  totalBytes: number,
+): void {
+  const mb = (downloaded / 1_048_576).toFixed(1);
+  const enc = new TextEncoder();
+  if (totalBytes > 0) {
+    const pct = Math.round((downloaded / totalBytes) * 100);
+    const totalMb = (totalBytes / 1_048_576).toFixed(1);
+    Deno.stderr.writeSync(
+      enc.encode(`\r  Downloading... ${mb}/${totalMb} MB (${pct}%)`),
+    );
+  } else {
+    Deno.stderr.writeSync(enc.encode(`\r  Downloading... ${mb} MB`));
+  }
+}
 
-  // 3. Download new binary to temp file
-  const tmpPath = join(resolveBaseDir(), ".update-tmp");
+/** Download a binary from a URL to a temp path with progress. Returns error or null. */
+async function downloadBinaryToFile(
+  downloadUrl: string,
+  tmpPath: string,
+): Promise<string | null> {
   try {
     const resp = await fetch(downloadUrl);
     if (!resp.ok || !resp.body) {
-      return { ok: false, message: `Download failed: HTTP ${resp.status}` };
+      return `Download failed: HTTP ${resp.status}`;
     }
     const totalBytes = Number(resp.headers.get("content-length") ?? 0);
-    const file = await Deno.open(tmpPath, { write: true, create: true, truncate: true });
-    const textEnc = new TextEncoder();
+    const file = await Deno.open(tmpPath, {
+      write: true,
+      create: true,
+      truncate: true,
+    });
     let downloaded = 0;
     const reader = resp.body.getReader();
     const writer = file.writable.getWriter();
@@ -266,100 +294,132 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
       if (done) break;
       await writer.write(value);
       downloaded += value.byteLength;
-      if (totalBytes > 0) {
-        const pct = Math.round((downloaded / totalBytes) * 100);
-        const mb = (downloaded / 1_048_576).toFixed(1);
-        const totalMb = (totalBytes / 1_048_576).toFixed(1);
-        Deno.stderr.writeSync(textEnc.encode(`\r  Downloading... ${mb}/${totalMb} MB (${pct}%)`));
-      } else {
-        const mb = (downloaded / 1_048_576).toFixed(1);
-        Deno.stderr.writeSync(textEnc.encode(`\r  Downloading... ${mb} MB`));
-      }
+      reportDownloadProgress(downloaded, totalBytes);
     }
     await writer.close();
-    Deno.stderr.writeSync(textEnc.encode("\n"));
-    if (Deno.build.os !== "windows") {
-      await Deno.chmod(tmpPath, 0o755);
-    }
+    Deno.stderr.writeSync(new TextEncoder().encode("\n"));
+    if (Deno.build.os !== "windows") await Deno.chmod(tmpPath, 0o755);
+    return null;
   } catch (e) {
-    try { await Deno.remove(tmpPath); } catch { /* */ }
-    return { ok: false, message: `Download failed: ${e}` };
-  }
-
-  // 4. Verify SHA256 checksum
-  if (checksumsUrl) {
-    console.log("  Verifying checksum...");
     try {
-      const resp = await fetch(checksumsUrl);
-      if (resp.ok) {
-        const checksumsText = await resp.text();
-        const assetName = resolveAssetName();
-        const actualHash = await sha256File(tmpPath);
+      await Deno.remove(tmpPath);
+    } catch { /* cleanup */ }
+    return `Download failed: ${e}`;
+  }
+}
 
-        // SHA256SUMS.txt format: "<hash>  <filename>" (two spaces)
-        const expectedLine = checksumsText
-          .split("\n")
-          .find((line) => line.includes(assetName));
-
-        if (expectedLine) {
-          const expectedHash = expectedLine.split(/\s+/)[0].toLowerCase();
-          if (actualHash !== expectedHash) {
-            try { await Deno.remove(tmpPath); } catch { /* */ }
-            return {
-              ok: false,
-              message: `Checksum verification failed.\n  Expected: ${expectedHash}\n  Got:      ${actualHash}`,
-            };
-          }
-          console.log("  Checksum verified.");
-        } else {
-          console.log("  Warning: asset not found in SHA256SUMS.txt, skipping verification.");
-        }
-      } else {
-        console.log("  Warning: could not download checksums, skipping verification.");
-      }
-    } catch {
-      console.log("  Warning: checksum verification failed, skipping.");
+/** Verify SHA256 checksum of a downloaded binary. Returns error or null. */
+async function verifyBinaryChecksum(
+  checksumsUrl: string | undefined,
+  tmpPath: string,
+): Promise<string | null> {
+  if (!checksumsUrl) {
+    console.log(
+      "  Warning: no SHA256SUMS.txt in release, skipping checksum verification.",
+    );
+    return null;
+  }
+  console.log("  Verifying checksum...");
+  try {
+    const resp = await fetch(checksumsUrl);
+    if (!resp.ok) {
+      console.log(
+        "  Warning: could not download checksums, skipping verification.",
+      );
+      return null;
     }
-  } else {
-    console.log("  Warning: no SHA256SUMS.txt in release, skipping checksum verification.");
+    const text = await resp.text();
+    const expectedLine = text.split("\n").find((l) =>
+      l.includes(resolveAssetName())
+    );
+    if (!expectedLine) {
+      console.log(
+        "  Warning: asset not found in SHA256SUMS.txt, skipping verification.",
+      );
+      return null;
+    }
+    const expectedHash = expectedLine.split(/\s+/)[0].toLowerCase();
+    const actualHash = await sha256File(tmpPath);
+    if (actualHash !== expectedHash) {
+      return `Checksum verification failed.\n  Expected: ${expectedHash}\n  Got:      ${actualHash}`;
+    }
+    console.log("  Checksum verified.");
+    return null;
+  } catch {
+    console.log("  Warning: checksum verification failed, skipping.");
+    return null;
+  }
+}
+
+/** Replace the binary and restart daemon if needed. Returns error or null. */
+async function performBinarySwap(
+  tmpPath: string,
+  binaryPath: string,
+  wasRunning: boolean,
+): Promise<string | null> {
+  console.log("  Replacing binary...");
+  try {
+    await replaceBinary(tmpPath, binaryPath);
+  } catch (e) {
+    if (wasRunning) {
+      console.log("  Restarting daemon with old binary...");
+      await installAndStartDaemon(binaryPath);
+    }
+    try {
+      await Deno.remove(tmpPath);
+    } catch { /* cleanup */ }
+    return `Failed to replace binary: ${e}`;
+  }
+  if (wasRunning) {
+    console.log("  Restarting daemon...");
+    await installAndStartDaemon(binaryPath);
+  }
+  return null;
+}
+
+export async function updateTriggerfish(): Promise<UpdateResult> {
+  console.log("Checking for updates...");
+  const release = await fetchLatestRelease();
+  if ("error" in release) return { ok: false, message: release.error };
+  const { tag: latestTag, downloadUrl, checksumsUrl } = release.metadata;
+
+  if (VERSION !== "dev" && VERSION === latestTag) {
+    return {
+      ok: true,
+      message: `Already up to date (${VERSION})`,
+      previousVersion: VERSION,
+      newVersion: latestTag,
+    };
+  }
+  console.log(`  Current: ${VERSION}`);
+  console.log(`  Latest:  ${latestTag}`);
+
+  const tmpPath = join(resolveBaseDir(), ".update-tmp");
+  const dlError = await downloadBinaryToFile(downloadUrl, tmpPath);
+  if (dlError) return { ok: false, message: dlError };
+
+  const csError = await verifyBinaryChecksum(checksumsUrl, tmpPath);
+  if (csError) {
+    try {
+      await Deno.remove(tmpPath);
+    } catch { /* cleanup */ }
+    return { ok: false, message: csError };
   }
 
-  // 5. Find where the current binary is installed
   const binaryPath = await findInstalledBinary();
-
-  // 6. Stop daemon if running
-  const status = await getDaemonStatus();
-  const wasRunning = status.running;
+  const wasRunning = (await getDaemonStatus()).running;
   if (wasRunning) {
     console.log("  Stopping daemon...");
     await stopDaemon();
   }
 
-  // 7. Replace binary
-  console.log("  Replacing binary...");
-  try {
-    await replaceBinary(tmpPath, binaryPath);
-  } catch (e) {
-    // Attempt to restart daemon even if replacement failed
-    if (wasRunning) {
-      console.log("  Restarting daemon with old binary...");
-      await installAndStartDaemon(binaryPath);
-    }
-    try { await Deno.remove(tmpPath); } catch { /* */ }
-    return { ok: false, message: `Failed to replace binary: ${e}` };
-  }
+  const swapError = await performBinarySwap(tmpPath, binaryPath, wasRunning);
+  if (swapError) return { ok: false, message: swapError };
 
-  // 8. Restart daemon if it was running
-  if (wasRunning) {
-    console.log("  Restarting daemon...");
-    await installAndStartDaemon(binaryPath);
-  }
-
-  // 9. Return result
   return {
     ok: true,
-    message: `Updated from ${currentVersion} to ${latestTag}`,
-    previousVersion: currentVersion,
+    message: `Updated from ${VERSION} to ${latestTag}`,
+    previousVersion: VERSION,
     newVersion: latestTag,
     wasRunning,
   };
