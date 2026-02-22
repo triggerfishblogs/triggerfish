@@ -50,8 +50,102 @@ const WA_API_BASE = "https://graph.facebook.com/v18.0";
  * @param config - WhatsApp configuration.
  * @returns A ChannelAdapter wired to WhatsApp.
  */
+/** Handle an incoming WhatsApp webhook HTTP request. */
+function handleWhatsAppWebhookRequest(
+  req: Request,
+  verifyToken: string,
+  onPayload: (body: Record<string, unknown>) => void,
+): Response | Promise<Response> {
+  const url = new URL(req.url);
+  if (req.method === "GET" && url.pathname === "/webhook") {
+    return verifyWhatsAppWebhook(url, verifyToken);
+  }
+  if (req.method === "POST" && url.pathname === "/webhook") {
+    return req.json().then((body: Record<string, unknown>) => {
+      onPayload(body);
+      return new Response("OK", { status: 200 });
+    });
+  }
+  return new Response("Not Found", { status: 404 });
+}
+
+/** Verify a WhatsApp webhook subscription challenge. */
+function verifyWhatsAppWebhook(url: URL, verifyToken: string): Response {
+  const mode = url.searchParams.get("hub.mode");
+  const token = url.searchParams.get("hub.verify_token");
+  const challenge = url.searchParams.get("hub.challenge");
+  if (mode === "subscribe" && token === verifyToken) {
+    return new Response(challenge, { status: 200 });
+  }
+  return new Response("Forbidden", { status: 403 });
+}
+
+/** Process incoming WhatsApp webhook payload from Meta. */
+function dispatchWhatsAppWebhookMessages(
+  body: Record<string, unknown>,
+  handler: MessageHandler,
+  ownerPhone: string | undefined,
+): void {
+  const entries = (body.entry ?? []) as Array<Record<string, unknown>>;
+  for (const entry of entries) {
+    const changes = (entry.changes ?? []) as Array<Record<string, unknown>>;
+    for (const change of changes) {
+      const value = change.value as Record<string, unknown> | undefined;
+      if (!value) continue;
+      const messages = (value.messages ?? []) as Array<
+        Record<string, unknown>
+      >;
+      for (const msg of messages) {
+        if (msg.type !== "text") continue;
+        const from = msg.from as string;
+        const textObj = msg.text as { body: string } | undefined;
+        if (!textObj?.body) continue;
+        const isOwner = ownerPhone !== undefined ? from === ownerPhone : true;
+        log.debug("Message received", { from, isOwner });
+        handler({
+          content: textObj.body,
+          sessionId: `whatsapp-${from}`,
+          senderId: from,
+          isOwner,
+          sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
+        });
+      }
+    }
+  }
+}
+
+/** Send a text message via WhatsApp Cloud API. */
+async function sendWhatsAppTextMessage(
+  phone: string,
+  text: string,
+  phoneNumberId: string,
+  accessToken: string,
+): Promise<void> {
+  const response = await fetch(
+    `${WA_API_BASE}/${phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "text",
+        text: { body: text },
+      }),
+    },
+  );
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`WhatsApp send failed (${response.status}): ${err}`);
+  }
+}
+
 export function createWhatsAppChannel(config: WhatsAppConfig): ChannelAdapter {
-  const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
+  const classification = (config.classification ??
+    "PUBLIC") as ClassificationLevel;
   const webhookPort = config.webhookPort ?? 8443;
   let connected = false;
   let handler: MessageHandler | null = null;
@@ -63,32 +157,15 @@ export function createWhatsAppChannel(config: WhatsAppConfig): ChannelAdapter {
 
     // deno-lint-ignore require-await
     async connect(): Promise<void> {
-      // Start webhook server for incoming messages
-      server = Deno.serve({ port: webhookPort }, async (req) => {
-        const url = new URL(req.url);
-
-        // Webhook verification (GET)
-        if (req.method === "GET" && url.pathname === "/webhook") {
-          const mode = url.searchParams.get("hub.mode");
-          const token = url.searchParams.get("hub.verify_token");
-          const challenge = url.searchParams.get("hub.challenge");
-
-          if (mode === "subscribe" && token === config.verifyToken) {
-            return new Response(challenge, { status: 200 });
-          }
-          return new Response("Forbidden", { status: 403 });
-        }
-
-        // Incoming message webhook (POST)
-        if (req.method === "POST" && url.pathname === "/webhook") {
-          const body = await req.json();
-          processWebhook(body);
-          return new Response("OK", { status: 200 });
-        }
-
-        return new Response("Not Found", { status: 404 });
-      });
-
+      server = Deno.serve(
+        { port: webhookPort },
+        (req) =>
+          handleWhatsAppWebhookRequest(req, config.verifyToken, (body) => {
+            if (handler) {
+              dispatchWhatsAppWebhookMessages(body, handler, config.ownerPhone);
+            }
+          }),
+      );
       connected = true;
       log.info("WhatsApp adapter connected", { port: webhookPort });
     },
@@ -104,33 +181,16 @@ export function createWhatsAppChannel(config: WhatsAppConfig): ChannelAdapter {
 
     async send(message: ChannelMessage): Promise<void> {
       if (!message.sessionId) return;
-
       const phone = message.sessionId.replace("whatsapp-", "");
       const text = message.content.length > MAX_MESSAGE_LENGTH
         ? message.content.slice(0, MAX_MESSAGE_LENGTH)
         : message.content;
-
-      const response = await fetch(
-        `${WA_API_BASE}/${config.phoneNumberId}/messages`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${config.accessToken}`,
-          },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            to: phone,
-            type: "text",
-            text: { body: text },
-          }),
-        },
+      await sendWhatsAppTextMessage(
+        phone,
+        text,
+        config.phoneNumberId,
+        config.accessToken,
       );
-
-      if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`WhatsApp send failed (${response.status}): ${err}`);
-      }
     },
 
     onMessage(msgHandler: MessageHandler): void {
@@ -138,47 +198,7 @@ export function createWhatsAppChannel(config: WhatsAppConfig): ChannelAdapter {
     },
 
     status(): ChannelStatus {
-      return {
-        connected,
-        channelType: "whatsapp",
-      };
+      return { connected, channelType: "whatsapp" };
     },
   };
-
-  /** Process incoming webhook payload from Meta. */
-  function processWebhook(body: Record<string, unknown>): void {
-    if (!handler) return;
-
-    // Navigate the WhatsApp Cloud API webhook structure
-    const entries = (body.entry ?? []) as Array<Record<string, unknown>>;
-    for (const entry of entries) {
-      const changes = (entry.changes ?? []) as Array<Record<string, unknown>>;
-      for (const change of changes) {
-        const value = change.value as Record<string, unknown> | undefined;
-        if (!value) continue;
-
-        const messages = (value.messages ?? []) as Array<Record<string, unknown>>;
-        for (const msg of messages) {
-          if (msg.type !== "text") continue;
-
-          const from = msg.from as string;
-          const textObj = msg.text as { body: string } | undefined;
-          if (!textObj?.body) continue;
-
-          const isOwner = config.ownerPhone !== undefined
-            ? from === config.ownerPhone
-            : true;
-
-          log.debug("Message received", { from, isOwner });
-          handler({
-            content: textObj.body,
-            sessionId: `whatsapp-${from}`,
-            senderId: from,
-            isOwner,
-            sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
-          });
-        }
-      }
-    }
-  }
 }
