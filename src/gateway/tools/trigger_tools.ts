@@ -22,6 +22,9 @@ import type { ToolDefinition } from "../../core/types/tool.ts";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { canFlowTo } from "../../core/types/classification.ts";
 import type { TriggerResult, TriggerStore } from "../../scheduler/triggers/store.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("security");
 
 /** Context required by trigger tool executors. */
 export interface TriggerToolContext {
@@ -264,6 +267,11 @@ export function createTriggerToolExecutor(
     // If session.taint > trigger.classification → write-down → block.
     const currentTaint = ctx.getSessionTaint?.() ?? ctx.sessionTaint;
     if (!canFlowTo(currentTaint, result.classification)) {
+      log.warn("Trigger context write-down blocked", {
+        source,
+        sessionTaint: currentTaint,
+        triggerClassification: result.classification,
+      });
       return (
         `Write-down blocked: your session taint is ${currentTaint}, but this trigger result is ` +
         `classified as ${result.classification}. ` +
@@ -274,6 +282,11 @@ export function createTriggerToolExecutor(
     // Escalate session taint if trigger classification is higher
     if (!canFlowTo(result.classification, currentTaint)) {
       // trigger.classification > currentTaint → escalate
+      log.warn("Trigger context escalating session taint", {
+        source,
+        from: currentTaint,
+        to: result.classification,
+      });
       ctx.escalateTaint?.(result.classification);
     }
 
