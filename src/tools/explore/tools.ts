@@ -10,15 +10,25 @@
  * @module
  */
 
-import type { ExploreDepth, ExploreResult, KeyFile, Pattern } from "./tools_defs.ts";
+import type {
+  ExploreDepth,
+  ExploreResult,
+  KeyFile,
+  Pattern,
+} from "./tools_defs.ts";
 
 // ─── Barrel re-exports from tools_defs.ts ───────────────────────────────────
 
 export {
-  getExploreToolDefinitions,
   EXPLORE_SYSTEM_PROMPT,
+  getExploreToolDefinitions,
 } from "./tools_defs.ts";
-export type { ExploreResult, ExploreDepth, KeyFile, Pattern } from "./tools_defs.ts";
+export type {
+  ExploreDepth,
+  ExploreResult,
+  KeyFile,
+  Pattern,
+} from "./tools_defs.ts";
 
 // ─── Internal types & constants ─────────────────────────────────────────────
 
@@ -283,13 +293,45 @@ function buildTemplateSummary(result: Omit<ExploreResult, "summary">): string {
   }
   if (result.patterns.length > 0) {
     parts.push(
-      `Detected ${result.patterns.length} pattern(s): ${result.patterns.map((p) => p.name).join(", ")}.`,
+      `Detected ${result.patterns.length} pattern(s): ${
+        result.patterns.map((p) => p.name).join(", ")
+      }.`,
     );
   }
   if (result.focus_findings) {
     parts.push("Focus findings included.");
   }
   return parts.join(" ");
+}
+
+/** Deduplicate key files by path, preserving first occurrence. */
+function deduplicateKeyFiles(files: readonly KeyFile[]): KeyFile[] {
+  const seen = new Set<string>();
+  const result: KeyFile[] = [];
+  for (const f of files) {
+    if (!seen.has(f.path)) {
+      seen.add(f.path);
+      result.push(f);
+    }
+  }
+  return result;
+}
+
+/** Build the dependencies section from manifest and import agent text. */
+function buildDependenciesSection(
+  manifestText: string,
+  importText: string,
+): string {
+  const parts: string[] = [];
+  if (manifestText) parts.push(manifestText);
+  if (importText) parts.push(importText);
+  return parts.join("\n\n---\n\n");
+}
+
+/** Build tree output, appending git status if available. */
+function buildTreeOutput(treeText: string, gitText: string): string {
+  if (!gitText) return treeText;
+  return `${treeText}\n\n--- Git Status ---\n${gitText}`;
 }
 
 /**
@@ -307,49 +349,94 @@ export function assembleResult(
   const importText = agentResults.get("import") ?? "";
   const gitText = agentResults.get("git") ?? "";
 
-  // Extract structured data from agent responses
-  const treeKeyFiles = extractKeyFiles(treeText);
-  const manifestKeyFiles = extractKeyFiles(manifestText);
-  const allKeyFiles = [...treeKeyFiles, ...manifestKeyFiles];
-
-  // Deduplicate key files
-  const seenPaths = new Set<string>();
-  const dedupedKeyFiles: KeyFile[] = [];
-  for (const f of allKeyFiles) {
-    if (!seenPaths.has(f.path)) {
-      seenPaths.add(f.path);
-      dedupedKeyFiles.push(f);
-    }
-  }
-
-  const detectedPatterns = patternText
-    ? extractPatterns(patternText)
-    : [];
-
-  // Build dependencies section from manifest + import agents
-  const depsParts: string[] = [];
-  if (manifestText) depsParts.push(manifestText);
-  if (importText) depsParts.push(importText);
-  const dependencies = depsParts.join("\n\n---\n\n");
-
-  // Focus findings
-  const focus_findings = focusText || "";
-
-  // Tree (includes git info if available)
-  let treeOutput = treeText;
-  if (gitText) {
-    treeOutput += `\n\n--- Git Status ---\n${gitText}`;
-  }
+  const allKeyFiles = [
+    ...extractKeyFiles(treeText),
+    ...extractKeyFiles(manifestText),
+  ];
 
   return {
     path,
     depth,
-    tree: truncateTree(treeOutput),
-    key_files: dedupedKeyFiles.slice(0, MAX_KEY_FILES),
-    patterns: detectedPatterns.slice(0, MAX_PATTERNS),
-    dependencies,
-    focus_findings,
+    tree: truncateTree(buildTreeOutput(treeText, gitText)),
+    key_files: deduplicateKeyFiles(allKeyFiles).slice(0, MAX_KEY_FILES),
+    patterns: (patternText ? extractPatterns(patternText) : []).slice(
+      0,
+      MAX_PATTERNS,
+    ),
+    dependencies: buildDependenciesSection(manifestText, importText),
+    focus_findings: focusText || "",
   };
+}
+
+/** Parse and validate explore tool input parameters. */
+function parseExploreInput(input: Record<string, unknown>): {
+  path: string;
+  depth: ExploreDepth;
+  focus?: string;
+} | null {
+  const path = input.path;
+  if (typeof path !== "string" || path.length === 0) return null;
+  const focus = typeof input.focus === "string" && input.focus.length > 0
+    ? input.focus
+    : undefined;
+  const rawDepth = typeof input.depth === "string" ? input.depth : "standard";
+  const depth: ExploreDepth = rawDepth === "shallow" || rawDepth === "deep"
+    ? rawDepth
+    : "standard";
+  return { path, depth, focus };
+}
+
+/** Spawn all agent tasks concurrently and collect results into a map. */
+async function spawnAgentTasks(
+  tasks: readonly AgentTask[],
+  spawnSubagent: (task: string, tools?: string) => Promise<string>,
+): Promise<Map<string, string>> {
+  const results = await Promise.all(
+    tasks.map(async (task) => {
+      try {
+        return { name: task.name, response: await spawnSubagent(task.prompt) };
+      } catch (err) {
+        return {
+          name: task.name,
+          response: `Error: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        };
+      }
+    }),
+  );
+  const resultMap = new Map<string, string>();
+  for (const r of results) resultMap.set(r.name, r.response);
+  return resultMap;
+}
+
+/** Build an LLM summary prompt from partial explore results. */
+function buildSummaryPrompt(
+  partial: Omit<ExploreResult, "summary">,
+): string {
+  const keyFiles = partial.key_files.map((f) => `${f.path} (${f.role})`)
+    .join(", ");
+  const patterns = partial.patterns.map((p) => `${p.name}: ${p.description}`)
+    .join("; ");
+  const focus = partial.focus_findings
+    ? `Focus findings: ${partial.focus_findings.slice(0, 1000)}`
+    : "";
+  return `Summarize these codebase exploration findings in 2-3 concise sentences. Focus on the most important structural and architectural observations:\n\nTree: ${
+    partial.tree.slice(0, 2000)
+  }\n\nKey files: ${keyFiles}\n\nPatterns: ${patterns}\n\n${focus}`;
+}
+
+/** Generate a summary using LLM or template fallback. */
+async function generateExploreSummary(
+  partial: Omit<ExploreResult, "summary">,
+  llmTask?: (prompt: string) => Promise<string>,
+): Promise<string> {
+  if (!llmTask) return buildTemplateSummary(partial);
+  try {
+    return await llmTask(buildSummaryPrompt(partial));
+  } catch {
+    return buildTemplateSummary(partial);
+  }
 }
 
 /**
@@ -369,64 +456,15 @@ export function createExploreToolExecutor(
   ): Promise<string | null> => {
     if (name !== "explore") return null;
 
-    // Validate required path parameter
-    const path = input.path;
-    if (typeof path !== "string" || path.length === 0) {
+    const parsed = parseExploreInput(input);
+    if (!parsed) {
       return "Error: explore requires a non-empty 'path' argument (string).";
     }
 
-    // Parse optional parameters
-    const focus =
-      typeof input.focus === "string" && input.focus.length > 0
-        ? input.focus
-        : undefined;
-    const rawDepth =
-      typeof input.depth === "string" ? input.depth : "standard";
-    const depth: ExploreDepth =
-      rawDepth === "shallow" || rawDepth === "deep" ? rawDepth : "standard";
-
-    // Build agent tasks
-    const agentTasks = buildAgentTasks(path, depth, focus);
-
-    // Spawn all agents concurrently
-    const results = await Promise.all(
-      agentTasks.map(async (task) => {
-        try {
-          const response = await spawnSubagent(task.prompt);
-          return { name: task.name, response };
-        } catch (err) {
-          return {
-            name: task.name,
-            response: `Error: ${err instanceof Error ? err.message : String(err)}`,
-          };
-        }
-      }),
-    );
-
-    // Build results map
-    const resultMap = new Map<string, string>();
-    for (const r of results) {
-      resultMap.set(r.name, r.response);
-    }
-
-    // Assemble structured result
-    const partial = assembleResult(path, depth, resultMap);
-
-    // Generate summary
-    let summary: string;
-    if (llmTask) {
-      try {
-        const summaryPrompt = `Summarize these codebase exploration findings in 2-3 concise sentences. Focus on the most important structural and architectural observations:\n\nTree: ${partial.tree.slice(0, 2000)}\n\nKey files: ${partial.key_files.map((f) => `${f.path} (${f.role})`).join(", ")}\n\nPatterns: ${partial.patterns.map((p) => `${p.name}: ${p.description}`).join("; ")}\n\n${partial.focus_findings ? `Focus findings: ${partial.focus_findings.slice(0, 1000)}` : ""}`;
-        summary = await llmTask(summaryPrompt);
-      } catch {
-        summary = buildTemplateSummary(partial);
-      }
-    } else {
-      summary = buildTemplateSummary(partial);
-    }
-
-    const exploreResult: ExploreResult = { ...partial, summary };
-    return JSON.stringify(exploreResult);
+    const agentTasks = buildAgentTasks(parsed.path, parsed.depth, parsed.focus);
+    const resultMap = await spawnAgentTasks(agentTasks, spawnSubagent);
+    const partial = assembleResult(parsed.path, parsed.depth, resultMap);
+    const summary = await generateExploreSummary(partial, llmTask);
+    return JSON.stringify({ ...partial, summary } as ExploreResult);
   };
 }
-
