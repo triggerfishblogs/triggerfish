@@ -47,114 +47,156 @@ export interface SessionToolContext {
   readonly pairingService?: PairingService;
 }
 
+function buildSessionsListDef(): ToolDefinition {
+  return {
+    name: "sessions_list",
+    description: "List all active sessions visible to the current session.",
+    parameters: {},
+  };
+}
+
+function buildSessionsHistoryDef(): ToolDefinition {
+  return {
+    name: "sessions_history",
+    description: "Get the message history for a session by ID.",
+    parameters: {
+      session_id: {
+        type: "string",
+        description: "The session ID to retrieve history for",
+        required: true,
+      },
+    },
+  };
+}
+
+function buildSessionsSendDef(): ToolDefinition {
+  return {
+    name: "sessions_send",
+    description: "Send content from the current session to another session. " +
+      "Subject to write-down enforcement.",
+    parameters: {
+      session_id: {
+        type: "string",
+        description: "Target session ID to send content to",
+        required: true,
+      },
+      content: {
+        type: "string",
+        description: "The message content to send",
+        required: true,
+      },
+    },
+  };
+}
+
+function buildSessionsSpawnDef(): ToolDefinition {
+  return {
+    name: "sessions_spawn",
+    description: "Spawn a new background session for an autonomous task. " +
+      "The new session starts with independent PUBLIC taint.",
+    parameters: {
+      task: {
+        type: "string",
+        description: "Description of what the background session should do",
+        required: true,
+      },
+    },
+  };
+}
+
+function buildSessionStatusDef(): ToolDefinition {
+  return {
+    name: "session_status",
+    description: "Get metadata and status for a specific session.",
+    parameters: {
+      session_id: {
+        type: "string",
+        description: "The session ID to check",
+        required: true,
+      },
+    },
+  };
+}
+
+function buildMessageDef(): ToolDefinition {
+  return {
+    name: "message",
+    description:
+      "Send a message to a connected channel (signal, telegram, etc.). " +
+      "Subject to write-down enforcement: your session taint must be able to flow to the channel's classification. " +
+      "For Signal, the recipient is a phone number (E.164 format, e.g. '+15551234567') or a group ID prefixed with 'group-'.",
+    parameters: {
+      channel: {
+        type: "string",
+        description:
+          "Target channel type (e.g. 'signal', 'telegram'). Use channels_list to see connected channels.",
+        required: true,
+      },
+      recipient: {
+        type: "string",
+        description:
+          "Recipient identifier — phone number for Signal, chat ID for Telegram, etc.",
+        required: true,
+      },
+      text: {
+        type: "string",
+        description: "Message text to send",
+        required: true,
+      },
+    },
+  };
+}
+
+function buildChannelsListDef(): ToolDefinition {
+  return {
+    name: "channels_list",
+    description:
+      "List all connected messaging channels with their type, classification, and connection status.",
+    parameters: {},
+  };
+}
+
+function buildSignalListGroupsDef(): ToolDefinition {
+  return {
+    name: "signal_list_groups",
+    description:
+      "List all Signal groups the account belongs to. Returns group IDs, names, and member counts. Only works when Signal is connected.",
+    parameters: {},
+  };
+}
+
+function buildSignalListContactsDef(): ToolDefinition {
+  return {
+    name: "signal_list_contacts",
+    description:
+      "List all known Signal contacts with their phone numbers and profile names. Only works when Signal is connected.",
+    parameters: {},
+  };
+}
+
+function buildSignalGeneratePairingDef(): ToolDefinition {
+  return {
+    name: "signal_generate_pairing",
+    description: "Generate a 6-digit pairing code for Signal. " +
+      "Give this code to someone so they can pair with your Signal number and chat with the agent. " +
+      "The code expires after 5 minutes. Only works when Signal DM policy is 'pairing'.",
+    parameters: {},
+  };
+}
+
 /** Get session tool definitions for the agent orchestrator. */
 export function getSessionToolDefinitions(): readonly ToolDefinition[] {
   return [
-    {
-      name: "sessions_list",
-      description: "List all active sessions visible to the current session.",
-      parameters: {},
-    },
-    {
-      name: "sessions_history",
-      description: "Get the message history for a session by ID.",
-      parameters: {
-        session_id: {
-          type: "string",
-          description: "The session ID to retrieve history for",
-          required: true,
-        },
-      },
-    },
-    {
-      name: "sessions_send",
-      description:
-        "Send content from the current session to another session. " +
-        "Subject to write-down enforcement.",
-      parameters: {
-        session_id: {
-          type: "string",
-          description: "Target session ID to send content to",
-          required: true,
-        },
-        content: {
-          type: "string",
-          description: "The message content to send",
-          required: true,
-        },
-      },
-    },
-    {
-      name: "sessions_spawn",
-      description:
-        "Spawn a new background session for an autonomous task. " +
-        "The new session starts with independent PUBLIC taint.",
-      parameters: {
-        task: {
-          type: "string",
-          description: "Description of what the background session should do",
-          required: true,
-        },
-      },
-    },
-    {
-      name: "session_status",
-      description: "Get metadata and status for a specific session.",
-      parameters: {
-        session_id: {
-          type: "string",
-          description: "The session ID to check",
-          required: true,
-        },
-      },
-    },
-    {
-      name: "message",
-      description:
-        "Send a message to a connected channel (signal, telegram, etc.). " +
-        "Subject to write-down enforcement: your session taint must be able to flow to the channel's classification. " +
-        "For Signal, the recipient is a phone number (E.164 format, e.g. '+15551234567') or a group ID prefixed with 'group-'.",
-      parameters: {
-        channel: {
-          type: "string",
-          description: "Target channel type (e.g. 'signal', 'telegram'). Use channels_list to see connected channels.",
-          required: true,
-        },
-        recipient: {
-          type: "string",
-          description: "Recipient identifier — phone number for Signal, chat ID for Telegram, etc.",
-          required: true,
-        },
-        text: {
-          type: "string",
-          description: "Message text to send",
-          required: true,
-        },
-      },
-    },
-    {
-      name: "channels_list",
-      description: "List all connected messaging channels with their type, classification, and connection status.",
-      parameters: {},
-    },
-    {
-      name: "signal_list_groups",
-      description: "List all Signal groups the account belongs to. Returns group IDs, names, and member counts. Only works when Signal is connected.",
-      parameters: {},
-    },
-    {
-      name: "signal_list_contacts",
-      description: "List all known Signal contacts with their phone numbers and profile names. Only works when Signal is connected.",
-      parameters: {},
-    },
-    {
-      name: "signal_generate_pairing",
-      description:
-        "Generate a 6-digit pairing code for Signal. " +
-        "Give this code to someone so they can pair with your Signal number and chat with the agent. " +
-        "The code expires after 5 minutes. Only works when Signal DM policy is 'pairing'.",
-      parameters: {},
-    },
+    buildSessionsListDef(),
+    buildSessionsHistoryDef(),
+    buildSessionsSendDef(),
+    buildSessionsSpawnDef(),
+    buildSessionStatusDef(),
+    buildMessageDef(),
+    buildChannelsListDef(),
+    buildSignalListGroupsDef(),
+    buildSignalListContactsDef(),
+    buildSignalGeneratePairingDef(),
   ];
 }
 
