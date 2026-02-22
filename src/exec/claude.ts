@@ -131,6 +131,98 @@ export interface ClaudeSessionManagerOptions {
   readonly claudeBinary?: string;
 }
 
+/** Filter CLAUDECODE from environment to avoid nesting guard. */
+function buildClaudeEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(Deno.env.toObject())) {
+    if (k !== "CLAUDECODE") env[k] = v;
+  }
+  return env;
+}
+
+/** Spawn a Claude CLI child process. */
+function spawnClaudeProcess(
+  binary: string,
+  args: string[],
+  cwd: string,
+  env: Record<string, string>,
+): Result<Deno.ChildProcess, string> {
+  try {
+    const command = new Deno.Command(binary, {
+      args,
+      cwd,
+      stdin: "piped",
+      stdout: "piped",
+      stderr: "piped",
+      env,
+    });
+    return { ok: true, value: command.spawn() };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Failed to spawn claude: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+}
+
+/** Poll for new output from a Claude session until a result message or timeout. */
+async function pollForClaudeResponse(
+  entry: SessionEntry,
+  outputBefore: number,
+  deadlineMs: number,
+): Promise<string> {
+  const deadline = Date.now() + deadlineMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 200));
+    if (entry.output.length > outputBefore) {
+      const newOutput = entry.output.slice(outputBefore);
+      if (
+        newOutput.includes('"type":"result"') ||
+        newOutput.includes('"type": "result"')
+      ) break;
+    }
+    if (entry.session.status !== "running") break;
+  }
+  return entry.output.slice(outputBefore);
+}
+
+/** Gracefully terminate a running Claude session with SIGTERM then SIGKILL. */
+async function terminateClaudeSession(entry: SessionEntry): Promise<void> {
+  try {
+    entry.stdinWriter.close().catch((err: unknown) => {
+      log.debug("Stdin writer close failed during termination", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  } catch {
+    // Already closed
+  }
+  try {
+    entry.process.kill("SIGTERM");
+  } catch {
+    // Already dead
+  }
+  const deadline = Date.now() + 5000;
+  while (entry.session.status === "running" && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  if (entry.session.status === "running") {
+    try {
+      entry.process.kill("SIGKILL");
+    } catch {
+      // Already dead
+    }
+    entry.session = {
+      ...entry.session,
+      status: "terminated",
+      endedAt: new Date(),
+    };
+  }
+  if (entry.timeoutId !== null) clearTimeout(entry.timeoutId);
+}
+
 let sessionCounter = 0;
 
 /** Generate a unique session ID. */
@@ -337,47 +429,27 @@ export function createClaudeSessionManager(
         ...config,
       };
 
-      // Validate working directory if specified
-      if (fullConfig.workingDir) {
-        const resolved = fullConfig.workingDir;
-        if (!resolved.startsWith(options.workspacePath)) {
-          return Promise.resolve({
-            ok: false as const,
-            error:
-              `Working directory "${resolved}" is outside the workspace "${options.workspacePath}"`,
-          });
-        }
+      if (
+        fullConfig.workingDir &&
+        !fullConfig.workingDir.startsWith(options.workspacePath)
+      ) {
+        return Promise.resolve({
+          ok: false as const,
+          error:
+            `Working directory "${fullConfig.workingDir}" is outside the workspace "${options.workspacePath}"`,
+        });
       }
 
       const args = buildArgs(prompt, fullConfig, options.workspacePath);
-
-      // Build env — unset CLAUDECODE to bypass nesting guard
-      const env: Record<string, string> = {};
-      for (const [k, v] of Object.entries(Deno.env.toObject())) {
-        if (k !== "CLAUDECODE") {
-          env[k] = v;
-        }
-      }
-
-      let process: Deno.ChildProcess;
-      try {
-        const command = new Deno.Command(binary, {
-          args,
-          cwd: fullConfig.workingDir ?? options.workspacePath,
-          stdin: "piped",
-          stdout: "piped",
-          stderr: "piped",
-          env,
-        });
-        process = command.spawn();
-      } catch (err) {
-        return Promise.resolve({
-          ok: false as const,
-          error: `Failed to spawn claude: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        });
-      }
+      const cwd = fullConfig.workingDir ?? options.workspacePath;
+      const spawnResult = spawnClaudeProcess(
+        binary,
+        args,
+        cwd,
+        buildClaudeEnv(),
+      );
+      if (!spawnResult.ok) return Promise.resolve(spawnResult);
+      const process = spawnResult.value;
 
       const id = generateSessionId();
       const session: ClaudeSession = {
@@ -390,35 +462,22 @@ export function createClaudeSessionManager(
         exitCode: null,
       };
 
-      const stdinWriter = process.stdin.getWriter();
-      const timeoutMs = fullConfig.timeoutMs ?? 300_000;
-
       const entry: SessionEntry = {
         session,
         process,
-        stdinWriter,
+        stdinWriter: process.stdin.getWriter(),
         output: "",
         stderr: "",
         timeoutId: null,
       };
 
-      // Set up timeout (cast to satisfy readonly — the entry is mutable internally)
       (entry as { timeoutId: number | null }).timeoutId = setupTimeout(
         entry,
-        timeoutMs,
+        fullConfig.timeoutMs ?? 300_000,
       );
-
-      // Start reading stdout
-      const reader = process.stdout.getReader();
-      startOutputReader(entry, reader);
-
-      // Drain stderr in background to prevent resource leaks
-      const stderrReader = process.stderr.getReader();
-      drainStderr(entry, stderrReader);
-
-      // Watch for process exit
+      startOutputReader(entry, process.stdout.getReader());
+      drainStderr(entry, process.stderr.getReader());
       watchProcess(entry);
-
       sessions.set(id, entry);
 
       return Promise.resolve({ ok: true as const, value: session });
@@ -435,12 +494,12 @@ export function createClaudeSessionManager(
       if (entry.session.status !== "running") {
         return {
           ok: false,
-          error: `Session ${sessionId} is not running (status: ${entry.session.status})`,
+          error:
+            `Session ${sessionId} is not running (status: ${entry.session.status})`,
         };
       }
 
       const outputBefore = entry.output.length;
-
       try {
         await entry.stdinWriter.write(encodeUserMessage(input));
       } catch (err) {
@@ -452,24 +511,11 @@ export function createClaudeSessionManager(
         };
       }
 
-      // Wait for new output (poll with timeout)
-      const deadline = Date.now() + 60_000; // 60s wait for response
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 200));
-        if (entry.output.length > outputBefore) {
-          // Check if we got a complete response (result message)
-          const newOutput = entry.output.slice(outputBefore);
-          if (
-            newOutput.includes('"type":"result"') ||
-            newOutput.includes('"type": "result"')
-          ) {
-            break;
-          }
-        }
-        if (entry.session.status !== "running") break;
-      }
-
-      const newOutput = entry.output.slice(outputBefore);
+      const newOutput = await pollForClaudeResponse(
+        entry,
+        outputBefore,
+        60_000,
+      );
       const parsed = parseStreamOutput(newOutput);
       return { ok: true, value: parsed || newOutput };
     },
@@ -499,47 +545,7 @@ export function createClaudeSessionManager(
       if (entry.session.status !== "running") {
         return { ok: true, value: undefined };
       }
-
-      try {
-        entry.stdinWriter.close().catch((err: unknown) => {
-          log.debug("Stdin writer close failed during termination", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        });
-      } catch {
-        // Already closed
-      }
-
-      try {
-        entry.process.kill("SIGTERM");
-      } catch {
-        // Already dead
-      }
-
-      // Wait up to 5s for graceful shutdown
-      const deadline = Date.now() + 5000;
-      while (entry.session.status === "running" && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 100));
-      }
-
-      // Force kill if still running
-      if (entry.session.status === "running") {
-        try {
-          entry.process.kill("SIGKILL");
-        } catch {
-          // Already dead
-        }
-        entry.session = {
-          ...entry.session,
-          status: "terminated",
-          endedAt: new Date(),
-        };
-      }
-
-      if (entry.timeoutId !== null) {
-        clearTimeout(entry.timeoutId);
-      }
-
+      await terminateClaudeSession(entry);
       return { ok: true, value: undefined };
     },
 
@@ -548,4 +554,3 @@ export function createClaudeSessionManager(
     },
   };
 }
-
