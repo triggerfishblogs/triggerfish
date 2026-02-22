@@ -17,7 +17,12 @@
  * @module
  */
 
-import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "./llm.ts";
+import type {
+  LlmCompletionResult,
+  LlmMessage,
+  LlmProvider,
+  LlmStreamChunk,
+} from "./llm.ts";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -91,6 +96,64 @@ interface UsageEvent {
 // createRateLimiter
 // ---------------------------------------------------------------------------
 
+/** Prune events older than the sliding window cutoff. */
+function pruneExpiredEvents(
+  events: UsageEvent[],
+  cutoff: number,
+): void {
+  while (events.length > 0 && events[0].ts < cutoff) {
+    events.shift();
+  }
+}
+
+/** Sum tokens in the sliding window after pruning expired events. */
+function sumWindowTokens(
+  tokenEvents: UsageEvent[],
+  requestEvents: UsageEvent[],
+  windowMs: number,
+  now: number,
+): number {
+  const cutoff = now - windowMs;
+  pruneExpiredEvents(tokenEvents, cutoff);
+  pruneExpiredEvents(requestEvents, cutoff);
+  return tokenEvents.reduce((sum, e) => sum + e.tokens, 0);
+}
+
+/** Count requests in the sliding window after pruning expired events. */
+function countWindowRequests(
+  tokenEvents: UsageEvent[],
+  requestEvents: UsageEvent[],
+  windowMs: number,
+  now: number,
+): number {
+  const cutoff = now - windowMs;
+  pruneExpiredEvents(tokenEvents, cutoff);
+  pruneExpiredEvents(requestEvents, cutoff);
+  return requestEvents.length;
+}
+
+/** Check whether there is capacity for an additional request. */
+function checkRateCapacity(
+  tokenEvents: UsageEvent[],
+  requestEvents: UsageEvent[],
+  config: RateLimiterConfig,
+  windowMs: number,
+  estimatedTokens: number,
+  now: number,
+): boolean {
+  const tokens = sumWindowTokens(tokenEvents, requestEvents, windowMs, now);
+  if (config.tpm !== Infinity && tokens + estimatedTokens > config.tpm) {
+    return false;
+  }
+  const requests = countWindowRequests(
+    tokenEvents,
+    requestEvents,
+    windowMs,
+    now,
+  );
+  return !(config.rpm !== Infinity && requests + 1 > config.rpm);
+}
+
 /**
  * Create a standalone rate limiter.
  *
@@ -103,48 +166,20 @@ interface UsageEvent {
 export function createRateLimiter(config: RateLimiterConfig): RateLimiter {
   const windowMs = config.windowMs ?? 60_000;
   const pollMs = config.pollIntervalMs ?? 500;
-
-  // Mutable sliding-window event log.
-  // Events older than `windowMs` are pruned before each check.
   const tokenEvents: UsageEvent[] = [];
   const requestEvents: UsageEvent[] = [];
-
-  function prune(now: number): void {
-    const cutoff = now - windowMs;
-    while (tokenEvents.length > 0 && tokenEvents[0].ts < cutoff) {
-      tokenEvents.shift();
-    }
-    while (requestEvents.length > 0 && requestEvents[0].ts < cutoff) {
-      requestEvents.shift();
-    }
-  }
-
-  function windowTokens(now: number): number {
-    prune(now);
-    return tokenEvents.reduce((sum, e) => sum + e.tokens, 0);
-  }
-
-  function windowRequests(now: number): number {
-    prune(now);
-    return requestEvents.length;
-  }
-
-  function hasCapacity(estimatedTokens: number, now: number): boolean {
-    if (config.tpm !== Infinity && windowTokens(now) + estimatedTokens > config.tpm) {
-      return false;
-    }
-    if (config.rpm !== Infinity && windowRequests(now) + 1 > config.rpm) {
-      return false;
-    }
-    return true;
-  }
 
   return {
     snapshot(): RateLimiterSnapshot {
       const now = Date.now();
       return {
-        tokensUsed: windowTokens(now),
-        requestsUsed: windowRequests(now),
+        tokensUsed: sumWindowTokens(tokenEvents, requestEvents, windowMs, now),
+        requestsUsed: countWindowRequests(
+          tokenEvents,
+          requestEvents,
+          windowMs,
+          now,
+        ),
         tpmLimit: config.tpm,
         rpmLimit: config.rpm,
         windowMs,
@@ -152,17 +187,31 @@ export function createRateLimiter(config: RateLimiterConfig): RateLimiter {
     },
 
     async waitForCapacity(estimatedTokens: number): Promise<void> {
-      // Optimistic path — no waiting needed.
-      if (hasCapacity(estimatedTokens, Date.now())) {
-        // Record the request slot immediately (token cost recorded later via recordUsage).
+      if (
+        checkRateCapacity(
+          tokenEvents,
+          requestEvents,
+          config,
+          windowMs,
+          estimatedTokens,
+          Date.now(),
+        )
+      ) {
         requestEvents.push({ ts: Date.now(), tokens: 0 });
         return;
       }
-
-      // Poll until capacity is available.
       await new Promise<void>((resolve) => {
         const id = setInterval(() => {
-          if (hasCapacity(estimatedTokens, Date.now())) {
+          if (
+            checkRateCapacity(
+              tokenEvents,
+              requestEvents,
+              config,
+              windowMs,
+              estimatedTokens,
+              Date.now(),
+            )
+          ) {
             clearInterval(id);
             requestEvents.push({ ts: Date.now(), tokens: 0 });
             resolve();
@@ -172,8 +221,7 @@ export function createRateLimiter(config: RateLimiterConfig): RateLimiter {
     },
 
     recordUsage(inputTokens: number, outputTokens: number): void {
-      const now = Date.now();
-      tokenEvents.push({ ts: now, tokens: inputTokens + outputTokens });
+      tokenEvents.push({ ts: Date.now(), tokens: inputTokens + outputTokens });
     },
   };
 }
@@ -182,82 +230,82 @@ export function createRateLimiter(config: RateLimiterConfig): RateLimiter {
 // createRateLimitedProvider
 // ---------------------------------------------------------------------------
 
+/** Estimate input tokens from messages using a character-length heuristic (÷ 4). */
+function estimateTokenCost(
+  messages: readonly LlmMessage[],
+  customEstimator?: (messages: readonly LlmMessage[]) => number,
+): number {
+  if (customEstimator) return customEstimator(messages);
+  return messages.reduce((sum, m) => {
+    const text = typeof m.content === "string"
+      ? m.content
+      : JSON.stringify(m.content);
+    return sum + Math.ceil(text.length / 4);
+  }, 0);
+}
+
+/** Attach a rate-limited streaming method to the provider if supported. */
+function attachRateLimitedStream(
+  rateLimitedProvider: LlmProvider,
+  provider: LlmProvider,
+  limiter: RateLimiter,
+  customEstimator?: (messages: readonly LlmMessage[]) => number,
+): void {
+  if (!provider.stream) return;
+  const upstreamStream = provider.stream.bind(provider);
+  rateLimitedProvider.stream = async function* (
+    messages: readonly LlmMessage[],
+    tools: readonly unknown[],
+    options: Record<string, unknown>,
+  ): AsyncIterable<LlmStreamChunk> {
+    await limiter.waitForCapacity(
+      estimateTokenCost(messages, customEstimator),
+    );
+    let lastUsage: { inputTokens: number; outputTokens: number } | undefined;
+    for await (const chunk of upstreamStream(messages, tools, options)) {
+      if (chunk.done && chunk.usage) lastUsage = chunk.usage;
+      yield chunk;
+    }
+    if (lastUsage) {
+      limiter.recordUsage(lastUsage.inputTokens, lastUsage.outputTokens);
+    }
+  };
+}
+
 /**
  * Wrap an LlmProvider with a sliding-window rate limiter.
  *
  * Both `complete` and `stream` will wait for available capacity before
  * issuing the underlying provider call. Actual token usage is recorded
  * after each call using the usage figures returned by the provider.
- *
- * The estimated token cost passed to `waitForCapacity` before the call is
- * derived from the prompt token count (input). After the call, the real
- * total (input + output) is recorded via `recordUsage`.
- *
- * @param provider  - The underlying LlmProvider to wrap
- * @param limiter   - A RateLimiter created via createRateLimiter
- * @param estimateInputTokens - Optional callback to estimate input tokens from
- *   messages before a call. Defaults to a character-length heuristic (÷ 4).
- * @returns A new LlmProvider that enforces the rate limit
  */
 export function createRateLimitedProvider(
   provider: LlmProvider,
   limiter: RateLimiter,
   estimateInputTokens?: (messages: readonly LlmMessage[]) => number,
 ): LlmProvider {
-  function estimateTokens(messages: readonly LlmMessage[]): number {
-    if (estimateInputTokens) return estimateInputTokens(messages);
-    // Conservative heuristic: ~4 characters per token.
-    return messages.reduce((sum, m) => {
-      const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-      return sum + Math.ceil(text.length / 4);
-    }, 0);
-  }
-
   const rateLimitedProvider: LlmProvider = {
     name: provider.name,
     supportsStreaming: provider.supportsStreaming,
     contextWindow: provider.contextWindow,
-
     async complete(
       messages: readonly LlmMessage[],
       tools: readonly unknown[],
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
-      const estimated = estimateTokens(messages);
-      await limiter.waitForCapacity(estimated);
-
+      await limiter.waitForCapacity(
+        estimateTokenCost(messages, estimateInputTokens),
+      );
       const result = await provider.complete(messages, tools, options);
       limiter.recordUsage(result.usage.inputTokens, result.usage.outputTokens);
       return result;
     },
   };
-
-  // Only attach stream() if the underlying provider supports it.
-  if (provider.stream) {
-    const upstreamStream = provider.stream.bind(provider);
-
-    rateLimitedProvider.stream = async function* (
-      messages: readonly LlmMessage[],
-      tools: readonly unknown[],
-      options: Record<string, unknown>,
-    ): AsyncIterable<LlmStreamChunk> {
-      const estimated = estimateTokens(messages);
-      await limiter.waitForCapacity(estimated);
-
-      let lastUsage: { inputTokens: number; outputTokens: number } | undefined;
-
-      for await (const chunk of upstreamStream(messages, tools, options)) {
-        if (chunk.done && chunk.usage) {
-          lastUsage = chunk.usage;
-        }
-        yield chunk;
-      }
-
-      if (lastUsage) {
-        limiter.recordUsage(lastUsage.inputTokens, lastUsage.outputTokens);
-      }
-    };
-  }
-
+  attachRateLimitedStream(
+    rateLimitedProvider,
+    provider,
+    limiter,
+    estimateInputTokens,
+  );
   return rateLimitedProvider;
 }
