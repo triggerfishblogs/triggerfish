@@ -165,9 +165,8 @@ export interface ChatSession {
    *
    * @param nonce - The nonce from the originating `secret_prompt` event.
    * @param value - The entered secret value, or null if the user cancelled.
-   * @param username - The entered username (only present when `needsUsername` was true).
    */
-  handleSecretPromptResponse(nonce: string, value: string | null, username?: string): void;
+  handleSecretPromptResponse(nonce: string, value: string | null): void;
   /**
    * Create a `SecretPromptCallback` suitable for use with `createSecretToolExecutor`
    * in Tidepool mode.
@@ -179,13 +178,7 @@ export interface ChatSession {
    * @param sendEvent - The function that sends events to the active WebSocket client.
    * @returns A SecretPromptCallback that resolves when the browser responds.
    */
-  createTidepoolSecretPrompt(
-    sendEvent: ChatEventSender,
-  ): (
-    name: string,
-    hint?: string,
-    options?: { readonly withUsername: boolean },
-  ) => Promise<{ readonly value: string; readonly username?: string } | null>;
+  createTidepoolSecretPrompt(sendEvent: ChatEventSender): (name: string, hint?: string) => Promise<string | null>;
   /**
    * Get the last known MCP server connection status for sending to new clients.
    * Returns null if MCP status has not been set yet (no MCP servers configured).
