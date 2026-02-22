@@ -12,6 +12,9 @@
 
 import type { ClassificationLevel, Result } from "../core/types/classification.ts";
 import { CLASSIFICATION_ORDER } from "../core/types/classification.ts";
+import { createLogger } from "../core/logger/logger.ts";
+
+const log = createLogger("security");
 
 /** A declared capability for a plugin, specifying what resources it can access. */
 export interface PluginCapability {
@@ -137,6 +140,11 @@ export function createPluginSdk(config: PluginSdkConfig): PluginSdk {
       const handlerResult = await queryHandler(query, pluginName);
       const resultOrder = CLASSIFICATION_ORDER[handlerResult.classification];
       if (resultOrder > ceilingOrder) {
+        log.warn("Plugin query result exceeds classification ceiling", {
+          plugin: pluginName,
+          resultClassification: handlerResult.classification,
+          ceiling: maxClassification,
+        });
         return {
           ok: false,
           error: `Plugin "${pluginName}": query result classification "${handlerResult.classification}" exceeds ceiling "${maxClassification}"`,
@@ -174,6 +182,11 @@ export function createPluginSdk(config: PluginSdkConfig): PluginSdk {
       // Reject classification above the plugin's ceiling
       const payloadOrder = CLASSIFICATION_ORDER[payload.classification];
       if (payloadOrder > ceilingOrder) {
+        log.warn("Plugin classification ceiling exceeded", {
+          plugin: pluginName,
+          attempted: payload.classification,
+          ceiling: maxClassification,
+        });
         return {
           ok: false,
           error: `Plugin "${pluginName}": classification "${payload.classification}" exceeds ceiling "${maxClassification}"`,
