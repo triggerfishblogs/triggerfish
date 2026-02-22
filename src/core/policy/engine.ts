@@ -111,6 +111,70 @@ interface YamlCondition {
   readonly value: string | number;
 }
 
+/** Get rules for a hook type, sorted by priority descending. */
+function filterRulesByHook(
+  rules: readonly PolicyRule[],
+  hook: HookType,
+): PolicyRule[] {
+  return rules
+    .filter((r) => r.hook === hook)
+    .sort((a, b) => b.priority - a.priority);
+}
+
+/** Evaluate rules for a hook against context. First matching rule wins. */
+function evaluateHookRules(
+  rules: readonly PolicyRule[],
+  hook: HookType,
+  context: Record<string, unknown>,
+): EvaluationResult {
+  const hookRules = filterRulesByHook(rules, hook);
+
+  for (const rule of hookRules) {
+    const allConditionsMet = rule.conditions.every((condition) =>
+      evaluateCondition(condition, context[condition.field])
+    );
+
+    if (allConditionsMet) {
+      if (rule.action === "BLOCK") {
+        log.warn("Policy rule blocked action", {
+          hook,
+          ruleId: rule.id,
+          message: rule.message,
+        });
+      }
+      return { action: rule.action, ruleId: rule.id, message: rule.message };
+    }
+  }
+
+  return { action: "ALLOW" };
+}
+
+/** Parse a YAML string and append rules to the given array. */
+function parseAndAddYamlRules(
+  rules: PolicyRule[],
+  yamlString: string,
+): void {
+  const parsed = parseYaml(yamlString) as YamlPolicy;
+  if (!parsed || !parsed.rules) return;
+
+  for (const yamlRule of parsed.rules) {
+    rules.push({
+      id: yamlRule.id,
+      priority: yamlRule.priority,
+      hook: yamlRule.hook as HookType,
+      conditions: (yamlRule.conditions ?? []).map((c) => ({
+        field: c.field,
+        operator: c.operator as ConditionOperator,
+        value: c.value,
+      })),
+      action: yamlRule.action as PolicyAction,
+      message: yamlRule.message,
+      redaction_pattern: yamlRule.redaction_pattern,
+      notify: yamlRule.notify,
+    });
+  }
+}
+
 /**
  * Create a new policy engine instance.
  *
@@ -120,75 +184,14 @@ interface YamlCondition {
 export function createPolicyEngine(): PolicyEngine {
   const rules: PolicyRule[] = [];
 
-  function addRule(rule: PolicyRule): void {
-    rules.push(rule);
-  }
-
-  function removeRule(id: string): void {
-    const index = rules.findIndex((r) => r.id === id);
-    if (index !== -1) {
-      rules.splice(index, 1);
-    }
-  }
-
-  function getRules(hook: HookType): PolicyRule[] {
-    return rules
-      .filter((r) => r.hook === hook)
-      .sort((a, b) => b.priority - a.priority);
-  }
-
-  function evaluate(
-    hook: HookType,
-    context: Record<string, unknown>,
-  ): EvaluationResult {
-    const hookRules = getRules(hook);
-
-    for (const rule of hookRules) {
-      const allConditionsMet = rule.conditions.every((condition) =>
-        evaluateCondition(condition, context[condition.field])
-      );
-
-      if (allConditionsMet) {
-        if (rule.action === "BLOCK") {
-          log.warn("Policy rule blocked action", {
-            hook,
-            ruleId: rule.id,
-            message: rule.message,
-          });
-        }
-        return {
-          action: rule.action,
-          ruleId: rule.id,
-          message: rule.message,
-        };
-      }
-    }
-
-    return { action: "ALLOW" };
-  }
-
-  function loadYaml(yamlString: string): void {
-    const parsed = parseYaml(yamlString) as YamlPolicy;
-    if (!parsed || !parsed.rules) return;
-
-    for (const yamlRule of parsed.rules) {
-      const rule: PolicyRule = {
-        id: yamlRule.id,
-        priority: yamlRule.priority,
-        hook: yamlRule.hook as HookType,
-        conditions: (yamlRule.conditions ?? []).map((c) => ({
-          field: c.field,
-          operator: c.operator as ConditionOperator,
-          value: c.value,
-        })),
-        action: yamlRule.action as PolicyAction,
-        message: yamlRule.message,
-        redaction_pattern: yamlRule.redaction_pattern,
-        notify: yamlRule.notify,
-      };
-      addRule(rule);
-    }
-  }
-
-  return { addRule, removeRule, getRules, evaluate, loadYaml };
+  return {
+    addRule: (rule) => rules.push(rule),
+    removeRule(id) {
+      const index = rules.findIndex((r) => r.id === id);
+      if (index !== -1) rules.splice(index, 1);
+    },
+    getRules: (hook) => filterRulesByHook(rules, hook),
+    evaluate: (hook, context) => evaluateHookRules(rules, hook, context),
+    loadYaml: (yamlString) => parseAndAddYamlRules(rules, yamlString),
+  };
 }
