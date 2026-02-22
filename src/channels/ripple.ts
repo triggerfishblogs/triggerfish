@@ -8,7 +8,14 @@
  */
 
 /** Agent presence state. */
-export type AgentState = "idle" | "online" | "away" | "busy" | "processing" | "speaking" | "error";
+export type AgentState =
+  | "idle"
+  | "online"
+  | "away"
+  | "busy"
+  | "processing"
+  | "speaking"
+  | "error";
 
 /** Callback invoked when typing state changes for a channel. */
 export type TypingCallback = (channelId: string, typing: boolean) => void;
@@ -43,6 +50,62 @@ export interface RippleManager {
   offStateChange(callback: StateCallback): void;
 }
 
+/** Apply a typing state change and notify registered callbacks. */
+function applyTypingChange(
+  typingState: Map<string, boolean>,
+  typingCallbacks: Map<string, Set<TypingCallback>>,
+  channelId: string,
+  typing: boolean,
+): void {
+  const prev = typingState.get(channelId) ?? false;
+  typingState.set(channelId, typing);
+
+  if (prev !== typing) {
+    const callbacks = typingCallbacks.get(channelId);
+    if (callbacks) {
+      for (const cb of callbacks) cb(channelId, typing);
+    }
+  }
+}
+
+/** Apply a state change and notify registered callbacks. */
+function applyStateChange(
+  stateCallbacks: Set<StateCallback>,
+  prevState: AgentState,
+  newState: AgentState,
+): void {
+  if (prevState !== newState) {
+    for (const cb of stateCallbacks) cb(newState);
+  }
+}
+
+/** Register a typing callback for a channel, creating the set if needed. */
+function registerTypingCallback(
+  typingCallbacks: Map<string, Set<TypingCallback>>,
+  channelId: string,
+  callback: TypingCallback,
+): void {
+  let callbacks = typingCallbacks.get(channelId);
+  if (!callbacks) {
+    callbacks = new Set();
+    typingCallbacks.set(channelId, callbacks);
+  }
+  callbacks.add(callback);
+}
+
+/** Remove a typing callback, cleaning up the set if empty. */
+function unregisterTypingCallback(
+  typingCallbacks: Map<string, Set<TypingCallback>>,
+  channelId: string,
+  callback: TypingCallback,
+): void {
+  const callbacks = typingCallbacks.get(channelId);
+  if (callbacks) {
+    callbacks.delete(callback);
+    if (callbacks.size === 0) typingCallbacks.delete(channelId);
+  }
+}
+
 /**
  * Create a new ripple manager instance.
  *
@@ -56,64 +119,20 @@ export function createRippleManager(): RippleManager {
   const stateCallbacks = new Set<StateCallback>();
 
   return {
-    setTyping(channelId: string, typing: boolean): void {
-      const prev = typingState.get(channelId) ?? false;
-      typingState.set(channelId, typing);
-
-      if (prev !== typing) {
-        const callbacks = typingCallbacks.get(channelId);
-        if (callbacks) {
-          for (const cb of callbacks) {
-            cb(channelId, typing);
-          }
-        }
-      }
-    },
-
-    isTyping(channelId: string): boolean {
-      return typingState.get(channelId) ?? false;
-    },
-
-    setState(state: AgentState): void {
+    setTyping: (channelId, typing) =>
+      applyTypingChange(typingState, typingCallbacks, channelId, typing),
+    isTyping: (channelId) => typingState.get(channelId) ?? false,
+    setState(state) {
       const prev = agentState;
       agentState = state;
-
-      if (prev !== state) {
-        for (const cb of stateCallbacks) {
-          cb(state);
-        }
-      }
+      applyStateChange(stateCallbacks, prev, state);
     },
-
-    getState(): AgentState {
-      return agentState;
-    },
-
-    onTyping(channelId: string, callback: TypingCallback): void {
-      let callbacks = typingCallbacks.get(channelId);
-      if (!callbacks) {
-        callbacks = new Set();
-        typingCallbacks.set(channelId, callbacks);
-      }
-      callbacks.add(callback);
-    },
-
-    onStateChange(callback: StateCallback): void {
-      stateCallbacks.add(callback);
-    },
-
-    offTyping(channelId: string, callback: TypingCallback): void {
-      const callbacks = typingCallbacks.get(channelId);
-      if (callbacks) {
-        callbacks.delete(callback);
-        if (callbacks.size === 0) {
-          typingCallbacks.delete(channelId);
-        }
-      }
-    },
-
-    offStateChange(callback: StateCallback): void {
-      stateCallbacks.delete(callback);
-    },
+    getState: () => agentState,
+    onTyping: (channelId, cb) =>
+      registerTypingCallback(typingCallbacks, channelId, cb),
+    onStateChange: (cb) => stateCallbacks.add(cb),
+    offTyping: (channelId, cb) =>
+      unregisterTypingCallback(typingCallbacks, channelId, cb),
+    offStateChange: (cb) => stateCallbacks.delete(cb),
   };
 }
