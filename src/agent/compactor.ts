@@ -20,7 +20,7 @@
  */
 
 import type { HistoryEntry } from "./orchestrator.ts";
-import type { LlmProvider, LlmMessage } from "./llm.ts";
+import type { LlmMessage, LlmProvider } from "./llm.ts";
 import { extractText } from "../core/image/content.ts";
 import { encode } from "gpt-tokenizer";
 
@@ -122,12 +122,55 @@ export function estimateHistoryTokens(
  */
 function extractKeywords(messages: readonly HistoryEntry[]): readonly string[] {
   const stopWords = new Set([
-    "the", "a", "an", "is", "are", "was", "were", "be", "been",
-    "do", "does", "did", "will", "would", "could", "should", "can",
-    "i", "me", "my", "you", "your", "we", "our", "it", "its",
-    "to", "of", "in", "on", "at", "for", "with", "from", "by",
-    "and", "or", "but", "not", "so", "if", "then", "that", "this",
-    "what", "how", "tell", "about", "please",
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "could",
+    "should",
+    "can",
+    "i",
+    "me",
+    "my",
+    "you",
+    "your",
+    "we",
+    "our",
+    "it",
+    "its",
+    "to",
+    "of",
+    "in",
+    "on",
+    "at",
+    "for",
+    "with",
+    "from",
+    "by",
+    "and",
+    "or",
+    "but",
+    "not",
+    "so",
+    "if",
+    "then",
+    "that",
+    "this",
+    "what",
+    "how",
+    "tell",
+    "about",
+    "please",
   ]);
 
   const seen = new Set<string>();
@@ -184,6 +227,71 @@ function buildDigest(
   return parts.join("\n\n");
 }
 
+/** Find the last message text from a specific role, truncated to 500 chars. */
+function findLastEntryContent(
+  history: readonly HistoryEntry[],
+  role: string,
+  skipBracketed: boolean,
+): string {
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role !== role) continue;
+    const text = extractText(history[i].content);
+    if (skipBracketed && text.startsWith("[")) continue;
+    return text.length > 500 ? text.slice(0, 500) + "…" : text;
+  }
+  return "";
+}
+
+/** Build a keyword-based auto-compact summary entry from conversation history. */
+function buildCompactSummaryEntry(
+  history: readonly HistoryEntry[],
+): HistoryEntry {
+  const keywords = extractKeywords(history);
+  const topicStr = keywords.length > 0
+    ? ` Topics discussed: ${keywords.join(", ")}.`
+    : "";
+  const lastUserContent = findLastEntryContent(history, "user", true);
+  const lastAssistantContent = findLastEntryContent(
+    history,
+    "assistant",
+    false,
+  );
+  const parts = [
+    `[Conversation context: ${history.length} messages were exchanged.${topicStr}`,
+  ];
+  if (lastUserContent) parts.push(`The user last said: "${lastUserContent}"`);
+  if (lastAssistantContent) {
+    parts.push(`You last responded: "${lastAssistantContent}"`);
+  }
+  parts.push("Continue the conversation from here.]");
+  return { role: "user", content: parts.join(" ") };
+}
+
+/** Build the prompt messages for LLM-based conversation summarization. */
+function buildSummarizerMessages(digest: string): LlmMessage[] {
+  return [
+    {
+      role: "system",
+      content:
+        "You are a conversation summarizer. Your job is to write a concise " +
+        "briefing that lets an AI assistant continue this conversation " +
+        "seamlessly.\n\n" +
+        "Include:\n" +
+        "- Key facts, decisions, and agreements made\n" +
+        "- What the user is currently working on or asking about\n" +
+        "- Any pending tasks, unanswered questions, or next steps\n" +
+        "- Important context the assistant needs to give a good next " +
+        "response\n\n" +
+        'Write in second person ("The user asked you to...", ' +
+        '"You suggested...").\n' +
+        "Be concise but complete — this summary replaces the entire " +
+        "conversation history.\n" +
+        "Maximum 300 words.",
+    },
+    { role: "user", content: digest },
+  ];
+}
+
 /**
  * Create a conversation compactor.
  *
@@ -202,102 +310,27 @@ export function createCompactor(
     overheadTokens = 0,
   ): readonly HistoryEntry[] {
     if (history.length === 0) return history;
-
     const totalTokens = estimateHistoryTokens(history) + overheadTokens;
     if (totalTokens <= autoTriggerThreshold) return history;
-
-    // Need at least something to compact
     if (history.length <= 2) return history;
-
-    // Build a keyword-based placeholder summary of the ENTIRE history
-    const keywords = extractKeywords(history);
-    const topicStr = keywords.length > 0
-      ? ` Topics discussed: ${keywords.join(", ")}.`
-      : "";
-
-    // Extract the last user message to capture what was being asked
-    let lastUserContent = "";
-    for (let i = history.length - 1; i >= 0; i--) {
-      if (history[i].role === "user") {
-        const text = extractText(history[i].content);
-        if (!text.startsWith("[")) {
-          lastUserContent = text.length > 500
-            ? text.slice(0, 500) + "…"
-            : text;
-          break;
-        }
-      }
-    }
-
-    // Extract the last assistant message to capture where we left off
-    let lastAssistantContent = "";
-    for (let i = history.length - 1; i >= 0; i--) {
-      if (history[i].role === "assistant") {
-        const text = extractText(history[i].content);
-        lastAssistantContent = text.length > 500
-          ? text.slice(0, 500) + "…"
-          : text;
-        break;
-      }
-    }
-
-    const parts = [
-      `[Conversation context: ${history.length} messages were exchanged.${topicStr}`,
-    ];
-    if (lastUserContent) {
-      parts.push(`The user last said: "${lastUserContent}"`);
-    }
-    if (lastAssistantContent) {
-      parts.push(`You last responded: "${lastAssistantContent}"`);
-    }
-    parts.push("Continue the conversation from here.]");
-
-    const summary: HistoryEntry = {
-      role: "user",
-      content: parts.join(" "),
-    };
-
-    return [summary];
+    return [buildCompactSummaryEntry(history)];
   }
 
   async function summarize(
     history: readonly HistoryEntry[],
     provider: LlmProvider,
   ): Promise<readonly HistoryEntry[]> {
-    // Nothing to summarize
     if (history.length <= 2) return history;
-
-    // Build a digest of the conversation, capped so we don't blow
-    // the summarizer's own context window. Use ~25% of budget for the
-    // digest — the summarizer is a separate call, not the main context.
-    const digestBudget = Math.floor(contextBudget * 0.25);
-    const digest = buildDigest(history, digestBudget);
-
-    const messages: LlmMessage[] = [
-      {
-        role: "system",
-        content:
-          "You are a conversation summarizer. Your job is to write a concise briefing that lets an AI assistant continue this conversation seamlessly.\n\n" +
-          "Include:\n" +
-          "- Key facts, decisions, and agreements made\n" +
-          "- What the user is currently working on or asking about\n" +
-          "- Any pending tasks, unanswered questions, or next steps\n" +
-          "- Important context the assistant needs to give a good next response\n\n" +
-          "Write in second person (\"The user asked you to...\", \"You suggested...\").\n" +
-          "Be concise but complete — this summary replaces the entire conversation history.\n" +
-          "Maximum 300 words.",
-      },
-      { role: "user", content: digest },
-    ];
-
-    const result = await provider.complete(messages, [], {});
-
-    const summaryEntry: HistoryEntry = {
+    const digest = buildDigest(history, Math.floor(contextBudget * 0.25));
+    const result = await provider.complete(
+      buildSummarizerMessages(digest),
+      [],
+      {},
+    );
+    return [{
       role: "user",
       content: `[Conversation summary — continue from here]: ${result.content}`,
-    };
-
-    return [summaryEntry];
+    }];
   }
 
   function getTokenEstimate(
