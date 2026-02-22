@@ -80,7 +80,12 @@ async function readSpineFromDisk(spinePath: string | undefined): Promise<string 
   if (!spinePath) return null;
   try {
     return await Deno.readTextFile(spinePath);
-  } catch {
+  } catch (err: unknown) {
+    const log = createLogger("orchestrator");
+    log.debug("SPINE.md not readable", {
+      path: spinePath,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 }
@@ -332,7 +337,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
             if (typeof cls === "string") {
               config.escalateTaint(cls as ClassificationLevel, `Tool response: ${name}`);
             }
-          } catch { /* not JSON or no classification field */ }
+          } catch { /* Tool response is not JSON or has no _classification field — expected for most tools */ }
         }
 
         return result;
@@ -607,8 +612,11 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
               let args: Record<string, unknown> = {};
               try {
                 args = JSON.parse(fn.arguments);
-              } catch {
-                // Malformed arguments
+              } catch (parseErr: unknown) {
+                orchLog.warn("Tool call arguments malformed", {
+                  tool: fn.name,
+                  error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+                });
               }
               return { name: fn.name, args };
             }
