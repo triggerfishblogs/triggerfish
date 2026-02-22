@@ -43,15 +43,17 @@ export interface FetchResult {
 /** Web fetcher interface. */
 export interface WebFetcher {
   /** Fetch a URL and extract content. */
-  fetch(url: string, options?: FetchOptions): Promise<Result<FetchResult, string>>;
+  fetch(
+    url: string,
+    options?: FetchOptions,
+  ): Promise<Result<FetchResult, string>>;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const DEFAULT_MAX_CONTENT_LENGTH = 512 * 1024; // 512 KB
 const DEFAULT_TIMEOUT = 30_000; // 30 seconds
-const DEFAULT_USER_AGENT =
-  "Triggerfish/1.0 (Web Fetch; +https://trigger.fish)";
+const DEFAULT_USER_AGENT = "Triggerfish/1.0 (Web Fetch; +https://trigger.fish)";
 const MIN_READABILITY_LENGTH = 100;
 
 // ─── Implementation ─────────────────────────────────────────────────────────
@@ -61,6 +63,115 @@ export interface WebFetcherConfig {
   readonly domainPolicy: DomainPolicy;
   /** Override DNS resolution for testing. Defaults to resolveAndCheck. */
   readonly dnsChecker?: DnsChecker;
+}
+
+/** Validate URL format and protocol. */
+function validateFetchUrl(url: string): Result<URL, string> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, error: `Invalid URL: ${url}` };
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return { ok: false, error: `Unsupported protocol: ${parsed.protocol}` };
+  }
+  return { ok: true, value: parsed };
+}
+
+/** Check SSRF prevention and domain policy for a hostname. */
+async function enforceFetchPolicy(
+  hostname: string,
+  url: string,
+  domainPolicy: DomainPolicy,
+  dnsChecker: DnsChecker,
+): Promise<Result<void, string>> {
+  const dnsResult = await dnsChecker(hostname);
+  if (!dnsResult.ok) return { ok: false, error: dnsResult.error };
+  if (!domainPolicy.isAllowed(url)) {
+    return { ok: false, error: `Domain blocked by policy: ${hostname}` };
+  }
+  return { ok: true, value: undefined };
+}
+
+/** Fetch a URL and read the response body as text. */
+async function fetchPageContent(
+  url: string,
+  userAgent: string,
+  timeout: number,
+): Promise<
+  Result<
+    {
+      response: Response;
+      rawBody: string;
+      contentType: string;
+      byteLength: number;
+    },
+    string
+  >
+> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        "User-Agent": userAgent,
+        "Accept": "text/html,application/xhtml+xml,*/*",
+      },
+      signal: AbortSignal.timeout(timeout),
+      redirect: "follow",
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Fetch failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+  if (!response.ok) {
+    return {
+      ok: false,
+      error: `HTTP ${response.status}: ${response.statusText}`,
+    };
+  }
+  let rawBody: string;
+  try {
+    rawBody = await response.text();
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Failed to read response body: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+  const contentType = response.headers.get("content-type") ?? "text/html";
+  const byteLength = new TextEncoder().encode(rawBody).length;
+  return { ok: true, value: { response, rawBody, contentType, byteLength } };
+}
+
+/** Extract readable content from HTML, falling back to raw on failure. */
+function extractPageContent(
+  rawBody: string,
+  contentType: string,
+  mode: FetchMode,
+): { readonly title: string; readonly content: string } {
+  if (mode !== "readability" || !contentType.includes("text/html")) {
+    return { title: extractTitleFromHtml(rawBody), content: rawBody };
+  }
+  try {
+    // deno-lint-ignore no-explicit-any
+    const { document } = parseHTML(rawBody) as any;
+    const reader = new Readability(document);
+    const article = reader.parse();
+    if (
+      article?.textContent &&
+      article.textContent.length >= MIN_READABILITY_LENGTH
+    ) {
+      return { title: article.title ?? "", content: article.textContent };
+    }
+  } catch { /* Fall through to raw */ }
+  return { title: extractTitleFromHtml(rawBody), content: rawBody };
 }
 
 /**
@@ -83,124 +194,31 @@ export function createWebFetcher(
       url: string,
       options?: FetchOptions,
     ): Promise<Result<FetchResult, string>> {
-      // 1. Parse URL and extract hostname
-      let parsed: URL;
-      try {
-        parsed = new URL(url);
-      } catch {
-        return { ok: false, error: `Invalid URL: ${url}` };
-      }
-
-      // Only allow http/https
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-        return {
-          ok: false,
-          error: `Unsupported protocol: ${parsed.protocol}`,
-        };
-      }
-
-      const hostname = parsed.hostname;
-
-      // 2. SSRF prevention — resolve DNS and check IP
-      const dnsResult = await resolveAndCheck(hostname);
-      if (!dnsResult.ok) {
-        return { ok: false, error: dnsResult.error };
-      }
-
-      // 3. Check domain against policy
-      if (!domainPolicy.isAllowed(url)) {
-        return {
-          ok: false,
-          error: `Domain blocked by policy: ${hostname}`,
-        };
-      }
-
-      // 4. Fetch with timeout
+      const urlResult = validateFetchUrl(url);
+      if (!urlResult.ok) return urlResult;
+      const policyResult = await enforceFetchPolicy(
+        urlResult.value.hostname,
+        url,
+        domainPolicy,
+        resolveAndCheck,
+      );
+      if (!policyResult.ok) return policyResult;
       const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
-      const maxContentLength =
-        options?.maxContentLength ?? DEFAULT_MAX_CONTENT_LENGTH;
-      const mode = options?.mode ?? "readability";
       const userAgent = options?.userAgent ?? DEFAULT_USER_AGENT;
-
-      let response: Response;
-      try {
-        response = await fetch(url, {
-          headers: {
-            "User-Agent": userAgent,
-            "Accept": "text/html,application/xhtml+xml,*/*",
-          },
-          signal: AbortSignal.timeout(timeout),
-          redirect: "follow",
-        });
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Fetch failed: ${err instanceof Error ? err.message : String(err)}`,
-        };
-      }
-
-      if (!response.ok) {
-        return {
-          ok: false,
-          error: `HTTP ${response.status}: ${response.statusText}`,
-        };
-      }
-
-      const contentType = response.headers.get("content-type") ?? "text/html";
-
-      // Read body as text
-      let rawBody: string;
-      try {
-        rawBody = await response.text();
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Failed to read response body: ${err instanceof Error ? err.message : String(err)}`,
-        };
-      }
-
-      const byteLength = new TextEncoder().encode(rawBody).length;
-
-      // 5. Content extraction
-      let title = "";
-      let content: string;
-
-      if (mode === "readability" && contentType.includes("text/html")) {
-        try {
-          // deno-lint-ignore no-explicit-any
-          const { document } = parseHTML(rawBody) as any;
-          const reader = new Readability(document);
-          const article = reader.parse();
-
-          if (article && article.textContent && article.textContent.length >= MIN_READABILITY_LENGTH) {
-            title = article.title ?? "";
-            content = article.textContent;
-          } else {
-            // Fallback to raw HTML if Readability extraction is too short
-            title = extractTitleFromHtml(rawBody);
-            content = rawBody;
-          }
-        } catch {
-          // Fallback to raw on parse error
-          title = extractTitleFromHtml(rawBody);
-          content = rawBody;
-        }
-      } else {
-        // Raw mode or non-HTML content
-        title = extractTitleFromHtml(rawBody);
-        content = rawBody;
-      }
-
-      // 6. Truncate at maxContentLength
-      if (content.length > maxContentLength) {
-        content = content.slice(0, maxContentLength) + "\n[truncated]";
-      }
-
+      const mode = options?.mode ?? "readability";
+      const maxLen = options?.maxContentLength ?? DEFAULT_MAX_CONTENT_LENGTH;
+      const pageResult = await fetchPageContent(url, userAgent, timeout);
+      if (!pageResult.ok) return pageResult;
+      const { response, rawBody, contentType, byteLength } = pageResult.value;
+      const extracted = extractPageContent(rawBody, contentType, mode);
+      const content = extracted.content.length > maxLen
+        ? extracted.content.slice(0, maxLen) + "\n[truncated]"
+        : extracted.content;
       return {
         ok: true,
         value: {
           url: response.url,
-          title,
+          title: extracted.title,
           content,
           contentType,
           statusCode: response.status,
