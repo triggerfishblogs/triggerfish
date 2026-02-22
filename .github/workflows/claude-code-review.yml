@@ -36,4 +36,5 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
 
             Run /code-review on this pull request.
+          allowed_bots: 'claude'
           claude_args: "--model sonnet --max-turns 15"
