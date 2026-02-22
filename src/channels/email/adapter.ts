@@ -86,6 +86,7 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
       // Do initial poll
       await pollEmails();
       connected = true;
+      log.info("Email adapter connected", { imapHost: config.imapHost });
     },
 
     async disconnect(): Promise<void> {
@@ -95,6 +96,7 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
       }
       await imapClient.disconnect();
       connected = false;
+      log.info("Email adapter disconnected");
     },
 
     async send(message: ChannelMessage): Promise<void> {
@@ -147,6 +149,7 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
           ? msg.from === config.ownerEmail
           : true;
 
+        log.debug("Email received", { from: msg.from, subject: msg.subject, isOwner });
         handler({
           content: msg.body || msg.subject,
           sessionId,
