@@ -155,11 +155,41 @@ export function createCliSecretPrompt(): SecretPromptCallback {
   return async (
     name: string,
     hint?: string,
-  ): Promise<string | null> => {
-    const promptText = hint
-      ? `Enter value for '${name}' (${hint}): `
-      : `Enter value for '${name}': `;
-    Deno.stderr.writeSync(new TextEncoder().encode(promptText));
+    options?: { readonly withUsername: boolean },
+  ): Promise<{ readonly value: string; readonly username?: string } | null> => {
+    const enc = new TextEncoder();
+
+    let username: string | undefined;
+    if (options?.withUsername) {
+      const usernamePrompt = hint
+        ? `Enter username for '${name}' (${hint}): `
+        : `Enter username for '${name}': `;
+      Deno.stderr.writeSync(enc.encode(usernamePrompt));
+      const uChars: number[] = [];
+      const uBuf = new Uint8Array(1);
+      while (true) {
+        const n = await Deno.stdin.read(uBuf);
+        if (n === null) break;
+        const byte = uBuf[0];
+        if (byte === 13 || byte === 10) break;
+        if (byte === 3) {
+          Deno.stderr.writeSync(enc.encode("\n"));
+          return null;
+        }
+        if (byte === 127 || byte === 8) {
+          if (uChars.length > 0) uChars.pop();
+        } else {
+          uChars.push(byte);
+        }
+      }
+      Deno.stderr.writeSync(enc.encode("\n"));
+      username = new TextDecoder().decode(new Uint8Array(uChars));
+    }
+
+    const promptText = options?.withUsername
+      ? `Enter password for '${name}': `
+      : (hint ? `Enter value for '${name}' (${hint}): ` : `Enter value for '${name}': `);
+    Deno.stderr.writeSync(enc.encode(promptText));
 
     try {
       Deno.stdin.setRaw(true);
@@ -176,7 +206,7 @@ export function createCliSecretPrompt(): SecretPromptCallback {
         const byte = buf[0];
         if (byte === 13 || byte === 10) break; // Enter
         if (byte === 3) { // Ctrl-C
-          Deno.stderr.writeSync(new TextEncoder().encode("\n"));
+          Deno.stderr.writeSync(enc.encode("\n"));
           return null;
         }
         if (byte === 127 || byte === 8) { // Backspace
@@ -189,8 +219,9 @@ export function createCliSecretPrompt(): SecretPromptCallback {
       try {
         Deno.stdin.setRaw(false);
       } catch { /* Ignore */ }
-      Deno.stderr.writeSync(new TextEncoder().encode("\n"));
+      Deno.stderr.writeSync(enc.encode("\n"));
     }
-    return new TextDecoder().decode(new Uint8Array(chars));
+    const value = new TextDecoder().decode(new Uint8Array(chars));
+    return username !== undefined ? { value, username } : { value };
   };
 }
