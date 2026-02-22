@@ -13,6 +13,7 @@ import {
   GatewayIntentBits,
   Partials,
 } from "discord.js";
+import { createLogger } from "../../core/logger/logger.ts";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import type {
   ChannelAdapter,
@@ -51,6 +52,7 @@ export interface DiscordChannelAdapter extends ChannelAdapter {
  * @returns A DiscordChannelAdapter wired to Discord.
  */
 export function createDiscordChannel(config: DiscordConfig): DiscordChannelAdapter {
+  const log = createLogger("discord");
   const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
   const ownerId = config.ownerId;
   let connected = false;
@@ -131,8 +133,8 @@ export function createDiscordChannel(config: DiscordConfig): DiscordChannelAdapt
         if (channel && "sendTyping" in channel) {
           await (channel as { sendTyping: () => Promise<void> }).sendTyping();
         }
-      } catch {
-        // Best-effort: typing indicators are non-critical
+      } catch (err: unknown) {
+        log.debug("Typing indicator failed", { error: err });
       }
     },
   };
