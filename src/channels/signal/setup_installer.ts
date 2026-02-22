@@ -133,7 +133,12 @@ export async function downloadJre(): Promise<Result<string, string>> {
         stderr: "piped",
       });
       const psOut = await ps.output();
-      await Deno.remove(tmpZip).catch(() => {});
+      await Deno.remove(tmpZip).catch((err: unknown) => {
+        log.debug("Temp zip cleanup failed", {
+          path: tmpZip,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
       if (!psOut.success) {
         const stderr = new TextDecoder().decode(psOut.stderr);
         return { ok: false, error: `JRE zip extraction failed: ${stderr}` };
