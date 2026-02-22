@@ -118,7 +118,7 @@ export async function launchDirect(
     const page = pages[0] ?? await browser.newPage();
     return { ok: true, value: { browser, page } };
   } catch (err) {
-    log.error("browser launch exception", (err as Error).message);
+    log.error("Direct Chrome process launch failed", (err as Error).message);
     return { ok: false, error: `Browser launch failed: ${(err as Error).message}` };
   }
 }
@@ -149,7 +149,7 @@ export async function launchFlatpak(
     await Deno.writeTextFile(wrapperPath, wrapperScript);
     await Deno.chmod(wrapperPath, 0o755);
   } catch (err) {
-    log.error("flatpak wrapper write failed", (err as Error).message);
+    log.error("Flatpak wrapper script file write failed", (err as Error).message);
     return {
       ok: false,
       error: `Failed to write Flatpak wrapper script: ${(err as Error).message}`,
