@@ -120,12 +120,12 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
             const parsed = JSON.parse(line) as Record<string, unknown>;
             dispatchMessage(parsed);
           } catch (err: unknown) {
-            log.warn("Message parse failed", { error: err });
+            log.warn("Signal JSON-RPC message parse failed", { error: err });
           }
         }
       }
     } catch (err: unknown) {
-      log.warn("Signal read loop terminated", { error: err });
+      log.warn("Signal TCP read loop exited with error", { error: err });
       readLoopActive = false;
       conn = null;
       // Reject pending requests
@@ -162,7 +162,7 @@ export function createSignalClient(options: SignalClientOptions): SignalClientIn
         reconnecting = false;
         return;
       } catch (err: unknown) {
-        log.debug("Signal reconnect attempt failed", { attempt, error: err });
+        log.debug("Signal TCP reconnect attempt failed", { attempt, error: err });
         conn = null;
       }
     }
