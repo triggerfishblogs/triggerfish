@@ -30,6 +30,42 @@ export interface FileWriter {
   close(): Promise<void>;
 }
 
+/** Open a log file for appending, creating it and its directory if needed. */
+async function openLogFileForAppend(
+  logDir: string,
+  logPath: string,
+): Promise<{ file: Deno.FsFile; size: number }> {
+  await Deno.mkdir(logDir, { recursive: true });
+  const file = await Deno.open(logPath, {
+    write: true,
+    create: true,
+    append: true,
+  });
+  const stat = await file.stat();
+  return { file, size: stat.size };
+}
+
+/** Shift existing rotated log files (.9→.10, .8→.9, etc.) and delete oldest. */
+async function shiftRotatedLogFiles(
+  logDir: string,
+  baseName: string,
+  maxFiles: number,
+  logPath: string,
+): Promise<void> {
+  for (let i = maxFiles; i >= 1; i--) {
+    const src = i === 1 ? logPath : join(logDir, `${baseName}.${i - 1}.log`);
+    const dst = join(logDir, `${baseName}.${i}.log`);
+    if (i === maxFiles) {
+      try {
+        await Deno.remove(dst);
+      } catch { /* File doesn't exist — fine */ }
+    }
+    try {
+      await Deno.rename(src, dst);
+    } catch { /* Source doesn't exist — fine */ }
+  }
+}
+
 /**
  * Create a file writer with size-based rotation.
  *
@@ -46,74 +82,31 @@ export async function createFileWriter(
   const logDir = config.logDir;
   const logPath = join(logDir, `${baseName}.log`);
 
-  // Ensure log directory exists
-  await Deno.mkdir(logDir, { recursive: true });
-
-  // Open file for appending (create if missing)
-  let file = await Deno.open(logPath, {
-    write: true,
-    create: true,
-    append: true,
-  });
-
-  // Read current file size to initialize byte counter
-  const stat = await file.stat();
-  let currentBytes = stat.size;
+  const init = await openLogFileForAppend(logDir, logPath);
+  let file = init.file;
+  let currentBytes = init.size;
   const encoder = new TextEncoder();
-
-  async function rotate(): Promise<void> {
-    // Close the current file before rotating
-    file.close();
-
-    // Shift existing rotated files: .10.log is deleted, .9→.10, .8→.9, etc.
-    for (let i = maxFiles; i >= 1; i--) {
-      const src = i === 1
-        ? logPath
-        : join(logDir, `${baseName}.${i - 1}.log`);
-      const dst = join(logDir, `${baseName}.${i}.log`);
-
-      if (i === maxFiles) {
-        // Delete the oldest file if it exists
-        try {
-          await Deno.remove(dst);
-        } catch {
-          // File doesn't exist — fine
-        }
-      }
-
-      try {
-        await Deno.rename(src, dst);
-      } catch {
-        // Source doesn't exist — fine
-      }
-    }
-
-    // Open a fresh log file
-    file = await Deno.open(logPath, {
-      write: true,
-      create: true,
-      truncate: true,
-    });
-    currentBytes = 0;
-  }
 
   return {
     async write(line: string): Promise<void> {
       const bytes = encoder.encode(line);
       await file.write(bytes);
       currentBytes += bytes.byteLength;
-
       if (currentBytes >= maxBytes) {
-        await rotate();
+        file.close();
+        await shiftRotatedLogFiles(logDir, baseName, maxFiles, logPath);
+        file = await Deno.open(logPath, {
+          write: true,
+          create: true,
+          truncate: true,
+        });
+        currentBytes = 0;
       }
     },
-
     close(): Promise<void> {
       try {
         file.close();
-      } catch {
-        // Already closed
-      }
+      } catch { /* Already closed */ }
       return Promise.resolve();
     },
   };
