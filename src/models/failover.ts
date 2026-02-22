@@ -12,6 +12,9 @@ import type {
   LlmMessage,
   LlmProvider,
 } from "../core/types/llm.ts";
+import { createLogger } from "../core/logger/logger.ts";
+
+const log = createLogger("failover");
 
 /** A failover chain that tries providers in order. */
 export interface FailoverChain {
@@ -43,13 +46,31 @@ export function createFailoverChain(
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       let lastError: unknown;
-      for (const provider of providers) {
+      for (let i = 0; i < providers.length; i++) {
+        const provider = providers[i];
         try {
-          return await provider.complete(messages, tools, options);
+          const result = await provider.complete(messages, tools, options);
+          if (i > 0) {
+            log.info("Provider failover succeeded", {
+              provider: provider.name,
+              attemptIndex: i,
+            });
+          }
+          return result;
         } catch (err) {
+          log.warn("Provider failed, attempting failover", {
+            provider: provider.name,
+            attemptIndex: i,
+            remainingProviders: providers.length - i - 1,
+            error: err instanceof Error ? err.message : String(err),
+          });
           lastError = err;
         }
       }
+      log.error("All providers exhausted", {
+        providerCount: providers.length,
+        lastError: lastError instanceof Error ? lastError.message : String(lastError),
+      });
       throw lastError;
     },
   };
