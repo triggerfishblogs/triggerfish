@@ -8,6 +8,7 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/logger.ts";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import type {
   ChannelAdapter,
@@ -54,6 +55,7 @@ export interface EmailConfig {
  * @returns A ChannelAdapter wired to email.
  */
 export function createEmailChannel(config: EmailConfig): ChannelAdapter {
+  const log = createLogger("email");
   const classification = (config.classification ?? "CONFIDENTIAL") as ClassificationLevel;
   const pollInterval = config.pollInterval ?? 30000;
   let connected = false;
@@ -153,8 +155,8 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
           sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
         });
       }
-    } catch {
-      // IMAP fetch failed — will retry on next poll
+    } catch (err: unknown) {
+      log.warn("IMAP operation failed", { error: err });
     }
   }
 }
