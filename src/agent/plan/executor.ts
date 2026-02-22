@@ -8,12 +8,133 @@
  * @module
  */
 
-import type {
-  ImplementationPlan,
-  PlanComplexity,
-  PlanStep,
-} from "./types.ts";
+import type { ImplementationPlan, PlanComplexity, PlanStep } from "./types.ts";
 import type { PlanManager } from "./plan.ts";
+
+// ─── Executor Helpers ──────────────────────────────────────────────────────────
+
+function executePlanEnter(
+  manager: PlanManager,
+  sessionId: string,
+  input: Record<string, unknown>,
+): string {
+  const goal = input.goal;
+  if (typeof goal !== "string" || goal.length === 0) {
+    return "Error: plan_enter requires a 'goal' argument (string).";
+  }
+  const scope = typeof input.scope === "string" ? input.scope : undefined;
+  return manager.enter(sessionId, goal, scope);
+}
+
+async function executePlanExit(
+  manager: PlanManager,
+  sessionId: string,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const planObj = input.plan;
+  if (!planObj || typeof planObj !== "object") {
+    return "Error: plan_exit requires a 'plan' argument (object).";
+  }
+  const validated = validateImplementationPlan(
+    planObj as Record<string, unknown>,
+  );
+  if (typeof validated === "string") return validated;
+
+  try {
+    const result = await manager.exit(sessionId, validated);
+    return (
+      JSON.stringify({
+        status: "plan_presented",
+        mode: "awaiting_approval",
+        plan_id: result.planId,
+        awaiting_approval: true,
+      }) +
+      "\n\n---\n\n" +
+      result.markdown
+    );
+  } catch (err) {
+    return `Error: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+function executePlanApprove(
+  manager: PlanManager,
+  sessionId: string,
+): string {
+  const planId = manager.approve(sessionId);
+  if (!planId) {
+    return JSON.stringify({ error: "No plan awaiting approval" });
+  }
+  return JSON.stringify({
+    status: "approved",
+    plan_id: planId,
+    mode: "normal",
+  });
+}
+
+function executePlanStepComplete(
+  manager: PlanManager,
+  sessionId: string,
+  input: Record<string, unknown>,
+): string {
+  const stepId = input.step_id;
+  const verificationResult = input.verification_result;
+  if (typeof stepId !== "number") {
+    return "Error: plan_step_complete requires a 'step_id' argument (number).";
+  }
+  if (typeof verificationResult !== "string") {
+    return "Error: plan_step_complete requires a 'verification_result' argument (string).";
+  }
+  return manager.stepComplete(sessionId, stepId, verificationResult);
+}
+
+function executePlanComplete(
+  manager: PlanManager,
+  sessionId: string,
+  input: Record<string, unknown>,
+): string {
+  const summary = input.summary;
+  if (typeof summary !== "string" || summary.length === 0) {
+    return "Error: plan_complete requires a 'summary' argument (string).";
+  }
+  const deviations = Array.isArray(input.deviations)
+    ? (input.deviations as string[])
+    : undefined;
+  return manager.complete(sessionId, summary, deviations);
+}
+
+function executePlanModify(
+  manager: PlanManager,
+  sessionId: string,
+  input: Record<string, unknown>,
+): string {
+  const stepId = input.step_id;
+  const reason = input.reason;
+  const newDescription = input.new_description;
+  if (typeof stepId !== "number") {
+    return "Error: plan_modify requires 'step_id' (number).";
+  }
+  if (typeof reason !== "string") {
+    return "Error: plan_modify requires 'reason' (string).";
+  }
+  if (typeof newDescription !== "string") {
+    return "Error: plan_modify requires 'new_description' (string).";
+  }
+  const newFiles = Array.isArray(input.new_files)
+    ? (input.new_files as string[])
+    : undefined;
+  const newVerification = typeof input.new_verification === "string"
+    ? input.new_verification
+    : undefined;
+  return manager.modify(
+    sessionId,
+    stepId,
+    reason,
+    newDescription,
+    newFiles,
+    newVerification,
+  );
+}
 
 /**
  * Create a tool executor for plan operations.
@@ -35,116 +156,22 @@ export function createPlanToolExecutor(
     input: Record<string, unknown>,
   ): Promise<string | null> => {
     switch (name) {
-      case "plan_enter": {
-        const goal = input.goal;
-        if (typeof goal !== "string" || goal.length === 0) {
-          return "Error: plan_enter requires a 'goal' argument (string).";
-        }
-        const scope = typeof input.scope === "string"
-          ? input.scope
-          : undefined;
-        return manager.enter(sessionId, goal, scope);
-      }
-
-      case "plan_exit": {
-        const planObj = input.plan;
-        if (!planObj || typeof planObj !== "object") {
-          return "Error: plan_exit requires a 'plan' argument (object).";
-        }
-        const validated = validateImplementationPlan(
-          planObj as Record<string, unknown>,
-        );
-        if (typeof validated === "string") return validated;
-
-        try {
-          const result = await manager.exit(sessionId, validated);
-          return (
-            JSON.stringify({
-              status: "plan_presented",
-              mode: "awaiting_approval",
-              plan_id: result.planId,
-              awaiting_approval: true,
-            }) +
-            "\n\n---\n\n" +
-            result.markdown
-          );
-        } catch (err) {
-          return `Error: ${err instanceof Error ? err.message : String(err)}`;
-        }
-      }
-
+      case "plan_enter":
+        return executePlanEnter(manager, sessionId, input);
+      case "plan_exit":
+        return executePlanExit(manager, sessionId, input);
       case "plan_status":
         return manager.status(sessionId);
-
-      case "plan_approve": {
-        const planId = manager.approve(sessionId);
-        if (!planId) {
-          return JSON.stringify({
-            error: "No plan awaiting approval",
-          });
-        }
-        return JSON.stringify({
-          status: "approved",
-          plan_id: planId,
-          mode: "normal",
-        });
-      }
-
+      case "plan_approve":
+        return executePlanApprove(manager, sessionId);
       case "plan_reject":
         return manager.reject(sessionId);
-
-      case "plan_step_complete": {
-        const stepId = input.step_id;
-        const verificationResult = input.verification_result;
-        if (typeof stepId !== "number") {
-          return "Error: plan_step_complete requires a 'step_id' argument (number).";
-        }
-        if (typeof verificationResult !== "string") {
-          return "Error: plan_step_complete requires a 'verification_result' argument (string).";
-        }
-        return manager.stepComplete(sessionId, stepId, verificationResult);
-      }
-
-      case "plan_complete": {
-        const summary = input.summary;
-        if (typeof summary !== "string" || summary.length === 0) {
-          return "Error: plan_complete requires a 'summary' argument (string).";
-        }
-        const deviations = Array.isArray(input.deviations)
-          ? (input.deviations as string[])
-          : undefined;
-        return manager.complete(sessionId, summary, deviations);
-      }
-
-      case "plan_modify": {
-        const stepId = input.step_id;
-        const reason = input.reason;
-        const newDescription = input.new_description;
-        if (typeof stepId !== "number") {
-          return "Error: plan_modify requires 'step_id' (number).";
-        }
-        if (typeof reason !== "string") {
-          return "Error: plan_modify requires 'reason' (string).";
-        }
-        if (typeof newDescription !== "string") {
-          return "Error: plan_modify requires 'new_description' (string).";
-        }
-        const newFiles = Array.isArray(input.new_files)
-          ? (input.new_files as string[])
-          : undefined;
-        const newVerification = typeof input.new_verification === "string"
-          ? input.new_verification
-          : undefined;
-        return manager.modify(
-          sessionId,
-          stepId,
-          reason,
-          newDescription,
-          newFiles,
-          newVerification,
-        );
-      }
-
+      case "plan_step_complete":
+        return executePlanStepComplete(manager, sessionId, input);
+      case "plan_complete":
+        return executePlanComplete(manager, sessionId, input);
+      case "plan_modify":
+        return executePlanModify(manager, sessionId, input);
       default:
         return null;
     }
@@ -152,6 +179,37 @@ export function createPlanToolExecutor(
 }
 
 // ─── Validation ──────────────────────────────────────────────────────────────
+
+function parseComplexity(raw: unknown): PlanComplexity {
+  const validComplexities = ["small", "medium", "large"];
+  return typeof raw === "string" && validComplexities.includes(raw)
+    ? (raw as PlanComplexity)
+    : "medium";
+}
+
+function validatePlanStep(
+  rawStep: unknown,
+): PlanStep | string {
+  if (typeof rawStep !== "object" || rawStep === null) {
+    return "Error: Each step must be an object.";
+  }
+  const s = rawStep as Record<string, unknown>;
+  if (typeof s.id !== "number") {
+    return "Error: Each step requires 'id' (number).";
+  }
+  if (typeof s.description !== "string") {
+    return "Error: Each step requires 'description' (string).";
+  }
+  return {
+    id: s.id as number,
+    description: s.description as string,
+    files: Array.isArray(s.files) ? (s.files as string[]) : [],
+    depends_on: Array.isArray(s.depends_on) ? (s.depends_on as number[]) : [],
+    verification: typeof s.verification === "string"
+      ? (s.verification as string)
+      : "",
+  };
+}
 
 /**
  * Validate an ImplementationPlan from untrusted LLM input.
@@ -171,36 +229,11 @@ function validateImplementationPlan(
     return "Error: plan.steps is required (non-empty array).";
   }
 
-  const validComplexities = ["small", "medium", "large"];
-  const complexity =
-    typeof raw.estimated_complexity === "string" &&
-    validComplexities.includes(raw.estimated_complexity)
-      ? (raw.estimated_complexity as PlanComplexity)
-      : "medium";
-
   const steps: PlanStep[] = [];
   for (const rawStep of raw.steps) {
-    if (typeof rawStep !== "object" || rawStep === null) {
-      return "Error: Each step must be an object.";
-    }
-    const s = rawStep as Record<string, unknown>;
-    if (typeof s.id !== "number") {
-      return "Error: Each step requires 'id' (number).";
-    }
-    if (typeof s.description !== "string") {
-      return "Error: Each step requires 'description' (string).";
-    }
-    steps.push({
-      id: s.id as number,
-      description: s.description as string,
-      files: Array.isArray(s.files) ? (s.files as string[]) : [],
-      depends_on: Array.isArray(s.depends_on)
-        ? (s.depends_on as number[])
-        : [],
-      verification: typeof s.verification === "string"
-        ? (s.verification as string)
-        : "",
-    });
+    const result = validatePlanStep(rawStep);
+    if (typeof result === "string") return result;
+    steps.push(result);
   }
 
   return {
@@ -220,6 +253,6 @@ function validateImplementationPlan(
     tests_to_write: Array.isArray(raw.tests_to_write)
       ? (raw.tests_to_write as string[])
       : [],
-    estimated_complexity: complexity,
+    estimated_complexity: parseComplexity(raw.estimated_complexity),
   };
 }
