@@ -143,92 +143,115 @@ function bufferToHex(buffer: Uint8Array): string {
  * // result = { ok: true, value: true }
  * ```
  */
+/** Append a new entry to the audit chain. */
+async function appendChainEntry(
+  chainEntries: ChainedAuditEntry[],
+  key: CryptoKey,
+  entry: AuditEntry,
+): Promise<ChainedAuditEntry> {
+  const previousHash = chainEntries.length > 0
+    ? chainEntries[chainEntries.length - 1].hash
+    : GENESIS_HASH;
+  const hash = await computeHmac(key, previousHash, entry);
+  const chained: ChainedAuditEntry = {
+    entry,
+    hash,
+    previousHash,
+    index: chainEntries.length,
+  };
+  chainEntries.push(chained);
+  return chained;
+}
+
+/** Verify a single chain entry's linkage and HMAC. */
+async function verifyChainEntry(
+  key: CryptoKey,
+  current: ChainedAuditEntry,
+  expectedPreviousHash: string,
+  index: number,
+  logPrefix: string,
+): Promise<Result<true, string>> {
+  if (current.previousHash !== expectedPreviousHash) {
+    log.warn(`${logPrefix}: previousHash mismatch`, {
+      index,
+      expected: expectedPreviousHash,
+      got: current.previousHash,
+    });
+    return {
+      ok: false,
+      error:
+        `Chain broken at index ${index}: previousHash mismatch (expected ${expectedPreviousHash}, got ${current.previousHash})`,
+    };
+  }
+  const recomputed = await computeHmac(
+    key,
+    current.previousHash,
+    current.entry,
+  );
+  if (recomputed !== current.hash) {
+    log.warn(`${logPrefix}: HMAC mismatch`, { index });
+    return {
+      ok: false,
+      error:
+        `Chain broken at index ${index}: HMAC mismatch (entry may have been tampered with)`,
+    };
+  }
+  return { ok: true, value: true };
+}
+
+/** Verify an array of chained entries from genesis to tail. */
+async function verifyChainEntries(
+  key: CryptoKey,
+  chainEntries: readonly ChainedAuditEntry[],
+  logPrefix: string,
+): Promise<Result<true, string>> {
+  for (let i = 0; i < chainEntries.length; i++) {
+    const expectedPrev = i === 0 ? GENESIS_HASH : chainEntries[i - 1].hash;
+    const result = await verifyChainEntry(
+      key,
+      chainEntries[i],
+      expectedPrev,
+      i,
+      logPrefix,
+    );
+    if (!result.ok) return result;
+  }
+  return { ok: true, value: true };
+}
+
+/**
+ * Create a new HMAC audit chain.
+ *
+ * The chain starts with a genesis hash (all zeros). Each appended
+ * entry's HMAC incorporates the previous entry's hash, creating
+ * a tamper-evident chain.
+ *
+ * @param secret - The shared secret for HMAC-SHA256 computation
+ * @returns An AuditChain instance
+ */
 export function createAuditChain(secret: string): AuditChain {
   const chainEntries: ChainedAuditEntry[] = [];
   let hmacKeyPromise: Promise<CryptoKey> | undefined;
 
   function getKey(): Promise<CryptoKey> {
-    if (!hmacKeyPromise) {
-      hmacKeyPromise = importHmacKey(secret);
-    }
+    if (!hmacKeyPromise) hmacKeyPromise = importHmacKey(secret);
     return hmacKeyPromise;
   }
 
-  async function append(entry: AuditEntry): Promise<ChainedAuditEntry> {
-    const key = await getKey();
-    const previousHash = chainEntries.length > 0
-      ? chainEntries[chainEntries.length - 1].hash
-      : GENESIS_HASH;
-    const index = chainEntries.length;
-
-    const hash = await computeHmac(key, previousHash, entry);
-
-    const chained: ChainedAuditEntry = {
-      entry,
-      hash,
-      previousHash,
-      index,
-    };
-
-    chainEntries.push(chained);
-    return chained;
-  }
-
-  async function verify(): Promise<Result<true, string>> {
-    if (chainEntries.length === 0) {
-      return { ok: true, value: true };
-    }
-
-    const key = await getKey();
-
-    for (let i = 0; i < chainEntries.length; i++) {
-      const current = chainEntries[i];
-
-      // Check previousHash linkage
-      const expectedPreviousHash = i === 0
-        ? GENESIS_HASH
-        : chainEntries[i - 1].hash;
-
-      if (current.previousHash !== expectedPreviousHash) {
-        log.warn("Audit chain tamper detected: previousHash mismatch", {
-          index: i,
-          expected: expectedPreviousHash,
-          got: current.previousHash,
-        });
-        return {
-          ok: false,
-          error:
-            `Chain broken at index ${i}: previousHash mismatch (expected ${expectedPreviousHash}, got ${current.previousHash})`,
-        };
-      }
-
-      // Recompute HMAC and compare
-      const recomputed = await computeHmac(
-        key,
-        current.previousHash,
-        current.entry,
+  return {
+    async append(entry: AuditEntry): Promise<ChainedAuditEntry> {
+      return appendChainEntry(chainEntries, await getKey(), entry);
+    },
+    async verify(): Promise<Result<true, string>> {
+      if (chainEntries.length === 0) return { ok: true, value: true };
+      return verifyChainEntries(
+        await getKey(),
+        chainEntries,
+        "Audit chain tamper detected",
       );
-
-      if (recomputed !== current.hash) {
-        log.warn("Audit chain tamper detected: HMAC mismatch", {
-          index: i,
-        });
-        return {
-          ok: false,
-          error:
-            `Chain broken at index ${i}: HMAC mismatch (entry may have been tampered with)`,
-        };
-      }
-    }
-
-    return { ok: true, value: true };
-  }
-
-  function entries(): readonly ChainedAuditEntry[] {
-    return [...chainEntries];
-  }
-
-  return { append, verify, entries };
+    },
+    entries: () => [...chainEntries],
+  };
 }
 
 /**
@@ -241,64 +264,42 @@ export function createAuditChain(secret: string): AuditChain {
  * @param chainedEntries - The array of ChainedAuditEntry to verify
  * @returns Result indicating validity or describing the failure
  */
+/** Validate that chain entry indices are sequential. */
+function validateChainIndices(
+  chainedEntries: readonly ChainedAuditEntry[],
+): Result<true, string> {
+  for (let i = 0; i < chainedEntries.length; i++) {
+    if (chainedEntries[i].index !== i) {
+      return {
+        ok: false,
+        error: `Chain broken at position ${i}: expected index ${i}, got ${
+          chainedEntries[i].index
+        }`,
+      };
+    }
+  }
+  return { ok: true, value: true };
+}
+
+/**
+ * Verify an externally-provided array of chained audit entries.
+ *
+ * This is a standalone verification utility that does not require
+ * the original AuditChain instance — only the secret and the entries.
+ */
 export async function verifyAuditChain(
   secret: string,
   chainedEntries: readonly ChainedAuditEntry[],
 ): Promise<Result<true, string>> {
-  if (chainedEntries.length === 0) {
-    return { ok: true, value: true };
-  }
+  if (chainedEntries.length === 0) return { ok: true, value: true };
+
+  const indexResult = validateChainIndices(chainedEntries);
+  if (!indexResult.ok) return indexResult;
 
   const key = await importHmacKey(secret);
-
-  for (let i = 0; i < chainedEntries.length; i++) {
-    const current = chainedEntries[i];
-
-    // Validate index
-    if (current.index !== i) {
-      return {
-        ok: false,
-        error:
-          `Chain broken at position ${i}: expected index ${i}, got ${current.index}`,
-      };
-    }
-
-    // Check previousHash linkage
-    const expectedPreviousHash = i === 0
-      ? GENESIS_HASH
-      : chainedEntries[i - 1].hash;
-
-    if (current.previousHash !== expectedPreviousHash) {
-      log.warn("Audit chain verification failed: previousHash mismatch", {
-        index: i,
-        expected: expectedPreviousHash,
-        got: current.previousHash,
-      });
-      return {
-        ok: false,
-        error:
-          `Chain broken at index ${i}: previousHash mismatch (expected ${expectedPreviousHash}, got ${current.previousHash})`,
-      };
-    }
-
-    // Recompute HMAC and compare
-    const recomputed = await computeHmac(
-      key,
-      current.previousHash,
-      current.entry,
-    );
-
-    if (recomputed !== current.hash) {
-      log.warn("Audit chain verification failed: HMAC mismatch", {
-        index: i,
-      });
-      return {
-        ok: false,
-        error:
-          `Chain broken at index ${i}: HMAC mismatch (entry may have been tampered with)`,
-      };
-    }
-  }
-
-  return { ok: true, value: true };
+  return verifyChainEntries(
+    key,
+    chainedEntries,
+    "Audit chain verification failed",
+  );
 }
