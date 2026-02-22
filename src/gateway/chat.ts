@@ -36,23 +36,23 @@ import {
 import type { UserSessionManager } from "../channels/user_sessions.ts";
 
 import type {
+  ChannelRegistrationConfig,
   ChatEvent,
   ChatEventSender,
   ChatSession,
   ChatSessionConfig,
-  ChannelRegistrationConfig,
 } from "./chat_types.ts";
 
 // ─── Barrel re-exports from chat_types.ts ───────────────────────────────────
 
 export type {
-  ChatEvent,
+  ChannelClassificationConfig,
+  ChannelRegistrationConfig,
   ChatClientMessage,
+  ChatEvent,
   ChatEventSender,
   ChatSession,
   ChatSessionConfig,
-  ChannelClassificationConfig,
-  ChannelRegistrationConfig,
 } from "./chat_types.ts";
 
 const chatLog = createLogger("chat");
@@ -71,6 +71,35 @@ interface ChannelState {
 
 // ─── buildSendEvent ─────────────────────────────────────────────────────────
 
+/** Start or restart typing indicator interval for a channel. */
+function startTypingIndicator(
+  adapter: ChannelAdapter,
+  channelName: string,
+  sessionId: string,
+): number {
+  const sendTyping = () => {
+    adapter.sendTyping?.(sessionId).catch((err: unknown) => {
+      chatLog.debug("Typing indicator send failed", {
+        channel: channelName,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  };
+  sendTyping();
+  return setInterval(sendTyping, 4000) as unknown as number;
+}
+
+/** Send a message through the adapter, logging errors. */
+function sendAdapterMessage(
+  adapter: ChannelAdapter,
+  channelName: string,
+  sessionId: string | undefined,
+  content: string,
+): void {
+  adapter.send({ content, sessionId })
+    .catch((err) => chatLog.warn(`${channelName} send error:`, err));
+}
+
 /**
  * Build a ChatEventSender for a channel adapter that handles typing
  * indicators, response sending, and error delivery.
@@ -85,52 +114,140 @@ export function buildSendEvent(
   return (event) => {
     if (event.type === "llm_start") {
       clearInterval(typingInterval);
-      adapter.sendTyping?.(msg.sessionId ?? "").catch((err: unknown) => {
-        chatLog.debug("Typing indicator send failed", {
-          channel: channelName,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-      typingInterval = setInterval(() => {
-        adapter.sendTyping?.(msg.sessionId ?? "").catch((err: unknown) => {
-          chatLog.debug("Typing indicator send failed", {
-            channel: channelName,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        });
-      }, 4000) as unknown as number;
+      typingInterval = startTypingIndicator(
+        adapter,
+        channelName,
+        msg.sessionId ?? "",
+      );
     }
-
     if (event.type === "tool_result" && event.blocked) {
-      adapter.send({
-        content: event.result,
-        sessionId: msg.sessionId,
-      }).catch((err) => chatLog.warn(`${channelName} send error:`, err));
+      sendAdapterMessage(adapter, channelName, msg.sessionId, event.result);
     }
-
     if (event.type === "response") {
       clearInterval(typingInterval);
       typingInterval = undefined;
       const text = event.text.trim();
       if (text.length > 0) {
-        adapter.send({
-          content: text,
-          sessionId: msg.sessionId,
-        }).catch((err) => chatLog.warn(`${channelName} send error:`, err));
+        sendAdapterMessage(adapter, channelName, msg.sessionId, text);
       } else {
-        chatLog.warn(`${channelName}: skipping empty response (LLM returned no text)`);
+        chatLog.warn(
+          `${channelName}: skipping empty response (LLM returned no text)`,
+        );
       }
     }
-
     if (event.type === "error") {
       clearInterval(typingInterval);
       typingInterval = undefined;
-      adapter.send({
-        content: `Error: ${event.message}`,
-        sessionId: msg.sessionId,
-      }).catch((err) => chatLog.warn(`${channelName} send error:`, err));
+      sendAdapterMessage(
+        adapter,
+        channelName,
+        msg.sessionId,
+        `Error: ${event.message}`,
+      );
     }
   };
+}
+
+// ─── Pairing & Access Control ────────────────────────────────────────────────
+
+/** Attempt pairing verification for a DM message containing a 6-digit code. */
+async function attemptPairingVerification(
+  msg: ChannelMessage,
+  channelType: string,
+  senderId: string,
+  channelState: ChannelState,
+  pairingService: ChatSessionConfig["pairingService"],
+): Promise<void> {
+  const isGroupMsg = msg.sessionId?.startsWith(`${channelType}-group-`) ??
+    false;
+  if (isGroupMsg) return;
+
+  const codeMatch = (msg.content ?? "").trim().match(/^\d{6}$/);
+  if (!codeMatch || !pairingService) return;
+
+  const result = await pairingService.verifyCode(
+    codeMatch[0],
+    channelType,
+    senderId,
+  );
+  if (result.ok) {
+    channelState.userSessions.addClassification(
+      senderId,
+      channelState.pairingClassification,
+    );
+    await channelState.adapter.send({
+      content: "Paired successfully. You can now chat with me.",
+      sessionId: msg.sessionId,
+    }).catch((err: unknown) => {
+      chatLog.debug("Pairing confirmation send failed", {
+        channel: channelType,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
+}
+
+/**
+ * Check non-owner access control. Returns true if the message should be processed,
+ * false if it should be dropped.
+ */
+async function checkNonOwnerAccess(
+  msg: ChannelMessage,
+  channelType: string,
+  senderId: string,
+  channelState: ChannelState,
+  pairingService: ChatSessionConfig["pairingService"],
+): Promise<boolean> {
+  const hasClassification = channelState.userSessions.hasExplicitClassification(
+    senderId || "unknown",
+  );
+  if (hasClassification) return true;
+
+  if (channelState.pairing && senderId) {
+    await attemptPairingVerification(
+      msg,
+      channelType,
+      senderId,
+      channelState,
+      pairingService,
+    );
+    return false;
+  }
+
+  if (!channelState.respondToUnclassified) {
+    chatLog.warn(
+      `[${channelType}] Dropping unclassified sender ${senderId} (respondToUnclassified=false)`,
+    );
+    return false;
+  }
+
+  return true;
+}
+
+/** Send an orchestrator error result to the event sender if not aborted. */
+function sendTurnErrorIfNotAborted(
+  sendEvent: ChatEventSender,
+  err: unknown,
+  signal?: AbortSignal,
+): void {
+  if (!signal?.aborted) {
+    const msg = err instanceof Error ? err.message : String(err);
+    sendEvent({ type: "error", message: msg });
+  }
+}
+
+/** Pre-load paired users into the user session manager. */
+async function preloadPairedUsers(
+  pairingService: ChatSessionConfig["pairingService"],
+  channelType: string,
+  mgr: UserSessionManager,
+  pairingCls: ClassificationLevel,
+): Promise<void> {
+  if (!pairingService) return;
+  try {
+    const linkedUsers = await pairingService.getLinkedUsers(channelType);
+    for (const userId of linkedUsers) mgr.addClassification(userId, pairingCls);
+  } catch { /* ignore if prefix listing not supported */ }
 }
 
 // ─── createChatSession ──────────────────────────────────────────────────────
@@ -148,25 +265,16 @@ export function buildSendEvent(
  * The mutex guarantees no concurrent access.
  */
 export function createChatSession(config: ChatSessionConfig): ChatSession {
-  // Mutable ref: set per-message, cleared after
   let activeSend: ChatEventSender | null = null;
-
-  // --- Session-aware taint and classification tracking ---
   const ownerSessionId = config.session.id as string;
   let activeSessionId: string = ownerSessionId;
-  const ownerTargetClassification = config.targetClassification ?? "INTERNAL" as ClassificationLevel;
-  // Non-owner tool ceiling: null = no explicit classification = all tools blocked.
+  const ownerTargetClassification = config.targetClassification ??
+    "INTERNAL" as ClassificationLevel;
   let activeNonOwnerCeiling: ClassificationLevel | null = null;
-
-  // Track all session states. Owner session is always present.
   const sessionStates = new Map<string, SessionState>();
   sessionStates.set(ownerSessionId, config.session);
-
-  // Per-channel state, keyed by channelType.
   const channelStates = new Map<string, ChannelState>();
-
   const pairingService = config.pairingService;
-
   const ownerGetTaint = config.getSessionTaint;
   const ownerEscalateTaint = config.escalateTaint;
 
@@ -183,21 +291,13 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
       ownerEscalateTaint(level, reason);
     } else {
       const s = sessionStates.get(activeSessionId);
-      if (s) {
-        sessionStates.set(activeSessionId, updateTaint(s, level, reason));
-      }
+      if (s) sessionStates.set(activeSessionId, updateTaint(s, level, reason));
     }
     const newTaint = getSessionTaint();
     if (newTaint !== prevTaint && activeSend) {
       activeSend({ type: "taint_changed", level: newTaint });
     }
   }
-
-  const onEvent: OrchestratorEventCallback = (event: OrchestratorEvent) => {
-    if (activeSend) {
-      activeSend(event as ChatEvent);
-    }
-  };
 
   const orchestrator = createOrchestrator({
     hookRunner: config.hookRunner,
@@ -207,7 +307,9 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     getExtraTools: config.getExtraTools,
     getExtraSystemPromptSections: config.getExtraSystemPromptSections,
     toolExecutor: config.toolExecutor,
-    onEvent,
+    onEvent: (event) => {
+      if (activeSend) activeSend(event as ChatEvent);
+    },
     compactorConfig: config.compactorConfig,
     systemPromptSections: config.systemPromptSections,
     planManager: config.planManager,
@@ -226,18 +328,15 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
   });
 
   const initialSession = config.session;
-  function getSession(): SessionState {
-    return config.getSession?.() ?? initialSession;
-  }
-
+  const getSession = (): SessionState =>
+    config.getSession?.() ?? initialSession;
   const providerName = config.providerRegistry.getDefault()?.name ?? "unknown";
-  const modelName = config.primaryModelName ?? config.providerRegistry.getDefault()?.name ?? "unknown";
-
-  // Registry of pending secret prompt requests from the Tidepool browser client.
-  // Keyed by nonce; values are resolve functions from awaited Promises.
-  const pendingSecretPrompts = new Map<string, (value: string | null) => void>();
-
-  // Promise-chain mutex: each executeAgentTurn waits for the previous to finish
+  const modelName = config.primaryModelName ??
+    config.providerRegistry.getDefault()?.name ?? "unknown";
+  const pendingSecretPrompts = new Map<
+    string,
+    (value: string | null) => void
+  >();
   let mutex: Promise<void> = Promise.resolve();
 
   async function executeAgentTurn(
@@ -250,12 +349,9 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     mutex = new Promise<void>((r) => {
       resolve = r;
     });
-
     await prev;
-
     activeSend = sendEvent;
     activeSessionId = ownerSessionId;
-
     try {
       const result = await orchestrator.executeAgentTurn({
         session: getSession(),
@@ -263,41 +359,31 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
         targetClassification: ownerTargetClassification,
         signal,
       });
-
       if (!result.ok && !signal?.aborted) {
         sendEvent({ type: "error", message: result.error });
       }
     } catch (err: unknown) {
-      if (!signal?.aborted) {
-        const msg = err instanceof Error ? err.message : String(err);
-        sendEvent({ type: "error", message: msg });
-      }
+      sendTurnErrorIfNotAborted(sendEvent, err, signal);
     } finally {
       activeSend = null;
       activeSessionId = ownerSessionId;
-
       resolve!();
     }
   }
 
-  async function registerChannel(channelType: string, channelConfig: ChannelRegistrationConfig): Promise<void> {
+  async function registerChannel(
+    channelType: string,
+    channelConfig: ChannelRegistrationConfig,
+  ): Promise<void> {
     const mgr = createUserSessionManager({
       channelDefault: channelConfig.classification,
       userOverrides: parseUserOverrides(channelConfig.userClassifications),
     });
-
-    const pairingCls = channelConfig.pairingClassification ?? "INTERNAL" as ClassificationLevel;
-
-    // Pre-load paired users as classified users when pairing is enabled.
-    if (channelConfig.pairing && pairingService) {
-      try {
-        const linkedUsers = await pairingService.getLinkedUsers(channelType);
-        for (const userId of linkedUsers) {
-          mgr.addClassification(userId, pairingCls);
-        }
-      } catch { /* ignore if prefix listing not supported */ }
+    const pairingCls = channelConfig.pairingClassification ??
+      "INTERNAL" as ClassificationLevel;
+    if (channelConfig.pairing) {
+      await preloadPairedUsers(pairingService, channelType, mgr, pairingCls);
     }
-
     channelStates.set(channelType, {
       userSessions: mgr,
       adapter: channelConfig.adapter,
@@ -319,73 +405,52 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
       return;
     }
 
-    // Owner messages → build sendEvent from adapter → main daemon session
     if (msg.isOwner !== false) {
-      const sendEvent = buildSendEvent(channelState.adapter, channelState.channelName, msg);
-      return executeAgentTurn(msg.content, sendEvent, signal);
+      return executeAgentTurn(
+        msg.content,
+        buildSendEvent(channelState.adapter, channelState.channelName, msg),
+        signal,
+      );
     }
 
     const senderId = msg.senderId ?? "";
-    const userSessions = channelState.userSessions;
-    const hasClassification = userSessions.hasExplicitClassification(senderId || "unknown");
+    const allowed = await checkNonOwnerAccess(
+      msg,
+      channelType,
+      senderId,
+      channelState,
+      pairingService,
+    );
+    if (!allowed) return;
 
-    // --- Unified access control gate ---
-    if (!hasClassification) {
-      // Try pairing if enabled (DMs only, 6-digit codes)
-      if (channelState.pairing && senderId) {
-        const isGroupMsg = msg.sessionId?.startsWith(`${channelType}-group-`) ?? false;
-        if (!isGroupMsg) {
-          const codeMatch = (msg.content ?? "").trim().match(/^\d{6}$/);
-          if (codeMatch && pairingService) {
-            const result = await pairingService.verifyCode(codeMatch[0], channelType, senderId);
-            if (result.ok) {
-              userSessions.addClassification(senderId, channelState.pairingClassification);
-              await channelState.adapter.send({
-                content: "Paired successfully. You can now chat with me.",
-                sessionId: msg.sessionId,
-              }).catch((err: unknown) => {
-                chatLog.debug("Pairing confirmation send failed", {
-                  channel: channelType,
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              });
-            }
-            // Invalid/expired code: stay silent.
-          }
-        }
-        // Pairing required, user not classified → drop
-        return;
-      }
-
-      // No pairing, no classification → check respondToUnclassified
-      if (!channelState.respondToUnclassified) {
-        chatLog.warn(`[${channelType}] Dropping unclassified sender ${senderId} (respondToUnclassified=false)`);
-        return;
-      }
-    }
-
-    // Non-owner messages → per-user session
     const effectiveSenderId = senderId || "unknown";
-    const userSession = userSessions.getOrCreate(channelType, effectiveSenderId);
+    const userSessions = channelState.userSessions;
+    const userSession = userSessions.getOrCreate(
+      channelType,
+      effectiveSenderId,
+    );
     const userCls = userSessions.getClassification(effectiveSenderId);
-
-    const sendEvent = buildSendEvent(channelState.adapter, channelState.channelName, msg);
+    const sendEvent = buildSendEvent(
+      channelState.adapter,
+      channelState.channelName,
+      msg,
+    );
 
     const prev = mutex;
     let resolve: () => void;
     mutex = new Promise<void>((r) => {
       resolve = r;
     });
-
     await prev;
 
     const userSessionId = userSession.id as string;
     sessionStates.set(userSessionId, userSession);
     activeSend = sendEvent;
     activeSessionId = userSessionId;
-    activeNonOwnerCeiling = userSessions.hasExplicitClassification(effectiveSenderId)
-      ? userSessions.getClassification(effectiveSenderId)
-      : null;
+    activeNonOwnerCeiling =
+      userSessions.hasExplicitClassification(effectiveSenderId)
+        ? userSessions.getClassification(effectiveSenderId)
+        : null;
 
     try {
       const result = await orchestrator.executeAgentTurn({
@@ -394,17 +459,12 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
         targetClassification: userCls,
         signal,
       });
-
       if (!result.ok && !signal?.aborted) {
         sendEvent({ type: "error", message: result.error });
       }
     } catch (err: unknown) {
-      if (!signal?.aborted) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        sendEvent({ type: "error", message: errMsg });
-      }
+      sendTurnErrorIfNotAborted(sendEvent, err, signal);
     } finally {
-      // Persist potentially-escalated session back to the UserSessionManager
       const updated = sessionStates.get(userSessionId);
       if (updated) {
         userSessions.updateSession(channelType, effectiveSenderId, updated);
@@ -418,9 +478,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
 
   function clear(): void {
     orchestrator.clearHistory(getSession().id);
-    if (config.resetSession) {
-      config.resetSession();
-    }
+    if (config.resetSession) config.resetSession();
   }
 
   async function compact(sendEvent: ChatEventSender): Promise<void> {
@@ -435,12 +493,19 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
         tokensAfter: result.tokensAfter,
       });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      sendEvent({ type: "error", message: `Compact failed: ${msg}` });
+      sendEvent({
+        type: "error",
+        message: `Compact failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      });
     }
   }
 
-  function handleSecretPromptResponse(nonce: string, value: string | null): void {
+  function handleSecretPromptResponse(
+    nonce: string,
+    value: string | null,
+  ): void {
     const resolve = pendingSecretPrompts.get(nonce);
     if (resolve) {
       pendingSecretPrompts.delete(nonce);
@@ -451,19 +516,19 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
   function createTidepoolSecretPrompt(
     sendEvent: ChatEventSender,
   ): (name: string, hint?: string) => Promise<string | null> {
-    return (name: string, hint?: string): Promise<string | null> => {
+    return (name, hint) => {
       const nonce = crypto.randomUUID();
       return new Promise<string | null>((resolve) => {
         pendingSecretPrompts.set(nonce, resolve);
-        const promptEvent: ChatEvent = hint !== undefined
-          ? { type: "secret_prompt", nonce, name, hint }
-          : { type: "secret_prompt", nonce, name };
-        sendEvent(promptEvent);
+        sendEvent(
+          hint !== undefined
+            ? { type: "secret_prompt", nonce, name, hint }
+            : { type: "secret_prompt", nonce, name },
+        );
       });
     };
   }
 
-  // Stored MCP status for sending to new clients on connect
   let mcpStatusConnected = -1;
   let mcpStatusConfigured = 0;
 
@@ -475,11 +540,11 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     compact,
     handleSecretPromptResponse,
     createTidepoolSecretPrompt,
-    getMcpStatus(): { connected: number; configured: number } | null {
+    getMcpStatus() {
       if (mcpStatusConnected < 0 || mcpStatusConfigured === 0) return null;
       return { connected: mcpStatusConnected, configured: mcpStatusConfigured };
     },
-    setMcpStatus(connected: number, configured: number): void {
+    setMcpStatus(connected, configured) {
       mcpStatusConnected = connected;
       mcpStatusConfigured = configured;
     },
