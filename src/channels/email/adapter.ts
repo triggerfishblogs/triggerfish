@@ -159,7 +159,7 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
         });
       }
     } catch (err: unknown) {
-      log.warn("IMAP operation failed", { error: err });
+      log.warn("IMAP unseen email poll failed", { error: err });
     }
   }
 }
