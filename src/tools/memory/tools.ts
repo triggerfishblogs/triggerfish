@@ -26,93 +26,267 @@ export interface MemoryToolContext {
   readonly sourceSessionId: SessionId;
 }
 
+function buildMemorySaveDef(): ToolDefinition {
+  return {
+    name: "memory_save",
+    description: "Save a fact or piece of information to persistent memory. " +
+      "The memory persists across sessions. Classification is automatically " +
+      "set to the current session's security level — you cannot choose it. " +
+      "Use descriptive keys like 'user-birthday' or 'project-deadline'.",
+    parameters: {
+      key: {
+        type: "string",
+        description:
+          "Unique identifier for this memory (e.g. 'user-name', 'favorite-color')",
+        required: true,
+      },
+      content: {
+        type: "string",
+        description: "The content to remember",
+        required: true,
+      },
+      tags: {
+        type: "array",
+        description:
+          "Optional tags for categorization (e.g. ['personal', 'preference'])",
+        items: { type: "string" },
+      },
+    },
+  };
+}
+
+function buildMemoryGetDef(): ToolDefinition {
+  return {
+    name: "memory_get",
+    description:
+      "Retrieve a specific memory by its key. Returns the memory content " +
+      "if it exists and is accessible at the current security level. " +
+      "Higher-classified versions shadow lower ones.",
+    parameters: {
+      key: {
+        type: "string",
+        description: "The key of the memory to retrieve",
+        required: true,
+      },
+    },
+  };
+}
+
+function buildMemorySearchDef(): ToolDefinition {
+  return {
+    name: "memory_search",
+    description:
+      "Search across all accessible memories using natural language. " +
+      "Uses full-text search with stemming. Results are filtered by " +
+      "the current session's security level.",
+    parameters: {
+      query: {
+        type: "string",
+        description: "Natural language search query",
+        required: true,
+      },
+      max_results: {
+        type: "number",
+        description: "Maximum number of results to return (default: 10)",
+      },
+    },
+  };
+}
+
+function buildMemoryListDef(): ToolDefinition {
+  return {
+    name: "memory_list",
+    description: "List all accessible memories, optionally filtered by tag. " +
+      "Returns memories visible at the current security level.",
+    parameters: {
+      tag: { type: "string", description: "Optional tag to filter by" },
+    },
+  };
+}
+
+function buildMemoryDeleteDef(): ToolDefinition {
+  return {
+    name: "memory_delete",
+    description:
+      "Delete a memory by key. Can only delete memories at the current " +
+      "session's security level. The record is soft-deleted (hidden but " +
+      "retained for audit).",
+    parameters: {
+      key: {
+        type: "string",
+        description: "The key of the memory to delete",
+        required: true,
+      },
+    },
+  };
+}
+
 /** Tool definitions for the 5 memory operations. */
 export function getMemoryToolDefinitions(): readonly ToolDefinition[] {
   return [
-    {
-      name: "memory_save",
-      description:
-        "Save a fact or piece of information to persistent memory. " +
-        "The memory persists across sessions. Classification is automatically " +
-        "set to the current session's security level — you cannot choose it. " +
-        "Use descriptive keys like 'user-birthday' or 'project-deadline'.",
-      parameters: {
-        key: {
-          type: "string",
-          description: "Unique identifier for this memory (e.g. 'user-name', 'favorite-color')",
-          required: true,
-        },
-        content: {
-          type: "string",
-          description: "The content to remember",
-          required: true,
-        },
-        tags: {
-          type: "array",
-          description: "Optional tags for categorization (e.g. ['personal', 'preference'])",
-          items: { type: "string" },
-        },
-      },
-    },
-    {
-      name: "memory_get",
-      description:
-        "Retrieve a specific memory by its key. Returns the memory content " +
-        "if it exists and is accessible at the current security level. " +
-        "Higher-classified versions shadow lower ones.",
-      parameters: {
-        key: {
-          type: "string",
-          description: "The key of the memory to retrieve",
-          required: true,
-        },
-      },
-    },
-    {
-      name: "memory_search",
-      description:
-        "Search across all accessible memories using natural language. " +
-        "Uses full-text search with stemming. Results are filtered by " +
-        "the current session's security level.",
-      parameters: {
-        query: {
-          type: "string",
-          description: "Natural language search query",
-          required: true,
-        },
-        max_results: {
-          type: "number",
-          description: "Maximum number of results to return (default: 10)",
-        },
-      },
-    },
-    {
-      name: "memory_list",
-      description:
-        "List all accessible memories, optionally filtered by tag. " +
-        "Returns memories visible at the current security level.",
-      parameters: {
-        tag: {
-          type: "string",
-          description: "Optional tag to filter by",
-        },
-      },
-    },
-    {
-      name: "memory_delete",
-      description:
-        "Delete a memory by key. Can only delete memories at the current " +
-        "session's security level. The record is soft-deleted (hidden but " +
-        "retained for audit).",
-      parameters: {
-        key: {
-          type: "string",
-          description: "The key of the memory to delete",
-          required: true,
-        },
-      },
-    },
+    buildMemorySaveDef(),
+    buildMemoryGetDef(),
+    buildMemorySearchDef(),
+    buildMemoryListDef(),
+    buildMemoryDeleteDef(),
   ];
+}
+
+// ─── Executor Helpers ──────────────────────────────────────────────────────────
+
+async function executeMemorySave(
+  ctx: MemoryToolContext,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const key = input.key;
+  const content = input.content;
+  if (typeof key !== "string" || key.length === 0) {
+    return "Error: memory_save requires a 'key' argument (non-empty string).";
+  }
+  if (typeof content !== "string" || content.length === 0) {
+    return "Error: memory_save requires a 'content' argument (non-empty string).";
+  }
+
+  const tags = Array.isArray(input.tags)
+    ? input.tags.filter((t): t is string => typeof t === "string")
+    : [];
+
+  const result = await ctx.store.save({
+    key,
+    agentId: ctx.agentId,
+    sessionTaint: ctx.sessionTaint,
+    content,
+    tags,
+    sourceSessionId: ctx.sourceSessionId,
+  });
+
+  if (!result.ok) {
+    return `Error: ${result.error.message}`;
+  }
+
+  return JSON.stringify({
+    saved: true,
+    key: result.value.key,
+    classification: result.value.classification,
+  });
+}
+
+async function executeMemoryGet(
+  ctx: MemoryToolContext,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const key = input.key;
+  if (typeof key !== "string" || key.length === 0) {
+    return "Error: memory_get requires a 'key' argument (non-empty string).";
+  }
+
+  const record = await ctx.store.get({
+    key,
+    agentId: ctx.agentId,
+    sessionTaint: ctx.sessionTaint,
+  });
+
+  if (record === null) {
+    return JSON.stringify({ found: false, key });
+  }
+
+  return JSON.stringify({
+    found: true,
+    key: record.key,
+    content: record.content,
+    classification: record.classification,
+    tags: record.tags,
+    updated_at: record.updatedAt.toISOString(),
+  });
+}
+
+async function executeMemorySearch(
+  ctx: MemoryToolContext,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const query = input.query;
+  if (typeof query !== "string" || query.length === 0) {
+    return "Error: memory_search requires a 'query' argument (non-empty string).";
+  }
+
+  const maxResults = typeof input.max_results === "number"
+    ? input.max_results
+    : 10;
+
+  if (!ctx.searchProvider) {
+    return "Error: Search is not available (no search provider configured).";
+  }
+
+  const results = await ctx.searchProvider.search({
+    agentId: ctx.agentId,
+    query,
+    sessionTaint: ctx.sessionTaint,
+    maxResults,
+  });
+
+  if (results.length === 0) {
+    return JSON.stringify({ results: [], query });
+  }
+
+  return JSON.stringify({
+    results: results.map((r) => ({
+      key: r.record.key,
+      content: r.record.content,
+      classification: r.record.classification,
+      tags: r.record.tags,
+    })),
+    query,
+  });
+}
+
+async function executeMemoryList(
+  ctx: MemoryToolContext,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const tag = typeof input.tag === "string" ? input.tag : undefined;
+
+  const records = await ctx.store.list({
+    agentId: ctx.agentId,
+    sessionTaint: ctx.sessionTaint,
+    tag,
+  });
+
+  if (records.length === 0) {
+    return "No memories found.";
+  }
+
+  return JSON.stringify({
+    memories: records.map((r) => ({
+      key: r.key,
+      content: r.content,
+      classification: r.classification,
+      tags: r.tags,
+      updated_at: r.updatedAt.toISOString(),
+    })),
+  });
+}
+
+async function executeMemoryDelete(
+  ctx: MemoryToolContext,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const key = input.key;
+  if (typeof key !== "string" || key.length === 0) {
+    return "Error: memory_delete requires a 'key' argument (non-empty string).";
+  }
+
+  const result = await ctx.store.delete({
+    key,
+    agentId: ctx.agentId,
+    sessionTaint: ctx.sessionTaint,
+    sourceSessionId: ctx.sourceSessionId,
+  });
+
+  if (!result.ok) {
+    return `Error: ${result.error.message}`;
+  }
+
+  return JSON.stringify({ deleted: true, key });
 }
 
 /**
@@ -129,146 +303,16 @@ export function createMemoryToolExecutor(
     input: Record<string, unknown>,
   ): Promise<string | null> => {
     switch (name) {
-      case "memory_save": {
-        const key = input.key;
-        const content = input.content;
-        if (typeof key !== "string" || key.length === 0) {
-          return "Error: memory_save requires a 'key' argument (non-empty string).";
-        }
-        if (typeof content !== "string" || content.length === 0) {
-          return "Error: memory_save requires a 'content' argument (non-empty string).";
-        }
-
-        const tags = Array.isArray(input.tags)
-          ? input.tags.filter((t): t is string => typeof t === "string")
-          : [];
-
-        const result = await ctx.store.save({
-          key,
-          agentId: ctx.agentId,
-          sessionTaint: ctx.sessionTaint,
-          content,
-          tags,
-          sourceSessionId: ctx.sourceSessionId,
-        });
-
-        if (!result.ok) {
-          return `Error: ${result.error.message}`;
-        }
-
-        return JSON.stringify({
-          saved: true,
-          key: result.value.key,
-          classification: result.value.classification,
-        });
-      }
-
-      case "memory_get": {
-        const key = input.key;
-        if (typeof key !== "string" || key.length === 0) {
-          return "Error: memory_get requires a 'key' argument (non-empty string).";
-        }
-
-        const record = await ctx.store.get({
-          key,
-          agentId: ctx.agentId,
-          sessionTaint: ctx.sessionTaint,
-        });
-
-        if (record === null) {
-          return JSON.stringify({ found: false, key });
-        }
-
-        return JSON.stringify({
-          found: true,
-          key: record.key,
-          content: record.content,
-          classification: record.classification,
-          tags: record.tags,
-          updated_at: record.updatedAt.toISOString(),
-        });
-      }
-
-      case "memory_search": {
-        const query = input.query;
-        if (typeof query !== "string" || query.length === 0) {
-          return "Error: memory_search requires a 'query' argument (non-empty string).";
-        }
-
-        const maxResults = typeof input.max_results === "number"
-          ? input.max_results
-          : 10;
-
-        if (!ctx.searchProvider) {
-          return "Error: Search is not available (no search provider configured).";
-        }
-
-        const results = await ctx.searchProvider.search({
-          agentId: ctx.agentId,
-          query,
-          sessionTaint: ctx.sessionTaint,
-          maxResults,
-        });
-
-        if (results.length === 0) {
-          return JSON.stringify({ results: [], query });
-        }
-
-        return JSON.stringify({
-          results: results.map((r) => ({
-            key: r.record.key,
-            content: r.record.content,
-            classification: r.record.classification,
-            tags: r.record.tags,
-          })),
-          query,
-        });
-      }
-
-      case "memory_list": {
-        const tag = typeof input.tag === "string" ? input.tag : undefined;
-
-        const records = await ctx.store.list({
-          agentId: ctx.agentId,
-          sessionTaint: ctx.sessionTaint,
-          tag,
-        });
-
-        if (records.length === 0) {
-          return "No memories found.";
-        }
-
-        return JSON.stringify({
-          memories: records.map((r) => ({
-            key: r.key,
-            content: r.content,
-            classification: r.classification,
-            tags: r.tags,
-            updated_at: r.updatedAt.toISOString(),
-          })),
-        });
-      }
-
-      case "memory_delete": {
-        const key = input.key;
-        if (typeof key !== "string" || key.length === 0) {
-          return "Error: memory_delete requires a 'key' argument (non-empty string).";
-        }
-
-        const result = await ctx.store.delete({
-          key,
-          agentId: ctx.agentId,
-          sessionTaint: ctx.sessionTaint,
-          sourceSessionId: ctx.sourceSessionId,
-        });
-
-        if (!result.ok) {
-          return `Error: ${result.error.message}`;
-        }
-
-        return JSON.stringify({ deleted: true, key });
-      }
-
+      case "memory_save":
+        return executeMemorySave(ctx, input);
+      case "memory_get":
+        return executeMemoryGet(ctx, input);
+      case "memory_search":
+        return executeMemorySearch(ctx, input);
+      case "memory_list":
+        return executeMemoryList(ctx, input);
+      case "memory_delete":
+        return executeMemoryDelete(ctx, input);
       default:
         return null;
     }
