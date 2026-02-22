@@ -13,7 +13,10 @@
  */
 
 import type { Browser, Page } from "puppeteer-core";
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../core/types/classification.ts";
 import type { StorageProvider } from "../../core/storage/provider.ts";
 import type { DomainPolicy } from "./domains.ts";
 import {
@@ -29,13 +32,14 @@ import {
   findFlatpakBin,
 } from "./manager_detection.ts";
 import type { ChromeDetection } from "./manager_detection.ts";
-import { applyStealthPatches, launchDirect, launchFlatpak } from "./manager_launch.ts";
+import {
+  applyStealthPatches,
+  launchDirect,
+  launchFlatpak,
+} from "./manager_launch.ts";
 
 // Re-export sub-module APIs for backward compatibility
-export {
-  applyStealthPatches,
-  baseChromeArgs,
-} from "./manager_launch.ts";
+export { applyStealthPatches, baseChromeArgs } from "./manager_launch.ts";
 export {
   detectChrome,
   findFreePort,
@@ -120,7 +124,53 @@ interface RunningBrowser {
  * @param config - Browser manager configuration
  * @returns A BrowserManager instance
  */
-export function createBrowserManager(config: BrowserManagerConfig): BrowserManager {
+/** Resolve Chrome binary detection, handling config overrides. */
+async function resolveChromeDetection(
+  config: BrowserManagerConfig,
+): Promise<ChromeDetection | undefined> {
+  if (config.chromiumPath && config.launchStrategy !== "flatpak") {
+    return { kind: "direct", target: config.chromiumPath };
+  }
+  let detection = await detectChrome();
+  if (
+    detection && config.launchStrategy === "flatpak" &&
+    detection.kind === "direct"
+  ) {
+    const flatpakBinPath = await findFlatpakBin();
+    if (flatpakBinPath) {
+      detection = {
+        kind: "flatpak",
+        target: detection.target,
+        flatpakBin: flatpakBinPath,
+      };
+    }
+  }
+  return detection;
+}
+
+/** Apply viewport, stealth patches, and register a browser instance. */
+async function finalizeBrowserLaunch(
+  agentId: string,
+  profilePath: string,
+  watermark: ClassificationLevel,
+  browser: Browser,
+  page: Page,
+  instances: Map<string, RunningBrowser>,
+  config: BrowserManagerConfig,
+  strategy: string,
+): Promise<BrowserInstance> {
+  const vp = config.viewport ?? DEFAULT_VIEWPORT;
+  await page.setViewport({ width: vp.width, height: vp.height });
+  await applyStealthPatches(page);
+  const instance: BrowserInstance = { agentId, profilePath, watermark, page };
+  instances.set(agentId, { browser, page, instance });
+  log.debug("browser launch success", { agentId, strategy, watermark });
+  return instance;
+}
+
+export function createBrowserManager(
+  config: BrowserManagerConfig,
+): BrowserManager {
   const instances = new Map<string, RunningBrowser>();
 
   return {
@@ -133,8 +183,6 @@ export function createBrowserManager(config: BrowserManagerConfig): BrowserManag
       sessionTaint: ClassificationLevel,
     ): Promise<Result<BrowserInstance, string>> {
       log.debug("browser launch start", { agentId, sessionTaint });
-
-      // Check watermark access
       const currentWatermark = await getWatermark(config.storage, agentId);
       if (
         currentWatermark !== null &&
@@ -146,44 +194,14 @@ export function createBrowserManager(config: BrowserManagerConfig): BrowserManag
             `Profile watermark ${currentWatermark} exceeds session taint ${sessionTaint}`,
         };
       }
-
-      // Escalate watermark
       const watermark = await escalateWatermark(
         config.storage,
         agentId,
         sessionTaint,
       );
-
-      // Return existing instance if already running
       const existing = instances.get(agentId);
-      if (existing) {
-        return { ok: true, value: existing.instance };
-      }
-
-      // Detect Chrome
-      const timeoutMs = config.launchTimeoutMs ?? DEFAULT_LAUNCH_TIMEOUT_MS;
-      let detection: ChromeDetection | undefined;
-
-      if (config.chromiumPath && config.launchStrategy !== "flatpak") {
-        // Explicit path provided → treat as direct
-        detection = { kind: "direct", target: config.chromiumPath };
-      } else {
-        detection = await detectChrome();
-      }
-
-      // Allow launchStrategy override
-      if (detection && config.launchStrategy) {
-        if (config.launchStrategy === "flatpak" && detection.kind === "direct") {
-          // Cannot force flatpak when only a direct binary was found and no flatpak info
-          // Re-detect specifically for flatpak
-          const flatpakBinPath = await findFlatpakBin();
-          if (flatpakBinPath) {
-            detection = { kind: "flatpak", target: detection.target, flatpakBin: flatpakBinPath };
-          }
-        }
-        // "direct" override on a flatpak detection: keep target as exec path
-      }
-
+      if (existing) return { ok: true, value: existing.instance };
+      const detection = await resolveChromeDetection(config);
       if (!detection) {
         return {
           ok: false,
@@ -191,62 +209,30 @@ export function createBrowserManager(config: BrowserManagerConfig): BrowserManag
             "No Chromium executable found. Set chromiumPath in config or install Chromium/Chrome.",
         };
       }
-
       const profilePath = `${config.profileBaseDir}/${agentId}/profile`;
-
-      // Ensure profile directory exists
       try {
         await Deno.mkdir(profilePath, { recursive: true });
-      } catch {
-        // may already exist
-      }
-
-      // Branch on launch strategy
-      if (detection.kind === "flatpak") {
-        const result = await launchFlatpak(config, detection, profilePath, timeoutMs);
-        log.debug("flatpak launch result", { ok: result.ok, error: result.ok ? undefined : result.error });
-        if (!result.ok) return result;
-
-        const { browser, page } = result.value;
-
-        const vp = config.viewport ?? DEFAULT_VIEWPORT;
-        await page.setViewport({ width: vp.width, height: vp.height });
-        await applyStealthPatches(page);
-
-        const instance: BrowserInstance = {
-          agentId,
+      } catch { /* may exist */ }
+      const timeoutMs = config.launchTimeoutMs ?? DEFAULT_LAUNCH_TIMEOUT_MS;
+      const result = detection.kind === "flatpak"
+        ? await launchFlatpak(config, detection, profilePath, timeoutMs)
+        : await launchDirect(
+          config,
+          detection.target,
           profilePath,
-          watermark,
-          page,
-        };
-
-        instances.set(agentId, { browser, page, instance });
-
-        log.debug("browser launch success", { agentId, strategy: "flatpak", watermark });
-        return { ok: true, value: instance };
-      }
-
-      // Direct launch
-      const result = await launchDirect(config, detection.target, profilePath, timeoutMs);
-      log.debug("direct launch result", { ok: result.ok, error: result.ok ? undefined : result.error });
+          timeoutMs,
+        );
       if (!result.ok) return result;
-
-      const { browser, page } = result.value;
-
-      const vp = config.viewport ?? DEFAULT_VIEWPORT;
-      await page.setViewport({ width: vp.width, height: vp.height });
-      await applyStealthPatches(page);
-
-      const instance: BrowserInstance = {
+      const instance = await finalizeBrowserLaunch(
         agentId,
         profilePath,
         watermark,
-        page,
-      };
-
-      instances.set(agentId, { browser, page, instance });
-
-      log.debug("browser launch success", { agentId, strategy: "direct", watermark });
+        result.value.browser,
+        result.value.page,
+        instances,
+        config,
+        detection.kind,
+      );
       return { ok: true, value: instance };
     },
 
