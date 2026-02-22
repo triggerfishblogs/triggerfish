@@ -125,13 +125,198 @@ function buildPayload(cert: UnsignedCertificate): Uint8Array {
   return new TextEncoder().encode(canonical);
 }
 
+/** Generate a new Ed25519 keypair for delegation signing. */
+async function generateDelegationKeypair(): Promise<
+  Result<DelegationKeypair, string>
+> {
+  try {
+    const keyPair = await crypto.subtle.generateKey(
+      "Ed25519",
+      true,
+      ["sign", "verify"],
+    ) as CryptoKeyPair;
+    return {
+      ok: true,
+      value: { publicKey: keyPair.publicKey, privateKey: keyPair.privateKey },
+    };
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Keypair generation failed: ${message}` };
+  }
+}
+
+/** Extract the raw Ed25519 public key (base64) from an Ed25519 private key. */
+async function extractRawPublicKeyFromPrivate(
+  privateKey: CryptoKey,
+): Promise<Result<string, string>> {
+  const jwk = await crypto.subtle.exportKey("jwk", privateKey);
+  if (!jwk.x) {
+    return {
+      ok: false,
+      error: "Failed to extract public key from private key",
+    };
+  }
+  const publicKeyBase64 = jwk.x.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = publicKeyBase64 + "=".repeat(
+    (4 - publicKeyBase64.length % 4) % 4,
+  );
+  const publicKeyBytes = fromBase64(padded);
+  const pubCryptoKey = await crypto.subtle.importKey(
+    "raw",
+    publicKeyBytes,
+    "Ed25519",
+    true,
+    ["verify"],
+  );
+  const rawPublicKey = await crypto.subtle.exportKey("raw", pubCryptoKey);
+  return { ok: true, value: toBase64(rawPublicKey) };
+}
+
+/** Sign a delegation certificate with the delegator's private key. */
+async function signDelegationCertificate(
+  privateKey: CryptoKey,
+  cert: UnsignedCertificate,
+): Promise<Result<DelegationCertificate, string>> {
+  try {
+    const payload = buildPayload(cert);
+    const signatureBuffer = await crypto.subtle.sign(
+      "Ed25519",
+      privateKey,
+      payload,
+    );
+    const signature = toBase64(signatureBuffer);
+    const pubKeyResult = await extractRawPublicKeyFromPrivate(privateKey);
+    if (!pubKeyResult.ok) return pubKeyResult;
+    return {
+      ok: true,
+      value: {
+        delegator: cert.delegator,
+        delegate: cert.delegate,
+        permissions: cert.permissions,
+        expiry: cert.expiry,
+        signature,
+        publicKey: pubKeyResult.value,
+      },
+    };
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Signing failed: ${message}` };
+  }
+}
+
+/** Verify a single delegation certificate's signature and expiry. */
+async function verifyDelegationCertificate(
+  cert: DelegationCertificate,
+): Promise<Result<true, string>> {
+  try {
+    if (cert.expiry.getTime() < Date.now()) {
+      log.warn("Delegation certificate expired", {
+        delegator: cert.delegator,
+        delegate: cert.delegate,
+      });
+      return { ok: false, error: "Certificate has expired" };
+    }
+    const payload = buildPayload(cert);
+    const publicKeyBytes = fromBase64(cert.publicKey);
+    const publicKey = await crypto.subtle.importKey(
+      "raw",
+      publicKeyBytes,
+      "Ed25519",
+      false,
+      ["verify"],
+    );
+    const signatureBytes = fromBase64(cert.signature);
+    const valid = await crypto.subtle.verify(
+      "Ed25519",
+      publicKey,
+      signatureBytes,
+      payload,
+    );
+    if (!valid) {
+      log.warn("Delegation certificate signature invalid", {
+        delegator: cert.delegator,
+        delegate: cert.delegate,
+      });
+      return { ok: false, error: "Invalid certificate signature" };
+    }
+    return { ok: true, value: true };
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Verification failed: ${message}` };
+  }
+}
+
+/** Verify chain linkage: delegator of cert[n+1] must match delegate of cert[n]. */
+function verifyDelegationChainLinkage(
+  chain: DelegationChain,
+): Result<true, string> {
+  for (let i = 0; i < chain.certificates.length - 1; i++) {
+    const current = chain.certificates[i];
+    const next = chain.certificates[i + 1];
+    if (next.delegator !== current.delegate) {
+      log.warn("Delegation chain linkage broken", {
+        index: i,
+        delegate: current.delegate,
+        nextDelegator: next.delegator,
+      });
+      return {
+        ok: false,
+        error:
+          `Chain broken at index ${i}: delegate "${current.delegate}" does not match next delegator "${next.delegator}"`,
+      };
+    }
+  }
+  return { ok: true, value: true };
+}
+
+/** Serialise a delegation chain to a JSON string for storage. */
+function serialiseDelegationChain(chain: DelegationChain): string {
+  return JSON.stringify({
+    root: chain.root,
+    leaf: chain.leaf,
+    certificates: chain.certificates.map((cert) => ({
+      delegator: cert.delegator,
+      delegate: cert.delegate,
+      permissions: [...cert.permissions],
+      expiry: cert.expiry.toISOString(),
+      signature: cert.signature,
+      publicKey: cert.publicKey,
+    })),
+  });
+}
+
+/** Deserialise a stored JSON string back to a DelegationChain. */
+function deserialiseDelegationChain(raw: string): DelegationChain {
+  const parsed = JSON.parse(raw) as {
+    readonly root: string;
+    readonly leaf: string;
+    readonly certificates: readonly {
+      readonly delegator: string;
+      readonly delegate: string;
+      readonly permissions: readonly string[];
+      readonly expiry: string;
+      readonly signature: string;
+      readonly publicKey: string;
+    }[];
+  };
+  return {
+    root: parsed.root,
+    leaf: parsed.leaf,
+    certificates: parsed.certificates.map((c) => ({
+      delegator: c.delegator,
+      delegate: c.delegate,
+      permissions: [...c.permissions],
+      expiry: new Date(c.expiry),
+      signature: c.signature,
+      publicKey: c.publicKey,
+    })),
+  };
+}
+
 /**
  * Create a delegation service backed by a StorageProvider.
  *
  * All delegation chains are stored under the `delegation:` key namespace.
- *
- * @param storage - StorageProvider for persisting delegation chains
- * @returns A DelegationService instance
  */
 export function createDelegationService(
   storage: StorageProvider,
@@ -139,150 +324,16 @@ export function createDelegationService(
   const NAMESPACE = "delegation:";
 
   return {
-    async generateKeypair(): Promise<Result<DelegationKeypair, string>> {
-      try {
-        const keyPair = await crypto.subtle.generateKey(
-          "Ed25519",
-          true,
-          ["sign", "verify"],
-        ) as CryptoKeyPair;
+    generateKeypair: generateDelegationKeypair,
+    signCertificate: signDelegationCertificate,
+    verifyCertificate: verifyDelegationCertificate,
 
-        return {
-          ok: true,
-          value: {
-            publicKey: keyPair.publicKey,
-            privateKey: keyPair.privateKey,
-          },
-        };
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : String(e);
-        return { ok: false, error: `Keypair generation failed: ${message}` };
-      }
-    },
-
-    async signCertificate(
-      privateKey: CryptoKey,
-      cert: UnsignedCertificate,
-    ): Promise<Result<DelegationCertificate, string>> {
-      try {
-        const payload = buildPayload(cert);
-        const signatureBuffer = await crypto.subtle.sign(
-          "Ed25519",
-          privateKey,
-          payload,
-        );
-        const signature = toBase64(signatureBuffer);
-
-        // Extract the public key that corresponds to this private key.
-        // We need the public key from the keypair. Since Ed25519 private keys
-        // in Web Crypto don't expose the public key directly, we derive it
-        // by exporting the private key in JWK format which includes the public component.
-        const jwk = await crypto.subtle.exportKey("jwk", privateKey);
-        if (!jwk.x) {
-          return { ok: false, error: "Failed to extract public key from private key" };
-        }
-        // jwk.x is the base64url-encoded public key
-        const publicKeyBase64 = jwk.x.replace(/-/g, "+").replace(/_/g, "/");
-        // Pad to correct length
-        const padded = publicKeyBase64 + "=".repeat(
-          (4 - publicKeyBase64.length % 4) % 4,
-        );
-        const publicKeyBytes = fromBase64(padded);
-
-        // Re-import as a CryptoKey to export as raw
-        const pubCryptoKey = await crypto.subtle.importKey(
-          "raw",
-          publicKeyBytes,
-          "Ed25519",
-          true,
-          ["verify"],
-        );
-        const rawPublicKey = await crypto.subtle.exportKey("raw", pubCryptoKey);
-        const publicKeyB64 = toBase64(rawPublicKey);
-
-        return {
-          ok: true,
-          value: {
-            delegator: cert.delegator,
-            delegate: cert.delegate,
-            permissions: cert.permissions,
-            expiry: cert.expiry,
-            signature,
-            publicKey: publicKeyB64,
-          },
-        };
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : String(e);
-        return { ok: false, error: `Signing failed: ${message}` };
-      }
-    },
-
-    async verifyCertificate(
-      cert: DelegationCertificate,
-    ): Promise<Result<true, string>> {
-      try {
-        // Check expiry first
-        if (cert.expiry.getTime() < Date.now()) {
-          log.warn("Delegation certificate expired", {
-            delegator: cert.delegator,
-            delegate: cert.delegate,
-          });
-          return { ok: false, error: "Certificate has expired" };
-        }
-
-        // Reconstruct the payload
-        const payload = buildPayload({
-          delegator: cert.delegator,
-          delegate: cert.delegate,
-          permissions: cert.permissions,
-          expiry: cert.expiry,
-        });
-
-        // Import the public key
-        const publicKeyBytes = fromBase64(cert.publicKey);
-        const publicKey = await crypto.subtle.importKey(
-          "raw",
-          publicKeyBytes,
-          "Ed25519",
-          false,
-          ["verify"],
-        );
-
-        // Verify the signature
-        const signatureBytes = fromBase64(cert.signature);
-        const valid = await crypto.subtle.verify(
-          "Ed25519",
-          publicKey,
-          signatureBytes,
-          payload,
-        );
-
-        if (!valid) {
-          log.warn("Delegation certificate signature invalid", {
-            delegator: cert.delegator,
-            delegate: cert.delegate,
-          });
-          return { ok: false, error: "Invalid certificate signature" };
-        }
-
-        return { ok: true, value: true };
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : String(e);
-        return { ok: false, error: `Verification failed: ${message}` };
-      }
-    },
-
-    async verifyChain(
-      chain: DelegationChain,
-    ): Promise<Result<true, string>> {
+    async verifyChain(chain: DelegationChain): Promise<Result<true, string>> {
       if (chain.certificates.length === 0) {
         return { ok: false, error: "Delegation chain is empty" };
       }
-
-      // Verify each certificate individually
       for (let i = 0; i < chain.certificates.length; i++) {
-        const cert = chain.certificates[i];
-        const result = await this.verifyCertificate(cert);
+        const result = await verifyDelegationCertificate(chain.certificates[i]);
         if (!result.ok) {
           return {
             ok: false,
@@ -290,25 +341,7 @@ export function createDelegationService(
           };
         }
       }
-
-      // Verify chain linkage: delegator of cert[n+1] must match delegate of cert[n]
-      for (let i = 0; i < chain.certificates.length - 1; i++) {
-        const current = chain.certificates[i];
-        const next = chain.certificates[i + 1];
-        if (next.delegator !== current.delegate) {
-          log.warn("Delegation chain linkage broken", {
-            index: i,
-            delegate: current.delegate,
-            nextDelegator: next.delegator,
-          });
-          return {
-            ok: false,
-            error: `Chain broken at index ${i}: delegate "${current.delegate}" does not match next delegator "${next.delegator}"`,
-          };
-        }
-      }
-
-      return { ok: true, value: true };
+      return verifyDelegationChainLinkage(chain);
     },
 
     async storeChain(
@@ -316,19 +349,10 @@ export function createDelegationService(
       chain: DelegationChain,
     ): Promise<Result<true, string>> {
       try {
-        const serialized = JSON.stringify({
-          root: chain.root,
-          leaf: chain.leaf,
-          certificates: chain.certificates.map((cert) => ({
-            delegator: cert.delegator,
-            delegate: cert.delegate,
-            permissions: [...cert.permissions],
-            expiry: cert.expiry.toISOString(),
-            signature: cert.signature,
-            publicKey: cert.publicKey,
-          })),
-        });
-        await storage.set(`${NAMESPACE}${chainId}`, serialized);
+        await storage.set(
+          `${NAMESPACE}${chainId}`,
+          serialiseDelegationChain(chain),
+        );
         return { ok: true, value: true };
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
@@ -336,42 +360,13 @@ export function createDelegationService(
       }
     },
 
-    async loadChain(
-      chainId: string,
-    ): Promise<Result<DelegationChain, string>> {
+    async loadChain(chainId: string): Promise<Result<DelegationChain, string>> {
       try {
         const raw = await storage.get(`${NAMESPACE}${chainId}`);
         if (raw === null || raw === undefined) {
           return { ok: false, error: `Chain not found: ${chainId}` };
         }
-
-        const parsed = JSON.parse(raw) as {
-          readonly root: string;
-          readonly leaf: string;
-          readonly certificates: readonly {
-            readonly delegator: string;
-            readonly delegate: string;
-            readonly permissions: readonly string[];
-            readonly expiry: string;
-            readonly signature: string;
-            readonly publicKey: string;
-          }[];
-        };
-
-        const chain: DelegationChain = {
-          root: parsed.root,
-          leaf: parsed.leaf,
-          certificates: parsed.certificates.map((c) => ({
-            delegator: c.delegator,
-            delegate: c.delegate,
-            permissions: [...c.permissions],
-            expiry: new Date(c.expiry),
-            signature: c.signature,
-            publicKey: c.publicKey,
-          })),
-        };
-
-        return { ok: true, value: chain };
+        return { ok: true, value: deserialiseDelegationChain(raw) };
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
         return { ok: false, error: `Failed to load chain: ${message}` };
