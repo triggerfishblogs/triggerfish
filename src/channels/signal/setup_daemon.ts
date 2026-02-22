@@ -3,7 +3,10 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/logger.ts";
 import type { Result } from "../../core/types/classification.ts";
+
+const log = createLogger("signal");
 
 /** Normalize "localhost" to "127.0.0.1" — signal-cli binds IPv4 only. */
 function normalizeHost(host: string): string {
@@ -18,7 +21,8 @@ export async function isDaemonRunning(host: string, port: number): Promise<boole
     const conn = await Deno.connect({ hostname: normalizeHost(host), port });
     conn.close();
     return true;
-  } catch {
+  } catch (_err: unknown) {
+    log.debug("Daemon not reachable", { host, port });
     return false;
   }
 }
@@ -116,7 +120,8 @@ export function startDaemon(
         } finally {
           reader.releaseLock();
         }
-      } catch {
+      } catch (err: unknown) {
+        log.debug("Daemon stderr reader terminated", { error: err });
         if (earlyResolve) { earlyResolve(""); earlyResolve = null; }
       }
       clearTimeout(earlyTimer);
@@ -173,7 +178,8 @@ export async function isDaemonHealthy(host: string, port: number): Promise<boole
     if (readResult === null || readResult === 0) return false;
     const resp = JSON.parse(decoder.decode(buf.subarray(0, readResult))) as Record<string, unknown>;
     return resp?.result !== undefined || resp?.error !== undefined;
-  } catch {
+  } catch (_err: unknown) {
+    log.debug("Daemon health check failed", { host, port });
     return false;
   }
 }
@@ -189,7 +195,8 @@ export async function isDaemonRunningUnix(socketPath: string): Promise<boolean> 
     });
     conn.close();
     return true;
-  } catch {
+  } catch (_err: unknown) {
+    log.debug("Daemon not reachable on Unix socket", { socketPath });
     return false;
   }
 }
@@ -265,7 +272,8 @@ export function startDaemonUnix(
         } finally {
           reader.releaseLock();
         }
-      } catch {
+      } catch (err: unknown) {
+        log.debug("Daemon stderr reader terminated", { error: err });
         if (earlyResolveUnix) { earlyResolveUnix(""); earlyResolveUnix = null; }
       }
       clearTimeout(earlyTimerUnix);
