@@ -7,7 +7,12 @@
  */
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import type {
+  LlmCompletionResult,
+  LlmMessage,
+  LlmProvider,
+  LlmStreamChunk,
+} from "../llm.ts";
 import { getModelInfo } from "../models.ts";
 import type { ContentBlock } from "../../core/image/content.ts";
 
@@ -19,6 +24,111 @@ export interface GoogleConfig {
   readonly model?: string;
   /** Maximum tokens for completion. Default: 4096 */
   readonly maxTokens?: number;
+}
+
+/** Gemini parts union type. */
+type GeminiPart = { text: string } | {
+  inlineData: { mimeType: string; data: string };
+};
+
+/** Convert message content to Gemini parts format. */
+function convertContentToGeminiParts(
+  content: string | unknown,
+): GeminiPart[] {
+  if (typeof content === "string") return [{ text: content }];
+  if (!Array.isArray(content)) return [{ text: JSON.stringify(content) }];
+  const parts: GeminiPart[] = [];
+  for (const block of content as ContentBlock[]) {
+    if (block.type === "text") {
+      parts.push({ text: block.text });
+    } else if (block.type === "image") {
+      parts.push({
+        inlineData: {
+          mimeType: block.source.media_type,
+          data: block.source.data,
+        },
+      });
+    }
+  }
+  return parts.length > 0 ? parts : [{ text: "" }];
+}
+
+/** Extract system instruction string from messages. */
+function extractGeminiSystemInstruction(
+  messages: readonly LlmMessage[],
+): string | undefined {
+  const systemMessage = messages.find((m) => m.role === "system");
+  if (!systemMessage) return undefined;
+  return typeof systemMessage.content === "string"
+    ? systemMessage.content
+    : JSON.stringify(systemMessage.content);
+}
+
+/** Build Gemini model config with optional system instruction and tools. */
+function buildGeminiModelConfig(
+  systemInstruction: string | undefined,
+  tools: readonly unknown[],
+): Record<string, unknown> {
+  const modelConfig: Record<string, unknown> = {};
+  if (systemInstruction) {
+    modelConfig.systemInstruction = systemInstruction;
+  }
+  const geminiTools = convertToolsToGeminiFormat(tools);
+  if (geminiTools.length > 0) {
+    modelConfig.tools = [{ functionDeclarations: geminiTools }];
+  }
+  return modelConfig;
+}
+
+/** Build Gemini chat history and user parts from messages. */
+function buildGeminiChatParts(
+  messages: readonly LlmMessage[],
+): {
+  history: { role: string; parts: GeminiPart[] }[];
+  userParts: GeminiPart[];
+} {
+  const nonSystem = messages.filter((m) => m.role !== "system");
+  const history = nonSystem
+    .slice(0, -1)
+    .map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: convertContentToGeminiParts(m.content),
+    }));
+  const lastMessage = nonSystem.at(-1);
+  const userParts = lastMessage
+    ? convertContentToGeminiParts(lastMessage.content)
+    : [{ text: "" }];
+  return { history, userParts };
+}
+
+/** Race a promise against an AbortSignal. */
+function raceWithAbortSignal<T>(
+  promise: Promise<T>,
+  signal: AbortSignal | undefined,
+): Promise<T> {
+  if (!signal) return promise;
+  const abortPromise = new Promise<never>((_resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Operation cancelled", "AbortError"));
+      return;
+    }
+    signal.addEventListener("abort", () => {
+      reject(new DOMException("Operation cancelled", "AbortError"));
+    }, { once: true });
+  });
+  return Promise.race([promise, abortPromise]);
+}
+
+/** Extract text safely from Gemini response (throws on function-call-only). */
+function extractGeminiResponseText(
+  // deno-lint-ignore no-explicit-any
+  response: any,
+): string {
+  try {
+    return response.text();
+  } catch {
+    return "";
+  }
 }
 
 /**
@@ -34,26 +144,6 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
   const modelName = config.model ?? "gemini-2.0-flash";
   const maxTokens = config.maxTokens ?? 4096;
 
-  /** Convert content to Gemini parts format. */
-  function toGeminiParts(content: string | unknown): { text: string }[] | { inlineData: { mimeType: string; data: string } }[] | ({ text: string } | { inlineData: { mimeType: string; data: string } })[] {
-    if (typeof content === "string") return [{ text: content }];
-    if (!Array.isArray(content)) return [{ text: JSON.stringify(content) }];
-    const parts: ({ text: string } | { inlineData: { mimeType: string; data: string } })[] = [];
-    for (const block of content as ContentBlock[]) {
-      if (block.type === "text") {
-        parts.push({ text: block.text });
-      } else if (block.type === "image") {
-        parts.push({
-          inlineData: {
-            mimeType: block.source.media_type,
-            data: block.source.data,
-          },
-        });
-      }
-    }
-    return parts.length > 0 ? parts : [{ text: "" }];
-  }
-
   return {
     name: "google",
     supportsStreaming: true,
@@ -65,25 +155,8 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       const signal = options.signal as AbortSignal | undefined;
-      // Extract system instruction
-      const systemMessage = messages.find((m) => m.role === "system");
-      const systemInstruction = systemMessage
-        ? (typeof systemMessage.content === "string"
-          ? systemMessage.content
-          : JSON.stringify(systemMessage.content))
-        : undefined;
-
-      // Get the generative model with optional system instruction and tools
-      const modelConfig: Record<string, unknown> = {};
-      if (systemInstruction) {
-        modelConfig.systemInstruction = systemInstruction;
-      }
-
-      // Convert OpenAI-format tools to Gemini functionDeclarations
-      const geminiTools = convertToolsToGeminiFormat(tools);
-      if (geminiTools.length > 0) {
-        modelConfig.tools = [{ functionDeclarations: geminiTools }];
-      }
+      const systemInstruction = extractGeminiSystemInstruction(messages);
+      const modelConfig = buildGeminiModelConfig(systemInstruction, tools);
 
       const model = genAI.getGenerativeModel({
         model: modelName,
@@ -91,61 +164,24 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
         ...modelConfig,
       });
 
-      // Convert to Gemini chat format — Gemini uses "user" and "model" roles
-      const history = messages
-        .filter((m) => m.role !== "system")
-        .slice(0, -1) // All but last (which is the current user message)
-        .map((m) => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: toGeminiParts(m.content),
-        }));
-
-      // Get the last user message
-      const lastMessage = messages.filter((m) => m.role !== "system").at(-1);
-      const userParts = lastMessage ? toGeminiParts(lastMessage.content) : [{ text: "" }];
-
+      const { history, userParts } = buildGeminiChatParts(messages);
       const chat = model.startChat({ history });
 
-      // Google SDK doesn't natively support AbortSignal — use Promise.race
-      const sendPromise = chat.sendMessage(userParts);
       let result;
       try {
-        if (signal) {
-          const abortPromise = new Promise<never>((_resolve, reject) => {
-            if (signal.aborted) {
-              reject(new DOMException("Operation cancelled", "AbortError"));
-              return;
-            }
-            signal.addEventListener("abort", () => {
-              reject(new DOMException("Operation cancelled", "AbortError"));
-            }, { once: true });
-          });
-          result = await Promise.race([sendPromise, abortPromise]);
-        } else {
-          result = await sendPromise;
-        }
+        result = await raceWithAbortSignal(
+          chat.sendMessage(userParts),
+          signal,
+        );
       } catch (err) {
         throw wrapGoogleError(err, modelName);
       }
       const response = result.response;
-
-      // Estimate token usage from response metadata
       const usageMetadata = response.usageMetadata;
 
-      // Extract function calls from Gemini response
-      const geminiToolCalls = extractGeminiFunctionCalls(response);
-
-      // Extract text — response.text() throws if there are only function call parts
-      let textContent = "";
-      try {
-        textContent = response.text();
-      } catch {
-        // Expected: Gemini throws when response contains only function calls and no text
-      }
-
       return {
-        content: textContent,
-        toolCalls: geminiToolCalls,
+        content: extractGeminiResponseText(response),
+        toolCalls: extractGeminiFunctionCalls(response),
         usage: {
           inputTokens: usageMetadata?.promptTokenCount ?? 0,
           outputTokens: usageMetadata?.candidatesTokenCount ?? 0,
@@ -159,23 +195,8 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
       options: Record<string, unknown>,
     ): AsyncIterable<LlmStreamChunk> {
       const signal = options.signal as AbortSignal | undefined;
-
-      const systemMessage = messages.find((m) => m.role === "system");
-      const systemInstruction = systemMessage
-        ? (typeof systemMessage.content === "string"
-          ? systemMessage.content
-          : JSON.stringify(systemMessage.content))
-        : undefined;
-
-      const modelConfig: Record<string, unknown> = {};
-      if (systemInstruction) {
-        modelConfig.systemInstruction = systemInstruction;
-      }
-
-      const geminiTools = convertToolsToGeminiFormat(tools);
-      if (geminiTools.length > 0) {
-        modelConfig.tools = [{ functionDeclarations: geminiTools }];
-      }
+      const systemInstruction = extractGeminiSystemInstruction(messages);
+      const modelConfig = buildGeminiModelConfig(systemInstruction, tools);
 
       const model = genAI.getGenerativeModel({
         model: modelName,
@@ -183,18 +204,9 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
         ...modelConfig,
       });
 
-      const history = messages
-        .filter((m) => m.role !== "system")
-        .slice(0, -1)
-        .map((m) => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: toGeminiParts(m.content),
-        }));
-
-      const lastMessage = messages.filter((m) => m.role !== "system").at(-1);
-      const userParts = lastMessage ? toGeminiParts(lastMessage.content) : [{ text: "" }];
-
+      const { history, userParts } = buildGeminiChatParts(messages);
       const chat = model.startChat({ history });
+
       let streamResult;
       try {
         streamResult = await chat.sendMessageStream(userParts);
@@ -202,7 +214,6 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
         throw wrapGoogleError(err, modelName);
       }
 
-      // Check abort before iterating
       if (signal?.aborted) {
         throw new DOMException("Operation cancelled", "AbortError");
       }
@@ -233,7 +244,9 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
           inputTokens: meta?.promptTokenCount ?? 0,
           outputTokens: meta?.candidatesTokenCount ?? 0,
         },
-        ...(geminiFunctionCalls.length > 0 ? { toolCalls: geminiFunctionCalls } : {}),
+        ...(geminiFunctionCalls.length > 0
+          ? { toolCalls: geminiFunctionCalls }
+          : {}),
       };
     },
   };
@@ -277,25 +290,31 @@ function wrapGoogleError(err: unknown, modelName: string): Error {
   const msg = err instanceof Error ? err.message : String(err);
 
   // 429 / quota exceeded / limit: 0
-  if (msg.includes("429") || msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED")) {
+  if (
+    msg.includes("429") || msg.includes("quota") ||
+    msg.includes("RESOURCE_EXHAUSTED")
+  ) {
     if (msg.includes("limit: 0") || msg.includes("limit:0")) {
       return new Error(
         `Google API key has zero quota for ${modelName}. ` +
-        `Your key may be on the free tier without access to this model, or billing is not enabled. ` +
-        `Enable billing at https://console.cloud.google.com/billing or use a different model.\n\n${msg}`,
+          `Your key may be on the free tier without access to this model, or billing is not enabled. ` +
+          `Enable billing at https://console.cloud.google.com/billing or use a different model.\n\n${msg}`,
       );
     }
     return new Error(
       `Google API rate limit exceeded for ${modelName}. ` +
-      `Wait a moment and try again, or check your quota at https://console.cloud.google.com/apis/dashboard\n\n${msg}`,
+        `Wait a moment and try again, or check your quota at https://console.cloud.google.com/apis/dashboard\n\n${msg}`,
     );
   }
 
   // 401 / 403 — bad key or permissions
-  if (msg.includes("401") || msg.includes("403") || msg.includes("API_KEY_INVALID") || msg.includes("PERMISSION_DENIED")) {
+  if (
+    msg.includes("401") || msg.includes("403") ||
+    msg.includes("API_KEY_INVALID") || msg.includes("PERMISSION_DENIED")
+  ) {
     return new Error(
       `Google API key is invalid or lacks permission for ${modelName}. ` +
-      `Check your key at https://aistudio.google.com/apikey\n\n${msg}`,
+        `Check your key at https://aistudio.google.com/apikey\n\n${msg}`,
     );
   }
 
@@ -321,7 +340,10 @@ function extractGeminiFunctionCalls(response: any): unknown[] {
   const calls: unknown[] = [];
   for (const candidate of response.candidates ?? []) {
     for (const part of candidate.content?.parts ?? []) {
-      const fc = part.functionCall as { name: string; args: Record<string, unknown> } | undefined;
+      const fc = part.functionCall as {
+        name: string;
+        args: Record<string, unknown>;
+      } | undefined;
       if (fc) {
         calls.push({
           type: "tool_use",
