@@ -8,9 +8,9 @@
  * @module
  */
 
-import { CLASSIFICATION_ORDER } from "../../core/types/classification.ts";
-import type { MemoryRecord, StoredMemoryRecord } from "./types.ts";
-import type { SessionId } from "../../core/types/session.ts";
+import { CLASSIFICATION_ORDER } from "../../../core/types/classification.ts";
+import type { MemoryRecord, StoredMemoryRecord } from "../types.ts";
+import type { SessionId } from "../../../core/types/session.ts";
 
 /** Deserialise a StoredMemoryRecord JSON string back to a MemoryRecord. */
 export function deserialiseRecord(json: string): MemoryRecord {

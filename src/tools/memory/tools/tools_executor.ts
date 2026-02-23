@@ -9,10 +9,10 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type { SessionId } from "../../core/types/session.ts";
-import type { MemoryStore } from "./store.ts";
-import type { MemorySearchProvider } from "./search.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import type { SessionId } from "../../../core/types/session.ts";
+import type { MemoryStore } from "../store.ts";
+import type { MemorySearchProvider } from "../search/mod.ts";
 
 /** Context required by the memory tool executor. */
 export interface MemoryToolContext {

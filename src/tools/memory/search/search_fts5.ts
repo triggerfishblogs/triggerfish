@@ -8,9 +8,9 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import { canFlowTo } from "../../core/types/classification.ts";
-import type { MemoryRecord } from "./types.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import { canFlowTo } from "../../../core/types/classification.ts";
+import type { MemoryRecord } from "../types.ts";
 import type {
   MemorySearchOptions,
   MemorySearchProvider,

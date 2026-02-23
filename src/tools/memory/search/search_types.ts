@@ -7,8 +7,8 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type { MemoryRecord } from "./types.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import type { MemoryRecord } from "../types.ts";
 
 /** A search result with relevance rank. */
 export interface MemorySearchResult {

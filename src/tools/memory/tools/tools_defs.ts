@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../../core/types/tool.ts";
+import type { ToolDefinition } from "../../../core/types/tool.ts";
 
 function buildMemorySaveParams(): ToolDefinition["parameters"] {
   return {

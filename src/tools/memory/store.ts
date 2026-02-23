@@ -20,8 +20,8 @@ import {
 import type { SessionId } from "../../core/types/session.ts";
 import type { Result } from "../../core/types/classification.ts";
 import type { MemoryError, MemoryRecord } from "./types.ts";
-import type { MemorySearchProvider } from "./search.ts";
-import { deserialiseRecord, serialiseRecord } from "./search.ts";
+import type { MemorySearchProvider } from "./search/mod.ts";
+import { deserialiseRecord, serialiseRecord } from "./search/mod.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("memory");
