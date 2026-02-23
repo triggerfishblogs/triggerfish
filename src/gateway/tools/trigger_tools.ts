@@ -21,7 +21,10 @@
 import type { ToolDefinition } from "../../core/types/tool.ts";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { canFlowTo } from "../../core/types/classification.ts";
-import type { TriggerResult, TriggerStore } from "../../scheduler/triggers/store.ts";
+import type {
+  TriggerResult,
+  TriggerStore,
+} from "../../scheduler/triggers/store.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("security");
@@ -55,54 +58,62 @@ const CLASSIFICATION_ORDER: Readonly<Record<string, number>> = {
   RESTRICTED: 3,
 };
 
+function buildTriggerAddToContextDef(): ToolDefinition {
+  return {
+    name: "trigger_add_to_context",
+    description:
+      "Add the output of the last trigger run to the current conversation context. " +
+      "Blocked if your session taint is higher than the trigger's classification (write-down). " +
+      "If the trigger's classification is higher than your session taint, your session taint will escalate.",
+    parameters: {
+      source: {
+        type: "string",
+        description:
+          "Trigger source identifier. Defaults to 'trigger' (the periodic trigger). " +
+          "Use 'cron:<job-id>' for cron jobs or 'webhook:<source-id>' for webhooks.",
+        required: false,
+      },
+    },
+  };
+}
+
+function buildToolClassificationDef(): ToolDefinition {
+  return {
+    name: "get_tool_classification",
+    description: "Look up the classification level of one or more tools. " +
+      "In trigger sessions, call this before executing your planned tool calls to determine " +
+      "the correct order (lowest to highest classification). " +
+      "Built-in tools (exec, memory, web, etc.) are PUBLIC. " +
+      "Integration tools (gmail_, calendar_, github_, etc.) have their configured classification.",
+    parameters: {
+      tools: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "List of tool names to classify. Returns classifications and recommended call order.",
+        required: true,
+      },
+    },
+  };
+}
+
 /** Get the tool definitions for trigger context tools. */
 export function getTriggerToolDefinitions(): readonly ToolDefinition[] {
   return [
-    {
-      name: "trigger_add_to_context",
-      description:
-        "Add the output of the last trigger run to the current conversation context. " +
-        "Blocked if your session taint is higher than the trigger's classification (write-down). " +
-        "If the trigger's classification is higher than your session taint, your session taint will escalate.",
-      parameters: {
-        source: {
-          type: "string",
-          description:
-            "Trigger source identifier. Defaults to 'trigger' (the periodic trigger). " +
-            "Use 'cron:<job-id>' for cron jobs or 'webhook:<source-id>' for webhooks.",
-          required: false,
-        },
-      },
-    },
-    {
-      name: "get_tool_classification",
-      description:
-        "Look up the classification level of one or more tools. " +
-        "In trigger sessions, call this before executing your planned tool calls to determine " +
-        "the correct order (lowest to highest classification). " +
-        "Built-in tools (exec, memory, web, etc.) are PUBLIC. " +
-        "Integration tools (gmail_, calendar_, github_, etc.) have their configured classification.",
-      parameters: {
-        tools: {
-          type: "array",
-          items: { type: "string" },
-          description:
-            "List of tool names to classify. Returns classifications and recommended call order.",
-          required: true,
-        },
-      },
-    },
+    buildTriggerAddToContextDef(),
+    buildToolClassificationDef(),
   ];
 }
 
 /** Get trigger tool definitions for the main (user) session — only trigger_add_to_context. */
 export function getTriggerContextToolDefinitions(): readonly ToolDefinition[] {
-  return getTriggerToolDefinitions().filter((t) => t.name === "trigger_add_to_context");
+  return getTriggerToolDefinitions().filter((t) =>
+    t.name === "trigger_add_to_context"
+  );
 }
 
 /** System prompt section explaining trigger_add_to_context to the user-session LLM. */
-export const TRIGGER_TOOLS_SYSTEM_PROMPT =
-  `## Trigger Context
+export const TRIGGER_TOOLS_SYSTEM_PROMPT = `## Trigger Context
 
 You can retrieve recent trigger outputs and inject them into the conversation.
 
@@ -183,7 +194,9 @@ export function createTriggerClassificationToolExecutor(
       return "Error: 'tools' parameter must be a non-empty array of tool names.";
     }
 
-    const classifications: Array<{ tool: string; classification: ClassificationLevel }> = [];
+    const classifications: Array<
+      { tool: string; classification: ClassificationLevel }
+    > = [];
 
     for (const toolName of toolNames) {
       let found = false;
@@ -196,7 +209,10 @@ export function createTriggerClassificationToolExecutor(
       }
       if (!found) {
         // Built-in tools not in the classification map are ungated (PUBLIC).
-        classifications.push({ tool: toolName, classification: "PUBLIC" as ClassificationLevel });
+        classifications.push({
+          tool: toolName,
+          classification: "PUBLIC" as ClassificationLevel,
+        });
       }
     }
 
@@ -210,7 +226,10 @@ export function createTriggerClassificationToolExecutor(
 
     const result = {
       classifications,
-      recommended_order: sorted.map((c) => ({ tool: c.tool, classification: c.classification })),
+      recommended_order: sorted.map((c) => ({
+        tool: c.tool,
+        classification: c.classification,
+      })),
       instruction:
         "Execute tools in the recommended_order sequence (lowest classification first). " +
         "Your session taint escalates as you call higher-classified tools. " +
@@ -244,17 +263,18 @@ export function createTriggerToolExecutor(
       return "Trigger context tools are not available in this context.";
     }
 
-    const source =
-      typeof input.source === "string" && input.source.length > 0
-        ? input.source
-        : DEFAULT_SOURCE;
+    const source = typeof input.source === "string" && input.source.length > 0
+      ? input.source
+      : DEFAULT_SOURCE;
 
     // Retrieve the last result for the requested source
     let result: TriggerResult | null;
     try {
       result = await ctx.triggerStore.getLast(source);
     } catch (err) {
-      return `Error retrieving trigger result: ${err instanceof Error ? err.message : String(err)}`;
+      return `Error retrieving trigger result: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
     }
 
     if (result === null) {
