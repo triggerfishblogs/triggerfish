@@ -119,6 +119,10 @@ export async function handleClipboardPaste(
     setTimeout(() => screen.clearStatus(), 3000);
     return [...pendingImages, imgResult.value];
   }
+  log.warn("Clipboard image read failed", {
+    operation: "handleClipboardPaste",
+    error: clipResult.error,
+  });
   screen.setStatus(clipResult.error);
   setTimeout(() => screen.clearStatus(), 3000);
   return pendingImages;

@@ -56,18 +56,25 @@ async function consumeWebhookBody(
   if (!reader) return { ok: true, value: "" };
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    totalBytes += value.length;
-    if (totalBytes > maxBytes) {
-      await reader.cancel();
-      return {
-        ok: false,
-        error: `Webhook body too large: exceeds ${maxBytes} byte limit`,
-      };
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.length;
+      if (totalBytes > maxBytes) {
+        await reader.cancel();
+        return {
+          ok: false,
+          error: `Webhook body too large: exceeds ${maxBytes} byte limit`,
+        };
+      }
+      chunks.push(value);
     }
-    chunks.push(value);
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Webhook body read failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
   const merged = new Uint8Array(totalBytes);
   let offset = 0;

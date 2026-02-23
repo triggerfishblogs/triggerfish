@@ -114,6 +114,10 @@ async function enforceFetchPolicy(
     });
     return { ok: false, error: `Domain blocked by policy: ${hostname}` };
   }
+  log.debug("Domain policy allowed outbound request", {
+    operation: "enforceFetchPolicy",
+    hostname,
+  });
   return { ok: true, value: undefined };
 }
 
