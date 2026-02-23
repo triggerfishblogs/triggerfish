@@ -43,29 +43,23 @@ src/cli/
 
 ### Chat (`chat/`)
 
-- `chat_ui.ts` — Barrel: banner, tool display (compact/expanded), response formatting, screen event handler.
-- `event_handler.ts` — Maps ChatEvents to screen manager operations.
-- `ansi.ts` — ANSI escape code helpers for chat output.
-- `banner.ts` — Session startup banner rendering.
-- `format.ts` — Message formatting (markdown rendering, code blocks).
-- `spinner.ts` — Thinking indicator animation. **Every UI surface must show a thinking indicator when waiting on the LLM.**
-- `think_filter.ts` — Filter `<think>` tags from streamed LLM output.
-- `tool_display.ts` — Compact (`⚡ tool arg ✓ result`) and expanded tool call rendering.
+- `chat_ui.ts` — Barrel: imports from render/, events/, thinking/.
 - `history.ts` — Input history persisted to `~/.triggerfish/data/input_history.json`.
+- `render/` — ANSI helpers (`ansi.ts`), banner (`banner.ts`), spinner (`spinner.ts`), formatting (`format.ts`), tool display (`tool_display.ts`).
+- `events/` — Event handlers: `event_handler.ts` (dispatcher), `event_handler_state.ts`, `legacy_event_handler.ts`, `screen_event_handler.ts`.
+- `thinking/` — Think filter: `think_filter.ts` (stream processor), `think_filter_buffer.ts`, `think_filter_types.ts`.
 
 ### Terminal (`terminal/`)
 
-- `terminal.ts` — Raw terminal input via `Deno.stdin.setRaw(true)`, ANSI escape sequence parsing. `createKeypressReader` yields `Keypress` objects. `createLineEditor` is immutable — each mutation returns new instance. `createSuggestionEngine` for tab completion.
-- `screen.ts` — Screen manager interface.
-- `screen_tty.ts` — TTY screen manager with ANSI `DECSTBM` scroll regions for fixed input bar at bottom.
+- `terminal.ts` — Re-export barrel for input types. `screen.ts` — Screen manager interface. `screen_tty.ts` — TTY implementation.
+- `input/` — `keypress.ts`, `keypress_reader.ts`, `line_editor.ts`, `suggestion.ts`.
+- `render/` — `input_bar_render.ts`, `scroll_output.ts`, `spinner_render.ts`.
+- `layout/` — `ansi_escape.ts`, `cursor_position.ts`, `visual_row_layout.ts`.
 
 ### Config (`config/`)
 
-- `paths.ts` — `resolveBaseDir`, `resolveConfigPath`, `expandTilde`. Shared by cli and dive.
-- `config.ts` — `triggerfish config` subcommand: view/edit YAML config, channel prompts.
-- `channels.ts` — Channel configuration prompts (interactive).
-- `channel_prompts.ts` — Per-channel prompt templates.
-- `secrets.ts` — Secret management config prompts.
+- Root: `paths.ts`, `config.ts`, `config_crud.ts`, `channels.ts`, `yaml_paths.ts`, `secrets.ts`, `secrets_fields.ts`.
+- `prompts/` — Per-channel prompt templates: `channel_prompts.ts`, `prompt_discord.ts`, `prompt_email.ts`, `prompt_plugin.ts`, `prompt_signal.ts`, `prompt_slack.ts`, `prompt_telegram.ts`, `prompt_webchat.ts`, `prompt_whatsapp.ts`.
 
 ### Daemon (`daemon/`)
 
@@ -85,17 +79,12 @@ src/cli/
 
 Onboarding wizard (`triggerfish dive`) and diagnostic health check (`triggerfish patrol`).
 
-### Key Files
+### Structure
 
-- `wizard.ts` — 8-step interactive onboarding: choose LLM provider, name agent + personality (generates SPINE.md), connect first channel, optional plugins, Google Workspace, GitHub, search provider, install as daemon.
-- `wizard_selective.ts` — `runWizardSelective`: re-run specific sections of the wizard when config already exists (`triggerfish dive --force`).
-- `wizard_types.ts` — `WizardAnswers`, `DiveResult`, `ProviderChoice`, `ChannelChoice`, `ToneChoice`, `SearchProviderChoice`, `DEFAULT_MODELS`, `PROVIDER_LABELS`.
-- `wizard_generators.ts` — `generateConfig` (triggerfish.yaml), `generateSpine` (SPINE.md), `generateTrigger` (TRIGGER.md), `buildToneGuidelines`, `createDirectoryTree`.
-- `wizard_secrets.ts` — `storeWizardSecrets`: persists API keys to OS keychain after wizard completion.
-- `verify.ts` — LLM provider connection verification. Lightweight GET to provider's model-list endpoint (no token consumption).
-- `patrol.ts` — `createPatrolCheck`: runs diagnostic checks (gateway, LLM, channels, policy, skills) and reports HEALTHY/WARNING/CRITICAL.
-- `mod.ts` — Barrel exports.
+- Root: `mod.ts`, `verify.ts`, `patrol.ts`.
+- `wizard/` — Full wizard: `wizard.ts` (orchestrator), `wizard_types.ts`, `wizard_generators.ts`, `wizard_llm.ts`, `wizard_channels.ts`, `wizard_plugins.ts`, `wizard_integrations.ts`, `wizard_output.ts`, `wizard_secrets.ts`.
+- `selective/` — Selective re-run: `wizard_selective.ts`, `selective_config.ts`, `selective_llm.ts`, `selective_identity.ts`, `selective_channels.ts`, `selective_plugins.ts`, `selective_search.ts`.
 
 ### Dive/CLI Coupling
 
-Dive imports `cli/config/paths.ts` and `cli/config/config.ts` for path resolution and channel config prompts. CLI's `main.ts` imports `dive/patrol.ts` and `dive/wizard.ts` for command dispatch. This is an accepted bidirectional dependency between these two tightly-coupled UI modules.
+Dive imports `cli/config/paths.ts` and `cli/config/config.ts` for path resolution and channel config prompts. CLI's `main.ts` imports `dive/wizard/wizard.ts` and `dive/selective/wizard_selective.ts` for command dispatch. This is an accepted bidirectional dependency between these two tightly-coupled UI modules.

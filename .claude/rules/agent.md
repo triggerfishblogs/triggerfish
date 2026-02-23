@@ -21,21 +21,25 @@ model failover, and multi-agent routing.
 
 ```
 src/agent/
-├── orchestrator.ts       # Core orchestrator, tool dispatch, policy hook integration
-├── orchestrator_types.ts # Orchestrator type definitions
+├── mod.ts                # Barrel exports
 ├── llm.ts                # LlmProvider interface, provider registry
 ├── models.ts             # Model definitions
-├── compactor.ts          # Conversation compaction (sliding window + LLM summary)
-├── rate_limiter.ts       # Rate limiting
-├── mod.ts                # Barrel exports
+├── orchestrator/         # Core orchestrator and system prompt
+│   ├── orchestrator.ts, orchestrator_types.ts, system_prompt.ts, vision_fallback.ts
+├── loop/                 # Agent conversation loop
+│   ├── agent_loop.ts, agent_turn.ts, loop_iteration.ts, loop_types.ts
+├── dispatch/             # Tool dispatch and access control
+│   ├── tool_dispatch.ts, tool_format.ts, access_control.ts, security_context.ts, response_handling.ts
+├── compactor/            # Conversation compaction (sliding window + LLM summary)
+│   ├── compactor.ts, compactor_keywords.ts, compactor_tokens.ts, history_compaction.ts
+├── rate_limiter/         # Rate limiting
+│   ├── rate_limiter.ts, rate_limiter_core.ts, rate_limiter_provider.ts, rate_limiter_types.ts
 ├── plan/                 # Plan manager and tools
-│   ├── plan.ts           # Plan manager
-│   ├── tools.ts          # Plan LLM-callable tools
-│   ├── executor.ts       # Plan step executor
-│   ├── prompt.ts         # Plan prompt templates
-│   └── types.ts          # Plan type definitions
+│   ├── plan.ts, tools.ts, executor.ts, prompt.ts, types.ts
 └── providers/            # LLM provider implementations
-    └── (Anthropic, OpenAI, Google, Local, OpenRouter, ZenMux, Zai)
+    ├── (Anthropic, OpenAI, Local, ZenMux, Zai — root level)
+    ├── google/            # Google Gemini provider
+    └── openrouter/        # OpenRouter provider
 ```
 
 ## LLM Provider Auth
