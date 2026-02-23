@@ -53,7 +53,18 @@ export function rawWrite(text: string): void {
 
 // ─── Spinner frames and thinking messages ────────────────────────
 
-export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+export const SPINNER_FRAMES = [
+  "⠋",
+  "⠙",
+  "⠹",
+  "⠸",
+  "⠼",
+  "⠴",
+  "⠦",
+  "⠧",
+  "⠇",
+  "⠏",
+];
 
 export const THINKING_VERBS: readonly string[] = [
   "Thinking",
@@ -162,70 +173,53 @@ export function createScreenManager(): ScreenManager {
 
 // ─── Dumb screen manager (non-TTY fallback) ──────────────────────
 
+/** Build the no-op methods shared by all dumb screen managers. */
+function buildDumbScreenNoops(): Pick<
+  ScreenManager,
+  | "init"
+  | "setTaint"
+  | "setMcpStatus"
+  | "setStatus"
+  | "clearStatus"
+  | "startSpinner"
+  | "stopSpinner"
+  | "handleResize"
+  | "startResizePolling"
+  | "stopResizePolling"
+  | "cleanup"
+> {
+  const noop = (): void => {};
+  return {
+    init: noop,
+    setTaint: noop,
+    setMcpStatus: noop,
+    setStatus: noop,
+    clearStatus: noop,
+    startSpinner: noop,
+    stopSpinner: noop,
+    handleResize: noop,
+    startResizePolling: noop,
+    stopResizePolling: noop,
+    cleanup: noop,
+  };
+}
+
 /** Create a dumb screen manager for non-TTY environments. */
 function createDumbScreenManager(): ScreenManager {
   return {
     isTty: false,
-
-    init(): void {
-      // No-op for dumb mode
-    },
-
+    ...buildDumbScreenNoops(),
     writeOutput(text: string): void {
       console.log(text);
     },
-
     writeChunk(text: string): void {
       rawWrite(text);
     },
-
     redrawInput(_editor: LineEditor): void {
-      // In dumb mode, just write the prompt character
       rawWrite(" ❯ ");
     },
-
-    setTaint(_level: ClassificationLevel): void {
-      // No visual taint indicator in dumb mode
-    },
-
     getTaint(): ClassificationLevel {
       return "PUBLIC";
-    },
-
-    setMcpStatus(_connected: number, _configured: number): void {
-      // No MCP status indicator in dumb mode
-    },
-
-    setStatus(_text: string): void {
-      // No status bar in dumb mode
-    },
-
-    clearStatus(): void {
-      // No-op
-    },
-
-    startSpinner(_text: string): void {
-      // No-op — legacy handler uses its own spinner
-    },
-
-    stopSpinner(): void {
-      // No-op
-    },
-
-    handleResize(): void {
-      // No-op
-    },
-
-    startResizePolling(_onResize: () => void): void {
-      // No-op — no resize handling in dumb mode
-    },
-
-    stopResizePolling(): void {
-      // No-op
-    },
-
-    cleanup(): void {
-      // No-op
     },
   };
 }
