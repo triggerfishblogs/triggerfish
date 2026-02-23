@@ -8,7 +8,7 @@ import {
   extractBearerToken,
   isOriginAllowed,
   rejectWebSocketUpgrade,
-} from "../../../src/core/security/websocket_auth.ts";
+} from "../../../src/core/security/mod.ts";
 
 // --- extractBearerToken ---
 

@@ -8,7 +8,7 @@
  * @module
  */
 import { assertEquals } from "@std/assert";
-import { createWebChatChannel } from "../../src/channels/webchat/adapter.ts";
+import { createWebChatChannel } from "../../src/channels/mod.ts";
 
 Deno.test("WebChatChannel: WebSocket rejected 403 — Origin not in allowedOrigins", async () => {
   const port = 28765;

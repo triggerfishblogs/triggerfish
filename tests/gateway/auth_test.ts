@@ -10,7 +10,7 @@
  * @module
  */
 import { assertEquals } from "@std/assert";
-import { createGatewayServer } from "../../src/gateway/server/server.ts";
+import { createGatewayServer } from "../../src/gateway/server/mod.ts";
 
 // --- Token authentication ---
 
