@@ -190,33 +190,38 @@ function getExecInlineDefinitions(): readonly ToolDefinition[] {
   ];
 }
 
-/** Agent meta-tools: subagent, agents_list. */
-function getAgentInlineDefinitions(): readonly ToolDefinition[] {
-  return [
-    {
-      name: "subagent",
-      description:
-        "Spawn a sub-agent for an autonomous multi-step task. Returns the result when complete.",
-      parameters: {
-        task: {
-          type: "string",
-          description: "What the sub-agent should accomplish",
-          required: true,
-        },
-        tools: {
-          type: "string",
-          description:
-            "Comma-separated tool whitelist (default: read-only tools)",
-          required: false,
-        },
+function buildSubagentDef(): ToolDefinition {
+  return {
+    name: "subagent",
+    description:
+      "Spawn a sub-agent for an autonomous multi-step task. Returns the result when complete.",
+    parameters: {
+      task: {
+        type: "string",
+        description: "What the sub-agent should accomplish",
+        required: true,
+      },
+      tools: {
+        type: "string",
+        description:
+          "Comma-separated tool whitelist (default: read-only tools)",
+        required: false,
       },
     },
-    {
-      name: "agents_list",
-      description: "List configured LLM providers/agents.",
-      parameters: {},
-    },
-  ];
+  };
+}
+
+function buildAgentsListDef(): ToolDefinition {
+  return {
+    name: "agents_list",
+    description: "List configured LLM providers/agents.",
+    parameters: {},
+  };
+}
+
+/** Agent meta-tools: subagent, agents_list. */
+function getAgentInlineDefinitions(): readonly ToolDefinition[] {
+  return [buildSubagentDef(), buildAgentsListDef()];
 }
 
 function buildCronCreateDef(): ToolDefinition {
