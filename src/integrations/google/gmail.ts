@@ -24,7 +24,10 @@ interface GmailApiMessage {
   readonly snippet: string;
   readonly labelIds?: readonly string[];
   readonly payload?: {
-    readonly headers?: readonly { readonly name: string; readonly value: string }[];
+    readonly headers?: readonly {
+      readonly name: string;
+      readonly value: string;
+    }[];
     readonly body?: { readonly data?: string };
     readonly parts?: readonly {
       readonly mimeType: string;
@@ -41,7 +44,9 @@ function decodeBase64Url(data: string): string {
 
 /** Extract a header value from Gmail message payload. */
 function getHeader(
-  headers: readonly { readonly name: string; readonly value: string }[] | undefined,
+  headers:
+    | readonly { readonly name: string; readonly value: string }[]
+    | undefined,
   name: string,
 ): string {
   if (!headers) return "";
@@ -91,6 +96,107 @@ function toGmailMessage(msg: GmailApiMessage): GmailMessage {
   };
 }
 
+/** Fetch full message details for a list of message IDs. */
+async function fetchGmailMessageDetails(
+  client: GoogleApiClient,
+  messageIds: readonly { readonly id: string }[],
+): Promise<readonly GmailMessage[]> {
+  const messages: GmailMessage[] = [];
+  for (const { id } of messageIds) {
+    const msgResult = await client.get<GmailApiMessage>(
+      `${GMAIL_BASE}/messages/${id}`,
+      { format: "full" },
+    );
+    if (msgResult.ok) {
+      messages.push(toGmailMessage(msgResult.value));
+    }
+  }
+  return messages;
+}
+
+/** Search Gmail messages by query. */
+async function searchGmailMessages(
+  client: GoogleApiClient,
+  options: GmailSearchOptions,
+): Promise<GoogleApiResult<readonly GmailMessage[]>> {
+  const params: Record<string, string> = {
+    q: options.query,
+    maxResults: String(options.maxResults ?? 10),
+  };
+  const listResult = await client.get<{
+    readonly messages?: readonly { readonly id: string }[];
+  }>(`${GMAIL_BASE}/messages`, params);
+  if (!listResult.ok) return listResult;
+
+  const messageIds = listResult.value.messages ?? [];
+  if (messageIds.length === 0) return { ok: true, value: [] };
+
+  const messages = await fetchGmailMessageDetails(client, messageIds);
+  return { ok: true, value: messages };
+}
+
+/** Fetch and convert a single Gmail message. */
+async function readGmailMessage(
+  client: GoogleApiClient,
+  messageId: string,
+): Promise<GoogleApiResult<GmailMessage>> {
+  const result = await client.get<GmailApiMessage>(
+    `${GMAIL_BASE}/messages/${messageId}`,
+    { format: "full" },
+  );
+  if (!result.ok) return result;
+  return { ok: true, value: toGmailMessage(result.value) };
+}
+
+/** Build RFC 2822 headers for an outbound email. */
+function buildRfc2822Headers(options: GmailSendOptions): readonly string[] {
+  const headers = [
+    `To: ${options.to}`,
+    `Subject: ${options.subject}`,
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=UTF-8",
+  ];
+  if (options.cc) headers.push(`Cc: ${options.cc}`);
+  if (options.bcc) headers.push(`Bcc: ${options.bcc}`);
+  return headers;
+}
+
+/** Encode an RFC 2822 message as base64url for the Gmail API. */
+function encodeGmailPayload(options: GmailSendOptions): string {
+  const headers = buildRfc2822Headers(options);
+  const rawMessage = headers.join("\r\n") + "\r\n\r\n" + options.body;
+  return btoa(rawMessage)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+/** Send a Gmail message. */
+function sendGmailMessage(
+  client: GoogleApiClient,
+  options: GmailSendOptions,
+): Promise<GoogleApiResult<{ readonly id: string }>> {
+  const encoded = encodeGmailPayload(options);
+  return client.post<{ readonly id: string }>(
+    `${GMAIL_BASE}/messages/send`,
+    { raw: encoded },
+  );
+}
+
+/** Modify labels on a Gmail message. */
+function modifyGmailLabels(
+  client: GoogleApiClient,
+  options: GmailLabelOptions,
+): Promise<GoogleApiResult<{ readonly id: string }>> {
+  return client.post<{ readonly id: string }>(
+    `${GMAIL_BASE}/messages/${options.messageId}/modify`,
+    {
+      addLabelIds: options.addLabelIds ?? [],
+      removeLabelIds: options.removeLabelIds ?? [],
+    },
+  );
+}
+
 /**
  * Create a Gmail service.
  *
@@ -98,84 +204,9 @@ function toGmailMessage(msg: GmailApiMessage): GmailMessage {
  */
 export function createGmailService(client: GoogleApiClient): GmailService {
   return {
-    async search(
-      options: GmailSearchOptions,
-    ): Promise<GoogleApiResult<readonly GmailMessage[]>> {
-      const params: Record<string, string> = {
-        q: options.query,
-        maxResults: String(options.maxResults ?? 10),
-      };
-
-      const listResult = await client.get<{
-        readonly messages?: readonly { readonly id: string }[];
-      }>(`${GMAIL_BASE}/messages`, params);
-
-      if (!listResult.ok) return listResult;
-
-      const messageIds = listResult.value.messages ?? [];
-      if (messageIds.length === 0) {
-        return { ok: true, value: [] };
-      }
-
-      // Fetch full messages
-      const messages: GmailMessage[] = [];
-      for (const { id } of messageIds) {
-        const msgResult = await client.get<GmailApiMessage>(
-          `${GMAIL_BASE}/messages/${id}`,
-          { format: "full" },
-        );
-        if (msgResult.ok) {
-          messages.push(toGmailMessage(msgResult.value));
-        }
-      }
-
-      return { ok: true, value: messages };
-    },
-
-    async read(messageId: string): Promise<GoogleApiResult<GmailMessage>> {
-      const result = await client.get<GmailApiMessage>(
-        `${GMAIL_BASE}/messages/${messageId}`,
-        { format: "full" },
-      );
-      if (!result.ok) return result;
-      return { ok: true, value: toGmailMessage(result.value) };
-    },
-
-    send(
-      options: GmailSendOptions,
-    ): Promise<GoogleApiResult<{ readonly id: string }>> {
-      // Build RFC 2822 message
-      const headers = [
-        `To: ${options.to}`,
-        `Subject: ${options.subject}`,
-        "MIME-Version: 1.0",
-        "Content-Type: text/plain; charset=UTF-8",
-      ];
-      if (options.cc) headers.push(`Cc: ${options.cc}`);
-      if (options.bcc) headers.push(`Bcc: ${options.bcc}`);
-
-      const rawMessage = headers.join("\r\n") + "\r\n\r\n" + options.body;
-      const encoded = btoa(rawMessage)
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/, "");
-
-      return client.post<{ readonly id: string }>(
-        `${GMAIL_BASE}/messages/send`,
-        { raw: encoded },
-      );
-    },
-
-    label(
-      options: GmailLabelOptions,
-    ): Promise<GoogleApiResult<{ readonly id: string }>> {
-      return client.post<{ readonly id: string }>(
-        `${GMAIL_BASE}/messages/${options.messageId}/modify`,
-        {
-          addLabelIds: options.addLabelIds ?? [],
-          removeLabelIds: options.removeLabelIds ?? [],
-        },
-      );
-    },
+    search: (options) => searchGmailMessages(client, options),
+    read: (messageId) => readGmailMessage(client, messageId),
+    send: (options) => sendGmailMessage(client, options),
+    label: (options) => modifyGmailLabels(client, options),
   };
 }
