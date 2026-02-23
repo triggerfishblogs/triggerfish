@@ -113,6 +113,7 @@ export function assembleOrchestratorConfig(
     domainClassifier: config.domainClassifier,
     toolFloorRegistry: config.toolFloorRegistry,
     secretStore: config.secretStore,
+    getActiveSkillContext: config.getActiveSkillContext,
   };
 }
 

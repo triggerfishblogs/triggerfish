@@ -193,6 +193,16 @@ export function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
   const webExecutor = createWebToolExecutor(
     opts.searchProvider,
     opts.webFetcher,
+    opts.skillContextTracker
+      ? {
+        getActiveSkillDomains: () => {
+          const active = opts.skillContextTracker!.getActive();
+          return active && active.networkDomains.length > 0
+            ? active.networkDomains
+            : null;
+        },
+      }
+      : undefined,
   );
   const chain = [
     ...buildCoreSubsystems(opts, todoExecutor),

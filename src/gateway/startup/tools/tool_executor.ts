@@ -31,6 +31,7 @@ import type { createClaudeToolExecutor } from "../../../exec/claude.ts";
 import type { createSecretToolExecutor } from "../../../tools/secrets.ts";
 import type { createTriggerToolExecutor } from "../../tools/trigger/trigger_tools.ts";
 import type { createSkillToolExecutor } from "../../../tools/skills/mod.ts";
+import type { SkillContextTracker } from "../../../tools/skills/mod.ts";
 import type { createPlanToolExecutor } from "../../../agent/plan/plan.ts";
 import type { createMemoryToolExecutor } from "../../../tools/memory/mod.ts";
 import type { buildWebTools } from "../factory/web_tools.ts";
@@ -103,6 +104,7 @@ export function assembleMainToolExecutor(
     readonly secretExecutor: ReturnType<typeof createSecretToolExecutor>;
     readonly triggerExecutor: ReturnType<typeof createTriggerToolExecutor>;
     readonly skillExecutor: ReturnType<typeof createSkillToolExecutor>;
+    readonly skillContextTracker?: SkillContextTracker;
   },
 ) {
   const aux = buildAuxiliaryExecutors(

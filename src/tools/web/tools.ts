@@ -147,6 +147,32 @@ async function executeWebFetch(
 
 // ─── Executor ───────────────────────────────────────────────────────────────
 
+/** Check skill domain restriction for web_fetch. Returns error string or null. */
+function checkSkillDomainRestriction(
+  url: string,
+  getActiveSkillDomains: (() => readonly string[] | null) | undefined,
+): string | null {
+  if (!getActiveSkillDomains) return null;
+  const domains = getActiveSkillDomains();
+  if (!domains || domains.length === 0) return null;
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    return null; // Let the fetcher handle invalid URLs
+  }
+  const allowed = domains.some(
+    (d) => hostname === d || hostname.endsWith(`.${d}`),
+  );
+  if (!allowed) {
+    return (
+      `Domain "${hostname}" is not in this skill's declared network_domains. ` +
+      `Skill may only access: ${domains.join(", ")}`
+    );
+  }
+  return null;
+}
+
 /**
  * Create a tool executor for web tools.
  *
@@ -154,11 +180,19 @@ async function executeWebFetch(
  *
  * @param searchProvider - The search provider to use for web_search
  * @param webFetcher - The web fetcher to use for web_fetch
+ * @param options - Optional extended options (e.g. skill domain restriction)
  * @returns An executor function: (name, input) => Promise<string | null>
  */
 export function createWebToolExecutor(
   searchProvider: SearchProvider | undefined,
   webFetcher: WebFetcher | undefined,
+  options?: {
+    /**
+     * Returns the active skill's declared `network_domains`, or null if no
+     * restriction applies. When non-null, web_fetch is restricted to those domains.
+     */
+    readonly getActiveSkillDomains?: () => readonly string[] | null;
+  },
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
   // deno-lint-ignore require-await
   return async (
@@ -168,8 +202,18 @@ export function createWebToolExecutor(
     switch (name) {
       case "web_search":
         return executeWebSearch(searchProvider, input);
-      case "web_fetch":
+      case "web_fetch": {
+        // Check skill domain restriction before fetching
+        const url = input.url;
+        if (typeof url === "string") {
+          const domainError = checkSkillDomainRestriction(
+            url,
+            options?.getActiveSkillDomains,
+          );
+          if (domainError) return `Error: ${domainError}`;
+        }
         return executeWebFetch(webFetcher, input);
+      }
       default:
         return null;
     }

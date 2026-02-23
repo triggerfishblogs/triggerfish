@@ -8,12 +8,22 @@
  * session taint. `read_skill` bypasses this by accessing skills through
  * the skill loader abstraction, which is classification-neutral.
  *
+ * Security checks applied at activation time (when a skill is found):
+ *   1. Classification ceiling — session taint must canFlowTo skill ceiling
+ *   2. Integrity check — SHA-256 hash verified against install-time record
+ *   3. Scanner check — content scanned for injection/obfuscation patterns
+ *
  * @module
  */
 
 import { join } from "@std/path";
 import type { ToolDefinition } from "../../core/types/tool.ts";
-import type { SkillLoader } from "./loader.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { Skill, SkillLoader } from "./loader.ts";
+import type { SkillContextTracker } from "./context.ts";
+import type { SkillScanner } from "./scanner.ts";
+import { checkSkillClassificationCeiling } from "./enforcer.ts";
+import { computeSkillHash, verifySkillIntegrity } from "./integrity.ts";
 
 /** Skill type argument accepted by read_skill. */
 export type SkillType = "BUNDLED" | "USER_PROVIDED";
@@ -22,6 +32,21 @@ export type SkillType = "BUNDLED" | "USER_PROVIDED";
 export interface SkillToolContext {
   /** Skill loader used to discover available skills. */
   readonly skillLoader: SkillLoader;
+  /**
+   * Tracker updated when a skill is activated.
+   * When provided, sets the active skill after all security checks pass.
+   */
+  readonly skillContextTracker?: SkillContextTracker;
+  /**
+   * Getter for the current session taint level.
+   * When provided, classification ceiling enforcement is applied.
+   */
+  readonly getSessionTaint?: () => ClassificationLevel;
+  /**
+   * Scanner for validating skill content at activation time.
+   * When provided, content is scanned before the skill is activated.
+   */
+  readonly skillScanner?: SkillScanner;
 }
 
 function buildReadSkillDef(): ToolDefinition {
@@ -57,6 +82,45 @@ export function getSkillToolDefinitions(): readonly ToolDefinition[] {
   return [buildReadSkillDef()];
 }
 
+/** Validate classification ceiling for skill activation. Returns error string or null. */
+function validateClassificationCeiling(
+  ctx: SkillToolContext,
+  skill: Skill,
+): string | null {
+  if (!ctx.getSessionTaint) return null;
+  return checkSkillClassificationCeiling(ctx.getSessionTaint(), skill);
+}
+
+/** Validate skill content integrity against stored hash. Returns error string or null. */
+async function validateSkillIntegrity(
+  skillPath: string,
+  content: string,
+  skillName: string,
+): Promise<string | null> {
+  const currentHash = await computeSkillHash(content);
+  const integrityResult = await verifySkillIntegrity(skillPath, currentHash);
+  if (integrityResult === false) {
+    return `Skill "${skillName}" content has been tampered with. Reinstall from The Reef.`;
+  }
+  return null;
+}
+
+/** Validate skill content using the scanner. Returns error string or null. */
+async function validateSkillContent(
+  ctx: SkillToolContext,
+  content: string,
+  skillName: string,
+): Promise<string | null> {
+  if (!ctx.skillScanner) return null;
+  const scanResult = await ctx.skillScanner.scan(content);
+  if (!scanResult.ok) {
+    return `Skill "${skillName}" failed security scan: ${
+      scanResult.warnings.join("; ")
+    }`;
+  }
+  return null;
+}
+
 /**
  * Create a tool executor for skill reading operations.
  *
@@ -66,7 +130,7 @@ export function getSkillToolDefinitions(): readonly ToolDefinition[] {
  * takes no sessionTaint parameter — taint decisions belong in the orchestrator
  * layer, not in this tool. Skills are capability metadata, not classified data.
  *
- * @param ctx - Context containing the skill loader
+ * @param ctx - Context containing the skill loader and optional security hooks
  */
 export function createSkillToolExecutor(
   ctx: SkillToolContext,
@@ -117,6 +181,10 @@ export function createSkillToolExecutor(
       });
     }
 
+    // ── Security check 1: Classification ceiling ──────────────────────────
+    const ceilingError = validateClassificationCeiling(ctx, skill);
+    if (ceilingError) return `Error: ${ceilingError}`;
+
     // Read the SKILL.md content from disk
     const skillMdPath = join(skill.path, "SKILL.md");
     let content: string;
@@ -127,6 +195,21 @@ export function createSkillToolExecutor(
         err instanceof Error ? err.message : String(err)
       }`;
     }
+
+    // ── Security check 2: Content integrity verification ──────────────────
+    const integrityError = await validateSkillIntegrity(
+      skill.path,
+      content,
+      trimmedName,
+    );
+    if (integrityError) return `Error: ${integrityError}`;
+
+    // ── Security check 3: Content security scan ───────────────────────────
+    const scanError = await validateSkillContent(ctx, content, trimmedName);
+    if (scanError) return `Error: ${scanError}`;
+
+    // ── Activate skill in context tracker ─────────────────────────────────
+    ctx.skillContextTracker?.setActive(skill);
 
     return JSON.stringify({
       found: true,

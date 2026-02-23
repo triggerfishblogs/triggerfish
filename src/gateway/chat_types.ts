@@ -116,6 +116,17 @@ export interface ChatSessionConfig {
    * waiting `secret_save` tool executor.
    */
   readonly onSecretPromptResponse?: (nonce: string, value: string | null) => void;
+  /**
+   * Getter for the currently active skill context.
+   *
+   * When non-null, the orchestrator filters available tools to only those
+   * declared in the skill's `requires_tools` list. Satisfied by a
+   * SkillContextTracker's getActive() from the skill executor.
+   */
+  readonly getActiveSkillContext?: () => {
+    readonly requiresTools: readonly string[];
+    readonly name: string;
+  } | null;
 }
 
 /** Shared chat session that serializes access to the orchestrator. */

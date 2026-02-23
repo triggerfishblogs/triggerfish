@@ -71,9 +71,18 @@ export function buildLlmMessages(
 export function resolveActiveToolList(
   state: OrchestratorState,
 ): readonly ToolDefinition[] {
-  return state.getExtraTools
+  const allTools = state.getExtraTools
     ? [...state.baseTools, ...state.getExtraTools()]
     : state.baseTools;
+
+  const activeSkill = state.config.getActiveSkillContext?.() ?? null;
+  if (!activeSkill || activeSkill.requiresTools.length === 0) return allTools;
+
+  // Filter to declared tools. Always preserve read_skill to allow switching.
+  const allowed = new Set(activeSkill.requiresTools);
+  return allTools.filter(
+    (t) => t.name === "read_skill" || allowed.has(t.name),
+  );
 }
 
 // ─── Agent loop types ────────────────────────────────────────────────────────

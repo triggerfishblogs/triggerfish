@@ -17,7 +17,11 @@ import {
   createClaudeToolExecutor,
 } from "../../../exec/claude.ts";
 import { createSecretToolExecutor } from "../../../tools/secrets.ts";
-import { createSkillToolExecutor } from "../../../tools/skills/mod.ts";
+import {
+  createSkillContextTracker,
+  createSkillToolExecutor,
+} from "../../../tools/skills/mod.ts";
+import type { SkillContextTracker } from "../../../tools/skills/mod.ts";
 import {
   buildSkillsSystemPrompt,
   buildTriggersSystemPrompt,
@@ -129,12 +133,18 @@ export function buildAgentToolExecutors(
     mainKeychain,
     (name, hint) => state.activeSecretPrompt(name, hint),
   );
+  const skillContextTracker = createSkillContextTracker();
   return {
     claudeExecutor,
     mainKeychain,
     secretExecutor,
     triggerExecutor: buildMainTriggerExecutor(triggerStore, state),
-    skillExecutor: createSkillToolExecutor({ skillLoader }),
+    skillExecutor: createSkillToolExecutor({
+      skillLoader,
+      skillContextTracker,
+      getSessionTaint: () => state.session.taint,
+    }),
+    skillContextTracker,
   };
 }
 

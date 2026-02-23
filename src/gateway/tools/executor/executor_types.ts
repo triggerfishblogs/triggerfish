@@ -9,6 +9,7 @@ import type { TodoManager } from "../../../tools/mod.ts";
 import type { SearchProvider, WebFetcher } from "../../../tools/web/mod.ts";
 import type { LlmProviderRegistry } from "../../../core/types/llm.ts";
 import type { CronManager } from "../../../scheduler/cron/parser.ts";
+import type { SkillContextTracker } from "../../../tools/skills/mod.ts";
 
 /** Generic executor signature used by optional subsystem executors. */
 export type SubsystemExecutor = (
@@ -49,4 +50,11 @@ export interface ToolExecutorOptions {
    */
   readonly triggerClassificationExecutor?: SubsystemExecutor;
   readonly skillExecutor?: SubsystemExecutor;
+  /**
+   * Skill context tracker for the current session.
+   * When provided, web_fetch is restricted to the active skill's declared
+   * network_domains (if any), and the orchestrator filters the tool list to
+   * the active skill's requires_tools.
+   */
+  readonly skillContextTracker?: SkillContextTracker;
 }

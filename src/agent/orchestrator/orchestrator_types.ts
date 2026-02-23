@@ -110,6 +110,20 @@ export interface OrchestratorConfig {
    * before dispatch. The resolved values are never logged or returned to the LLM.
    */
   readonly secretStore?: SecretStore;
+  /**
+   * Getter for the currently active skill context.
+   *
+   * When non-null, tool definitions are filtered to only those declared in the
+   * skill's `requires_tools` list (plus `read_skill` to allow skill switching).
+   * Empty `requiresTools` means no restriction.
+   *
+   * Uses a structural inline type to avoid a tools/ layer dependency.
+   * Satisfied by SkillContextTracker.getActive() from src/tools/skills/context.ts.
+   */
+  readonly getActiveSkillContext?: () => {
+    readonly requiresTools: readonly string[];
+    readonly name: string;
+  } | null;
 }
 
 /** Config shape for building integration/plugin/channel classification map. */

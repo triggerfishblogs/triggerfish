@@ -105,6 +105,8 @@ export interface ChatSessionDeps {
     typeof buildWebTools
   >["domainClassifier"];
   readonly toolFloorRegistry: ReturnType<typeof createToolFloorRegistry>;
+  /** Per-session skill context tracker for tool filtering and domain restriction. */
+  readonly skillContextTracker?: import("../../../tools/skills/mod.ts").SkillContextTracker;
 }
 
 /** Build the dynamic getter and prompt options for the chat session. */
@@ -157,6 +159,9 @@ export function assembleChatSession(deps: ChatSessionDeps) {
     domainClassifier: deps.domainClassifier,
     toolFloorRegistry: deps.toolFloorRegistry,
     primaryModelName: deps.config.models.primary.model,
+    getActiveSkillContext: deps.skillContextTracker
+      ? () => deps.skillContextTracker!.getActive()
+      : undefined,
   });
 }
 

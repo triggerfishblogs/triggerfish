@@ -34,6 +34,7 @@ import type { McpBroadcastRefs } from "../infra/mcp.ts";
 import type { wireMcpServers } from "../infra/mcp.ts";
 import type { createToolExecutor } from "../../tools/agent_tools.ts";
 import type { buildWebTools } from "../factory/web_tools.ts";
+import type { SkillContextTracker } from "../../../tools/skills/mod.ts";
 import { buildWebTools as buildWebToolsFn } from "../factory/web_tools.ts";
 import {
   createCliSecretPrompt,
@@ -90,6 +91,8 @@ export interface ToolInfraResult {
   >["domainClassifier"];
   readonly toolFloorRegistry: CoreInfraResult["toolFloorRegistry"];
   readonly tidepoolToolsRef: TidepoolToolsRef;
+  /** Per-session skill context tracker for tool filtering and domain restriction. */
+  readonly skillContextTracker: SkillContextTracker | undefined;
 }
 
 /** Create the main session state and core session-level executors. */
@@ -262,6 +265,7 @@ export function buildCompositeToolExecutor(
     secretExecutor: integrations.secretExecutor,
     triggerExecutor: integrations.triggerExecutor,
     skillExecutor: integrations.skillExecutor,
+    skillContextTracker: integrations.skillContextTracker,
   });
 }
 
@@ -296,6 +300,7 @@ export function assembleToolInfraResult(
     domainClassifier: baseDeps.domainClassifier,
     toolFloorRegistry: coreInfra.toolFloorRegistry,
     tidepoolToolsRef: sessionExecs.tidepoolToolsRef,
+    skillContextTracker: integrations.skillContextTracker,
   };
 }
 
