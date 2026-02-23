@@ -1,0 +1,191 @@
+/**
+ * SSRF Prevention Tests
+ *
+ * Tests for the SSRF denylist helpers in src/tools/web/ssrf.ts:
+ * - isPrivateIp with full-form IPv4-mapped IPv6 (new coverage)
+ * - checkIpListForSsrf: blocks when ANY record is private (multi-record DNS)
+ * - safeFetch: SSRF bypass attempt returns error
+ *
+ * @module
+ */
+import { assertEquals } from "@std/assert";
+import { checkIpListForSsrf, isPrivateIp } from "../../../src/tools/web/ssrf.ts";
+import { safeFetch } from "../../../src/tools/web/safe_fetch.ts";
+
+// ─── isPrivateIp: full-form IPv4-mapped IPv6 ─────────────────────────────────
+
+Deno.test("isPrivateIp: blocks full-form IPv4-mapped IPv6 loopback (0:0:0:0:0:ffff:7f00:1)", () => {
+  // Represents 127.0.0.1
+  assertEquals(isPrivateIp("0:0:0:0:0:ffff:7f00:1"), true);
+});
+
+Deno.test("isPrivateIp: blocks full-form IPv4-mapped IPv6 private 10.x (0:0:0:0:0:ffff:0a00:1)", () => {
+  // Represents 10.0.0.1
+  assertEquals(isPrivateIp("0:0:0:0:0:ffff:0a00:0001"), true);
+});
+
+Deno.test("isPrivateIp: blocks full-form IPv4-mapped IPv6 192.168.x (0:0:0:0:0:ffff:c0a8:0101)", () => {
+  // Represents 192.168.1.1
+  assertEquals(isPrivateIp("0:0:0:0:0:ffff:c0a8:0101"), true);
+});
+
+Deno.test("isPrivateIp: blocks full-form IPv4-mapped IPv6 link-local 169.254.x (0:0:0:0:0:ffff:a9fe:a9fe)", () => {
+  // Represents 169.254.169.254 (AWS metadata endpoint)
+  assertEquals(isPrivateIp("0:0:0:0:0:ffff:a9fe:a9fe"), true);
+});
+
+Deno.test("isPrivateIp: allows full-form IPv4-mapped IPv6 public IP (0:0:0:0:0:ffff:0808:0808)", () => {
+  // Represents 8.8.8.8
+  assertEquals(isPrivateIp("0:0:0:0:0:ffff:0808:0808"), false);
+});
+
+Deno.test("isPrivateIp: allows full-form IPv4-mapped IPv6 another public IP (0:0:0:0:0:ffff:0101:0101)", () => {
+  // Represents 1.1.1.1
+  assertEquals(isPrivateIp("0:0:0:0:0:ffff:0101:0101"), false);
+});
+
+// ─── checkIpListForSsrf: multi-record DNS ─────────────────────────────────────
+
+Deno.test("checkIpListForSsrf: blocks when first record is private", () => {
+  const result = checkIpListForSsrf("evil.example", ["127.0.0.1", "8.8.8.8"]);
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("127.0.0.1"), true);
+  }
+});
+
+Deno.test("checkIpListForSsrf: blocks when private IP is not the first record", () => {
+  // The key bypass scenario: first record is public, second is private
+  const result = checkIpListForSsrf("sneaky.example", [
+    "8.8.8.8",
+    "127.0.0.1",
+  ]);
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("127.0.0.1"), true);
+  }
+});
+
+Deno.test("checkIpListForSsrf: blocks when only the third record is private (10.x)", () => {
+  const result = checkIpListForSsrf("rebind.example", [
+    "93.184.216.34",
+    "1.1.1.1",
+    "10.0.0.1",
+  ]);
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("10.0.0.1"), true);
+  }
+});
+
+Deno.test("checkIpListForSsrf: blocks when only the third record is link-local (169.254.x)", () => {
+  // 169.254.169.254 is the AWS instance metadata endpoint
+  const result = checkIpListForSsrf("aws-bypass.example", [
+    "8.8.8.8",
+    "1.1.1.1",
+    "169.254.169.254",
+  ]);
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("169.254.169.254"), true);
+  }
+});
+
+Deno.test("checkIpListForSsrf: allows when all records are public", () => {
+  const result = checkIpListForSsrf("cdn.example", [
+    "93.184.216.34",
+    "8.8.8.8",
+    "1.1.1.1",
+  ]);
+  assertEquals(result.ok, true);
+  if (result.ok) {
+    // Returns first record
+    assertEquals(result.value, "93.184.216.34");
+  }
+});
+
+Deno.test("checkIpListForSsrf: allows single public record", () => {
+  const result = checkIpListForSsrf("example.com", ["93.184.216.34"]);
+  assertEquals(result.ok, true);
+  if (result.ok) {
+    assertEquals(result.value, "93.184.216.34");
+  }
+});
+
+Deno.test("checkIpListForSsrf: error message includes hostname and blocked IP", () => {
+  const result = checkIpListForSsrf("evil.local", ["192.168.1.100"]);
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("evil.local"), true);
+    assertEquals(result.error.includes("192.168.1.100"), true);
+  }
+});
+
+// ─── safeFetch: SSRF prevention ──────────────────────────────────────────────
+
+Deno.test("safeFetch: blocks request when SSRF check fails", async () => {
+  const blockedDns = (_hostname: string) =>
+    Promise.resolve({
+      ok: false as const,
+      error: "SSRF blocked: example.com resolves to private IP 127.0.0.1",
+    });
+
+  const result = await safeFetch("https://example.com/page", {}, blockedDns);
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("SSRF blocked"), true);
+  }
+});
+
+Deno.test("safeFetch: rejects invalid URL", async () => {
+  const allowDns = (_hostname: string) =>
+    Promise.resolve({ ok: true as const, value: "8.8.8.8" });
+
+  const result = await safeFetch("not a url", {}, allowDns);
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("Invalid URL"), true);
+  }
+});
+
+Deno.test("safeFetch: rejects non-http protocols", async () => {
+  const allowDns = (_hostname: string) =>
+    Promise.resolve({ ok: true as const, value: "8.8.8.8" });
+
+  const result = await safeFetch("ftp://example.com/file", {}, allowDns);
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("Unsupported protocol"), true);
+  }
+});
+
+Deno.test("safeFetch: calls SSRF check with correct hostname", async () => {
+  let capturedHostname = "";
+  const captureDns = (hostname: string) => {
+    capturedHostname = hostname;
+    return Promise.resolve({
+      ok: false as const,
+      error: `SSRF blocked: ${hostname}`,
+    });
+  };
+
+  await safeFetch("https://target.example.com/api", {}, captureDns);
+  assertEquals(capturedHostname, "target.example.com");
+});
+
+// ─── Regression: existing isPrivateIp tests still pass ───────────────────────
+
+Deno.test("isPrivateIp regression: short-form IPv4-mapped IPv6 still blocked", () => {
+  assertEquals(isPrivateIp("::ffff:127.0.0.1"), true);
+  assertEquals(isPrivateIp("::ffff:10.0.0.1"), true);
+  assertEquals(isPrivateIp("::ffff:192.168.1.1"), true);
+});
+
+Deno.test("isPrivateIp regression: IPv6 loopback ::1 still blocked", () => {
+  assertEquals(isPrivateIp("::1"), true);
+});
+
+Deno.test("isPrivateIp regression: public IPs still allowed", () => {
+  assertEquals(isPrivateIp("8.8.8.8"), false);
+  assertEquals(isPrivateIp("1.1.1.1"), false);
+});

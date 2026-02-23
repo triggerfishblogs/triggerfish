@@ -9,7 +9,7 @@
  * @module
  */
 
-export { isPrivateIp, resolveAndCheck } from "./ssrf.ts";
+export { checkIpListForSsrf, isPrivateIp, resolveAndCheck } from "./ssrf.ts";
 export {
   createDomainPolicy,
   type DomainClassification,
