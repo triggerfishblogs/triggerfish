@@ -32,6 +32,17 @@ export interface CliChannel extends ChannelAdapter {
   simulateInput(text: string): void;
 }
 
+/** Format a channel message with optional taint prefix. */
+function formatCliOutput(
+  message: ChannelMessage,
+  showTaint: boolean,
+): string {
+  if (showTaint && message.sessionTaint) {
+    return `[${message.sessionTaint}] ${message.content}`;
+  }
+  return message.content;
+}
+
 /**
  * Create a CLI channel adapter.
  *
@@ -47,41 +58,26 @@ export function createCliChannel(config: CliChannelConfig): CliChannel {
   return {
     classification: "INTERNAL" as ClassificationLevel,
     isOwner: true,
-
     // deno-lint-ignore require-await
     async connect(): Promise<void> {
       connected = true;
     },
-
     // deno-lint-ignore require-await
     async disconnect(): Promise<void> {
       connected = false;
     },
-
     // deno-lint-ignore require-await
     async send(message: ChannelMessage): Promise<void> {
-      let output = message.content;
-      if (showTaint && message.sessionTaint) {
-        output = `[${message.sessionTaint}] ${output}`;
-      }
-      outputFn(output);
+      outputFn(formatCliOutput(message, showTaint));
     },
-
     onMessage(msgHandler: MessageHandler): void {
       handler = msgHandler;
     },
-
     status(): ChannelStatus {
-      return {
-        connected,
-        channelType: "cli",
-      };
+      return { connected, channelType: "cli" };
     },
-
     simulateInput(text: string): void {
-      if (handler) {
-        handler({ content: text });
-      }
+      if (handler) handler({ content: text });
     },
   };
 }
