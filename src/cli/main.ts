@@ -250,36 +250,42 @@ async function runDaemonLogs(
   await tailLogs(follow, 50, levelFilter);
 }
 
+/** Prompt user to start daemon if it was not running after update. */
+async function promptDaemonStartAfterUpdate(): Promise<void> {
+  const startIt = await Confirm.prompt({
+    message: "Daemon was not running. Start it now?",
+    default: true,
+  });
+  if (!startIt) return;
+  const startResult = await installAndStartDaemon(Deno.execPath());
+  console.log(startResult.ok ? "✓ Daemon started" : `✗ ${startResult.message}`);
+}
+
+/** Handle a successful update result (new version or already up to date). */
+async function handleUpdateSuccess(result: {
+  readonly previousVersion?: string;
+  readonly newVersion?: string;
+  readonly message: string;
+  readonly wasRunning?: boolean;
+}): Promise<void> {
+  if (result.previousVersion === result.newVersion) {
+    console.log("✓ Already up to date (" + result.newVersion + ")");
+    return;
+  }
+  console.log("✓", result.message);
+  if (result.wasRunning) {
+    console.log("\nRun 'triggerfish status' to verify the daemon restarted.");
+  } else {
+    await promptDaemonStartAfterUpdate();
+  }
+}
+
 /** Download and install the latest release binary. */
 async function runUpdate(): Promise<void> {
   console.log("Updating Triggerfish...\n");
-
   const result = await updateTriggerfish();
-
   if (result.ok) {
-    if (result.previousVersion === result.newVersion) {
-      console.log("✓ Already up to date (" + result.newVersion + ")");
-    } else {
-      console.log("✓", result.message);
-      if (result.wasRunning) {
-        console.log(
-          "\nRun 'triggerfish status' to verify the daemon restarted.",
-        );
-      } else {
-        const startIt = await Confirm.prompt({
-          message: "Daemon was not running. Start it now?",
-          default: true,
-        });
-        if (startIt) {
-          const startResult = await installAndStartDaemon(Deno.execPath());
-          if (startResult.ok) {
-            console.log("✓ Daemon started");
-          } else {
-            console.log(`✗ ${startResult.message}`);
-          }
-        }
-      }
-    }
+    await handleUpdateSuccess(result);
   } else {
     console.log("✗", result.message);
     Deno.exit(1);
