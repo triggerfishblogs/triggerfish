@@ -25,7 +25,7 @@ export {
   runConfigValidate,
 } from "./config_crud.ts";
 
-export { promptChannelConfig, promptPluginConfig } from "./channel_prompts.ts";
+export { promptChannelConfig, promptPluginConfig } from "./prompts/channel_prompts.ts";
 export {
   runConfigAddChannel,
   runConfigAddPlugin,

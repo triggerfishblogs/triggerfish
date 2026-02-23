@@ -8,7 +8,7 @@ import { Confirm, Select } from "@cliffy/prompt";
 import { backupConfig, resolveConfigPath } from "./paths.ts";
 import { CHANNEL_TYPES, PLUGIN_TYPES } from "./yaml_paths.ts";
 import { promptDaemonRestart } from "./config_crud.ts";
-import { promptChannelConfig, promptPluginConfig } from "./channel_prompts.ts";
+import { promptChannelConfig, promptPluginConfig } from "./prompts/channel_prompts.ts";
 
 type ChannelType = typeof CHANNEL_TYPES[number];
 type PluginType = typeof PLUGIN_TYPES[number];

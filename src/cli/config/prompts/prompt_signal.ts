@@ -9,7 +9,7 @@ import {
   checkSignalCli, downloadSignalCli, fetchLatestVersion,
   isDaemonRunning, renderQrCode, startDaemon,
   startLinkProcess, waitForDaemon,
-} from "../../channels/signal/setup.ts";
+} from "../../../channels/signal/setup.ts";
 
 /** Result of resolving the signal-cli binary location. */
 interface SignalCliBinary {
