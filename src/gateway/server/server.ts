@@ -46,6 +46,11 @@ function validateGatewayUpgradeHeaders(request: Request): Response | null {
     total += k.length + v.length;
   }
   if (total > MAX_GATEWAY_HEADER_BYTES) {
+    log.warn("WebSocket upgrade rejected: headers too large", {
+      operation: "validateGatewayUpgradeHeaders",
+      totalHeaderBytes: total,
+      limitBytes: MAX_GATEWAY_HEADER_BYTES,
+    });
     return new Response("Request Header Fields Too Large", { status: 431 });
   }
   return null;

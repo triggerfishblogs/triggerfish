@@ -57,6 +57,10 @@ export function submitChatMessage(
     ws.send(
       JSON.stringify({ type: "message", content: messageContent }),
     );
+    log.debug("Chat message sent to daemon", {
+      operation: "submitChatMessage",
+      hasImages: pendingImages.length > 0,
+    });
   } catch (err: unknown) {
     log.debug("WebSocket send failed: connection closed", { error: err });
     screen.writeOutput(formatError("Lost connection to daemon"));

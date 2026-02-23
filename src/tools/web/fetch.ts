@@ -98,8 +98,20 @@ async function enforceFetchPolicy(
   dnsChecker: DnsChecker,
 ): Promise<Result<void, string>> {
   const dnsResult = await dnsChecker(hostname);
-  if (!dnsResult.ok) return { ok: false, error: dnsResult.error };
+  if (!dnsResult.ok) {
+    log.warn("SSRF check blocked outbound request", {
+      operation: "enforceFetchPolicy",
+      hostname,
+      reason: dnsResult.error,
+    });
+    return { ok: false, error: dnsResult.error };
+  }
+  log.debug("SSRF check passed", { operation: "enforceFetchPolicy", hostname });
   if (!domainPolicy.isAllowed(url)) {
+    log.warn("Domain policy blocked outbound request", {
+      operation: "enforceFetchPolicy",
+      hostname,
+    });
     return { ok: false, error: `Domain blocked by policy: ${hostname}` };
   }
   return { ok: true, value: undefined };
