@@ -6,7 +6,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../../core/types/tool.ts";
+import type { ToolDefinition } from "../../../core/types/tool.ts";
 
 /** Build the parameter schema for the issues_list tool. */
 function buildIssuesListParams(): ToolDefinition["parameters"] {

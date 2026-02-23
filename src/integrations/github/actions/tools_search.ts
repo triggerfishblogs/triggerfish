@@ -7,8 +7,8 @@
  * @module
  */
 
-import type { GitHubClient } from "./client.ts";
-import { formatGitHubError } from "./tools_shared.ts";
+import type { GitHubClient } from "../client.ts";
+import { formatGitHubError } from "../tools_shared.ts";
 
 // ─── Search Code ─────────────────────────────────────────────────────────────
 

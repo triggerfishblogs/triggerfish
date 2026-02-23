@@ -8,8 +8,8 @@
  * @module
  */
 
-import type { HookType } from "./rules.ts";
-import type { PolicyEngine } from "./engine.ts";
+import type { HookType } from "../rules.ts";
+import type { PolicyEngine } from "../engine.ts";
 import type {
   HookContext,
   HookLogEntry,
@@ -18,7 +18,7 @@ import type {
   HookRunnerOptions,
 } from "./hook_types.ts";
 import { buildEvaluationContext } from "./hook_violations.ts";
-import { createLogger } from "../logger/logger.ts";
+import { createLogger } from "../../logger/logger.ts";
 
 const log = createLogger("policy");
 

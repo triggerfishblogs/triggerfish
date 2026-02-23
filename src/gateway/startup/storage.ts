@@ -24,7 +24,7 @@ import { createPolicyEngine } from "../../core/policy/engine.ts";
 import {
   createDefaultRules,
   createHookRunner,
-} from "../../core/policy/hooks.ts";
+} from "../../core/policy/hooks/hooks.ts";
 import type { createLogger } from "../../core/logger/mod.ts";
 import type { TriggerFishConfig } from "../../core/config.ts";
 

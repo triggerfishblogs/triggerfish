@@ -11,7 +11,7 @@ import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { updateTaint } from "../../core/types/session.ts";
 import type { TriggerFishConfig } from "../../core/config.ts";
 import { createProviderRegistry } from "../../agent/llm.ts";
-import type { createHookRunner } from "../../core/policy/hooks.ts";
+import type { createHookRunner } from "../../core/policy/hooks/hooks.ts";
 import {
   createClaudeSessionManager,
   createClaudeToolExecutor,

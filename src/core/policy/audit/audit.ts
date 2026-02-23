@@ -11,8 +11,8 @@
  * @module
  */
 
-import type { Result } from "../types/classification.ts";
-import { createLogger } from "../logger/logger.ts";
+import type { Result } from "../../types/classification.ts";
+import { createLogger } from "../../logger/logger.ts";
 import { GENESIS_HASH, importHmacKey, computeHmac } from "./audit_hmac.ts";
 
 const log = createLogger("audit");

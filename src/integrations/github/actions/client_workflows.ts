@@ -4,21 +4,21 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type { ClassificationLevel, Result } from "../../../core/types/classification.ts";
 import type {
   GitHubCodeSearchItem,
   GitHubError,
   GitHubIssueSearchItem,
   GitHubWorkflowRun,
-} from "./types.ts";
+} from "../types.ts";
 import type {
   ApiRequestFn,
   ClassifyRepoFn,
   RawCodeSearchItem,
   RawIssueSearchItem,
   RawWorkflowRun,
-} from "./client_http.ts";
-import { buildRepoPath, fetchRepoClassification } from "./client_http.ts";
+} from "../client_http.ts";
+import { buildRepoPath, fetchRepoClassification } from "../client_http.ts";
 
 // ─── Workflow runs ───────────────────────────────────────────────────────────
 

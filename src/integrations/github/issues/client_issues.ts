@@ -4,10 +4,10 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
-import type { GitHubError, GitHubIssue } from "./types.ts";
-import type { ApiRequestFn, ClassifyRepoFn, RawIssue } from "./client_http.ts";
-import { buildRepoPath, fetchRepoClassification } from "./client_http.ts";
+import type { ClassificationLevel, Result } from "../../../core/types/classification.ts";
+import type { GitHubError, GitHubIssue } from "../types.ts";
+import type { ApiRequestFn, ClassifyRepoFn, RawIssue } from "../client_http.ts";
+import { buildRepoPath, fetchRepoClassification } from "../client_http.ts";
 
 /** Extract label names from raw issue label data. */
 function extractIssueLabels(

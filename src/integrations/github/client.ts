@@ -28,24 +28,24 @@ import type { Result } from "../../core/types/classification.ts";
 import type { ApiRequestFn, ClassifyRepoFn } from "./client_http.ts";
 import { sendGitHubApiRequest } from "./client_http.ts";
 import type { GitHubApiContext } from "./client_http.ts";
-import { fetchUserRepos, fetchRepoFile, fetchRepoCommits } from "./client_repos.ts";
+import { fetchUserRepos, fetchRepoFile, fetchRepoCommits } from "./repos/mod.ts";
 import {
   fetchRepoPulls,
   submitRepoPullRequest,
   submitPullRequestReview,
   mergeRepoPullRequest,
-} from "./client_pulls.ts";
+} from "./pulls/mod.ts";
 import {
   fetchRepoIssues,
   submitRepoIssue,
   submitIssueComment,
-} from "./client_issues.ts";
+} from "./issues/mod.ts";
 import {
   fetchRepoWorkflowRuns,
   dispatchRepoWorkflow,
   searchGitHubCode,
   searchGitHubIssues,
-} from "./client_workflows.ts";
+} from "./actions/mod.ts";
 
 /** Configuration for creating a GitHub client. */
 export interface GitHubClientConfig {

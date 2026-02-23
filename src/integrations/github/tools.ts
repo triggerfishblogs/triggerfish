@@ -10,11 +10,11 @@
  */
 
 import type { GitHubToolContext } from "./tools_shared.ts";
-import { executeReposList, executeReposReadFile, executeReposCommits } from "./tools_repos.ts";
-import { executePullsList, executePullsCreate, executePullsReview, executePullsMerge } from "./tools_pulls.ts";
-import { executeIssuesList, executeIssuesCreate, executeIssuesComment } from "./tools_issues.ts";
-import { executeActionsRuns, executeActionsTrigger } from "./tools_actions.ts";
-import { executeSearchCode, executeSearchIssues } from "./tools_search.ts";
+import { executeReposList, executeReposReadFile, executeReposCommits } from "./repos/mod.ts";
+import { executePullsList, executePullsCreate, executePullsReview, executePullsMerge } from "./pulls/mod.ts";
+import { executeIssuesList, executeIssuesCreate, executeIssuesComment } from "./issues/mod.ts";
+import { executeActionsRuns, executeActionsTrigger } from "./actions/mod.ts";
+import { executeSearchCode, executeSearchIssues } from "./actions/mod.ts";
 
 // ─── Re-exports ──────────────────────────────────────────────────────────────
 

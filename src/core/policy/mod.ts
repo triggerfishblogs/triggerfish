@@ -15,8 +15,8 @@ export type {
 export { createPolicyEngine } from "./engine.ts";
 export type { EvaluationResult, PolicyEngine } from "./engine.ts";
 
-export { createHookRunner } from "./hook_runner.ts";
-export { createDefaultRules } from "./default_rules.ts";
+export { createHookRunner } from "./hooks/mod.ts";
+export { createDefaultRules } from "./hooks/mod.ts";
 export type {
   HookContext,
   HookResult,
@@ -24,13 +24,13 @@ export type {
   HookLogEntry,
   HookRunnerOptions,
   HookRunner,
-} from "./hook_types.ts";
+} from "./hooks/mod.ts";
 
-export { createAuditChain, verifyAuditChain } from "./audit.ts";
+export { createAuditChain, verifyAuditChain } from "./audit/mod.ts";
 export type {
   AuditEntry,
   ChainedAuditEntry,
   AuditChain,
-} from "./audit.ts";
+} from "./audit/mod.ts";
 
 export { effectiveClassification } from "./recipient.ts";

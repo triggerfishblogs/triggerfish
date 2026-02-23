@@ -11,8 +11,8 @@
  * @module
  */
 
-import type { SessionId, SessionState, UserId } from "../types/session.ts";
-import type { HookType, PolicyAction } from "./rules.ts";
+import type { SessionId, SessionState, UserId } from "../../types/session.ts";
+import type { HookType, PolicyAction } from "../rules.ts";
 
 /** Context provided to a hook for evaluation. */
 export interface HookContext {

@@ -11,7 +11,7 @@ import {
 } from "../../src/agent/llm.ts";
 import { createOrchestrator } from "../../src/agent/orchestrator.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
-import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks.ts";
+import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks/hooks.ts";
 import { createSession } from "../../src/core/types/session.ts";
 import type { UserId, ChannelId } from "../../src/core/types/session.ts";
 

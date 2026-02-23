@@ -4,21 +4,21 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type { ClassificationLevel, Result } from "../../../core/types/classification.ts";
 import type {
   GitHubCommit,
   GitHubError,
   GitHubFileContent,
   GitHubRepo,
   RepoVisibility,
-} from "./types.ts";
-import type { ApiRequestFn, ClassifyRepoFn } from "./client_http.ts";
+} from "../types.ts";
+import type { ApiRequestFn, ClassifyRepoFn } from "../client_http.ts";
 import {
   buildRepoPath,
   extractRepoVisibility,
   fetchRepoClassification,
-} from "./client_http.ts";
-import type { RawCommit, RawContent, RawRepo } from "./client_http.ts";
+} from "../client_http.ts";
+import type { RawCommit, RawContent, RawRepo } from "../client_http.ts";
 
 /** Maximum file size (1 MB) for github_repos_read_file. */
 const MAX_FILE_SIZE = 1_048_576;

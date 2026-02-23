@@ -26,7 +26,7 @@ import { createPolicyEngine } from "../../core/policy/engine.ts";
 import {
   createDefaultRules,
   createHookRunner,
-} from "../../core/policy/hooks.ts";
+} from "../../core/policy/hooks/hooks.ts";
 import { createWorkspace } from "../../exec/workspace.ts";
 import type { ToolFloorRegistry } from "../../core/security/tool_floors.ts";
 import { createKeychain } from "../../core/secrets/keychain.ts";

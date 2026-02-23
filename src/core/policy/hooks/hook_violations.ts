@@ -8,8 +8,8 @@
  * @module
  */
 
-import { canFlowTo, CLASSIFICATION_ORDER } from "../types/classification.ts";
-import type { ClassificationLevel } from "../types/classification.ts";
+import { canFlowTo, CLASSIFICATION_ORDER } from "../../types/classification.ts";
+import type { ClassificationLevel } from "../../types/classification.ts";
 import type { HookContext } from "./hook_types.ts";
 
 /** Check if session taint cannot flow to the target classification. */

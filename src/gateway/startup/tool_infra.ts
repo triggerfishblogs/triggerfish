@@ -17,7 +17,7 @@ import {
   resolveVisionProvider,
 } from "../../agent/providers/config.ts";
 import type { ModelsConfig } from "../../agent/providers/config.ts";
-import type { createHookRunner } from "../../core/policy/hooks.ts";
+import type { createHookRunner } from "../../core/policy/hooks/hooks.ts";
 import { createExecTools } from "../../exec/tools.ts";
 import type { createSqliteStorage } from "../../core/storage/sqlite.ts";
 import type { SecretPromptCallback } from "../../tools/secrets.ts";

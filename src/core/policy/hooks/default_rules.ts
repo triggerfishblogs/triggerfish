@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { PolicyRule } from "./rules.ts";
+import type { PolicyRule } from "../rules.ts";
 
 /** Build the no-write-down enforcement rule for PRE_OUTPUT. */
 function buildNoWriteDownRule(): PolicyRule {

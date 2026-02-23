@@ -7,7 +7,7 @@ import { assertEquals, assertExists, assert } from "@std/assert";
 import { createFilesystemServer } from "../../src/integrations/filesystem/server.ts";
 import { createMcpGateway } from "../../src/mcp/gateway/gateway.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
-import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks.ts";
+import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks/hooks.ts";
 import { createSession, updateTaint } from "../../src/core/types/session.ts";
 import { createLineageStore } from "../../src/core/session/lineage.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";

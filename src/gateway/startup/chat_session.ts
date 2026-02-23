@@ -15,7 +15,7 @@ import type { TriggerFishConfig } from "../../core/config.ts";
 import type { createLogger } from "../../core/logger/mod.ts";
 import type { createProviderRegistry } from "../../agent/llm.ts";
 import { resolveVisionProvider } from "../../agent/providers/config.ts";
-import type { createHookRunner } from "../../core/policy/hooks.ts";
+import type { createHookRunner } from "../../core/policy/hooks/hooks.ts";
 import type { createKeychain } from "../../core/secrets/keychain.ts";
 import type { createPathClassifier } from "../../core/security/path_classification.ts";
 import type { createToolFloorRegistry } from "../../core/security/tool_floors.ts";

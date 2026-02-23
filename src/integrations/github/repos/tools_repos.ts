@@ -7,8 +7,8 @@
  * @module
  */
 
-import type { GitHubClient } from "./client.ts";
-import { validateRepoInput, formatGitHubError } from "./tools_shared.ts";
+import type { GitHubClient } from "../client.ts";
+import { validateRepoInput, formatGitHubError } from "../tools_shared.ts";
 
 // ─── List Repos ──────────────────────────────────────────────────────────────
 

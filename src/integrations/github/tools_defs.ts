@@ -13,27 +13,27 @@ import {
   buildReposListDef,
   buildReposReadFileDef,
   buildReposCommitsDef,
-} from "./tools_defs_repos.ts";
+} from "./repos/mod.ts";
 
 import {
   buildPullsListDef,
   buildPullsCreateDef,
   buildPullsReviewDef,
   buildPullsMergeDef,
-} from "./tools_defs_pulls.ts";
+} from "./pulls/mod.ts";
 
 import {
   buildIssuesListDef,
   buildIssuesCreateDef,
   buildIssuesCommentDef,
-} from "./tools_defs_issues.ts";
+} from "./issues/mod.ts";
 
 import {
   buildActionsRunsDef,
   buildActionsTriggerDef,
   buildSearchCodeDef,
   buildSearchIssuesDef,
-} from "./tools_defs_actions.ts";
+} from "./actions/mod.ts";
 
 // ── Public API ──
 

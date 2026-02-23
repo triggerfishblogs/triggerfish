@@ -4,10 +4,10 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
-import type { GitHubError, GitHubPull } from "./types.ts";
-import type { ApiRequestFn, ClassifyRepoFn, RawPull } from "./client_http.ts";
-import { buildRepoPath, fetchRepoClassification } from "./client_http.ts";
+import type { ClassificationLevel, Result } from "../../../core/types/classification.ts";
+import type { GitHubError, GitHubPull } from "../types.ts";
+import type { ApiRequestFn, ClassifyRepoFn, RawPull } from "../client_http.ts";
+import { buildRepoPath, fetchRepoClassification } from "../client_http.ts";
 
 /** Map a raw pull request to a GitHubPull domain type. */
 function mapRawPullToGitHubPull(

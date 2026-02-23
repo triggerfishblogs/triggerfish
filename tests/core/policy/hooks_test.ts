@@ -8,7 +8,7 @@ import {
   type HookLogEntry,
   createHookRunner,
   createDefaultRules,
-} from "../../src/core/policy/hooks.ts";
+} from "../../src/core/policy/hooks/hooks.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
 import { createSession, updateTaint } from "../../src/core/types/session.ts";
 import type { UserId, ChannelId } from "../../src/core/types/session.ts";
