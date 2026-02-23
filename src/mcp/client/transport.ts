@@ -6,6 +6,9 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("mcp");
 
 /**
  * Validates a URL before a network connection is established.
@@ -87,8 +90,11 @@ export class StdioTransport implements Transport {
             }
           }
         }
-      } catch {
-        // Process closed, stop reading
+      } catch (err) {
+        log.debug("MCP stdio read loop terminated", {
+          command: this.#command,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     };
 
@@ -100,8 +106,11 @@ export class StdioTransport implements Transport {
     if (this.#process) {
       try {
         this.#process.stdin.getWriter().close();
-      } catch {
-        // Already closed
+      } catch (err) {
+        log.debug("MCP stdio stdin already closed on disconnect", {
+          command: this.#command,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
       this.#process.kill();
       this.#process = null;
@@ -147,8 +156,15 @@ export class SSETransport implements Transport {
     if (this.#urlValidator) {
       const result = await this.#urlValidator(this.#url);
       if (!result.ok) {
+        log.warn("MCP SSE connection blocked by SSRF policy", {
+          url: this.#url,
+          reason: result.error,
+        });
         throw new Error(`SSE connection blocked by SSRF policy: ${result.error}`);
       }
+      log.debug("MCP SSE SSRF check passed", { url: this.#url });
+    } else {
+      log.debug("MCP SSE connecting without SSRF validation", { url: this.#url });
     }
     // SSE connection for receiving messages
     this.#eventSource = new EventSource(this.#url);

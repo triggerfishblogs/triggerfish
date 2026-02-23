@@ -165,6 +165,7 @@ export function checkIpListForSsrf(
       };
     }
   }
+  log.debug("SSRF check passed", { hostname, resolvedIp: ips[0] });
   return { ok: true, value: ips[0] };
 }
 

@@ -67,8 +67,11 @@ function parseAllowedHosts(
     try {
       const url = new URL(endpoint);
       hosts.add(url.host);
-    } catch {
-      // Skip invalid URLs
+    } catch (err) {
+      log.warn("Plugin sandbox: ignoring invalid declared endpoint URL", {
+        endpoint,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
   return hosts;
@@ -92,8 +95,15 @@ function buildRestrictedFetch(
     let url: URL;
     try {
       url = new URL(urlStr);
-    } catch {
-      throw new Error(`Network access blocked: invalid URL`);
+    } catch (err) {
+      log.warn("Plugin network access blocked: invalid URL", {
+        plugin: pluginName,
+        url: urlStr,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw new Error(
+        `Network access blocked: invalid URL "${urlStr}" in plugin ${pluginName}`,
+      );
     }
     if (!allowedHosts.has(url.host)) {
       log.warn("Plugin network access blocked", {
@@ -115,6 +125,10 @@ function buildRestrictedFetch(
         throw new Error(`Network access blocked: ${ssrfResult.error}`);
       }
     }
+    log.debug("Plugin network access allowed", {
+      plugin: pluginName,
+      host: url.host,
+    });
     return fetch(input, init);
   };
 }
