@@ -141,43 +141,117 @@ function resolveEnvVarName(provider: ProviderChoice): string {
   return "OPENROUTER_API_KEY";
 }
 
-async function collectLlmApiKey(
+async function collectLocalProviderEndpoint(
   provider: ProviderChoice,
 ): Promise<{ apiKey: string; localEndpoint: string }> {
-  let apiKey = "";
-  let localEndpoint = "http://localhost:11434";
+  console.log("  \u2713 Local provider \u2014 no API key needed");
+  const defaultEndpoint = provider === "ollama"
+    ? "http://localhost:11434"
+    : "http://localhost:1234";
+  const localEndpoint = await Input.prompt({
+    message: `${provider === "ollama" ? "Ollama" : "LM Studio"} endpoint`,
+    default: defaultEndpoint,
+  });
+  return { apiKey: "", localEndpoint };
+}
 
-  if (provider === "anthropic") {
-    apiKey = await Input.prompt({
-      message: "Anthropic API key (or press Enter to configure later)",
-    });
-    return { apiKey, localEndpoint };
-  }
-
-  if (provider === "ollama" || provider === "lmstudio") {
-    console.log("  \u2713 Local provider \u2014 no API key needed");
-    const defaultEndpoint = provider === "ollama"
-      ? "http://localhost:11434"
-      : "http://localhost:1234";
-    localEndpoint = await Input.prompt({
-      message: `${provider === "ollama" ? "Ollama" : "LM Studio"} endpoint`,
-      default: defaultEndpoint,
-    });
-    return { apiKey, localEndpoint };
-  }
-
+async function collectCloudProviderApiKey(
+  provider: ProviderChoice,
+): Promise<string> {
   const envVarName = resolveEnvVarName(provider);
   const existingKey = Deno.env.get(envVarName) ?? "";
   if (existingKey.length > 0) {
     console.log(`  \u2713 Detected ${envVarName} in environment`);
-    apiKey = existingKey;
+    return existingKey;
+  }
+  return await Input.prompt({
+    message: `API key (or press Enter to set ${envVarName} later)`,
+  });
+}
+
+async function collectLlmApiKey(
+  provider: ProviderChoice,
+): Promise<{ apiKey: string; localEndpoint: string }> {
+  if (provider === "anthropic") {
+    const apiKey = await Input.prompt({
+      message: "Anthropic API key (or press Enter to configure later)",
+    });
+    return { apiKey, localEndpoint: "http://localhost:11434" };
+  }
+  if (provider === "ollama" || provider === "lmstudio") {
+    return await collectLocalProviderEndpoint(provider);
+  }
+  const apiKey = await collectCloudProviderApiKey(provider);
+  return { apiKey, localEndpoint: "http://localhost:11434" };
+}
+
+function resolveVerifyEndpoint(
+  provider: ProviderChoice,
+  localEndpoint: string,
+): string | undefined {
+  return (provider === "ollama" || provider === "lmstudio")
+    ? localEndpoint
+    : undefined;
+}
+
+function requiresVerification(
+  provider: ProviderChoice,
+  apiKey: string,
+): boolean {
+  return provider === "ollama" || provider === "lmstudio" ||
+    apiKey.length > 0;
+}
+
+interface VerifyLoopState {
+  apiKey: string;
+  providerModel: string;
+  localEndpoint: string;
+}
+
+async function attemptLlmVerification(
+  provider: ProviderChoice,
+  state: VerifyLoopState,
+): Promise<boolean> {
+  console.log("");
+  console.log("  Verifying connection...");
+  const endpoint = resolveVerifyEndpoint(provider, state.localEndpoint);
+  const result = await verifyProvider(
+    provider,
+    state.apiKey,
+    state.providerModel,
+    endpoint,
+  );
+  if (result.ok) {
+    console.log("  \u2713 Connection verified");
+    return true;
+  }
+  console.log(`  \u2717 ${result.error}`);
+  console.log("");
+  return false;
+}
+
+async function applyVerifyRetryAction(
+  provider: ProviderChoice,
+  state: VerifyLoopState,
+): Promise<boolean> {
+  const action = await promptVerifyRetryAction(provider);
+  if (action === "keep") return true;
+  if (action === "endpoint") {
+    state.localEndpoint = await Input.prompt({
+      message: "Endpoint URL",
+      default: state.localEndpoint,
+    });
+  } else if (action === "model") {
+    state.providerModel = await Input.prompt({
+      message: "Model name",
+      default: state.providerModel,
+    });
   } else {
-    apiKey = await Input.prompt({
-      message: `API key (or press Enter to set ${envVarName} later)`,
+    state.apiKey = await Input.prompt({
+      message: provider === "anthropic" ? "Anthropic API key" : "API key",
     });
   }
-
-  return { apiKey, localEndpoint };
+  return false;
 }
 
 async function verifyLlmConnection(options: {
@@ -186,61 +260,25 @@ async function verifyLlmConnection(options: {
   providerModel: string;
   localEndpoint: string;
 }): Promise<{ apiKey: string; providerModel: string; localEndpoint: string }> {
-  let { apiKey, providerModel, localEndpoint } = options;
-  const { provider } = options;
+  const state: VerifyLoopState = {
+    apiKey: options.apiKey,
+    providerModel: options.providerModel,
+    localEndpoint: options.localEndpoint,
+  };
 
-  const shouldVerify = provider === "ollama" || provider === "lmstudio" ||
-    apiKey.length > 0;
-
-  if (!shouldVerify) {
-    return { apiKey, providerModel, localEndpoint };
+  if (!requiresVerification(options.provider, state.apiKey)) {
+    return { ...state };
   }
 
   let verified = false;
   while (!verified) {
-    console.log("");
-    console.log("  Verifying connection...");
-    const endpoint = provider === "ollama" || provider === "lmstudio"
-      ? localEndpoint
-      : undefined;
-    const result = await verifyProvider(
-      provider,
-      apiKey,
-      providerModel,
-      endpoint,
-    );
-
-    if (result.ok) {
-      console.log("  \u2713 Connection verified");
-      verified = true;
-      continue;
-    }
-
-    console.log(`  \u2717 ${result.error}`);
-    console.log("");
-
-    const action = await promptVerifyRetryAction(provider);
-
-    if (action === "keep") {
-      verified = true;
-    } else if (action === "endpoint") {
-      localEndpoint = await Input.prompt({
-        message: "Endpoint URL",
-        default: localEndpoint,
-      });
-    } else if (action === "model") {
-      providerModel = await Input.prompt({
-        message: "Model name",
-        default: providerModel,
-      });
-    } else {
-      apiKey = await Input.prompt({
-        message: provider === "anthropic" ? "Anthropic API key" : "API key",
-      });
+    verified = await attemptLlmVerification(options.provider, state);
+    if (!verified) {
+      verified = await applyVerifyRetryAction(options.provider, state);
     }
   }
 
-  return { apiKey, providerModel, localEndpoint };
+  return { ...state };
 }
 
 async function promptVerifyRetryAction(
@@ -285,22 +323,10 @@ async function promptLlmProviderStep(): Promise<LlmProviderResult> {
 
 // ── Step 2: Agent Identity ────────────────────────────────────────────────────
 
-async function promptAgentIdentityStep(
-  spinePath: string,
-): Promise<AgentIdentityResult> {
-  console.log("  Step 2/8: Name your agent and set its personality");
-  console.log("");
-
-  const agentName = await Input.prompt({
-    message: "Agent name",
-    default: "Triggerfish",
-  });
-
-  const mission = await Input.prompt({
-    message: "Mission (one sentence)",
-    default: "A helpful AI assistant that keeps my data safe.",
-  });
-
+async function selectAgentTone(): Promise<{
+  tone: ToneChoice;
+  customTone: string;
+}> {
   const tone = (await Select.prompt({
     message: "Communication tone",
     options: [
@@ -317,10 +343,27 @@ async function promptAgentIdentityStep(
       message: "Describe the tone you want",
     });
   }
+  return { tone, customTone };
+}
+
+async function promptAgentIdentityStep(
+  spinePath: string,
+): Promise<AgentIdentityResult> {
+  console.log("  Step 2/8: Name your agent and set its personality");
+  console.log("");
+
+  const agentName = await Input.prompt({
+    message: "Agent name",
+    default: "Triggerfish",
+  });
+  const mission = await Input.prompt({
+    message: "Mission (one sentence)",
+    default: "A helpful AI assistant that keeps my data safe.",
+  });
+  const { tone, customTone } = await selectAgentTone();
 
   console.log(`  \u2192 Will generate SPINE.md (edit anytime at ${spinePath})`);
   console.log("");
-
   return { agentName, mission, tone, customTone };
 }
 
@@ -403,105 +446,122 @@ async function collectSignalConfig(): Promise<{
   return { signalPhoneNumber, signalEndpoint };
 }
 
+interface ChannelConfigAccumulator {
+  telegramBotToken: string;
+  telegramOwnerId: string;
+  discordBotToken: string;
+  discordOwnerId: string;
+  webchatPort: number;
+  signalPhoneNumber: string;
+  signalEndpoint: string;
+}
+
+function createDefaultChannelConfig(): ChannelConfigAccumulator {
+  return {
+    telegramBotToken: "",
+    telegramOwnerId: "",
+    discordBotToken: "",
+    discordOwnerId: "",
+    webchatPort: 8765,
+    signalPhoneNumber: "",
+    signalEndpoint: "tcp://127.0.0.1:7583",
+  };
+}
+
+async function collectSelectedChannelConfigs(
+  channels: ChannelChoice[],
+): Promise<ChannelConfigAccumulator> {
+  const config = createDefaultChannelConfig();
+  if (channels.includes("telegram")) {
+    const t = await collectTelegramConfig();
+    config.telegramBotToken = t.telegramBotToken;
+    config.telegramOwnerId = t.telegramOwnerId;
+  }
+  if (channels.includes("discord")) {
+    const d = await collectDiscordConfig();
+    config.discordBotToken = d.discordBotToken;
+    config.discordOwnerId = d.discordOwnerId;
+  }
+  if (channels.includes("webchat")) {
+    config.webchatPort = await collectWebchatConfig();
+  }
+  if (channels.includes("signal")) {
+    const s = await collectSignalConfig();
+    config.signalPhoneNumber = s.signalPhoneNumber;
+    config.signalEndpoint = s.signalEndpoint;
+  }
+  return config;
+}
+
 async function promptChannelSelectionStep(): Promise<ChannelSelectionResult> {
   console.log("  Step 3/8: Connect your first channel");
   console.log("  (CLI is always available)");
   console.log("");
 
   const channels = await collectChannelChoices();
-
-  let telegramBotToken = "";
-  let telegramOwnerId = "";
-  let discordBotToken = "";
-  let discordOwnerId = "";
-  let webchatPort = 8765;
-  let signalPhoneNumber = "";
-  let signalEndpoint = "tcp://127.0.0.1:7583";
-
-  if (channels.includes("telegram")) {
-    const telegram = await collectTelegramConfig();
-    telegramBotToken = telegram.telegramBotToken;
-    telegramOwnerId = telegram.telegramOwnerId;
-  }
-
-  if (channels.includes("discord")) {
-    const discord = await collectDiscordConfig();
-    discordBotToken = discord.discordBotToken;
-    discordOwnerId = discord.discordOwnerId;
-  }
-
-  if (channels.includes("webchat")) {
-    webchatPort = await collectWebchatConfig();
-  }
-
-  if (channels.includes("signal")) {
-    const signal = await collectSignalConfig();
-    signalPhoneNumber = signal.signalPhoneNumber;
-    signalEndpoint = signal.signalEndpoint;
-  }
+  const config = await collectSelectedChannelConfigs(channels);
 
   console.log("");
 
-  return {
-    channels,
-    telegramBotToken,
-    telegramOwnerId,
-    discordBotToken,
-    discordOwnerId,
-    webchatPort,
-    signalPhoneNumber,
-    signalEndpoint,
-  };
+  return { channels, ...config };
 }
 
 // ── Step 4: Plugins ───────────────────────────────────────────────────────────
+
+async function promptValidObsidianVaultPath(): Promise<string> {
+  while (true) {
+    const rawPath = await Input.prompt({
+      message: "Path to your Obsidian vault",
+    });
+    if (rawPath.length === 0) {
+      console.log("  Vault path is required for Obsidian plugin.");
+      continue;
+    }
+    const expanded = expandTilde(rawPath);
+    try {
+      await Deno.stat(join(expanded, ".obsidian"));
+      return expanded;
+    } catch {
+      console.log(
+        `  Not a valid Obsidian vault (no .obsidian/ folder found at ${expanded})`,
+      );
+      console.log("  Please enter the root folder of your Obsidian vault.");
+    }
+  }
+}
+
+async function selectObsidianClassification(): Promise<string> {
+  return await Select.prompt({
+    message: "Vault classification level",
+    options: ["INTERNAL", "PUBLIC", "CONFIDENTIAL", "RESTRICTED"],
+    default: "INTERNAL",
+  });
+}
 
 async function collectObsidianConfig(): Promise<{
   obsidianVaultPath: string;
   obsidianClassification: string;
 }> {
-  let obsidianVaultPath = "";
-  while (true) {
-    obsidianVaultPath = await Input.prompt({
-      message: "Path to your Obsidian vault",
-    });
-    if (obsidianVaultPath.length === 0) {
-      console.log("  Vault path is required for Obsidian plugin.");
-      continue;
-    }
-    obsidianVaultPath = expandTilde(obsidianVaultPath);
-    try {
-      await Deno.stat(join(obsidianVaultPath, ".obsidian"));
-      break;
-    } catch {
-      console.log(
-        `  Not a valid Obsidian vault (no .obsidian/ folder found at ${obsidianVaultPath})`,
-      );
-      console.log("  Please enter the root folder of your Obsidian vault.");
-    }
-  }
-
-  const obsidianClassification = await Select.prompt({
-    message: "Vault classification level",
-    options: ["INTERNAL", "PUBLIC", "CONFIDENTIAL", "RESTRICTED"],
-    default: "INTERNAL",
-  });
-
+  const obsidianVaultPath = await promptValidObsidianVaultPath();
+  const obsidianClassification = await selectObsidianClassification();
   console.log("  \u2713 Obsidian vault configured");
   return { obsidianVaultPath, obsidianClassification };
+}
+
+async function selectPluginChoices(): Promise<string[]> {
+  return await Checkbox.prompt({
+    message: "Which plugins would you like to configure?",
+    options: [
+      { name: "Obsidian (local vault integration)", value: "obsidian" },
+    ],
+  });
 }
 
 async function promptPluginStep(): Promise<PluginResult> {
   console.log("  Step 4/8: Configure optional plugins");
   console.log("");
 
-  const selectedPlugins = await Checkbox.prompt({
-    message: "Which plugins would you like to configure?",
-    options: [
-      { name: "Obsidian (local vault integration)", value: "obsidian" },
-    ],
-  });
-
+  const selectedPlugins = await selectPluginChoices();
   let obsidianVaultPath = "";
   let obsidianClassification = "INTERNAL";
 
@@ -510,21 +570,31 @@ async function promptPluginStep(): Promise<PluginResult> {
     obsidianVaultPath = obsidian.obsidianVaultPath;
     obsidianClassification = obsidian.obsidianClassification;
   }
-
   if (selectedPlugins.length === 0) {
     console.log(
       "  No plugins selected \u2014 add later with: triggerfish config add-plugin",
     );
   }
-
   console.log("");
-
   return { selectedPlugins, obsidianVaultPath, obsidianClassification };
 }
 
 // ── Step 5: Google Workspace ──────────────────────────────────────────────────
 
-function printGoogleWorkspaceInstructions(): void {
+function printGoogleConsentScreenWarning(): void {
+  console.log("    5. If prompted, configure the OAuth consent screen first");
+  console.log(
+    "       IMPORTANT: Add yourself as a test user on the consent screen,",
+  );
+  console.log(
+    '       or you\'ll get "Access blocked" when authorizing.',
+  );
+  console.log(
+    "       Full walkthrough: https://trigger.fish/integrations/google-workspace.html#google-workspace",
+  );
+}
+
+function printGoogleOAuthCredentialSteps(): void {
   console.log("");
   console.log(
     "  To connect Google Workspace, you need OAuth2 credentials from Google Cloud Console.",
@@ -537,16 +607,7 @@ function printGoogleWorkspaceInstructions(): void {
   console.log(
     '    4. Click "+ CREATE CREDENTIALS" and select "OAuth client ID"',
   );
-  console.log("    5. If prompted, configure the OAuth consent screen first");
-  console.log(
-    "       IMPORTANT: Add yourself as a test user on the consent screen,",
-  );
-  console.log(
-    '       or you\'ll get "Access blocked" when authorizing.',
-  );
-  console.log(
-    "       Full walkthrough: https://trigger.fish/integrations/google-workspace.html#google-workspace",
-  );
+  printGoogleConsentScreenWarning();
   console.log(
     '    6. On the Create OAuth client ID screen, select "Desktop app" from',
   );
@@ -555,6 +616,9 @@ function printGoogleWorkspaceInstructions(): void {
   console.log(
     "    8. Click Create, then copy the Client ID and Client Secret",
   );
+}
+
+function printGoogleApiEnableSteps(): void {
   console.log("");
   console.log("  You also need to enable these APIs in your project:");
   console.log("    - Gmail API");
@@ -567,6 +631,11 @@ function printGoogleWorkspaceInstructions(): void {
     "  Enable them at: https://console.cloud.google.com/apis/library",
   );
   console.log("");
+}
+
+function printGoogleWorkspaceInstructions(): void {
+  printGoogleOAuthCredentialSteps();
+  printGoogleApiEnableSteps();
 }
 
 async function attemptGoogleOAuth(): Promise<void> {
@@ -584,6 +653,19 @@ async function attemptGoogleOAuth(): Promise<void> {
   }
 }
 
+async function offerGoogleOAuthConnection(): Promise<void> {
+  printGoogleWorkspaceInstructions();
+  const readyNow = await Confirm.prompt({
+    message: "Have your credentials ready? Connect now?",
+    default: false,
+  });
+  if (readyNow) {
+    await attemptGoogleOAuth();
+  } else {
+    console.log("  \u2192 Connect later with: triggerfish connect google");
+  }
+}
+
 async function promptGoogleWorkspaceStep(): Promise<void> {
   console.log("  Step 5/8: Connect Google Workspace (optional)");
   console.log("");
@@ -595,22 +677,12 @@ async function promptGoogleWorkspaceStep(): Promise<void> {
   });
 
   if (connectGoogle) {
-    printGoogleWorkspaceInstructions();
-    const readyNow = await Confirm.prompt({
-      message: "Have your credentials ready? Connect now?",
-      default: false,
-    });
-    if (readyNow) {
-      await attemptGoogleOAuth();
-    } else {
-      console.log("  \u2192 Connect later with: triggerfish connect google");
-    }
+    await offerGoogleOAuthConnection();
   } else {
     console.log(
       "  \u2192 Skipped. Connect later with: triggerfish connect google",
     );
   }
-
   console.log("");
 }
 
@@ -636,6 +708,52 @@ function printGitHubInstructions(): void {
   console.log("");
 }
 
+async function fetchGitHubUser(
+  token: string,
+): Promise<Response> {
+  return await fetch("https://api.github.com/user", {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+}
+
+async function storeGitHubPatInKeychain(
+  token: string,
+  login: string,
+): Promise<void> {
+  const store = createKeychain();
+  const storeResult = await store.setSecret("github-pat", token);
+  if (storeResult.ok) {
+    console.log(`  \u2192 GitHub connected as ${login}!`);
+  } else {
+    console.log(
+      `  \u2192 Token valid but failed to store: ${storeResult.error}`,
+    );
+    console.log("  \u2192 Try again later with: triggerfish connect github");
+  }
+}
+
+async function handleGitHubTokenResponse(
+  resp: Response,
+  token: string,
+): Promise<void> {
+  if (resp.ok) {
+    const user = await resp.json();
+    await storeGitHubPatInKeychain(
+      token,
+      (user as Record<string, string>).login,
+    );
+  } else {
+    console.log(
+      "  \u2192 Token verification failed. Check permissions and try again.",
+    );
+    console.log("  \u2192 Connect later with: triggerfish connect github");
+  }
+}
+
 async function verifyAndStoreGitHubToken(token: string): Promise<void> {
   const trimmed = token.trim();
   if (trimmed.length === 0) {
@@ -644,44 +762,29 @@ async function verifyAndStoreGitHubToken(token: string): Promise<void> {
     );
     return;
   }
-
   console.log("  Verifying token...");
   try {
-    const resp = await fetch("https://api.github.com/user", {
-      headers: {
-        "Authorization": `Bearer ${trimmed}`,
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    });
-    if (resp.ok) {
-      const user = await resp.json();
-      const store = createKeychain();
-      const storeResult = await store.setSecret("github-pat", trimmed);
-      if (storeResult.ok) {
-        console.log(
-          `  \u2192 GitHub connected as ${
-            (user as Record<string, string>).login
-          }!`,
-        );
-      } else {
-        console.log(
-          `  \u2192 Token valid but failed to store: ${storeResult.error}`,
-        );
-        console.log(
-          "  \u2192 Try again later with: triggerfish connect github",
-        );
-      }
-    } else {
-      console.log(
-        "  \u2192 Token verification failed. Check permissions and try again.",
-      );
-      console.log("  \u2192 Connect later with: triggerfish connect github");
-    }
+    const resp = await fetchGitHubUser(trimmed);
+    await handleGitHubTokenResponse(resp, trimmed);
   } catch {
-    console.log(
-      "  \u2192 Could not reach GitHub API. Check your network.",
-    );
+    console.log("  \u2192 Could not reach GitHub API. Check your network.");
+    console.log("  \u2192 Connect later with: triggerfish connect github");
+  }
+}
+
+async function collectAndVerifyGitHubToken(): Promise<void> {
+  printGitHubInstructions();
+  const readyGitHub = await Confirm.prompt({
+    message: "Have your token ready? Connect now?",
+    default: false,
+  });
+  if (readyGitHub) {
+    console.log("");
+    const token = await Input.prompt({
+      message: "Paste your GitHub token",
+    });
+    await verifyAndStoreGitHubToken(token);
+  } else {
     console.log("  \u2192 Connect later with: triggerfish connect github");
   }
 }
@@ -696,20 +799,7 @@ async function promptGitHubConnectionStep(): Promise<void> {
   });
 
   if (connectGitHub) {
-    printGitHubInstructions();
-    const readyGitHub = await Confirm.prompt({
-      message: "Have your token ready? Connect now?",
-      default: false,
-    });
-    if (readyGitHub) {
-      console.log("");
-      const token = await Input.prompt({
-        message: "Paste your GitHub token",
-      });
-      await verifyAndStoreGitHubToken(token);
-    } else {
-      console.log("  \u2192 Connect later with: triggerfish connect github");
-    }
+    await collectAndVerifyGitHubToken();
   } else {
     console.log(
       "  \u2192 Skipped. Connect later with: triggerfish connect github",
@@ -721,11 +811,8 @@ async function promptGitHubConnectionStep(): Promise<void> {
 
 // ── Step 7: Search Provider ───────────────────────────────────────────────────
 
-async function promptSearchProviderStep(): Promise<SearchProviderResult> {
-  console.log("  Step 7/8: Set up web search");
-  console.log("");
-
-  const searchProvider = (await Select.prompt({
+async function selectSearchProvider(): Promise<SearchProviderChoice> {
+  return (await Select.prompt({
     message: "Which search engine should your agent use?",
     options: [
       {
@@ -736,30 +823,44 @@ async function promptSearchProviderStep(): Promise<SearchProviderResult> {
       { name: "Skip for now", value: "skip" },
     ],
   })) as SearchProviderChoice;
+}
 
+async function collectBraveSearchConfig(): Promise<string> {
+  const searchApiKey = await Input.prompt({
+    message: "Brave Search API key (or press Enter to configure later)",
+  });
+  if (searchApiKey.length > 0) {
+    console.log("  \u2713 API key saved to config");
+  } else {
+    console.log(
+      "  \u2192 Skipped. Set later with: triggerfish config set web.search.api_key <key>",
+    );
+  }
+  return searchApiKey;
+}
+
+async function collectSearxngConfig(): Promise<string> {
+  return await Input.prompt({
+    message: "SearXNG instance URL",
+    default: "http://localhost:8888",
+  });
+}
+
+async function promptSearchProviderStep(): Promise<SearchProviderResult> {
+  console.log("  Step 7/8: Set up web search");
+  console.log("");
+
+  const searchProvider = await selectSearchProvider();
   let searchApiKey = "";
   let searxngUrl = "";
 
   if (searchProvider === "brave") {
-    searchApiKey = await Input.prompt({
-      message: "Brave Search API key (or press Enter to configure later)",
-    });
-    if (searchApiKey.length > 0) {
-      console.log("  \u2713 API key saved to config");
-    } else {
-      console.log(
-        "  \u2192 Skipped. Set later with: triggerfish config set web.search.api_key <key>",
-      );
-    }
+    searchApiKey = await collectBraveSearchConfig();
   } else if (searchProvider === "searxng") {
-    searxngUrl = await Input.prompt({
-      message: "SearXNG instance URL",
-      default: "http://localhost:8888",
-    });
+    searxngUrl = await collectSearxngConfig();
   }
 
   console.log("");
-
   return { searchProvider, searchApiKey, searxngUrl };
 }
 
@@ -777,24 +878,7 @@ async function writeTriggerFile(baseDir: string): Promise<void> {
   }
 }
 
-function printCompletionSummary(options: {
-  installDaemon: boolean;
-  apiKeyPresent: boolean;
-  spinePath: string;
-  configPath: string;
-}): void {
-  const { installDaemon, apiKeyPresent, spinePath, configPath } = options;
-
-  if (apiKeyPresent) {
-    console.log(
-      "  \u2713 API key stored in OS keychain. triggerfish.yaml references it by name.",
-    );
-  }
-
-  console.log("");
-  console.log("  \u2713 Setup complete!");
-  console.log("");
-
+function printDaemonStartHint(installDaemon: boolean): void {
   if (installDaemon) {
     console.log("  Starting Triggerfish daemon...");
   } else {
@@ -802,7 +886,9 @@ function printCompletionSummary(options: {
     console.log("    triggerfish start    # Background daemon");
     console.log("    triggerfish run      # Foreground (debug)");
   }
+}
 
+function printNextStepsHint(spinePath: string, configPath: string): void {
   console.log("");
   console.log(`  Edit your agent's identity: ${spinePath}`);
   console.log(`  Edit configuration:         ${configPath}`);
@@ -812,21 +898,30 @@ function printCompletionSummary(options: {
   console.log("");
 }
 
-async function writeWizardOutputFiles(
+function printCompletionSummary(options: {
+  installDaemon: boolean;
+  apiKeyPresent: boolean;
+  spinePath: string;
+  configPath: string;
+}): void {
+  if (options.apiKeyPresent) {
+    console.log(
+      "  \u2713 API key stored in OS keychain. triggerfish.yaml references it by name.",
+    );
+  }
+  console.log("");
+  console.log("  \u2713 Setup complete!");
+  console.log("");
+  printDaemonStartHint(options.installDaemon);
+  printNextStepsHint(options.spinePath, options.configPath);
+}
+
+async function writeConfigAndSpineFiles(
   baseDir: string,
   answers: WizardAnswers,
 ): Promise<{ configPath: string; spinePath: string }> {
   const configPath = join(baseDir, "triggerfish.yaml");
   const spinePath = join(baseDir, "SPINE.md");
-
-  await createDirectoryTree(baseDir);
-
-  const storedKeys = await storeWizardSecrets(answers);
-  if (storedKeys.length > 0) {
-    console.log(
-      `  \u2713 Secrets stored in OS keychain (${storedKeys.length} key(s))`,
-    );
-  }
 
   const configContent = generateConfig(answers);
   await Deno.writeTextFile(configPath, configContent);
@@ -836,16 +931,33 @@ async function writeWizardOutputFiles(
   await Deno.writeTextFile(spinePath, spineContent);
   console.log(`  \u2713 Created: ${spinePath}`);
 
+  return { configPath, spinePath };
+}
+
+async function writeWizardOutputFiles(
+  baseDir: string,
+  answers: WizardAnswers,
+): Promise<{ configPath: string; spinePath: string }> {
+  await createDirectoryTree(baseDir);
+
+  const storedKeys = await storeWizardSecrets(answers);
+  if (storedKeys.length > 0) {
+    console.log(
+      `  \u2713 Secrets stored in OS keychain (${storedKeys.length} key(s))`,
+    );
+  }
+
+  const paths = await writeConfigAndSpineFiles(baseDir, answers);
   await writeTriggerFile(baseDir);
 
   printCompletionSummary({
     installDaemon: answers.installDaemon,
     apiKeyPresent: answers.apiKey.length > 0,
-    spinePath,
-    configPath,
+    spinePath: paths.spinePath,
+    configPath: paths.configPath,
   });
 
-  return { configPath, spinePath };
+  return paths;
 }
 
 // ── Guard ─────────────────────────────────────────────────────────────────────
@@ -877,6 +989,36 @@ function printWelcomeBanner(): void {
 
 // ── Assemble WizardAnswers ────────────────────────────────────────────────────
 
+function mapLlmToAnswerFields(llm: LlmProviderResult): Partial<WizardAnswers> {
+  return {
+    provider: llm.provider,
+    providerModel: llm.providerModel,
+    apiKey: llm.apiKey,
+    localEndpoint: llm.localEndpoint,
+  };
+}
+
+function mapIdentityToAnswerFields(
+  identity: AgentIdentityResult,
+): Partial<WizardAnswers> {
+  return {
+    agentName: identity.agentName,
+    mission: identity.mission,
+    tone: identity.tone,
+    customTone: identity.customTone,
+  };
+}
+
+function mapPluginsToAnswerFields(
+  plugins: PluginResult,
+): Partial<WizardAnswers> {
+  return {
+    selectedPlugins: plugins.selectedPlugins,
+    obsidianVaultPath: plugins.obsidianVaultPath,
+    obsidianClassification: plugins.obsidianClassification,
+  };
+}
+
 function assembleWizardAnswers(options: {
   llm: LlmProviderResult;
   identity: AgentIdentityResult;
@@ -885,41 +1027,32 @@ function assembleWizardAnswers(options: {
   search: SearchProviderResult;
   installDaemon: boolean;
 }): WizardAnswers {
-  const { llm, identity, channelSelection, plugins, search } = options;
   return {
-    provider: llm.provider,
-    providerModel: llm.providerModel,
-    apiKey: llm.apiKey,
-    localEndpoint: llm.localEndpoint,
-    agentName: identity.agentName,
-    mission: identity.mission,
-    tone: identity.tone,
-    customTone: identity.customTone,
-    channels: channelSelection.channels,
-    telegramBotToken: channelSelection.telegramBotToken,
-    telegramOwnerId: channelSelection.telegramOwnerId,
-    discordBotToken: channelSelection.discordBotToken,
-    discordOwnerId: channelSelection.discordOwnerId,
-    webchatPort: channelSelection.webchatPort,
-    signalPhoneNumber: channelSelection.signalPhoneNumber,
-    signalEndpoint: channelSelection.signalEndpoint,
-    selectedPlugins: plugins.selectedPlugins,
-    obsidianVaultPath: plugins.obsidianVaultPath,
-    obsidianClassification: plugins.obsidianClassification,
-    searchProvider: search.searchProvider,
-    searchApiKey: search.searchApiKey,
-    searxngUrl: search.searxngUrl,
+    ...mapLlmToAnswerFields(options.llm),
+    ...mapIdentityToAnswerFields(options.identity),
+    ...options.channelSelection,
+    ...mapPluginsToAnswerFields(options.plugins),
+    ...options.search,
     installDaemon: options.installDaemon,
-  };
+  } as WizardAnswers;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-/** Run the full 9-step interactive dive wizard. */
-export async function runWizard(baseDir: string): Promise<DiveResult> {
-  enforceTerminalRequirement();
-  printWelcomeBanner();
+async function promptDaemonInstallStep(): Promise<boolean> {
+  console.log("  Step 8/8: Install as daemon?");
+  console.log("");
+  const installDaemon = await Confirm.prompt({
+    message: "Start on login and run in background?",
+    default: true,
+  });
+  console.log("");
+  return installDaemon;
+}
 
+async function collectAllWizardSteps(
+  baseDir: string,
+): Promise<WizardAnswers> {
   const llm = await promptLlmProviderStep();
   console.log("");
 
@@ -932,17 +1065,9 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
   await promptGitHubConnectionStep();
 
   const search = await promptSearchProviderStep();
+  const installDaemon = await promptDaemonInstallStep();
 
-  // Step 8: Daemon Installation (small enough to stay inline)
-  console.log("  Step 8/8: Install as daemon?");
-  console.log("");
-  const installDaemon = await Confirm.prompt({
-    message: "Start on login and run in background?",
-    default: true,
-  });
-  console.log("");
-
-  const answers = assembleWizardAnswers({
+  return assembleWizardAnswers({
     llm,
     identity,
     channelSelection,
@@ -950,14 +1075,30 @@ export async function runWizard(baseDir: string): Promise<DiveResult> {
     search,
     installDaemon,
   });
+}
 
-  const { configPath, spinePath: writtenSpinePath } =
-    await writeWizardOutputFiles(baseDir, answers);
-
+function buildDiveResult(
+  answers: WizardAnswers,
+  configPath: string,
+  spinePath: string,
+): DiveResult {
   return {
     configPath,
-    spinePath: writtenSpinePath,
-    installDaemon,
-    channels: channelSelection.channels.filter((c) => c !== "skip"),
+    spinePath,
+    installDaemon: answers.installDaemon,
+    channels: answers.channels.filter((c) => c !== "skip"),
   };
+}
+
+/** Run the full 9-step interactive dive wizard. */
+export async function runWizard(baseDir: string): Promise<DiveResult> {
+  enforceTerminalRequirement();
+  printWelcomeBanner();
+
+  const answers = await collectAllWizardSteps(baseDir);
+  const { configPath, spinePath } = await writeWizardOutputFiles(
+    baseDir,
+    answers,
+  );
+  return buildDiveResult(answers, configPath, spinePath);
 }
