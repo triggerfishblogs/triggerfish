@@ -3,41 +3,32 @@
  *
  * Implements the Model Context Protocol client with initialization handshake,
  * tool listing, tool invocation, and resource listing.
+ *
+ * JSON-RPC types and formatting live in `protocol_jsonrpc.ts`.
  */
 
 import type { Transport } from "./transport.ts";
+import type {
+  JsonRpcResponse,
+  JsonRpcNotification,
+} from "./protocol_jsonrpc.ts";
+import { formatRequest, parseMessage } from "./protocol_jsonrpc.ts";
 
-// --- JSON-RPC 2.0 Types ---
+// ─── Barrel re-exports from protocol_jsonrpc.ts ─────────────────
 
-/** JSON-RPC 2.0 request object. */
-export interface JsonRpcRequest {
-  readonly jsonrpc: "2.0";
-  readonly method: string;
-  readonly id: number;
-  readonly params?: Record<string, unknown>;
-}
+export type {
+  JsonRpcRequest,
+  JsonRpcError,
+  JsonRpcResponse,
+  JsonRpcNotification,
+} from "./protocol_jsonrpc.ts";
 
-/** JSON-RPC 2.0 error detail. */
-export interface JsonRpcError {
-  readonly code: number;
-  readonly message: string;
-  readonly data?: unknown;
-}
-
-/** JSON-RPC 2.0 response object. */
-export interface JsonRpcResponse {
-  readonly jsonrpc: "2.0";
-  readonly id: number;
-  readonly result?: unknown;
-  readonly error?: JsonRpcError;
-}
-
-/** JSON-RPC 2.0 notification (no id). */
-export interface JsonRpcNotification {
-  readonly jsonrpc: "2.0";
-  readonly method: string;
-  readonly params?: Record<string, unknown>;
-}
+export {
+  formatRequest,
+  formatResponse,
+  parseMessage,
+  MCP_ERROR_CODES,
+} from "./protocol_jsonrpc.ts";
 
 // --- MCP Types ---
 
@@ -88,73 +79,6 @@ export interface McpResource {
   readonly name: string;
   readonly description?: string;
   readonly mimeType?: string;
-}
-
-/** Standard MCP error codes. */
-export const MCP_ERROR_CODES = {
-  PARSE_ERROR: -32700,
-  INVALID_REQUEST: -32600,
-  METHOD_NOT_FOUND: -32601,
-  INVALID_PARAMS: -32602,
-  INTERNAL_ERROR: -32603,
-} as const;
-
-// --- JSON-RPC Message Formatting ---
-
-let _nextId = 1;
-
-/**
- * Format a JSON-RPC 2.0 request.
- *
- * @param method - The RPC method name
- * @param params - Optional parameters
- * @param id - Optional request ID; auto-increments if not provided
- */
-export function formatRequest(
-  method: string,
-  params?: Record<string, unknown>,
-  id?: number,
-): JsonRpcRequest {
-  const requestId = id ?? _nextId++;
-  // If caller provided an explicit id, make sure auto-increment stays ahead
-  if (id !== undefined && id >= _nextId) {
-    _nextId = id + 1;
-  }
-  return {
-    jsonrpc: "2.0",
-    method,
-    id: requestId,
-    ...(params !== undefined ? { params } : {}),
-  };
-}
-
-/**
- * Format a JSON-RPC 2.0 response.
- *
- * @param id - The request ID being responded to
- * @param result - The result value (mutually exclusive with error)
- * @param error - The error object (mutually exclusive with result)
- */
-export function formatResponse(
-  id: number,
-  result?: unknown,
-  error?: JsonRpcError,
-): JsonRpcResponse {
-  if (error !== undefined) {
-    return { jsonrpc: "2.0", id, error };
-  }
-  return { jsonrpc: "2.0", id, result };
-}
-
-/**
- * Parse a raw JSON string into a JSON-RPC 2.0 message.
- *
- * @param raw - The raw JSON string to parse
- * @returns Parsed JSON-RPC response
- */
-export function parseMessage(raw: string): JsonRpcResponse {
-  const parsed = JSON.parse(raw) as JsonRpcResponse;
-  return parsed;
 }
 
 // --- MCP Client ---
@@ -253,7 +177,6 @@ export function createMcpClient(
       }
 
       // Send the required "initialized" notification to complete the handshake.
-      // MCP servers won't respond to tools/list etc. until they receive this.
       const notification: JsonRpcNotification = {
         jsonrpc: "2.0",
         method: "notifications/initialized",
