@@ -9,7 +9,7 @@
  */
 
 import type { ToolDefinition } from "../core/types/tool.ts";
-import type { ClaudeSessionConfig, ClaudeSessionManager } from "./claude.ts";
+import type { ClaudeSessionConfig, ClaudeSessionManager } from "./session_types.ts";
 
 function buildClaudeStartParams(): ToolDefinition["parameters"] {
   return {

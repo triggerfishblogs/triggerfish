@@ -7,332 +7,146 @@
  *
  * Sub-modules:
  * - claude_tools.ts: Tool definitions, system prompt, and tool executor
+ * - session_types.ts: Session interfaces and configuration types
+ * - stream_parser.ts: Stream-JSON output parsing
+ * - process_spawn.ts: CLI argument building and process spawning
+ * - session_lifecycle.ts: Termination, polling, and ID generation
  *
  * @module
  */
 
 import type { Result } from "../core/types/classification.ts";
 import { createLogger } from "../core/logger/logger.ts";
+import type {
+  ClaudeSession,
+  ClaudeSessionConfig,
+  ClaudeSessionManager,
+  ClaudeSessionManagerOptions,
+  SessionEntry,
+} from "./session_types.ts";
+import { encodeUserMessage, parseStreamOutput } from "./stream_parser.ts";
+import {
+  buildClaudeArgs,
+  buildClaudeEnv,
+  spawnClaudeProcess,
+} from "./process_spawn.ts";
+import {
+  generateSessionId,
+  pollForClaudeResponse,
+  terminateClaudeSession,
+} from "./session_lifecycle.ts";
 
 const log = createLogger("exec");
 
-// ─── Re-exports from claude_tools.ts ─────────────────────────────
+// ─── Re-exports ──────────────────────────────────────────────────
+export type {
+  ClaudeSession,
+  ClaudeSessionConfig,
+  ClaudeSessionManager,
+  ClaudeSessionManagerOptions,
+} from "./session_types.ts";
+
 export {
   CLAUDE_SESSION_SYSTEM_PROMPT,
   createClaudeToolExecutor,
   getClaudeToolDefinitions,
 } from "./claude_tools.ts";
 
-/** Configuration for a headless Claude CLI session. */
-export interface ClaudeSessionConfig {
-  /** Model to use (e.g. "sonnet", "opus"). */
-  readonly model?: string;
-  /** Maximum agent iteration turns (--max-turns). */
-  readonly maxTurns?: number;
-  /** Custom system prompt for the child session. */
-  readonly systemPrompt?: string;
-  /** CWD for the Claude process (must be in workspace). */
-  readonly workingDir?: string;
-  /** Max runtime in ms before SIGTERM (default: 300_000 = 5min). */
-  readonly timeoutMs?: number;
-  /** Tool allowlist for the child session (--allowedTools). */
-  readonly allowedTools?: readonly string[];
-  /** Spending cap in USD (--max-budget-usd). */
-  readonly maxBudgetUsd?: number;
-  /** Permission mode (default: "bypassPermissions"). */
-  readonly permissionMode?: string;
-}
+// ─── Closure helpers for createClaudeSessionManager ──────────────
 
-/** A running or completed Claude CLI session. */
-export interface ClaudeSession {
-  /** Unique session identifier. */
-  readonly id: string;
-  /** OS process ID of the child process. */
-  readonly pid: number;
-  /** Current session status. */
-  readonly status: "running" | "completed" | "failed" | "terminated";
-  /** When the session was started. */
-  readonly startedAt: Date;
-  /** When the session ended (null if still running). */
-  readonly endedAt: Date | null;
-  /** Configuration used to start this session. */
-  readonly config: ClaudeSessionConfig;
-  /** Exit code of the child process (null if still running). */
-  readonly exitCode: number | null;
-}
-
-/** Manages headless Claude CLI sessions. */
-export interface ClaudeSessionManager {
-  /** Start a new Claude session with an initial prompt. */
-  start(
-    prompt: string,
-    config?: Partial<ClaudeSessionConfig>,
-  ): Promise<Result<ClaudeSession, string>>;
-  /** Send a follow-up message to a running session. */
-  send(sessionId: string, input: string): Promise<Result<string, string>>;
-  /** Get accumulated output from a session (non-blocking). */
-  getOutput(sessionId: string): Result<string, string>;
-  /** Get the current status of a session. */
-  status(sessionId: string): Result<ClaudeSession, string>;
-  /** Terminate a running session. */
-  stop(sessionId: string): Promise<Result<void, string>>;
-  /** List all tracked sessions. */
-  list(): readonly ClaudeSession[];
-}
-
-/**
- * Stream-JSON message types for Claude CLI I/O.
- * See: https://docs.anthropic.com/en/docs/claude-code/sdk
- */
-interface StreamJsonUserMessage {
-  readonly type: "user_input";
-  readonly content: string;
-}
-
-/** A single result message from Claude's stream-json output. */
-interface StreamJsonResultMessage {
-  readonly type: "result";
-  readonly result?: string;
-  readonly subtype?: string;
-  readonly cost_usd?: number;
-  readonly duration_ms?: number;
-  readonly duration_api_ms?: number;
-  readonly is_error?: boolean;
-  readonly num_turns?: number;
-  readonly session_id?: string;
-}
-
-/** An assistant message from Claude's stream-json output. */
-interface StreamJsonAssistantMessage {
-  readonly type: "assistant";
-  readonly message?: {
-    readonly content?: ReadonlyArray<{
-      readonly type: string;
-      readonly text?: string;
-    }>;
-  };
-}
-
-/** Internal session state tracking process handles. */
-interface SessionEntry {
-  session: ClaudeSession;
-  readonly process: Deno.ChildProcess;
-  readonly stdinWriter: WritableStreamDefaultWriter<Uint8Array>;
-  output: string;
-  stderr: string;
-  readonly timeoutId: number | null;
-}
-
-/** Options for creating a ClaudeSessionManager. */
-export interface ClaudeSessionManagerOptions {
-  /** Workspace root path — used to sandbox --add-dir. */
-  readonly workspacePath: string;
-  /** Override for the `claude` binary path (for testing). */
-  readonly claudeBinary?: string;
-}
-
-/** Filter CLAUDECODE from environment to avoid nesting guard. */
-function buildClaudeEnv(): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const [k, v] of Object.entries(Deno.env.toObject())) {
-    if (k !== "CLAUDECODE") env[k] = v;
-  }
-  return env;
-}
-
-/** Spawn a Claude CLI child process. */
-function spawnClaudeProcess(
-  binary: string,
-  args: string[],
-  cwd: string,
-  env: Record<string, string>,
-): Result<Deno.ChildProcess, string> {
-  try {
-    const command = new Deno.Command(binary, {
-      args,
-      cwd,
-      stdin: "piped",
-      stdout: "piped",
-      stderr: "piped",
-      env,
-    });
-    return { ok: true, value: command.spawn() };
-  } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to spawn claude: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    };
-  }
-}
-
-/** Poll for new output from a Claude session until a result message or timeout. */
-async function pollForClaudeResponse(
+/** Start reading stdout in the background, appending to entry.output. */
+function startOutputReader(
   entry: SessionEntry,
-  outputBefore: number,
-  deadlineMs: number,
-): Promise<string> {
-  const deadline = Date.now() + deadlineMs;
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 200));
-    if (entry.output.length > outputBefore) {
-      const newOutput = entry.output.slice(outputBefore);
-      if (
-        newOutput.includes('"type":"result"') ||
-        newOutput.includes('"type": "result"')
-      ) break;
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): void {
+  const decoder = new TextDecoder();
+  const read = async () => {
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        entry.output += decoder.decode(value, { stream: true });
+      }
+    } catch {
+      // Stream closed — expected on process exit
     }
-    if (entry.session.status !== "running") break;
-  }
-  return entry.output.slice(outputBefore);
+  };
+  read();
 }
 
-/** Close the stdin writer, ignoring errors if already closed. */
-function closeSessionStdinWriter(entry: SessionEntry): void {
-  try {
+/** Drain stderr in background to prevent resource leaks. */
+function drainStderr(
+  entry: SessionEntry,
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): void {
+  const decoder = new TextDecoder();
+  const read = async () => {
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        entry.stderr += decoder.decode(value, { stream: true });
+      }
+    } catch {
+      // Stream closed — expected on process exit
+    }
+  };
+  read();
+}
+
+/** Watch for process exit and update session status. */
+function watchProcessExit(entry: SessionEntry): void {
+  entry.process.status.then((status) => {
+    const exitCode = status.code ?? -1;
+    const finalStatus = exitCode === 0 ? "completed" : "failed";
+    entry.session = {
+      ...entry.session,
+      status: entry.session.status === "terminated"
+        ? "terminated"
+        : finalStatus,
+      endedAt: new Date(),
+      exitCode,
+    };
+    if (entry.timeoutId !== null) {
+      clearTimeout(entry.timeoutId);
+    }
     entry.stdinWriter.close().catch((err: unknown) => {
-      log.debug("Stdin writer close failed during termination", {
+      log.debug("Stdin writer close failed on session exit", {
         error: err instanceof Error ? err.message : String(err),
       });
     });
-  } catch {
-    // Already closed
-  }
+  });
 }
 
-/** Send SIGKILL and mark session terminated if still running. */
-function forceKillClaudeSession(entry: SessionEntry): void {
-  if (entry.session.status !== "running") return;
-  try {
-    entry.process.kill("SIGKILL");
-  } catch {
-    // Already dead
-  }
-  entry.session = {
-    ...entry.session,
-    status: "terminated",
-    endedAt: new Date(),
-  };
-}
-
-/** Wait for session to exit within a deadline, polling every 100ms. */
-async function awaitClaudeSessionExit(
+/** Set up timeout enforcement that escalates SIGTERM to SIGKILL. */
+function setupSessionTimeout(
   entry: SessionEntry,
-  deadlineMs: number,
-): Promise<void> {
-  const deadline = Date.now() + deadlineMs;
-  while (entry.session.status === "running" && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 100));
-  }
-}
-
-/** Gracefully terminate a running Claude session with SIGTERM then SIGKILL. */
-async function terminateClaudeSession(entry: SessionEntry): Promise<void> {
-  closeSessionStdinWriter(entry);
-  try {
-    entry.process.kill("SIGTERM");
-  } catch {
-    // Already dead
-  }
-  await awaitClaudeSessionExit(entry, 5000);
-  forceKillClaudeSession(entry);
-  if (entry.timeoutId !== null) clearTimeout(entry.timeoutId);
-}
-
-let sessionCounter = 0;
-
-/** Generate a unique session ID. */
-function generateSessionId(): string {
-  sessionCounter++;
-  return `claude-${Date.now()}-${sessionCounter}`;
-}
-
-/** Build CLI args from config. */
-function buildArgs(
-  prompt: string,
-  config: ClaudeSessionConfig,
-  workspacePath: string,
-): string[] {
-  const args: string[] = [
-    "--input-format",
-    "stream-json",
-    "--output-format",
-    "stream-json",
-    "--verbose",
-  ];
-
-  if (config.model) {
-    args.push("--model", config.model);
-  }
-  if (config.maxTurns !== undefined) {
-    args.push("--max-turns", String(config.maxTurns));
-  }
-  if (config.systemPrompt) {
-    args.push("--system-prompt", config.systemPrompt);
-  }
-  if (config.allowedTools && config.allowedTools.length > 0) {
-    args.push("--allowedTools", config.allowedTools.join(","));
-  }
-  if (config.maxBudgetUsd !== undefined) {
-    args.push("--max-budget-usd", String(config.maxBudgetUsd));
-  }
-  if (config.permissionMode) {
-    args.push("--permission-mode", config.permissionMode);
-  }
-
-  // Sandbox to workspace directory
-  const addDir = config.workingDir ?? workspacePath;
-  args.push("--add-dir", addDir);
-
-  // Initial prompt
-  args.push("--print", prompt);
-
-  return args;
-}
-
-/** Encode a stream-json user message. */
-function encodeUserMessage(content: string): Uint8Array {
-  const msg: StreamJsonUserMessage = { type: "user_input", content };
-  const json = JSON.stringify(msg) + "\n";
-  return new TextEncoder().encode(json);
-}
-
-/** Extract text content from a single parsed stream-json message, or null. */
-function extractTextFromStreamMessage(
-  parsed: Record<string, unknown>,
-): readonly string[] {
-  if (parsed.type === "assistant") {
-    const msg = parsed as unknown as StreamJsonAssistantMessage;
-    if (!msg.message?.content) return [];
-    return msg.message.content
-      .filter((b) => b.type === "text" && b.text)
-      .map((b) => b.text!);
-  }
-  if (parsed.type === "result") {
-    const msg = parsed as unknown as StreamJsonResultMessage;
-    return msg.result ? [msg.result] : [];
-  }
-  return [];
-}
-
-/**
- * Parse accumulated output, extracting text from assistant messages
- * and result messages.
- */
-function parseStreamOutput(raw: string): string {
-  const lines = raw.split("\n").filter((l) => l.trim().length > 0);
-  const parts: string[] = [];
-  for (const line of lines) {
+  timeoutMs: number,
+): number {
+  return setTimeout(async () => {
+    if (entry.session.status !== "running") return;
     try {
-      const parsed = JSON.parse(line) as Record<string, unknown>;
-      parts.push(...extractTextFromStreamMessage(parsed));
+      entry.process.kill("SIGTERM");
     } catch {
-      // Non-JSON line — skip
+      // Already dead
     }
-  }
-  return parts.join("\n");
+    await new Promise((r) => setTimeout(r, 5000));
+    if (entry.session.status === "running") {
+      try {
+        entry.process.kill("SIGKILL");
+      } catch {
+        // Already dead
+      }
+    }
+    entry.session = {
+      ...entry.session,
+      status: "terminated",
+      endedAt: new Date(),
+    };
+  }, timeoutMs) as unknown as number;
 }
+
+// ─── Factory ─────────────────────────────────────────────────────
 
 /**
  * Create a Claude session manager.
@@ -344,98 +158,6 @@ export function createClaudeSessionManager(
 ): ClaudeSessionManager {
   const sessions = new Map<string, SessionEntry>();
   const binary = options.claudeBinary ?? "claude";
-
-  /** Start reading stdout in the background. */
-  function startOutputReader(
-    entry: SessionEntry,
-    reader: ReadableStreamDefaultReader<Uint8Array>,
-  ): void {
-    const decoder = new TextDecoder();
-    const read = async () => {
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          entry.output += decoder.decode(value, { stream: true });
-        }
-      } catch {
-        // Stream closed — expected on process exit
-      }
-    };
-    read();
-  }
-
-  /** Drain stderr in background to prevent resource leaks. */
-  function drainStderr(
-    entry: SessionEntry,
-    reader: ReadableStreamDefaultReader<Uint8Array>,
-  ): void {
-    const decoder = new TextDecoder();
-    const read = async () => {
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          entry.stderr += decoder.decode(value, { stream: true });
-        }
-      } catch {
-        // Stream closed — expected on process exit
-      }
-    };
-    read();
-  }
-
-  /** Handle process completion. */
-  function watchProcess(entry: SessionEntry): void {
-    entry.process.status.then((status) => {
-      const exitCode = status.code ?? -1;
-      const finalStatus = exitCode === 0 ? "completed" : "failed";
-      entry.session = {
-        ...entry.session,
-        status: entry.session.status === "terminated"
-          ? "terminated"
-          : finalStatus,
-        endedAt: new Date(),
-        exitCode,
-      };
-      if (entry.timeoutId !== null) {
-        clearTimeout(entry.timeoutId);
-      }
-      // Close stdin writer to prevent resource leaks
-      entry.stdinWriter.close().catch((err: unknown) => {
-        log.debug("Stdin writer close failed on session exit", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-    });
-  }
-
-  /** Set up timeout enforcement. */
-  function setupTimeout(entry: SessionEntry, timeoutMs: number): number {
-    return setTimeout(async () => {
-      if (entry.session.status === "running") {
-        try {
-          entry.process.kill("SIGTERM");
-        } catch {
-          // Already dead
-        }
-        // Wait 5s then SIGKILL
-        await new Promise((r) => setTimeout(r, 5000));
-        if (entry.session.status === "running") {
-          try {
-            entry.process.kill("SIGKILL");
-          } catch {
-            // Already dead
-          }
-        }
-        entry.session = {
-          ...entry.session,
-          status: "terminated",
-          endedAt: new Date(),
-        };
-      }
-    }, timeoutMs) as unknown as number;
-  }
 
   return {
     start(
@@ -459,7 +181,7 @@ export function createClaudeSessionManager(
         });
       }
 
-      const args = buildArgs(prompt, fullConfig, options.workspacePath);
+      const args = buildClaudeArgs(prompt, fullConfig, options.workspacePath);
       const cwd = fullConfig.workingDir ?? options.workspacePath;
       const spawnResult = spawnClaudeProcess(
         binary,
@@ -490,13 +212,11 @@ export function createClaudeSessionManager(
         timeoutId: null,
       };
 
-      (entry as { timeoutId: number | null }).timeoutId = setupTimeout(
-        entry,
-        fullConfig.timeoutMs ?? 300_000,
-      );
+      (entry as { timeoutId: number | null }).timeoutId =
+        setupSessionTimeout(entry, fullConfig.timeoutMs ?? 300_000);
       startOutputReader(entry, process.stdout.getReader());
       drainStderr(entry, process.stderr.getReader());
-      watchProcess(entry);
+      watchProcessExit(entry);
       sessions.set(id, entry);
 
       return Promise.resolve({ ok: true as const, value: session });
