@@ -13,6 +13,7 @@
  */
 
 import { join, resolve } from "@std/path";
+import { isWithinJail } from "../core/security/path_jail.ts";
 import type {
   ClassificationLevel,
   Result,
@@ -137,7 +138,7 @@ export async function createWorkspace(
       await Deno.remove(workspacePath, { recursive: true });
     },
     containsPath(targetPath: string): boolean {
-      return resolve(workspacePath, targetPath).startsWith(workspacePath);
+      return isWithinJail(resolve(workspacePath, targetPath), workspacePath);
     },
     resolveClassifiedPath(
       relativePath: string,

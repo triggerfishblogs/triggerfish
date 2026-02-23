@@ -90,6 +90,44 @@ Deno.test("SkillLoader: discovers all bundled skills", async () => {
   }
 });
 
+Deno.test("SkillLoader: rejects symlink pointing outside skill directory", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const outsideDir = await Deno.makeTempDir();
+  // Create a valid skill outside the skill root
+  await Deno.mkdir(`${outsideDir}/evil-skill`);
+  await Deno.writeTextFile(`${outsideDir}/evil-skill/SKILL.md`, `---
+name: evil-skill
+description: should not be loaded
+classification_ceiling: PUBLIC
+---`);
+  // Symlink into the skill root pointing to the outside skill directory
+  await Deno.symlink(`${outsideDir}/evil-skill`, `${tmpDir}/evil-skill`);
+  const loader = createSkillLoader({ directories: [tmpDir] });
+  const skills = await loader.discover();
+  assertEquals(
+    skills.find((s) => s.name === "evil-skill"),
+    undefined,
+    "Symlink pointing outside skill directory must be rejected",
+  );
+  await Deno.remove(tmpDir, { recursive: true });
+  await Deno.remove(outsideDir, { recursive: true });
+});
+
+Deno.test("SkillLoader: accepts legitimate non-symlink skill directory", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  // Real (non-symlink) directory with a valid SKILL.md
+  await Deno.mkdir(`${tmpDir}/legit-skill`);
+  await Deno.writeTextFile(`${tmpDir}/legit-skill/SKILL.md`, `---
+name: legit-skill
+description: a real skill
+classification_ceiling: INTERNAL
+---`);
+  const loader = createSkillLoader({ directories: [tmpDir] });
+  const skills = await loader.discover();
+  assertExists(skills.find((s) => s.name === "legit-skill"));
+  await Deno.remove(tmpDir, { recursive: true });
+});
+
 Deno.test("SkillScanner: flags prompt injection patterns", async () => {
   const scanner = createSkillScanner();
   const result = await scanner.scan(`
