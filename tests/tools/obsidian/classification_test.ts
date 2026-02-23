@@ -14,13 +14,13 @@ import {
   createVaultContext,
   getClassificationForPath,
 } from "../../../src/tools/obsidian/vault.ts";
-import { createNoteStore } from "../../../src/tools/obsidian/notes.ts";
+import { createNoteStore } from "../../../src/tools/obsidian/notes/notes.ts";
 import { createDailyNoteManager } from "../../../src/tools/obsidian/daily.ts";
 import { createLinkResolver } from "../../../src/tools/obsidian/links.ts";
 import {
   createObsidianToolExecutor,
-} from "../../../src/tools/obsidian/tools.ts";
-import type { ObsidianToolContext } from "../../../src/tools/obsidian/tools.ts";
+} from "../../../src/tools/obsidian/tools/tools.ts";
+import type { ObsidianToolContext } from "../../../src/tools/obsidian/tools/tools_defs.ts";
 import type { VaultContext } from "../../../src/tools/obsidian/vault.ts";
 import type { ClassificationLevel } from "../../../src/core/types/classification.ts";
 import { maxClassification } from "../../../src/core/types/classification.ts";

@@ -18,26 +18,22 @@ export {
 export { type VerifyResult, verifyProvider } from "./verify.ts";
 
 export {
+  buildToneGuidelines,
   type ChannelChoice,
+  createDirectoryTree,
   DEFAULT_MODELS,
   type DiveResult,
-  PROVIDER_LABELS,
-  type ProviderChoice,
-  type SearchProviderChoice,
-  type ToneChoice,
-  type WizardAnswers,
-  type WizardSection,
-} from "./wizard_types.ts";
-
-export {
-  buildToneGuidelines,
-  createDirectoryTree,
   generateConfig,
   generateSpine,
   generateTrigger,
-} from "./wizard_generators.ts";
+  PROVIDER_LABELS,
+  type ProviderChoice,
+  type SearchProviderChoice,
+  storeWizardSecrets,
+  type ToneChoice,
+  type WizardAnswers,
+  type WizardSection,
+} from "./wizard/mod.ts";
 
-export { storeWizardSecrets } from "./wizard_secrets.ts";
-
-export { runWizard } from "./wizard.ts";
-export { runWizardSelective } from "./wizard_selective.ts";
+export { runWizard } from "./wizard/mod.ts";
+export { runWizardSelective } from "./selective/mod.ts";

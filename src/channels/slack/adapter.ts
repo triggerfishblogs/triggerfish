@@ -38,6 +38,109 @@ export interface SlackConfig {
   readonly ownerId?: string;
 }
 
+/** Mutable connection state shared between adapter methods. */
+interface SlackAdapterState {
+  connected: boolean;
+  readonly handlerRef: { current: MessageHandler | null };
+}
+
+/** Build a Bolt SlackApp configured for socket mode. */
+function buildSlackApp(config: SlackConfig): InstanceType<typeof SlackApp> {
+  return new SlackApp({
+    token: config.botToken,
+    appToken: config.appToken,
+    signingSecret: config.signingSecret,
+    socketMode: true,
+  });
+}
+
+/** Register a message listener that forwards incoming Slack messages. */
+function attachSlackMessageListener(
+  app: InstanceType<typeof SlackApp>,
+  ownerId: string | undefined,
+  handlerRef: { current: MessageHandler | null },
+): void {
+  // deno-lint-ignore require-await
+  app.message(async ({ message }) => {
+    if (!handlerRef.current) return;
+
+    const msg = message as { text?: string; user?: string; channel?: string };
+    if (!msg.text || !msg.channel) return;
+
+    const isOwner = ownerId !== undefined ? msg.user === ownerId : true;
+
+    log.debug("Message received", {
+      channel: msg.channel,
+      senderId: msg.user,
+      isOwner,
+    });
+    handlerRef.current({
+      content: msg.text,
+      sessionId: `slack-${msg.channel}`,
+      senderId: msg.user,
+      isOwner,
+      sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
+    });
+  });
+}
+
+/** Send a truncated text message to a Slack channel. */
+async function sendSlackMessage(
+  app: InstanceType<typeof SlackApp>,
+  message: ChannelMessage,
+): Promise<void> {
+  if (!message.sessionId) return;
+
+  const channelId = message.sessionId.replace("slack-", "");
+  const text = message.content.length > MAX_MESSAGE_LENGTH
+    ? message.content.slice(0, MAX_MESSAGE_LENGTH)
+    : message.content;
+
+  await app.client.chat.postMessage({ channel: channelId, text });
+}
+
+/** Connect the Slack Bolt app and mark the adapter as connected. */
+async function connectSlackApp(
+  app: InstanceType<typeof SlackApp>,
+  state: SlackAdapterState,
+): Promise<void> {
+  await app.start();
+  state.connected = true;
+  log.info("Slack adapter connected");
+}
+
+/** Disconnect the Slack Bolt app and mark the adapter as disconnected. */
+async function disconnectSlackApp(
+  app: InstanceType<typeof SlackApp>,
+  state: SlackAdapterState,
+): Promise<void> {
+  await app.stop();
+  state.connected = false;
+  log.info("Slack adapter disconnected");
+}
+
+/** Assemble the ChannelAdapter method object for Slack. */
+function assembleSlackAdapter(
+  app: InstanceType<typeof SlackApp>,
+  classification: ClassificationLevel,
+  state: SlackAdapterState,
+): ChannelAdapter {
+  return {
+    classification,
+    isOwner: true,
+    connect: () => connectSlackApp(app, state),
+    disconnect: () => disconnectSlackApp(app, state),
+    send: (message: ChannelMessage) => sendSlackMessage(app, message),
+    onMessage(msgHandler: MessageHandler): void {
+      state.handlerRef.current = msgHandler;
+    },
+    status: (): ChannelStatus => ({
+      connected: state.connected,
+      channelType: "slack",
+    }),
+  };
+}
+
 /**
  * Create a Slack channel adapter.
  *
@@ -48,78 +151,13 @@ export interface SlackConfig {
  * @returns A ChannelAdapter wired to Slack.
  */
 export function createSlackChannel(config: SlackConfig): ChannelAdapter {
-  const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
-  const ownerId = config.ownerId;
-  let connected = false;
-  let handler: MessageHandler | null = null;
-
-  const app = new SlackApp({
-    token: config.botToken,
-    appToken: config.appToken,
-    signingSecret: config.signingSecret,
-    socketMode: true,
-  });
-
-  // Listen for messages
-  // deno-lint-ignore require-await
-  app.message(async ({ message }) => {
-    if (!handler) return;
-
-    // Type narrowing for regular messages
-    const msg = message as { text?: string; user?: string; channel?: string };
-    if (!msg.text || !msg.channel) return;
-
-    const isOwner = ownerId !== undefined ? msg.user === ownerId : true;
-
-    log.debug("Message received", { channel: msg.channel, senderId: msg.user, isOwner });
-    handler({
-      content: msg.text,
-      sessionId: `slack-${msg.channel}`,
-      senderId: msg.user,
-      isOwner,
-      sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
-    });
-  });
-
-  return {
-    classification,
-    isOwner: true,
-
-    async connect(): Promise<void> {
-      await app.start();
-      connected = true;
-      log.info("Slack adapter connected");
-    },
-
-    async disconnect(): Promise<void> {
-      await app.stop();
-      connected = false;
-      log.info("Slack adapter disconnected");
-    },
-
-    async send(message: ChannelMessage): Promise<void> {
-      if (!message.sessionId) return;
-
-      const channelId = message.sessionId.replace("slack-", "");
-      const text = message.content.length > MAX_MESSAGE_LENGTH
-        ? message.content.slice(0, MAX_MESSAGE_LENGTH)
-        : message.content;
-
-      await app.client.chat.postMessage({
-        channel: channelId,
-        text,
-      });
-    },
-
-    onMessage(msgHandler: MessageHandler): void {
-      handler = msgHandler;
-    },
-
-    status(): ChannelStatus {
-      return {
-        connected,
-        channelType: "slack",
-      };
-    },
+  const classification = (config.classification ??
+    "PUBLIC") as ClassificationLevel;
+  const state: SlackAdapterState = {
+    connected: false,
+    handlerRef: { current: null },
   };
+  const app = buildSlackApp(config);
+  attachSlackMessageListener(app, config.ownerId, state.handlerRef);
+  return assembleSlackAdapter(app, classification, state);
 }

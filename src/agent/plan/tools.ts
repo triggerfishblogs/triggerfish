@@ -9,132 +9,168 @@
 
 import type { ToolDefinition } from "../../core/types/tool.ts";
 
+function buildPlanEnterDef(): ToolDefinition {
+  return {
+    name: "plan_enter",
+    description:
+      "Enter plan mode. Constrains the agent to read-only exploration and planning. " +
+      "write_file and cron_create/cron_delete are blocked until plan_exit is called.",
+    parameters: {
+      goal: {
+        type: "string",
+        description: "What the agent is planning to build/change",
+        required: true,
+      },
+      scope: {
+        type: "string",
+        description:
+          "Optional: constrain exploration to specific directories or modules",
+        required: false,
+      },
+    },
+  };
+}
+
+function buildPlanExitDef(): ToolDefinition {
+  return {
+    name: "plan_exit",
+    description:
+      "Exit plan mode and present the implementation plan for user approval. " +
+      "Does NOT automatically begin execution — the user must approve first.",
+    parameters: {
+      plan: {
+        type: "object",
+        description:
+          "The implementation plan object: { summary, approach, alternatives_considered, " +
+          "steps: [{ id, description, files, depends_on, verification }], risks, " +
+          "files_to_create, files_to_modify, tests_to_write, estimated_complexity }",
+        required: true,
+      },
+    },
+  };
+}
+
+function buildPlanStatusDef(): ToolDefinition {
+  return {
+    name: "plan_status",
+    description:
+      "Returns current plan mode state: mode, goal, active plan progress.",
+    parameters: {},
+  };
+}
+
+function buildPlanApproveDef(): ToolDefinition {
+  return {
+    name: "plan_approve",
+    description:
+      "Approve the pending plan and begin execution. Call this when the user " +
+      "approves the plan presented by plan_exit.",
+    parameters: {},
+  };
+}
+
+function buildPlanRejectDef(): ToolDefinition {
+  return {
+    name: "plan_reject",
+    description:
+      "Reject the pending plan and return to normal mode. Call this when " +
+      "the user rejects the plan or wants to start over.",
+    parameters: {},
+  };
+}
+
+function buildPlanStepCompleteDef(): ToolDefinition {
+  return {
+    name: "plan_step_complete",
+    description:
+      "Mark a plan step as complete during execution of an approved plan.",
+    parameters: {
+      step_id: {
+        type: "number",
+        description: "The step ID to mark as complete",
+        required: true,
+      },
+      verification_result: {
+        type: "string",
+        description: "Output from the verification command",
+        required: true,
+      },
+    },
+  };
+}
+
+function buildPlanCompleteDef(): ToolDefinition {
+  return {
+    name: "plan_complete",
+    description:
+      "Mark the entire plan as complete. Call when all steps are done.",
+    parameters: {
+      summary: {
+        type: "string",
+        description: "What was accomplished",
+        required: true,
+      },
+      deviations: {
+        type: "array",
+        description: "Any changes from the original plan",
+        required: false,
+        items: { type: "string" },
+      },
+    },
+  };
+}
+
+function buildPlanModifyParams(): ToolDefinition["parameters"] {
+  return {
+    step_id: {
+      type: "number",
+      description: "Which step needs changing",
+      required: true,
+    },
+    reason: {
+      type: "string",
+      description: "Why the change is needed",
+      required: true,
+    },
+    new_description: {
+      type: "string",
+      description: "Updated step description",
+      required: true,
+    },
+    new_files: {
+      type: "array",
+      description: "Updated file list (optional)",
+      required: false,
+      items: { type: "string" },
+    },
+    new_verification: {
+      type: "string",
+      description: "Updated verification command (optional)",
+      required: false,
+    },
+  };
+}
+
+function buildPlanModifyDef(): ToolDefinition {
+  return {
+    name: "plan_modify",
+    description:
+      "Request a modification to an approved plan step. Requires user approval.",
+    parameters: buildPlanModifyParams(),
+  };
+}
+
 /** Tool definitions for plan mode tools. */
 export function getPlanToolDefinitions(): readonly ToolDefinition[] {
   return [
-    {
-      name: "plan_enter",
-      description:
-        "Enter plan mode. Constrains the agent to read-only exploration and planning. " +
-        "write_file and cron_create/cron_delete are blocked until plan_exit is called.",
-      parameters: {
-        goal: {
-          type: "string",
-          description: "What the agent is planning to build/change",
-          required: true,
-        },
-        scope: {
-          type: "string",
-          description:
-            "Optional: constrain exploration to specific directories or modules",
-          required: false,
-        },
-      },
-    },
-    {
-      name: "plan_exit",
-      description:
-        "Exit plan mode and present the implementation plan for user approval. " +
-        "Does NOT automatically begin execution — the user must approve first.",
-      parameters: {
-        plan: {
-          type: "object",
-          description:
-            "The implementation plan object: { summary, approach, alternatives_considered, " +
-            "steps: [{ id, description, files, depends_on, verification }], risks, " +
-            "files_to_create, files_to_modify, tests_to_write, estimated_complexity }",
-          required: true,
-        },
-      },
-    },
-    {
-      name: "plan_status",
-      description:
-        "Returns current plan mode state: mode, goal, active plan progress.",
-      parameters: {},
-    },
-    {
-      name: "plan_approve",
-      description:
-        "Approve the pending plan and begin execution. Call this when the user " +
-        "approves the plan presented by plan_exit.",
-      parameters: {},
-    },
-    {
-      name: "plan_reject",
-      description:
-        "Reject the pending plan and return to normal mode. Call this when " +
-        "the user rejects the plan or wants to start over.",
-      parameters: {},
-    },
-    {
-      name: "plan_step_complete",
-      description:
-        "Mark a plan step as complete during execution of an approved plan.",
-      parameters: {
-        step_id: {
-          type: "number",
-          description: "The step ID to mark as complete",
-          required: true,
-        },
-        verification_result: {
-          type: "string",
-          description: "Output from the verification command",
-          required: true,
-        },
-      },
-    },
-    {
-      name: "plan_complete",
-      description:
-        "Mark the entire plan as complete. Call when all steps are done.",
-      parameters: {
-        summary: {
-          type: "string",
-          description: "What was accomplished",
-          required: true,
-        },
-        deviations: {
-          type: "array",
-          description: "Any changes from the original plan",
-          required: false,
-          items: { type: "string" },
-        },
-      },
-    },
-    {
-      name: "plan_modify",
-      description:
-        "Request a modification to an approved plan step. Requires user approval.",
-      parameters: {
-        step_id: {
-          type: "number",
-          description: "Which step needs changing",
-          required: true,
-        },
-        reason: {
-          type: "string",
-          description: "Why the change is needed",
-          required: true,
-        },
-        new_description: {
-          type: "string",
-          description: "Updated step description",
-          required: true,
-        },
-        new_files: {
-          type: "array",
-          description: "Updated file list (optional)",
-          required: false,
-          items: { type: "string" },
-        },
-        new_verification: {
-          type: "string",
-          description: "Updated verification command (optional)",
-          required: false,
-        },
-      },
-    },
+    buildPlanEnterDef(),
+    buildPlanExitDef(),
+    buildPlanStatusDef(),
+    buildPlanApproveDef(),
+    buildPlanRejectDef(),
+    buildPlanStepCompleteDef(),
+    buildPlanCompleteDef(),
+    buildPlanModifyDef(),
   ];
 }
 

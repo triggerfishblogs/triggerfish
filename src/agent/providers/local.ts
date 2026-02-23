@@ -12,7 +12,12 @@
  * @module
  */
 
-import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import type {
+  LlmCompletionResult,
+  LlmMessage,
+  LlmProvider,
+  LlmStreamChunk,
+} from "../llm.ts";
 import { getModelInfo } from "../models.ts";
 import { parseSseStream } from "./sse.ts";
 import type { ContentBlock } from "../../core/image/content.ts";
@@ -47,6 +52,102 @@ export interface LocalConfig {
   readonly maxTokens?: number;
 }
 
+function buildLocalRequestBody(
+  model: string,
+  maxTokens: number,
+  messages: readonly LlmMessage[],
+  tools: readonly unknown[],
+  streaming: boolean,
+): Record<string, unknown> {
+  const openaiMessages = messages.map((m) => ({
+    role: m.role,
+    content: toOpenAiContent(m.content),
+  }));
+  const body: Record<string, unknown> = {
+    model,
+    max_tokens: maxTokens,
+    messages: openaiMessages,
+  };
+  if (streaming) body.stream = true;
+  if (Array.isArray(tools) && tools.length > 0) {
+    body.tools = tools;
+    body.tool_choice = "auto";
+  }
+  return body;
+}
+
+function parseLocalCompletionResponse(
+  data: Record<string, unknown>,
+): LlmCompletionResult {
+  const choices = data.choices as Record<string, unknown>[] | undefined;
+  const message = choices?.[0]?.message as Record<string, unknown> | undefined;
+  const usage = data.usage as Record<string, unknown> | undefined;
+  return {
+    content: (message?.content as string) ?? "",
+    toolCalls: (message?.tool_calls as unknown[]) ?? [],
+    usage: {
+      inputTokens: (usage?.prompt_tokens as number) ?? 0,
+      outputTokens: (usage?.completion_tokens as number) ?? 0,
+    },
+  };
+}
+
+async function completeLocal(
+  endpoint: string,
+  model: string,
+  maxTokens: number,
+  messages: readonly LlmMessage[],
+  tools: readonly unknown[],
+  options: Record<string, unknown>,
+): Promise<LlmCompletionResult> {
+  const signal = options.signal as AbortSignal | undefined;
+  const body = buildLocalRequestBody(model, maxTokens, messages, tools, false);
+
+  const response = await fetch(`${endpoint}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    ...(signal ? { signal } : {}),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Local LLM request failed (${response.status}): ${text}`);
+  }
+
+  return parseLocalCompletionResponse(await response.json());
+}
+
+async function* streamLocal(
+  endpoint: string,
+  model: string,
+  maxTokens: number,
+  messages: readonly LlmMessage[],
+  tools: readonly unknown[],
+  options: Record<string, unknown>,
+): AsyncIterable<LlmStreamChunk> {
+  const signal = options.signal as AbortSignal | undefined;
+  const body = buildLocalRequestBody(model, maxTokens, messages, tools, true);
+
+  const response = await fetch(`${endpoint}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    ...(signal ? { signal } : {}),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Local LLM stream failed (${response.status}): ${text}`);
+  }
+
+  if (!response.body) {
+    throw new Error("No response body for streaming");
+  }
+
+  yield* parseSseStream(response.body);
+}
+
 /**
  * Create a local LLM provider using an OpenAI-compatible API.
  *
@@ -65,91 +166,9 @@ export function createLocalProvider(config: LocalConfig): LlmProvider {
     name: config.name ?? "ollama",
     supportsStreaming: true,
     contextWindow: getModelInfo(model).contextWindow,
-
-    async complete(
-      messages: readonly LlmMessage[],
-      tools: readonly unknown[],
-      options: Record<string, unknown>,
-    ): Promise<LlmCompletionResult> {
-      const signal = options.signal as AbortSignal | undefined;
-      const openaiMessages = messages.map((m) => ({
-        role: m.role,
-        content: toOpenAiContent(m.content),
-      }));
-
-      const body: Record<string, unknown> = {
-        model,
-        max_tokens: maxTokens,
-        messages: openaiMessages,
-      };
-      if (Array.isArray(tools) && tools.length > 0) {
-        body.tools = tools;
-        body.tool_choice = "auto";
-      }
-
-      const response = await fetch(`${endpoint}/v1/chat/completions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        ...(signal ? { signal } : {}),
-      });
-
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`Local LLM request failed (${response.status}): ${body}`);
-      }
-
-      const data = await response.json();
-
-      return {
-        content: data.choices?.[0]?.message?.content ?? "",
-        toolCalls: data.choices?.[0]?.message?.tool_calls ?? [],
-        usage: {
-          inputTokens: data.usage?.prompt_tokens ?? 0,
-          outputTokens: data.usage?.completion_tokens ?? 0,
-        },
-      };
-    },
-
-    async *stream(
-      messages: readonly LlmMessage[],
-      tools: readonly unknown[],
-      options: Record<string, unknown>,
-    ): AsyncIterable<LlmStreamChunk> {
-      const signal = options.signal as AbortSignal | undefined;
-      const openaiMessages = messages.map((m) => ({
-        role: m.role,
-        content: toOpenAiContent(m.content),
-      }));
-
-      const body: Record<string, unknown> = {
-        model,
-        max_tokens: maxTokens,
-        messages: openaiMessages,
-        stream: true,
-      };
-      if (Array.isArray(tools) && tools.length > 0) {
-        body.tools = tools;
-        body.tool_choice = "auto";
-      }
-
-      const response = await fetch(`${endpoint}/v1/chat/completions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        ...(signal ? { signal } : {}),
-      });
-
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`Local LLM stream failed (${response.status}): ${body}`);
-      }
-
-      if (!response.body) {
-        throw new Error("No response body for streaming");
-      }
-
-      yield* parseSseStream(response.body);
-    },
+    complete: (messages, tools, options) =>
+      completeLocal(endpoint, model, maxTokens, messages, tools, options),
+    stream: (messages, tools, options) =>
+      streamLocal(endpoint, model, maxTokens, messages, tools, options),
   };
 }

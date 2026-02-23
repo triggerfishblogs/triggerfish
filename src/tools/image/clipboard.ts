@@ -21,7 +21,16 @@ export interface ClipboardImage {
 }
 
 /** PNG magic bytes: \x89PNG\r\n\x1a\n */
-const PNG_MAGIC = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+const PNG_MAGIC = new Uint8Array([
+  0x89,
+  0x50,
+  0x4E,
+  0x47,
+  0x0D,
+  0x0A,
+  0x1A,
+  0x0A,
+]);
 
 /** JPEG magic bytes: \xFF\xD8\xFF */
 const JPEG_MAGIC = new Uint8Array([0xFF, 0xD8, 0xFF]);
@@ -58,48 +67,56 @@ interface ClipboardCommand {
   readonly label: string;
 }
 
+/** Build Wayland clipboard commands for the given image types. */
+function buildWaylandClipboardCommands(): readonly ClipboardCommand[] {
+  return [
+    { cmd: ["wl-paste", "--type", "image/png"], label: "wl-paste (png)" },
+    { cmd: ["wl-paste", "--type", "image/jpeg"], label: "wl-paste (jpeg)" },
+  ];
+}
+
+/** Build X11 clipboard commands for the given image types. */
+function buildX11ClipboardCommands(): readonly ClipboardCommand[] {
+  return [
+    {
+      cmd: ["xclip", "-selection", "clipboard", "-target", "image/png", "-o"],
+      label: "xclip (png)",
+    },
+    {
+      cmd: ["xclip", "-selection", "clipboard", "-target", "image/jpeg", "-o"],
+      label: "xclip (jpeg)",
+    },
+  ];
+}
+
+/** Build Linux clipboard commands based on detected display server. */
+function buildLinuxClipboardCommands(): readonly ClipboardCommand[] {
+  const waylandDisplay = Deno.env.get("WAYLAND_DISPLAY");
+  const display = Deno.env.get("DISPLAY");
+  const commands: ClipboardCommand[] = [];
+  if (waylandDisplay) commands.push(...buildWaylandClipboardCommands());
+  if (display) commands.push(...buildX11ClipboardCommands());
+  if (commands.length === 0) {
+    commands.push(
+      { cmd: ["wl-paste", "--type", "image/png"], label: "wl-paste (png)" },
+      {
+        cmd: ["xclip", "-selection", "clipboard", "-target", "image/png", "-o"],
+        label: "xclip (png)",
+      },
+    );
+  }
+  return commands;
+}
+
 /**
  * Get clipboard commands ordered by preference for the current platform.
  * Returns multiple commands to try in order (first success wins).
  */
 function getClipboardCommands(): readonly ClipboardCommand[] {
-  const os = Deno.build.os;
-
-  if (os === "darwin") {
-    return [
-      { cmd: ["pngpaste", "/dev/stdout"], label: "pngpaste" },
-    ];
+  if (Deno.build.os === "darwin") {
+    return [{ cmd: ["pngpaste", "/dev/stdout"], label: "pngpaste" }];
   }
-
-  // Linux: try Wayland first, then X11
-  const waylandDisplay = Deno.env.get("WAYLAND_DISPLAY");
-  const display = Deno.env.get("DISPLAY");
-
-  const commands: ClipboardCommand[] = [];
-
-  if (waylandDisplay) {
-    commands.push(
-      { cmd: ["wl-paste", "--type", "image/png"], label: "wl-paste (png)" },
-      { cmd: ["wl-paste", "--type", "image/jpeg"], label: "wl-paste (jpeg)" },
-    );
-  }
-
-  if (display) {
-    commands.push(
-      { cmd: ["xclip", "-selection", "clipboard", "-target", "image/png", "-o"], label: "xclip (png)" },
-      { cmd: ["xclip", "-selection", "clipboard", "-target", "image/jpeg", "-o"], label: "xclip (jpeg)" },
-    );
-  }
-
-  if (commands.length === 0) {
-    // Fallback: try Wayland and X11 anyway
-    commands.push(
-      { cmd: ["wl-paste", "--type", "image/png"], label: "wl-paste (png)" },
-      { cmd: ["xclip", "-selection", "clipboard", "-target", "image/png", "-o"], label: "xclip (png)" },
-    );
-  }
-
-  return commands;
+  return buildLinuxClipboardCommands();
 }
 
 /**
@@ -134,7 +151,9 @@ async function tryCommand(cmd: string[]): Promise<Uint8Array | null> {
  *
  * @returns Result with ClipboardImage on success, error string on failure
  */
-export async function readClipboardImage(): Promise<Result<ClipboardImage, string>> {
+export async function readClipboardImage(): Promise<
+  Result<ClipboardImage, string>
+> {
   const commands = getClipboardCommands();
 
   for (const { cmd, label: _label } of commands) {
@@ -155,6 +174,7 @@ export async function readClipboardImage(): Promise<Result<ClipboardImage, strin
 
   return {
     ok: false,
-    error: "No image found in clipboard. Copy an image first, then press Ctrl+V.",
+    error:
+      "No image found in clipboard. Copy an image first, then press Ctrl+V.",
   };
 }

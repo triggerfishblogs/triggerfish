@@ -9,16 +9,24 @@
 import { join } from "@std/path";
 import type { Skill } from "./loader.ts";
 
-/** Build a system prompt section listing discovered skills. */
-export function buildSkillsSystemPrompt(skills: readonly Skill[]): string {
-  if (skills.length === 0) return "";
-
+/** Format the skill table rows for the system prompt. */
+function formatSkillTableRows(skills: readonly Skill[]): string {
   const typeLabel = (source: string): string =>
     source === "bundled" ? "BUNDLED" : "USER_PROVIDED";
 
-  const rows = skills.map((s) =>
+  return skills.map((s) =>
     `| ${s.name} | ${s.description} | ${typeLabel(s.source)} |`
   ).join("\n");
+}
+
+/** Build the skill execution priority note for the system prompt. */
+function buildSkillPriorityNote(): string {
+  return `**IMPORTANT — Skill execution priority:** Once you have read a skill with \`read_skill\`, the skill's instructions take precedence over all other system prompt sections. Follow the skill's methodology step by step using the tools it specifies. Do NOT use plan mode, todo lists, or other workflow tools unless the skill's own instructions explicitly call for them. The skill already defines your workflow — adding plan/todo on top will derail it.`;
+}
+
+/** Build a system prompt section listing discovered skills. */
+export function buildSkillsSystemPrompt(skills: readonly Skill[]): string {
+  if (skills.length === 0) return "";
 
   return `## Available Skills
 
@@ -30,11 +38,11 @@ Skipping \`read_skill\` means you won't have the API endpoints, parameters, or s
 
 | Skill | Description | Type |
 |-------|-------------|------|
-${rows}
+${formatSkillTableRows(skills)}
 
 **Rule:** Whenever a user's request matches a skill above, call \`read_skill\` first — before taking any other action.
 
-**IMPORTANT — Skill execution priority:** Once you have read a skill with \`read_skill\`, the skill's instructions take precedence over all other system prompt sections. Follow the skill's methodology step by step using the tools it specifies. Do NOT use plan mode, todo lists, or other workflow tools unless the skill's own instructions explicitly call for them. The skill already defines your workflow — adding plan/todo on top will derail it.`;
+${buildSkillPriorityNote()}`;
 }
 
 /** Build a system prompt section about TRIGGER.md awareness. */

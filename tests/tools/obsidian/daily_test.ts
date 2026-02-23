@@ -4,11 +4,11 @@
 
 import { assertEquals, assert } from "@std/assert";
 import { createVaultContext } from "../../../src/tools/obsidian/vault.ts";
-import { createNoteStore } from "../../../src/tools/obsidian/notes.ts";
+import { createNoteStore } from "../../../src/tools/obsidian/notes/notes.ts";
 import { createDailyNoteManager } from "../../../src/tools/obsidian/daily.ts";
 import type { ObsidianVaultConfig } from "../../../src/tools/obsidian/types.ts";
 import type { VaultContext } from "../../../src/tools/obsidian/vault.ts";
-import type { NoteStore } from "../../../src/tools/obsidian/notes.ts";
+import type { NoteStore } from "../../../src/tools/obsidian/notes/notes.ts";
 
 /** Create a temp vault context with daily notes config. */
 async function makeDailyCtx(

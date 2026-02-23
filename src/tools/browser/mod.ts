@@ -5,6 +5,11 @@
  * management with watermarking, and page interaction tools with SSRF
  * prevention and security enforcement.
  *
+ * Sub-modules:
+ * - manager/  — Chrome detection, launch strategies, profile isolation
+ * - tools/    — Navigation, snapshot, click, type, select, scroll, wait
+ * - executor/ — Tool definitions, dispatch, auto-launch, watermarking
+ *
  * @module
  */
 
@@ -21,7 +26,7 @@ export {
   type BrowserInstance,
   type BrowserManager,
   type BrowserManagerConfig,
-} from "./manager.ts";
+} from "./manager/mod.ts";
 
 export {
   BROWSER_TOOLS_SYSTEM_PROMPT,
@@ -38,7 +43,7 @@ export {
   type NavigateResult,
   type ScrollDirection,
   type SnapshotResult,
-} from "./tools.ts";
+} from "./tools/mod.ts";
 
 export {
   canAccessProfile,
@@ -46,4 +51,4 @@ export {
   getWatermark,
   type ProfileWatermark,
   watermarkKey,
-} from "./watermark.ts";
+} from "./executor/mod.ts";

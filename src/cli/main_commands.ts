@@ -149,14 +149,13 @@ export function parseCommand(
 
 // ─── Help / Version ───────────────────────────────────────────────────────────
 
-/** Display help text. */
-export function showHelp(): void {
-  console.log(`
+const HELP_HEADER = `
 Triggerfish - Secure Multi-Channel AI Agent Platform
 
 USAGE:
-  triggerfish [command] [options]
+  triggerfish [command] [options]`;
 
+const HELP_COMMANDS = `
 COMMANDS:
   chat        Start an interactive chat session
   config      Manage configuration (add channels, etc.)
@@ -173,8 +172,9 @@ COMMANDS:
   tidepool    Tidepool A2UI controls
   update      Pull latest code, recompile, and restart
   help        Show this help message
-  version     Show version information
+  version     Show version information`;
 
+const HELP_CONFIG_SUBCOMMANDS = `
 CONFIG SUBCOMMANDS:
   config set <key> <value>                 Set a config value (dotted YAML path)
   config get <key>                         Get a config value
@@ -183,8 +183,9 @@ CONFIG SUBCOMMANDS:
   config add-plugin [name]                 Add a plugin (obsidian)
   config set-secret <key> <value>          Store a secret in OS keychain
   config get-secret <key>                  Retrieve a secret from OS keychain
-  config migrate-secrets                   Migrate plaintext secrets to keychain
+  config migrate-secrets                   Migrate plaintext secrets to keychain`;
 
+const HELP_OTHER_SUBCOMMANDS = `
 LOGS SUBCOMMANDS:
   logs view                              View daemon logs (default, --tail to follow)
   logs bundle                            Bundle all log files into a temporary directory
@@ -202,8 +203,9 @@ INTEGRATIONS:
   connect google                         Authenticate with Google Workspace
   connect github                         Authenticate with GitHub
   disconnect google                      Remove Google authentication
-  disconnect github                      Remove GitHub authentication
+  disconnect github                      Remove GitHub authentication`;
 
+const HELP_EXAMPLES_CORE = `
 EXAMPLES:
   triggerfish chat                                  # Start chatting with your agent
   triggerfish cron add "0 9 * * *" morning briefing # Daily 9am task
@@ -215,8 +217,10 @@ EXAMPLES:
   triggerfish config add-channel telegram              # Add Telegram channel
   triggerfish config add-channel                       # Interactive channel selection
   triggerfish config add-plugin obsidian              # Add Obsidian vault plugin
-  triggerfish config add-plugin                       # Interactive plugin selection
-  triggerfish dive                                  # Interactive setup
+  triggerfish config add-plugin                       # Interactive plugin selection`;
+
+const HELP_EXAMPLES_OPS =
+  `  triggerfish dive                                  # Interactive setup
   triggerfish run                                   # Run gateway in foreground
   triggerfish start                                 # Install and start daemon
   triggerfish stop                                  # Stop the daemon
@@ -229,8 +233,19 @@ EXAMPLES:
   triggerfish tidepool url                          # Show Tidepool A2UI URL
   triggerfish update                                # Update to latest version
 
-For more information, visit: https://trigger.fish/docs
-`);
+For more information, visit: https://trigger.fish/docs`;
+
+/** Display help text. */
+export function showHelp(): void {
+  const sections = [
+    HELP_HEADER,
+    HELP_COMMANDS,
+    HELP_CONFIG_SUBCOMMANDS,
+    HELP_OTHER_SUBCOMMANDS,
+    HELP_EXAMPLES_CORE,
+    HELP_EXAMPLES_OPS,
+  ];
+  console.log(sections.join("\n") + "\n");
 }
 
 /** Display version information. */

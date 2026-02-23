@@ -117,6 +117,84 @@ export function createRateLimitedSearchProvider(
   };
 }
 
+function buildSearchParams(
+  query: string,
+  options?: SearchOptions,
+): URLSearchParams {
+  const params = new URLSearchParams({ q: query });
+  if (options?.maxResults !== undefined) {
+    params.set("count", String(Math.min(options.maxResults, 20)));
+  }
+  if (options?.language) params.set("search_lang", options.language);
+  if (options?.region) params.set("country", options.region);
+  if (options?.safeSearch) params.set("safesearch", options.safeSearch);
+  return params;
+}
+
+async function fetchBraveResults(
+  endpoint: string,
+  apiKey: string,
+  params: URLSearchParams,
+): Promise<Result<BraveApiResponse, string>> {
+  const url = `${endpoint}?${params.toString()}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip",
+        "X-Subscription-Token": apiKey,
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Brave Search request failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    return {
+      ok: false,
+      error: `Brave Search API error ${response.status}: ${body}`,
+    };
+  }
+
+  try {
+    return { ok: true, value: (await response.json()) as BraveApiResponse };
+  } catch {
+    return { ok: false, error: "Failed to parse Brave Search response" };
+  }
+}
+
+function parseBraveResults(
+  query: string,
+  data: BraveApiResponse,
+): SearchResult {
+  const items: SearchResultItem[] = (data.web?.results ?? [])
+    .filter(
+      (r): r is BraveWebResult & { title: string; url: string } =>
+        typeof r.title === "string" && typeof r.url === "string",
+    )
+    .map((r) => ({
+      title: r.title,
+      url: r.url,
+      snippet: r.description ?? "",
+      ...(r.page_age ? { publishedDate: r.page_age } : {}),
+    }));
+
+  return {
+    query,
+    results: items,
+    totalEstimate: data.web?.totalEstimatedMatches,
+  };
+}
+
 /**
  * Create a Brave Search provider.
  *
@@ -126,8 +204,8 @@ export function createRateLimitedSearchProvider(
 export function createBraveSearchProvider(
   config: BraveSearchConfig,
 ): SearchProvider {
-  const endpoint =
-    config.endpoint ?? "https://api.search.brave.com/res/v1/web/search";
+  const endpoint = config.endpoint ??
+    "https://api.search.brave.com/res/v1/web/search";
 
   return {
     id: "brave",
@@ -141,75 +219,15 @@ export function createBraveSearchProvider(
         return { ok: false, error: "Search query cannot be empty" };
       }
 
-      const params = new URLSearchParams({ q: query });
+      const params = buildSearchParams(query, options);
+      const fetchResult = await fetchBraveResults(
+        endpoint,
+        config.apiKey,
+        params,
+      );
+      if (!fetchResult.ok) return fetchResult;
 
-      if (options?.maxResults !== undefined) {
-        params.set("count", String(Math.min(options.maxResults, 20)));
-      }
-      if (options?.language) {
-        params.set("search_lang", options.language);
-      }
-      if (options?.region) {
-        params.set("country", options.region);
-      }
-      if (options?.safeSearch) {
-        params.set("safesearch", options.safeSearch);
-      }
-
-      const url = `${endpoint}?${params.toString()}`;
-
-      let response: Response;
-      try {
-        response = await fetch(url, {
-          headers: {
-            "Accept": "application/json",
-            "Accept-Encoding": "gzip",
-            "X-Subscription-Token": config.apiKey,
-          },
-          signal: AbortSignal.timeout(15_000),
-        });
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Brave Search request failed: ${err instanceof Error ? err.message : String(err)}`,
-        };
-      }
-
-      if (!response.ok) {
-        const body = await response.text().catch(() => "");
-        return {
-          ok: false,
-          error: `Brave Search API error ${response.status}: ${body}`,
-        };
-      }
-
-      let data: BraveApiResponse;
-      try {
-        data = (await response.json()) as BraveApiResponse;
-      } catch {
-        return { ok: false, error: "Failed to parse Brave Search response" };
-      }
-
-      const items: SearchResultItem[] = (data.web?.results ?? [])
-        .filter(
-          (r): r is BraveWebResult & { title: string; url: string } =>
-            typeof r.title === "string" && typeof r.url === "string",
-        )
-        .map((r) => ({
-          title: r.title,
-          url: r.url,
-          snippet: r.description ?? "",
-          ...(r.page_age ? { publishedDate: r.page_age } : {}),
-        }));
-
-      return {
-        ok: true,
-        value: {
-          query,
-          results: items,
-          totalEstimate: data.web?.totalEstimatedMatches,
-        },
-      };
+      return { ok: true, value: parseBraveResults(query, fetchResult.value) };
     },
   };
 }

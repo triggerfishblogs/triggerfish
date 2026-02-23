@@ -8,7 +8,7 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 
-import { createMemorySecretStore } from "../../src/core/secrets/keychain.ts";
+import { createMemorySecretStore } from "../../src/core/secrets/keychain/keychain.ts";
 
 // ─── loadConfigWithSecrets ────────────────────────────────────────────────────
 

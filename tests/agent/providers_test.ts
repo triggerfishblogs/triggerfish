@@ -11,9 +11,9 @@ import {
 } from "../../src/agent/llm.ts";
 import { createAnthropicProvider } from "../../src/agent/providers/anthropic.ts";
 import { createOpenAiProvider } from "../../src/agent/providers/openai.ts";
-import { createGoogleProvider } from "../../src/agent/providers/google.ts";
+import { createGoogleProvider } from "../../src/agent/providers/google/google.ts";
 import { createLocalProvider } from "../../src/agent/providers/local.ts";
-import { createOpenRouterProvider } from "../../src/agent/providers/openrouter.ts";
+import { createOpenRouterProvider } from "../../src/agent/providers/openrouter/openrouter.ts";
 import { createZenMuxProvider } from "../../src/agent/providers/zenmux.ts";
 import { createZaiProvider } from "../../src/agent/providers/zai.ts";
 import { loadProvidersFromConfig } from "../../src/agent/providers/config.ts";

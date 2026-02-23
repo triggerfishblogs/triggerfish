@@ -10,7 +10,7 @@ import {
   createMcpServerAdapter,
 } from "../../src/mcp/manager.ts";
 import type { McpServerConfig } from "../../src/mcp/manager.ts";
-import { createMemorySecretStore } from "../../src/core/secrets/keychain.ts";
+import { createMemorySecretStore } from "../../src/core/secrets/keychain/keychain.ts";
 
 // --- resolveEnvVars ---
 

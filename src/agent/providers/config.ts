@@ -11,9 +11,9 @@ import type { LlmProviderRegistry, LlmProvider } from "../llm.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 import { createAnthropicProvider } from "./anthropic.ts";
 import { createOpenAiProvider } from "./openai.ts";
-import { createGoogleProvider } from "./google.ts";
+import { createGoogleProvider } from "./google/mod.ts";
 import { createLocalProvider } from "./local.ts";
-import { createOpenRouterProvider } from "./openrouter.ts";
+import { createOpenRouterProvider } from "./openrouter/mod.ts";
 import { createZenMuxProvider } from "./zenmux.ts";
 import { createZaiProvider } from "./zai.ts";
 

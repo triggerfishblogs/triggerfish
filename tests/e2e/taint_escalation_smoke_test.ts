@@ -8,9 +8,9 @@
  * so you can visually confirm the escalation sequence.
  */
 import { assertEquals } from "@std/assert";
-import { createOrchestrator } from "../../src/agent/orchestrator.ts";
+import { createOrchestrator } from "../../src/agent/orchestrator/orchestrator.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
-import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks.ts";
+import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks/hooks.ts";
 import { createSession } from "../../src/core/types/session.ts";
 import type { UserId, ChannelId } from "../../src/core/types/session.ts";
 import type { ClassificationLevel } from "../../src/core/types/classification.ts";

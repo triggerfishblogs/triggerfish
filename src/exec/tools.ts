@@ -76,6 +76,138 @@ function resolveWorkspacePath(
   return resolved;
 }
 
+async function writeFile(
+  workspace: Workspace,
+  path: string,
+  content: string,
+): Promise<Result<WriteResult, string>> {
+  const resolved = resolveWorkspacePath(workspace, path);
+  if (resolved === null) {
+    return {
+      ok: false,
+      error: `Path "${path}" escapes the workspace directory`,
+    };
+  }
+
+  try {
+    const parentDir = resolve(resolved, "..");
+    await Deno.mkdir(parentDir, { recursive: true });
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(content);
+    await Deno.writeFile(resolved, bytes);
+    return {
+      ok: true,
+      value: { path: resolved, bytesWritten: bytes.byteLength },
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Failed to write "${path}": ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+}
+
+async function readFile(
+  workspace: Workspace,
+  path: string,
+): Promise<Result<string, string>> {
+  const resolved = resolveWorkspacePath(workspace, path);
+  if (resolved === null) {
+    return {
+      ok: false,
+      error: `Path "${path}" escapes the workspace directory`,
+    };
+  }
+
+  try {
+    const content = await Deno.readTextFile(resolved);
+    return { ok: true, value: content };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Failed to read "${path}": ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+}
+
+async function runShellCommand(
+  workspace: Workspace,
+  command: string,
+  options?: ExecToolsOptions,
+): Promise<Result<RunResult, string>> {
+  try {
+    const start = performance.now();
+    const proc = new Deno.Command("sh", {
+      args: ["-c", command],
+      cwd: options?.cwdOverride ?? workspace.path,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await proc.output();
+    const duration = performance.now() - start;
+
+    const decoder = new TextDecoder();
+    return {
+      ok: true,
+      value: {
+        stdout: decoder.decode(output.stdout),
+        stderr: decoder.decode(output.stderr),
+        exitCode: output.code,
+        duration,
+      },
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Failed to run command: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+}
+
+async function listDirectory(
+  workspace: Workspace,
+  path?: string,
+): Promise<Result<readonly FileEntry[], string>> {
+  const targetPath = path
+    ? resolveWorkspacePath(workspace, path)
+    : workspace.path;
+
+  if (targetPath === null) {
+    return {
+      ok: false,
+      error: `Path "${path}" escapes the workspace directory`,
+    };
+  }
+
+  try {
+    const entries: FileEntry[] = [];
+    for await (const entry of Deno.readDir(targetPath)) {
+      let size = 0;
+      try {
+        const stat = await Deno.stat(join(targetPath, entry.name));
+        size = stat.size ?? 0;
+      } catch {
+        // Skip stat errors, report size 0
+      }
+      entries.push({ name: entry.name, size, isDirectory: entry.isDirectory });
+    }
+    return { ok: true, value: entries };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Failed to list "${path ?? "."}": ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+}
+
 /**
  * Create execution tools bound to a workspace.
  *
@@ -90,129 +222,9 @@ export function createExecTools(
   options?: ExecToolsOptions,
 ): ExecTools {
   return {
-    async write(
-      path: string,
-      content: string,
-    ): Promise<Result<WriteResult, string>> {
-      const resolved = resolveWorkspacePath(workspace, path);
-      if (resolved === null) {
-        return {
-          ok: false,
-          error: `Path "${path}" escapes the workspace directory`,
-        };
-      }
-
-      try {
-        const parentDir = resolve(resolved, "..");
-        await Deno.mkdir(parentDir, { recursive: true });
-        const encoder = new TextEncoder();
-        const bytes = encoder.encode(content);
-        await Deno.writeFile(resolved, bytes);
-        return {
-          ok: true,
-          value: { path: resolved, bytesWritten: bytes.byteLength },
-        };
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Failed to write "${path}": ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        };
-      }
-    },
-
-    async read(path: string): Promise<Result<string, string>> {
-      const resolved = resolveWorkspacePath(workspace, path);
-      if (resolved === null) {
-        return {
-          ok: false,
-          error: `Path "${path}" escapes the workspace directory`,
-        };
-      }
-
-      try {
-        const content = await Deno.readTextFile(resolved);
-        return { ok: true, value: content };
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Failed to read "${path}": ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        };
-      }
-    },
-
-    async runCommand(command: string): Promise<Result<RunResult, string>> {
-      try {
-        const start = performance.now();
-        const proc = new Deno.Command("sh", {
-          args: ["-c", command],
-          cwd: options?.cwdOverride ?? workspace.path,
-          stdout: "piped",
-          stderr: "piped",
-        });
-        const output = await proc.output();
-        const duration = performance.now() - start;
-
-        const decoder = new TextDecoder();
-        return {
-          ok: true,
-          value: {
-            stdout: decoder.decode(output.stdout),
-            stderr: decoder.decode(output.stderr),
-            exitCode: output.code,
-            duration,
-          },
-        };
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Failed to run command: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        };
-      }
-    },
-
-    async ls(path?: string): Promise<Result<readonly FileEntry[], string>> {
-      const targetPath = path
-        ? resolveWorkspacePath(workspace, path)
-        : workspace.path;
-
-      if (targetPath === null) {
-        return {
-          ok: false,
-          error: `Path "${path}" escapes the workspace directory`,
-        };
-      }
-
-      try {
-        const entries: FileEntry[] = [];
-        for await (const entry of Deno.readDir(targetPath)) {
-          let size = 0;
-          try {
-            const stat = await Deno.stat(join(targetPath, entry.name));
-            size = stat.size ?? 0;
-          } catch {
-            // Skip stat errors, report size 0
-          }
-          entries.push({
-            name: entry.name,
-            size,
-            isDirectory: entry.isDirectory,
-          });
-        }
-        return { ok: true, value: entries };
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Failed to list "${path ?? "."}": ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        };
-      }
-    },
+    write: (path, content) => writeFile(workspace, path, content),
+    read: (path) => readFile(workspace, path),
+    runCommand: (command) => runShellCommand(workspace, command, options),
+    ls: (path) => listDirectory(workspace, path),
   };
 }

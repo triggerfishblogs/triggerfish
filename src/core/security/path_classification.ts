@@ -14,10 +14,7 @@
 
 import { basename, join, resolve } from "@std/path";
 import type { ClassificationLevel } from "../types/classification.ts";
-import {
-  PROTECTED_BASENAMES,
-  PROTECTED_DIR_PATTERNS,
-} from "./constants.ts";
+import { PROTECTED_BASENAMES, PROTECTED_DIR_PATTERNS } from "./constants.ts";
 
 /** Result of classifying a filesystem path. */
 export interface PathClassificationResult {
@@ -147,6 +144,40 @@ function classifyWorkspacePath(
   return null;
 }
 
+/** Match a path against configured path mappings, returning the first match. */
+function matchConfiguredPath(
+  absolutePath: string,
+  paths: ReadonlyMap<string, ClassificationLevel>,
+): PathClassificationResult | null {
+  for (const [pattern, level] of paths) {
+    if (pathPatternMatches(pattern, absolutePath)) {
+      return {
+        classification: level,
+        source: "configured",
+        matchedPattern: pattern,
+      };
+    }
+  }
+  return null;
+}
+
+/** Run the full classification resolution chain for a single absolute path. */
+function resolvePathClassification(
+  absolutePath: string,
+  homeDir: string,
+  config: FilesystemSecurityConfig,
+  workspacePaths?: WorkspacePaths,
+): PathClassificationResult {
+  if (isHardcodedProtectedPath(absolutePath, homeDir)) {
+    return { classification: "RESTRICTED", source: "hardcoded" };
+  }
+  const workspaceResult = classifyWorkspacePath(absolutePath, workspacePaths);
+  if (workspaceResult) return workspaceResult;
+  const configuredResult = matchConfiguredPath(absolutePath, config.paths);
+  if (configuredResult) return configuredResult;
+  return { classification: config.defaultClassification, source: "default" };
+}
+
 /**
  * Create a path classifier.
  *
@@ -160,45 +191,16 @@ export function createPathClassifier(
 ): PathClassifier {
   const homeDir = resolveHome();
 
-  function classify(inputPath: string): PathClassificationResult {
-    // Step 1: Resolve to absolute path
-    const expanded = expandTilde(inputPath);
-    const absolutePath = resolve(expanded);
-
-    // Step 2: Check hardcoded protected paths → RESTRICTED
-    if (isHardcodedProtectedPath(absolutePath, homeDir)) {
-      return {
-        classification: "RESTRICTED",
-        source: "hardcoded",
-      };
-    }
-
-    // Step 3: Check workspace classification directories
-    const workspaceResult = classifyWorkspacePath(
-      absolutePath,
-      workspacePaths,
-    );
-    if (workspaceResult) {
-      return workspaceResult;
-    }
-
-    // Step 4: Check configured path mappings (first match wins)
-    for (const [pattern, level] of config.paths) {
-      if (pathPatternMatches(pattern, absolutePath)) {
-        return {
-          classification: level,
-          source: "configured",
-          matchedPattern: pattern,
-        };
-      }
-    }
-
-    // Step 5: Apply default
-    return {
-      classification: config.defaultClassification,
-      source: "default",
-    };
-  }
-
-  return { classify };
+  return {
+    classify(inputPath: string): PathClassificationResult {
+      const expanded = expandTilde(inputPath);
+      const absolutePath = resolve(expanded);
+      return resolvePathClassification(
+        absolutePath,
+        homeDir,
+        config,
+        workspacePaths,
+      );
+    },
+  };
 }

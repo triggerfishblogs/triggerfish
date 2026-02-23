@@ -11,7 +11,7 @@ import {
   canAccessProfile,
   escalateWatermark,
   getWatermark,
-} from "../../../src/tools/browser/watermark.ts";
+} from "../../../src/tools/browser/executor/watermark.ts";
 
 Deno.test("watermark: new profile returns null", async () => {
   const storage = createMemoryStorage();

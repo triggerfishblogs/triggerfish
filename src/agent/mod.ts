@@ -23,11 +23,11 @@ export type {
   ProcessMessageOptions,
   ProcessMessageResult,
   HistoryEntry,
-} from "./orchestrator.ts";
+} from "./orchestrator/orchestrator.ts";
 
-export type { CompactorConfig, CompactResult } from "./compactor.ts";
+export type { CompactorConfig, CompactResult } from "./compactor/compactor.ts";
 
-export { createOrchestrator } from "./orchestrator.ts";
+export { createOrchestrator } from "./orchestrator/orchestrator.ts";
 
 // Provider implementations
 export {
@@ -52,12 +52,12 @@ export { loadProvidersFromConfig } from "./providers/config.ts";
 export type { ProvidersConfig, ModelsConfig, PrimaryModelRef } from "./providers/config.ts";
 
 // Rate limiting
-export { createRateLimiter, createRateLimitedProvider } from "./rate_limiter.ts";
+export { createRateLimiter, createRateLimitedProvider } from "./rate_limiter/rate_limiter.ts";
 export type {
   RateLimiterConfig,
   RateLimiter,
   RateLimiterSnapshot,
-} from "./rate_limiter.ts";
+} from "./rate_limiter/rate_limiter.ts";
 
 // OpenAI rate limit constants
 export { getOpenAiLimits } from "./providers/openai_limits.ts";

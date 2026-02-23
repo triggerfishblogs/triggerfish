@@ -23,7 +23,7 @@ import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("signal");
 import { chunkMessage } from "../telegram/adapter.ts";
-import { createSignalClient } from "./client.ts";
+import { createSignalClient } from "./protocol/client.ts";
 import type {
   SignalClientInterface,
   SignalConfig,
@@ -59,160 +59,161 @@ export interface SignalChannelAdapter extends ChannelAdapter {
  * @param config - Signal adapter configuration.
  * @returns A SignalChannelAdapter wired to signal-cli.
  */
-export function createSignalChannel(config: SignalConfig): SignalChannelAdapter {
-  const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
-  const defaultGroupMode = config.defaultGroupMode ?? "always";
+/** Extract phone number from a DM session ID. */
+function phoneFromSignalSessionId(sessionId: string): string | null {
+  if (sessionId.startsWith("signal-group-")) return null;
+  if (sessionId.startsWith("signal-")) return sessionId.slice("signal-".length);
+  return null;
+}
 
+/** Extract group ID from a group session ID. */
+function groupIdFromSignalSessionId(sessionId: string): string | null {
+  if (sessionId.startsWith("signal-group-")) {
+    return sessionId.slice("signal-group-".length);
+  }
+  return null;
+}
+
+/** Check if a group message should be processed based on group mode config. */
+function isSignalGroupMessageAllowed(
+  groupId: string,
+  message: string,
+  mentions: ReadonlyArray<{ readonly uuid: string }> | undefined,
+  config: SignalConfig,
+  defaultGroupMode: string,
+): boolean {
+  const mode = config.groups?.[groupId]?.mode ?? defaultGroupMode;
+  switch (mode) {
+    case "always":
+      return true;
+    case "mentioned-only":
+      if (mentions && mentions.length > 0) return true;
+      return message.includes(`@${config.account}`);
+    case "owner-only":
+      return false;
+    default:
+      return false;
+  }
+}
+
+/** Dispatch an incoming signal-cli notification to the message handler. */
+function dispatchSignalNotification(
+  notification: SignalNotification,
+  handler: MessageHandler | null,
+  config: SignalConfig,
+  defaultGroupMode: string,
+): void {
+  if (!handler) return;
+  const envelope = notification.envelope;
+  if (!envelope.dataMessage) return;
+  const messageText = envelope.dataMessage.message;
+  if (!messageText) return;
+  const senderPhone = envelope.source;
+  const groupInfo = envelope.dataMessage.groupInfo;
+  if (groupInfo?.groupId) {
+    if (
+      !isSignalGroupMessageAllowed(
+        groupInfo.groupId,
+        messageText,
+        envelope.dataMessage.mentions,
+        config,
+        defaultGroupMode,
+      )
+    ) return;
+    log.debug("Group message received", {
+      groupId: groupInfo.groupId,
+      sender: senderPhone,
+    });
+    handler({
+      content: messageText,
+      sessionId: `signal-group-${groupInfo.groupId}`,
+      senderId: senderPhone,
+      isOwner: false,
+      sessionTaint: "PUBLIC" as ClassificationLevel,
+    });
+  } else {
+    log.debug("DM received", { sender: senderPhone });
+    handler({
+      content: messageText,
+      sessionId: `signal-${senderPhone}`,
+      senderId: senderPhone,
+      isOwner: false,
+      sessionTaint: "PUBLIC" as ClassificationLevel,
+    });
+  }
+}
+
+/** Verify signal-cli daemon connectivity with retries. */
+async function verifySignalConnectivity(
+  client: SignalClientInterface,
+): Promise<Result<void, string>> {
+  let pingResult: Result<void, string> = { ok: false, error: "not attempted" };
+  for (let attempt = 0; attempt < 5; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
+    pingResult = await client.ping();
+    if (pingResult.ok) return pingResult;
+  }
+  return pingResult;
+}
+
+/** Send a chunked message via Signal DM or group. */
+async function sendSignalMessage(
+  client: SignalClientInterface,
+  sessionId: string,
+  content: string,
+): Promise<void> {
+  const phone = phoneFromSignalSessionId(sessionId);
+  const groupId = groupIdFromSignalSessionId(sessionId);
+  if (!phone && !groupId) return;
+  const chunks = chunkMessage(content, MAX_MESSAGE_LENGTH);
+  if (phone) await client.sendTyping(phone);
+  for (const chunk of chunks) {
+    if (phone) await client.sendMessage(phone, chunk);
+    else if (groupId) await client.sendGroupMessage(groupId, chunk);
+  }
+  if (phone) await client.sendTypingStop(phone);
+}
+
+export function createSignalChannel(
+  config: SignalConfig,
+): SignalChannelAdapter {
+  const classification =
+    (config.classification ?? "PUBLIC") as ClassificationLevel;
+  const defaultGroupMode = config.defaultGroupMode ?? "always";
   let client: SignalClientInterface | null = config._client ?? null;
   let connected = false;
   let handler: MessageHandler | null = null;
 
-  /** Extract phone number from a DM session ID. */
-  function phoneFromSessionId(sessionId: string): string | null {
-    if (sessionId.startsWith("signal-group-")) return null;
-    if (sessionId.startsWith("signal-")) return sessionId.slice("signal-".length);
-    return null;
-  }
-
-  /** Extract group ID from a group session ID. */
-  function groupIdFromSessionId(sessionId: string): string | null {
-    if (sessionId.startsWith("signal-group-")) return sessionId.slice("signal-group-".length);
-    return null;
-  }
-
-  /** Check if a group message should be processed. */
-  function isGroupMessageAllowed(groupId: string, message: string, mentions: ReadonlyArray<{ readonly uuid: string }> | undefined): boolean {
-    const groupConfig = config.groups?.[groupId];
-    const mode = groupConfig?.mode ?? defaultGroupMode;
-
-    switch (mode) {
-      case "always":
-        return true;
-      case "mentioned-only":
-        // Check if the bot account is mentioned in the message
-        if (mentions && mentions.length > 0) return true;
-        // Also check for @account pattern in message text
-        if (message.includes(`@${config.account}`)) return true;
-        return false;
-      case "owner-only":
-        // The adapter IS the owner — no inbound is from owner
-        return false;
-      default:
-        return false;
-    }
-  }
-
-  /** Handle an incoming signal-cli notification. */
-  function handleNotification(notification: SignalNotification): void {
-    if (!handler) return;
-
-    const envelope = notification.envelope;
-    if (!envelope.dataMessage) return;
-
-    const dataMessage = envelope.dataMessage;
-    const messageText = dataMessage.message;
-    if (!messageText) return;
-
-    const senderPhone = envelope.source;
-    const groupInfo = dataMessage.groupInfo;
-
-    if (groupInfo && groupInfo.groupId) {
-      // Group message
-      const groupId = groupInfo.groupId;
-      if (!isGroupMessageAllowed(groupId, messageText, dataMessage.mentions)) return;
-
-      const _groupClassification = config.groups?.[groupId]?.classification ?? classification;
-
-      log.debug("Group message received", { groupId, sender: senderPhone });
-      handler({
-        content: messageText,
-        sessionId: `signal-group-${groupId}`,
-        senderId: senderPhone,
-        isOwner: false,
-        sessionTaint: "PUBLIC" as ClassificationLevel,
-      });
-    } else {
-      // DM — access control handled by ChatSession.handleChannelMessage()
-      log.debug("DM received", { sender: senderPhone });
-      handler({
-        content: messageText,
-        sessionId: `signal-${senderPhone}`,
-        senderId: senderPhone,
-        isOwner: false,
-        sessionTaint: "PUBLIC" as ClassificationLevel,
-      });
-    }
-  }
-
   return {
     classification,
-    isOwner: false, // The adapter IS the owner's phone — all messages are from others
+    isOwner: false,
 
     async connect(): Promise<void> {
-      if (!client) {
-        client = createSignalClient({ endpoint: config.endpoint });
-      }
-
-      client.onNotification(handleNotification);
-
+      if (!client) client = createSignalClient({ endpoint: config.endpoint });
+      client.onNotification((n) =>
+        dispatchSignalNotification(n, handler, config, defaultGroupMode)
+      );
       const result = await client.connect();
-      if (!result.ok) {
-        throw new Error(`Signal connect failed: ${result.error}`);
-      }
-
-      // Verify connectivity — retry up to 5 times (500ms apart) to handle
-      // the TCP-ready-but-JSON-RPC-not-ready window after daemon startup.
-      let pingResult: Result<void, string> = { ok: false, error: "not attempted" };
-      for (let attempt = 0; attempt < 5; attempt++) {
-        if (attempt > 0) {
-          await new Promise((r) => setTimeout(r, 500));
-        }
-        pingResult = await client.ping();
-        if (pingResult.ok) break;
-      }
+      if (!result.ok) throw new Error(`Signal connect failed: ${result.error}`);
+      const pingResult = await verifySignalConnectivity(client);
       if (!pingResult.ok) {
-        throw new Error(`Signal ping failed after retries: ${pingResult.error}`);
+        throw new Error(
+          `Signal ping failed after retries: ${pingResult.error}`,
+        );
       }
-
       connected = true;
       log.info("Signal adapter connected", { endpoint: config.endpoint });
     },
 
     async disconnect(): Promise<void> {
-      if (client) {
-        await client.disconnect();
-      }
+      if (client) await client.disconnect();
       connected = false;
       log.info("Signal adapter disconnected");
     },
 
     async send(message: ChannelMessage): Promise<void> {
       if (!message.sessionId || !client) return;
-
-      const phone = phoneFromSessionId(message.sessionId);
-      const groupId = groupIdFromSessionId(message.sessionId);
-
-      if (!phone && !groupId) return;
-
-      const chunks = chunkMessage(message.content, MAX_MESSAGE_LENGTH);
-
-      // Send typing before first chunk
-      if (phone) {
-        await client.sendTyping(phone);
-      }
-
-      for (const chunk of chunks) {
-        if (phone) {
-          await client.sendMessage(phone, chunk);
-        } else if (groupId) {
-          await client.sendGroupMessage(groupId, chunk);
-        }
-      }
-
-      // Stop typing after last chunk
-      if (phone) {
-        await client.sendTypingStop(phone);
-      }
+      await sendSignalMessage(client, message.sessionId, message.content);
     },
 
     onMessage(msgHandler: MessageHandler): void {
@@ -220,35 +221,32 @@ export function createSignalChannel(config: SignalConfig): SignalChannelAdapter 
     },
 
     status(): ChannelStatus {
-      return {
-        connected,
-        channelType: "signal",
-      };
+      return { connected, channelType: "signal" };
     },
 
     async sendTyping(sessionId: string): Promise<void> {
       if (!client || !sessionId) return;
-      const phone = phoneFromSessionId(sessionId);
-      if (phone) {
-        await client.sendTyping(phone);
-      }
+      const phone = phoneFromSignalSessionId(sessionId);
+      if (phone) await client.sendTyping(phone);
     },
 
     async stopTyping(sessionId: string): Promise<void> {
       if (!client || !sessionId) return;
-      const phone = phoneFromSessionId(sessionId);
-      if (phone) {
-        await client.sendTypingStop(phone);
-      }
+      const phone = phoneFromSignalSessionId(sessionId);
+      if (phone) await client.sendTypingStop(phone);
     },
 
     listGroups(): Promise<Result<readonly SignalGroupEntry[], string>> {
-      if (!client) return Promise.resolve({ ok: false, error: "Not connected" });
+      if (!client) {
+        return Promise.resolve({ ok: false, error: "Not connected" });
+      }
       return client.listGroups();
     },
 
     listContacts(): Promise<Result<readonly SignalContactEntry[], string>> {
-      if (!client) return Promise.resolve({ ok: false, error: "Not connected" });
+      if (!client) {
+        return Promise.resolve({ ok: false, error: "Not connected" });
+      }
       return client.listContacts();
     },
   };

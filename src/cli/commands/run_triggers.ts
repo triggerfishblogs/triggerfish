@@ -10,6 +10,29 @@
 /** Gateway port (must match server.ts default). */
 const GATEWAY_PORT = 18789;
 
+/** Send the trigger POST request to the local gateway. */
+async function postTriggerRequest(): Promise<Response> {
+  const url = `http://127.0.0.1:${GATEWAY_PORT}/debug/run-triggers`;
+  return await fetch(url, {
+    method: "POST",
+    signal: AbortSignal.timeout(5000),
+  });
+}
+
+/** Report a non-OK gateway response and exit. */
+async function reportTriggerGatewayError(response: Response): Promise<never> {
+  let body = "";
+  try {
+    body = await response.text();
+  } catch {
+    // ignore
+  }
+  console.log(
+    `Error: Gateway returned ${response.status}${body ? ` — ${body}` : ""}`,
+  );
+  Deno.exit(1);
+}
+
 /**
  * Force an immediate trigger run via the running gateway.
  *
@@ -19,32 +42,18 @@ const GATEWAY_PORT = 18789;
  * the request.
  */
 export async function runTriggers(): Promise<void> {
-  const url = `http://127.0.0.1:${GATEWAY_PORT}/debug/run-triggers`;
-
-  let response: Response | undefined;
+  let response: Response;
   try {
-    response = await fetch(url, {
-      method: "POST",
-      signal: AbortSignal.timeout(5000),
-    });
+    response = await postTriggerRequest();
   } catch {
     console.log("Error: Gateway is not running.");
     console.log("Start it first with: triggerfish start");
     Deno.exit(1);
-    return;
   }
 
-  if (response.ok) {
+  if (response!.ok) {
     console.log("Trigger fired. Check daemon logs for output.");
     return;
   }
-
-  let body = "";
-  try {
-    body = await response.text();
-  } catch {
-    // ignore
-  }
-  console.log(`Error: Gateway returned ${response.status}${body ? ` — ${body}` : ""}`);
-  Deno.exit(1);
+  await reportTriggerGatewayError(response!);
 }

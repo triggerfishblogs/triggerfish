@@ -37,34 +37,35 @@ export interface ExploreResult {
 /** Exploration depth levels. */
 export type ExploreDepth = "shallow" | "standard" | "deep";
 
-/** Get the explore tool definition. */
-export function getExploreToolDefinitions(): readonly ToolDefinition[] {
-  return [
-    {
-      name: "explore",
-      description:
-        "Explore a directory or codebase to understand structure, patterns, and conventions. Spawns parallel agents for fast, thorough understanding. Read-only.",
-      parameters: {
-        path: {
-          type: "string",
-          description: "Directory or file to explore",
-          required: true,
-        },
-        focus: {
-          type: "string",
-          description:
-            "What to look for (e.g. 'auth patterns', 'test structure')",
-          required: false,
-        },
-        depth: {
-          type: "string",
-          description:
-            "How thorough: 'shallow', 'standard' (default), or 'deep'",
-          required: false,
-        },
+function buildExploreDef(): ToolDefinition {
+  return {
+    name: "explore",
+    description:
+      "Explore a directory or codebase to understand structure, patterns, and conventions. Spawns parallel agents for fast, thorough understanding. Read-only.",
+    parameters: {
+      path: {
+        type: "string",
+        description: "Directory or file to explore",
+        required: true,
+      },
+      focus: {
+        type: "string",
+        description:
+          "What to look for (e.g. 'auth patterns', 'test structure')",
+        required: false,
+      },
+      depth: {
+        type: "string",
+        description: "How thorough: 'shallow', 'standard' (default), or 'deep'",
+        required: false,
       },
     },
-  ];
+  };
+}
+
+/** Get the explore tool definition. */
+export function getExploreToolDefinitions(): readonly ToolDefinition[] {
+  return [buildExploreDef()];
 }
 
 /** System prompt section for the explore tool. */

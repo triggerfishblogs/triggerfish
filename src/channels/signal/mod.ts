@@ -15,10 +15,10 @@ export type {
   SignalGroupEntry,
   SignalContactEntry,
 } from "./types.ts";
-export { createSignalClient } from "./client.ts";
+export { createSignalClient } from "./protocol/client.ts";
 export type { SignalChannelAdapter } from "./adapter.ts";
 export { createSignalChannel } from "./adapter.ts";
-export type { SignalCliInstall, DaemonHandle } from "./setup.ts";
+export type { SignalCliInstall, DaemonHandle } from "./setup/setup.ts";
 export {
   checkSignalCli,
   fetchLatestVersion,
@@ -32,4 +32,4 @@ export {
   isDaemonRunning,
   startDaemon,
   waitForDaemon,
-} from "./setup.ts";
+} from "./setup/setup.ts";

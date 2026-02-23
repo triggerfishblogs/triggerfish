@@ -5,24 +5,27 @@
  * domain allowlist/denylist, and classification mappings.
  *
  * `domains.ts` is the single source of truth for domain security —
- * both this module and `src/browser/` import from it.
+ * both this module and `src/tools/browser/` import from it.
  *
  * @module
  */
 
+export { isPrivateIp, resolveAndCheck } from "./ssrf.ts";
+
 export {
   createDomainPolicy,
-  createDomainPolicyFromLegacy,
-  createDomainClassifier,
-  isPrivateIp,
-  resolveAndCheck,
   type DomainClassification,
+  type DomainPolicy,
+  type DomainSecurityConfig,
+} from "./policy.ts";
+
+export {
+  createDomainClassifier,
+  createDomainPolicyFromLegacy,
   type DomainClassificationResult,
   type DomainClassifier,
-  type DomainPolicy,
   type DomainPolicyConfig,
-  type DomainSecurityConfig,
-} from "./domains.ts";
+} from "./classifier.ts";
 
 export {
   createBraveSearchProvider,

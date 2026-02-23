@@ -12,7 +12,15 @@ export type {
   ClassifiedPathResult,
   Workspace,
   WorkspaceOptions,
-} from "./workspace.ts";
+} from "./workspace_types.ts";
+
+export {
+  extractClassificationPrefix,
+  getReadableLevels,
+  resolveExplicitClassifiedPath,
+  searchReadableLevelsForFile,
+  validatePathInWorkspace,
+} from "./workspace_paths.ts";
 
 export { createExecTools } from "./tools.ts";
 export type {

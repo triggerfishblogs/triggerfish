@@ -15,12 +15,17 @@ logger, security primitives, secrets management, and image content types.
 src/core/
 ├── types/      # Classification, session types, Result<T,E>
 ├── policy/     # Policy engine, hooks, rule evaluation
+│   ├── hooks/    # Hook types, runner, violations, default rules
+│   └── audit/    # Audit chain and HMAC primitives
 ├── session/    # Session manager, taint, lineage
 ├── storage/    # StorageProvider interface + implementations
 ├── logger/     # Structured logging with file rotation and log levels
 ├── security/   # Tool floors, path classification, filesystem security constants
-├── secrets/    # Secrets management — OS keychain, encrypted store, file-backed fallback
-└── image/      # Multimodal content block types (TextContentBlock, ImageContentBlock, etc.)
+├── secrets/    # Secrets management
+│   ├── keychain/   # OS keychain, command runner, platform keychains
+│   ├── encrypted/  # Encrypted file provider, crypto, I/O, types
+│   └── backends/   # Secret store interface, memory store, file provider, key manager
+└── image/      # Multimodal content block types
 ```
 
 ## Key Patterns
@@ -31,13 +36,18 @@ src/core/
 - All session operations are immutable — return new objects
 - `Result<T, E>` pattern for all fallible operations, never thrown exceptions
 
-## Secrets
+## Secrets (`src/core/secrets/`)
 
-- `keychain.ts` — `SecretStore` interface, `createKeychain`, `createMemorySecretStore`
-- `resolver.ts` — `resolveSecretRefs`, `resolveConfigSecrets`, `findSecretRefs`
-- `encrypted_file_provider.ts` — Encrypted storage backend
-- `file_provider.ts` — Plain file-backed fallback
-- `key_manager.ts` — Machine key derivation for encrypted store
+- `resolver.ts` — `resolveSecretRefs`, `resolveConfigSecrets`, `findSecretRefs` (root)
+- `keychain/` — `keychain.ts` (SecretStore, createKeychain), `command_runner.ts`, `linux_keychain.ts`, `mac_keychain.ts`
+- `encrypted/` — `encrypted_file_provider.ts`, `encrypted_file_crypto.ts`, `encrypted_file_io.ts`, `encrypted_file_types.ts`
+- `backends/` — `secret_store.ts` (interface), `memory_store.ts`, `file_provider.ts`, `key_manager.ts`
+
+## Policy (`src/core/policy/`)
+
+- Root: `rules.ts`, `engine.ts`, `recipient.ts`
+- `hooks/` — `hooks.ts`, `hook_types.ts`, `hook_runner.ts`, `hook_violations.ts`, `default_rules.ts`
+- `audit/` — `audit.ts` (audit chain), `audit_hmac.ts` (HMAC primitives)
 
 ## Image Content Types
 

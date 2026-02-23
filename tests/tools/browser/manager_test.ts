@@ -14,8 +14,8 @@ import {
   findFreePort,
   pollCdpReady,
   withTimeout,
-} from "../../../src/tools/browser/manager.ts";
-import { createBrowserManager } from "../../../src/tools/browser/manager.ts";
+} from "../../../src/tools/browser/manager/manager.ts";
+import { createBrowserManager } from "../../../src/tools/browser/manager/manager.ts";
 import { createDomainPolicy } from "../../../src/tools/browser/domains.ts";
 import { createMemoryStorage } from "../../../src/core/storage/memory.ts";
 

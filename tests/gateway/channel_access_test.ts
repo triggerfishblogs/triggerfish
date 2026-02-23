@@ -12,7 +12,7 @@ import type { ClassificationLevel, Result } from "../../src/core/types/classific
 import { createProviderRegistry } from "../../src/agent/llm.ts";
 import type { LlmProvider } from "../../src/agent/llm.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
-import { createHookRunner } from "../../src/core/policy/hooks.ts";
+import { createHookRunner } from "../../src/core/policy/hooks/hooks.ts";
 import { createSession } from "../../src/core/types/session.ts";
 import type { UserId, ChannelId } from "../../src/core/types/session.ts";
 import type { PairingService, PairingCode, PairingResult } from "../../src/channels/pairing.ts";

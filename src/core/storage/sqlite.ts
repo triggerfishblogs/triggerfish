@@ -22,6 +22,90 @@ interface KeyRow {
   readonly key: string;
 }
 
+/** Prepared statements for the key-value table. */
+interface SqliteStatements {
+  readonly set: ReturnType<Database["prepare"]>;
+  readonly get: ReturnType<Database["prepare"]>;
+  readonly del: ReturnType<Database["prepare"]>;
+  readonly listAll: ReturnType<Database["prepare"]>;
+  readonly listPrefix: ReturnType<Database["prepare"]>;
+}
+
+/** Open the database, enable WAL mode, and ensure the kv schema exists. */
+function initSqliteDatabase(dbPath: string): Database {
+  const db = new Database(dbPath);
+  db.exec("PRAGMA journal_mode=WAL");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS kv (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+  return db;
+}
+
+/** Prepare all reusable SQL statements for the kv table. */
+function prepareSqliteStatements(db: Database): SqliteStatements {
+  return {
+    set: db.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)"),
+    get: db.prepare("SELECT value FROM kv WHERE key = ?"),
+    del: db.prepare("DELETE FROM kv WHERE key = ?"),
+    listAll: db.prepare("SELECT key FROM kv"),
+    listPrefix: db.prepare("SELECT key FROM kv WHERE key LIKE ? || '%'"),
+  };
+}
+
+/** List keys, optionally filtered by prefix. */
+function listSqliteKeys(
+  stmts: SqliteStatements,
+  prefix?: string,
+): string[] {
+  if (prefix === undefined) {
+    return stmts.listAll.all<KeyRow>().map((r) => r.key);
+  }
+  return stmts.listPrefix.all<KeyRow>(prefix).map((r) => r.key);
+}
+
+/** Finalize all prepared statements and close the database. */
+function closeSqliteDatabase(db: Database, stmts: SqliteStatements): void {
+  stmts.set.finalize();
+  stmts.get.finalize();
+  stmts.del.finalize();
+  stmts.listAll.finalize();
+  stmts.listPrefix.finalize();
+  db.close();
+}
+
+/** Build the StorageProvider method set backed by SQLite statements. */
+function buildSqliteProvider(
+  db: Database,
+  stmts: SqliteStatements,
+): StorageProvider {
+  return {
+    // deno-lint-ignore require-await
+    async set(key: string, value: string): Promise<void> {
+      stmts.set.run(key, value);
+    },
+    // deno-lint-ignore require-await
+    async get(key: string): Promise<string | null> {
+      const row = stmts.get.get<ValueRow>(key);
+      return row ? row.value : null;
+    },
+    // deno-lint-ignore require-await
+    async delete(key: string): Promise<void> {
+      stmts.del.run(key);
+    },
+    // deno-lint-ignore require-await
+    async list(prefix?: string): Promise<string[]> {
+      return listSqliteKeys(stmts, prefix);
+    },
+    // deno-lint-ignore require-await
+    async close(): Promise<void> {
+      closeSqliteDatabase(db, stmts);
+    },
+  };
+}
+
 /**
  * Create a SQLite-backed StorageProvider.
  *
@@ -29,64 +113,7 @@ interface KeyRow {
  * if it does not exist, and returns a `StorageProvider`.
  */
 export function createSqliteStorage(dbPath: string): StorageProvider {
-  const db = new Database(dbPath);
-
-  // Enable WAL mode for better concurrent read performance
-  db.exec("PRAGMA journal_mode=WAL");
-
-  // Create key-value table if it doesn't exist
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS kv (
-      key   TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    )
-  `);
-
-  const stmtSet = db.prepare(
-    "INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)",
-  );
-  const stmtGet = db.prepare("SELECT value FROM kv WHERE key = ?");
-  const stmtDel = db.prepare("DELETE FROM kv WHERE key = ?");
-  const stmtListAll = db.prepare("SELECT key FROM kv");
-  const stmtListPrefix = db.prepare(
-    "SELECT key FROM kv WHERE key LIKE ? || '%'",
-  );
-
-  return {
-    // deno-lint-ignore require-await
-    async set(key: string, value: string): Promise<void> {
-      stmtSet.run(key, value);
-    },
-
-    // deno-lint-ignore require-await
-    async get(key: string): Promise<string | null> {
-      const row = stmtGet.get<ValueRow>(key);
-      return row ? row.value : null;
-    },
-
-    // deno-lint-ignore require-await
-    async delete(key: string): Promise<void> {
-      stmtDel.run(key);
-    },
-
-    // deno-lint-ignore require-await
-    async list(prefix?: string): Promise<string[]> {
-      if (prefix === undefined) {
-        const rows = stmtListAll.all<KeyRow>();
-        return rows.map((r) => r.key);
-      }
-      const rows = stmtListPrefix.all<KeyRow>(prefix);
-      return rows.map((r) => r.key);
-    },
-
-    // deno-lint-ignore require-await
-    async close(): Promise<void> {
-      stmtSet.finalize();
-      stmtGet.finalize();
-      stmtDel.finalize();
-      stmtListAll.finalize();
-      stmtListPrefix.finalize();
-      db.close();
-    },
-  };
+  const db = initSqliteDatabase(dbPath);
+  const stmts = prepareSqliteStatements(db);
+  return buildSqliteProvider(db, stmts);
 }

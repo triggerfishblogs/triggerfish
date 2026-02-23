@@ -10,7 +10,7 @@
 import type { Result } from "../../core/types/classification.ts";
 import type { ObsidianNote, DailyNotesConfig } from "./types.ts";
 import type { VaultContext } from "./vault.ts";
-import type { NoteStore } from "./notes.ts";
+import type { NoteStore } from "./notes/mod.ts";
 
 /** Default daily notes configuration. */
 const DEFAULT_DAILY_CONFIG: DailyNotesConfig = {

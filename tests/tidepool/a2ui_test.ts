@@ -400,7 +400,7 @@ Deno.test("TidePoolTools: renderFile sends canvas message", () => {
   const mockHost = createMockHost();
   const tools = createTidePoolTools(mockHost);
 
-  const result = tools.renderFile("Report", "report.pdf", "application/pdf", "AAAA");
+  const result = tools.renderFile("Report", { filename: "report.pdf", mime: "application/pdf", data: "AAAA" });
   assert(result.ok);
 
   assertEquals(mockHost.canvasMessages.length, 1);

@@ -24,35 +24,37 @@ export interface SkillToolContext {
   readonly skillLoader: SkillLoader;
 }
 
-/** Tool definitions for skill reading operations. */
-export function getSkillToolDefinitions(): readonly ToolDefinition[] {
-  return [
-    {
-      name: "read_skill",
-      description:
-        "Read the full content of a skill (SKILL.md) by type and name. " +
-        "Use this to learn what a skill does, how to activate it, and what " +
-        "tools it requires. Reading a skill never escalates the session " +
-        "security level — use this instead of read_file when you need to " +
-        "inspect skill instructions. " +
-        "type must be BUNDLED (skills shipped with Triggerfish) or " +
-        "USER_PROVIDED (skills installed or authored by the user).",
-      parameters: {
-        type: {
-          type: "string",
-          description: "Skill source type: BUNDLED or USER_PROVIDED",
-          required: true,
-          enum: ["BUNDLED", "USER_PROVIDED"],
-        },
-        skill_name: {
-          type: "string",
-          description:
-            "Name of the skill to read (e.g. 'weather', 'deep-research')",
-          required: true,
-        },
+function buildReadSkillDef(): ToolDefinition {
+  return {
+    name: "read_skill",
+    description:
+      "Read the full content of a skill (SKILL.md) by type and name. " +
+      "Use this to learn what a skill does, how to activate it, and what " +
+      "tools it requires. Reading a skill never escalates the session " +
+      "security level — use this instead of read_file when you need to " +
+      "inspect skill instructions. " +
+      "type must be BUNDLED (skills shipped with Triggerfish) or " +
+      "USER_PROVIDED (skills installed or authored by the user).",
+    parameters: {
+      type: {
+        type: "string",
+        description: "Skill source type: BUNDLED or USER_PROVIDED",
+        required: true,
+        enum: ["BUNDLED", "USER_PROVIDED"],
+      },
+      skill_name: {
+        type: "string",
+        description:
+          "Name of the skill to read (e.g. 'weather', 'deep-research')",
+        required: true,
       },
     },
-  ];
+  };
+}
+
+/** Tool definitions for skill reading operations. */
+export function getSkillToolDefinitions(): readonly ToolDefinition[] {
+  return [buildReadSkillDef()];
 }
 
 /**

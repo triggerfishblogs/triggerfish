@@ -1,322 +1,45 @@
 /**
- * CLI config command — manages triggerfish.yaml interactively.
+ * CLI config command — dispatcher and re-exports.
  *
- * Core utilities (YAML path access, daemon restart prompt), CRUD operations,
- * and the command dispatcher. Channel prompts, channel/plugin add/remove,
- * and secret management are in dedicated sub-modules.
+ * Routes `triggerfish config <subcommand>` to the appropriate handler.
+ * CRUD operations live in config_crud.ts, YAML path utilities in yaml_paths.ts,
+ * channel/plugin prompts and secrets in their own modules.
  * @module
  */
 
-import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
-import { Confirm } from "@cliffy/prompt";
-import { backupConfig, resolveConfigPath } from "./paths.ts";
-import { getDaemonStatus, installAndStartDaemon, stopDaemon } from "../daemon/daemon.ts";
-import { validateConfig } from "../../core/config.ts";
+import { runConfigGet, runConfigSet, runConfigValidate } from "./config_crud.ts";
 
-// ─── Constants ───────────────────────────────────────────────────
+// ─── Re-exports (preserve public API) ──────────────────────────
 
-/** Supported channel types for add-channel. */
-export const CHANNEL_TYPES = [
-  "telegram",
-  "slack",
-  "discord",
-  "whatsapp",
-  "webchat",
-  "email",
-  "signal",
-] as const;
+export {
+  CHANNEL_TYPES,
+  PLUGIN_TYPES,
+  readNestedYamlValue,
+  writeNestedYamlValue,
+} from "./yaml_paths.ts";
 
-export const PLUGIN_TYPES = [
-  "obsidian",
-] as const;
+export {
+  promptDaemonRestart,
+  runConfigGet,
+  runConfigSet,
+  runConfigValidate,
+} from "./config_crud.ts";
 
-// ─── YAML path utilities ────────────────────────────────────────
+export { promptChannelConfig, promptPluginConfig } from "./prompts/channel_prompts.ts";
+export {
+  runConfigAddChannel,
+  runConfigAddPlugin,
+  runConfigRemoveChannel,
+} from "./channels.ts";
+export {
+  runConfigGetSecret,
+  runConfigMigrateSecrets,
+  runConfigSetSecret,
+} from "./secrets.ts";
 
-/**
- * Set a nested value in an object using a dotted key path.
- * Creates intermediate objects as needed.
- */
-export function writeNestedYamlValue(
-  obj: Record<string, unknown>,
-  keyPath: string,
-  value: unknown,
-): void {
-  const parts = keyPath.split(".");
-  // deno-lint-ignore no-explicit-any
-  let current: any = obj;
-  for (let i = 0; i < parts.length - 1; i++) {
-    const part = parts[i];
-    if (current[part] === undefined || typeof current[part] !== "object") {
-      current[part] = {};
-    }
-    current = current[part];
-  }
-  current[parts[parts.length - 1]] = value;
-}
+// ─── Usage text ─────────────────────────────────────────────────
 
-/**
- * Get a nested value from an object using a dotted key path.
- */
-export function readNestedYamlValue(
-  obj: Record<string, unknown>,
-  keyPath: string,
-): unknown {
-  const parts = keyPath.split(".");
-  // deno-lint-ignore no-explicit-any
-  let current: any = obj;
-  for (const part of parts) {
-    if (
-      current === undefined || current === null || typeof current !== "object"
-    ) {
-      return undefined;
-    }
-    current = current[part];
-  }
-  return current;
-}
-
-/**
- * Prompt the user to restart the daemon if it's running.
- * Shared by config set, add-channel, and add-plugin commands.
- */
-export async function promptDaemonRestart(): Promise<void> {
-  const status = await getDaemonStatus();
-  if (status.running) {
-    const restart = await Confirm.prompt({
-      message: "Restart daemon to apply?",
-      default: true,
-    });
-    if (restart) {
-      const stopResult = await stopDaemon();
-      if (!stopResult.ok) {
-        console.log(`\u2717 Failed to stop daemon: ${stopResult.message}`);
-        return;
-      }
-      const startResult = await installAndStartDaemon(Deno.execPath());
-      if (startResult.ok) {
-        console.log("\u2713 Daemon restarted");
-      } else {
-        console.log(`\u2717 ${startResult.message}`);
-      }
-    }
-  } else {
-    console.log("Daemon is not running. Start it with: triggerfish start");
-  }
-}
-
-// ─── CRUD operations ────────────────────────────────────────────
-
-/**
- * Set a config value in triggerfish.yaml by dotted key path.
- */
-export async function runConfigSet(
-  flags: Readonly<Record<string, boolean | string>>,
-): Promise<void> {
-  const key = flags["config_key"] as string | undefined;
-  const rawValue = flags["config_value"] as string | undefined;
-
-  if (!key || rawValue === undefined) {
-    console.error("Usage: triggerfish config set <key> <value>");
-    Deno.exit(1);
-  }
-
-  const configPath = resolveConfigPath();
-
-  let rawYaml: string;
-  try {
-    rawYaml = await Deno.readTextFile(configPath);
-  } catch {
-    console.error(`Config not found at ${configPath}`);
-    console.error("Run 'triggerfish dive' to create initial config.");
-    Deno.exit(1);
-  }
-
-  const parsed = parseYaml(rawYaml) as Record<string, unknown>;
-
-  // Coerce value: booleans and numbers
-  let value: unknown = rawValue;
-  if (rawValue === "true") value = true;
-  else if (rawValue === "false") value = false;
-  else if (/^\d+$/.test(rawValue)) value = parseInt(rawValue, 10);
-
-  writeNestedYamlValue(parsed, key, value);
-
-  await backupConfig(configPath);
-  const yaml = stringifyYaml(parsed);
-  const content =
-    `# Triggerfish Configuration\n# Generated by triggerfish dive\n\n${yaml}`;
-  await Deno.writeTextFile(configPath, content);
-
-  // Mask secrets in output
-  const display =
-    key.includes("key") || key.includes("secret") || key.includes("token")
-      ? `${String(rawValue).slice(0, 4)}...${String(rawValue).slice(-4)}`
-      : String(value);
-
-  console.log(`\n  ${key} = ${display}\n`);
-
-  await promptDaemonRestart();
-}
-
-/**
- * Get a config value from triggerfish.yaml by dotted key path.
- */
-export function runConfigGet(
-  flags: Readonly<Record<string, boolean | string>>,
-): void {
-  const key = flags["config_key"] as string | undefined;
-
-  if (!key) {
-    console.error("Usage: triggerfish config get <key>");
-    Deno.exit(1);
-  }
-
-  const configPath = resolveConfigPath();
-
-  let rawYaml: string;
-  try {
-    rawYaml = Deno.readTextFileSync(configPath);
-  } catch {
-    console.error(`Config not found at ${configPath}`);
-    Deno.exit(1);
-  }
-
-  const parsed = parseYaml(rawYaml) as Record<string, unknown>;
-  const value = readNestedYamlValue(parsed, key);
-
-  if (value === undefined) {
-    console.log(`\n  ${key} is not set\n`);
-  } else {
-    // Mask secrets in output
-    const display =
-      key.includes("key") || key.includes("secret") || key.includes("token")
-        ? `${String(value).slice(0, 4)}...${String(value).slice(-4)}`
-        : String(value);
-    console.log(`\n  ${key} = ${display}\n`);
-  }
-}
-
-/**
- * Validate triggerfish.yaml and report errors.
- */
-export function runConfigValidate(): void {
-  const configPath = resolveConfigPath();
-
-  let rawYaml: string;
-  try {
-    rawYaml = Deno.readTextFileSync(configPath);
-  } catch {
-    console.error(`Config not found at ${configPath}`);
-    console.error("Run 'triggerfish dive' to create initial config.");
-    Deno.exit(1);
-  }
-
-  // Check YAML parses
-  let parsed: unknown;
-  try {
-    parsed = parseYaml(rawYaml);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`\n  YAML parse error: ${message}\n`);
-    Deno.exit(1);
-  }
-
-  if (typeof parsed !== "object" || parsed === null) {
-    console.error("\n  Config file did not parse to an object.\n");
-    Deno.exit(1);
-  }
-
-  // Run structural validation
-  const result = validateConfig(parsed as Record<string, unknown>);
-  if (!result.ok) {
-    console.error(`\n  Validation error: ${result.error}\n`);
-    Deno.exit(1);
-  }
-
-  // Additional warnings (non-fatal)
-  const config = parsed as Record<string, unknown>;
-  const warnings: string[] = [];
-
-  const models = config.models as Record<string, unknown> | undefined;
-  if (models?.providers) {
-    const providers = models.providers as Record<string, unknown>;
-    if (Object.keys(providers).length === 0) {
-      warnings.push("No LLM providers configured under models.providers");
-    }
-  }
-
-  const channels = config.channels as Record<string, unknown> | undefined;
-  if (!channels || Object.keys(channels).length === 0) {
-    warnings.push("No channels configured");
-  }
-
-  console.log(`\n  Configuration valid: ${configPath}`);
-  if (warnings.length > 0) {
-    console.log("\n  Warnings:");
-    for (const w of warnings) {
-      console.log(`    - ${w}`);
-    }
-  }
-  console.log();
-}
-
-// ─── Re-exports ─────────────────────────────────────────────────
-
-export { promptChannelConfig, promptPluginConfig } from "./channel_prompts.ts";
-export { runConfigAddChannel, runConfigRemoveChannel, runConfigAddPlugin } from "./channels.ts";
-export { runConfigSetSecret, runConfigGetSecret, runConfigMigrateSecrets } from "./secrets.ts";
-
-// ─── Dispatcher ─────────────────────────────────────────────────
-
-/**
- * Config command dispatcher.
- */
-export async function runConfig(
-  subcommand: string | undefined,
-  flags: Readonly<Record<string, boolean | string>>,
-): Promise<void> {
-  switch (subcommand) {
-    case "add-channel": {
-      const { runConfigAddChannel } = await import("./channels.ts");
-      await runConfigAddChannel(flags);
-      break;
-    }
-    case "remove-channel": {
-      const { runConfigRemoveChannel } = await import("./channels.ts");
-      await runConfigRemoveChannel(flags);
-      break;
-    }
-    case "add-plugin": {
-      const { runConfigAddPlugin } = await import("./channels.ts");
-      await runConfigAddPlugin(flags);
-      break;
-    }
-    case "set":
-      await runConfigSet(flags);
-      break;
-    case "get":
-      runConfigGet(flags);
-      break;
-    case "validate":
-      runConfigValidate();
-      break;
-    case "set-secret": {
-      const { runConfigSetSecret } = await import("./secrets.ts");
-      await runConfigSetSecret(flags);
-      break;
-    }
-    case "get-secret": {
-      const { runConfigGetSecret } = await import("./secrets.ts");
-      await runConfigGetSecret(flags);
-      break;
-    }
-    case "migrate-secrets": {
-      const { runConfigMigrateSecrets } = await import("./secrets.ts");
-      await runConfigMigrateSecrets();
-      break;
-    }
-    default:
-      console.log(`
+const CONFIG_USAGE = `
 CONFIG USAGE:
   triggerfish config set <key> <value>    Set a configuration value
   triggerfish config get <key>            Get a configuration value
@@ -356,7 +79,81 @@ EXAMPLES:
   triggerfish config set-secret github-pat ghp_...
   triggerfish config get-secret github-pat
   triggerfish config migrate-secrets
-`);
+`;
+
+// ─── Dispatch helpers ───────────────────────────────────────────
+
+/** Dispatch channel-related config subcommands. */
+async function dispatchChannelSubcommand(
+  subcommand: string,
+  flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  switch (subcommand) {
+    case "add-channel": {
+      const { runConfigAddChannel } = await import("./channels.ts");
+      await runConfigAddChannel(flags);
       break;
+    }
+    case "remove-channel": {
+      const { runConfigRemoveChannel } = await import("./channels.ts");
+      await runConfigRemoveChannel(flags);
+      break;
+    }
+    case "add-plugin": {
+      const { runConfigAddPlugin } = await import("./channels.ts");
+      await runConfigAddPlugin(flags);
+      break;
+    }
+  }
+}
+
+/** Dispatch secret-related config subcommands. */
+async function dispatchSecretSubcommand(
+  subcommand: string,
+  flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  switch (subcommand) {
+    case "set-secret": {
+      const { runConfigSetSecret } = await import("./secrets.ts");
+      await runConfigSetSecret(flags);
+      break;
+    }
+    case "get-secret": {
+      const { runConfigGetSecret } = await import("./secrets.ts");
+      await runConfigGetSecret(flags);
+      break;
+    }
+    case "migrate-secrets": {
+      const { runConfigMigrateSecrets } = await import("./secrets.ts");
+      await runConfigMigrateSecrets();
+      break;
+    }
+  }
+}
+
+// ─── Dispatcher ─────────────────────────────────────────────────
+
+const CHANNEL_SUBCOMMANDS = new Set(["add-channel", "remove-channel", "add-plugin"]);
+const SECRET_SUBCOMMANDS = new Set(["set-secret", "get-secret", "migrate-secrets"]);
+
+/**
+ * Config command dispatcher.
+ */
+export async function runConfig(
+  subcommand: string | undefined,
+  flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  if (subcommand && CHANNEL_SUBCOMMANDS.has(subcommand)) {
+    await dispatchChannelSubcommand(subcommand, flags);
+  } else if (subcommand && SECRET_SUBCOMMANDS.has(subcommand)) {
+    await dispatchSecretSubcommand(subcommand, flags);
+  } else if (subcommand === "set") {
+    await runConfigSet(flags);
+  } else if (subcommand === "get") {
+    runConfigGet(flags);
+  } else if (subcommand === "validate") {
+    runConfigValidate();
+  } else {
+    console.log(CONFIG_USAGE);
   }
 }

@@ -4,7 +4,7 @@
 
 import { assertEquals, assert } from "@std/assert";
 import { createVaultContext } from "../../../src/tools/obsidian/vault.ts";
-import { createNoteStore } from "../../../src/tools/obsidian/notes.ts";
+import { createNoteStore } from "../../../src/tools/obsidian/notes/notes.ts";
 import type { ObsidianVaultConfig } from "../../../src/tools/obsidian/types.ts";
 import type { VaultContext } from "../../../src/tools/obsidian/vault.ts";
 

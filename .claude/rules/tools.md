@@ -40,10 +40,10 @@ Domain patterns map to classification floors via `DomainPolicy.getClassification
 
 Classification-gated cross-session recall with FTS5 full-text search.
 
-- `types.ts` — `MemoryRecord`, `StoredMemoryRecord`, `MemoryError` types. Every record carries classification metadata.
-- `store.ts` — `MemoryStore` interface: classification-gated CRUD over StorageProvider. Storage key format: `memory:<agentId>:<classification>:<key>`.
-- `search.ts` — `MemorySearchProvider` interface: FTS5 full-text search (`createFts5SearchProvider`) and in-memory fallback (`createInMemorySearchProvider`). Results post-filtered by classification gating and shadowed by key.
-- `tools.ts` — 5 LLM-callable tools: `memory_save`, `memory_get`, `memory_search`, `memory_list`, `memory_delete`.
+- `types.ts` — `MemoryRecord`, `StoredMemoryRecord`, `MemoryError` types (root).
+- `store.ts` — `MemoryStore` interface: classification-gated CRUD over StorageProvider (root).
+- `search/` — Search providers: FTS5 (`search_fts5.ts`), in-memory (`search_memory.ts`), types (`search_types.ts`), serialization (`search_serialise.ts`).
+- `tools/` — Tool definitions (`tools_defs.ts`) and classification-gated executor (`tools_executor.ts`).
 - `mod.ts` — Barrel exports.
 
 ### Memory Classification Rules
@@ -59,14 +59,10 @@ Classification-gated cross-session recall with FTS5 full-text search.
 
 CDP-based browser automation with profile watermarking.
 
-- `manager.ts` — `BrowserManager`: Chrome lifecycle, profile directory isolation, watermark enforcement.
-- `manager_launch.ts` — Chrome launch helpers, executable detection.
-- `manager_detection.ts` — Chrome/Chromium path detection across platforms.
-- `tools.ts` — Barrel re-exports from `tools_defs.ts` and `tools_executor.ts`. Navigation enforces SSRF (DNS resolve + IP denylist) and domain policy.
-- `tools_defs.ts` — Tool definitions: navigate, snapshot, click, type, select, scroll, wait.
-- `tools_executor.ts` — `createAutoLaunchBrowserExecutor`: lazy Chrome launch on first browser_* call.
-- `domains.ts` — Re-exports from `../web/domains.ts` with browser-specific `DomainPolicyConfig` bridge.
-- `watermark.ts` — Profile watermark tracking (see rules below).
+- `domains.ts` — Re-exports from `../web/domains.ts` with browser-specific `DomainPolicyConfig` bridge (root).
+- `manager/` — Chrome lifecycle: `manager.ts` (BrowserManager), `manager_launch.ts` (launch helpers), `manager_detection.ts` (binary detection).
+- `tools/` — Browser interaction: `tools.ts` (factory), `tools_navigation.ts` (SSRF-enforced navigation), `tools_page.ts` (snapshot, scroll), `tools_types.ts`.
+- `executor/` — Tool dispatch: `tools_defs.ts` (definitions), `tools_executor.ts` (barrel), `tools_executor_dispatch.ts` (routing), `tools_executor_autolaunch.ts` (lazy Chrome), `watermark.ts` (profile classification).
 - `mod.ts` — Barrel exports.
 
 ### Browser Profile Watermark Rules
@@ -80,14 +76,9 @@ CDP-based browser automation with profile watermarking.
 
 Obsidian vault integration — note CRUD, wikilinks, daily notes.
 
-- `vault.ts` — Path confinement, classification mapping, vault discovery. Every file op MUST go through vault functions.
-- `notes.ts` — Note CRUD operations (create, read, update, append, delete, list).
-- `links.ts` — Wikilink resolution and backlink tracking.
-- `markdown.ts` — Markdown parsing, frontmatter extraction.
-- `daily.ts` — Daily note template rendering.
-- `tools.ts` — LLM-callable tool definitions.
-- `tools_defs.ts` — Tool definition constants.
-- `types.ts` — `ObsidianVaultConfig`, note types.
+- Root: `vault.ts`, `types.ts`, `daily.ts`, `links.ts`, `markdown.ts`.
+- `notes/` — Note CRUD: `notes.ts` (factory), `note_crud.ts`, `note_query.ts`, `note_walker.ts`.
+- `tools/` — Tool definitions (`tools_defs.ts`) and executor (`tools.ts`, `tools_read_write.ts`).
 - `mod.ts` — Barrel exports.
 
 ## Skills (`src/tools/skills/`)
@@ -106,13 +97,9 @@ Skill discovery, loading, authoring, and Reef marketplace client.
 
 A2UI (Agent-to-UI) visual workspace — WebSocket host and component rendering.
 
-- `host.ts` — `A2UIHost`: WebSocket server broadcasting component trees and canvas messages. Handles chat via ChatSession.
-- `canvas_protocol.ts` — Canvas message types for render/update/clear.
-- `components.ts` — Component tree types.
-- `ui.ts` — HTML template builder for Tidepool pages.
-- `tools.ts` — LLM-callable tidepool tools.
-- `tools_defs.ts` — Tool definition constants.
-- `tmpl_*.html` — HTML template fragments.
+- Root: `canvas_protocol.ts`, `components.ts`, `ui.ts`, `host_legacy.ts`, `tmpl_*.html`.
+- `host/` — WebSocket host: `host.ts` (A2UIHost), `host_types.ts`, `host_server.ts`, `host_broadcast.ts`, `host_chat.ts`.
+- `tools/` — Tool definitions (`tools_defs.ts`), executor (`tools_executor.ts`), canvas tools (`tools_canvas.ts`), legacy tools (`tools_legacy.ts`).
 - `mod.ts` — Barrel exports.
 
 ## Voice (`src/tools/voice/`)
@@ -152,5 +139,5 @@ Image analysis and clipboard reading.
 - `browser/domains.ts` re-exports from `web/domains.ts` — single source of truth for SSRF, allowlist, denylist
 - `browser/tools.ts` imports `resolveAndCheck` from `../web/domains.ts`
 - `healthcheck.ts` imports `SkillLoader` from `./skills/loader.ts`
-- `secrets.ts` imports `SecretStore` from `../../core/secrets/keychain.ts`
+- `secrets.ts` imports `SecretStore` from `../../core/secrets/keychain/keychain.ts`
 - All tool files import `ToolDefinition` from `../../core/types/tool.ts`

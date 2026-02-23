@@ -48,6 +48,29 @@ export interface TriggerStore {
 /** Storage key prefix for trigger results. */
 const KEY_PREFIX = "trigger:last:";
 
+/** Deserialize a raw JSON string into a TriggerResult, or null if corrupted. */
+function deserializeTriggerResult(raw: string | null): TriggerResult | null {
+  if (raw === null) return null;
+  try {
+    return JSON.parse(raw) as TriggerResult;
+  } catch {
+    return null;
+  }
+}
+
+/** Collect all stored trigger results from the given keys. */
+async function collectTriggerResults(
+  storage: StorageProvider,
+  keys: string[],
+): Promise<TriggerResult[]> {
+  const results: TriggerResult[] = [];
+  for (const key of keys) {
+    const result = deserializeTriggerResult(await storage.get(key));
+    if (result !== null) results.push(result);
+  }
+  return results;
+}
+
 /**
  * Create a TriggerStore backed by the given StorageProvider.
  *
@@ -60,34 +83,18 @@ const KEY_PREFIX = "trigger:last:";
 export function createTriggerStore(storage: StorageProvider): TriggerStore {
   return {
     async save(result: TriggerResult): Promise<void> {
-      const key = `${KEY_PREFIX}${result.source}`;
-      await storage.set(key, JSON.stringify(result));
+      await storage.set(
+        `${KEY_PREFIX}${result.source}`,
+        JSON.stringify(result),
+      );
     },
-
     async getLast(source: string): Promise<TriggerResult | null> {
-      const key = `${KEY_PREFIX}${source}`;
-      const raw = await storage.get(key);
-      if (raw === null) return null;
-      try {
-        return JSON.parse(raw) as TriggerResult;
-      } catch {
-        return null;
-      }
+      return deserializeTriggerResult(
+        await storage.get(`${KEY_PREFIX}${source}`),
+      );
     },
-
     async listAll(): Promise<TriggerResult[]> {
-      const keys = await storage.list(KEY_PREFIX);
-      const results: TriggerResult[] = [];
-      for (const key of keys) {
-        const raw = await storage.get(key);
-        if (raw === null) continue;
-        try {
-          results.push(JSON.parse(raw) as TriggerResult);
-        } catch {
-          // Skip corrupted entries
-        }
-      }
-      return results;
+      return collectTriggerResults(storage, await storage.list(KEY_PREFIX));
     },
   };
 }

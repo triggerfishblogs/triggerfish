@@ -10,9 +10,9 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { createMemoryStorage } from "../../../src/core/storage/memory.ts";
 import { createMemoryStore } from "../../../src/tools/memory/store.ts";
-import { createInMemorySearchProvider } from "../../../src/tools/memory/search.ts";
-import { createMemoryToolExecutor } from "../../../src/tools/memory/tools.ts";
-import type { MemoryToolContext } from "../../../src/tools/memory/tools.ts";
+import { createInMemorySearchProvider } from "../../../src/tools/memory/search/mod.ts";
+import { createMemoryToolExecutor } from "../../../src/tools/memory/tools/mod.ts";
+import type { MemoryToolContext } from "../../../src/tools/memory/tools/mod.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 
 function makeContext(): {

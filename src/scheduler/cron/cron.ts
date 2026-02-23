@@ -23,10 +23,7 @@ import { parseCronExpression } from "./parser.ts";
 
 // ─── Barrel re-exports from cron_parser.ts ──────────────────────────────────
 
-export {
-  parseCronExpression,
-  matchesNow,
-} from "./parser.ts";
+export { matchesNow, parseCronExpression } from "./parser.ts";
 export type {
   CronExpression,
   CronJob,
@@ -80,6 +77,42 @@ function deserialiseHistory(raw: string): CronJobExecution[] {
   })) as CronJobExecution[];
 }
 
+// ─── Shared method implementations ──────────────────────────────────────────
+
+/** Validate and build a new CronJob, adding it to the in-memory maps. */
+function buildAndStoreCronJob(
+  jobs: Map<string, CronJob>,
+  history: Map<string, CronJobExecution[]>,
+  options: CronJobOptions,
+): Result<CronJob, string> {
+  const parseResult = parseCronExpression(options.expression);
+  if (!parseResult.ok) return { ok: false, error: parseResult.error };
+
+  const id = crypto.randomUUID();
+  const job: CronJob = {
+    id,
+    expression: options.expression,
+    task: options.task,
+    classificationCeiling: options.classificationCeiling,
+    createdAt: new Date(),
+    enabled: true,
+  };
+
+  jobs.set(id, job);
+  history.set(id, []);
+  return { ok: true, value: job };
+}
+
+/** Delete a job from in-memory maps. */
+function deleteCronJob(
+  jobs: Map<string, CronJob>,
+  jobId: string,
+): Result<void, string> {
+  if (!jobs.has(jobId)) return { ok: false, error: `Job not found: ${jobId}` };
+  jobs.delete(jobId);
+  return { ok: true, value: undefined };
+}
+
 // ─── In-memory manager ──────────────────────────────────────────────────────
 
 /**
@@ -90,56 +123,68 @@ function deserialiseHistory(raw: string): CronJobExecution[] {
  */
 export function createCronManager(): CronManager {
   const jobs = new Map<string, CronJob>();
-  const executionHistory = new Map<string, CronJobExecution[]>();
+  const history = new Map<string, CronJobExecution[]>();
 
   return {
-    create(options: CronJobOptions): Result<CronJob, string> {
-      const parseResult = parseCronExpression(options.expression);
-      if (!parseResult.ok) {
-        return { ok: false, error: parseResult.error };
-      }
-
-      const id = crypto.randomUUID();
-      const job: CronJob = {
-        id,
-        expression: options.expression,
-        task: options.task,
-        classificationCeiling: options.classificationCeiling,
-        createdAt: new Date(),
-        enabled: true,
-      };
-
-      jobs.set(id, job);
-      executionHistory.set(id, []);
-      return { ok: true, value: job };
-    },
-
-    list(): readonly CronJob[] {
-      return [...jobs.values()];
-    },
-
-    delete(jobId: string): Result<void, string> {
-      if (!jobs.has(jobId)) {
-        return { ok: false, error: `Job not found: ${jobId}` };
-      }
-      jobs.delete(jobId);
-      return { ok: true, value: undefined };
-    },
-
-    history(jobId: string): readonly CronJobExecution[] {
-      return executionHistory.get(jobId) ?? [];
-    },
-
-    recordExecution(execution: CronJobExecution): void {
-      const hist = executionHistory.get(execution.jobId);
-      if (hist) {
-        hist.push(execution);
-      }
+    create: (options) => buildAndStoreCronJob(jobs, history, options),
+    list: () => [...jobs.values()],
+    delete: (jobId) => deleteCronJob(jobs, jobId),
+    history: (jobId) => history.get(jobId) ?? [],
+    recordExecution(execution) {
+      const hist = history.get(execution.jobId);
+      if (hist) hist.push(execution);
     },
   };
 }
 
 // ─── Persistent manager ─────────────────────────────────────────────────────
+
+/** Load all stored cron jobs from a storage provider. */
+async function loadStoredJobs(
+  storage: StorageProvider,
+): Promise<Map<string, CronJob>> {
+  const jobs = new Map<string, CronJob>();
+  const jobKeys = await storage.list(CRON_JOB_PREFIX);
+  for (const key of jobKeys) {
+    const raw = await storage.get(key);
+    if (raw) {
+      const job = deserialiseJob(raw);
+      jobs.set(job.id, job);
+    }
+  }
+  return jobs;
+}
+
+/** Load execution history for all known jobs from storage. */
+async function loadStoredHistory(
+  storage: StorageProvider,
+  jobIds: Iterable<string>,
+): Promise<Map<string, CronJobExecution[]>> {
+  const history = new Map<string, CronJobExecution[]>();
+  for (const jobId of jobIds) {
+    const raw = await storage.get(CRON_HISTORY_PREFIX + jobId);
+    history.set(jobId, raw ? deserialiseHistory(raw) : []);
+  }
+  return history;
+}
+
+/** Record an execution with write-through to storage and history trimming. */
+function recordPersistentExecution(
+  history: Map<string, CronJobExecution[]>,
+  storage: StorageProvider,
+  execution: CronJobExecution,
+): void {
+  let hist = history.get(execution.jobId);
+  if (!hist) {
+    hist = [];
+    history.set(execution.jobId, hist);
+  }
+  hist.push(execution);
+  if (hist.length > MAX_HISTORY_PER_JOB) {
+    hist.splice(0, hist.length - MAX_HISTORY_PER_JOB);
+  }
+  storage.set(CRON_HISTORY_PREFIX + execution.jobId, serialiseHistory(hist));
+}
 
 /**
  * Create a persistent cron manager backed by a StorageProvider.
@@ -155,90 +200,33 @@ export function createCronManager(): CronManager {
 export async function createPersistentCronManager(
   storage: StorageProvider,
 ): Promise<CronManager> {
-  // Load existing jobs from storage into memory
-  const jobs = new Map<string, CronJob>();
-  const executionHistory = new Map<string, CronJobExecution[]>();
-
-  const jobKeys = await storage.list(CRON_JOB_PREFIX);
-  for (const key of jobKeys) {
-    const raw = await storage.get(key);
-    if (raw) {
-      const job = deserialiseJob(raw);
-      jobs.set(job.id, job);
-    }
-  }
-
-  // Load execution history for each job
-  for (const jobId of jobs.keys()) {
-    const raw = await storage.get(CRON_HISTORY_PREFIX + jobId);
-    if (raw) {
-      executionHistory.set(jobId, deserialiseHistory(raw));
-    } else {
-      executionHistory.set(jobId, []);
-    }
-  }
+  const jobs = await loadStoredJobs(storage);
+  const history = await loadStoredHistory(storage, jobs.keys());
 
   return {
-    create(options: CronJobOptions): Result<CronJob, string> {
-      const parseResult = parseCronExpression(options.expression);
-      if (!parseResult.ok) {
-        return { ok: false, error: parseResult.error };
+    create(options) {
+      const result = buildAndStoreCronJob(jobs, history, options);
+      if (result.ok) {
+        storage.set(
+          CRON_JOB_PREFIX + result.value.id,
+          serialiseJob(result.value),
+        );
+        storage.set(CRON_HISTORY_PREFIX + result.value.id, "[]");
       }
-
-      const id = crypto.randomUUID();
-      const job: CronJob = {
-        id,
-        expression: options.expression,
-        task: options.task,
-        classificationCeiling: options.classificationCeiling,
-        createdAt: new Date(),
-        enabled: true,
-      };
-
-      jobs.set(id, job);
-      executionHistory.set(id, []);
-      // Write-through to storage (fire-and-forget)
-      storage.set(CRON_JOB_PREFIX + id, serialiseJob(job));
-      storage.set(CRON_HISTORY_PREFIX + id, "[]");
-      return { ok: true, value: job };
+      return result;
     },
-
-    list(): readonly CronJob[] {
-      return [...jobs.values()];
-    },
-
-    delete(jobId: string): Result<void, string> {
-      if (!jobs.has(jobId)) {
-        return { ok: false, error: `Job not found: ${jobId}` };
+    list: () => [...jobs.values()],
+    delete(jobId) {
+      const result = deleteCronJob(jobs, jobId);
+      if (result.ok) {
+        history.delete(jobId);
+        storage.delete(CRON_JOB_PREFIX + jobId);
+        storage.delete(CRON_HISTORY_PREFIX + jobId);
       }
-      jobs.delete(jobId);
-      executionHistory.delete(jobId);
-      // Write-through deletion
-      storage.delete(CRON_JOB_PREFIX + jobId);
-      storage.delete(CRON_HISTORY_PREFIX + jobId);
-      return { ok: true, value: undefined };
+      return result;
     },
-
-    history(jobId: string): readonly CronJobExecution[] {
-      return executionHistory.get(jobId) ?? [];
-    },
-
-    recordExecution(execution: CronJobExecution): void {
-      let hist = executionHistory.get(execution.jobId);
-      if (!hist) {
-        hist = [];
-        executionHistory.set(execution.jobId, hist);
-      }
-      hist.push(execution);
-      // Trim to max history size
-      if (hist.length > MAX_HISTORY_PER_JOB) {
-        hist.splice(0, hist.length - MAX_HISTORY_PER_JOB);
-      }
-      // Write-through to storage
-      storage.set(
-        CRON_HISTORY_PREFIX + execution.jobId,
-        serialiseHistory(hist),
-      );
-    },
+    history: (jobId) => history.get(jobId) ?? [],
+    recordExecution: (execution) =>
+      recordPersistentExecution(history, storage, execution),
   };
 }

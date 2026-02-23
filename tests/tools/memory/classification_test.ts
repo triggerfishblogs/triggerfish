@@ -14,7 +14,7 @@
 import { assertEquals, assertNotEquals } from "@std/assert";
 import { createMemoryStorage } from "../../../src/core/storage/memory.ts";
 import { createMemoryStore } from "../../../src/tools/memory/store.ts";
-import { createInMemorySearchProvider } from "../../../src/tools/memory/search.ts";
+import { createInMemorySearchProvider } from "../../../src/tools/memory/search/mod.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 
 const SESSION = "cls-test-session" as SessionId;

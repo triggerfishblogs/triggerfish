@@ -19,36 +19,33 @@ and scheduling infrastructure.
 
 ```
 src/gateway/
-├── chat.ts           # Chat session management
-├── chat_types.ts     # Chat type definitions
-├── sessions.ts       # Enhanced session manager
-├── mod.ts            # Barrel exports
-├── startup/          # Full runtime startup and wiring
-│   ├── startup.ts    # Main startup, wires all subsystems
-│   ├── factory.ts    # Orchestrator factories, web tools, Google executor builders
-│   ├── config_watcher.ts # Hot-reload config with secret resolution
-│   ├── channels.ts   # Channel connection startup
-│   ├── mcp.ts        # MCP server startup
-│   └── subsystems.ts # Subsystem initialization helpers
-├── server/           # WebSocket control plane
-│   ├── server.ts     # WebSocket server
-│   └── handlers.ts   # WebSocket message handlers
-├── notifications/    # Notification service
-│   ├── notifications.ts  # Core notification service
-│   └── priority_router.ts # Notification priority routing
-└── tools/            # Gateway-specific tools
-    ├── agent_tools.ts    # Tool definitions, profiles, and executor (biggest import hub)
-    ├── executor.ts       # Tool executor
-    ├── registry.ts       # Tool registry
-    ├── session_tools.ts  # Session management tools
-    ├── session_tools_defs.ts # Session tool definitions
-    └── trigger_tools.ts  # Trigger context tools
+├── chat.ts, chat_types.ts, chat_turn_execution.ts, sessions.ts, mod.ts
+├── startup/              # Full runtime startup and wiring
+│   ├── startup.ts, bootstrap.ts, service_startup.ts, shutdown.ts (root)
+│   ├── channels/         # Channel connection (Discord, Signal, Telegram, shared)
+│   ├── infra/            # Core infra (core_infra, storage, workspace, MCP, subsystems)
+│   ├── services/         # Service init (browser, integrations, chat session, config watcher)
+│   ├── factory/          # Orchestrator factories (orchestrator, subagent, Google, web, scheduler)
+│   └── tools/            # Tool executor and infrastructure assembly
+├── server/               # WebSocket control plane (server.ts, handlers.ts)
+├── notifications/        # Notification service (notifications.ts, priority_router.ts)
+└── tools/                # Gateway-specific tools
+    ├── agent_tools.ts, registry.ts (root)
+    ├── defs/             # Tool definitions, groups, profiles
+    ├── executor/         # Tool executor dispatch and built-in handlers
+    ├── session/          # Session management, channel messaging, Signal tools
+    └── trigger/          # Trigger context tools and classification lookup
 ```
 
 ## Channels (`src/channels/`)
 
 Channel adapters: CLI, WhatsApp (Baileys), Telegram (grammY), Slack (Bolt),
 Discord (discord.js), Signal, WebChat, Email.
+
+Signal is organized into subdirectories:
+- `signal/protocol/` — client, connection, endpoint, RPC, interface
+- `signal/setup/` — setup flow, linking, resolver, daemon management
+- `signal/install/` — archive extraction, JRE, signal-cli, Java, marshalling
 
 - Slack/Discord SDKs leak async ops on import — tests need `sanitizeResources: false, sanitizeOps: false`
 - WebChat defaults to PUBLIC classification (visitors are never owner)

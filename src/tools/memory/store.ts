@@ -19,9 +19,9 @@ import {
 } from "../../core/types/classification.ts";
 import type { SessionId } from "../../core/types/session.ts";
 import type { Result } from "../../core/types/classification.ts";
-import type { MemoryRecord, MemoryError } from "./types.ts";
-import type { MemorySearchProvider } from "./search.ts";
-import { serialiseRecord, deserialiseRecord } from "./search.ts";
+import type { MemoryError, MemoryRecord } from "./types.ts";
+import type { MemorySearchProvider } from "./search/mod.ts";
+import { deserialiseRecord, serialiseRecord } from "./search/mod.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("memory");
@@ -119,6 +119,67 @@ function agentPrefix(agentId: string): string {
   return `memory:${agentId}:`;
 }
 
+/** Build a new MemoryRecord from save options and optional existing record. */
+function buildMemoryRecord(
+  opts: MemorySaveOptions,
+  existingRecord: MemoryRecord | null,
+): MemoryRecord {
+  const now = new Date();
+  return {
+    key: opts.key,
+    agentId: opts.agentId,
+    classification: opts.sessionTaint, // FORCED — LLM cannot choose
+    content: opts.content,
+    tags: opts.tags ? [...opts.tags] : [],
+    createdAt: existingRecord ? existingRecord.createdAt : now,
+    updatedAt: now,
+    ...(opts.expiresAt !== undefined ? { expiresAt: opts.expiresAt } : {}),
+    expired: false,
+    sourceSessionId: opts.sourceSessionId,
+    ...(opts.lineageId !== undefined ? { lineageId: opts.lineageId } : {}),
+  };
+}
+
+/** Collect all non-expired visible records for an agent, optionally filtered by tag. */
+async function collectVisibleRecords(
+  storage: StorageProvider,
+  agentId: string,
+  sessionTaint: ClassificationLevel,
+  tag?: string,
+): Promise<MemoryRecord[]> {
+  const records: MemoryRecord[] = [];
+  for (const level of LEVELS_DESCENDING) {
+    if (!canFlowTo(level, sessionTaint)) continue;
+    const prefix = levelPrefix(agentId, level);
+    const keys = await storage.list(prefix);
+    for (const key of keys) {
+      const json = await storage.get(key);
+      if (json === null) continue;
+      const record = deserialiseRecord(json);
+      if (record.expired) continue;
+      if (tag && !record.tags.includes(tag)) continue;
+      records.push(record);
+    }
+  }
+  return records;
+}
+
+/** Apply classification shadowing: keep only the highest-classified version per key. */
+function applyShadowing(records: readonly MemoryRecord[]): MemoryRecord[] {
+  const byKey = new Map<string, MemoryRecord>();
+  for (const record of records) {
+    const existing = byKey.get(record.key);
+    if (
+      !existing ||
+      CLASSIFICATION_ORDER[record.classification] >
+        CLASSIFICATION_ORDER[existing.classification]
+    ) {
+      byKey.set(record.key, record);
+    }
+  }
+  return [...byKey.values()];
+}
+
 /**
  * Create a classification-gated MemoryStore.
  *
@@ -131,41 +192,20 @@ export function createMemoryStore(
   const { storage, searchProvider } = options;
 
   return {
-    async save(opts: MemorySaveOptions): Promise<Result<MemoryRecord, MemoryError>> {
-      const now = new Date();
-
-      // Check if record already exists at this level (for updatedAt preservation)
-      const existingKey = storageKey(opts.agentId, opts.sessionTaint, opts.key);
-      const existingJson = await storage.get(existingKey);
-      const existingRecord = existingJson
-        ? deserialiseRecord(existingJson)
-        : null;
-
+    async save(
+      opts: MemorySaveOptions,
+    ): Promise<Result<MemoryRecord, MemoryError>> {
+      const key = storageKey(opts.agentId, opts.sessionTaint, opts.key);
+      const existingJson = await storage.get(key);
+      const existing = existingJson ? deserialiseRecord(existingJson) : null;
       log.info("Memory write: classification forced to session taint", {
         key: opts.key,
         agentId: opts.agentId,
         classification: opts.sessionTaint,
       });
-      const record: MemoryRecord = {
-        key: opts.key,
-        agentId: opts.agentId,
-        classification: opts.sessionTaint, // FORCED — LLM cannot choose
-        content: opts.content,
-        tags: opts.tags ? [...opts.tags] : [],
-        createdAt: existingRecord ? existingRecord.createdAt : now,
-        updatedAt: now,
-        ...(opts.expiresAt !== undefined ? { expiresAt: opts.expiresAt } : {}),
-        expired: false,
-        sourceSessionId: opts.sourceSessionId,
-        ...(opts.lineageId !== undefined ? { lineageId: opts.lineageId } : {}),
-      };
-
-      await storage.set(existingKey, serialiseRecord(record));
-
-      if (searchProvider) {
-        await searchProvider.index(record);
-      }
-
+      const record = buildMemoryRecord(opts, existing);
+      await storage.set(key, serialiseRecord(record));
+      if (searchProvider) await searchProvider.index(record);
       return { ok: true, value: record };
     },
 
@@ -188,46 +228,18 @@ export function createMemoryStore(
     },
 
     async list(opts: MemoryListOptions): Promise<readonly MemoryRecord[]> {
-      const allRecords: MemoryRecord[] = [];
-
-      // Collect records from all visible levels
-      for (const level of LEVELS_DESCENDING) {
-        if (!canFlowTo(level, opts.sessionTaint)) continue;
-
-        const prefix = levelPrefix(opts.agentId, level);
-        const keys = await storage.list(prefix);
-
-        for (const key of keys) {
-          const json = await storage.get(key);
-          if (json === null) continue;
-
-          const record = deserialiseRecord(json);
-          if (record.expired) continue;
-
-          // Optional tag filter
-          if (opts.tag && !record.tags.includes(opts.tag)) continue;
-
-          allRecords.push(record);
-        }
-      }
-
-      // Apply shadowing: for records with the same key, keep highest classification
-      const byKey = new Map<string, MemoryRecord>();
-      for (const record of allRecords) {
-        const existing = byKey.get(record.key);
-        if (
-          !existing ||
-          CLASSIFICATION_ORDER[record.classification] >
-            CLASSIFICATION_ORDER[existing.classification]
-        ) {
-          byKey.set(record.key, record);
-        }
-      }
-
-      return [...byKey.values()];
+      const records = await collectVisibleRecords(
+        storage,
+        opts.agentId,
+        opts.sessionTaint,
+        opts.tag,
+      );
+      return applyShadowing(records);
     },
 
-    async delete(opts: MemoryDeleteOptions): Promise<Result<void, MemoryError>> {
+    async delete(
+      opts: MemoryDeleteOptions,
+    ): Promise<Result<void, MemoryError>> {
       // Can only delete at own taint level
       const key = storageKey(opts.agentId, opts.sessionTaint, opts.key);
       const json = await storage.get(key);
@@ -237,7 +249,8 @@ export function createMemoryStore(
           ok: false,
           error: {
             code: "NOT_FOUND",
-            message: `Memory record '${opts.key}' not found at ${opts.sessionTaint} level`,
+            message:
+              `Memory record '${opts.key}' not found at ${opts.sessionTaint} level`,
           },
         };
       }

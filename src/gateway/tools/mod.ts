@@ -13,24 +13,19 @@ export {
 
 export {
   TOOL_PROFILES,
-  TOOL_PROFILE_PROMPTS,
+  TOOL_GROUP_PROMPTS,
 } from "./registry.ts";
 
-export {
-  buildToolExecutor,
-} from "./executor.ts";
+export type { SubsystemExecutor, ToolExecutorOptions } from "./executor/executor_types.ts";
 
 export {
   createSessionToolExecutor,
   getSessionToolDefinitions,
   SESSION_TOOLS_SYSTEM_PROMPT,
-} from "./session_tools.ts";
-export type { RegisteredChannel } from "./session_tools.ts";
+} from "./session/session_tools.ts";
+export type { RegisteredChannel } from "./session/session_tools.ts";
 
-export {
-  SESSION_TOOL_SCHEMAS,
-} from "./session_tools_defs.ts";
-export type { SessionToolContext } from "./session_tools_defs.ts";
+export type { SessionToolContext } from "./session/session_tools_defs.ts";
 
 export {
   createTriggerToolExecutor,
@@ -38,5 +33,5 @@ export {
   getTriggerToolDefinitions,
   getTriggerContextToolDefinitions,
   TRIGGER_SESSION_SYSTEM_PROMPT,
-} from "./trigger_tools.ts";
-export type { TriggerToolContext } from "./trigger_tools.ts";
+} from "./trigger/trigger_tools.ts";
+export type { TriggerToolContext } from "./trigger/trigger_tools.ts";

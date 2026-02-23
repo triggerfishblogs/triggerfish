@@ -9,37 +9,44 @@
 
 import type { StorageProvider } from "./provider.ts";
 
-/** Create an in-memory StorageProvider. */
-export function createMemoryStorage(): StorageProvider {
-  const data = new Map<string, string>();
+/** Filter map keys by an optional prefix. */
+function filterKeysByPrefix(
+  data: Map<string, string>,
+  prefix?: string,
+): string[] {
+  if (prefix === undefined) return [...data.keys()];
+  return [...data.keys()].filter((k) => k.startsWith(prefix));
+}
 
+/** Build the StorageProvider methods backed by an in-memory Map. */
+function buildMemoryStorageMethods(
+  data: Map<string, string>,
+): StorageProvider {
   return {
     // deno-lint-ignore require-await
     async set(key: string, value: string): Promise<void> {
       data.set(key, value);
     },
-
     // deno-lint-ignore require-await
     async get(key: string): Promise<string | null> {
       return data.get(key) ?? null;
     },
-
     // deno-lint-ignore require-await
     async delete(key: string): Promise<void> {
       data.delete(key);
     },
-
     // deno-lint-ignore require-await
     async list(prefix?: string): Promise<string[]> {
-      if (prefix === undefined) {
-        return [...data.keys()];
-      }
-      return [...data.keys()].filter((k) => k.startsWith(prefix));
+      return filterKeysByPrefix(data, prefix);
     },
-
     // deno-lint-ignore require-await
     async close(): Promise<void> {
       data.clear();
     },
   };
+}
+
+/** Create an in-memory StorageProvider. */
+export function createMemoryStorage(): StorageProvider {
+  return buildMemoryStorageMethods(new Map<string, string>());
 }

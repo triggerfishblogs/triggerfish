@@ -7,66 +7,194 @@
  */
 
 import { createLogger } from "../../core/logger/logger.ts";
-import { formatError, renderError, renderPrompt } from "../../cli/chat/chat_ui.ts";
+import {
+  formatError,
+  renderError,
+  renderPrompt,
+} from "../../cli/chat/chat_ui.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
-import { taintColor } from "../../cli/terminal/screen.ts";
 import type { LineEditor } from "../../cli/terminal/terminal.ts";
-import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
+import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
 import type { ChatEvent } from "../../core/types/chat_event.ts";
+
+import type { WsRouterDeps, WsRouterState } from "./chat_ws_types.ts";
+import { sendNextQueuedMessage } from "./chat_ws_types.ts";
+
+export type { PasswordModeState, WsRouterState, WsRouterDeps } from "./chat_ws_types.ts";
+export { sendNextQueuedMessage } from "./chat_ws_types.ts";
 
 const log = createLogger("cli");
 
-/** Password-mode state — active when the daemon sends a secret_prompt event. */
-export interface PasswordModeState {
-  readonly nonce: string;
-  readonly name: string;
-  readonly hint?: string;
-  readonly chars: string[];
-}
-
-/** Mutable refs shared between the WS router and the keypress loop. */
-export interface WsRouterState {
-  isProcessing: boolean;
-  passwordMode: PasswordModeState | null;
-  providerName: string;
-}
-
-/** Dependencies injected into the WebSocket message router. */
-export interface WsRouterDeps {
+/** Resolved context passed to each per-event-type handler. */
+interface RouterContext {
   readonly screen: ScreenManager;
   readonly isTty: boolean;
-  readonly getEditor: () => LineEditor;
+  readonly editor: LineEditor;
   readonly eventHandler: (evt: OrchestratorEvent) => void;
   readonly state: WsRouterState;
-  readonly messageQueue: string[];
-  readonly ws: WebSocket;
-  readonly resolveConnected: () => void;
+  readonly deps: WsRouterDeps;
 }
 
-/**
- * Send the next queued message over the WebSocket.
- *
- * Called after a response completes to drain any messages queued
- * while the previous turn was processing.
- */
-export function sendNextQueuedMessage(deps: WsRouterDeps): void {
-  const { messageQueue, screen, state, ws } = deps;
-  if (messageQueue.length === 0) return;
-  const next = messageQueue.shift()!;
-  const editor = deps.getEditor();
-  screen.writeOutput(`  ${taintColor(screen.getTaint())}\x1b[1m❯\x1b[0m ${next}`);
-  screen.writeOutput(`  \x1b[2m(queued)\x1b[0m`);
-  screen.writeOutput("");
-  state.isProcessing = true;
-  try {
-    ws.send(JSON.stringify({ type: "message", content: next }));
-  } catch (err: unknown) {
-    log.debug("WebSocket send failed: connection closed", { error: err });
-    screen.writeOutput(formatError("Lost connection to daemon"));
-    state.isProcessing = false;
-    screen.redrawInput(editor);
+// ─── Per-event-type handlers (unexported) ───────────────────────
+
+function routeConnectedEvent(
+  evt: Extract<ChatEvent, { type: "connected" }>,
+  ctx: RouterContext,
+  resolveConnected: () => void,
+): void {
+  ctx.state.providerName = evt.provider;
+  if (evt.taint) {
+    ctx.screen.setTaint(evt.taint);
+  }
+  resolveConnected();
+}
+
+function routeTaintChangedEvent(
+  evt: Extract<ChatEvent, { type: "taint_changed" }>,
+  ctx: RouterContext,
+): void {
+  ctx.screen.setTaint(evt.level);
+  if (ctx.isTty) ctx.screen.redrawInput(ctx.editor);
+}
+
+function routeMcpStatusEvent(
+  evt: Extract<ChatEvent, { type: "mcp_status" }>,
+  ctx: RouterContext,
+): void {
+  if (ctx.isTty) {
+    ctx.screen.setMcpStatus(evt.connected, evt.configured);
+    ctx.screen.redrawInput(ctx.editor);
   }
 }
+
+function routeNotificationEvent(
+  evt: Extract<ChatEvent, { type: "notification" }>,
+  ctx: RouterContext,
+): void {
+  if (ctx.isTty) {
+    ctx.screen.writeOutput(`  \x1b[33m⚡ [trigger]\x1b[0m ${evt.message}`);
+    ctx.screen.writeOutput("");
+    ctx.screen.redrawInput(ctx.editor);
+  } else {
+    console.log(`\n  [trigger] ${evt.message}\n`);
+    renderPrompt();
+  }
+}
+
+function routeSecretPromptEvent(
+  evt: Extract<ChatEvent, { type: "secret_prompt" }>,
+  ctx: RouterContext,
+): void {
+  if (!ctx.isTty) return;
+  ctx.state.passwordMode = {
+    nonce: evt.nonce,
+    name: evt.name,
+    hint: evt.hint,
+    chars: [],
+  };
+  ctx.screen.stopSpinner();
+  const hintStr = evt.hint ? ` (${evt.hint})` : "";
+  ctx.screen.writeOutput(
+    `  \x1b[33m\u{1f512} Enter value for '${evt.name}'${hintStr}\x1b[0m`,
+  );
+  ctx.screen.setStatus(
+    "\u{1f512} Type secret, Enter to submit, Esc to cancel",
+  );
+  ctx.screen.redrawInput(ctx.editor);
+}
+
+function routeCancelledEvent(ctx: RouterContext): void {
+  if (ctx.isTty) {
+    ctx.screen.stopSpinner();
+    ctx.screen.redrawInput(ctx.editor);
+  }
+  ctx.state.isProcessing = false;
+  sendNextQueuedMessage(ctx.deps);
+}
+
+function routeErrorEvent(
+  evt: Extract<ChatEvent, { type: "error" }>,
+  ctx: RouterContext,
+): void {
+  if (ctx.isTty) {
+    ctx.screen.stopSpinner();
+    ctx.screen.writeOutput(formatError(evt.message));
+    ctx.screen.writeOutput("");
+    ctx.screen.redrawInput(ctx.editor);
+  } else {
+    renderError(evt.message);
+    renderPrompt();
+  }
+  ctx.state.isProcessing = false;
+  sendNextQueuedMessage(ctx.deps);
+}
+
+function routeCompactStartEvent(ctx: RouterContext): void {
+  if (ctx.isTty) {
+    ctx.screen.startSpinner("Summarizing history...");
+  } else {
+    console.log("  Summarizing history...");
+  }
+}
+
+function routeCompactCompleteEvent(
+  evt: Extract<ChatEvent, { type: "compact_complete" }>,
+  ctx: RouterContext,
+): void {
+  const saved = evt.tokensBefore - evt.tokensAfter;
+  const msg =
+    `  Compacted: ${evt.messagesBefore} → ${evt.messagesAfter} messages (saved ~${saved} tokens)`;
+  if (ctx.isTty) {
+    ctx.screen.stopSpinner();
+    ctx.screen.writeOutput(msg);
+    ctx.screen.redrawInput(ctx.editor);
+  } else {
+    console.log(msg);
+    renderPrompt();
+  }
+}
+
+function routeResponseChunkEvent(
+  evt: ChatEvent,
+  ctx: RouterContext,
+): void {
+  ctx.eventHandler(evt as OrchestratorEvent);
+  if (ctx.isTty) ctx.screen.redrawInput(ctx.editor);
+}
+
+function routeResponseCompleteEvent(
+  evt: ChatEvent,
+  ctx: RouterContext,
+): void {
+  ctx.eventHandler(evt as OrchestratorEvent);
+  ctx.state.isProcessing = false;
+  if (ctx.isTty) {
+    ctx.screen.writeOutput("");
+    ctx.screen.redrawInput(ctx.editor);
+  } else {
+    renderPrompt();
+  }
+  sendNextQueuedMessage(ctx.deps);
+}
+
+function forwardOrchestratorEvent(
+  evt: ChatEvent,
+  ctx: RouterContext,
+): void {
+  ctx.eventHandler(evt as OrchestratorEvent);
+  if (ctx.isTty) {
+    ctx.screen.redrawInput(ctx.editor);
+  }
+}
+
+/** Decode a raw WebSocket message payload to a string. */
+function decodeWsPayload(data: unknown): string {
+  return typeof data === "string"
+    ? data
+    : new TextDecoder().decode(data as ArrayBuffer);
+}
+
+// ─── Factory ────────────────────────────────────────────────────
 
 /**
  * Create a WebSocket "message" event handler that routes daemon events
@@ -74,144 +202,60 @@ export function sendNextQueuedMessage(deps: WsRouterDeps): void {
  *
  * @returns An EventListener suitable for `ws.addEventListener("message", ...)`.
  */
-export function createWsMessageRouter(deps: WsRouterDeps): (event: MessageEvent) => void {
+export function createWsMessageRouter(
+  deps: WsRouterDeps,
+): (event: MessageEvent) => void {
   const { screen, isTty, eventHandler, state, resolveConnected } = deps;
 
   return (event: MessageEvent) => {
     try {
-      const data = typeof event.data === "string"
-        ? event.data
-        : new TextDecoder().decode(event.data as ArrayBuffer);
-      const evt = JSON.parse(data) as ChatEvent;
-      const editor = deps.getEditor();
+      const evt = JSON.parse(decodeWsPayload(event.data)) as ChatEvent;
+      const ctx: RouterContext = {
+        screen,
+        isTty,
+        editor: deps.getEditor(),
+        eventHandler,
+        state,
+        deps,
+      };
 
-      if (evt.type === "connected") {
-        state.providerName = evt.provider;
-        if (evt.taint) {
-          screen.setTaint(evt.taint);
-        }
-        resolveConnected();
-        return;
-      }
-
-      if (evt.type === "taint_changed") {
-        screen.setTaint(evt.level);
-        if (isTty) screen.redrawInput(editor);
-        return;
-      }
-
-      if (evt.type === "mcp_status") {
-        if (isTty) {
-          screen.setMcpStatus(evt.connected, evt.configured);
-          screen.redrawInput(editor);
-        }
-        return;
-      }
-
-      if (evt.type === "notification") {
-        if (isTty) {
-          screen.writeOutput(`  \x1b[33m⚡ [trigger]\x1b[0m ${evt.message}`);
-          screen.writeOutput("");
-          screen.redrawInput(editor);
-        } else {
-          console.log(`\n  [trigger] ${evt.message}\n`);
-          renderPrompt();
-        }
-        return;
-      }
-
-      if (evt.type === "secret_prompt") {
-        if (isTty) {
-          state.passwordMode = {
-            nonce: evt.nonce,
-            name: evt.name,
-            hint: evt.hint,
-            chars: [],
-          };
-          screen.stopSpinner();
-          const hintStr = evt.hint ? ` (${evt.hint})` : "";
-          screen.writeOutput(`  \x1b[33m\u{1f512} Enter value for '${evt.name}'${hintStr}\x1b[0m`);
-          screen.setStatus("\u{1f512} Type secret, Enter to submit, Esc to cancel");
-          screen.redrawInput(editor);
-        }
-        return;
-      }
-
-      if (evt.type === "cancelled") {
-        if (isTty) {
-          screen.stopSpinner();
-          screen.redrawInput(editor);
-        }
-        state.isProcessing = false;
-        sendNextQueuedMessage(deps);
-        return;
-      }
-
-      if (evt.type === "error") {
-        if (isTty) {
-          screen.stopSpinner();
-          screen.writeOutput(formatError(evt.message));
-          screen.writeOutput("");
-          screen.redrawInput(editor);
-        } else {
-          renderError(evt.message);
-          renderPrompt();
-        }
-        state.isProcessing = false;
-        sendNextQueuedMessage(deps);
-        return;
-      }
-
-      if (evt.type === "compact_start") {
-        if (isTty) {
-          screen.startSpinner("Summarizing history...");
-        } else {
-          console.log("  Summarizing history...");
-        }
-        return;
-      }
-
-      if (evt.type === "compact_complete") {
-        const saved = evt.tokensBefore - evt.tokensAfter;
-        const msg =
-          `  Compacted: ${evt.messagesBefore} → ${evt.messagesAfter} messages (saved ~${saved} tokens)`;
-        if (isTty) {
-          screen.stopSpinner();
-          screen.writeOutput(msg);
-          screen.redrawInput(editor);
-        } else {
-          console.log(msg);
-          renderPrompt();
-        }
-        return;
-      }
-
-      if (evt.type === "response_chunk") {
-        eventHandler(evt as OrchestratorEvent);
-        if (isTty) screen.redrawInput(editor);
-        return;
-      }
-
-      if (evt.type === "response") {
-        eventHandler(evt as OrchestratorEvent);
-        state.isProcessing = false;
-        if (isTty) {
-          screen.writeOutput("");
-          screen.redrawInput(editor);
-        } else {
-          renderPrompt();
-        }
-        sendNextQueuedMessage(deps);
-        return;
-      }
-
-      // Forward all other events (llm_start, llm_complete, tool_call, tool_result)
-      eventHandler(evt as OrchestratorEvent);
-      if (isTty) {
-        screen.redrawInput(editor);
-      }
+      dispatchChatEvent(evt, ctx, resolveConnected);
     } catch (err: unknown) {
       log.warn("Message parse failed", { error: err });
     }
   };
+}
+
+/** Dispatch a parsed chat event to the appropriate handler. */
+function dispatchChatEvent(
+  evt: ChatEvent,
+  ctx: RouterContext,
+  resolveConnected: () => void,
+): void {
+  switch (evt.type) {
+    case "connected":
+      return routeConnectedEvent(evt, ctx, resolveConnected);
+    case "taint_changed":
+      return routeTaintChangedEvent(evt, ctx);
+    case "mcp_status":
+      return routeMcpStatusEvent(evt, ctx);
+    case "notification":
+      return routeNotificationEvent(evt, ctx);
+    case "secret_prompt":
+      return routeSecretPromptEvent(evt, ctx);
+    case "cancelled":
+      return routeCancelledEvent(ctx);
+    case "error":
+      return routeErrorEvent(evt, ctx);
+    case "compact_start":
+      return routeCompactStartEvent(ctx);
+    case "compact_complete":
+      return routeCompactCompleteEvent(evt, ctx);
+    case "response_chunk":
+      return routeResponseChunkEvent(evt, ctx);
+    case "response":
+      return routeResponseCompleteEvent(evt, ctx);
+    default:
+      return forwardOrchestratorEvent(evt, ctx);
+  }
 }

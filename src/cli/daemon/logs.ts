@@ -36,7 +36,11 @@ export async function tailLogs(
     // Read-and-filter mode: read the file, filter by level, print matching lines
     const content = await Deno.readTextFile(path);
     const levelOrder: Record<string, number> = {
-      ERROR: 0, WARN: 1, INFO: 2, DEBUG: 3, TRACE: 4,
+      ERROR: 0,
+      WARN: 1,
+      INFO: 2,
+      DEBUG: 3,
+      TRACE: 4,
     };
     const threshold = levelOrder[levelFilter.toUpperCase()] ?? 2;
     const allLines = content.split("\n");
@@ -83,6 +87,34 @@ export async function tailLogs(
   }
 }
 
+/** Collect triggerfish log file names from the log directory. Returns null if dir missing. */
+async function collectLogFileNames(dir: string): Promise<string[] | null> {
+  const logFiles: string[] = [];
+  try {
+    for await (const entry of Deno.readDir(dir)) {
+      if (entry.isFile && /^triggerfish(\.\d+)?\.log$/.test(entry.name)) {
+        logFiles.push(entry.name);
+      }
+    }
+  } catch {
+    return null;
+  }
+  return logFiles;
+}
+
+/** Sort log files: primary log first, then rotated in numeric order. */
+function sortLogFileNames(logFiles: string[]): string[] {
+  return [...logFiles].sort((a, b) => {
+    const numA = a === "triggerfish.log"
+      ? -1
+      : parseInt(a.match(/\.(\d+)\.log$/)?.[1] ?? "0", 10);
+    const numB = b === "triggerfish.log"
+      ? -1
+      : parseInt(b.match(/\.(\d+)\.log$/)?.[1] ?? "0", 10);
+    return numA - numB;
+  });
+}
+
 /**
  * Bundle all Triggerfish log files into a temporary directory.
  *
@@ -92,40 +124,24 @@ export async function tailLogs(
  */
 export async function bundleLogs(): Promise<void> {
   const dir = logDir();
+  const logFiles = await collectLogFileNames(dir);
 
-  // Collect log files from the log directory
-  const logFiles: string[] = [];
-  try {
-    for await (const entry of Deno.readDir(dir)) {
-      if (entry.isFile && /^triggerfish(\.\d+)?\.log$/.test(entry.name)) {
-        logFiles.push(entry.name);
-      }
-    }
-  } catch {
+  if (!logFiles) {
     console.log(`No log directory found at ${dir}`);
     console.log("Start the daemon first: triggerfish start");
     return;
   }
-
   if (logFiles.length === 0) {
     console.log(`No log files found in ${dir}`);
     console.log("Start the daemon first: triggerfish start");
     return;
   }
 
-  // Sort so the primary log comes first, then rotated in order
-  logFiles.sort((a, b) => {
-    const numA = a === "triggerfish.log" ? -1 : parseInt(a.match(/\.(\d+)\.log$/)?.[1] ?? "0", 10);
-    const numB = b === "triggerfish.log" ? -1 : parseInt(b.match(/\.(\d+)\.log$/)?.[1] ?? "0", 10);
-    return numA - numB;
-  });
-
+  const sorted = sortLogFileNames(logFiles);
   const bundleDir = await Deno.makeTempDir({ prefix: "triggerfish-logs-" });
-
-  for (const name of logFiles) {
+  for (const name of sorted) {
     await Deno.copyFile(join(dir, name), join(bundleDir, name));
   }
-
   console.log(`Log bundle created at: ${bundleDir}`);
-  console.log(`Bundled ${logFiles.length} log file(s).`);
+  console.log(`Bundled ${sorted.length} log file(s).`);
 }

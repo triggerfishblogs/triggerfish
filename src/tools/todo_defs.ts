@@ -46,41 +46,53 @@ export interface TodoManager {
   write(todos: readonly TodoItem[]): Promise<TodoList>;
 }
 
-/** Tool definitions for todo_read and todo_write. */
-export function getTodoToolDefinitions(): readonly ToolDefinition[] {
-  return [
-    {
-      name: "todo_read",
+function buildTodoReadDef(): ToolDefinition {
+  return {
+    name: "todo_read",
+    description:
+      "Read the current todo list. Returns all todo items with their id, content, status, priority, and timestamps.",
+    parameters: {},
+  };
+}
+
+function buildTodoWriteParams(): ToolDefinition["parameters"] {
+  return {
+    todos: {
+      type: "array",
       description:
-        "Read the current todo list. Returns all todo items with their id, content, status, priority, and timestamps.",
-      parameters: {},
-    },
-    {
-      name: "todo_write",
-      description:
-        "Replace the entire todo list. Takes the full list of todos — this is a complete replacement, not a partial update. " +
-        "Each todo must have: id (string), content (string), status (pending|in_progress|completed), " +
-        "priority (high|medium|low), created_at (ISO timestamp), updated_at (ISO timestamp).",
-      parameters: {
-        todos: {
-          type: "array",
-          description:
-            "The complete list of todo items. Each item: {id, content, status, priority, created_at, updated_at}",
-          required: true,
-          items: {
-            type: "object",
-            properties: {
-              id: { type: "string" },
-              content: { type: "string" },
-              status: { type: "string" },
-              priority: { type: "string" },
-              created_at: { type: "string" },
-              updated_at: { type: "string" },
-            },
-          },
+        "The complete list of todo items. Each item: {id, content, status, priority, created_at, updated_at}",
+      required: true,
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          content: { type: "string" },
+          status: { type: "string" },
+          priority: { type: "string" },
+          created_at: { type: "string" },
+          updated_at: { type: "string" },
         },
       },
     },
+  };
+}
+
+function buildTodoWriteDef(): ToolDefinition {
+  return {
+    name: "todo_write",
+    description:
+      "Replace the entire todo list. Takes the full list of todos — this is a complete replacement, not a partial update. " +
+      "Each todo must have: id (string), content (string), status (pending|in_progress|completed), " +
+      "priority (high|medium|low), created_at (ISO timestamp), updated_at (ISO timestamp).",
+    parameters: buildTodoWriteParams(),
+  };
+}
+
+/** Tool definitions for todo_read and todo_write. */
+export function getTodoToolDefinitions(): readonly ToolDefinition[] {
+  return [
+    buildTodoReadDef(),
+    buildTodoWriteDef(),
   ];
 }
 

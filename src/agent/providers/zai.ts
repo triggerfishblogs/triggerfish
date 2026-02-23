@@ -11,7 +11,12 @@
  * @module
  */
 
-import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import type {
+  LlmCompletionResult,
+  LlmMessage,
+  LlmProvider,
+  LlmStreamChunk,
+} from "../llm.ts";
 import { getModelInfo } from "../models.ts";
 import { parseSseStream } from "./sse.ts";
 import type { ContentBlock } from "../../core/image/content.ts";
@@ -53,6 +58,102 @@ export interface ZaiConfig {
 /** Z.AI Coding Plan API endpoint. */
 const ZAI_API_URL = "https://api.z.ai/api/coding/paas/v4/chat/completions";
 
+/** Shape of a Z.AI API response. */
+interface ZaiApiResponse {
+  readonly choices?: readonly {
+    readonly message?: {
+      readonly content?: string;
+      readonly tool_calls?: unknown[];
+    };
+  }[];
+  readonly usage?: {
+    readonly prompt_tokens?: number;
+    readonly completion_tokens?: number;
+  };
+}
+
+/** Validate that image content is only sent to vision-capable models. */
+function validateZaiVisionCapability(
+  messages: readonly LlmMessage[],
+  model: string,
+): void {
+  const hasImageContent = messages.some((m) =>
+    typeof m.content !== "string" && hasImages(m.content as ContentBlock[])
+  );
+  if (hasImageContent && !isVisionModel(model)) {
+    throw new Error(
+      `Model "${model}" does not support images. ` +
+        `Use a vision model (e.g. glm-4.5v, glm-4.6v) for image input.`,
+    );
+  }
+}
+
+/** Convert LLM messages to OpenAI format and build the JSON request body. */
+function prepareZaiPayload(
+  model: string,
+  maxTokens: number,
+  messages: readonly LlmMessage[],
+  tools: readonly unknown[],
+  options?: { readonly stream?: boolean },
+): string {
+  const openaiMessages = messages.map((m) => ({
+    role: m.role,
+    content: toOpenAiContent(m.content),
+  }));
+  const payload: Record<string, unknown> = {
+    model,
+    max_tokens: maxTokens,
+    messages: openaiMessages,
+  };
+  if (options?.stream) payload.stream = true;
+  if (Array.isArray(tools) && tools.length > 0) payload.tools = tools;
+  return JSON.stringify(payload);
+}
+
+/** Build the standard Z.AI request headers. */
+function buildZaiHeaders(apiKey: string): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${apiKey}`,
+  };
+}
+
+/** Extract a completion result from a parsed Z.AI API response. */
+function parseZaiCompletionResult(
+  data: ZaiApiResponse,
+): LlmCompletionResult {
+  return {
+    content: data.choices?.[0]?.message?.content ?? "",
+    toolCalls: data.choices?.[0]?.message?.tool_calls ?? [],
+    usage: {
+      inputTokens: data.usage?.prompt_tokens ?? 0,
+      outputTokens: data.usage?.completion_tokens ?? 0,
+    },
+  };
+}
+
+/** Send a request to the Z.AI API and return the validated response. */
+async function fetchZaiResponse(
+  apiKey: string,
+  body: string,
+  signal: AbortSignal | undefined,
+  operationLabel: string,
+): Promise<Response> {
+  const response = await fetch(ZAI_API_URL, {
+    method: "POST",
+    headers: buildZaiHeaders(apiKey),
+    body,
+    ...(signal ? { signal } : {}),
+  });
+  if (!response.ok) {
+    const errBody = await response.text();
+    throw new Error(
+      `Z.AI ${operationLabel} failed (${response.status}): ${errBody}`,
+    );
+  }
+  return response;
+}
+
 /**
  * Create a Z.AI LLM provider.
  *
@@ -70,8 +171,8 @@ export function createZaiProvider(config: ZaiConfig): LlmProvider {
   if (!apiKey) {
     throw new Error(
       "Z.AI API key not configured. " +
-      "Set apiKey in triggerfish.yaml under models.providers.zai, " +
-      "or run 'triggerfish dive' to reconfigure.",
+        "Set apiKey in triggerfish.yaml under models.providers.zai, " +
+        "or run 'triggerfish dive' to reconfigure.",
     );
   }
 
@@ -86,58 +187,12 @@ export function createZaiProvider(config: ZaiConfig): LlmProvider {
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
       const signal = options.signal as AbortSignal | undefined;
-
-      // Check if any message contains images on a non-vision model
-      const hasImageContent = messages.some((m) =>
-        typeof m.content !== "string" && hasImages(m.content as ContentBlock[])
+      validateZaiVisionCapability(messages, model);
+      const body = prepareZaiPayload(model, maxTokens, messages, tools);
+      const response = await fetchZaiResponse(apiKey, body, signal, "request");
+      return parseZaiCompletionResult(
+        (await response.json()) as ZaiApiResponse,
       );
-      if (hasImageContent && !isVisionModel(model)) {
-        throw new Error(
-          `Model "${model}" does not support images. ` +
-          `Use a vision model (e.g. glm-4.5v, glm-4.6v) for image input.`,
-        );
-      }
-
-      const openaiMessages = messages.map((m) => ({
-        role: m.role,
-        content: toOpenAiContent(m.content),
-      }));
-
-      // Build request body — include tools if provided
-      const body: Record<string, unknown> = {
-        model,
-        max_tokens: maxTokens,
-        messages: openaiMessages,
-      };
-      if (Array.isArray(tools) && tools.length > 0) {
-        body.tools = tools;
-      }
-
-      const response = await fetch(ZAI_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(body),
-        ...(signal ? { signal } : {}),
-      });
-
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`Z.AI request failed (${response.status}): ${body}`);
-      }
-
-      const data = await response.json();
-
-      return {
-        content: data.choices?.[0]?.message?.content ?? "",
-        toolCalls: data.choices?.[0]?.message?.tool_calls ?? [],
-        usage: {
-          inputTokens: data.usage?.prompt_tokens ?? 0,
-          outputTokens: data.usage?.completion_tokens ?? 0,
-        },
-      };
     },
 
     async *stream(
@@ -146,52 +201,16 @@ export function createZaiProvider(config: ZaiConfig): LlmProvider {
       options: Record<string, unknown>,
     ): AsyncIterable<LlmStreamChunk> {
       const signal = options.signal as AbortSignal | undefined;
-
-      // Check if any message contains images on a non-vision model
-      const hasImageContent = messages.some((m) =>
-        typeof m.content !== "string" && hasImages(m.content as ContentBlock[])
-      );
-      if (hasImageContent && !isVisionModel(model)) {
-        throw new Error(
-          `Model "${model}" does not support images. ` +
-          `Use a vision model (e.g. glm-4.5v, glm-4.6v) for image input.`,
-        );
-      }
-
-      const openaiMessages = messages.map((m) => ({
-        role: m.role,
-        content: toOpenAiContent(m.content),
-      }));
-
-      const streamBody: Record<string, unknown> = {
+      validateZaiVisionCapability(messages, model);
+      const body = prepareZaiPayload(
         model,
-        max_tokens: maxTokens,
-        messages: openaiMessages,
-        stream: true,
-      };
-      if (Array.isArray(tools) && tools.length > 0) {
-        streamBody.tools = tools;
-      }
-
-      const response = await fetch(ZAI_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(streamBody),
-        ...(signal ? { signal } : {}),
-      });
-
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`Z.AI stream failed (${response.status}): ${body}`);
-      }
-
-      if (!response.body) {
-        throw new Error("No response body for streaming");
-      }
-
+        maxTokens,
+        messages,
+        tools,
+        { stream: true },
+      );
+      const response = await fetchZaiResponse(apiKey, body, signal, "stream");
+      if (!response.body) throw new Error("Z.AI stream response has no body");
       yield* parseSseStream(response.body);
     },
   };

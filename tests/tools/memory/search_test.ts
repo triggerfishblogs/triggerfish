@@ -12,7 +12,7 @@ import { Database } from "@db/sqlite";
 import {
   createFts5SearchProvider,
   createInMemorySearchProvider,
-} from "../../../src/tools/memory/search.ts";
+} from "../../../src/tools/memory/search/mod.ts";
 import type { MemoryRecord } from "../../../src/tools/memory/types.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 

@@ -4,7 +4,7 @@
  * Tests the low-level signal-cli JSON-RPC client using mock connections.
  */
 import { assertEquals, assert } from "@std/assert";
-import { createSignalClient } from "../../../src/channels/signal/client.ts";
+import { createSignalClient } from "../../../src/channels/signal/protocol/client.ts";
 import type { SignalNotification } from "../../../src/channels/signal/types.ts";
 
 /** Create a mock Deno.Conn backed by readable/writable streams. */

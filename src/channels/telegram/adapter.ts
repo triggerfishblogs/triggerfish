@@ -50,37 +50,52 @@ export interface TelegramChannelAdapter extends ChannelAdapter {
  * @param config - Telegram bot configuration.
  * @returns A TelegramChannelAdapter wired to Telegram.
  */
-export function createTelegramChannel(config: TelegramConfig): TelegramChannelAdapter {
+/** Check if a Telegram user is the configured owner. */
+function checkTelegramOwnership(
+  fromId: number,
+  ownerId: number | undefined,
+): boolean {
+  if (ownerId === undefined) return true;
+  const numericOwnerId = typeof ownerId === "number"
+    ? ownerId
+    : Number(ownerId);
+  return Number.isFinite(numericOwnerId) && fromId === numericOwnerId;
+}
+
+/** Track a message ID for later deletion via clearChat. */
+function trackTelegramMessage(
+  chatMessageIds: Map<number, number[]>,
+  chatId: number,
+  messageId: number,
+): void {
+  let ids = chatMessageIds.get(chatId);
+  if (!ids) {
+    ids = [];
+    chatMessageIds.set(chatId, ids);
+  }
+  ids.push(messageId);
+}
+
+export function createTelegramChannel(
+  config: TelegramConfig,
+): TelegramChannelAdapter {
   const bot = new Bot(config.botToken);
-  const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
+  const classification = (config.classification ??
+    "PUBLIC") as ClassificationLevel;
   const ownerId = config.ownerId;
   let connected = false;
   let handler: MessageHandler | null = null;
-
-  // Track message IDs per chat for clearChat
   const chatMessageIds = new Map<number, number[]>();
 
-  function trackMessage(chatId: number, messageId: number): void {
-    let ids = chatMessageIds.get(chatId);
-    if (!ids) {
-      ids = [];
-      chatMessageIds.set(chatId, ids);
-    }
-    ids.push(messageId);
-  }
-
-  // Wire up incoming message handler
   bot.on("message:text", (ctx) => {
     if (!handler) return;
-
-    const numericOwnerId = typeof ownerId === "number" ? ownerId : Number(ownerId);
-    const isOwner = ownerId !== undefined && Number.isFinite(numericOwnerId)
-      ? ctx.from.id === numericOwnerId
-      : ownerId === undefined; // No ownerId → treat as owner; invalid ownerId → never owner
-
-    trackMessage(ctx.chat.id, ctx.message.message_id);
-
-    log.debug("Message received", { chatId: ctx.chat.id, senderId: ctx.from.id, isOwner });
+    const isOwner = checkTelegramOwnership(ctx.from.id, ownerId);
+    trackTelegramMessage(chatMessageIds, ctx.chat.id, ctx.message.message_id);
+    log.debug("Message received", {
+      chatId: ctx.chat.id,
+      senderId: ctx.from.id,
+      isOwner,
+    });
     handler({
       content: ctx.message.text,
       sessionId: `telegram-${ctx.chat.id}`,
@@ -90,29 +105,17 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
     });
   });
 
-  // /addtrigger command: route as a natural language message so the orchestrator
-  // calls trigger_add_to_context. Supports an optional source argument:
-  //   /addtrigger           → adds the default periodic trigger result
-  //   /addtrigger cron:job  → adds the last result for that source
   bot.command("addtrigger", (ctx) => {
     if (!handler || !ctx.from) return;
-
-    const numericOwnerId = typeof ownerId === "number" ? ownerId : Number(ownerId);
-    const isOwner = ownerId !== undefined && Number.isFinite(numericOwnerId)
-      ? ctx.from.id === numericOwnerId
-      : ownerId === undefined;
-
+    const isOwner = checkTelegramOwnership(ctx.from.id, ownerId);
     if (ctx.message) {
-      trackMessage(ctx.chat.id, ctx.message.message_id);
+      trackTelegramMessage(chatMessageIds, ctx.chat.id, ctx.message.message_id);
     }
-
-    // Extract optional source argument (e.g. "/addtrigger cron:job-id")
     const rawArg = ctx.match?.trim() ?? "";
     const sourceArg = rawArg.length > 0 ? ` for source "${rawArg}"` : "";
-    const content = `Add the last trigger output${sourceArg} to our conversation using the trigger_add_to_context tool.`;
-
     handler({
-      content,
+      content:
+        `Add the last trigger output${sourceArg} to our conversation using the trigger_add_to_context tool.`,
       sessionId: `telegram-${ctx.chat.id}`,
       senderId: String(ctx.from.id),
       isOwner,
@@ -128,7 +131,10 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
       // Register bot commands with Telegram so they appear in the command menu
       try {
         await bot.api.setMyCommands([
-          { command: "addtrigger", description: "Add last trigger output to conversation context" },
+          {
+            command: "addtrigger",
+            description: "Add last trigger output to conversation context",
+          },
         ]);
       } catch {
         // Non-fatal: command registration failure should not prevent connection
@@ -156,7 +162,7 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
       const chunks = chunkMessage(message.content, MAX_MESSAGE_LENGTH);
       for (const chunk of chunks) {
         const sent = await bot.api.sendMessage(chatId, chunk);
-        trackMessage(chatId, sent.message_id);
+        trackTelegramMessage(chatMessageIds, chatId, sent.message_id);
       }
     },
 
@@ -200,6 +206,16 @@ export function createTelegramChannel(config: TelegramConfig): TelegramChannelAd
   };
 }
 
+/** Find a readable split point in text, preferring newlines then spaces. */
+function findChunkSplitPoint(text: string, maxLength: number): number {
+  let splitAt = text.lastIndexOf("\n", maxLength);
+  if (splitAt <= 0 || splitAt < maxLength * 0.5) {
+    splitAt = text.lastIndexOf(" ", maxLength);
+  }
+  if (splitAt <= 0) splitAt = maxLength;
+  return splitAt;
+}
+
 /**
  * Split a message into chunks that fit within a character limit.
  * Tries to split on newlines or spaces for readability.
@@ -215,19 +231,9 @@ export function chunkMessage(text: string, maxLength: number): string[] {
       chunks.push(remaining);
       break;
     }
-
-    // Find a good split point (newline or space near the limit)
-    let splitAt = remaining.lastIndexOf("\n", maxLength);
-    if (splitAt <= 0 || splitAt < maxLength * 0.5) {
-      splitAt = remaining.lastIndexOf(" ", maxLength);
-    }
-    if (splitAt <= 0) {
-      splitAt = maxLength; // Hard split
-    }
-
+    const splitAt = findChunkSplitPoint(remaining, maxLength);
     chunks.push(remaining.slice(0, splitAt));
     remaining = remaining.slice(splitAt).trimStart();
   }
-
   return chunks;
 }

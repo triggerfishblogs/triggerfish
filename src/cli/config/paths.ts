@@ -62,6 +62,31 @@ export function resolveConfigPath(baseDir?: string): string {
 /** Maximum number of config backups to retain. */
 const MAX_CONFIG_BACKUPS = 10;
 
+/** Check whether a file exists on disk. */
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await Deno.stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Remove old config backups beyond {@link MAX_CONFIG_BACKUPS}. */
+async function pruneOldConfigBackups(backupDir: string): Promise<void> {
+  const entries: string[] = [];
+  for await (const entry of Deno.readDir(backupDir)) {
+    if (entry.isFile && entry.name.startsWith("triggerfish.yaml.")) {
+      entries.push(entry.name);
+    }
+  }
+  entries.sort();
+  const excess = entries.length - MAX_CONFIG_BACKUPS;
+  for (let i = 0; i < excess; i++) {
+    await Deno.remove(join(backupDir, entries[i]));
+  }
+}
+
 /**
  * Create a timestamped backup of triggerfish.yaml before modifying it.
  *
@@ -74,37 +99,14 @@ const MAX_CONFIG_BACKUPS = 10;
  * @param configPath - Absolute path to triggerfish.yaml
  */
 export async function backupConfig(configPath: string): Promise<void> {
-  // Only back up if the file exists
-  try {
-    await Deno.stat(configPath);
-  } catch {
-    return;
-  }
+  if (!await fileExists(configPath)) return;
 
-  const base = resolveBaseDir();
-  const backupDir = join(base, "backups");
+  const backupDir = join(resolveBaseDir(), "backups");
   await Deno.mkdir(backupDir, { recursive: true });
 
-  // Timestamp with colons replaced for filesystem safety
   const ts = new Date().toISOString().replace(/:/g, "-");
-  const backupName = `triggerfish.yaml.${ts}`;
-  const backupPath = join(backupDir, backupName);
-
+  const backupPath = join(backupDir, `triggerfish.yaml.${ts}`);
   await Deno.copyFile(configPath, backupPath);
 
-  // Prune old backups beyond MAX_CONFIG_BACKUPS
-  const entries: string[] = [];
-  for await (const entry of Deno.readDir(backupDir)) {
-    if (entry.isFile && entry.name.startsWith("triggerfish.yaml.")) {
-      entries.push(entry.name);
-    }
-  }
-
-  entries.sort();
-  const excess = entries.length - MAX_CONFIG_BACKUPS;
-  if (excess > 0) {
-    for (let i = 0; i < excess; i++) {
-      await Deno.remove(join(backupDir, entries[i]));
-    }
-  }
+  await pruneOldConfigBackups(backupDir);
 }

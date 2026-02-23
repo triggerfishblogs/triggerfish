@@ -10,7 +10,7 @@
 
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import { createSession } from "../core/types/session.ts";
-import type { SessionState, UserId, ChannelId } from "../core/types/session.ts";
+import type { ChannelId, SessionState, UserId } from "../core/types/session.ts";
 
 /** Configuration for per-user classification resolution. */
 export interface UserClassificationConfig {
@@ -33,7 +33,45 @@ export interface UserSessionManager {
   /** Look up an existing session without creating one. */
   getSession(channelType: string, senderId: string): SessionState | undefined;
   /** Replace the cached session state (e.g. after taint escalation). */
-  updateSession(channelType: string, senderId: string, session: SessionState): void;
+  updateSession(
+    channelType: string,
+    senderId: string,
+    session: SessionState,
+  ): void;
+}
+
+/** Build a session cache key from channel type and sender ID. */
+function buildSessionKey(channelType: string, senderId: string): string {
+  return `${channelType}:${senderId}`;
+}
+
+/** Resolve a user's classification from runtime overrides, config, or channel default. */
+function resolveUserClassification(
+  runtimeOverrides: ReadonlyMap<string, ClassificationLevel>,
+  config: UserClassificationConfig,
+  senderId: string,
+): ClassificationLevel {
+  return runtimeOverrides.get(senderId) ??
+    config.userOverrides.get(senderId) ??
+    config.channelDefault;
+}
+
+/** Get an existing session or create a new one for the user. */
+function getOrCreateUserSession(
+  sessions: Map<string, SessionState>,
+  channelType: string,
+  senderId: string,
+): SessionState {
+  const key = buildSessionKey(channelType, senderId);
+  const existing = sessions.get(key);
+  if (existing) return existing;
+
+  const session = createSession({
+    userId: senderId as UserId,
+    channelId: `${channelType}-user` as ChannelId,
+  });
+  sessions.set(key, session);
+  return session;
 }
 
 /**
@@ -49,46 +87,20 @@ export function createUserSessionManager(
   const sessions = new Map<string, SessionState>();
   const runtimeOverrides = new Map<string, ClassificationLevel>();
 
-  function sessionKey(channelType: string, senderId: string): string {
-    return `${channelType}:${senderId}`;
-  }
-
-  function getClassification(senderId: string): ClassificationLevel {
-    return runtimeOverrides.get(senderId)
-      ?? config.userOverrides.get(senderId)
-      ?? config.channelDefault;
-  }
-
-  function getOrCreate(channelType: string, senderId: string): SessionState {
-    const key = sessionKey(channelType, senderId);
-    const existing = sessions.get(key);
-    if (existing) return existing;
-
-    const session = createSession({
-      userId: senderId as UserId,
-      channelId: `${channelType}-user` as ChannelId,
-    });
-    sessions.set(key, session);
-    return session;
-  }
-
-  function getSession(channelType: string, senderId: string): SessionState | undefined {
-    return sessions.get(sessionKey(channelType, senderId));
-  }
-
-  function updateSession(channelType: string, senderId: string, session: SessionState): void {
-    sessions.set(sessionKey(channelType, senderId), session);
-  }
-
-  function hasExplicitClassification(senderId: string): boolean {
-    return runtimeOverrides.has(senderId) || config.userOverrides.has(senderId);
-  }
-
-  function addClassification(senderId: string, level: ClassificationLevel): void {
-    runtimeOverrides.set(senderId, level);
-  }
-
-  return { getOrCreate, getClassification, hasExplicitClassification, getSession, updateSession, addClassification };
+  return {
+    getOrCreate: (channelType, senderId) =>
+      getOrCreateUserSession(sessions, channelType, senderId),
+    getClassification: (senderId) =>
+      resolveUserClassification(runtimeOverrides, config, senderId),
+    hasExplicitClassification: (senderId) =>
+      runtimeOverrides.has(senderId) || config.userOverrides.has(senderId),
+    getSession: (channelType, senderId) =>
+      sessions.get(buildSessionKey(channelType, senderId)),
+    updateSession: (channelType, senderId, session) =>
+      sessions.set(buildSessionKey(channelType, senderId), session),
+    addClassification: (senderId, level) =>
+      runtimeOverrides.set(senderId, level),
+  };
 }
 
 /**

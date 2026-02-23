@@ -15,7 +15,7 @@
  */
 
 import type { ToolDefinition } from "../core/types/tool.ts";
-import type { SecretStore } from "../core/secrets/keychain.ts";
+import type { SecretStore } from "../core/secrets/keychain/keychain.ts";
 import { createLogger } from "../core/logger/logger.ts";
 
 const log = createLogger("secrets");
@@ -60,50 +60,60 @@ Example: to use a stored API key named "openai_key" in a tool argument:
 - Do not log, repeat, or reveal secret values. They are never in your context.
 - Secret names should be lowercase with underscores (e.g. "github_token", "smtp_password").`;
 
+function buildSecretSaveDef(): ToolDefinition {
+  return {
+    name: "secret_save",
+    description:
+      "Prompt the user to securely enter a secret value (password, API key, token) " +
+      "through a private input channel and store it under the given name. " +
+      "The value is NEVER passed through LLM context. " +
+      "Use secret_list first to check if the secret already exists.",
+    parameters: {
+      name: {
+        type: "string",
+        description: "Unique name for this secret (lowercase, underscores). " +
+          "Example: 'github_token', 'smtp_password', 'openai_key'.",
+        required: true,
+      },
+      hint: {
+        type: "string",
+        description:
+          "Optional human-readable description shown to the user when prompting " +
+          "for the value. Example: 'GitHub personal access token with repo scope'.",
+      },
+    },
+  };
+}
+
+function buildSecretListDef(): ToolDefinition {
+  return {
+    name: "secret_list",
+    description: "List the names of all stored secrets. " +
+      "Returns names only — secret values are never returned.",
+    parameters: {},
+  };
+}
+
+function buildSecretDeleteDef(): ToolDefinition {
+  return {
+    name: "secret_delete",
+    description: "Delete a stored secret by name.",
+    parameters: {
+      name: {
+        type: "string",
+        description: "The name of the secret to delete.",
+        required: true,
+      },
+    },
+  };
+}
+
 /** Tool definitions for the secret management tools. */
 export function getSecretToolDefinitions(): readonly ToolDefinition[] {
   return [
-    {
-      name: "secret_save",
-      description:
-        "Prompt the user to securely enter a secret value (password, API key, token) " +
-        "through a private input channel and store it under the given name. " +
-        "The value is NEVER passed through LLM context. " +
-        "Use secret_list first to check if the secret already exists.",
-      parameters: {
-        name: {
-          type: "string",
-          description:
-            "Unique name for this secret (lowercase, underscores). " +
-            "Example: 'github_token', 'smtp_password', 'openai_key'.",
-          required: true,
-        },
-        hint: {
-          type: "string",
-          description:
-            "Optional human-readable description shown to the user when prompting " +
-            "for the value. Example: 'GitHub personal access token with repo scope'.",
-        },
-      },
-    },
-    {
-      name: "secret_list",
-      description:
-        "List the names of all stored secrets. " +
-        "Returns names only — secret values are never returned.",
-      parameters: {},
-    },
-    {
-      name: "secret_delete",
-      description: "Delete a stored secret by name.",
-      parameters: {
-        name: {
-          type: "string",
-          description: "The name of the secret to delete.",
-          required: true,
-        },
-      },
-    },
+    buildSecretSaveDef(),
+    buildSecretListDef(),
+    buildSecretDeleteDef(),
   ];
 }
 
@@ -130,8 +140,9 @@ export function createSecretToolExecutor(
         }
         const trimmedName = secretName.trim();
         log.warn("Secret save requested via LLM tool", { name: trimmedName });
-        const hint =
-          typeof input.hint === "string" ? input.hint.trim() : undefined;
+        const hint = typeof input.hint === "string"
+          ? input.hint.trim()
+          : undefined;
 
         // Collect the value through the out-of-band channel — never from LLM args.
         const value = await prompt(trimmedName, hint);

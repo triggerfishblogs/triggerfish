@@ -9,6 +9,32 @@
 
 import type { ActivePlan, ImplementationPlan } from "./types.ts";
 
+/** Build the plan mode exploration instructions section. */
+function buildPlanModeExplorationRules(): string {
+  return `In plan mode, you MUST:
+1. Use explore to understand the codebase structure, patterns, and conventions
+2. Use explore with focus to investigate specific areas relevant to your goal
+3. Use read_file for targeted deep-reads of specific files explore identified
+4. Use search_files for specific pattern searches explore didn't cover
+5. Use run_command for read-only commands (grep, find, wc, cat, head, etc.)
+6. Design a concrete, step-by-step implementation strategy based on what you found
+
+Start broad (explore the root or relevant module), then narrow (explore + focus
+on specific concerns).`;
+}
+
+/** Build the plan mode restrictions section. */
+function buildPlanModeRestrictions(): string {
+  return `You MUST NOT:
+- Write or edit any files (write_file is blocked)
+- Create or delete cron jobs (cron_create, cron_delete are blocked)
+- Make any changes to the codebase
+- Skip exploration and jump to a plan without evidence
+
+When you have a complete plan, call plan_exit with your implementation plan.
+If you need clarification from the user, ask before finalizing.`;
+}
+
 /**
  * Build the plan mode system prompt injection.
  *
@@ -21,25 +47,9 @@ export function buildPlanModePrompt(goal: string, scope?: string): string {
 
 You are in plan mode. Focus on exploring the codebase and designing an implementation approach.
 
-In plan mode, you MUST:
-1. Use explore to understand the codebase structure, patterns, and conventions
-2. Use explore with focus to investigate specific areas relevant to your goal
-3. Use read_file for targeted deep-reads of specific files explore identified
-4. Use search_files for specific pattern searches explore didn't cover
-5. Use run_command for read-only commands (grep, find, wc, cat, head, etc.)
-6. Design a concrete, step-by-step implementation strategy based on what you found
+${buildPlanModeExplorationRules()}
 
-Start broad (explore the root or relevant module), then narrow (explore + focus
-on specific concerns).
-
-You MUST NOT:
-- Write or edit any files (write_file is blocked)
-- Create or delete cron jobs (cron_create, cron_delete are blocked)
-- Make any changes to the codebase
-- Skip exploration and jump to a plan without evidence
-
-When you have a complete plan, call plan_exit with your implementation plan.
-If you need clarification from the user, ask before finalizing.`;
+${buildPlanModeRestrictions()}`;
 }
 
 /**
@@ -56,31 +66,43 @@ export function buildAwaitingApprovalPrompt(): string {
 - If they reject, call plan_reject to return to normal mode.`;
 }
 
+/** Format a single plan step for the execution prompt. */
+function formatPlanStep(
+  step: ImplementationPlan["steps"][number],
+  completedSteps: readonly number[],
+  currentStep: number | undefined,
+): string {
+  const checked = completedSteps.includes(step.id) ? "[x]" : "[ ]";
+  const current = step.id === currentStep ? " <-- CURRENT" : "";
+  const deps = step.depends_on.length > 0
+    ? `\n  Depends on: Step ${step.depends_on.join(", Step ")}`
+    : "";
+  return `- ${checked} **Step ${step.id}:** ${step.description}${current}\n  Files: ${
+    step.files.join(", ") || "(none)"
+  }${deps}\n  Verify: \`${step.verification || "(none)"}\``;
+}
+
+/** Format all plan steps with completion status. */
+function formatPlanSteps(activePlan: ActivePlan): string {
+  return activePlan.plan.steps.map((step) =>
+    formatPlanStep(step, activePlan.completedSteps, activePlan.currentStep)
+  ).join("\n\n");
+}
+
 /**
  * Build the plan execution prompt injected after a plan is approved.
  *
  * Shows the plan steps with completion status and execution rules.
  */
 export function buildPlanExecutionPrompt(activePlan: ActivePlan): string {
-  const { plan, completedSteps, currentStep } = activePlan;
-
-  const stepsFormatted = plan.steps.map((step) => {
-    const checked = completedSteps.includes(step.id) ? "[x]" : "[ ]";
-    const current = step.id === currentStep ? " <-- CURRENT" : "";
-    const deps = step.depends_on.length > 0
-      ? `\n  Depends on: Step ${step.depends_on.join(", Step ")}`
-      : "";
-    return `- ${checked} **Step ${step.id}:** ${step.description}${current}\n  Files: ${step.files.join(", ") || "(none)"}${deps}\n  Verify: \`${step.verification || "(none)"}\``;
-  }).join("\n\n");
-
   return `APPROVED PLAN — Executing: ${activePlan.id}
 
 You have an approved implementation plan. Execute it step by step.
 
-Plan summary: ${plan.summary}
+Plan summary: ${activePlan.plan.summary}
 
 Steps:
-${stepsFormatted}
+${formatPlanSteps(activePlan)}
 
 Rules:
 - Execute ONE step at a time
@@ -108,7 +130,11 @@ export function formatPlanAsMarkdown(
     const deps = step.depends_on.length > 0
       ? `Step ${step.depends_on.join(", Step ")}`
       : "\u2014";
-    return `- [ ] **Step ${step.id}:** ${step.description}\n  - Files: ${step.files.join(", ") || "(none)"}\n  - Depends on: ${deps}\n  - Verify: \`${step.verification || "(none)"}\``;
+    return `- [ ] **Step ${step.id}:** ${step.description}\n  - Files: ${
+      step.files.join(", ") || "(none)"
+    }\n  - Depends on: ${deps}\n  - Verify: \`${
+      step.verification || "(none)"
+    }\``;
   }).join("\n\n");
 
   const createFiles = plan.files_to_create.length > 0

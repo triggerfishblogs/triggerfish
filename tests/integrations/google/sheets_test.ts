@@ -5,7 +5,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { createSheetsService } from "../../../src/integrations/google/sheets.ts";
+import { createSheetsService } from "../../../src/integrations/google/sheets/sheets.ts";
 import type { GoogleApiClient, GoogleApiResult } from "../../../src/integrations/google/types.ts";
 
 function createMockClient(

@@ -7,7 +7,12 @@
  * @module
  */
 
-import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../llm.ts";
+import type {
+  LlmCompletionResult,
+  LlmMessage,
+  LlmProvider,
+  LlmStreamChunk,
+} from "../llm.ts";
 import { getModelInfo } from "../models.ts";
 import { parseSseStream } from "./sse.ts";
 import type { ContentBlock } from "../../core/image/content.ts";
@@ -43,6 +48,106 @@ export interface ZenMuxConfig {
 /** ZenMux API endpoint. */
 const ZENMUX_API_URL = "https://zenmux.ai/api/v1/chat/completions";
 
+function buildChatRequestBody(
+  model: string,
+  maxTokens: number,
+  messages: readonly LlmMessage[],
+  tools: readonly unknown[],
+  streaming: boolean,
+): Record<string, unknown> {
+  const openaiMessages = messages.map((m) => ({
+    role: m.role,
+    content: toOpenAiContent(m.content),
+  }));
+  const body: Record<string, unknown> = {
+    model,
+    max_tokens: maxTokens,
+    messages: openaiMessages,
+  };
+  if (streaming) body.stream = true;
+  if (Array.isArray(tools) && tools.length > 0) body.tools = tools;
+  return body;
+}
+
+function buildZenMuxHeaders(apiKey: string): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${apiKey}`,
+  };
+}
+
+function parseCompletionResponse(
+  data: Record<string, unknown>,
+): LlmCompletionResult {
+  const choices = data.choices as Record<string, unknown>[] | undefined;
+  const message = choices?.[0]?.message as Record<string, unknown> | undefined;
+  const usage = data.usage as Record<string, unknown> | undefined;
+  return {
+    content: (message?.content as string) ?? "",
+    toolCalls: (message?.tool_calls as unknown[]) ?? [],
+    usage: {
+      inputTokens: (usage?.prompt_tokens as number) ?? 0,
+      outputTokens: (usage?.completion_tokens as number) ?? 0,
+    },
+  };
+}
+
+async function completeZenMux(
+  apiKey: string,
+  model: string,
+  maxTokens: number,
+  messages: readonly LlmMessage[],
+  tools: readonly unknown[],
+  options: Record<string, unknown>,
+): Promise<LlmCompletionResult> {
+  const signal = options.signal as AbortSignal | undefined;
+  const body = buildChatRequestBody(model, maxTokens, messages, tools, false);
+
+  const response = await fetch(ZENMUX_API_URL, {
+    method: "POST",
+    headers: buildZenMuxHeaders(apiKey),
+    body: JSON.stringify(body),
+    ...(signal ? { signal } : {}),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`ZenMux request failed (${response.status}): ${text}`);
+  }
+
+  return parseCompletionResponse(await response.json());
+}
+
+async function* streamZenMux(
+  apiKey: string,
+  model: string,
+  maxTokens: number,
+  messages: readonly LlmMessage[],
+  tools: readonly unknown[],
+  options: Record<string, unknown>,
+): AsyncIterable<LlmStreamChunk> {
+  const signal = options.signal as AbortSignal | undefined;
+  const body = buildChatRequestBody(model, maxTokens, messages, tools, true);
+
+  const response = await fetch(ZENMUX_API_URL, {
+    method: "POST",
+    headers: buildZenMuxHeaders(apiKey),
+    body: JSON.stringify(body),
+    ...(signal ? { signal } : {}),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`ZenMux stream failed (${response.status}): ${text}`);
+  }
+
+  if (!response.body) {
+    throw new Error("No response body for streaming");
+  }
+
+  yield* parseSseStream(response.body);
+}
+
 /**
  * Create a ZenMux LLM provider.
  *
@@ -60,8 +165,8 @@ export function createZenMuxProvider(config: ZenMuxConfig): LlmProvider {
   if (!apiKey) {
     throw new Error(
       "ZenMux API key not configured. " +
-      "Set apiKey in triggerfish.yaml under models.providers.zenmux, " +
-      "or run 'triggerfish dive' to reconfigure.",
+        "Set apiKey in triggerfish.yaml under models.providers.zenmux, " +
+        "or run 'triggerfish dive' to reconfigure.",
     );
   }
 
@@ -69,95 +174,9 @@ export function createZenMuxProvider(config: ZenMuxConfig): LlmProvider {
     name: "zenmux",
     supportsStreaming: true,
     contextWindow: getModelInfo(model).contextWindow,
-
-    async complete(
-      messages: readonly LlmMessage[],
-      tools: readonly unknown[],
-      options: Record<string, unknown>,
-    ): Promise<LlmCompletionResult> {
-      const signal = options.signal as AbortSignal | undefined;
-      const openaiMessages = messages.map((m) => ({
-        role: m.role,
-        content: toOpenAiContent(m.content),
-      }));
-
-      const body: Record<string, unknown> = {
-        model,
-        max_tokens: maxTokens,
-        messages: openaiMessages,
-      };
-      if (Array.isArray(tools) && tools.length > 0) {
-        body.tools = tools;
-      }
-
-      const response = await fetch(ZENMUX_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(body),
-        ...(signal ? { signal } : {}),
-      });
-
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`ZenMux request failed (${response.status}): ${body}`);
-      }
-
-      const data = await response.json();
-
-      return {
-        content: data.choices?.[0]?.message?.content ?? "",
-        toolCalls: data.choices?.[0]?.message?.tool_calls ?? [],
-        usage: {
-          inputTokens: data.usage?.prompt_tokens ?? 0,
-          outputTokens: data.usage?.completion_tokens ?? 0,
-        },
-      };
-    },
-
-    async *stream(
-      messages: readonly LlmMessage[],
-      tools: readonly unknown[],
-      options: Record<string, unknown>,
-    ): AsyncIterable<LlmStreamChunk> {
-      const signal = options.signal as AbortSignal | undefined;
-      const openaiMessages = messages.map((m) => ({
-        role: m.role,
-        content: toOpenAiContent(m.content),
-      }));
-
-      const streamBody: Record<string, unknown> = {
-        model,
-        max_tokens: maxTokens,
-        messages: openaiMessages,
-        stream: true,
-      };
-      if (Array.isArray(tools) && tools.length > 0) {
-        streamBody.tools = tools;
-      }
-
-      const response = await fetch(ZENMUX_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(streamBody),
-        ...(signal ? { signal } : {}),
-      });
-
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`ZenMux stream failed (${response.status}): ${body}`);
-      }
-
-      if (!response.body) {
-        throw new Error("No response body for streaming");
-      }
-
-      yield* parseSseStream(response.body);
-    },
+    complete: (messages, tools, options) =>
+      completeZenMux(apiKey, model, maxTokens, messages, tools, options),
+    stream: (messages, tools, options) =>
+      streamZenMux(apiKey, model, maxTokens, messages, tools, options),
   };
 }

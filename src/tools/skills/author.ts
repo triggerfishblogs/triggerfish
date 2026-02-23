@@ -8,7 +8,10 @@
  */
 
 import { join } from "@std/path";
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../core/types/classification.ts";
 import { CLASSIFICATION_ORDER } from "../../core/types/classification.ts";
 
 /** Skill authoring status. */
@@ -53,6 +56,131 @@ export interface SkillAuthor {
   }): Promise<Result<AuthoredSkill, string>>;
 }
 
+/** Validate that a skill ceiling does not exceed the user's ceiling. */
+function validateSkillCeiling(
+  ceiling: ClassificationLevel,
+  userCeiling: ClassificationLevel,
+): Result<void, string> {
+  if (CLASSIFICATION_ORDER[ceiling] > CLASSIFICATION_ORDER[userCeiling]) {
+    return {
+      ok: false,
+      error:
+        `Classification ceiling ${ceiling} exceeds user ceiling ${userCeiling}`,
+    };
+  }
+  return { ok: true, value: undefined };
+}
+
+/** Build SKILL.md content from frontmatter fields and body. */
+function buildSkillMdContent(options: {
+  readonly name: string;
+  readonly description: string;
+  readonly classificationCeiling: ClassificationLevel;
+  readonly requiresTools: readonly string[];
+  readonly networkDomains: readonly string[];
+  readonly content: string;
+}): string {
+  const frontmatter = [
+    "---",
+    `name: ${options.name}`,
+    `description: ${options.description}`,
+    `classification_ceiling: ${options.classificationCeiling}`,
+    `requires_tools: [${options.requiresTools.join(", ")}]`,
+    `network_domains: [${options.networkDomains.join(", ")}]`,
+    `status: PENDING_APPROVAL`,
+    "---",
+  ].join("\n");
+  return `${frontmatter}\n${options.content}`;
+}
+
+/** Write the skill directory and SKILL.md file to disk. */
+async function writeSkillToDisk(
+  skillDir: string,
+  skillMd: string,
+): Promise<Result<void, string>> {
+  try {
+    await Deno.mkdir(skillDir, { recursive: true });
+  } catch {
+    return {
+      ok: false,
+      error: `Failed to create skill directory: ${skillDir}`,
+    };
+  }
+  try {
+    await Deno.writeTextFile(join(skillDir, "SKILL.md"), skillMd);
+  } catch {
+    return { ok: false, error: `Failed to write SKILL.md` };
+  }
+  return { ok: true, value: undefined };
+}
+
+/** Build the AuthoredSkill result from validated create options. */
+function buildAuthoredSkillResult(
+  opts: {
+    readonly name: string;
+    readonly description: string;
+    readonly classificationCeiling: ClassificationLevel;
+    readonly requiresTools: readonly string[];
+    readonly networkDomains: readonly string[];
+  },
+  skillDir: string,
+): Result<AuthoredSkill, string> {
+  return {
+    ok: true,
+    value: {
+      name: opts.name,
+      description: opts.description,
+      classificationCeiling: opts.classificationCeiling,
+      requiresTools: opts.requiresTools,
+      networkDomains: opts.networkDomains,
+      status: "PENDING_APPROVAL",
+      path: skillDir,
+    },
+  };
+}
+
+/** Normalize create options, filling in defaults. */
+function normalizeSkillCreateOptions(
+  createOptions: Parameters<SkillAuthor["create"]>[0],
+): {
+  readonly name: string;
+  readonly description: string;
+  readonly classificationCeiling: ClassificationLevel;
+  readonly requiresTools: readonly string[];
+  readonly networkDomains: readonly string[];
+  readonly content: string;
+} {
+  return {
+    name: createOptions.name,
+    description: createOptions.description,
+    classificationCeiling: createOptions.classificationCeiling,
+    requiresTools: createOptions.requiresTools ?? [],
+    networkDomains: createOptions.networkDomains ?? [],
+    content: createOptions.content,
+  };
+}
+
+/** Execute the full skill creation workflow: validate, write, return result. */
+async function executeSkillCreation(
+  createOptions: Parameters<SkillAuthor["create"]>[0],
+  authorOptions: SkillAuthorOptions,
+): Promise<Result<AuthoredSkill, string>> {
+  const opts = normalizeSkillCreateOptions(createOptions);
+
+  const ceilingCheck = validateSkillCeiling(
+    opts.classificationCeiling,
+    authorOptions.userCeiling,
+  );
+  if (!ceilingCheck.ok) return ceilingCheck;
+
+  const skillDir = join(authorOptions.skillsDir, opts.name);
+  const skillMd = buildSkillMdContent(opts);
+  const writeResult = await writeSkillToDisk(skillDir, skillMd);
+  if (!writeResult.ok) return writeResult;
+
+  return buildAuthoredSkillResult(opts, skillDir);
+}
+
 /**
  * Create a skill author for agent self-authoring.
  *
@@ -62,61 +190,6 @@ export interface SkillAuthor {
  */
 export function createSkillAuthor(options: SkillAuthorOptions): SkillAuthor {
   return {
-    async create(createOptions): Promise<Result<AuthoredSkill, string>> {
-      const { name, description, classificationCeiling, content } = createOptions;
-      const requiresTools = createOptions.requiresTools ?? [];
-      const networkDomains = createOptions.networkDomains ?? [];
-
-      // Validate classification ceiling does not exceed user's ceiling
-      if (
-        CLASSIFICATION_ORDER[classificationCeiling] >
-        CLASSIFICATION_ORDER[options.userCeiling]
-      ) {
-        return {
-          ok: false,
-          error: `Classification ceiling ${classificationCeiling} exceeds user ceiling ${options.userCeiling}`,
-        };
-      }
-
-      const skillDir = join(options.skillsDir, name);
-
-      try {
-        await Deno.mkdir(skillDir, { recursive: true });
-      } catch {
-        return { ok: false, error: `Failed to create skill directory: ${skillDir}` };
-      }
-
-      const frontmatter = [
-        "---",
-        `name: ${name}`,
-        `description: ${description}`,
-        `classification_ceiling: ${classificationCeiling}`,
-        `requires_tools: [${requiresTools.join(", ")}]`,
-        `network_domains: [${networkDomains.join(", ")}]`,
-        `status: PENDING_APPROVAL`,
-        "---",
-      ].join("\n");
-
-      const skillMd = `${frontmatter}\n${content}`;
-
-      try {
-        await Deno.writeTextFile(join(skillDir, "SKILL.md"), skillMd);
-      } catch {
-        return { ok: false, error: `Failed to write SKILL.md` };
-      }
-
-      return {
-        ok: true,
-        value: {
-          name,
-          description,
-          classificationCeiling,
-          requiresTools,
-          networkDomains,
-          status: "PENDING_APPROVAL",
-          path: skillDir,
-        },
-      };
-    },
+    create: (createOptions) => executeSkillCreation(createOptions, options),
   };
 }

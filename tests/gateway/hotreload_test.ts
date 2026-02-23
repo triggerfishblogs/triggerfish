@@ -6,7 +6,7 @@
  */
 
 import { assertEquals, assertExists } from "@std/assert";
-import { createConfigWatcher } from "../../src/gateway/startup/config_watcher.ts";
+import { createConfigWatcher } from "../../src/gateway/startup/services/config_watcher.ts";
 
 Deno.test("onChange: registers and invokes callback on file change", async () => {
   const tmpFile = await Deno.makeTempFile({ suffix: ".yaml" });

@@ -36,15 +36,15 @@ export type {
   SheetsService,
 } from "./types.ts";
 
-export { createGoogleAuthManager } from "./auth.ts";
+export { createGoogleAuthManager } from "./auth/auth.ts";
 
-export { createGoogleApiClient } from "./client.ts";
+export { createGoogleApiClient } from "./auth/client.ts";
 
-export { createGmailService } from "./gmail.ts";
-export { createCalendarService } from "./calendar.ts";
-export { createTasksService } from "./tasks.ts";
-export { createDriveService } from "./drive.ts";
-export { createSheetsService } from "./sheets.ts";
+export { createGmailService } from "./gmail/gmail.ts";
+export { createCalendarService } from "./calendar/calendar.ts";
+export { createTasksService } from "./tasks/tasks.ts";
+export { createDriveService } from "./drive/drive.ts";
+export { createSheetsService } from "./sheets/sheets.ts";
 
 export {
   getGoogleToolDefinitions,

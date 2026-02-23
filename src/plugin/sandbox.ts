@@ -38,6 +38,87 @@ export interface Sandbox {
   destroy(): Promise<void>;
 }
 
+/** Parse declared endpoint URLs into a set of allowed hostnames. */
+function parseAllowedHosts(
+  endpoints: readonly string[],
+): Set<string> {
+  const hosts = new Set<string>();
+  for (const endpoint of endpoints) {
+    try {
+      const url = new URL(endpoint);
+      hosts.add(url.host);
+    } catch {
+      // Skip invalid URLs
+    }
+  }
+  return hosts;
+}
+
+/** Extract the URL string from a fetch input (string, URL, or Request). */
+function extractFetchUrl(input: string | URL | Request): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
+}
+
+/** Build a fetch function that only permits requests to allowed hosts. */
+function buildRestrictedFetch(
+  allowedHosts: ReadonlySet<string>,
+  pluginName: string,
+): (input: string | URL | Request, init?: RequestInit) => Promise<Response> {
+  return (input, init?) => {
+    const urlStr = extractFetchUrl(input);
+    try {
+      const url = new URL(urlStr);
+      if (!allowedHosts.has(url.host)) {
+        log.warn("Plugin network access blocked", {
+          plugin: pluginName,
+          host: url.host,
+        });
+        throw new Error(
+          `Network access blocked: ${url.host} not in declared endpoints`,
+        );
+      }
+    } catch (e) {
+      if (e instanceof TypeError) {
+        throw new Error(`Network access blocked: invalid URL`);
+      }
+      throw e;
+    }
+    return fetch(input, init);
+  };
+}
+
+/** Build a Deno proxy that blocks all filesystem and system access. */
+function buildRestrictedDeno(): Record<string, never> {
+  return new Proxy(
+    {} as Record<string, never>,
+    {
+      get(_target, prop) {
+        throw new Error(
+          `Sandbox: access to Deno.${String(prop)} is blocked`,
+        );
+      },
+    },
+  );
+}
+
+/** Execute plugin code as an async function with restricted globals. */
+async function executeSandboxedCode(
+  code: string,
+  allowedHosts: ReadonlySet<string>,
+  pluginName: string,
+): Promise<unknown> {
+  const restrictedFetch = buildRestrictedFetch(allowedHosts, pluginName);
+  const restrictedDeno = buildRestrictedDeno();
+  const fn = new Function(
+    "fetch",
+    "Deno",
+    `return (async function() { ${code} })()`,
+  );
+  return await fn(restrictedFetch, restrictedDeno);
+}
+
 /**
  * Create a sandboxed execution environment for a plugin.
  *
@@ -48,74 +129,14 @@ export interface Sandbox {
  */
 // deno-lint-ignore require-await
 export async function createSandbox(config: SandboxConfig): Promise<Sandbox> {
-  const allowedHosts = new Set<string>();
-  for (const endpoint of config.declaredEndpoints) {
-    try {
-      const url = new URL(endpoint);
-      allowedHosts.add(url.host);
-    } catch {
-      // Skip invalid URLs
-    }
-  }
-
+  const allowedHosts = parseAllowedHosts(config.declaredEndpoints);
   let destroyed = false;
 
   return {
+    // deno-lint-ignore require-await
     async executePluginCode(code: string): Promise<unknown> {
-      if (destroyed) {
-        throw new Error("Sandbox has been destroyed");
-      }
-
-      // Build a restricted fetch that only allows declared endpoints
-      const restrictedFetch = (
-        input: string | URL | Request,
-        init?: RequestInit,
-      ): Promise<Response> => {
-        const urlStr = typeof input === "string"
-          ? input
-          : input instanceof URL
-          ? input.href
-          : input.url;
-        try {
-          const url = new URL(urlStr);
-          if (!allowedHosts.has(url.host)) {
-            log.warn("Plugin network access blocked", {
-              plugin: config.name,
-              host: url.host,
-            });
-            throw new Error(
-              `Network access blocked: ${url.host} not in declared endpoints`,
-            );
-          }
-        } catch (e) {
-          if (e instanceof TypeError) {
-            throw new Error(`Network access blocked: invalid URL`);
-          }
-          throw e;
-        }
-        return fetch(input, init);
-      };
-
-      // Build a restricted Deno proxy that blocks filesystem and system access
-      const restrictedDeno = new Proxy(
-        {},
-        {
-          get(_target, prop) {
-            throw new Error(
-              `Sandbox: access to Deno.${String(prop)} is blocked`,
-            );
-          },
-        },
-      );
-
-      // Execute the code as an async function with restricted globals
-      const fn = new Function(
-        "fetch",
-        "Deno",
-        `return (async function() { ${code} })()`,
-      );
-
-      return await fn(restrictedFetch, restrictedDeno);
+      if (destroyed) throw new Error("Sandbox has been destroyed");
+      return executeSandboxedCode(code, allowedHosts, config.name);
     },
 
     // deno-lint-ignore require-await
@@ -185,6 +206,39 @@ async function defaultPyodideLoader(): Promise<PyodideInstance> {
   return pyodide;
 }
 
+/** Build the triggerfish SDK bridge for Python plugin access. */
+function buildTriggerfishBridge(
+  sdk: PluginSdk,
+): Record<string, unknown> {
+  return {
+    emit_data: (
+      content: string,
+      classification: ClassificationLevel,
+    ): Record<string, unknown> => {
+      const result = sdk.emitData({ content, classification });
+      if (!result.ok) throw new Error(result.error);
+      return { ok: true };
+    },
+    query: async (
+      queryString: string,
+    ): Promise<Record<string, unknown>> => {
+      const result = await sdk.queryAsUser(queryString);
+      return { classification: result.classification, data: result.data };
+    },
+  };
+}
+
+/** Load Pyodide and register the triggerfish SDK bridge module. */
+async function initializePyodideRuntime(
+  config: PythonSandboxConfig,
+): Promise<PyodideInstance> {
+  const loader = config._pyodideLoader ?? defaultPyodideLoader;
+  const pyodide = await loader();
+  const bridge = buildTriggerfishBridge(config.sdk);
+  pyodide.registerJsModule("triggerfish", bridge);
+  return pyodide;
+}
+
 /**
  * Create a Python sandbox powered by Pyodide WASM.
  *
@@ -200,51 +254,20 @@ async function defaultPyodideLoader(): Promise<PyodideInstance> {
 export async function createPythonSandbox(
   config: PythonSandboxConfig,
 ): Promise<PythonSandbox> {
-  const { sdk, _pyodideLoader } = config;
-  const loader = _pyodideLoader ?? defaultPyodideLoader;
-
-  // Load the Pyodide instance
-  const pyodide = await loader();
-
-  // Register the triggerfish SDK bridge as a JS module importable from Python
-  const triggerfishBridge: Record<string, unknown> = {
-    emit_data: (content: string, classification: ClassificationLevel): Record<string, unknown> => {
-      const result = sdk.emitData({ content, classification });
-      if (!result.ok) {
-        throw new Error(result.error);
-      }
-      return { ok: true };
-    },
-    query: async (queryString: string): Promise<Record<string, unknown>> => {
-      const result = await sdk.queryAsUser(queryString);
-      return {
-        classification: result.classification,
-        data: result.data,
-      };
-    },
-  };
-
-  pyodide.registerJsModule("triggerfish", triggerfishBridge);
-
-  let destroyed = false;
-
-  // Create the base sandbox for JS execution
+  const pyodide = await initializePyodideRuntime(config);
   const baseSandbox = await createSandbox(config);
+  let destroyed = false;
 
   return {
     // deno-lint-ignore require-await
     async executePluginCode(code: string): Promise<unknown> {
-      if (destroyed) {
-        throw new Error("Sandbox has been destroyed");
-      }
+      if (destroyed) throw new Error("Sandbox has been destroyed");
       return baseSandbox.executePluginCode(code);
     },
 
     // deno-lint-ignore require-await
     async executePython(code: string): Promise<unknown> {
-      if (destroyed) {
-        throw new Error("Sandbox has been destroyed");
-      }
+      if (destroyed) throw new Error("Sandbox has been destroyed");
       return pyodide.runPythonAsync(code);
     },
 

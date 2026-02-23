@@ -25,4 +25,4 @@ export {
 export {
   createToolExecutor,
   type ToolExecutorOptions,
-} from "./executor.ts";
+} from "./executor/executor.ts";

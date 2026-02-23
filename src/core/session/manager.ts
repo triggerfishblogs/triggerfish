@@ -14,11 +14,7 @@ import type {
   SessionId,
   SessionState,
 } from "../types/session.ts";
-import {
-  createSession,
-  resetSession,
-  updateTaint,
-} from "../types/session.ts";
+import { createSession, resetSession, updateTaint } from "../types/session.ts";
 import type { StorageProvider } from "../storage/provider.ts";
 import { createLogger } from "../logger/logger.ts";
 
@@ -79,6 +75,55 @@ function deserialise(raw: string): SessionState {
   } as SessionState;
 }
 
+/** Load a session from storage, throwing if not found. */
+async function loadSessionOrThrow(
+  storage: StorageProvider,
+  id: SessionId,
+): Promise<SessionState> {
+  const raw = await storage.get(SESSION_PREFIX + id);
+  if (raw === null) throw new Error(`Session not found: ${id}`);
+  return deserialise(raw);
+}
+
+/** Escalate session taint and persist the updated state. */
+async function escalateSessionTaint(
+  storage: StorageProvider,
+  id: SessionId,
+  level: ClassificationLevel,
+  reason: string,
+): Promise<SessionState> {
+  const current = await loadSessionOrThrow(storage, id);
+  const updated = updateTaint(current, level, reason);
+  if (updated.taint !== current.taint) {
+    log.warn("Session taint updated", {
+      sessionId: id,
+      from: current.taint,
+      to: updated.taint,
+      reason,
+    });
+  }
+  await storage.set(SESSION_PREFIX + id, serialise(updated));
+  return updated;
+}
+
+/** Reset a session: delete old, create fresh preserving user/channel. */
+async function resetSessionState(
+  storage: StorageProvider,
+  id: SessionId,
+): Promise<SessionState> {
+  const current = await loadSessionOrThrow(storage, id);
+  log.warn("Session reset", {
+    oldSessionId: id,
+    previousTaint: current.taint,
+    userId: current.userId,
+    channelId: current.channelId,
+  });
+  await storage.delete(SESSION_PREFIX + id);
+  const fresh = resetSession(current);
+  await storage.set(SESSION_PREFIX + fresh.id, serialise(fresh));
+  return fresh;
+}
+
 /**
  * Create a SessionManager backed by the given StorageProvider.
  */
@@ -91,70 +136,23 @@ export function createSessionManager(
       await storage.set(SESSION_PREFIX + session.id, serialise(session));
       return session;
     },
-
     async get(id: SessionId): Promise<SessionState | null> {
       const raw = await storage.get(SESSION_PREFIX + id);
       if (raw === null) return null;
       return deserialise(raw);
     },
-
     async list(): Promise<SessionState[]> {
       const keys = await storage.list(SESSION_PREFIX);
       const sessions: SessionState[] = [];
       for (const key of keys) {
         const raw = await storage.get(key);
-        if (raw !== null) {
-          sessions.push(deserialise(raw));
-        }
+        if (raw !== null) sessions.push(deserialise(raw));
       }
       return sessions;
     },
-
-    async delete(id: SessionId): Promise<void> {
-      await storage.delete(SESSION_PREFIX + id);
-    },
-
-    async updateTaint(
-      id: SessionId,
-      level: ClassificationLevel,
-      reason: string,
-    ): Promise<SessionState> {
-      const raw = await storage.get(SESSION_PREFIX + id);
-      if (raw === null) {
-        throw new Error(`Session not found: ${id}`);
-      }
-      const current = deserialise(raw);
-      const updated = updateTaint(current, level, reason);
-      if (updated.taint !== current.taint) {
-        log.warn("Session taint updated", {
-          sessionId: id,
-          from: current.taint,
-          to: updated.taint,
-          reason,
-        });
-      }
-      await storage.set(SESSION_PREFIX + id, serialise(updated));
-      return updated;
-    },
-
-    async reset(id: SessionId): Promise<SessionState> {
-      const raw = await storage.get(SESSION_PREFIX + id);
-      if (raw === null) {
-        throw new Error(`Session not found: ${id}`);
-      }
-      const current = deserialise(raw);
-      log.warn("Session reset", {
-        oldSessionId: id,
-        previousTaint: current.taint,
-        userId: current.userId,
-        channelId: current.channelId,
-      });
-      // Delete old session
-      await storage.delete(SESSION_PREFIX + id);
-      // Create fresh session preserving user/channel
-      const fresh = resetSession(current);
-      await storage.set(SESSION_PREFIX + fresh.id, serialise(fresh));
-      return fresh;
-    },
+    delete: (id: SessionId) => storage.delete(SESSION_PREFIX + id),
+    updateTaint: (id, level, reason) =>
+      escalateSessionTaint(storage, id, level, reason),
+    reset: (id) => resetSessionState(storage, id),
   };
 }

@@ -8,13 +8,13 @@
 import { assertEquals, assert, assertStringIncludes } from "@std/assert";
 import type { LlmProvider } from "../../src/agent/llm.ts";
 import { createProviderRegistry } from "../../src/agent/llm.ts";
-import { createOrchestrator } from "../../src/agent/orchestrator.ts";
-import type { ToolDefinition } from "../../src/agent/orchestrator.ts";
+import { createOrchestrator } from "../../src/agent/orchestrator/orchestrator.ts";
+import type { ToolDefinition } from "../../src/agent/orchestrator/orchestrator_types.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
 import {
   createHookRunner,
   createDefaultRules,
-} from "../../src/core/policy/hooks.ts";
+} from "../../src/core/policy/hooks/hooks.ts";
 import { createSession } from "../../src/core/types/session.ts";
 import type { UserId, ChannelId } from "../../src/core/types/session.ts";
 import { createPlanManager } from "../../src/agent/plan/plan.ts";

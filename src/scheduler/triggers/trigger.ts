@@ -60,6 +60,16 @@ function isQuietHour(quietHours: QuietHours): boolean {
   return hour >= quietHours.start || hour < quietHours.end;
 }
 
+/** Execute a trigger tick, skipping if quiet hours are active. */
+function executeTriggerTick(options: TriggerOptions): void {
+  if (options.quietHours && isQuietHour(options.quietHours)) {
+    log.debug("Trigger skipped — quiet hours active");
+    return;
+  }
+  log.info("Trigger firing");
+  options.callback();
+}
+
 /**
  * Create a new periodic trigger.
  *
@@ -72,23 +82,19 @@ export function createTrigger(options: TriggerOptions): Trigger {
   return {
     start(): void {
       if (intervalId !== undefined) return;
-
-      log.info(`Trigger started (interval: ${Math.round(options.intervalMs / 60000)}m, ceiling: ${options.classificationCeiling})`);
-      intervalId = setInterval(() => {
-        if (options.quietHours && isQuietHour(options.quietHours)) {
-          log.debug("Trigger skipped — quiet hours active");
-          return;
-        }
-        log.info("Trigger firing");
-        options.callback();
-      }, options.intervalMs);
+      const intervalMinutes = Math.round(options.intervalMs / 60000);
+      log.info(
+        `Trigger started (interval: ${intervalMinutes}m, ceiling: ${options.classificationCeiling})`,
+      );
+      intervalId = setInterval(
+        () => executeTriggerTick(options),
+        options.intervalMs,
+      );
     },
-
     stop(): void {
-      if (intervalId !== undefined) {
-        clearInterval(intervalId);
-        intervalId = undefined;
-      }
+      if (intervalId === undefined) return;
+      clearInterval(intervalId);
+      intervalId = undefined;
     },
   };
 }

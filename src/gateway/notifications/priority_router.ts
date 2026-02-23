@@ -11,7 +11,7 @@
  * @module
  */
 
-import type { NotificationPriority, DeliverOptions } from "./notifications.ts";
+import type { DeliverOptions, NotificationPriority } from "./notifications.ts";
 
 /** Routing decision for a notification. */
 export type RoutingDecision = "all_channels" | "primary_only" | "batch_digest";
@@ -54,6 +54,40 @@ function hashNotification(options: DeliverOptions): string {
   return `${options.userId as string}:${options.message}`;
 }
 
+/** Map priority to routing decision. */
+function routeByPriority(priority: NotificationPriority): RoutingDecision {
+  switch (priority) {
+    case "critical":
+      return "all_channels";
+    case "normal":
+      return "primary_only";
+    case "low":
+      return "batch_digest";
+  }
+}
+
+/** Check if a notification was seen within the deduplication window. */
+function checkDuplicate(
+  seen: ReadonlyMap<string, DeduplicationEntry>,
+  options: DeliverOptions,
+  windowMs: number,
+): boolean {
+  const entry = seen.get(hashNotification(options));
+  if (!entry) return false;
+  return (Date.now() - entry.timestamp) < windowMs;
+}
+
+/** Remove expired entries from the deduplication map. */
+function sweepExpiredEntries(
+  seen: Map<string, DeduplicationEntry>,
+  windowMs: number,
+): void {
+  const now = Date.now();
+  for (const [key, entry] of seen) {
+    if (now - entry.timestamp >= windowMs) seen.delete(key);
+  }
+}
+
 /**
  * Create a notification priority router.
  *
@@ -63,40 +97,16 @@ function hashNotification(options: DeliverOptions): string {
 export function createPriorityRouter(
   config?: PriorityRouterConfig,
 ): PriorityRouter {
-  const deduplicationWindowMs = config?.deduplicationWindowMs ?? 300_000;
+  const windowMs = config?.deduplicationWindowMs ?? 300_000;
   const seen = new Map<string, DeduplicationEntry>();
 
   return {
-    route(priority: NotificationPriority): RoutingDecision {
-      switch (priority) {
-        case "critical":
-          return "all_channels";
-        case "normal":
-          return "primary_only";
-        case "low":
-          return "batch_digest";
-      }
-    },
-
-    isDuplicate(options: DeliverOptions): boolean {
-      const hash = hashNotification(options);
-      const entry = seen.get(hash);
-      if (!entry) return false;
-      return (Date.now() - entry.timestamp) < deduplicationWindowMs;
-    },
-
-    recordDelivery(options: DeliverOptions): void {
+    route: routeByPriority,
+    isDuplicate: (options) => checkDuplicate(seen, options, windowMs),
+    recordDelivery(options) {
       const hash = hashNotification(options);
       seen.set(hash, { hash, timestamp: Date.now() });
     },
-
-    sweep(): void {
-      const now = Date.now();
-      for (const [key, entry] of seen) {
-        if (now - entry.timestamp >= deduplicationWindowMs) {
-          seen.delete(key);
-        }
-      }
-    },
+    sweep: () => sweepExpiredEntries(seen, windowMs),
   };
 }

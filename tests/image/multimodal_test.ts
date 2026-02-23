@@ -7,8 +7,8 @@ import { assertEquals, assert } from "@std/assert";
 import {
   estimateTokens,
   estimateHistoryTokens,
-} from "../../src/agent/compactor.ts";
-import type { HistoryEntry } from "../../src/agent/orchestrator.ts";
+} from "../../src/agent/compactor/compactor.ts";
+import type { HistoryEntry } from "../../src/agent/orchestrator/orchestrator_types.ts";
 import type { ContentBlock } from "../../src/core/image/content.ts";
 
 // ─── Compactor token estimation ─────────────────────────────────
