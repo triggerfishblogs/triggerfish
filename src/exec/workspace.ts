@@ -166,6 +166,11 @@ export async function createWorkspace(
         };
       }
       if (containsPathTraversal(relativePath)) {
+        log.warn("Workspace path traversal attempt blocked", {
+          operation,
+          relativePath,
+          sessionTaint,
+        });
         return {
           ok: false,
           error: `Workspace path "${relativePath}" contains traversal or absolute components`,
