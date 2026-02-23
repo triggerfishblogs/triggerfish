@@ -8,7 +8,7 @@
  */
 
 import type { SchedulerService } from "../../scheduler/service_types.ts";
-import { createLogger } from "../../core/logger/logger.ts";
+import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("gateway.webhook");
 
