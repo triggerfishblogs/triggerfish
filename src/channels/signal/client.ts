@@ -1,23 +1,27 @@
 /**
- * Signal JSON-RPC client for signal-cli daemon.
+ * Signal JSON-RPC client factory for signal-cli daemon.
  *
- * Communicates with signal-cli via TCP or Unix socket using JSON-RPC 2.0.
- * Handles request/response multiplexing, notification dispatch, and
- * reconnection with exponential backoff.
+ * Creates a multiplexed JSON-RPC client that communicates with signal-cli
+ * via TCP or Unix socket. Delegates protocol encoding to signal_rpc,
+ * connection management to signal_connection, and interface assembly
+ * to signal_interface.
  *
  * @module
  */
 
 import { createLogger } from "../../core/logger/logger.ts";
-import type { Result } from "../../core/types/classification.ts";
-import type {
-  JsonRpcRequest,
-  JsonRpcResponse,
-  SignalClientInterface,
-  SignalContactEntry,
-  SignalGroupEntry,
-  SignalNotification,
-} from "./types.ts";
+import type { JsonRpcResponse, SignalClientInterface } from "./types.ts";
+import {
+  encodeSignalRpcRequest,
+  type PendingRequest,
+  rejectPendingSignalRequests,
+} from "./signal_rpc.ts";
+import {
+  attemptSignalReconnect,
+  type ClientState,
+  readSignalSocketLoop,
+} from "./signal_connection.ts";
+import { buildSignalClientInterface } from "./signal_interface.ts";
 
 /** Options for creating a SignalClient. */
 export interface SignalClientOptions {
@@ -29,230 +33,6 @@ export interface SignalClientOptions {
   readonly baseDelay?: number;
   /** Injected connection for testing. */
   readonly _conn?: Deno.Conn;
-}
-
-/** Pending request awaiting a JSON-RPC response. */
-interface PendingRequest {
-  readonly resolve: (response: JsonRpcResponse) => void;
-  readonly reject: (error: Error) => void;
-}
-
-/** Parsed TCP endpoint. */
-interface TcpEndpoint {
-  readonly transport: "tcp";
-  readonly hostname: string;
-  readonly port: number;
-}
-
-/** Parsed Unix socket endpoint. */
-interface UnixEndpoint {
-  readonly transport: "unix";
-  readonly path: string;
-}
-
-/** Mutable client state shared across helper functions. */
-interface ClientState {
-  conn: Deno.Conn | null;
-  idCounter: number;
-  readonly pending: Map<string, PendingRequest>;
-  notificationHandler: ((notification: SignalNotification) => void) | null;
-  readLoopActive: boolean;
-  buffer: string;
-  destroyed: boolean;
-  reconnecting: boolean;
-}
-
-/** Parse the endpoint URI into connection parameters. */
-function parseSignalEndpoint(endpoint: string): TcpEndpoint | UnixEndpoint {
-  if (endpoint.startsWith("tcp://")) {
-    const url = new URL(endpoint.replace("tcp://", "http://"));
-    // Normalize "localhost" to "127.0.0.1" — signal-cli binds on IPv4,
-    // and "localhost" may resolve to ::1 (IPv6) on some systems.
-    const hostname = url.hostname === "localhost" ? "127.0.0.1" : url.hostname;
-    return {
-      transport: "tcp",
-      hostname,
-      port: parseInt(url.port || "7583", 10),
-    };
-  }
-  if (endpoint.startsWith("unix://")) {
-    return {
-      transport: "unix",
-      path: endpoint.slice("unix://".length),
-    };
-  }
-  throw new Error(`Unsupported endpoint scheme: ${endpoint}`);
-}
-
-/** Open a connection to the signal-cli daemon using the parsed endpoint. */
-async function openSignalConnection(
-  target: TcpEndpoint | UnixEndpoint,
-): Promise<Deno.Conn> {
-  if (target.transport === "tcp") {
-    return await Deno.connect({
-      hostname: target.hostname,
-      port: target.port,
-    });
-  }
-  return await (Deno.connect as (
-    opts: { transport: "unix"; path: string },
-  ) => Promise<Deno.Conn>)({
-    transport: "unix",
-    path: target.path,
-  });
-}
-
-/** Reject all pending requests with the given reason and clear the map. */
-function rejectPendingSignalRequests(
-  pending: Map<string, PendingRequest>,
-  reason: string,
-): void {
-  for (const [id, req] of pending) {
-    req.reject(new Error(reason));
-    pending.delete(id);
-  }
-}
-
-/** Format an unknown error value as a string. */
-function formatSignalError(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
-/**
- * Dispatch a parsed JSON message as either a response or notification.
- *
- * Messages with an `id` field are matched to pending requests.
- * Messages with `method: "receive"` are forwarded to the notification handler.
- */
-function dispatchSignalMessage(
-  msg: Record<string, unknown>,
-  pending: Map<string, PendingRequest>,
-  notificationHandler: ((notification: SignalNotification) => void) | null,
-): void {
-  if ("id" in msg && typeof msg.id === "string") {
-    const pendingReq = pending.get(msg.id);
-    if (pendingReq) {
-      pending.delete(msg.id);
-      pendingReq.resolve(msg as unknown as JsonRpcResponse);
-    }
-    return;
-  }
-  if ("method" in msg && msg.method === "receive") {
-    const params = msg.params as Record<string, unknown> | undefined;
-    if (params && notificationHandler) {
-      notificationHandler(params as unknown as SignalNotification);
-    }
-  }
-}
-
-/**
- * Drain newline-delimited JSON messages from the buffer.
- *
- * Parses each complete line as JSON and dispatches it. Returns the
- * remaining (incomplete) buffer content.
- */
-function drainSignalBuffer(
-  currentBuffer: string,
-  pending: Map<string, PendingRequest>,
-  notificationHandler: ((notification: SignalNotification) => void) | null,
-  log: ReturnType<typeof createLogger>,
-): string {
-  let buf = currentBuffer;
-  let newlineIdx: number;
-  while ((newlineIdx = buf.indexOf("\n")) !== -1) {
-    const line = buf.slice(0, newlineIdx).trim();
-    buf = buf.slice(newlineIdx + 1);
-
-    if (line.length === 0) continue;
-
-    try {
-      const parsed = JSON.parse(line) as Record<string, unknown>;
-      dispatchSignalMessage(parsed, pending, notificationHandler);
-    } catch (err: unknown) {
-      log.warn("Signal JSON-RPC message parse failed", { error: err });
-    }
-  }
-  return buf;
-}
-
-/** Map a raw signal-cli group record to a typed SignalGroupEntry. */
-function marshalSignalGroupEntry(
-  g: Record<string, unknown>,
-): SignalGroupEntry {
-  return {
-    id: String(g.id ?? ""),
-    name: String(g.name ?? ""),
-    description: g.description ? String(g.description) : undefined,
-    isMember: Boolean(g.isMember),
-    isBlocked: Boolean(g.isBlocked),
-    members: Array.isArray(g.members) ? g.members.map(String) : undefined,
-  };
-}
-
-/** Map a raw signal-cli contact record to a typed SignalContactEntry. */
-function marshalSignalContactEntry(
-  c: Record<string, unknown>,
-): SignalContactEntry {
-  return {
-    number: String(c.number ?? ""),
-    name: c.name ? String(c.name) : undefined,
-    profileName: c.profileName ? String(c.profileName) : undefined,
-    isBlocked: Boolean(c.isBlocked),
-  };
-}
-
-/** Read from connection and drain messages until disconnected or deactivated. */
-async function readSignalSocketLoop(
-  state: ClientState,
-  log: ReturnType<typeof createLogger>,
-): Promise<string | null> {
-  const decoder = new TextDecoder();
-  const buf = new Uint8Array(4096);
-  while (state.readLoopActive && state.conn) {
-    const n = await state.conn.read(buf);
-    if (n === null) return "Connection closed";
-    state.buffer += decoder.decode(buf.subarray(0, n));
-    state.buffer = drainSignalBuffer(
-      state.buffer,
-      state.pending,
-      state.notificationHandler,
-      log,
-    );
-  }
-  return null;
-}
-
-/** Try a single reconnection attempt, returning true on success. */
-async function attemptSignalReconnect(
-  state: ClientState,
-  endpoint: string,
-): Promise<boolean> {
-  const target = parseSignalEndpoint(endpoint);
-  state.conn = await openSignalConnection(target);
-  state.buffer = "";
-  return true;
-}
-
-/**
- * Encode a JSON-RPC request as newline-delimited bytes.
- *
- * Assigns a unique ID from the state counter and returns both
- * the assigned ID and the encoded payload.
- */
-function encodeSignalRpcRequest(
-  state: ClientState,
-  method: string,
-  params: Record<string, unknown>,
-): { readonly id: string; readonly data: Uint8Array } {
-  const id = `req-${++state.idCounter}`;
-  const request: JsonRpcRequest = {
-    jsonrpc: "2.0",
-    method,
-    params,
-    id,
-  };
-  const encoder = new TextEncoder();
-  return { id, data: encoder.encode(JSON.stringify(request) + "\n") };
 }
 
 /**
@@ -282,7 +62,7 @@ export function createSignalClient(
     reconnecting: false,
   };
 
-  /** Start the read loop that processes incoming data from the socket. */
+  /** Start the read loop that processes incoming socket data. */
   async function startReadLoop(): Promise<void> {
     if (!state.conn || state.readLoopActive) return;
     state.readLoopActive = true;
@@ -295,7 +75,7 @@ export function createSignalClient(
     }
   }
 
-  /** Clean up after the read loop loses its connection and trigger reconnect. */
+  /** Clean up after a disconnect and trigger reconnect. */
   function handleReadLoopDisconnect(reason: string): void {
     state.readLoopActive = false;
     state.conn = null;
@@ -303,7 +83,7 @@ export function createSignalClient(
     reconnectSignalDaemon();
   }
 
-  /** Attempt to reconnect using exponential backoff. Fire-and-forget. */
+  /** Attempt to reconnect using exponential backoff. */
   async function reconnectSignalDaemon(): Promise<void> {
     if (state.destroyed || state.reconnecting) return;
     state.reconnecting = true;
@@ -336,7 +116,11 @@ export function createSignalClient(
       throw new Error("Not connected to signal-cli");
     }
 
-    const { id, data } = encodeSignalRpcRequest(state, method, params);
+    const { id, data } = encodeSignalRpcRequest(
+      ++state.idCounter,
+      method,
+      params,
+    );
     const currentConn = state.conn;
 
     return new Promise<JsonRpcResponse>((resolve, reject) => {
@@ -368,158 +152,11 @@ export function createSignalClient(
     });
   }
 
-  return {
-    async connect(): Promise<Result<void, string>> {
-      try {
-        if (!state.conn) {
-          const target = parseSignalEndpoint(options.endpoint);
-          state.conn = await openSignalConnection(target);
-        }
-        startReadLoop();
-        return { ok: true, value: undefined };
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Failed to connect: ${formatSignalError(err)}`,
-        };
-      }
-    },
-
-    disconnect(): Promise<void> {
-      state.destroyed = true;
-      state.readLoopActive = false;
-      if (state.conn) {
-        try {
-          state.conn.close();
-        } catch (_err: unknown) {
-          log.debug("Signal disconnect: connection already closed");
-        }
-        state.conn = null;
-      }
-      rejectPendingSignalRequests(state.pending, "Client disconnected");
-      state.buffer = "";
-      return Promise.resolve();
-    },
-
-    async sendMessage(
-      recipient: string,
-      message: string,
-    ): Promise<Result<{ readonly timestamp: number }, string>> {
-      try {
-        const response = await submitSignalRpcRequest("send", {
-          recipient: [recipient],
-          message,
-        });
-        if (response.error) {
-          return { ok: false, error: response.error.message };
-        }
-        const result = response.result as { timestamp: number } | undefined;
-        return { ok: true, value: { timestamp: result?.timestamp ?? 0 } };
-      } catch (err) {
-        return { ok: false, error: formatSignalError(err) };
-      }
-    },
-
-    async sendGroupMessage(
-      groupId: string,
-      message: string,
-    ): Promise<Result<{ readonly timestamp: number }, string>> {
-      try {
-        const response = await submitSignalRpcRequest("send", {
-          groupId,
-          message,
-        });
-        if (response.error) {
-          return { ok: false, error: response.error.message };
-        }
-        const result = response.result as { timestamp: number } | undefined;
-        return { ok: true, value: { timestamp: result?.timestamp ?? 0 } };
-      } catch (err) {
-        return { ok: false, error: formatSignalError(err) };
-      }
-    },
-
-    async sendTyping(recipient: string): Promise<Result<void, string>> {
-      try {
-        const response = await submitSignalRpcRequest("sendTyping", {
-          recipient,
-        });
-        if (response.error) {
-          return { ok: false, error: response.error.message };
-        }
-        return { ok: true, value: undefined };
-      } catch (err) {
-        return { ok: false, error: formatSignalError(err) };
-      }
-    },
-
-    async sendTypingStop(recipient: string): Promise<Result<void, string>> {
-      try {
-        const response = await submitSignalRpcRequest("sendTyping", {
-          recipient,
-          stop: true,
-        });
-        if (response.error) {
-          return { ok: false, error: response.error.message };
-        }
-        return { ok: true, value: undefined };
-      } catch (err) {
-        return { ok: false, error: formatSignalError(err) };
-      }
-    },
-
-    onNotification(
-      handler: (notification: SignalNotification) => void,
-    ): void {
-      state.notificationHandler = handler;
-    },
-
-    async ping(): Promise<Result<void, string>> {
-      try {
-        // Use "version" — works in both single-account and multi-account mode.
-        // "listAccounts" only works in multi-account mode.
-        // Short timeout (3s) so the adapter retry loop can cycle quickly.
-        const response = await submitSignalRpcRequest("version", {}, 3000);
-        if (response.error) {
-          return { ok: false, error: response.error.message };
-        }
-        return { ok: true, value: undefined };
-      } catch (err) {
-        return { ok: false, error: formatSignalError(err) };
-      }
-    },
-
-    async listGroups(): Promise<
-      Result<readonly SignalGroupEntry[], string>
-    > {
-      try {
-        const response = await submitSignalRpcRequest("listGroups", {});
-        if (response.error) {
-          return { ok: false, error: response.error.message };
-        }
-        const groups = response.result as readonly Record<string, unknown>[] ??
-          [];
-        return { ok: true, value: groups.map(marshalSignalGroupEntry) };
-      } catch (err) {
-        return { ok: false, error: formatSignalError(err) };
-      }
-    },
-
-    async listContacts(): Promise<
-      Result<readonly SignalContactEntry[], string>
-    > {
-      try {
-        const response = await submitSignalRpcRequest("listContacts", {});
-        if (response.error) {
-          return { ok: false, error: response.error.message };
-        }
-        const contacts =
-          response.result as readonly Record<string, unknown>[] ??
-            [];
-        return { ok: true, value: contacts.map(marshalSignalContactEntry) };
-      } catch (err) {
-        return { ok: false, error: formatSignalError(err) };
-      }
-    },
-  };
+  return buildSignalClientInterface({
+    state,
+    endpoint: options.endpoint,
+    log,
+    startReadLoop,
+    submitRpc: submitSignalRpcRequest,
+  });
 }
