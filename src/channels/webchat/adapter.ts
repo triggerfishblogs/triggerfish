@@ -37,6 +37,107 @@ interface WsFrame {
 }
 
 /**
+ * Wire up event handlers for a newly upgraded WebSocket connection.
+ *
+ * Registers open, message, and close handlers that track the connection
+ * in the shared `connections` map and dispatch incoming messages to the
+ * current message handler.
+ */
+function attachSocketEventHandlers(
+  socket: WebSocket,
+  sessionId: string,
+  connections: Map<string, WebSocket>,
+  handlerRef: { current: MessageHandler | null },
+): void {
+  socket.onopen = () => {
+    log.debug("WebSocket client connected", { sessionId });
+    connections.set(sessionId, socket);
+    socket.send(JSON.stringify({ type: "session", sessionId }));
+  };
+
+  socket.onmessage = (event) => {
+    if (!handlerRef.current) return;
+    try {
+      const frame = JSON.parse(event.data as string) as WsFrame;
+      if (frame.type === "message" && frame.content) {
+        handlerRef.current({
+          content: frame.content,
+          sessionId,
+          senderId: sessionId,
+          isOwner: false,
+          sessionTaint: "PUBLIC" as ClassificationLevel,
+        });
+      }
+    } catch {
+      // Ignore malformed frames
+    }
+  };
+
+  socket.onclose = () => {
+    log.debug("WebSocket client disconnected", { sessionId });
+    connections.delete(sessionId);
+  };
+}
+
+/**
+ * Handle an incoming HTTP request to the WebChat server.
+ *
+ * WebSocket upgrade requests get a new session; all other requests
+ * receive a health-check response.
+ */
+function routeWebChatRequest(
+  req: Request,
+  connections: Map<string, WebSocket>,
+  handlerRef: { current: MessageHandler | null },
+): Response {
+  if (req.headers.get("upgrade") === "websocket") {
+    const { socket, response } = Deno.upgradeWebSocket(req);
+    const sessionId = `webchat-${crypto.randomUUID()}`;
+    attachSocketEventHandlers(socket, sessionId, connections, handlerRef);
+    return response;
+  }
+
+  return new Response("WebChat OK", { status: 200 });
+}
+
+/**
+ * Close every active WebSocket connection and clear the tracking map.
+ */
+function closeAllWebChatConnections(
+  connections: Map<string, WebSocket>,
+): void {
+  for (const [, socket] of connections) {
+    try {
+      socket.close();
+    } catch {
+      // Already closed
+    }
+  }
+  connections.clear();
+}
+
+/**
+ * Serialize and send a message frame to the identified WebSocket client.
+ */
+function dispatchWebChatFrame(
+  message: ChannelMessage,
+  connections: Map<string, WebSocket>,
+): void {
+  if (!message.sessionId) return;
+
+  const socket = connections.get(message.sessionId);
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+  const frame: WsFrame = {
+    type: "message",
+    content: message.content,
+    sessionId: message.sessionId,
+  };
+
+  socket.send(JSON.stringify(frame));
+}
+
+/**
  * Create a WebChat channel adapter.
  *
  * Starts a WebSocket server on the configured port. Browser chat widgets
@@ -45,83 +146,33 @@ interface WsFrame {
  * @param config - WebChat configuration.
  * @returns A ChannelAdapter wired to WebSocket-based chat.
  */
-export function createWebChatChannel(config: WebChatConfig = {}): ChannelAdapter {
+export function createWebChatChannel(
+  config: WebChatConfig = {},
+): ChannelAdapter {
   const port = config.port ?? 8765;
-  const classification = (config.classification ?? "PUBLIC") as ClassificationLevel;
+  const classification =
+    (config.classification ?? "PUBLIC") as ClassificationLevel;
   let connected = false;
-  let handler: MessageHandler | null = null;
+  const handlerRef: { current: MessageHandler | null } = { current: null };
   let server: Deno.HttpServer | null = null;
-
-  // Track active WebSocket connections by session ID
   const connections = new Map<string, WebSocket>();
 
   return {
     classification,
-    isOwner: false, // Web visitors are never the owner
+    isOwner: false,
 
     // deno-lint-ignore require-await
     async connect(): Promise<void> {
-      server = Deno.serve({ port }, (req) => {
-        // WebSocket upgrade
-        if (req.headers.get("upgrade") === "websocket") {
-          const { socket, response } = Deno.upgradeWebSocket(req);
-          const sessionId = `webchat-${crypto.randomUUID()}`;
-
-          socket.onopen = () => {
-            log.debug("WebSocket client connected", { sessionId });
-            connections.set(sessionId, socket);
-            // Send session ID to client
-            socket.send(JSON.stringify({
-              type: "session",
-              sessionId,
-            }));
-          };
-
-          socket.onmessage = (event) => {
-            if (!handler) return;
-            try {
-              const frame = JSON.parse(event.data as string) as WsFrame;
-              if (frame.type === "message" && frame.content) {
-                handler({
-                  content: frame.content,
-                  sessionId,
-                  senderId: sessionId,
-                  isOwner: false,
-                  sessionTaint: "PUBLIC" as ClassificationLevel,
-                });
-              }
-            } catch {
-              // Ignore malformed frames
-            }
-          };
-
-          socket.onclose = () => {
-            log.debug("WebSocket client disconnected", { sessionId });
-            connections.delete(sessionId);
-          };
-
-          return response;
-        }
-
-        // Health check endpoint
-        return new Response("WebChat OK", { status: 200 });
-      });
-
+      server = Deno.serve(
+        { port },
+        (req) => routeWebChatRequest(req, connections, handlerRef),
+      );
       connected = true;
       log.info("WebChat adapter connected", { port });
     },
 
     async disconnect(): Promise<void> {
-      // Close all WebSocket connections
-      for (const [, socket] of connections) {
-        try {
-          socket.close();
-        } catch {
-          // Already closed
-        }
-      }
-      connections.clear();
-
+      closeAllWebChatConnections(connections);
       if (server) {
         await server.shutdown();
         server = null;
@@ -132,22 +183,11 @@ export function createWebChatChannel(config: WebChatConfig = {}): ChannelAdapter
 
     // deno-lint-ignore require-await
     async send(message: ChannelMessage): Promise<void> {
-      if (!message.sessionId) return;
-
-      const socket = connections.get(message.sessionId);
-      if (!socket || socket.readyState !== WebSocket.OPEN) return;
-
-      const frame: WsFrame = {
-        type: "message",
-        content: message.content,
-        sessionId: message.sessionId,
-      };
-
-      socket.send(JSON.stringify(frame));
+      dispatchWebChatFrame(message, connections);
     },
 
     onMessage(msgHandler: MessageHandler): void {
-      handler = msgHandler;
+      handlerRef.current = msgHandler;
     },
 
     status(): ChannelStatus {
