@@ -179,13 +179,8 @@ export async function performGoogleOAuth(
   }
 }
 
-/** Print Google Workspace OAuth setup instructions. */
-function printGoogleSetupInstructions(): void {
-  console.log("Connect Google Workspace\n");
-  console.log(
-    "This will connect your Google account for Gmail, Calendar, Tasks, Drive, and Sheets.\n",
-  );
-  console.log("You'll need OAuth2 credentials from Google Cloud Console.\n");
+/** Print the OAuth credential creation steps. */
+function printOAuthCredentialSteps(): void {
   console.log("  Quick setup:");
   console.log("    1. Go to https://console.cloud.google.com ");
   console.log("    2. Create a project (or select an existing one)");
@@ -209,6 +204,10 @@ function printGoogleSetupInstructions(): void {
   console.log(
     "    8. Click Create, then copy the Client ID and Client Secret\n",
   );
+}
+
+/** Print the required Google API list. */
+function printRequiredGoogleApis(): void {
   console.log("  You'll also need to enable these APIs in your project:");
   console.log("    • Gmail API");
   console.log("    • Google Calendar API");
@@ -218,6 +217,17 @@ function printGoogleSetupInstructions(): void {
   console.log(
     "  Enable them at: https://console.cloud.google.com/apis/library\n",
   );
+}
+
+/** Print Google Workspace OAuth setup instructions. */
+function printGoogleSetupInstructions(): void {
+  console.log("Connect Google Workspace\n");
+  console.log(
+    "This will connect your Google account for Gmail, Calendar, Tasks, Drive, and Sheets.\n",
+  );
+  console.log("You'll need OAuth2 credentials from Google Cloud Console.\n");
+  printOAuthCredentialSteps();
+  printRequiredGoogleApis();
 }
 
 /**
@@ -248,30 +258,38 @@ function printGithubSetupInstructions(): void {
   console.log("    6. Click Generate token and copy it\n");
 }
 
+/** Fetch the GitHub user endpoint with a PAT. */
+function fetchGithubUser(token: string): Promise<Response> {
+  return fetch("https://api.github.com/user", {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+}
+
+/** Report a failed GitHub token verification. */
+async function reportGithubTokenFailure(resp: Response): Promise<null> {
+  const body = await resp.json().catch(
+    () => ({}) as Record<string, unknown>,
+  );
+  console.log(
+    `\nToken verification failed (${resp.status}): ${
+      (body as Record<string, string>).message ?? "Unknown error"
+    }`,
+  );
+  console.log(
+    "Check that your token is correct and has the required permissions.",
+  );
+  return null;
+}
+
 /** Verify a GitHub PAT against the API. Returns login name or null on failure. */
 async function verifyGithubToken(token: string): Promise<string | null> {
   try {
-    const resp = await fetch("https://api.github.com/user", {
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    });
-    if (!resp.ok) {
-      const body = await resp.json().catch(
-        () => ({}) as Record<string, unknown>,
-      );
-      console.log(
-        `\nToken verification failed (${resp.status}): ${
-          (body as Record<string, string>).message ?? "Unknown error"
-        }`,
-      );
-      console.log(
-        "Check that your token is correct and has the required permissions.",
-      );
-      return null;
-    }
+    const resp = await fetchGithubUser(token);
+    if (!resp.ok) return await reportGithubTokenFailure(resp);
     const user = await resp.json();
     return (user as Record<string, string>).login;
   } catch (err: unknown) {
@@ -285,18 +303,13 @@ async function verifyGithubToken(token: string): Promise<string | null> {
   }
 }
 
-/**
- * Interactive GitHub PAT setup flow.
- */
-export async function runConnectGithub(): Promise<void> {
-  printGithubSetupInstructions();
-
+/** Prompt for a GitHub PAT and warn if it looks malformed. Returns trimmed token or null. */
+async function promptGithubToken(): Promise<string | null> {
   const token = await Input.prompt({ message: "Paste your token" });
   if (!token.trim()) {
     console.log("No token provided. Aborted.");
-    return;
+    return null;
   }
-
   const trimmed = token.trim();
   if (!trimmed.startsWith("ghp_") && !trimmed.startsWith("github_pat_")) {
     console.log(
@@ -304,22 +317,37 @@ export async function runConnectGithub(): Promise<void> {
     );
     console.log("Continuing anyway...\n");
   }
+  return trimmed;
+}
+
+/** Store a verified GitHub PAT in the OS keychain. */
+async function storeGithubToken(token: string): Promise<boolean> {
+  const secretStore = createKeychain();
+  const result = await secretStore.setSecret("github-pat", token);
+  if (!result.ok) {
+    console.log(`\nFailed to store token: ${result.error}`);
+    return false;
+  }
+  console.log(
+    "GitHub connected. Your agent can now use repos, PRs, issues, and Actions.",
+  );
+  return true;
+}
+
+/**
+ * Interactive GitHub PAT setup flow.
+ */
+export async function runConnectGithub(): Promise<void> {
+  printGithubSetupInstructions();
+  const trimmed = await promptGithubToken();
+  if (!trimmed) return;
 
   console.log("Verifying token...");
   const login = await verifyGithubToken(trimmed);
   if (login === null) return;
   console.log(`\nAuthenticated as: ${login}`);
 
-  const secretStore = createKeychain();
-  const result = await secretStore.setSecret("github-pat", trimmed);
-  if (!result.ok) {
-    console.log(`\nFailed to store token: ${result.error}`);
-    return;
-  }
-
-  console.log(
-    "GitHub connected. Your agent can now use repos, PRs, issues, and Actions.",
-  );
+  await storeGithubToken(trimmed);
 }
 
 /**
