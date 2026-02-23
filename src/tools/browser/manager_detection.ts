@@ -91,38 +91,38 @@ export async function findFlatpakBin(): Promise<string | undefined> {
   return undefined;
 }
 
-/**
- * Detect a Chromium-family browser, returning a discriminated union
- * describing whether it is a direct binary or a Flatpak app.
- *
- * Checks direct paths first, then Flatpak system-level, then user-level.
- */
-export async function detectChrome(): Promise<ChromeDetection | undefined> {
-  // --- 1. Direct binary paths ---
-  const linuxPaths = [
-    "/usr/bin/chromium-browser",
-    "/usr/bin/chromium",
-    "/usr/bin/google-chrome",
-    "/usr/bin/google-chrome-stable",
-    "/snap/bin/chromium",
-    "/usr/bin/microsoft-edge",
-    "/usr/bin/brave-browser",
-    "/usr/bin/brave",
-    "/snap/bin/brave",
-  ];
+/** Well-known Chromium-family binary paths for Linux. */
+const LINUX_BROWSER_PATHS = [
+  "/usr/bin/chromium-browser",
+  "/usr/bin/chromium",
+  "/usr/bin/google-chrome",
+  "/usr/bin/google-chrome-stable",
+  "/snap/bin/chromium",
+  "/usr/bin/microsoft-edge",
+  "/usr/bin/brave-browser",
+  "/usr/bin/brave",
+  "/snap/bin/brave",
+] as const;
 
-  const darwinPaths = [
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/Applications/Chromium.app/Contents/MacOS/Chromium",
-    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
-  ];
+/** Well-known Chromium-family binary paths for macOS. */
+const DARWIN_BROWSER_PATHS = [
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+  "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+] as const;
 
-  const candidates =
-    Deno.build.os === "darwin" ? darwinPaths :
-    Deno.build.os === "windows" ? getWindowsBrowserPaths() :
-    linuxPaths;
+/** Return the OS-appropriate candidate browser paths. */
+function collectCandidateBrowserPaths(): readonly string[] {
+  if (Deno.build.os === "darwin") return DARWIN_BROWSER_PATHS;
+  if (Deno.build.os === "windows") return getWindowsBrowserPaths();
+  return LINUX_BROWSER_PATHS;
+}
 
+/** Stat each candidate path and return the first that exists as a file. */
+async function locateBrowserByKnownPath(
+  candidates: readonly string[],
+): Promise<ChromeDetection | undefined> {
   for (const p of candidates) {
     try {
       const stat = await Deno.stat(p);
@@ -131,14 +131,28 @@ export async function detectChrome(): Promise<ChromeDetection | undefined> {
       // not found, try next
     }
   }
+  return undefined;
+}
 
-  // Fallback: try 'where' (Windows) or 'which' (Unix) for common browser names
-  const isWindows = Deno.build.os === "windows";
-  const whichCmd = isWindows ? "where" : "which";
-  const names = isWindows
+/** Common browser executable names for PATH lookup, per OS. */
+function collectPathLookupNames(): readonly string[] {
+  return Deno.build.os === "windows"
     ? ["chrome.exe", "brave.exe", "msedge.exe"]
-    : ["chromium-browser", "chromium", "google-chrome", "brave-browser", "brave"];
-  for (const name of names) {
+    : [
+      "chromium-browser",
+      "chromium",
+      "google-chrome",
+      "brave-browser",
+      "brave",
+    ];
+}
+
+/** Use `which` (Unix) or `where` (Windows) to locate a browser on PATH. */
+async function locateBrowserViaPathLookup(): Promise<
+  ChromeDetection | undefined
+> {
+  const whichCmd = Deno.build.os === "windows" ? "where" : "which";
+  for (const name of collectPathLookupNames()) {
     try {
       const cmd = new Deno.Command(whichCmd, {
         args: [name],
@@ -147,41 +161,58 @@ export async function detectChrome(): Promise<ChromeDetection | undefined> {
       });
       const result = await cmd.output();
       if (result.success) {
-        // 'where' may return multiple lines; take the first
-        const path = new TextDecoder().decode(result.stdout).split(/\r?\n/)[0].trim();
+        const path = new TextDecoder().decode(result.stdout).split(/\r?\n/)[0]
+          .trim();
         if (path) return { kind: "direct", target: path };
       }
     } catch {
       // ignore
     }
   }
+  return undefined;
+}
 
-  // --- 2. Flatpak (system-level then user-level) — Linux only ---
-  if (Deno.build.os !== "windows") {
-    const flatpakBin = await findFlatpakBin();
-    if (flatpakBin) {
-      const prefixes = [
-        "/var/lib/flatpak/exports/bin",
-        `${Deno.env.get("HOME") ?? ""}/.local/share/flatpak/exports/bin`,
-      ];
+/** Flatpak export prefixes to search (system, then user). */
+function collectFlatpakExportPrefixes(): readonly string[] {
+  const home = Deno.env.get("HOME") ?? "";
+  return [
+    "/var/lib/flatpak/exports/bin",
+    `${home}/.local/share/flatpak/exports/bin`,
+  ];
+}
 
-      for (const prefix of prefixes) {
-        for (const appId of FLATPAK_APP_IDS) {
-          const exportPath = `${prefix}/${appId}`;
-          try {
-            const stat = await Deno.stat(exportPath);
-            if (stat.isFile || stat.isSymlink) {
-              return { kind: "flatpak", target: appId, flatpakBin };
-            }
-          } catch {
-            // not found, try next
-          }
+/** Locate a Chromium browser installed via Flatpak (Linux/macOS only). */
+async function locateFlatpakBrowser(): Promise<ChromeDetection | undefined> {
+  if (Deno.build.os === "windows") return undefined;
+  const flatpakBin = await findFlatpakBin();
+  if (!flatpakBin) return undefined;
+
+  for (const prefix of collectFlatpakExportPrefixes()) {
+    for (const appId of FLATPAK_APP_IDS) {
+      try {
+        const stat = await Deno.stat(`${prefix}/${appId}`);
+        if (stat.isFile || stat.isSymlink) {
+          return { kind: "flatpak", target: appId, flatpakBin };
         }
+      } catch {
+        // not found, try next
       }
     }
   }
-
   return undefined;
+}
+
+/**
+ * Detect a Chromium-family browser, returning a discriminated union
+ * describing whether it is a direct binary or a Flatpak app.
+ *
+ * Checks direct paths first, then PATH lookup, then Flatpak.
+ */
+export async function detectChrome(): Promise<ChromeDetection | undefined> {
+  const candidates = collectCandidateBrowserPaths();
+  return await locateBrowserByKnownPath(candidates) ??
+    await locateBrowserViaPathLookup() ??
+    await locateFlatpakBrowser();
 }
 
 // ─── Port & CDP helpers ──────────────────────────────────────────────────────
@@ -222,7 +253,10 @@ export async function pollCdpReady(
     await new Promise((r) => setTimeout(r, CDP_POLL_INTERVAL_MS));
   }
 
-  return { ok: false, error: `CDP endpoint on port ${port} not ready after ${timeoutMs}ms` };
+  return {
+    ok: false,
+    error: `CDP endpoint on port ${port} not ready after ${timeoutMs}ms`,
+  };
 }
 
 /**
@@ -237,8 +271,14 @@ export function withTimeout<T>(
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(msg)), ms);
     promise.then(
-      (v) => { clearTimeout(timer); resolve(v); },
-      (e) => { clearTimeout(timer); reject(e); },
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
     );
   });
 }
