@@ -73,6 +73,83 @@ function parseFrontmatter(content: string): SkillFrontmatter | null {
   }
 }
 
+/** Determine source type for a directory from the type map. */
+function resolveSkillSourceType(
+  dir: string,
+  dirTypes: Readonly<Record<string, SkillSource>>,
+): SkillSource {
+  return dirTypes[dir] ?? "bundled";
+}
+
+/** Compute priority index (lower = higher priority). */
+function computeSkillPriority(
+  source: SkillSource,
+  priority: readonly SkillSource[],
+): number {
+  const idx = priority.indexOf(source);
+  return idx >= 0 ? idx : priority.length;
+}
+
+/** Build a Skill from parsed frontmatter. Returns null if frontmatter is invalid. */
+function buildSkillFromFrontmatter(
+  frontmatter: SkillFrontmatter | null,
+  skillDir: string,
+  source: SkillSource,
+): Skill | null {
+  if (!frontmatter || !frontmatter.name) return null;
+
+  const classResult = parseClassification(
+    frontmatter.classification_ceiling ?? "PUBLIC",
+  );
+  const ceiling: ClassificationLevel = classResult.ok
+    ? classResult.value
+    : "PUBLIC";
+
+  return {
+    name: frontmatter.name,
+    description: frontmatter.description ?? "",
+    classificationCeiling: ceiling,
+    requiresTools: frontmatter.requires_tools ?? [],
+    networkDomains: frontmatter.network_domains ?? [],
+    path: skillDir,
+    source,
+  };
+}
+
+/** Scan a single directory for skills and merge into the map by priority. */
+async function scanSkillDirectory(
+  dir: string,
+  source: SkillSource,
+  priority: readonly SkillSource[],
+  skillsByName: Map<string, Skill>,
+): Promise<void> {
+  try {
+    for await (const entry of Deno.readDir(dir)) {
+      if (!entry.isDirectory) continue;
+      const skillDir = join(dir, entry.name);
+      let content: string;
+      try {
+        content = await Deno.readTextFile(join(skillDir, "SKILL.md"));
+      } catch {
+        continue;
+      }
+      const skill = buildSkillFromFrontmatter(
+        parseFrontmatter(content),
+        skillDir,
+        source,
+      );
+      if (!skill) continue;
+      const existing = skillsByName.get(skill.name);
+      const shouldReplace = !existing ||
+        computeSkillPriority(source, priority) <
+          computeSkillPriority(existing.source, priority);
+      if (shouldReplace) skillsByName.set(skill.name, skill);
+    }
+  } catch {
+    // Directory doesn't exist or isn't readable — skip
+  }
+}
+
 /**
  * Create a skill loader that discovers skills from configured directories.
  *
@@ -81,79 +158,16 @@ function parseFrontmatter(content: string): SkillFrontmatter | null {
  * order determines which one wins (default: workspace > managed > bundled).
  */
 export function createSkillLoader(options: SkillLoaderOptions): SkillLoader {
-  const priority: readonly SkillSource[] = options.priority ?? [
-    "workspace",
-    "managed",
-    "bundled",
-  ];
-  const dirTypes: Readonly<Record<string, SkillSource>> = options.dirTypes ?? {};
-
-  /** Determine source type for a directory. */
-  function getSourceType(dir: string): SkillSource {
-    if (dirTypes[dir]) return dirTypes[dir];
-    return "bundled";
-  }
-
-  /** Get priority index (lower = higher priority). */
-  function getPriority(source: SkillSource): number {
-    const idx = priority.indexOf(source);
-    return idx >= 0 ? idx : priority.length;
-  }
+  const priority = options.priority ?? ["workspace", "managed", "bundled"];
+  const dirTypes = options.dirTypes ?? {};
 
   return {
     async discover(): Promise<readonly Skill[]> {
       const skillsByName = new Map<string, Skill>();
-
       for (const dir of options.directories) {
-        const source = getSourceType(dir);
-        try {
-          for await (const entry of Deno.readDir(dir)) {
-            if (!entry.isDirectory) continue;
-
-            const skillDir = join(dir, entry.name);
-            const skillMdPath = join(skillDir, "SKILL.md");
-
-            let content: string;
-            try {
-              content = await Deno.readTextFile(skillMdPath);
-            } catch {
-              continue;
-            }
-
-            const frontmatter = parseFrontmatter(content);
-            if (!frontmatter || !frontmatter.name) continue;
-
-            const classResult = parseClassification(
-              frontmatter.classification_ceiling ?? "PUBLIC",
-            );
-            const ceiling: ClassificationLevel = classResult.ok
-              ? classResult.value
-              : "PUBLIC";
-
-            const skill: Skill = {
-              name: frontmatter.name,
-              description: frontmatter.description ?? "",
-              classificationCeiling: ceiling,
-              requiresTools: frontmatter.requires_tools ?? [],
-              networkDomains: frontmatter.network_domains ?? [],
-              path: skillDir,
-              source,
-            };
-
-            const existing = skillsByName.get(skill.name);
-            if (
-              !existing ||
-              getPriority(source) < getPriority(existing.source)
-            ) {
-              skillsByName.set(skill.name, skill);
-            }
-          }
-        } catch {
-          // Directory doesn't exist or isn't readable — skip
-          continue;
-        }
+        const source = resolveSkillSourceType(dir, dirTypes);
+        await scanSkillDirectory(dir, source, priority, skillsByName);
       }
-
       return [...skillsByName.values()];
     },
   };
