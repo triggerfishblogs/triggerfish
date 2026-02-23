@@ -2,6 +2,7 @@
 
 ## TypeScript Style
 
+- Code must have zero lint errors.
 - TypeScript strict mode, no exceptions
 - Prefer `interface` over `type` for object shapes
 - Use `readonly` for all immutable properties
