@@ -16,6 +16,7 @@ import { join } from "@std/path";
 import { createLogger } from "../../core/logger/logger.ts";
 import type { Logger } from "../../core/logger/logger.ts";
 import { loadConfig } from "../../core/config.ts";
+import type { TriggerFishConfig } from "../../core/config.ts";
 import { resolveBaseDir, resolveConfigPath } from "../../cli/config/paths.ts";
 import {
   createEventHandler,
@@ -134,7 +135,7 @@ function dispatchSlashCommand(
   ws: WebSocket,
   screen: ScreenManager,
   editor: LineEditor,
-  config: { readonly models: { readonly primary: { readonly model: string } } },
+  config: TriggerFishConfig,
   providerName: string,
   displayMode: ToolDisplayMode,
 ): SlashCommandResult {
@@ -275,6 +276,497 @@ function deleteWordBackward(editor: LineEditor): LineEditor {
   );
 }
 
+// ─── Chat REPL state ─────────────────────────────────────────────
+
+/** Mutable state for the interactive chat REPL keypress loop. */
+interface ChatReplState {
+  editor: LineEditor;
+  displayMode: ToolDisplayMode;
+  stashedInput: string;
+  pendingImages: ImageContentBlock[];
+  lastCtrlCTime: number;
+  inputHistory: import("../../cli/chat/history.ts").InputHistory;
+}
+
+// ─── Chat REPL helpers ──────────────────────────────────────────
+
+/** Load config and prepare the data directory. Returns config and dataDir. */
+async function loadChatConfig(): Promise<{
+  readonly config: TriggerFishConfig;
+  readonly dataDir: string;
+}> {
+  const configPath = resolveConfigPath();
+  const configResult = loadConfig(configPath);
+  if (!configResult.ok) {
+    console.log(`Configuration error: ${configResult.error}`);
+    console.log("Run 'triggerfish dive' to fix your configuration.\n");
+    Deno.exit(1);
+  }
+  const baseDir = resolveBaseDir();
+  const dataDir = join(baseDir, "data");
+  await Deno.mkdir(dataDir, { recursive: true });
+  return { config: configResult.value, dataDir };
+}
+
+/** Open a WebSocket to the gateway chat endpoint. */
+function openChatWebSocket(log: Logger): WebSocket {
+  const gatewayUrl = "ws://127.0.0.1:18789/chat";
+  try {
+    return new WebSocket(gatewayUrl);
+  } catch {
+    log.debug("WebSocket construction failed for gateway chat");
+    console.log("Cannot connect to daemon. Is it running?");
+    console.log("Run 'triggerfish start' or 'triggerfish run' first.\n");
+    Deno.exit(1);
+    // Unreachable, but satisfies return type
+    throw new Error("WebSocket connection failed");
+  }
+}
+
+/** Install WS event listeners and wait for the "connected" event. */
+async function awaitDaemonConnection(
+  ws: WebSocket,
+  screen: ScreenManager,
+  isTty: boolean,
+  state: WsRouterState,
+  messageQueue: string[],
+  getEditor: () => LineEditor,
+  eventHandler: (evt: OrchestratorEvent) => void,
+): Promise<void> {
+  const connected = Promise.withResolvers<void>();
+
+  ws.addEventListener("error", () => {
+    console.log("Cannot connect to daemon. Is it running?");
+    console.log("Run 'triggerfish start' or 'triggerfish run' first.\n");
+    Deno.exit(1);
+  });
+  ws.addEventListener("open", () => {});
+
+  const wsRouter = createWsMessageRouter({
+    screen,
+    isTty,
+    getEditor,
+    eventHandler,
+    state,
+    messageQueue,
+    ws,
+    resolveConnected: () => connected.resolve(),
+  });
+  ws.addEventListener("message", wsRouter);
+
+  installWsCloseHandler(ws, isTty, screen, getEditor, state);
+
+  const timeout = setTimeout(() => {
+    console.log("Timed out waiting for daemon. Is it running?");
+    console.log("Run 'triggerfish start' or 'triggerfish run' first.\n");
+    ws.close();
+    Deno.exit(1);
+  }, 5000);
+  await connected.promise;
+  clearTimeout(timeout);
+}
+
+/** Handle WebSocket close by showing a disconnect message. */
+function installWsCloseHandler(
+  ws: WebSocket,
+  isTty: boolean,
+  screen: ScreenManager,
+  getEditor: () => LineEditor,
+  state: WsRouterState,
+): void {
+  ws.addEventListener("close", () => {
+    if (isTty) {
+      screen.writeOutput("  \x1b[31mDisconnected from daemon.\x1b[0m");
+      screen.writeOutput("");
+      screen.redrawInput(getEditor());
+    } else {
+      console.log("\n  Disconnected from daemon.\n");
+    }
+    state.isProcessing = false;
+  });
+}
+
+/** Send a cancel message to the daemon WebSocket. */
+function sendCancelMessage(ws: WebSocket, log: Logger): void {
+  try {
+    ws.send(JSON.stringify({ type: "cancel" }));
+  } catch (_err: unknown) {
+    log.debug("WebSocket send failed: connection closed");
+  }
+}
+
+/** Handle the ESC key during active processing (interrupt). */
+function handleEscInterrupt(
+  ws: WebSocket,
+  screen: ScreenManager,
+  log: Logger,
+): void {
+  sendCancelMessage(ws, log);
+  screen.writeOutput(`  \x1b[33m\u26a0 Interrupted\x1b[0m`);
+}
+
+/** Handle Ctrl+C: cancel or exit depending on processing state. */
+function handleCtrlCKeypress(
+  rs: ChatReplState,
+  state: WsRouterState,
+  ws: WebSocket,
+  screen: ScreenManager,
+  log: Logger,
+  cleanup: () => void,
+): "exit" | "continue" {
+  if (!state.isProcessing) {
+    cleanup();
+    return "exit";
+  }
+  const now = Date.now();
+  if (now - rs.lastCtrlCTime < 1000) {
+    cleanup();
+    return "exit";
+  }
+  rs.lastCtrlCTime = now;
+  sendCancelMessage(ws, log);
+  screen.writeOutput(
+    `  \x1b[33m\u26a0 Interrupted (Ctrl+C again to exit)\x1b[0m`,
+  );
+  return "continue";
+}
+
+/** Echo the submitted text into the output region with taint coloring. */
+function echoSubmittedText(
+  text: string,
+  screen: ScreenManager,
+): void {
+  const displayText = text.includes("\n")
+    ? text.split("\n").join(`\n  ${"\x1b[2m"}\xb7\x1b[0m `)
+    : text;
+  screen.writeOutput(
+    `  ${taintColor(screen.getTaint())}\x1b[1m\u276f\x1b[0m ${displayText}`,
+  );
+  screen.writeOutput("");
+}
+
+/** Record text in input history and persist to disk. */
+function recordInputHistory(
+  rs: ChatReplState,
+  text: string,
+  historyFilePath: string,
+  log: Logger,
+): void {
+  rs.inputHistory = rs.inputHistory.push(text);
+  rs.inputHistory = rs.inputHistory.resetNavigation();
+  saveInputHistory(historyFilePath, rs.inputHistory).catch(
+    (err: unknown) => {
+      log.debug("Input history save failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    },
+  );
+}
+
+/** Result of handling the enter keypress. */
+interface EnterKeypressResult {
+  readonly shouldExit: boolean;
+}
+
+/** Handle the enter keypress: echo, history, slash commands, or send message. */
+function handleEnterKeypress(
+  rs: ChatReplState,
+  state: WsRouterState,
+  ws: WebSocket,
+  screen: ScreenManager,
+  config: TriggerFishConfig,
+  messageQueue: string[],
+  historyFilePath: string,
+  log: Logger,
+): EnterKeypressResult {
+  const text = rs.editor.text.trim();
+  if (text.length === 0) return { shouldExit: false };
+
+  echoSubmittedText(text, screen);
+  recordInputHistory(rs, text, historyFilePath, log);
+
+  rs.editor = rs.editor.clear();
+  screen.redrawInput(rs.editor);
+  rs.stashedInput = "";
+
+  if (!state.isProcessing) {
+    return dispatchEnterIdleMode(
+      rs,
+      text,
+      state,
+      ws,
+      screen,
+      config,
+      log,
+    );
+  }
+  messageQueue.push(text);
+  screen.writeOutput(
+    `  \x1b[2m(queued \u2014 will send after current response)\x1b[0m`,
+  );
+  return { shouldExit: false };
+}
+
+/** Dispatch slash commands or send a chat message in idle mode. */
+function dispatchEnterIdleMode(
+  rs: ChatReplState,
+  text: string,
+  state: WsRouterState,
+  ws: WebSocket,
+  screen: ScreenManager,
+  config: TriggerFishConfig,
+  log: Logger,
+): EnterKeypressResult {
+  const cmd = dispatchSlashCommand(
+    text,
+    ws,
+    screen,
+    rs.editor,
+    config,
+    state.providerName,
+    rs.displayMode,
+  );
+  if (cmd.shouldExit) {
+    screen.writeOutput("  Goodbye.");
+    return { shouldExit: true };
+  }
+  if (cmd.newDisplayMode !== undefined) {
+    rs.displayMode = cmd.newDisplayMode;
+  }
+  if (!cmd.handled) {
+    rs.pendingImages = submitChatMessage(
+      text,
+      rs.pendingImages,
+      state,
+      ws,
+      screen,
+      rs.editor,
+      log,
+    );
+  }
+  return { shouldExit: false };
+}
+
+/** Navigate input history upward (older entries). */
+function navigateHistoryUp(
+  rs: ChatReplState,
+  screen: ScreenManager,
+): void {
+  if (rs.inputHistory.index === -1 && rs.editor.text.length > 0) {
+    rs.stashedInput = rs.editor.text;
+  }
+  rs.inputHistory = rs.inputHistory.up();
+  const histText = rs.inputHistory.current();
+  if (histText !== null) {
+    rs.editor = rs.editor.setText(histText);
+    rs.editor = rs.editor.setSuggestion("");
+    screen.redrawInput(rs.editor);
+  }
+}
+
+/** Navigate input history downward (newer entries or back to stashed). */
+function navigateHistoryDown(
+  rs: ChatReplState,
+  screen: ScreenManager,
+): void {
+  rs.inputHistory = rs.inputHistory.down();
+  const histText = rs.inputHistory.current();
+  if (histText !== null) {
+    rs.editor = rs.editor.setText(histText);
+  } else {
+    rs.editor = rs.editor.setText(rs.stashedInput);
+    rs.stashedInput = "";
+  }
+  rs.editor = rs.editor.setSuggestion("");
+  screen.redrawInput(rs.editor);
+}
+
+/** Refresh the autocomplete suggestion based on current editor text. */
+function refreshAutocompleteSuggestion(
+  rs: ChatReplState,
+  suggestionEngine: ReturnType<typeof createSuggestionEngine>,
+): void {
+  const suggestion = suggestionEngine.suggest(
+    rs.editor.text,
+    rs.inputHistory.entries as string[],
+  );
+  if (suggestion) {
+    const remainder = suggestion.slice(rs.editor.text.length);
+    rs.editor = rs.editor.setSuggestion(remainder);
+  } else {
+    rs.editor = rs.editor.setSuggestion("");
+  }
+}
+
+/** Install SIGINT and SIGWINCH signal handlers for TTY mode. */
+function installChatSignalHandlers(
+  state: WsRouterState,
+  ws: WebSocket,
+  screen: ScreenManager,
+  getEditor: () => LineEditor,
+  cleanup: () => void,
+  log: Logger,
+): void {
+  try {
+    Deno.addSignalListener("SIGINT", () => {
+      if (state.isProcessing) {
+        sendCancelMessage(ws, log);
+        screen.writeOutput(`  \x1b[33m\u26a0 Interrupted\x1b[0m`);
+      } else {
+        cleanup();
+        Deno.exit(0);
+      }
+    });
+  } catch (_err: unknown) {
+    log.debug("Signal listener not supported", { signal: "SIGINT" });
+  }
+
+  const resizeHandler = () => {
+    screen.handleResize();
+    screen.redrawInput(getEditor());
+  };
+  try {
+    Deno.addSignalListener("SIGWINCH", resizeHandler);
+  } catch (_err: unknown) {
+    log.debug("Signal listener not supported", { signal: "SIGWINCH" });
+    screen.startResizePolling(resizeHandler);
+  }
+}
+
+/** Route an input keypress to the appropriate handler. Returns "exit" to leave the loop. */
+async function routeInputKeypress(
+  key: string,
+  char: string | null,
+  rs: ChatReplState,
+  state: WsRouterState,
+  ws: WebSocket,
+  screen: ScreenManager,
+  config: TriggerFishConfig,
+  messageQueue: string[],
+  historyFilePath: string,
+  log: Logger,
+  suggestionEngine: ReturnType<typeof createSuggestionEngine>,
+  cleanup: () => void,
+): Promise<"exit" | void> {
+  switch (key) {
+    case "shift+enter":
+      rs.editor = rs.editor.insert("\n");
+      rs.editor = rs.editor.setSuggestion("");
+      screen.redrawInput(rs.editor);
+      break;
+
+    case "enter": {
+      const result = handleEnterKeypress(
+        rs,
+        state,
+        ws,
+        screen,
+        config,
+        messageQueue,
+        historyFilePath,
+        log,
+      );
+      if (result.shouldExit) {
+        cleanup();
+        return "exit";
+      }
+      break;
+    }
+
+    case "backspace":
+      rs.editor = rs.editor.backspace();
+      refreshAutocompleteSuggestion(rs, suggestionEngine);
+      screen.redrawInput(rs.editor);
+      break;
+
+    case "delete":
+      rs.editor = rs.editor.deleteChar();
+      refreshAutocompleteSuggestion(rs, suggestionEngine);
+      screen.redrawInput(rs.editor);
+      break;
+
+    case "left":
+      rs.editor = rs.editor.moveCursor("left");
+      screen.redrawInput(rs.editor);
+      break;
+
+    case "right":
+      rs.editor = rs.editor.moveCursor("right");
+      screen.redrawInput(rs.editor);
+      break;
+
+    case "home":
+    case "ctrl+a":
+      rs.editor = rs.editor.moveCursor("home");
+      screen.redrawInput(rs.editor);
+      break;
+
+    case "end":
+    case "ctrl+e":
+      rs.editor = rs.editor.moveCursor("end");
+      screen.redrawInput(rs.editor);
+      break;
+
+    case "up":
+      navigateHistoryUp(rs, screen);
+      break;
+
+    case "down":
+      navigateHistoryDown(rs, screen);
+      break;
+
+    case "tab":
+      rs.editor = rs.editor.acceptSuggestion();
+      screen.redrawInput(rs.editor);
+      break;
+
+    case "ctrl+v":
+      rs.pendingImages = await handleClipboardPaste(
+        rs.pendingImages,
+        screen,
+      );
+      break;
+
+    case "ctrl+o":
+      rs.displayMode = rs.displayMode === "compact" ? "expanded" : "compact";
+      screen.setStatus(`Display: ${rs.displayMode}`);
+      setTimeout(() => screen.clearStatus(), 1500);
+      break;
+
+    case "ctrl+d":
+      if (rs.editor.text.length === 0) {
+        cleanup();
+        return "exit";
+      }
+      break;
+
+    case "ctrl+u":
+      rs.editor = rs.editor.clear();
+      screen.redrawInput(rs.editor);
+      break;
+
+    case "ctrl+w":
+      rs.editor = deleteWordBackward(rs.editor);
+      screen.redrawInput(rs.editor);
+      break;
+
+    case "esc":
+      break;
+
+    default:
+      if (char !== null) {
+        rs.editor = rs.editor.insert(char);
+        rs.inputHistory = rs.inputHistory.resetNavigation();
+        rs.stashedInput = "";
+        refreshAutocompleteSuggestion(rs, suggestionEngine);
+        screen.redrawInput(rs.editor);
+      }
+      break;
+  }
+}
+
+// ─── Main chat REPL ─────────────────────────────────────────────
+
 /**
  * Run an interactive chat REPL.
  *
@@ -285,61 +777,11 @@ function deleteWordBackward(editor: LineEditor): LineEditor {
  */
 export async function runChat(): Promise<void> {
   const log = createLogger("cli");
-  const configPath = resolveConfigPath();
+  const { config, dataDir } = await loadChatConfig();
+  const ws = openChatWebSocket(log);
 
-  // Load config (for banner display only)
-  const configResult = loadConfig(configPath);
-  if (!configResult.ok) {
-    console.log(`Configuration error: ${configResult.error}`);
-    console.log("Run 'triggerfish dive' to fix your configuration.\n");
-    Deno.exit(1);
-  }
-
-  const config = configResult.value;
-  const baseDir = resolveBaseDir();
-  const dataDir = join(baseDir, "data");
-  await Deno.mkdir(dataDir, { recursive: true });
-
-  // Connect to the daemon's chat WebSocket
-  const gatewayUrl = "ws://127.0.0.1:18789/chat";
-  let ws: WebSocket;
-  try {
-    ws = new WebSocket(gatewayUrl);
-  } catch {
-    console.log("Cannot connect to daemon. Is it running?");
-    console.log("Run 'triggerfish start' or 'triggerfish run' first.\n");
-    Deno.exit(1);
-    return;
-  }
-
-  // Wait for connection + connected event
-  const connected = Promise.withResolvers<void>();
-
-  ws.addEventListener("error", () => {
-    console.log("Cannot connect to daemon. Is it running?");
-    console.log("Run 'triggerfish start' or 'triggerfish run' first.\n");
-    Deno.exit(1);
-  });
-
-  ws.addEventListener("open", () => {
-    // Connection established, wait for "connected" event
-  });
-
-  // Determine if we're in TTY mode
   const isTty = Deno.stdin.isTerminal();
-
-  // Set up display mode toggle (Ctrl+O)
-  let displayMode: ToolDisplayMode = "compact";
-
-  // Set up screen manager
   const screen = createScreenManager();
-
-  // Create event handler — use screen-aware handler for TTY, legacy for pipes
-  const eventHandler = isTty
-    ? createScreenEventHandler(screen, () => displayMode)
-    : createEventHandler();
-
-  // Shared mutable state
   const state: WsRouterState = {
     isProcessing: false,
     passwordMode: null,
@@ -347,391 +789,173 @@ export async function runChat(): Promise<void> {
   };
   const messageQueue: string[] = [];
 
-  // Create line editor (needed by WS router for redraw)
-  let editor: LineEditor = createLineEditor();
+  const rs: ChatReplState = {
+    editor: createLineEditor(),
+    displayMode: "compact",
+    stashedInput: "",
+    pendingImages: [],
+    lastCtrlCTime: 0,
+    inputHistory: await loadInputHistory(join(dataDir, "input_history.json")),
+  };
 
-  // Install WebSocket message router
-  const wsRouter = createWsMessageRouter({
+  const eventHandler = isTty
+    ? createScreenEventHandler(screen, () => rs.displayMode)
+    : createEventHandler();
+
+  await awaitDaemonConnection(
+    ws,
     screen,
     isTty,
-    getEditor: () => editor,
-    eventHandler: eventHandler as (evt: OrchestratorEvent) => void,
     state,
     messageQueue,
-    ws,
-    resolveConnected: () => connected.resolve(),
-  });
-  ws.addEventListener("message", wsRouter);
+    () => rs.editor,
+    eventHandler as (evt: OrchestratorEvent) => void,
+  );
 
-  // Handle WebSocket close
-  ws.addEventListener("close", () => {
-    if (isTty) {
-      screen.writeOutput("  \x1b[31mDisconnected from daemon.\x1b[0m");
-      screen.writeOutput("");
-      screen.redrawInput(editor);
-    } else {
-      console.log("\n  Disconnected from daemon.\n");
-    }
-    state.isProcessing = false;
-  });
-
-  // Wait for the connected event before showing UI
-  // Timeout after 5 seconds
-  const timeout = setTimeout(() => {
-    console.log("Timed out waiting for daemon. Is it running?");
-    console.log("Run 'triggerfish start' or 'triggerfish run' first.\n");
-    ws.close();
-    Deno.exit(1);
-  }, 5000);
-  await connected.promise;
-  clearTimeout(timeout);
-
-  // Load input history
-  const historyFilePath = join(dataDir, "input_history.json");
-  let inputHistory = await loadInputHistory(historyFilePath);
-
-  // Set up suggestion engine
-  const suggestionEngine = createSuggestionEngine();
-
-  // If not a TTY, fall back to the simple line-buffered REPL
   if (!isTty) {
     printBanner(state.providerName, config.models.primary.model, "");
     await runSimpleWsRepl(ws, state.providerName, config);
     return;
   }
 
-  // ─── TTY mode: raw terminal with scroll regions ──────────────
+  await runTtyKeypressLoop(
+    rs,
+    state,
+    ws,
+    screen,
+    config,
+    messageQueue,
+    dataDir,
+    log,
+  );
+}
 
-  // Print banner via screen manager
+/** Run the TTY keypress loop until the user exits or EOF. */
+async function runTtyKeypressLoop(
+  rs: ChatReplState,
+  state: WsRouterState,
+  ws: WebSocket,
+  screen: ScreenManager,
+  config: TriggerFishConfig,
+  messageQueue: string[],
+  dataDir: string,
+  log: Logger,
+): Promise<void> {
+  const historyFilePath = join(dataDir, "input_history.json");
+  const suggestionEngine = createSuggestionEngine();
+  const keypressReader = createKeypressReader();
+
   screen.init();
   screen.writeOutput(
     formatBanner(state.providerName, config.models.primary.model, ""),
   );
 
-  // Create keypress reader
-  const keypressReader = createKeypressReader();
-  let stashedInput = ""; // Stash current input when entering history navigation
-  let pendingImages: ImageContentBlock[] = []; // Images pasted with Ctrl+V, sent with next message
+  const cleanup = () =>
+    cleanupChatRepl(
+      keypressReader,
+      screen,
+      historyFilePath,
+      rs.inputHistory,
+      ws,
+      log,
+    );
 
-  // Cleanup function — must run on exit
-  function cleanup(): void {
-    keypressReader.stop();
-    screen.cleanup();
-    saveInputHistory(historyFilePath, inputHistory).catch((err: unknown) => {
-      log.debug("Input history save failed during cleanup", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    });
-    try {
-      ws.close();
-    } catch (_err: unknown) {
-      log.debug("WebSocket send failed: connection closed");
-    }
-  }
+  installChatSignalHandlers(
+    state,
+    ws,
+    screen,
+    () => rs.editor,
+    cleanup,
+    log,
+  );
 
-  // Handle SIGINT (Ctrl+C from outside raw mode, e.g. kill signal)
-  try {
-    Deno.addSignalListener("SIGINT", () => {
-      if (state.isProcessing) {
-        try {
-          ws.send(JSON.stringify({ type: "cancel" }));
-        } catch (_err: unknown) {
-          log.debug("WebSocket send failed: connection closed");
-        }
-        screen.writeOutput(`  \x1b[33m⚠ Interrupted\x1b[0m`);
-      } else {
-        cleanup();
-        Deno.exit(0);
-      }
-    });
-  } catch (_err: unknown) {
-    log.debug("Signal listener not supported", { signal: "SIGINT" });
-  }
-
-  // Handle terminal resize — SIGWINCH on Unix, polling fallback on Windows
-  const resizeHandler = () => {
-    screen.handleResize();
-    screen.redrawInput(editor);
-  };
-  try {
-    Deno.addSignalListener("SIGWINCH", resizeHandler);
-  } catch (_err: unknown) {
-    log.debug("Signal listener not supported", { signal: "SIGWINCH" });
-    // SIGWINCH not supported (Windows/PowerShell) — poll for size changes
-    screen.startResizePolling(resizeHandler);
-  }
-
-  // Draw initial input prompt
-  screen.redrawInput(editor);
-
-  // Start reading keypresses
+  screen.redrawInput(rs.editor);
   keypressReader.start();
 
-  let lastCtrlCTime = 0;
-
   for await (const keypress of keypressReader) {
-    // ─── Interrupt keys (work in any mode) ──────────────────
-    if (keypress.key === "esc" && state.isProcessing) {
-      try {
-        ws.send(JSON.stringify({ type: "cancel" }));
-      } catch (_err: unknown) {
-        log.debug("WebSocket send failed: connection closed");
-      }
-      screen.writeOutput(`  \x1b[33m⚠ Interrupted\x1b[0m`);
-      continue;
-    }
+    const action = routeTopLevelKeypress(
+      keypress,
+      rs,
+      state,
+      ws,
+      screen,
+      log,
+      cleanup,
+    );
+    if (action === "exit") return;
+    if (action === "continue") continue;
 
-    if (keypress.key === "ctrl+c") {
-      if (state.isProcessing) {
-        const now = Date.now();
-        if (now - lastCtrlCTime < 1000) {
-          cleanup();
-          return;
-        }
-        lastCtrlCTime = now;
-        try {
-          ws.send(JSON.stringify({ type: "cancel" }));
-        } catch (_err: unknown) {
-          log.debug("WebSocket send failed: connection closed");
-        }
-        screen.writeOutput(
-          `  \x1b[33m⚠ Interrupted (Ctrl+C again to exit)\x1b[0m`,
-        );
-      } else {
-        cleanup();
-        return;
-      }
-      continue;
-    }
-
-    // ─── Password mode (secret_prompt active) ─────────────
-    if (state.passwordMode !== null) {
-      routePasswordKeypress(
-        keypress,
-        state.passwordMode,
-        state,
-        ws,
-        screen,
-        editor,
-        log,
-      );
-      continue;
-    }
-
-    // ─── Input handling (works in both idle and processing) ─
-    switch (keypress.key) {
-      case "shift+enter": {
-        editor = editor.insert("\n");
-        editor = editor.setSuggestion("");
-        screen.redrawInput(editor);
-        break;
-      }
-
-      case "enter": {
-        const text = editor.text.trim();
-
-        if (text.length === 0) {
-          break;
-        }
-
-        // Echo the submitted text into the output region
-        const displayText = text.includes("\n")
-          ? text.split("\n").join(`\n  ${"\x1b[2m"}·\x1b[0m `)
-          : text;
-        screen.writeOutput(
-          `  ${taintColor(screen.getTaint())}\x1b[1m❯\x1b[0m ${displayText}`,
-        );
-        screen.writeOutput("");
-
-        // Add to history and save
-        inputHistory = inputHistory.push(text);
-        inputHistory = inputHistory.resetNavigation();
-        saveInputHistory(historyFilePath, inputHistory).catch(
-          (err: unknown) => {
-            log.debug("Input history save failed", {
-              error: err instanceof Error ? err.message : String(err),
-            });
-          },
-        );
-
-        // Clear editor
-        editor = editor.clear();
-        screen.redrawInput(editor);
-        stashedInput = "";
-
-        // Handle slash commands locally (only in idle mode)
-        if (!state.isProcessing) {
-          const cmd = dispatchSlashCommand(
-            text,
-            ws,
-            screen,
-            editor,
-            config,
-            state.providerName,
-            displayMode,
-          );
-          if (cmd.shouldExit) {
-            screen.writeOutput("  Goodbye.");
-            cleanup();
-            return;
-          }
-          if (cmd.newDisplayMode !== undefined) {
-            displayMode = cmd.newDisplayMode;
-          }
-          if (cmd.handled) {
-            break;
-          }
-
-          pendingImages = submitChatMessage(
-            text,
-            pendingImages,
-            state,
-            ws,
-            screen,
-            editor,
-            log,
-          );
-        } else {
-          // Processing mode — queue the message
-          messageQueue.push(text);
-          screen.writeOutput(
-            `  \x1b[2m(queued — will send after current response)\x1b[0m`,
-          );
-        }
-
-        break;
-      }
-
-      case "backspace":
-        editor = editor.backspace();
-        refreshAutocompleteSuggestion();
-        screen.redrawInput(editor);
-        break;
-
-      case "delete":
-        editor = editor.deleteChar();
-        refreshAutocompleteSuggestion();
-        screen.redrawInput(editor);
-        break;
-
-      case "left":
-        editor = editor.moveCursor("left");
-        screen.redrawInput(editor);
-        break;
-
-      case "right":
-        editor = editor.moveCursor("right");
-        screen.redrawInput(editor);
-        break;
-
-      case "home":
-      case "ctrl+a":
-        editor = editor.moveCursor("home");
-        screen.redrawInput(editor);
-        break;
-
-      case "end":
-      case "ctrl+e":
-        editor = editor.moveCursor("end");
-        screen.redrawInput(editor);
-        break;
-
-      case "up": {
-        // Stash current input when first entering history
-        if (inputHistory.index === -1 && editor.text.length > 0) {
-          stashedInput = editor.text;
-        }
-        inputHistory = inputHistory.up();
-        const histText = inputHistory.current();
-        if (histText !== null) {
-          editor = editor.setText(histText);
-          editor = editor.setSuggestion("");
-          screen.redrawInput(editor);
-        }
-        break;
-      }
-
-      case "down": {
-        inputHistory = inputHistory.down();
-        const histText = inputHistory.current();
-        if (histText !== null) {
-          editor = editor.setText(histText);
-        } else {
-          // Back to fresh input — restore stashed text
-          editor = editor.setText(stashedInput);
-          stashedInput = "";
-        }
-        editor = editor.setSuggestion("");
-        screen.redrawInput(editor);
-        break;
-      }
-
-      case "tab":
-        editor = editor.acceptSuggestion();
-        screen.redrawInput(editor);
-        break;
-
-      case "ctrl+v": {
-        pendingImages = await handleClipboardPaste(pendingImages, screen);
-        break;
-      }
-
-      case "ctrl+o":
-        displayMode = displayMode === "compact" ? "expanded" : "compact";
-        screen.setStatus(`Display: ${displayMode}`);
-        setTimeout(() => screen.clearStatus(), 1500);
-        break;
-
-      case "ctrl+d":
-        if (editor.text.length === 0) {
-          cleanup();
-          return;
-        }
-        break;
-
-      case "ctrl+u":
-        // Clear line
-        editor = editor.clear();
-        screen.redrawInput(editor);
-        break;
-
-      case "ctrl+w": {
-        editor = deleteWordBackward(editor);
-        screen.redrawInput(editor);
-        break;
-      }
-
-      case "esc":
-        // ESC in idle mode — ignore
-        break;
-
-      default:
-        // Printable character
-        if (keypress.char !== null) {
-          editor = editor.insert(keypress.char);
-          inputHistory = inputHistory.resetNavigation();
-          stashedInput = "";
-          refreshAutocompleteSuggestion();
-          screen.redrawInput(editor);
-        }
-        break;
-    }
+    const result = await routeInputKeypress(
+      keypress.key,
+      keypress.char,
+      rs,
+      state,
+      ws,
+      screen,
+      config,
+      messageQueue,
+      historyFilePath,
+      log,
+      suggestionEngine,
+      cleanup,
+    );
+    if (result === "exit") return;
   }
 
-  // EOF reached
   cleanup();
+}
 
-  /** Refresh the autocomplete suggestion based on current editor text. */
-  function refreshAutocompleteSuggestion(): void {
-    const suggestion = suggestionEngine.suggest(
-      editor.text,
-      inputHistory.entries as string[],
+/** Route top-level keypresses (interrupts, password mode) before input dispatch. */
+function routeTopLevelKeypress(
+  keypress: { readonly key: string; readonly char: string | null },
+  rs: ChatReplState,
+  state: WsRouterState,
+  ws: WebSocket,
+  screen: ScreenManager,
+  log: Logger,
+  cleanup: () => void,
+): "exit" | "continue" | "dispatch" {
+  if (keypress.key === "esc" && state.isProcessing) {
+    handleEscInterrupt(ws, screen, log);
+    return "continue";
+  }
+  if (keypress.key === "ctrl+c") {
+    return handleCtrlCKeypress(rs, state, ws, screen, log, cleanup);
+  }
+  if (state.passwordMode !== null) {
+    routePasswordKeypress(
+      keypress,
+      state.passwordMode,
+      state,
+      ws,
+      screen,
+      rs.editor,
+      log,
     );
-    if (suggestion) {
-      const remainder = suggestion.slice(editor.text.length);
-      editor = editor.setSuggestion(remainder);
-    } else {
-      editor = editor.setSuggestion("");
-    }
+    return "continue";
+  }
+  return "dispatch";
+}
+
+/** Clean up resources on REPL exit: stop reader, persist history, close WS. */
+function cleanupChatRepl(
+  keypressReader: ReturnType<typeof createKeypressReader>,
+  screen: ScreenManager,
+  historyFilePath: string,
+  inputHistory: import("../../cli/chat/history.ts").InputHistory,
+  ws: WebSocket,
+  log: Logger,
+): void {
+  keypressReader.stop();
+  screen.cleanup();
+  saveInputHistory(historyFilePath, inputHistory).catch((err: unknown) => {
+    log.debug("Input history save failed during cleanup", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
+  try {
+    ws.close();
+  } catch (_err: unknown) {
+    log.debug("WebSocket send failed: connection closed");
   }
 }
