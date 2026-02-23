@@ -8,29 +8,7 @@
 import { assertEquals } from "@std/assert";
 import { createWebChatChannel } from "../../src/channels/webchat/adapter.ts";
 
-/** Start a WebChat channel on a random port and return the port + cleanup function. */
-async function startWebChat(
-  allowedOrigins?: readonly string[],
-): Promise<{ port: number; stop: () => Promise<void> }> {
-  const channel = createWebChatChannel({ port: 0, allowedOrigins });
-  // createWebChatChannel uses Deno.serve which doesn't surface the port through
-  // the ChannelAdapter interface. Use a fixed ephemeral port instead.
-  // We use a fixed high port per test to avoid conflicts.
-  // Since port 0 is not surfaced, we pick distinct ports manually.
-  return { port: 0, stop: async () => await channel.disconnect() };
-}
-
 Deno.test("WebChatChannel: WebSocket rejected 403 — Origin not in allowedOrigins", async () => {
-  // Use a specific port so we can connect
-  const channel = createWebChatChannel({
-    port: 0,
-    allowedOrigins: ["https://example.com"],
-  });
-  // We test via an internal HTTP fetch to the adapter.
-  // The adapter uses Deno.serve internally; we need to get the port.
-  // Since the connect() API doesn't expose the port, we rely on a fixed port.
-  // Instead, we test the routing logic directly via the exported function from adapter.
-  // Validate through a real server on a chosen port.
   const port = 28765;
   const channelWithPort = createWebChatChannel({
     port,
