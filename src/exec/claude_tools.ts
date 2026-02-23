@@ -11,53 +11,57 @@
 import type { ToolDefinition } from "../core/types/tool.ts";
 import type { ClaudeSessionConfig, ClaudeSessionManager } from "./claude.ts";
 
+function buildClaudeStartParams(): ToolDefinition["parameters"] {
+  return {
+    prompt: {
+      type: "string",
+      description: "Initial prompt/task for the Claude session",
+      required: true,
+    },
+    model: {
+      type: "string",
+      description: 'Model to use (e.g. "sonnet", "opus")',
+      required: false,
+    },
+    max_turns: {
+      type: "number",
+      description: "Maximum agent iteration turns",
+      required: false,
+    },
+    timeout_ms: {
+      type: "number",
+      description: "Max runtime in milliseconds (default: 300000 = 5min)",
+      required: false,
+    },
+    working_dir: {
+      type: "string",
+      description: "Working directory (must be within workspace)",
+      required: false,
+    },
+    system_prompt: {
+      type: "string",
+      description: "Custom system prompt for the session",
+      required: false,
+    },
+    allowed_tools: {
+      type: "string",
+      description: "Comma-separated tool allowlist",
+      required: false,
+    },
+    max_budget_usd: {
+      type: "number",
+      description: "Spending cap in USD",
+      required: false,
+    },
+  };
+}
+
 function buildClaudeStartDef(): ToolDefinition {
   return {
     name: "claude_start",
     description:
       "Start a headless Claude Code CLI session with an initial prompt. Returns the session ID for follow-up interaction.",
-    parameters: {
-      prompt: {
-        type: "string",
-        description: "Initial prompt/task for the Claude session",
-        required: true,
-      },
-      model: {
-        type: "string",
-        description: 'Model to use (e.g. "sonnet", "opus")',
-        required: false,
-      },
-      max_turns: {
-        type: "number",
-        description: "Maximum agent iteration turns",
-        required: false,
-      },
-      timeout_ms: {
-        type: "number",
-        description: "Max runtime in milliseconds (default: 300000 = 5min)",
-        required: false,
-      },
-      working_dir: {
-        type: "string",
-        description: "Working directory (must be within workspace)",
-        required: false,
-      },
-      system_prompt: {
-        type: "string",
-        description: "Custom system prompt for the session",
-        required: false,
-      },
-      allowed_tools: {
-        type: "string",
-        description: "Comma-separated tool allowlist",
-        required: false,
-      },
-      max_budget_usd: {
-        type: "number",
-        description: "Spending cap in USD",
-        required: false,
-      },
-    },
+    parameters: buildClaudeStartParams(),
   };
 }
 
