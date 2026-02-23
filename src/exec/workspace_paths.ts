@@ -15,6 +15,7 @@ import type {
 } from "../core/types/classification.ts";
 import { canFlowTo } from "../core/types/classification.ts";
 import { CLASSIFICATION_DIRS } from "../core/security/constants.ts";
+import { isWithinJail } from "../core/security/path_jail.ts";
 import { createLogger } from "../core/logger/logger.ts";
 import type { ClassifiedPathResult } from "./workspace_types.ts";
 
@@ -70,7 +71,7 @@ export function validatePathInWorkspace(
   workspacePath: string,
   relativePath: string,
 ): Result<true, string> {
-  if (!absPath.startsWith(workspacePath)) {
+  if (!isWithinJail(absPath, workspacePath)) {
     return {
       ok: false,
       error: `Path "${relativePath}" escapes the workspace directory`,
@@ -147,7 +148,7 @@ export function searchReadableLevelsForFile(
   const readableLevels = getReadableLevels(sessionTaint);
   for (const level of readableLevels) {
     const absPath = resolve(join(levelToDirPath[level], relativePath));
-    if (!absPath.startsWith(workspacePath)) continue;
+    if (!isWithinJail(absPath, workspacePath)) continue;
     try {
       Deno.statSync(absPath);
       return {

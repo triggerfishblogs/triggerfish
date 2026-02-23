@@ -278,6 +278,40 @@ Deno.test("Workspace: bare read searches readable levels for existing file", asy
   }
 });
 
+Deno.test("Workspace.containsPath: sibling workspace with shared prefix returns false", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "agent-foo", basePath: tmpDir });
+  try {
+    // /tmp/.../agent-foomalicious/secret is NOT within /tmp/.../agent-foo
+    const sibling = ws.path + "malicious";
+    assertEquals(ws.containsPath(sibling + "/secret.txt"), false);
+  } finally {
+    await ws.destroy();
+  }
+});
+
+Deno.test("Workspace.resolveClassifiedPath: ../ traversal attempt is blocked", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  try {
+    const result = ws.resolveClassifiedPath("../escape.txt", "INTERNAL", "write");
+    assertEquals(result.ok, false);
+  } finally {
+    await ws.destroy();
+  }
+});
+
+Deno.test("Workspace.resolveClassifiedPath: absolute path escaping workspace is blocked", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  try {
+    const result = ws.resolveClassifiedPath("/etc/passwd", "CONFIDENTIAL", "read");
+    assertEquals(result.ok, false);
+  } finally {
+    await ws.destroy();
+  }
+});
+
 Deno.test("ExecTools: cwdOverride sets command working directory", async () => {
   const tmpDir = await Deno.makeTempDir();
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });

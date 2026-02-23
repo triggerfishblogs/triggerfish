@@ -8,6 +8,7 @@
  */
 
 import { join } from "@std/path";
+import { resolveWithinJail } from "../../core/security/path_jail.ts";
 import { parse as parseYaml } from "@std/yaml";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { parseClassification } from "../../core/types/classification.ts";
@@ -125,8 +126,10 @@ async function scanSkillDirectory(
 ): Promise<void> {
   try {
     for await (const entry of Deno.readDir(dir)) {
-      if (!entry.isDirectory) continue;
-      const skillDir = join(dir, entry.name);
+      if (!entry.isDirectory || entry.isSymlink) continue;
+      const jailResult = resolveWithinJail(dir, entry.name);
+      if (!jailResult.ok) continue;
+      const skillDir = jailResult.value;
       let content: string;
       try {
         content = await Deno.readTextFile(join(skillDir, "SKILL.md"));

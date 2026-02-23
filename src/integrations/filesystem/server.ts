@@ -10,6 +10,7 @@
 
 import { resolve, normalize } from "@std/path";
 import type { Result, ClassificationLevel } from "../../core/types/classification.ts";
+import { isWithinJail } from "../../core/security/path_jail.ts";
 
 /** A directory entry returned by list_directory. */
 export interface DirectoryEntry {
@@ -52,7 +53,7 @@ function safePath(
   const resolved = resolve(rootPath, normalize(relative));
   const normalizedRoot = resolve(rootPath);
 
-  if (!resolved.startsWith(normalizedRoot)) {
+  if (!isWithinJail(resolved, normalizedRoot)) {
     return { ok: false, error: "Path traversal blocked" };
   }
   return { ok: true, value: resolved };
