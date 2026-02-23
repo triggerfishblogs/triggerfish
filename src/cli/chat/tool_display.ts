@@ -5,9 +5,17 @@
 
 import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
 import {
-  RESET, BOLD, DIM, CYAN, GREEN, YELLOW, RED, writeln, enc,
+  BOLD,
+  CYAN,
+  DIM,
+  enc,
+  GREEN,
+  RED,
+  RESET,
+  writeln,
+  YELLOW,
 } from "./ansi.ts";
-import { truncate, extractLeadToolArgument, formatBytes } from "./format.ts";
+import { extractLeadToolArgument, formatBytes, truncate } from "./format.ts";
 
 /** Event callback type matching orchestrator. */
 export type EventCallback = (event: OrchestratorEvent) => void;
@@ -53,7 +61,9 @@ export function renderToolResult(
   blocked: boolean,
 ): void {
   if (blocked) {
-    writeln(`  ${YELLOW}\u2514\u2500${RESET} ${RED}\u2717 blocked by policy${RESET}`);
+    writeln(
+      `  ${YELLOW}\u2514\u2500${RESET} ${RED}\u2717 blocked by policy${RESET}`,
+    );
   } else {
     // Show byte count for long results
     const byteLen = enc.encode(result).length;
@@ -63,7 +73,9 @@ export function renderToolResult(
         `  ${YELLOW}\u2514\u2500${RESET} ${GREEN}\u2713${RESET} ${DIM}${byteLen} bytes${RESET} ${DIM}${preview}${RESET}`,
       );
     } else {
-      writeln(`  ${YELLOW}\u2514\u2500${RESET} ${GREEN}\u2713${RESET} ${DIM}${preview}${RESET}`);
+      writeln(
+        `  ${YELLOW}\u2514\u2500${RESET} ${GREEN}\u2713${RESET} ${DIM}${preview}${RESET}`,
+      );
     }
   }
   writeln();
@@ -139,7 +151,9 @@ export function formatToolResultExpanded(
 function formatResultMeta(name: string, result: string): string {
   if (name === "web_search") {
     const count = (result.match(/^\d+\.\s/gm) ?? []).length;
-    return count > 0 ? `${count} result${count !== 1 ? "s" : ""}` : "no results";
+    return count > 0
+      ? `${count} result${count !== 1 ? "s" : ""}`
+      : "no results";
   }
   if (name === "web_fetch") {
     const byteLen = enc.encode(result).length;
@@ -175,7 +189,9 @@ export function formatToolCompact(
   const displayName = TOOL_DISPLAY_NAMES[name] ?? name;
   const primary = extractLeadToolArgument(args);
   const argStr = primary.length > 0
-    ? (name === "web_search" ? `${DIM}("${truncate(primary, 60)}")${RESET}` : `${DIM}(${truncate(primary, 60)})${RESET}`)
+    ? (name === "web_search"
+      ? `${DIM}("${truncate(primary, 60)}")${RESET}`
+      : `${DIM}(${truncate(primary, 60)})${RESET}`)
     : "";
 
   if (blocked) {
@@ -186,6 +202,31 @@ export function formatToolCompact(
   return `  ${CYAN}\u25cf${RESET} ${BOLD}${displayName}${RESET}${argStr}\n  ${DIM}\u2502${RESET}  ${DIM}${meta}${RESET}`;
 }
 
+/** Extract the markdown body from a plan_exit tool result. */
+function extractPlanMarkdownBody(result: string): string {
+  const separator = "\n\n---\n\n";
+  const sepIdx = result.indexOf(separator);
+  return sepIdx >= 0 ? result.slice(sepIdx + separator.length) : result;
+}
+
+/** Apply ANSI color formatting to a single markdown line. */
+function formatPlanMarkdownLine(line: string): string {
+  if (line.startsWith("# ")) return `  ${CYAN}${BOLD}${line.slice(2)}${RESET}`;
+  if (line.startsWith("## ")) {
+    return `  ${YELLOW}${BOLD}${line.slice(3)}${RESET}`;
+  }
+  if (line.startsWith("### ")) return `  ${BOLD}${line.slice(4)}${RESET}`;
+  if (line.startsWith("- [ ] ")) {
+    return `  ${DIM}\u2610${RESET}  ${line.slice(6)}`;
+  }
+  if (line.startsWith("- [x] ")) {
+    return `  ${GREEN}\u2611${RESET}  ${DIM}${line.slice(6)}${RESET}`;
+  }
+  if (line.startsWith("- ")) return `  ${DIM}\u2022${RESET} ${line.slice(2)}`;
+  if (line.startsWith("**Status:**")) return `  ${YELLOW}${line}${RESET}`;
+  return `  ${line}`;
+}
+
 /**
  * Format plan markdown for terminal display with ANSI colors.
  *
@@ -193,31 +234,7 @@ export function formatToolCompact(
  * (after the JSON + "---" separator) and applies ANSI formatting.
  */
 export function formatPlanMarkdown(result: string): string {
-  // Extract markdown after the JSON + --- separator
-  const separator = "\n\n---\n\n";
-  const sepIdx = result.indexOf(separator);
-  const markdown = sepIdx >= 0 ? result.slice(sepIdx + separator.length) : result;
-
-  const lines: string[] = [""];
-  for (const line of markdown.split("\n")) {
-    if (line.startsWith("# ")) {
-      lines.push(`  ${CYAN}${BOLD}${line.slice(2)}${RESET}`);
-    } else if (line.startsWith("## ")) {
-      lines.push(`  ${YELLOW}${BOLD}${line.slice(3)}${RESET}`);
-    } else if (line.startsWith("### ")) {
-      lines.push(`  ${BOLD}${line.slice(4)}${RESET}`);
-    } else if (line.startsWith("- [ ] ")) {
-      lines.push(`  ${DIM}\u2610${RESET}  ${line.slice(6)}`);
-    } else if (line.startsWith("- [x] ")) {
-      lines.push(`  ${GREEN}\u2611${RESET}  ${DIM}${line.slice(6)}${RESET}`);
-    } else if (line.startsWith("- ")) {
-      lines.push(`  ${DIM}\u2022${RESET} ${line.slice(2)}`);
-    } else if (line.startsWith("**Status:**")) {
-      lines.push(`  ${YELLOW}${line}${RESET}`);
-    } else {
-      lines.push(`  ${line}`);
-    }
-  }
-  lines.push("");
+  const markdown = extractPlanMarkdownBody(result);
+  const lines = ["", ...markdown.split("\n").map(formatPlanMarkdownLine), ""];
   return lines.join("\n");
 }
