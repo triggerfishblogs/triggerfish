@@ -195,7 +195,6 @@ Deno.test("GatewayServer: webhook rejects body exceeding 1MB", async () => {
     async handleWebhookRequest() {
       return { ok: false as const, error: "unused" };
     },
-    // deno-lint-ignore require-await
     async runTrigger() {},
   };
 
@@ -224,16 +223,12 @@ Deno.test("GatewayServer: chat WebSocket rejects messages exceeding 256KB", asyn
     },
     getMcpStatus: () => null,
     clear() {},
-    // deno-lint-ignore require-await
     async compact() {},
     handleSecretPromptResponse(_nonce: string, _value: string | null) {},
     createTidepoolSecretPrompt: () =>
-      async (_name: string) => null as string | null,
-    // deno-lint-ignore require-await
+      (_name: string) => Promise.resolve(null as string | null),
     async executeAgentTurn() {},
-    // deno-lint-ignore require-await
     async registerChannel() {},
-    // deno-lint-ignore require-await
     async handleChannelMessage() {},
   };
 
