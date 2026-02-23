@@ -13,7 +13,7 @@ export {
 
 export {
   TOOL_PROFILES,
-  TOOL_PROFILE_PROMPTS,
+  TOOL_GROUP_PROMPTS,
 } from "./registry.ts";
 
 export {
