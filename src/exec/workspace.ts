@@ -14,6 +14,7 @@
 
 import { join, resolve } from "@std/path";
 import { isWithinJail } from "../core/security/path_jail.ts";
+import { sanitizePathForPrompt } from "../core/security/path_sanitization.ts";
 import type {
   ClassificationLevel,
   Result,
@@ -119,7 +120,13 @@ function resolveBareWritePath(
 export async function createWorkspace(
   options: WorkspaceOptions,
 ): Promise<Workspace> {
-  const workspacePath = resolve(join(options.basePath, options.agentId));
+  const sanitizedAgentId = sanitizePathForPrompt(options.agentId);
+  if (sanitizedAgentId.length === 0) {
+    throw new Error(
+      `Workspace agentId "${options.agentId}" is empty after sanitization`,
+    );
+  }
+  const workspacePath = resolve(join(options.basePath, sanitizedAgentId));
   const paths = computeWorkspacePaths(workspacePath);
   const levelToDirPath = buildLevelToDirPath(paths);
 
@@ -133,7 +140,7 @@ export async function createWorkspace(
   return {
     path: workspacePath,
     ...paths,
-    agentId: options.agentId,
+    agentId: sanitizedAgentId,
     async destroy(): Promise<void> {
       await Deno.remove(workspacePath, { recursive: true });
     },

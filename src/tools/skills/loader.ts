@@ -9,6 +9,7 @@
 
 import { join } from "@std/path";
 import { resolveWithinJail } from "../../core/security/path_jail.ts";
+import { sanitizePathForPrompt } from "../../core/security/path_sanitization.ts";
 import { parse as parseYaml } from "@std/yaml";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { parseClassification } from "../../core/types/classification.ts";
@@ -127,7 +128,9 @@ async function scanSkillDirectory(
   try {
     for await (const entry of Deno.readDir(dir)) {
       if (!entry.isDirectory || entry.isSymlink) continue;
-      const jailResult = resolveWithinJail(dir, entry.name);
+      const sanitizedName = sanitizePathForPrompt(entry.name);
+      if (sanitizedName.length === 0) continue;
+      const jailResult = resolveWithinJail(dir, sanitizedName);
       if (!jailResult.ok) continue;
       const skillDir = jailResult.value;
       let content: string;

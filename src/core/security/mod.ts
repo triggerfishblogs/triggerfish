@@ -37,3 +37,5 @@ export {
   isOriginAllowed,
   rejectWebSocketUpgrade,
 } from "./websocket_auth.ts";
+
+export { sanitizePathForPrompt } from "./path_sanitization.ts";
