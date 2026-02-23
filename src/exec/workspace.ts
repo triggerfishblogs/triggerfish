@@ -1,5 +1,5 @@
 /**
- * Agent workspace management for the execution environment.
+ * Agent workspace creation and lifecycle.
  *
  * Each agent gets an isolated workspace directory with subdirectories
  * for scratch work, integrations, and skills. The workspace persists
@@ -17,109 +17,23 @@ import type {
   ClassificationLevel,
   Result,
 } from "../core/types/classification.ts";
-import { canFlowTo } from "../core/types/classification.ts";
 import {
   CLASSIFICATION_DIRS,
   WORKSPACE_SUBDIRS,
 } from "../core/security/constants.ts";
-import { createLogger } from "../core/logger/logger.ts";
+import type {
+  ClassifiedPathResult,
+  Workspace,
+  WorkspaceOptions,
+} from "./workspace_types.ts";
+import {
+  extractClassificationPrefix,
+  resolveExplicitClassifiedPath,
+  searchReadableLevelsForFile,
+  validatePathInWorkspace,
+} from "./workspace_paths.ts";
 
-const log = createLogger("security");
-
-/** Options for creating a new workspace. */
-export interface WorkspaceOptions {
-  /** Unique agent identifier. */
-  readonly agentId: string;
-  /** Base directory under which the workspace is created. */
-  readonly basePath: string;
-}
-
-/** Result of resolving a classification-aware workspace path. */
-export interface ClassifiedPathResult {
-  readonly absolutePath: string;
-  readonly classification: ClassificationLevel;
-}
-
-/** An isolated agent workspace. */
-export interface Workspace {
-  /** Absolute path to the workspace root directory. */
-  readonly path: string;
-  /** Absolute path to the scratch subdirectory. */
-  readonly scratchPath: string;
-  /** Absolute path to the integrations subdirectory. */
-  readonly integrationsPath: string;
-  /** Absolute path to the skills subdirectory. */
-  readonly skillsPath: string;
-  /** Absolute path to the internal classification directory. */
-  readonly internalPath: string;
-  /** Absolute path to the confidential classification directory. */
-  readonly confidentialPath: string;
-  /** Absolute path to the restricted classification directory. */
-  readonly restrictedPath: string;
-  /** Agent ID that owns this workspace. */
-  readonly agentId: string;
-  /** Remove the workspace directory and all contents. */
-  destroy(): Promise<void>;
-  /** Check whether a resolved path is inside the workspace. */
-  containsPath(targetPath: string): boolean;
-  /**
-   * Resolve a relative path to its classification-partitioned absolute path.
-   *
-   * For writes: bare paths resolve to the session taint directory.
-   * For reads: bare paths search all readable levels (highest first).
-   * Paths with explicit classification prefix are validated against session permissions.
-   */
-  resolveClassifiedPath(
-    relativePath: string,
-    sessionTaint: ClassificationLevel,
-    operation: "read" | "write",
-  ): Result<ClassifiedPathResult, string>;
-}
-
-/** Reverse lookup: directory name → classification level */
-const DIR_TO_LEVEL: ReadonlyMap<string, ClassificationLevel> = new Map(
-  Object.entries(CLASSIFICATION_DIRS).map(([level, dir]) => [
-    dir,
-    level as ClassificationLevel,
-  ]),
-);
-
-/**
- * Extract the first path segment and check if it's a classification directory.
- * Returns the classification level and remaining path if matched.
- */
-function extractClassificationPrefix(
-  relativePath: string,
-): { level: ClassificationLevel; rest: string } | null {
-  // Normalize to forward slashes for splitting, then check first segment
-  const normalized = relativePath.replace(/\\/g, "/");
-  const firstSlash = normalized.indexOf("/");
-  const firstSegment = firstSlash === -1
-    ? normalized
-    : normalized.slice(0, firstSlash);
-  const rest = firstSlash === -1 ? "" : normalized.slice(firstSlash + 1);
-
-  const level = DIR_TO_LEVEL.get(firstSegment);
-  if (level) {
-    return { level, rest };
-  }
-  return null;
-}
-
-/**
- * Get readable classification levels for a given session taint, ordered highest first.
- * A session can read at its own level and all levels below.
- */
-function getReadableLevels(
-  sessionTaint: ClassificationLevel,
-): readonly (Exclude<ClassificationLevel, "PUBLIC">)[] {
-  const allLevels: readonly (Exclude<ClassificationLevel, "PUBLIC">)[] = [
-    "RESTRICTED",
-    "CONFIDENTIAL",
-    "INTERNAL",
-  ];
-  return allLevels.filter((level) => canFlowTo(level, sessionTaint));
-}
+export type { ClassifiedPathResult, Workspace, WorkspaceOptions };
 
 /** Create workspace root, legacy subdirectories, and classification-partitioned dirs. */
 async function createWorkspaceDirectories(
@@ -141,97 +55,57 @@ async function createWorkspaceDirectories(
   }
 }
 
-/** Validate that a resolved absolute path stays within the workspace. */
-function validatePathInWorkspace(
-  absPath: string,
-  workspacePath: string,
-  relativePath: string,
-): Result<true, string> {
-  if (!absPath.startsWith(workspacePath)) {
-    return {
-      ok: false,
-      error: `Path "${relativePath}" escapes the workspace directory`,
-    };
-  }
-  return { ok: true, value: true };
+/** Compute all standard workspace paths from a resolved root. */
+function computeWorkspacePaths(workspacePath: string): {
+  readonly scratchPath: string;
+  readonly integrationsPath: string;
+  readonly skillsPath: string;
+  readonly internalPath: string;
+  readonly confidentialPath: string;
+  readonly restrictedPath: string;
+} {
+  return {
+    scratchPath: join(workspacePath, "scratch"),
+    integrationsPath: join(workspacePath, "integrations"),
+    skillsPath: join(workspacePath, "skills"),
+    internalPath: join(workspacePath, CLASSIFICATION_DIRS.INTERNAL),
+    confidentialPath: join(workspacePath, CLASSIFICATION_DIRS.CONFIDENTIAL),
+    restrictedPath: join(workspacePath, CLASSIFICATION_DIRS.RESTRICTED),
+  };
 }
 
-/** Resolve a path with an explicit classification prefix (e.g., "internal/foo.txt"). */
-function resolveExplicitClassifiedPath(
-  prefix: { level: ClassificationLevel; rest: string },
+/** Build the level-to-directory-path lookup for classification resolution. */
+function buildLevelToDirPath(paths: {
+  readonly internalPath: string;
+  readonly confidentialPath: string;
+  readonly restrictedPath: string;
+}): Record<string, string> {
+  return {
+    INTERNAL: paths.internalPath,
+    CONFIDENTIAL: paths.confidentialPath,
+    RESTRICTED: paths.restrictedPath,
+  };
+}
+
+/** Resolve a bare (non-prefixed) write path to the session taint directory. */
+function resolveBareWritePath(
   relativePath: string,
   sessionTaint: ClassificationLevel,
-  operation: "read" | "write",
   levelToDirPath: Record<string, string>,
   workspacePath: string,
 ): Result<ClassifiedPathResult, string> {
-  const { level, rest } = prefix;
-  const absPath = resolve(join(levelToDirPath[level], rest));
-  const traversalCheck = validatePathInWorkspace(
-    absPath,
-    workspacePath,
-    relativePath,
-  );
-  if (!traversalCheck.ok) return traversalCheck;
-
-  if (operation === "read" && !canFlowTo(level, sessionTaint)) {
-    log.warn("Workspace read blocked: insufficient taint level", {
-      path: relativePath,
-      pathClassification: level,
-      sessionTaint,
-    });
-    return {
-      ok: false,
-      error:
-        `Cannot read ${level} path from ${sessionTaint} session (insufficient taint level)`,
-    };
-  }
-  if (operation === "write" && !canFlowTo(sessionTaint, level)) {
-    log.warn("Workspace write-down blocked", {
-      path: relativePath,
-      sessionTaint,
-      targetClassification: level,
-    });
-    return {
-      ok: false,
-      error:
-        `Write-down: ${sessionTaint} session cannot write to ${level} directory`,
-    };
-  }
-  return { ok: true, value: { absolutePath: absPath, classification: level } };
-}
-
-/** Search readable classification levels (highest first) for an existing file. */
-function searchReadableLevelsForFile(
-  relativePath: string,
-  sessionTaint: Exclude<ClassificationLevel, "PUBLIC">,
-  levelToDirPath: Record<string, string>,
-  workspacePath: string,
-): Result<ClassifiedPathResult, string> {
-  const readableLevels = getReadableLevels(sessionTaint);
-  for (const level of readableLevels) {
-    const absPath = resolve(join(levelToDirPath[level], relativePath));
-    if (!absPath.startsWith(workspacePath)) continue;
-    try {
-      Deno.statSync(absPath);
-      return {
-        ok: true,
-        value: { absolutePath: absPath, classification: level },
-      };
-    } catch { /* File not found at this level, try next */ }
-  }
-  const fallbackPath = resolve(
+  const absPath = resolve(
     join(levelToDirPath[sessionTaint], relativePath),
   );
   const check = validatePathInWorkspace(
-    fallbackPath,
+    absPath,
     workspacePath,
     relativePath,
   );
   if (!check.ok) return check;
   return {
     ok: true,
-    value: { absolutePath: fallbackPath, classification: sessionTaint },
+    value: { absolutePath: absPath, classification: sessionTaint },
   };
 }
 
@@ -245,37 +119,19 @@ export async function createWorkspace(
   options: WorkspaceOptions,
 ): Promise<Workspace> {
   const workspacePath = resolve(join(options.basePath, options.agentId));
-  const scratchPath = join(workspacePath, "scratch");
-  const integrationsPath = join(workspacePath, "integrations");
-  const skillsPath = join(workspacePath, "skills");
-  const internalPath = join(workspacePath, CLASSIFICATION_DIRS.INTERNAL);
-  const confidentialPath = join(
-    workspacePath,
-    CLASSIFICATION_DIRS.CONFIDENTIAL,
-  );
-  const restrictedPath = join(workspacePath, CLASSIFICATION_DIRS.RESTRICTED);
+  const paths = computeWorkspacePaths(workspacePath);
+  const levelToDirPath = buildLevelToDirPath(paths);
 
   await createWorkspaceDirectories(
     workspacePath,
-    scratchPath,
-    integrationsPath,
-    skillsPath,
+    paths.scratchPath,
+    paths.integrationsPath,
+    paths.skillsPath,
   );
-
-  const levelToDirPath: Record<string, string> = {
-    INTERNAL: internalPath,
-    CONFIDENTIAL: confidentialPath,
-    RESTRICTED: restrictedPath,
-  };
 
   return {
     path: workspacePath,
-    scratchPath,
-    integrationsPath,
-    skillsPath,
-    internalPath,
-    confidentialPath,
-    restrictedPath,
+    ...paths,
     agentId: options.agentId,
     async destroy(): Promise<void> {
       await Deno.remove(workspacePath, { recursive: true });
@@ -296,36 +152,29 @@ export async function createWorkspace(
       }
       const prefix = extractClassificationPrefix(relativePath);
       if (prefix) {
-        return resolveExplicitClassifiedPath(
+        return resolveExplicitClassifiedPath({
           prefix,
           relativePath,
           sessionTaint,
           operation,
           levelToDirPath,
           workspacePath,
-        );
+        });
       }
       if (operation === "write") {
-        const absPath = resolve(
-          join(levelToDirPath[sessionTaint], relativePath),
-        );
-        const check = validatePathInWorkspace(
-          absPath,
-          workspacePath,
+        return resolveBareWritePath(
           relativePath,
+          sessionTaint,
+          levelToDirPath,
+          workspacePath,
         );
-        if (!check.ok) return check;
-        return {
-          ok: true,
-          value: { absolutePath: absPath, classification: sessionTaint },
-        };
       }
-      return searchReadableLevelsForFile(
+      return searchReadableLevelsForFile({
         relativePath,
         sessionTaint,
         levelToDirPath,
         workspacePath,
-      );
+      });
     },
   };
 }
