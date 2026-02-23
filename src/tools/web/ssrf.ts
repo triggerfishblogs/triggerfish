@@ -68,6 +68,22 @@ function isPrivateIpv4(ipv4: number): boolean {
   return false;
 }
 
+/**
+ * Convert a full-form IPv4-mapped IPv6 address to IPv4.
+ *
+ * Handles `0:0:0:0:0:ffff:HHHH:LLLL` notation where the last two groups
+ * encode the IPv4 address in hex. Returns null if not in this format.
+ */
+function fullFormMappedToIpv4(normalized: string): string | null {
+  const match = normalized.match(
+    /^(?:0+:){5}ffff:([0-9a-f]+):([0-9a-f]+)$/,
+  );
+  if (!match) return null;
+  const hi = parseInt(match[1], 16);
+  const lo = parseInt(match[2], 16);
+  return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+}
+
 /** Check if a normalized IPv6 string matches any denied prefix. */
 function isPrivateIpv6(normalized: string): boolean {
   if (normalized === "::1" || normalized === "0:0:0:0:0:0:0:1") {
@@ -92,19 +108,21 @@ export function isPrivateIp(ip: string): boolean {
   if (isPrivateIpv6(normalized)) return true;
   const v4Mapped = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
   if (v4Mapped) return isPrivateIp(v4Mapped[1]);
+  const fullFormIpv4 = fullFormMappedToIpv4(normalized);
+  if (fullFormIpv4 !== null) return isPrivateIp(fullFormIpv4);
   return false;
 }
 
-/** Resolve a hostname to its first A record IP address. */
+/** Resolve a hostname to ALL its A record IP addresses. */
 async function resolveDnsHostname(
   hostname: string,
-): Promise<Result<string, string>> {
-  let addresses: Deno.NetAddr[];
+): Promise<Result<readonly string[], string>> {
+  let addresses: string[];
   try {
     addresses = await Deno.resolveDns(
       hostname,
       "A",
-    ) as unknown as Deno.NetAddr[];
+    ) as unknown as string[];
   } catch (err) {
     return {
       ok: false,
@@ -118,30 +136,51 @@ async function resolveDnsHostname(
     return { ok: false, error: `No DNS records found for ${hostname}` };
   }
 
-  return { ok: true, value: String(addresses[0]) };
+  return { ok: true, value: addresses.map(String) };
 }
 
 /**
- * Resolve a hostname via DNS and check the resolved IP against the SSRF denylist.
+ * Check a list of resolved IP addresses against the SSRF denylist.
  *
- * @returns Ok with the resolved IP, or Err with a reason string.
+ * Blocks if ANY address in the list is private. Returns the first address
+ * on success (for logging). Exported for unit testing without DNS mocking.
+ *
+ * @param hostname - The original hostname (used in error messages)
+ * @param ips - All DNS A records returned for the hostname
+ * @returns Ok with the first IP, or Err if any IP is private
+ */
+export function checkIpListForSsrf(
+  hostname: string,
+  ips: readonly string[],
+): Result<string, string> {
+  for (const ip of ips) {
+    if (isPrivateIp(ip)) {
+      log.warn("SSRF blocked: hostname resolves to private IP", {
+        hostname,
+        resolvedIp: ip,
+      });
+      return {
+        ok: false,
+        error: `SSRF blocked: ${hostname} resolves to private IP ${ip}`,
+      };
+    }
+  }
+  return { ok: true, value: ips[0] };
+}
+
+/**
+ * Resolve a hostname via DNS and check ALL resolved IPs against the SSRF denylist.
+ *
+ * Blocks if ANY of the returned A records is a private/reserved IP address.
+ * This prevents DNS rebinding attacks where a domain returns a mix of
+ * public and private IPs.
+ *
+ * @returns Ok with the first resolved IP, or Err with a reason string.
  */
 export async function resolveAndCheck(
   hostname: string,
 ): Promise<Result<string, string>> {
   const resolved = await resolveDnsHostname(hostname);
   if (!resolved.ok) return resolved;
-
-  if (isPrivateIp(resolved.value)) {
-    log.warn("SSRF blocked: hostname resolves to private IP", {
-      hostname,
-      resolvedIp: resolved.value,
-    });
-    return {
-      ok: false,
-      error: `SSRF blocked: ${hostname} resolves to private IP ${resolved.value}`,
-    };
-  }
-
-  return resolved;
+  return checkIpListForSsrf(hostname, resolved.value);
 }
