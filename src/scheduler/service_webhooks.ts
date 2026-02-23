@@ -16,6 +16,9 @@ import type { ReplayGuard } from "./webhooks/replay_guard.ts";
 import { verifyHmacAsync } from "./webhooks/webhooks.ts";
 import { deliverSchedulerOutput } from "./service_output.ts";
 import { logSchedulerTokenUsage } from "./service_cron.ts";
+import { createLogger } from "../core/logger/mod.ts";
+
+const log = createLogger("scheduler.webhook");
 
 /** Parsed and validated webhook payload. */
 interface ValidatedWebhook {
@@ -66,6 +69,7 @@ export async function validateWebhookRequest(
   }
 
   if (!getRateLimiter(sourceId).allowRequest(sourceId)) {
+    log.warn(`Webhook rate limit exceeded: source=${sourceId}`);
     return { ok: false, error: `Rate limit exceeded for source: ${sourceId}` };
   }
 
@@ -74,16 +78,19 @@ export async function validateWebhookRequest(
     const ts = Number(context.timestamp);
     const age = Date.now() - ts;
     if (!context.timestamp || isNaN(age) || age > maxAgeMs || age < 0) {
+      log.warn(`Webhook timestamp rejected: source=${sourceId} timestamp=${context.timestamp} age=${age}ms maxAgeMs=${maxAgeMs}`);
       return { ok: false, error: "Webhook timestamp missing or expired" };
     }
   }
 
   const valid = await verifyHmacAsync(body, context.signature, source.secret);
   if (!valid) {
+    log.warn(`Webhook HMAC verification failed: source=${sourceId}`);
     return { ok: false, error: "Invalid HMAC signature" };
   }
 
   if (replayGuard.hasSeenSignature(context.signature)) {
+    log.warn(`Webhook replay detected: source=${sourceId}`);
     return { ok: false, error: "Replay detected: duplicate webhook rejected" };
   }
   replayGuard.recordSignature(context.signature);
@@ -130,7 +137,7 @@ export async function executeWebhookSession(options: WebhookExecutionOptions): P
     });
     logSchedulerTokenUsage(`webhook:${sourceId}`, result);
     await deliverSchedulerOutput({ config, result, sessionTaint: session.taint, source: `webhook:${sourceId}` });
-  } catch {
-    // Webhook processing failures are logged but don't fail the HTTP response
+  } catch (err) {
+    log.error(`Webhook session execution failed: source=${sourceId} error=${err instanceof Error ? err.message : String(err)}`);
   }
 }

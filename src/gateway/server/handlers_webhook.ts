@@ -8,6 +8,9 @@
  */
 
 import type { SchedulerService } from "../../scheduler/service_types.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("gateway.webhook");
 
 // ─── Webhook HTTP handler ────────────────────────────────────────────────────
 
@@ -54,7 +57,9 @@ async function forwardWebhookToScheduler(
   if (result.ok) {
     return jsonResponse({ ok: true }, 200);
   }
-  return jsonResponse({ error: result.error }, mapWebhookErrorStatus(result.error));
+  const status = mapWebhookErrorStatus(result.error);
+  log.warn(`Webhook request rejected: sourceId=${sourceId} status=${status} error=${result.error}`);
+  return jsonResponse({ error: result.error }, status);
 }
 
 /**
