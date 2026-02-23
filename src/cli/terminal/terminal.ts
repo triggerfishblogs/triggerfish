@@ -37,6 +37,77 @@ const CTRL_KEYS: Readonly<Record<number, string>> = {
   0x17: "ctrl+w",
 };
 
+/** Result of matching a single keypress: the event and next byte index. */
+interface ByteParseResult {
+  readonly key: Keypress;
+  readonly nextIndex: number;
+}
+
+/** Build a ByteParseResult for a special (non-printable) key at the given index. */
+function specialKeyResult(
+  name: string,
+  index: number,
+  ctrl = false,
+): ByteParseResult {
+  return { key: { key: name, char: null, ctrl }, nextIndex: index + 1 };
+}
+
+/** Match single-byte control characters (enter, tab, backspace, ctrl+X). */
+function matchControlByte(byte: number, index: number): ByteParseResult | null {
+  if (byte === 0x0D || byte === 0x0A) return specialKeyResult("enter", index);
+  if (byte === 0x09) return specialKeyResult("tab", index);
+  if (byte === 0x7F || byte === 0x08) {
+    return specialKeyResult("backspace", index);
+  }
+  if (CTRL_KEYS[byte] !== undefined) {
+    return specialKeyResult(CTRL_KEYS[byte], index, true);
+  }
+  return null;
+}
+
+/** Match ESC-prefixed sequences (CSI, Alt+Enter, standalone ESC). */
+function matchEscapeSequence(
+  bytes: Uint8Array,
+  index: number,
+): ByteParseResult | null {
+  if (bytes[index] !== 0x1B) return null;
+
+  if (index + 1 < bytes.length) {
+    const next = bytes[index + 1];
+    if (next === 0x5B) {
+      const parsed = parseCSI(bytes, index + 2);
+      if (parsed) return { key: parsed.key, nextIndex: parsed.nextIndex };
+    }
+    if (next === 0x0D || next === 0x0A) {
+      return {
+        key: { key: "shift+enter", char: "\n", ctrl: false },
+        nextIndex: index + 2,
+      };
+    }
+  }
+  return { key: { key: "esc", char: null, ctrl: false }, nextIndex: index + 1 };
+}
+
+/** Match printable ASCII (0x20-0x7E) or multi-byte UTF-8 characters. */
+function matchPrintableChar(
+  bytes: Uint8Array,
+  index: number,
+): ByteParseResult | null {
+  const byte = bytes[index];
+  if (byte >= 0x20 && byte <= 0x7E) {
+    const char = String.fromCharCode(byte);
+    return { key: { key: char, char, ctrl: false }, nextIndex: index + 1 };
+  }
+  const utf8Result = parseUtf8(bytes, index);
+  if (utf8Result) {
+    return {
+      key: { key: utf8Result.char, char: utf8Result.char, ctrl: false },
+      nextIndex: utf8Result.nextIndex,
+    };
+  }
+  return null;
+}
+
 /**
  * Parse raw bytes into keypress events.
  *
@@ -52,80 +123,16 @@ export function parseKeypresses(bytes: Uint8Array): readonly Keypress[] {
   let i = 0;
 
   while (i < bytes.length) {
-    const byte = bytes[i];
+    const result = matchControlByte(bytes[i], i) ??
+      matchEscapeSequence(bytes, i) ??
+      matchPrintableChar(bytes, i);
 
-    // Enter (CR or LF)
-    if (byte === 0x0D || byte === 0x0A) {
-      keys.push({ key: "enter", char: null, ctrl: false });
+    if (result) {
+      keys.push(result.key);
+      i = result.nextIndex;
+    } else {
       i++;
-      continue;
     }
-
-    // Tab
-    if (byte === 0x09) {
-      keys.push({ key: "tab", char: null, ctrl: false });
-      i++;
-      continue;
-    }
-
-    // Backspace
-    if (byte === 0x7F || byte === 0x08) {
-      keys.push({ key: "backspace", char: null, ctrl: false });
-      i++;
-      continue;
-    }
-
-    // Named control keys
-    if (CTRL_KEYS[byte] !== undefined) {
-      keys.push({ key: CTRL_KEYS[byte], char: null, ctrl: true });
-      i++;
-      continue;
-    }
-
-    // ESC sequences
-    if (byte === 0x1B) {
-      if (i + 1 < bytes.length) {
-        const next = bytes[i + 1];
-        // CSI sequence: ESC [ ...
-        if (next === 0x5B) {
-          const parsed = parseCSI(bytes, i + 2);
-          if (parsed) {
-            keys.push(parsed.key);
-            i = parsed.nextIndex;
-            continue;
-          }
-        }
-        // Alt+Enter: ESC followed by CR or LF
-        if (next === 0x0D || next === 0x0A) {
-          keys.push({ key: "shift+enter", char: "\n", ctrl: false });
-          i += 2;
-          continue;
-        }
-      }
-      // Standalone ESC (no bracket follows in this buffer)
-      keys.push({ key: "esc", char: null, ctrl: false });
-      i++;
-      continue;
-    }
-
-    // Printable ASCII (0x20-0x7E)
-    if (byte >= 0x20 && byte <= 0x7E) {
-      const char = String.fromCharCode(byte);
-      keys.push({ key: char, char, ctrl: false });
-      i++;
-      continue;
-    }
-
-    // Multi-byte UTF-8 sequences
-    const utf8Result = parseUtf8(bytes, i);
-    if (utf8Result) {
-      keys.push({ key: utf8Result.char, char: utf8Result.char, ctrl: false });
-      i = utf8Result.nextIndex;
-      continue;
-    }
-
-    // Unknown byte — skip
-    i++;
   }
 
   return keys;
@@ -155,24 +162,45 @@ function parseCSI(
   // Simple single-byte CSI finals
   switch (b) {
     case 0x41: // A = Up
-      return { key: { key: "up", char: null, ctrl: false }, nextIndex: start + 1 };
+      return {
+        key: { key: "up", char: null, ctrl: false },
+        nextIndex: start + 1,
+      };
     case 0x42: // B = Down
-      return { key: { key: "down", char: null, ctrl: false }, nextIndex: start + 1 };
+      return {
+        key: { key: "down", char: null, ctrl: false },
+        nextIndex: start + 1,
+      };
     case 0x43: // C = Right
-      return { key: { key: "right", char: null, ctrl: false }, nextIndex: start + 1 };
+      return {
+        key: { key: "right", char: null, ctrl: false },
+        nextIndex: start + 1,
+      };
     case 0x44: // D = Left
-      return { key: { key: "left", char: null, ctrl: false }, nextIndex: start + 1 };
+      return {
+        key: { key: "left", char: null, ctrl: false },
+        nextIndex: start + 1,
+      };
     case 0x48: // H = Home
-      return { key: { key: "home", char: null, ctrl: false }, nextIndex: start + 1 };
+      return {
+        key: { key: "home", char: null, ctrl: false },
+        nextIndex: start + 1,
+      };
     case 0x46: // F = End
-      return { key: { key: "end", char: null, ctrl: false }, nextIndex: start + 1 };
+      return {
+        key: { key: "end", char: null, ctrl: false },
+        nextIndex: start + 1,
+      };
   }
 
   // Multi-byte CSI sequences: collect digits, semicolons, then final byte
   if (b >= 0x30 && b <= 0x39) {
     // Parse parameter bytes until we hit a final byte (0x40-0x7E)
     let j = start;
-    while (j < bytes.length && ((bytes[j] >= 0x30 && bytes[j] <= 0x39) || bytes[j] === 0x3B)) {
+    while (
+      j < bytes.length &&
+      ((bytes[j] >= 0x30 && bytes[j] <= 0x39) || bytes[j] === 0x3B)
+    ) {
       j++;
     }
     if (j >= bytes.length) return null;
@@ -183,11 +211,26 @@ function parseCSI(
     if (final === 0x7E) {
       const num = parseInt(paramStr, 10);
       switch (num) {
-        case 1: return { key: { key: "home", char: null, ctrl: false }, nextIndex: j + 1 };
-        case 3: return { key: { key: "delete", char: null, ctrl: false }, nextIndex: j + 1 };
-        case 4: return { key: { key: "end", char: null, ctrl: false }, nextIndex: j + 1 };
+        case 1:
+          return {
+            key: { key: "home", char: null, ctrl: false },
+            nextIndex: j + 1,
+          };
+        case 3:
+          return {
+            key: { key: "delete", char: null, ctrl: false },
+            nextIndex: j + 1,
+          };
+        case 4:
+          return {
+            key: { key: "end", char: null, ctrl: false },
+            nextIndex: j + 1,
+          };
       }
-      return { key: { key: `unknown_csi_${paramStr}`, char: null, ctrl: false }, nextIndex: j + 1 };
+      return {
+        key: { key: `unknown_csi_${paramStr}`, char: null, ctrl: false },
+        nextIndex: j + 1,
+      };
     }
 
     // Kitty keyboard protocol: CSI <keycode> ; <modifiers> u
@@ -197,9 +240,15 @@ function parseCSI(
       const mods = parts.length > 1 ? parseInt(parts[1], 10) : 1;
       const shift = (mods - 1) & 1;
       if (keycode === 13 && shift) {
-        return { key: { key: "shift+enter", char: "\n", ctrl: false }, nextIndex: j + 1 };
+        return {
+          key: { key: "shift+enter", char: "\n", ctrl: false },
+          nextIndex: j + 1,
+        };
       }
-      return { key: { key: `csi_u_${keycode}_${mods}`, char: null, ctrl: false }, nextIndex: j + 1 };
+      return {
+        key: { key: `csi_u_${keycode}_${mods}`, char: null, ctrl: false },
+        nextIndex: j + 1,
+      };
     }
   }
 
@@ -249,95 +298,98 @@ export interface KeypressReader {
   [Symbol.asyncIterator](): AsyncIterableIterator<Keypress>;
 }
 
+/** Mutable state shared between keypress reader methods. */
+interface ReaderState {
+  running: boolean;
+  resolveNext: ((value: IteratorResult<Keypress>) => void) | null;
+  readonly queue: Keypress[];
+}
+
+/** Resolve the pending iterator consumer with a done signal. */
+function signalReaderDone(state: ReaderState): void {
+  if (state.resolveNext) {
+    const resolve = state.resolveNext;
+    state.resolveNext = null;
+    resolve({ value: undefined as unknown as Keypress, done: true });
+  }
+}
+
+/** Deliver a keypress to a waiting consumer or buffer it. */
+function enqueueKeypress(state: ReaderState, key: Keypress): void {
+  if (state.resolveNext) {
+    const resolve = state.resolveNext;
+    state.resolveNext = null;
+    resolve({ value: key, done: false });
+  } else {
+    state.queue.push(key);
+  }
+}
+
+/** Continuously read from stdin and parse keypresses until stopped. */
+async function runStdinReadLoop(state: ReaderState): Promise<void> {
+  const buf = new Uint8Array(256);
+  while (state.running) {
+    const n = await Deno.stdin.read(buf);
+    if (n === null) {
+      signalReaderDone(state);
+      break;
+    }
+    for (const key of parseKeypresses(buf.subarray(0, n))) {
+      enqueueKeypress(state, key);
+    }
+  }
+}
+
+/** Build the async iterator that yields keypresses from the queue. */
+function buildKeypressIterator(
+  state: ReaderState,
+): AsyncIterableIterator<Keypress> {
+  return {
+    next(): Promise<IteratorResult<Keypress>> {
+      if (state.queue.length > 0) {
+        return Promise.resolve({ value: state.queue.shift()!, done: false });
+      }
+      if (!state.running) {
+        return Promise.resolve({
+          value: undefined as unknown as Keypress,
+          done: true,
+        });
+      }
+      return new Promise((resolve) => {
+        state.resolveNext = resolve;
+      });
+    },
+    [Symbol.asyncIterator]() {
+      return this;
+    },
+  };
+}
+
 /**
  * Create an async keypress reader.
  *
  * Puts stdin into raw mode and yields individual keypresses.
  * On stop(), restores the terminal to cooked mode.
  *
- * For standalone ESC detection: in raw mode, a real ESC key sends
- * just 0x1B with no follow-up, while an escape sequence sends
- * 0x1B followed by more bytes in the same read(). Since
- * Deno.stdin.read() buffers multiple bytes from a single terminal
- * event, this works reliably without timers in most cases.
- *
  * @returns A KeypressReader instance
  */
 export function createKeypressReader(): KeypressReader {
-  let running = false;
-  let resolveNext: ((value: IteratorResult<Keypress>) => void) | null = null;
-  const queue: Keypress[] = [];
-
-  function enqueue(key: Keypress): void {
-    if (resolveNext) {
-      const resolve = resolveNext;
-      resolveNext = null;
-      resolve({ value: key, done: false });
-    } else {
-      queue.push(key);
-    }
-  }
-
-  async function readLoop(): Promise<void> {
-    const buf = new Uint8Array(256);
-    while (running) {
-      const n = await Deno.stdin.read(buf);
-      if (n === null) {
-        // EOF — signal done
-        if (resolveNext) {
-          const resolve = resolveNext;
-          resolveNext = null;
-          resolve({ value: undefined as unknown as Keypress, done: true });
-        }
-        break;
-      }
-      const keys = parseKeypresses(buf.subarray(0, n));
-      for (const key of keys) {
-        enqueue(key);
-      }
-    }
-  }
+  const state: ReaderState = { running: false, resolveNext: null, queue: [] };
 
   return {
     start() {
-      if (running) return;
-      running = true;
-      if (Deno.stdin.isTerminal()) {
-        Deno.stdin.setRaw(true);
-      }
-      readLoop();
+      if (state.running) return;
+      state.running = true;
+      if (Deno.stdin.isTerminal()) Deno.stdin.setRaw(true);
+      runStdinReadLoop(state);
     },
-
     stop() {
-      running = false;
-      if (Deno.stdin.isTerminal()) {
-        Deno.stdin.setRaw(false);
-      }
-      // Flush any waiting consumers
-      if (resolveNext) {
-        const resolve = resolveNext;
-        resolveNext = null;
-        resolve({ value: undefined as unknown as Keypress, done: true });
-      }
+      state.running = false;
+      if (Deno.stdin.isTerminal()) Deno.stdin.setRaw(false);
+      signalReaderDone(state);
     },
-
     [Symbol.asyncIterator](): AsyncIterableIterator<Keypress> {
-      return {
-        next(): Promise<IteratorResult<Keypress>> {
-          if (queue.length > 0) {
-            return Promise.resolve({ value: queue.shift()!, done: false });
-          }
-          if (!running) {
-            return Promise.resolve({ value: undefined as unknown as Keypress, done: true });
-          }
-          return new Promise((resolve) => {
-            resolveNext = resolve;
-          });
-        },
-        [Symbol.asyncIterator]() {
-          return this;
-        },
-      };
+      return buildKeypressIterator(state);
     },
   };
 }
@@ -380,63 +432,89 @@ export function createLineEditor(): LineEditor {
   return makeEditor("", 0, "");
 }
 
+/** Splice `str` into `text` at `cursor`, returning a new editor. */
+function spliceEditorText(
+  text: string,
+  cursor: number,
+  str: string,
+): LineEditor {
+  const before = text.slice(0, cursor);
+  const after = text.slice(cursor);
+  return makeEditor(before + str + after, cursor + str.length, "");
+}
+
+/** Remove one character before the cursor position. */
+function removeCharBeforeCursor(
+  text: string,
+  cursor: number,
+  suggestion: string,
+): LineEditor {
+  if (cursor === 0) return makeEditor(text, cursor, suggestion);
+  return makeEditor(
+    text.slice(0, cursor - 1) + text.slice(cursor),
+    cursor - 1,
+    suggestion,
+  );
+}
+
+/** Remove one character at the cursor position. */
+function removeCharAtCursor(
+  text: string,
+  cursor: number,
+  suggestion: string,
+): LineEditor {
+  if (cursor >= text.length) return makeEditor(text, cursor, suggestion);
+  return makeEditor(
+    text.slice(0, cursor) + text.slice(cursor + 1),
+    cursor,
+    suggestion,
+  );
+}
+
+/** Resolve the new cursor position for a directional move. */
+function resolveEditorCursorPosition(
+  direction: "left" | "right" | "home" | "end",
+  cursor: number,
+  textLength: number,
+): number {
+  switch (direction) {
+    case "left":
+      return Math.max(0, cursor - 1);
+    case "right":
+      return Math.min(textLength, cursor + 1);
+    case "home":
+      return 0;
+    case "end":
+      return textLength;
+  }
+}
+
 /** Internal factory for immutable editor instances. */
-function makeEditor(text: string, cursor: number, suggestion: string): LineEditor {
+function makeEditor(
+  text: string,
+  cursor: number,
+  suggestion: string,
+): LineEditor {
   return {
     text,
     cursor,
     suggestion,
-
-    insert(str: string): LineEditor {
-      const before = text.slice(0, cursor);
-      const after = text.slice(cursor);
-      return makeEditor(before + str + after, cursor + str.length, "");
-    },
-
-    backspace(): LineEditor {
-      if (cursor === 0) return this;
-      const before = text.slice(0, cursor - 1);
-      const after = text.slice(cursor);
-      return makeEditor(before + after, cursor - 1, suggestion);
-    },
-
-    deleteChar(): LineEditor {
-      if (cursor >= text.length) return this;
-      const before = text.slice(0, cursor);
-      const after = text.slice(cursor + 1);
-      return makeEditor(before + after, cursor, suggestion);
-    },
-
-    moveCursor(direction: "left" | "right" | "home" | "end"): LineEditor {
-      switch (direction) {
-        case "left":
-          return cursor > 0 ? makeEditor(text, cursor - 1, suggestion) : this;
-        case "right":
-          return cursor < text.length ? makeEditor(text, cursor + 1, suggestion) : this;
-        case "home":
-          return makeEditor(text, 0, suggestion);
-        case "end":
-          return makeEditor(text, text.length, suggestion);
-      }
-    },
-
-    setText(newText: string): LineEditor {
-      return makeEditor(newText, newText.length, "");
-    },
-
-    setSuggestion(newSuggestion: string): LineEditor {
-      return makeEditor(text, cursor, newSuggestion);
-    },
-
-    acceptSuggestion(): LineEditor {
-      if (suggestion.length === 0) return this;
-      const newText = text + suggestion;
-      return makeEditor(newText, newText.length, "");
-    },
-
-    clear(): LineEditor {
-      return makeEditor("", 0, "");
-    },
+    insert: (str: string) => spliceEditorText(text, cursor, str),
+    backspace: () => removeCharBeforeCursor(text, cursor, suggestion),
+    deleteChar: () => removeCharAtCursor(text, cursor, suggestion),
+    moveCursor: (dir: "left" | "right" | "home" | "end") =>
+      makeEditor(
+        text,
+        resolveEditorCursorPosition(dir, cursor, text.length),
+        suggestion,
+      ),
+    setText: (t: string) => makeEditor(t, t.length, ""),
+    setSuggestion: (s: string) => makeEditor(text, cursor, s),
+    acceptSuggestion: () =>
+      suggestion.length === 0
+        ? makeEditor(text, cursor, suggestion)
+        : makeEditor(text + suggestion, (text + suggestion).length, ""),
+    clear: () => makeEditor("", 0, ""),
   };
 }
 
