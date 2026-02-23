@@ -29,6 +29,7 @@ import type {
   WorkspaceOptions,
 } from "./workspace_types.ts";
 import {
+  containsPathTraversal,
   extractClassificationPrefix,
   resolveExplicitClassifiedPath,
   searchReadableLevelsForFile,
@@ -156,6 +157,12 @@ export async function createWorkspace(
         return {
           ok: false,
           error: "PUBLIC sessions cannot access workspace files",
+        };
+      }
+      if (containsPathTraversal(relativePath)) {
+        return {
+          ok: false,
+          error: `Workspace path "${relativePath}" contains traversal or absolute components`,
         };
       }
       const prefix = extractClassificationPrefix(relativePath);

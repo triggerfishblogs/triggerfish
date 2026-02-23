@@ -149,6 +149,7 @@ async function runShellCommand(
       stdout: "piped",
       stderr: "piped",
       env: buildSafeEnv({ workspaceHome: workspace.path }),
+      clearEnv: true,
     });
     const output = await proc.output();
     const duration = performance.now() - start;

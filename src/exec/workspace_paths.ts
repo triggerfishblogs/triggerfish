@@ -65,6 +65,13 @@ export function getReadableLevels(
   return allLevels.filter((level) => canFlowTo(level, sessionTaint));
 }
 
+/** Check if a relative path contains traversal (..) or absolute (/) components. */
+export function containsPathTraversal(relativePath: string): boolean {
+  if (relativePath.startsWith("/")) return true;
+  const segments = relativePath.replace(/\\/g, "/").split("/");
+  return segments.some((s) => s === "..");
+}
+
 /** Validate that a resolved absolute path stays within the workspace. */
 export function validatePathInWorkspace(
   absPath: string,
