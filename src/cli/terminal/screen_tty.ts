@@ -12,6 +12,7 @@ import type { LineEditor } from "./terminal.ts";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import type { ScreenManager } from "./screen.ts";
 import {
+  BOLD,
   CYAN,
   DIM,
   getTermSize,
@@ -19,7 +20,6 @@ import {
   rawWrite,
   RED,
   RESET,
-  BOLD,
   SPINNER_FRAMES,
   taintColor,
   THINKING_VERBS,
@@ -52,6 +52,239 @@ const SHOW_CURSOR = `${CSI}?25h`;
 /** Hide cursor. */
 const HIDE_CURSOR = `${CSI}?25l`;
 
+// ─── Layout helpers ─────────────────────────────────────────────
+
+/** Calculate how many visual (wrapped) rows a single logical line occupies. */
+function computeVisualRowCount(
+  lineText: string,
+  prefixLen: number,
+  columns: number,
+): number {
+  const usable = columns - prefixLen;
+  if (usable <= 0) return 1;
+  if (lineText.length === 0) return 1;
+  return Math.ceil((prefixLen + lineText.length) / columns) || 1;
+}
+
+/** Visual row metadata for a set of logical lines. */
+interface VisualRowLayout {
+  readonly perLine: readonly number[];
+  readonly total: number;
+}
+
+/** Compute visual row counts for every logical line. */
+function computeVisualRowLayout(
+  lines: readonly string[],
+  prefixLen: number,
+  columns: number,
+): VisualRowLayout {
+  const perLine: number[] = [];
+  let total = 0;
+  for (const line of lines) {
+    const vr = computeVisualRowCount(line, prefixLen, columns);
+    perLine.push(vr);
+    total += vr;
+  }
+  return { perLine, total };
+}
+
+/** Clear a range of terminal rows (inclusive). */
+function clearRowRange(fromRow: number, toRow: number): void {
+  for (let r = fromRow; r <= toRow; r++) {
+    if (r >= 1) {
+      rawWrite(moveTo(r, 1));
+      rawWrite(CLEAR_LINE);
+    }
+  }
+}
+
+/**
+ * Clear rows released when the input bar shrinks, so stale separator
+ * lines don't persist in the scrollback.
+ */
+function clearStaleSeparatorRows(
+  oldLineCount: number,
+  newLineCount: number,
+  totalRows: number,
+): void {
+  const oldTopSepRow = totalRows - 1 - oldLineCount - 1;
+  const newTopSepRow = totalRows - 1 - newLineCount - 1;
+  for (let r = oldTopSepRow; r < newTopSepRow; r++) {
+    rawWrite(moveTo(r, 1));
+    rawWrite(CLEAR_LINE);
+  }
+}
+
+// ─── Rendering helpers ──────────────────────────────────────────
+
+/** Draw the top taint-colored separator line spanning the full width. */
+function renderTopSeparator(
+  topSepRow: number,
+  color: string,
+  columns: number,
+): void {
+  rawWrite(moveTo(topSepRow, 1));
+  rawWrite(CLEAR_LINE);
+  rawWrite(`${color}${"─".repeat(columns)}${RESET}`);
+}
+
+/** Draw editor text lines with prompt prefixes, handling visual row wrapping. */
+function renderInputLines(
+  lines: readonly string[],
+  visualRowsPerLine: readonly number[],
+  firstInputRow: number,
+): void {
+  const prefix = ` ${CYAN}${BOLD}❯${RESET} `;
+  const contPrefix = ` ${DIM}·${RESET} `;
+
+  let row = firstInputRow;
+  for (let i = 0; i < lines.length; i++) {
+    for (let vr = 0; vr < visualRowsPerLine[i]; vr++) {
+      rawWrite(moveTo(row + vr, 1));
+      rawWrite(CLEAR_LINE);
+    }
+    rawWrite(moveTo(row, 1));
+    rawWrite(i === 0 ? prefix : contPrefix);
+    rawWrite(lines[i]);
+    row += visualRowsPerLine[i];
+  }
+}
+
+/** MCP indicator color + text pair. */
+interface McpIndicator {
+  readonly color: string;
+  readonly text: string;
+}
+
+/** Determine the MCP status indicator color and text. */
+function formatMcpIndicator(
+  connected: number,
+  configured: number,
+): McpIndicator {
+  if (connected < 0 || configured <= 0) {
+    return { color: "", text: "" };
+  }
+  let color: string;
+  if (connected === configured) {
+    color = GREEN;
+  } else if (connected === 0) {
+    color = RED;
+  } else {
+    color = YELLOW;
+  }
+  return { color, text: `MCP ${connected}/${configured}` };
+}
+
+/** Draw the bottom separator with taint label and optional MCP indicator. */
+function renderBottomSeparator(
+  bottomSepRow: number,
+  taint: ClassificationLevel,
+  taintColorCode: string,
+  mcp: McpIndicator,
+  columns: number,
+): void {
+  const rightSuffix = mcp.text
+    ? ` ${mcp.color}${BOLD}${mcp.text}${RESET}${taintColorCode} ─`
+    : "";
+  // Visible length of rightSuffix (strip ANSI codes for length calc)
+  const rightVisLen = mcp.text ? 1 + mcp.text.length + 2 : 0;
+  const fillLen = Math.max(columns - 3 - taint.length - 1 - rightVisLen, 1);
+
+  rawWrite(moveTo(bottomSepRow, 1));
+  rawWrite(CLEAR_LINE);
+  rawWrite(
+    `${taintColorCode}${
+      "─".repeat(2)
+    } ${BOLD}${taint}${RESET}${taintColorCode} ${
+      "─".repeat(fillLen)
+    }${rightSuffix}${RESET}`,
+  );
+}
+
+/** Cursor position within the terminal. */
+interface CursorPosition {
+  readonly row: number;
+  readonly col: number;
+}
+
+/** Compute the cursor's visual row and column from editor state. */
+function computeCursorPosition(
+  editorText: string,
+  editorCursor: number,
+  prefixLen: number,
+  firstInputRow: number,
+  visualRowsPerLine: readonly number[],
+  columns: number,
+): CursorPosition {
+  const textBeforeCursor = editorText.slice(0, editorCursor);
+  const cursorLines = textBeforeCursor.split("\n");
+  const cursorLineIdx = cursorLines.length - 1;
+  const cursorColInLine = cursorLines[cursorLineIdx].length;
+
+  // Sum visual rows of all logical lines before the cursor's line
+  let cursorVisualRow = firstInputRow;
+  for (let i = 0; i < cursorLineIdx; i++) {
+    cursorVisualRow += visualRowsPerLine[i];
+  }
+
+  // Add wrapped rows within the cursor's logical line
+  const absoluteCol = prefixLen + cursorColInLine;
+  const wrappedRowsBeforeCursor = Math.floor(absoluteCol / columns);
+  cursorVisualRow += wrappedRowsBeforeCursor;
+  const cursorCol = (absoluteCol % columns) + 1;
+
+  return { row: cursorVisualRow, col: cursorCol };
+}
+
+// ─── Streaming helpers ──────────────────────────────────────────
+
+/** Advance a stream cursor position after writing text. */
+function advanceStreamCursor(
+  text: string,
+  startRow: number,
+  startCol: number,
+  scrollBottom: number,
+  columns: number,
+): CursorPosition {
+  let row = startRow;
+  let col = startCol;
+
+  for (const ch of text) {
+    if (ch === "\n") {
+      if (row < scrollBottom) {
+        row++;
+      }
+      // At scrollBottom, \n scrolls the region; row stays
+      col = 1;
+    } else {
+      col++;
+      if (col > columns) {
+        // Line wraps to next row
+        if (row < scrollBottom) {
+          row++;
+        }
+        col = 1;
+      }
+    }
+  }
+
+  return { row, col };
+}
+
+// ─── Spinner helpers ────────────────────────────────────────────
+
+/** Format a spinner status text from the current frame and verb state. */
+function renderSpinnerStatusText(
+  frame: number,
+  verbIdx: number,
+  label: string,
+): string {
+  const ch = SPINNER_FRAMES[frame % SPINNER_FRAMES.length];
+  const verb = THINKING_VERBS[verbIdx];
+  const labelSuffix = label ? `${verb}… ${DIM}(${label})${RESET}` : `${verb}…`;
+  return `${CYAN}${ch}${RESET} ${labelSuffix}`;
+}
+
 // ─── TTY screen manager ─────────────────────────────────────────
 
 /** Create a TTY-aware screen manager with scroll regions. */
@@ -80,10 +313,6 @@ export function createTtyScreenManager(): ScreenManager {
   let streamCursorRow = 0;
   let streamCursorCol = 1;
 
-  function getStatusRow(): number {
-    return size.rows;
-  }
-
   function getScrollBottom(): number {
     // Reserve: top separator + input lines + bottom separator + status bar
     return size.rows - inputLineCount - 3;
@@ -96,27 +325,11 @@ export function createTtyScreenManager(): ScreenManager {
     }
   }
 
-  /** Calculate how many visual (wrapped) rows a logical line occupies. */
-  function visualRowCount(lineText: string, prefixLen: number): number {
-    const usable = size.columns - prefixLen;
-    if (usable <= 0) return 1;
-    if (lineText.length === 0) return 1;
-    return Math.ceil((prefixLen + lineText.length) / size.columns) || 1;
-  }
-
   function drawInputBar(editor: LineEditor): void {
     const lines = editor.text.split("\n");
     const prefixLen = 3; // " ❯ " or " · "
-
-    // Count total visual rows including wrapping
-    let totalVisualRows = 0;
-    const visualRowsPerLine: number[] = [];
-    for (const line of lines) {
-      const vr = visualRowCount(line, prefixLen);
-      visualRowsPerLine.push(vr);
-      totalVisualRows += vr;
-    }
-    const newLineCount = Math.max(totalVisualRows, 1);
+    const layout = computeVisualRowLayout(lines, prefixLen, size.columns);
+    const newLineCount = Math.max(layout.total, 1);
 
     // If line count changed, adjust scroll region
     if (newLineCount !== inputLineCount) {
@@ -124,16 +337,8 @@ export function createTtyScreenManager(): ScreenManager {
       inputLineCount = newLineCount;
       setupScrollRegion();
 
-      // When the input bar shrinks, clear the old rows that are being
-      // released back into the scroll region so stale separator lines
-      // don't persist in the scrollback.
       if (newLineCount < oldLineCount) {
-        const oldTopSepRow = size.rows - 1 - oldLineCount - 1;
-        const newTopSepRow = size.rows - 1 - newLineCount - 1;
-        for (let r = oldTopSepRow; r < newTopSepRow; r++) {
-          rawWrite(moveTo(r, 1));
-          rawWrite(CLEAR_LINE);
-        }
+        clearStaleSeparatorRows(oldLineCount, newLineCount, size.rows);
       }
     }
 
@@ -143,90 +348,35 @@ export function createTtyScreenManager(): ScreenManager {
     const firstInputRow = bottomSepRow - inputLineCount;
     const topSepRow = firstInputRow - 1;
 
-    const prefix = ` ${CYAN}${BOLD}❯${RESET} `;
-    const contPrefix = ` ${DIM}·${RESET} `;
-
     rawWrite(HIDE_CURSOR);
-
-    // ── Top separator (taint-colored, edge-to-edge) ──
-    rawWrite(moveTo(topSepRow, 1));
-    rawWrite(CLEAR_LINE);
-    rawWrite(`${color}${"─".repeat(size.columns)}${RESET}`);
-
-    // ── Input lines ──
-    let row = firstInputRow;
-    for (let i = 0; i < lines.length; i++) {
-      for (let vr = 0; vr < visualRowsPerLine[i]; vr++) {
-        rawWrite(moveTo(row + vr, 1));
-        rawWrite(CLEAR_LINE);
-      }
-      rawWrite(moveTo(row, 1));
-      rawWrite(i === 0 ? prefix : contPrefix);
-      rawWrite(lines[i]);
-      row += visualRowsPerLine[i];
-    }
+    renderTopSeparator(topSepRow, color, size.columns);
+    renderInputLines(lines, layout.perLine, firstInputRow);
 
     // Draw ghost suggestion on the last line (only for single-line input)
     if (lines.length === 1 && editor.suggestion.length > 0) {
       rawWrite(`${DIM}${editor.suggestion}${RESET}`);
     }
 
-    // ── Bottom separator with taint label inline and optional MCP indicator ──
-    const label = currentTaint;
-    // Build optional MCP status indicator (right side)
-    let mcpColor = "";
-    let mcpText = "";
-    if (mcpConnected >= 0 && mcpConfigured > 0) {
-      if (mcpConnected === mcpConfigured) {
-        mcpColor = GREEN;
-      } else if (mcpConnected === 0) {
-        mcpColor = RED;
-      } else {
-        mcpColor = YELLOW;
-      }
-      mcpText = `MCP ${mcpConnected}/${mcpConfigured}`;
-    }
-    // "── LABEL ──────... [MCP x/y] ──" layout
-    const rightSuffix = mcpText
-      ? ` ${mcpColor}${BOLD}${mcpText}${RESET}${color} ─`
-      : "";
-    // Visible length of rightSuffix (strip ANSI codes for length calc)
-    const rightVisLen = mcpText ? 1 + mcpText.length + 2 : 0; // " " + text + " ─"
-    const fillLen = Math.max(size.columns - 3 - label.length - 1 - rightVisLen, 1);
-    rawWrite(moveTo(bottomSepRow, 1));
-    rawWrite(CLEAR_LINE);
-    rawWrite(
-      `${color}${"─".repeat(2)} ${BOLD}${label}${RESET}${color} ${"─".repeat(fillLen)}${rightSuffix}${RESET}`,
+    const mcp = formatMcpIndicator(mcpConnected, mcpConfigured);
+    renderBottomSeparator(bottomSepRow, currentTaint, color, mcp, size.columns);
+
+    const cursor = computeCursorPosition(
+      editor.text,
+      editor.cursor,
+      prefixLen,
+      firstInputRow,
+      layout.perLine,
+      size.columns,
     );
-
-    // Calculate cursor position accounting for line wrapping
-    const textBeforeCursor = editor.text.slice(0, editor.cursor);
-    const cursorLines = textBeforeCursor.split("\n");
-    const cursorLineIdx = cursorLines.length - 1;
-    const cursorColInLine = cursorLines[cursorLineIdx].length;
-
-    // Sum visual rows of all logical lines before the cursor's line
-    let cursorVisualRow = firstInputRow;
-    for (let i = 0; i < cursorLineIdx; i++) {
-      cursorVisualRow += visualRowsPerLine[i];
-    }
-
-    // Add wrapped rows within the cursor's logical line
-    const absoluteCol = prefixLen + cursorColInLine;
-    const wrappedRowsBeforeCursor = Math.floor(absoluteCol / size.columns);
-    cursorVisualRow += wrappedRowsBeforeCursor;
-    const cursorCol = (absoluteCol % size.columns) + 1;
-
-    knownCursorRow = cursorVisualRow;
-    knownCursorCol = cursorCol;
-    rawWrite(moveTo(cursorVisualRow, cursorCol));
+    knownCursorRow = cursor.row;
+    knownCursorCol = cursor.col;
+    rawWrite(moveTo(cursor.row, cursor.col));
     rawWrite(SHOW_CURSOR);
   }
 
   function drawStatusBar(): void {
-    const statusRow = getStatusRow();
     rawWrite(HIDE_CURSOR);
-    rawWrite(moveTo(statusRow, 1));
+    rawWrite(moveTo(size.rows, 1));
     rawWrite(CLEAR_LINE);
     if (statusText.length > 0) {
       rawWrite(` ${statusText}${RESET}`);
@@ -246,36 +396,25 @@ export function createTtyScreenManager(): ScreenManager {
       setupScrollRegion();
 
       // Clear the top separator, input, bottom separator, and status rows
-      const bottomSepRow = size.rows - 1;
-      const firstInputRow = bottomSepRow - inputLineCount;
-      const topSepRow = firstInputRow - 1;
-      for (let r = topSepRow; r <= size.rows; r++) {
-        rawWrite(moveTo(r, 1));
-        rawWrite(CLEAR_LINE);
-      }
+      const topSepRow = size.rows - 1 - inputLineCount - 1;
+      clearRowRange(topSepRow, size.rows);
 
       // Position cursor in scroll region
       rawWrite(moveTo(1, 1));
     },
 
     writeOutput(text: string): void {
-      // Reset stream cursor — switching back to non-streaming output
       streamCursorRow = 0;
       streamCursorCol = 1;
 
       rawWrite(HIDE_CURSOR);
-
-      // Move to the bottom of the scroll region — text will auto-scroll
       rawWrite(moveTo(getScrollBottom(), 1));
-      rawWrite("\n"); // This scrolls the region if needed
+      rawWrite("\n");
 
-      // Write each line
       for (const line of text.split("\n")) {
         rawWrite(`${line}${CLEAR_LINE}\n`);
       }
 
-      // Return cursor to its known position instead of using
-      // SAVE/RESTORE which gets corrupted when the scroll region scrolls
       rawWrite(moveTo(knownCursorRow, knownCursorCol));
       rawWrite(SHOW_CURSOR);
     },
@@ -288,37 +427,23 @@ export function createTtyScreenManager(): ScreenManager {
       const scrollBottom = getScrollBottom();
 
       if (streamCursorRow === 0) {
-        // First chunk — position at bottom of scroll region.
-        // writeOutput already scrolled to leave this row blank.
         streamCursorRow = scrollBottom;
         streamCursorCol = 1;
       }
 
-      // Move to tracked stream position and write
       rawWrite(moveTo(streamCursorRow, streamCursorCol));
       rawWrite(text);
 
-      // Update tracked position based on characters written
-      for (const ch of text) {
-        if (ch === "\n") {
-          if (streamCursorRow < scrollBottom) {
-            streamCursorRow++;
-          }
-          // At scrollBottom, \n scrolls the region; row stays
-          streamCursorCol = 1;
-        } else {
-          streamCursorCol++;
-          if (streamCursorCol > size.columns) {
-            // Line wraps to next row
-            if (streamCursorRow < scrollBottom) {
-              streamCursorRow++;
-            }
-            streamCursorCol = 1;
-          }
-        }
-      }
+      const newPos = advanceStreamCursor(
+        text,
+        streamCursorRow,
+        streamCursorCol,
+        scrollBottom,
+        size.columns,
+      );
+      streamCursorRow = newPos.row;
+      streamCursorCol = newPos.col;
 
-      // Restore cursor to input position
       rawWrite(moveTo(knownCursorRow, knownCursorCol));
       rawWrite(SHOW_CURSOR);
     },
@@ -338,8 +463,6 @@ export function createTtyScreenManager(): ScreenManager {
     setMcpStatus(connected: number, configured: number): void {
       mcpConnected = connected;
       mcpConfigured = configured;
-      // Redraw will happen on the next input redraw; no immediate redraw needed
-      // (avoids cursor flicker when not actively typing)
     },
 
     setStatus(text: string): void {
@@ -353,7 +476,6 @@ export function createTtyScreenManager(): ScreenManager {
     },
 
     startSpinner(text: string): void {
-      // Stop any existing spinner
       if (spinnerTimer !== null) {
         clearInterval(spinnerTimer);
       }
@@ -362,16 +484,14 @@ export function createTtyScreenManager(): ScreenManager {
       spinnerVerbIdx = Math.floor(Math.random() * THINKING_VERBS.length);
 
       const render = () => {
-        const ch = SPINNER_FRAMES[spinnerFrame % SPINNER_FRAMES.length];
-        // Rotate the verb every ~2.5 seconds (30 frames at 80ms)
         if (spinnerFrame > 0 && spinnerFrame % 30 === 0) {
           spinnerVerbIdx = (spinnerVerbIdx + 1) % THINKING_VERBS.length;
         }
-        const verb = THINKING_VERBS[spinnerVerbIdx];
-        const label = spinnerLabel
-          ? `${verb}… ${DIM}(${spinnerLabel})${RESET}`
-          : `${verb}…`;
-        statusText = `${CYAN}${ch}${RESET} ${label}`;
+        statusText = renderSpinnerStatusText(
+          spinnerFrame,
+          spinnerVerbIdx,
+          spinnerLabel,
+        );
         drawStatusBar();
         spinnerFrame++;
       };
@@ -393,11 +513,10 @@ export function createTtyScreenManager(): ScreenManager {
       const oldRows = size.rows;
       size = getTermSize();
 
-      // Reset stream cursor — any active streaming must reposition
       streamCursorRow = 0;
       streamCursorCol = 1;
 
-      // Clear old input area (top sep + input + bottom sep + status)
+      // Clear old input area, clamped to current screen bounds
       const oldTopSep = oldRows - inputLineCount - 2;
       for (let r = oldTopSep; r <= oldRows; r++) {
         if (r >= 1 && r <= size.rows) {
@@ -406,14 +525,9 @@ export function createTtyScreenManager(): ScreenManager {
         }
       }
 
-      // Also clear the new input area in case terminal shrunk
+      // Clear new input area in case terminal shrunk
       const newTopSep = size.rows - inputLineCount - 2;
-      for (let r = newTopSep; r <= size.rows; r++) {
-        if (r >= 1) {
-          rawWrite(moveTo(r, 1));
-          rawWrite(CLEAR_LINE);
-        }
-      }
+      clearRowRange(newTopSep, size.rows);
 
       setupScrollRegion();
       drawStatusBar();
@@ -445,9 +559,7 @@ export function createTtyScreenManager(): ScreenManager {
         clearInterval(resizePollTimer);
         resizePollTimer = null;
       }
-      // Reset scroll region to full screen
       rawWrite(RESET_SCROLL);
-      // Move cursor to bottom
       rawWrite(moveTo(size.rows, 1));
       rawWrite(SHOW_CURSOR);
       rawWrite("\n");
