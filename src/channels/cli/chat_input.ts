@@ -94,16 +94,21 @@ export async function handleClipboardPaste(
 ): Promise<ImageContentBlock[]> {
   const clipResult = await readClipboardImage();
   if (clipResult.ok) {
-    const img = imageBlock(
+    const imgResult = imageBlock(
       clipResult.value.data,
       clipResult.value.mimeType,
     );
+    if (!imgResult.ok) {
+      screen.setStatus(imgResult.error);
+      setTimeout(() => screen.clearStatus(), 3000);
+      return pendingImages;
+    }
     const sizeKb = (clipResult.value.data.length / 1024).toFixed(1);
     screen.setStatus(
       "Image pasted (" + clipResult.value.mimeType + ", " + sizeKb + "KB) \u2014 will send with next message",
     );
     setTimeout(() => screen.clearStatus(), 3000);
-    return [...pendingImages, img];
+    return [...pendingImages, imgResult.value];
   }
   screen.setStatus(clipResult.error);
   setTimeout(() => screen.clearStatus(), 3000);

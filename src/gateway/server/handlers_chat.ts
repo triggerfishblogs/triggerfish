@@ -13,6 +13,9 @@ import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("gateway");
 
+/** Maximum size of an incoming chat WebSocket message (256 KB). */
+const MAX_CHAT_MESSAGE_BYTES = 256 * 1024;
+
 // ─── WebSocket send helpers ──────────────────────────────────────────────────
 
 /** Send JSON data to a WebSocket if open, swallowing errors on disconnect. */
@@ -151,6 +154,13 @@ function handleChatSocketMessage(
 ): void {
   try {
     const data = parseSocketEventData(event);
+    if (data.length > MAX_CHAT_MESSAGE_BYTES) {
+      sendSafeWebSocket(socket, {
+        type: "error",
+        message: "Message too large: exceeds 256KB limit",
+      });
+      return;
+    }
     const msg = JSON.parse(data) as ChatClientMessage;
     routeChatSocketMessage(msg, chat, socket, abortRef);
   } catch {

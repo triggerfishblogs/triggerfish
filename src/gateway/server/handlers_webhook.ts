@@ -8,9 +8,13 @@
  */
 
 import type { SchedulerService } from "../../scheduler/service_types.ts";
+import type { Result } from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("gateway.webhook");
+
+/** Maximum size of an incoming webhook body (1 MB). */
+const MAX_WEBHOOK_BODY_BYTES = 1 * 1024 * 1024;
 
 // ─── Webhook HTTP handler ────────────────────────────────────────────────────
 
@@ -43,6 +47,37 @@ function extractWebhookSourceId(url: URL): string {
   return url.pathname.slice("/webhooks/".length);
 }
 
+/** Read request body in chunks up to maxBytes; returns error string if limit exceeded. */
+async function consumeWebhookBody(
+  request: Request,
+  maxBytes: number,
+): Promise<Result<string, string>> {
+  const reader = request.body?.getReader();
+  if (!reader) return { ok: true, value: "" };
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.length;
+    if (totalBytes > maxBytes) {
+      await reader.cancel();
+      return {
+        ok: false,
+        error: `Webhook body too large: exceeds ${maxBytes} byte limit`,
+      };
+    }
+    chunks.push(value);
+  }
+  const merged = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const c of chunks) {
+    merged.set(c, offset);
+    offset += c.length;
+  }
+  return { ok: true, value: new TextDecoder().decode(merged) };
+}
+
 /** Forward a validated webhook request to the scheduler and build the response. */
 async function forwardWebhookToScheduler(
   request: Request,
@@ -51,14 +86,23 @@ async function forwardWebhookToScheduler(
 ): Promise<Response> {
   const signature = extractWebhookSignature(request);
   const timestamp = request.headers.get("x-timestamp") ?? undefined;
-  const body = await request.text();
-  const result = await scheduler.handleWebhookRequest(sourceId, body, { signature, timestamp });
+  const bodyResult = await consumeWebhookBody(request, MAX_WEBHOOK_BODY_BYTES);
+  if (!bodyResult.ok) {
+    return jsonResponse({ error: bodyResult.error }, 413);
+  }
+  const result = await scheduler.handleWebhookRequest(
+    sourceId,
+    bodyResult.value,
+    { signature, timestamp },
+  );
 
   if (result.ok) {
     return jsonResponse({ ok: true }, 200);
   }
   const status = mapWebhookErrorStatus(result.error);
-  log.warn(`Webhook request rejected: sourceId=${sourceId} status=${status} error=${result.error}`);
+  log.warn(
+    `Webhook request rejected: sourceId=${sourceId} status=${status} error=${result.error}`,
+  );
   return jsonResponse({ error: result.error }, status);
 }
 

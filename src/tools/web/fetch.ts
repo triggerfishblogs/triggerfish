@@ -65,6 +65,14 @@ export interface WebFetcherConfig {
   readonly dnsChecker?: DnsChecker;
 }
 
+/** Options for the internal page fetch operation. */
+interface FetchPageOptions {
+  readonly url: string;
+  readonly userAgent: string;
+  readonly timeout: number;
+  readonly maxBytes: number;
+}
+
 /** Validate URL format and protocol. */
 function validateFetchUrl(url: string): Result<URL, string> {
   let parsed: URL;
@@ -94,11 +102,47 @@ async function enforceFetchPolicy(
   return { ok: true, value: undefined };
 }
 
-/** Fetch a URL and read the response body as text. */
+/**
+ * Read a ReadableStream in chunks, cancelling when totalBytes reaches maxBytes.
+ * Returns collected chunks and a truncated flag.
+ */
+async function consumeStreamWithLimit(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  maxBytes: number,
+): Promise<{ readonly chunks: Uint8Array[]; readonly truncated: boolean }> {
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) return { chunks, truncated: false };
+    const remaining = maxBytes - totalBytes;
+    if (value.length >= remaining) {
+      chunks.push(value.subarray(0, remaining));
+      await reader.cancel();
+      return { chunks, truncated: true };
+    }
+    chunks.push(value);
+    totalBytes += value.length;
+  }
+}
+
+/** Merge Uint8Array chunks into a single buffer and UTF-8 decode to string. */
+function decodeStreamChunks(
+  chunks: Uint8Array[],
+): { readonly text: string; readonly byteLength: number } {
+  const byteLength = chunks.reduce((n, c) => n + c.length, 0);
+  const merged = new Uint8Array(byteLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return { text: new TextDecoder().decode(merged), byteLength };
+}
+
+/** Fetch a URL and stream the response body up to maxBytes. */
 async function fetchPageContent(
-  url: string,
-  userAgent: string,
-  timeout: number,
+  options: FetchPageOptions,
 ): Promise<
   Result<
     {
@@ -106,18 +150,19 @@ async function fetchPageContent(
       rawBody: string;
       contentType: string;
       byteLength: number;
+      bodyTruncated: boolean;
     },
     string
   >
 > {
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await fetch(options.url, {
       headers: {
-        "User-Agent": userAgent,
+        "User-Agent": options.userAgent,
         "Accept": "text/html,application/xhtml+xml,*/*",
       },
-      signal: AbortSignal.timeout(timeout),
+      signal: AbortSignal.timeout(options.timeout),
       redirect: "follow",
     });
   } catch (err) {
@@ -134,9 +179,22 @@ async function fetchPageContent(
       error: `HTTP ${response.status}: ${response.statusText}`,
     };
   }
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return { ok: false, error: "Response body is not readable" };
+  }
   let rawBody: string;
+  let byteLength: number;
+  let bodyTruncated: boolean;
   try {
-    rawBody = await response.text();
+    const { chunks, truncated } = await consumeStreamWithLimit(
+      reader,
+      options.maxBytes,
+    );
+    const decoded = decodeStreamChunks(chunks);
+    rawBody = decoded.text;
+    byteLength = decoded.byteLength;
+    bodyTruncated = truncated;
   } catch (err) {
     return {
       ok: false,
@@ -146,8 +204,10 @@ async function fetchPageContent(
     };
   }
   const contentType = response.headers.get("content-type") ?? "text/html";
-  const byteLength = new TextEncoder().encode(rawBody).length;
-  return { ok: true, value: { response, rawBody, contentType, byteLength } };
+  return {
+    ok: true,
+    value: { response, rawBody, contentType, byteLength, bodyTruncated },
+  };
 }
 
 /** Extract readable content from HTML, falling back to raw on failure. */
@@ -207,11 +267,16 @@ export function createWebFetcher(
       const userAgent = options?.userAgent ?? DEFAULT_USER_AGENT;
       const mode = options?.mode ?? "readability";
       const maxLen = options?.maxContentLength ?? DEFAULT_MAX_CONTENT_LENGTH;
-      const pageResult = await fetchPageContent(url, userAgent, timeout);
+      const pageResult = await fetchPageContent(
+        { url, userAgent, timeout, maxBytes: maxLen },
+      );
       if (!pageResult.ok) return pageResult;
-      const { response, rawBody, contentType, byteLength } = pageResult.value;
+      const { response, rawBody, contentType, byteLength, bodyTruncated } =
+        pageResult.value;
       const extracted = extractPageContent(rawBody, contentType, mode);
-      const content = extracted.content.length > maxLen
+      const content = bodyTruncated
+        ? extracted.content + "\n[truncated]"
+        : extracted.content.length > maxLen
         ? extracted.content.slice(0, maxLen) + "\n[truncated]"
         : extracted.content;
       return {

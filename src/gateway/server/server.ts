@@ -32,6 +32,9 @@ import type { JsonRpcRequest } from "./handlers.ts";
 /** Maximum total bytes across all HTTP headers on WS upgrade. */
 const MAX_GATEWAY_HEADER_BYTES = 8192;
 
+/** Maximum size of an incoming JSON-RPC WebSocket message (1 MB). */
+const MAX_JSONRPC_MESSAGE_BYTES = 1 * 1024 * 1024;
+
 /**
  * Validate WebSocket upgrade request headers against size limits.
  *
@@ -202,6 +205,16 @@ export function createGatewayServer(
                 const data = typeof event.data === "string"
                   ? event.data
                   : new TextDecoder().decode(event.data as ArrayBuffer);
+
+                if (data.length > MAX_JSONRPC_MESSAGE_BYTES) {
+                  socket.send(JSON.stringify({
+                    jsonrpc: "2.0",
+                    id: null,
+                    error: { code: -32600, message: "Message too large: exceeds 1MB limit" },
+                  }));
+                  return;
+                }
+
                 const rpcRequest = JSON.parse(data) as JsonRpcRequest;
 
                 if (rpcRequest.jsonrpc !== "2.0" || !rpcRequest.method) {

@@ -14,6 +14,7 @@ export type {
 } from "./content.ts";
 
 export {
+  MAX_IMAGE_BYTES,
   normalizeContent,
   extractText,
   hasImages,
