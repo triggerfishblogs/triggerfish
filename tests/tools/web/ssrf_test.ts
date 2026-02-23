@@ -5,6 +5,8 @@
  * - isPrivateIp with full-form IPv4-mapped IPv6 (new coverage)
  * - checkIpListForSsrf: blocks when ANY record is private (multi-record DNS)
  * - safeFetch: SSRF bypass attempt returns error
+ *
+ * @module
  */
 import { assertEquals } from "@std/assert";
 import { checkIpListForSsrf, isPrivateIp } from "../../../src/tools/web/ssrf.ts";
