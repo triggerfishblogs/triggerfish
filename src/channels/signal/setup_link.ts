@@ -56,22 +56,29 @@ export async function startLinkProcess(
       const stderrReader = child.stderr.getReader();
       const { value: errBytes } = await stderrReader.read();
       stderrReader.releaseLock();
-      const errMsg = errBytes ? decoder.decode(errBytes).trim() : "Unknown error";
-      return { ok: false, error: `signal-cli link did not produce a URI. Got: "${uri}". stderr: ${errMsg}` };
+      const errMsg = errBytes
+        ? decoder.decode(errBytes).trim()
+        : "Unknown error";
+      return {
+        ok: false,
+        error:
+          `signal-cli link did not produce a URI. Got: "${uri}". stderr: ${errMsg}`,
+      };
     }
 
     return { ok: true, value: { uri, process: child } };
   } catch (err) {
-    return { ok: false, error: `Failed to start signal-cli link: ${err instanceof Error ? err.message : String(err)}` };
+    return {
+      ok: false,
+      error: `Failed to start signal-cli link: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
   }
 }
 
-/**
- * Render a URI as a QR code in the terminal.
- *
- * @param uri - The sgnl:// URI to encode.
- */
-export async function renderQrCode(uri: string): Promise<void> {
+/** Attempt to render a QR code using the qrcode npm library. */
+async function renderQrCodeViaLibrary(uri: string): Promise<boolean> {
   try {
     const qrcode = await import("qrcode");
     const qrText = await qrcode.toString(uri, {
@@ -80,25 +87,51 @@ export async function renderQrCode(uri: string): Promise<void> {
       errorCorrectionLevel: "L",
     });
     console.log("\n" + qrText);
+    return true;
   } catch (err: unknown) {
     log.debug("QR code library not available, trying qrencode", { error: err });
-    try {
-      const cmd = new Deno.Command("qrencode", {
-        args: ["-t", "UTF8", "-o", "-", uri],
-        stdout: "piped",
-        stderr: "piped",
-      });
-      const output = await cmd.output();
-      if (output.success) {
-        console.log("\n" + new TextDecoder().decode(output.stdout));
-        return;
-      }
-    } catch (_fallbackErr: unknown) {
-      log.debug("qrencode binary not available");
-    }
-
-    console.log("\nCould not render QR code. Open this URI in a QR code generator:");
-    console.log(`\n  ${uri}\n`);
-    console.log("Or visit: https://api.qrserver.com/v1/create-qr-code/?data=" + encodeURIComponent(uri));
+    return false;
   }
+}
+
+/** Attempt to render a QR code using the system qrencode binary. */
+async function renderQrCodeViaBinary(uri: string): Promise<boolean> {
+  try {
+    const cmd = new Deno.Command("qrencode", {
+      args: ["-t", "UTF8", "-o", "-", uri],
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (output.success) {
+      console.log("\n" + new TextDecoder().decode(output.stdout));
+      return true;
+    }
+  } catch (_fallbackErr: unknown) {
+    log.debug("qrencode binary not available");
+  }
+  return false;
+}
+
+/** Print a fallback message with the raw URI and a web QR generator link. */
+function printQrCodeFallback(uri: string): void {
+  console.log(
+    "\nCould not render QR code. Open this URI in a QR code generator:",
+  );
+  console.log(`\n  ${uri}\n`);
+  console.log(
+    "Or visit: https://api.qrserver.com/v1/create-qr-code/?data=" +
+      encodeURIComponent(uri),
+  );
+}
+
+/**
+ * Render a URI as a QR code in the terminal.
+ *
+ * @param uri - The sgnl:// URI to encode.
+ */
+export async function renderQrCode(uri: string): Promise<void> {
+  if (await renderQrCodeViaLibrary(uri)) return;
+  if (await renderQrCodeViaBinary(uri)) return;
+  printQrCodeFallback(uri);
 }
