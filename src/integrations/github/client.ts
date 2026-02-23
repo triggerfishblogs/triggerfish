@@ -934,6 +934,13 @@ async function searchGitHubIssues(
 
 // ─── API request infrastructure ──────────────────────────────────────────────
 
+/** Context needed by the API request function. */
+interface GitHubApiContext {
+  readonly baseUrl: string;
+  readonly token: string;
+  readonly doFetch: typeof fetch;
+}
+
 /** Build standard GitHub API headers. */
 function buildApiHeaders(
   token: string,
@@ -984,6 +991,99 @@ function extractRateLimitHeaders(
   return { remaining, reset };
 }
 
+/** Map a raw visibility string to a typed RepoVisibility. */
+function classifyRepoVisibility(
+  visibility: string | undefined,
+  fullName: string,
+  classConfig?: GitHubClassificationConfig,
+): ClassificationLevel {
+  const vis = (visibility === "internal" || visibility === "private")
+    ? visibility
+    : "public" as RepoVisibility;
+  return visibilityToClassification(vis, fullName, classConfig);
+}
+
+/** Build an error Result for a network-level failure. */
+function buildNetworkErrorResult<T>(
+  err: unknown,
+): Result<{ data: T; repoVisibility?: RepoVisibility }, GitHubError> {
+  return {
+    ok: false,
+    error: {
+      status: 0,
+      message: `Request failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    },
+  };
+}
+
+/** Handle a non-OK HTTP response from the GitHub API. */
+async function handleGitHubErrorResponse<T>(
+  response: Response,
+  rateLimit: { remaining?: number; reset?: number },
+): Promise<Result<{ data: T; repoVisibility?: RepoVisibility }, GitHubError>> {
+  const error = await parseGitHubErrorResponse(
+    response,
+    rateLimit.remaining,
+    rateLimit.reset,
+  );
+  return { ok: false, error };
+}
+
+/** Parse a successful JSON response body. */
+async function parseGitHubJsonResponse<T>(
+  response: Response,
+): Promise<Result<{ data: T; repoVisibility?: RepoVisibility }, GitHubError>> {
+  if (response.status === 204) {
+    return { ok: true, value: { data: undefined as unknown as T } };
+  }
+  try {
+    const data = (await response.json()) as T;
+    return { ok: true, value: { data } };
+  } catch {
+    return {
+      ok: false,
+      error: {
+        status: response.status,
+        message: "Response JSON parse failed",
+      },
+    };
+  }
+}
+
+/** Send an authenticated request to the GitHub REST API. */
+async function sendGitHubApiRequest<T>(
+  ctx: GitHubApiContext,
+  path: string,
+  options?: {
+    readonly method?: string;
+    readonly body?: unknown;
+  },
+): Promise<
+  Result<{ data: T; repoVisibility?: RepoVisibility }, GitHubError>
+> {
+  const url = `${ctx.baseUrl}${path}`;
+  const headers = buildApiHeaders(ctx.token, !!options?.body);
+
+  let response: Response;
+  try {
+    response = await ctx.doFetch(url, {
+      method: options?.method ?? "GET",
+      headers,
+      body: options?.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch (err) {
+    return buildNetworkErrorResult<T>(err);
+  }
+
+  const rateLimit = extractRateLimitHeaders(response);
+  if (!response.ok) {
+    return handleGitHubErrorResponse<T>(response, rateLimit);
+  }
+  return parseGitHubJsonResponse<T>(response);
+}
+
 /**
  * Create a GitHub REST API client.
  *
@@ -991,78 +1091,16 @@ function extractRateLimitHeaders(
  * @returns A GitHubClient with all 14 API methods
  */
 export function createGitHubClient(config: GitHubClientConfig): GitHubClient {
-  const baseUrl = config.baseUrl ?? "https://api.github.com";
-  const doFetch = config.fetchFn ?? fetch;
+  const ctx: GitHubApiContext = {
+    baseUrl: config.baseUrl ?? "https://api.github.com",
+    token: config.token,
+    doFetch: config.fetchFn ?? fetch,
+  };
   const classConfig = config.classificationConfig;
-
-  function classifyRepo(
-    visibility: string | undefined,
-    fullName: string,
-  ): ClassificationLevel {
-    const vis = (visibility === "internal" || visibility === "private")
-      ? visibility
-      : "public" as RepoVisibility;
-    return visibilityToClassification(vis, fullName, classConfig);
-  }
-
-  async function apiRequest<T>(
-    path: string,
-    options?: {
-      readonly method?: string;
-      readonly body?: unknown;
-    },
-  ): Promise<
-    Result<{ data: T; repoVisibility?: RepoVisibility }, GitHubError>
-  > {
-    const url = `${baseUrl}${path}`;
-    const headers = buildApiHeaders(config.token, !!options?.body);
-
-    let response: Response;
-    try {
-      response = await doFetch(url, {
-        method: options?.method ?? "GET",
-        headers,
-        body: options?.body ? JSON.stringify(options.body) : undefined,
-      });
-    } catch (err) {
-      return {
-        ok: false,
-        error: {
-          status: 0,
-          message: `Request failed: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        },
-      };
-    }
-
-    const rateLimit = extractRateLimitHeaders(response);
-    if (!response.ok) {
-      const error = await parseGitHubErrorResponse(
-        response,
-        rateLimit.remaining,
-        rateLimit.reset,
-      );
-      return { ok: false, error };
-    }
-
-    if (response.status === 204) {
-      return { ok: true, value: { data: undefined as unknown as T } };
-    }
-
-    try {
-      const data = (await response.json()) as T;
-      return { ok: true, value: { data } };
-    } catch {
-      return {
-        ok: false,
-        error: {
-          status: response.status,
-          message: "Failed to parse response JSON",
-        },
-      };
-    }
-  }
+  const classifyRepo: ClassifyRepoFn = (visibility, fullName) =>
+    classifyRepoVisibility(visibility, fullName, classConfig);
+  const apiRequest: ApiRequestFn = (path, options) =>
+    sendGitHubApiRequest(ctx, path, options);
 
   return {
     listRepos: (opts) => fetchUserRepos(apiRequest, classifyRepo, opts),
@@ -1138,6 +1176,6 @@ export function createGitHubClient(config: GitHubClientConfig): GitHubClient {
     searchCode: (query, opts) =>
       searchGitHubCode(apiRequest, classifyRepo, query, opts),
     searchIssues: (query, opts) =>
-      searchGitHubIssues(apiRequest, baseUrl, query, opts),
+      searchGitHubIssues(apiRequest, ctx.baseUrl, query, opts),
   };
 }
