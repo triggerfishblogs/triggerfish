@@ -25,7 +25,7 @@
 
 import { dirname } from "@std/path";
 import type { Result } from "../types/classification.ts";
-import type { SecretStore } from "./keychain.ts";
+import type { SecretStore } from "./secret_store.ts";
 import { loadOrCreateMachineKey } from "./key_manager.ts";
 import { createLogger } from "../logger/logger.ts";
 
