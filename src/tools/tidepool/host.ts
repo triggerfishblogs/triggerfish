@@ -10,8 +10,12 @@
  */
 
 import type { ComponentTree } from "./components.ts";
-import type { ChatSession, ChatClientMessage } from "../../gateway/chat.ts";
-import type { CanvasMessage, CanvasRenderComponentMessage } from "./canvas_protocol.ts";
+import type { ChatClientMessage, ChatSession } from "../../gateway/chat.ts";
+import type { MessageContent } from "../../core/image/content.ts";
+import type {
+  CanvasMessage,
+  CanvasRenderComponentMessage,
+} from "./canvas_protocol.ts";
 import { buildTidepoolHtml } from "./ui.ts";
 
 // ---------------------------------------------------------------------------
@@ -101,6 +105,221 @@ export interface A2UIHost {
   readonly connections: number;
 }
 
+// ---------------------------------------------------------------------------
+// Mutable state shared across the A2UI host closure
+// ---------------------------------------------------------------------------
+
+interface A2UIHostState {
+  readonly clients: Set<WebSocket>;
+  server: Deno.HttpServer | null;
+  currentTree: ComponentTree | null;
+  resolvedPort: number;
+  cachedHtml: string | null;
+  /** Last known MCP connected count; -1 means no status yet. */
+  lastMcpConnected: number;
+  lastMcpConfigured: number;
+}
+
+// ---------------------------------------------------------------------------
+// Extracted helpers (unexported, placed above factory)
+// ---------------------------------------------------------------------------
+
+/** Safely send a string payload to a single socket, swallowing send errors. */
+function trySendSocketPayload(ws: WebSocket, json: string): void {
+  try {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(json);
+    }
+  } catch {
+    // Client may have disconnected
+  }
+}
+
+/** Send a JSON-serialized message to all open clients, pruning dead sockets. */
+function broadcastJsonToClients(
+  clients: Set<WebSocket>,
+  json: string,
+): void {
+  for (const ws of clients) {
+    try {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(json);
+      }
+    } catch {
+      clients.delete(ws);
+    }
+  }
+}
+
+/** Send current component tree, chat-connected event, and MCP status to a newly opened socket. */
+function sendInitialClientState(
+  socket: WebSocket,
+  state: A2UIHostState,
+  chatSession: ChatSession | undefined,
+): void {
+  if (state.currentTree) {
+    socket.send(JSON.stringify(state.currentTree));
+  }
+  if (chatSession) {
+    trySendSocketPayload(
+      socket,
+      JSON.stringify({
+        type: "connected",
+        provider: chatSession.providerName,
+        model: chatSession.modelName,
+      }),
+    );
+  }
+  if (state.lastMcpConnected >= 0 && state.lastMcpConfigured > 0) {
+    trySendSocketPayload(
+      socket,
+      JSON.stringify({
+        type: "mcp_status",
+        connected: state.lastMcpConnected,
+        configured: state.lastMcpConfigured,
+      }),
+    );
+  }
+}
+
+/** Mutable holder so event-listener closures can read/write the current AbortController. */
+interface AbortControllerRef {
+  current: AbortController | null;
+}
+
+/** Parse and dispatch a client chat message (cancel, clear, secret_prompt_response, message). */
+function dispatchClientChatMessage(
+  rawData: string | ArrayBuffer,
+  socket: WebSocket,
+  chatSession: ChatSession,
+  ref: AbortControllerRef,
+): void {
+  const text = typeof rawData === "string"
+    ? rawData
+    : new TextDecoder().decode(rawData as ArrayBuffer);
+  const msg = JSON.parse(text) as ChatClientMessage;
+
+  if (msg.type === "cancel") {
+    dispatchCancelMessage(socket, ref);
+    return;
+  }
+  if (msg.type === "clear") {
+    chatSession.clear();
+    return;
+  }
+  if (msg.type === "secret_prompt_response") {
+    chatSession.handleSecretPromptResponse(msg.nonce, msg.value);
+    return;
+  }
+  if (
+    msg.type === "message" &&
+    (typeof msg.content === "string" ||
+      (Array.isArray(msg.content) && msg.content.length > 0))
+  ) {
+    executeAgentTurnFromSocket(socket, chatSession, msg.content, ref);
+  }
+}
+
+/** Handle a cancel message by aborting the current agent turn. */
+function dispatchCancelMessage(
+  socket: WebSocket,
+  ref: AbortControllerRef,
+): void {
+  if (ref.current) {
+    ref.current.abort();
+    trySendSocketPayload(socket, JSON.stringify({ type: "cancelled" }));
+  }
+}
+
+/** Start an agent turn, routing events back through the socket. */
+function executeAgentTurnFromSocket(
+  socket: WebSocket,
+  chatSession: ChatSession,
+  content: MessageContent,
+  ref: AbortControllerRef,
+): void {
+  ref.current = new AbortController();
+  const signal = ref.current.signal;
+
+  const send = (evt: unknown) => {
+    trySendSocketPayload(socket, JSON.stringify(evt));
+  };
+
+  chatSession.executeAgentTurn(content, send, signal).finally(() => {
+    ref.current = null;
+  });
+}
+
+/** Upgrade a WebSocket request: wire lifecycle listeners and return the upgrade response. */
+function upgradeWebSocketClient(
+  request: Request,
+  state: A2UIHostState,
+  chatSession: ChatSession | undefined,
+): Response {
+  const { socket, response } = Deno.upgradeWebSocket(request);
+  const ref: AbortControllerRef = { current: null };
+
+  socket.addEventListener("open", () => {
+    state.clients.add(socket);
+    sendInitialClientState(socket, state, chatSession);
+  });
+
+  socket.addEventListener("message", (event: MessageEvent) => {
+    if (!chatSession) return;
+    try {
+      dispatchClientChatMessage(event.data, socket, chatSession, ref);
+    } catch {
+      // Ignore malformed messages
+    }
+  });
+
+  socket.addEventListener("close", () => {
+    state.clients.delete(socket);
+    ref.current?.abort("client_disconnected");
+  });
+
+  socket.addEventListener("error", () => {
+    state.clients.delete(socket);
+    ref.current?.abort("client_disconnected");
+  });
+
+  return response;
+}
+
+/** Route an inbound HTTP request to WebSocket upgrade or static HTML response. */
+function routeHostRequest(
+  request: Request,
+  state: A2UIHostState,
+  chatSession: ChatSession | undefined,
+): Response {
+  if (request.headers.get("upgrade") === "websocket") {
+    return upgradeWebSocketClient(request, state, chatSession);
+  }
+  if (state.cachedHtml) {
+    return new Response(state.cachedHtml, {
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+  return new Response("Tide Pool A2UI Host", { status: 200 });
+}
+
+/** Close all client sockets and clear the set. */
+function closeAllClientSockets(clients: Set<WebSocket>): void {
+  for (const ws of clients) {
+    try {
+      ws.close();
+    } catch {
+      // Client may already be closed
+    }
+  }
+  clients.clear();
+}
+
+// ---------------------------------------------------------------------------
+// Factory
+// ---------------------------------------------------------------------------
+
 /**
  * Create a new A2UI WebSocket host.
  *
@@ -115,224 +334,89 @@ export interface A2UIHost {
  * HTML chat + canvas interface on HTTP requests.
  */
 export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
-  const clients = new Set<WebSocket>();
   const chatSession = options?.chatSession;
-  let server: Deno.HttpServer | null = null;
-  let currentTree: ComponentTree | null = null;
-  let _resolvedPort = 0;
-  let cachedHtml: string | null = null;
-  // Last known MCP status — sent to new clients on connect
-  let lastMcpConnected = -1;
-  let lastMcpConfigured = 0;
 
-  /** Send a JSON-serialized message to all open clients. */
-  function sendToAll(json: string): void {
-    for (const ws of clients) {
-      try {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(json);
-        }
-      } catch {
-        clients.delete(ws);
-      }
-    }
-  }
+  const state: A2UIHostState = {
+    clients: new Set<WebSocket>(),
+    server: null,
+    currentTree: null,
+    resolvedPort: 0,
+    cachedHtml: null,
+    lastMcpConnected: -1,
+    lastMcpConfigured: 0,
+  };
 
   const host: A2UIHost = {
     async start(port: number): Promise<void> {
-      // Cache the pre-built HTML
-      cachedHtml = buildTidepoolHtml();
-
+      state.cachedHtml = buildTidepoolHtml();
       const ready = Promise.withResolvers<void>();
 
-      server = Deno.serve(
+      state.server = Deno.serve(
         {
           port,
           hostname: "127.0.0.1",
           onListen(addr) {
-            _resolvedPort = addr.port;
+            state.resolvedPort = addr.port;
             ready.resolve();
           },
         },
-        (request: Request): Response => {
-          if (request.headers.get("upgrade") === "websocket") {
-            const { socket, response } = Deno.upgradeWebSocket(request);
-            let abortController: AbortController | null = null;
-
-            socket.addEventListener("open", () => {
-              clients.add(socket);
-              // Send current component tree if one exists
-              if (currentTree) {
-                socket.send(JSON.stringify(currentTree));
-              }
-              // Send connected event if chat session is available
-              if (chatSession) {
-                try {
-                  socket.send(JSON.stringify({
-                    type: "connected",
-                    provider: chatSession.providerName,
-                    model: chatSession.modelName,
-                  }));
-                } catch {
-                  // Client may have disconnected
-                }
-              }
-              // Send last known MCP status to this new client
-              if (lastMcpConnected >= 0 && lastMcpConfigured > 0) {
-                try {
-                  socket.send(JSON.stringify({
-                    type: "mcp_status",
-                    connected: lastMcpConnected,
-                    configured: lastMcpConfigured,
-                  }));
-                } catch {
-                  // Client may have disconnected
-                }
-              }
-            });
-
-            socket.addEventListener("message", (event: MessageEvent) => {
-              if (!chatSession) return;
-              try {
-                const data = typeof event.data === "string"
-                  ? event.data
-                  : new TextDecoder().decode(event.data as ArrayBuffer);
-                const msg = JSON.parse(data) as ChatClientMessage;
-
-                if (msg.type === "cancel") {
-                  if (abortController) {
-                    abortController.abort();
-                    try {
-                      if (socket.readyState === WebSocket.OPEN) {
-                        socket.send(JSON.stringify({ type: "cancelled" }));
-                      }
-                    } catch {
-                      // Client disconnected
-                    }
-                  }
-                  return;
-                }
-
-                if (msg.type === "clear") {
-                  chatSession.clear();
-                  return;
-                }
-
-                // Route secret prompt responses to the waiting secret_save executor.
-                if (msg.type === "secret_prompt_response") {
-                  chatSession.handleSecretPromptResponse(msg.nonce, msg.value);
-                  return;
-                }
-
-                if (msg.type === "message" && (typeof msg.content === "string" || (Array.isArray(msg.content) && msg.content.length > 0))) {
-                  abortController = new AbortController();
-                  const signal = abortController.signal;
-
-                  const send = (evt: unknown) => {
-                    try {
-                      if (socket.readyState === WebSocket.OPEN) {
-                        socket.send(JSON.stringify(evt));
-                      }
-                    } catch {
-                      // Client disconnected
-                    }
-                  };
-
-                  chatSession.executeAgentTurn(msg.content, send, signal).finally(() => {
-                    abortController = null;
-                  });
-                }
-              } catch {
-                // Ignore malformed messages
-              }
-            });
-
-            socket.addEventListener("close", () => {
-              clients.delete(socket);
-              abortController?.abort("client_disconnected");
-            });
-
-            socket.addEventListener("error", () => {
-              clients.delete(socket);
-              abortController?.abort("client_disconnected");
-            });
-
-            return response;
-          }
-
-          // Serve Tidepool HTML (cached at start)
-          if (cachedHtml) {
-            return new Response(cachedHtml, {
-              status: 200,
-              headers: { "content-type": "text/html; charset=utf-8" },
-            });
-          }
-
-          return new Response("Tide Pool A2UI Host", { status: 200 });
-        },
+        (request: Request): Response =>
+          routeHostRequest(request, state, chatSession),
       );
 
       await ready.promise;
     },
 
     async stop(): Promise<void> {
-      // Close all client sockets first
-      for (const ws of clients) {
-        try {
-          ws.close();
-        } catch {
-          // Client may already be closed
-        }
-      }
-      clients.clear();
+      closeAllClientSockets(state.clients);
 
-      if (server) {
-        await server.shutdown();
-        server = null;
+      if (state.server) {
+        await state.server.shutdown();
+        state.server = null;
       }
-      _resolvedPort = 0;
-      currentTree = null;
-      cachedHtml = null;
+      state.resolvedPort = 0;
+      state.currentTree = null;
+      state.cachedHtml = null;
     },
 
     sendCanvas(message: CanvasMessage): void {
-      // Track component tree from canvas render messages for late-connecting clients
       if (message.type === "canvas_render_component") {
-        currentTree = (message as CanvasRenderComponentMessage).tree;
+        state.currentTree = (message as CanvasRenderComponentMessage).tree;
       } else if (message.type === "canvas_clear") {
-        currentTree = null;
+        state.currentTree = null;
       }
-      const json = JSON.stringify(message);
-      sendToAll(json);
+      broadcastJsonToClients(state.clients, JSON.stringify(message));
     },
 
     broadcast(tree: ComponentTree): void {
-      // Backward-compatible: wrap bare tree in a canvas_render_component message
-      currentTree = tree;
+      state.currentTree = tree;
       const msg: CanvasRenderComponentMessage = {
         type: "canvas_render_component",
         id: crypto.randomUUID(),
         label: "Component Tree",
         tree,
       };
-      const json = JSON.stringify(msg);
-      sendToAll(json);
+      broadcastJsonToClients(state.clients, JSON.stringify(msg));
     },
 
     broadcastMcpStatus(connected: number, configured: number): void {
-      lastMcpConnected = connected;
-      lastMcpConfigured = configured;
-      const json = JSON.stringify({ type: "mcp_status", connected, configured });
-      sendToAll(json);
+      state.lastMcpConnected = connected;
+      state.lastMcpConfigured = configured;
+      broadcastJsonToClients(
+        state.clients,
+        JSON.stringify({ type: "mcp_status", connected, configured }),
+      );
     },
 
     broadcastNotification(message: string): void {
-      const json = JSON.stringify({ type: "notification", message });
-      sendToAll(json);
+      broadcastJsonToClients(
+        state.clients,
+        JSON.stringify({ type: "notification", message }),
+      );
     },
 
     get connections(): number {
-      return clients.size;
+      return state.clients.size;
     },
   };
 
