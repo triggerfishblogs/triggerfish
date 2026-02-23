@@ -34,6 +34,7 @@ export function sanitizeExternal(value: string): string {
 
   // 3. Strip null byte and control characters U+0000–U+0008, U+000B–U+001F, U+007F.
   //    Preserves tab (U+0009). \n and \r were already replaced above.
+  // deno-lint-ignore no-control-regex
   result = result.replace(/[\x00-\x08\x0B-\x1F\x7F]/g, "");
 
   // 4. Escape provenance delimiters to prevent injection via nested delimiters.
