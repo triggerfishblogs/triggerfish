@@ -184,6 +184,74 @@ async function writeUpdatedSecretsFile(
   }
 }
 
+/** Read raw secrets file text, returning an empty v1 file if missing. */
+async function readSecretsFileRaw(
+  secretsPath: string,
+): Promise<Result<string, EncryptedSecretsFile>> {
+  try {
+    return { ok: true, value: await Deno.readTextFile(secretsPath) };
+  } catch {
+    return { ok: false, error: { v: 1, entries: {} } };
+  }
+}
+
+/** Parse raw JSON text into an unknown value. */
+function parseSecretsJson(
+  raw: string,
+  secretsPath: string,
+): Result<unknown, string> {
+  try {
+    return { ok: true, value: JSON.parse(raw) };
+  } catch {
+    return {
+      ok: false,
+      error: `Failed to parse secrets file: ${secretsPath}`,
+    };
+  }
+}
+
+/** Handle legacy format migration: encrypt all plaintext entries. */
+async function handleLegacyMigration(
+  parsed: Record<string, string>,
+  getKey: () => Promise<Result<CryptoKey, string>>,
+  secretsPath: string,
+  cache: { file: EncryptedSecretsFile | null },
+): Promise<Result<EncryptedSecretsFile, string>> {
+  const keyResult = await getKey();
+  if (!keyResult.ok) return { ok: false, error: keyResult.error };
+  const migrated = await migrateLegacySecretsFile(parsed, keyResult.value);
+  if (!migrated.ok) return migrated;
+  cache.file = migrated.value;
+  await persistSecretsFile(secretsPath, migrated.value);
+  console.log("Migrating secrets.json to encrypted format");
+  return { ok: true, value: migrated.value };
+}
+
+/** Classify parsed JSON and resolve it to an EncryptedSecretsFile. */
+async function classifyAndResolveSecretsJson(
+  parsed: unknown,
+  getKey: () => Promise<Result<CryptoKey, string>>,
+  secretsPath: string,
+  cache: { file: EncryptedSecretsFile | null },
+): Promise<Result<EncryptedSecretsFile, string>> {
+  if (isLegacySecretsFormat(parsed)) {
+    return handleLegacyMigration(
+      parsed as Record<string, string>,
+      getKey,
+      secretsPath,
+      cache,
+    );
+  }
+  if (!isValidSecretsFileFormat(parsed)) {
+    return {
+      ok: false,
+      error: `Unrecognized secrets file format: ${secretsPath}`,
+    };
+  }
+  cache.file = parsed as EncryptedSecretsFile;
+  return { ok: true, value: cache.file };
+}
+
 /**
  * Create an AES-256-GCM encrypted file-backed secret store.
  *
@@ -208,44 +276,19 @@ export function createEncryptedFileSecretStore(
 
   async function loadFile(): Promise<Result<EncryptedSecretsFile, string>> {
     if (cache.file !== null) return { ok: true, value: cache.file };
-    let raw: string;
-    try {
-      raw = await Deno.readTextFile(secretsPath);
-    } catch {
-      const empty: EncryptedSecretsFile = { v: 1, entries: {} };
-      cache.file = empty;
-      return { ok: true, value: empty };
+    const rawResult = await readSecretsFileRaw(secretsPath);
+    if (!rawResult.ok) {
+      cache.file = rawResult.error;
+      return { ok: true, value: cache.file };
     }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return {
-        ok: false,
-        error: `Failed to parse secrets file: ${secretsPath}`,
-      };
-    }
-    if (isLegacySecretsFormat(parsed)) {
-      const keyResult = await getKey();
-      if (!keyResult.ok) return { ok: false, error: keyResult.error };
-      const migrated = await migrateLegacySecretsFile(
-        parsed as Record<string, string>,
-        keyResult.value,
-      );
-      if (!migrated.ok) return migrated;
-      cache.file = migrated.value;
-      await persistSecretsFile(secretsPath, migrated.value);
-      console.log("Migrating secrets.json to encrypted format");
-      return { ok: true, value: migrated.value };
-    }
-    if (!isValidSecretsFileFormat(parsed)) {
-      return {
-        ok: false,
-        error: `Unrecognized secrets file format: ${secretsPath}`,
-      };
-    }
-    cache.file = parsed as EncryptedSecretsFile;
-    return { ok: true, value: cache.file };
+    const jsonResult = parseSecretsJson(rawResult.value, secretsPath);
+    if (!jsonResult.ok) return jsonResult;
+    return classifyAndResolveSecretsJson(
+      jsonResult.value,
+      getKey,
+      secretsPath,
+      cache,
+    );
   }
 
   return {
