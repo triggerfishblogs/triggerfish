@@ -28,7 +28,12 @@ interface ComponentHealth {
 }
 
 /** Valid component names for the healthcheck tool. */
-type HealthcheckComponent = "providers" | "storage" | "skills" | "config" | "all";
+type HealthcheckComponent =
+  | "providers"
+  | "storage"
+  | "skills"
+  | "config"
+  | "all";
 
 /** Tool definitions for the healthcheck tool. */
 export function getHealthcheckToolDefinitions(): readonly ToolDefinition[] {
@@ -59,7 +64,11 @@ Components: providers, storage, skills, config, all.`;
 /** Check provider health. */
 function checkProviders(registry?: LlmProviderRegistry): ComponentHealth {
   if (!registry) {
-    return { name: "providers", status: "error", message: "No provider registry available" };
+    return {
+      name: "providers",
+      status: "error",
+      message: "No provider registry available",
+    };
   }
   const defaultProvider = registry.getDefault();
   if (!defaultProvider) {
@@ -77,31 +86,50 @@ function checkProviders(registry?: LlmProviderRegistry): ComponentHealth {
   };
 }
 
-/** Check storage health via read/write/delete round-trip. */
-async function checkStorage(storage?: StorageProvider): Promise<ComponentHealth> {
-  if (!storage) {
-    return { name: "storage", status: "error", message: "No storage provider available" };
-  }
+/** Execute a storage round-trip test: write, read-back, delete. */
+async function executeStorageRoundTrip(
+  storage: StorageProvider,
+): Promise<ComponentHealth> {
   const testKey = "healthcheck:test";
   const testValue = `healthcheck-${Date.now()}`;
+  await storage.set(testKey, testValue);
+  const read = await storage.get(testKey);
+  await storage.delete(testKey);
+  if (read !== testValue) {
+    return {
+      name: "storage",
+      status: "degraded",
+      message: "Storage read/write mismatch",
+      details: { expected: testValue, got: read },
+    };
+  }
+  return {
+    name: "storage",
+    status: "healthy",
+    message: "Read/write/delete round-trip OK",
+  };
+}
+
+/** Check storage health via read/write/delete round-trip. */
+async function checkStorage(
+  storage?: StorageProvider,
+): Promise<ComponentHealth> {
+  if (!storage) {
+    return {
+      name: "storage",
+      status: "error",
+      message: "No storage provider available",
+    };
+  }
   try {
-    await storage.set(testKey, testValue);
-    const read = await storage.get(testKey);
-    await storage.delete(testKey);
-    if (read !== testValue) {
-      return {
-        name: "storage",
-        status: "degraded",
-        message: "Storage read/write mismatch",
-        details: { expected: testValue, got: read },
-      };
-    }
-    return { name: "storage", status: "healthy", message: "Read/write/delete round-trip OK" };
+    return await executeStorageRoundTrip(storage);
   } catch (err) {
     return {
       name: "storage",
       status: "error",
-      message: `Storage error: ${err instanceof Error ? err.message : String(err)}`,
+      message: `Storage error: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
     };
   }
 }
@@ -109,7 +137,11 @@ async function checkStorage(storage?: StorageProvider): Promise<ComponentHealth>
 /** Check skill loader health. */
 async function checkSkills(loader?: SkillLoader): Promise<ComponentHealth> {
   if (!loader) {
-    return { name: "skills", status: "error", message: "No skill loader available" };
+    return {
+      name: "skills",
+      status: "error",
+      message: "No skill loader available",
+    };
   }
   try {
     const skills = await loader.discover();
@@ -127,7 +159,9 @@ async function checkSkills(loader?: SkillLoader): Promise<ComponentHealth> {
     return {
       name: "skills",
       status: "error",
-      message: `Skill discovery failed: ${err instanceof Error ? err.message : String(err)}`,
+      message: `Skill discovery failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
     };
   }
 }
@@ -145,7 +179,11 @@ function checkConfig(): ComponentHealth {
 function formatReport(results: readonly ComponentHealth[]): string {
   const lines: string[] = ["# Healthcheck Report", ""];
   for (const r of results) {
-    const icon = r.status === "healthy" ? "OK" : r.status === "degraded" ? "WARN" : "ERR";
+    const icon = r.status === "healthy"
+      ? "OK"
+      : r.status === "degraded"
+      ? "WARN"
+      : "ERR";
     lines.push(`[${icon}] ${r.name}: ${r.message}`);
     if (r.details) {
       lines.push(`     ${JSON.stringify(r.details)}`);
@@ -166,17 +204,20 @@ function formatReport(results: readonly ComponentHealth[]): string {
 export function createHealthcheckToolExecutor(
   deps: HealthcheckDeps,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
-  return async (name: string, input: Record<string, unknown>): Promise<string | null> => {
+  return async (
+    name: string,
+    input: Record<string, unknown>,
+  ): Promise<string | null> => {
     if (name !== "healthcheck") return null;
 
     const rawComponents = input.components;
-    const requested: readonly HealthcheckComponent[] = (
+    const requested: readonly HealthcheckComponent[] =
       Array.isArray(rawComponents) && rawComponents.length > 0
         ? rawComponents.filter((c): c is HealthcheckComponent =>
-            typeof c === "string" && ["providers", "storage", "skills", "config", "all"].includes(c)
-          )
-        : ["all"]
-    );
+          typeof c === "string" &&
+          ["providers", "storage", "skills", "config", "all"].includes(c)
+        )
+        : ["all"];
 
     const checkAll = requested.includes("all");
     const results: ComponentHealth[] = [];
