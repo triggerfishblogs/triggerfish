@@ -9,12 +9,12 @@
 
 import puppeteer from "puppeteer-core";
 import type { Browser, Page } from "puppeteer-core";
-import type { Result } from "../../core/types/classification.ts";
+import type { Result } from "../../../core/types/classification.ts";
 import type { BrowserManagerConfig } from "./manager.ts";
 import { withTimeout } from "./manager_detection.ts";
 import type { ChromeDetection } from "./manager_detection.ts";
 import { DEFAULT_VIEWPORT } from "./manager_detection.ts";
-import { createLogger } from "../../core/logger/mod.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
 
 const log = createLogger("browser-launch");
 

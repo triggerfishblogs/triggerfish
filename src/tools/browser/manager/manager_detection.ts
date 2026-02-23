@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { Result } from "../../core/types/classification.ts";
+import type { Result } from "../../../core/types/classification.ts";
 
 // ─── Internal types ──────────────────────────────────────────────────────────
 

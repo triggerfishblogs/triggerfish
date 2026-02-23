@@ -8,9 +8,9 @@
  * @module
  */
 
-import type { LlmProvider } from "../../core/types/llm.ts";
-import type { BrowserTools, ScrollDirection } from "./tools.ts";
-import { createLogger } from "../../core/logger/mod.ts";
+import type { LlmProvider } from "../../../core/types/llm.ts";
+import type { BrowserTools, ScrollDirection } from "../tools/tools.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
 
 const log = createLogger("browser-tools");
 

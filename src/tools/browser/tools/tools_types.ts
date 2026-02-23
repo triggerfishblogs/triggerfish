@@ -8,8 +8,8 @@
  * @module
  */
 
-import type { Result } from "../../core/types/classification.ts";
-import type { DomainPolicy } from "./domains.ts";
+import type { Result } from "../../../core/types/classification.ts";
+import type { DomainPolicy } from "../domains.ts";
 
 // ─── DNS ─────────────────────────────────────────────────────────────────────
 

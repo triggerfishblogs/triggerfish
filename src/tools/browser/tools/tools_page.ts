@@ -8,7 +8,7 @@
  */
 
 import type { Page } from "puppeteer-core";
-import type { Result } from "../../core/types/classification.ts";
+import type { Result } from "../../../core/types/classification.ts";
 import type { ScrollDirection, SnapshotResult } from "./tools_types.ts";
 
 // ─── Constants ───────────────────────────────────────────────────────────────

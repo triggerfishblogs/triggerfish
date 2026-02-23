@@ -12,7 +12,7 @@ import {
   type DnsChecker,
   type NavigateResult,
   type SnapshotResult,
-} from "../../../src/tools/browser/tools.ts";
+} from "../../../src/tools/browser/tools/tools.ts";
 import { createDomainPolicy } from "../../../src/tools/browser/domains.ts";
 import type { Result } from "../../../src/core/types/classification.ts";
 
@@ -349,7 +349,7 @@ Deno.test("navigate: multiple denied domains are all blocked", async () => {
 
 Deno.test("getBrowserToolDefinitions: returns 9 tool definitions including browser_close", async () => {
   const { getBrowserToolDefinitions } = await import(
-    "../../../src/tools/browser/tools.ts"
+    "../../../src/tools/browser/tools/tools.ts"
   );
   const defs = getBrowserToolDefinitions();
   assertEquals(defs.length, 9);
@@ -358,7 +358,7 @@ Deno.test("getBrowserToolDefinitions: returns 9 tool definitions including brows
 
 Deno.test("executor: returns null for non-browser tools", async () => {
   const { createBrowserToolExecutor } = await import(
-    "../../../src/tools/browser/tools.ts"
+    "../../../src/tools/browser/tools/tools.ts"
   );
   const executor = createBrowserToolExecutor(undefined);
   const result = await executor("web_search", { query: "test" });
@@ -367,7 +367,7 @@ Deno.test("executor: returns null for non-browser tools", async () => {
 
 Deno.test("executor: returns error when browser not connected", async () => {
   const { createBrowserToolExecutor } = await import(
-    "../../../src/tools/browser/tools.ts"
+    "../../../src/tools/browser/tools/tools.ts"
   );
   const executor = createBrowserToolExecutor(undefined);
   const result = await executor("browser_navigate", {
@@ -379,7 +379,7 @@ Deno.test("executor: returns error when browser not connected", async () => {
 
 Deno.test("executor: browser_close closes browser and returns success", async () => {
   const { createBrowserToolExecutor, createBrowserTools } = await import(
-    "../../../src/tools/browser/tools.ts"
+    "../../../src/tools/browser/tools/tools.ts"
   );
   const { createDomainPolicy } = await import("../../../src/tools/browser/domains.ts");
 

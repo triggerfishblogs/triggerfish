@@ -14,8 +14,8 @@
  */
 
 import type { Page } from "puppeteer-core";
-import type { Result } from "../../core/types/classification.ts";
-import { resolveAndCheck } from "../web/domains.ts";
+import type { Result } from "../../../core/types/classification.ts";
+import { resolveAndCheck } from "../../web/domains.ts";
 import type {
   BrowserTools,
   BrowserToolsConfig,
@@ -37,14 +37,14 @@ import {
 export {
   BROWSER_TOOLS_SYSTEM_PROMPT,
   getBrowserToolDefinitions,
-} from "./tools_defs.ts";
+} from "../executor/tools_defs.ts";
 export {
   type AutoLaunchBrowserConfig,
   type BrowserExecutorHandle,
   type BrowserToolExecutorOptions,
   createAutoLaunchBrowserExecutor,
   createBrowserToolExecutor,
-} from "./tools_executor.ts";
+} from "../executor/tools_executor.ts";
 export type {
   BrowserTools,
   BrowserToolsConfig,

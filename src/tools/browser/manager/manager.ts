@@ -16,15 +16,15 @@ import type { Browser, Page } from "puppeteer-core";
 import type {
   ClassificationLevel,
   Result,
-} from "../../core/types/classification.ts";
-import type { StorageProvider } from "../../core/storage/provider.ts";
-import type { DomainPolicy } from "./domains.ts";
+} from "../../../core/types/classification.ts";
+import type { StorageProvider } from "../../../core/storage/provider.ts";
+import type { DomainPolicy } from "../domains.ts";
 import {
   canAccessProfile,
   escalateWatermark,
   getWatermark,
-} from "./watermark.ts";
-import { createLogger } from "../../core/logger/mod.ts";
+} from "../executor/watermark.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
 import {
   DEFAULT_LAUNCH_TIMEOUT_MS,
   DEFAULT_VIEWPORT,
