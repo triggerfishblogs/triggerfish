@@ -115,12 +115,10 @@ async function invokeMcpTool(
     const effectiveClassification = invocation.classificationCeiling
       ? minClassification(declaredClassification, invocation.classificationCeiling)
       : declaredClassification;
-    if (invocation.classificationCeiling) {
-      createLogger("mcp").info(
-        `MCP tool '${invocation.name}': classification ceiling enforced`,
-        { declaredClassification, classificationCeiling: invocation.classificationCeiling, effectiveClassification },
-      );
-    }
+    createLogger("mcp").debug(
+      `MCP tool '${invocation.name}': classification decision`,
+      { declaredClassification, classificationCeiling: invocation.classificationCeiling ?? null, effectiveClassification },
+    );
     return {
       ok: true,
       value: {

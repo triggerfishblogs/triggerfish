@@ -185,7 +185,7 @@ export function notifyMcpStatusListeners(state: McpManagerState): void {
     } catch (err: unknown) {
       log.warn(
         "MCP status listener threw — listener errors must not propagate",
-        { err: err instanceof Error ? (err.stack ?? err.message) : String(err) },
+        { err },
       );
     }
   }
@@ -216,7 +216,7 @@ export async function disconnectAllMcpServers(
     } catch (err: unknown) {
       log.warn(
         `MCP server '${entry.id}': transport disconnect failed`,
-        { serverId: entry.id, err: err instanceof Error ? (err.stack ?? err.message) : String(err) },
+        { serverId: entry.id, err },
       );
     }
   }

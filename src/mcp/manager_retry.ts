@@ -39,7 +39,7 @@ async function pollMcpServerHealth(
     } catch (err: unknown) {
       createLogger("mcp").warn(
         `MCP server '${entry.id}' health check failed — marking unhealthy`,
-        { serverId: entry.id, err: err instanceof Error ? (err.stack ?? err.message) : String(err) },
+        { serverId: entry.id, err },
       );
       return;
     }
@@ -177,7 +177,7 @@ function launchMcpServerRetryLoop(
   runMcpRetryLoop(cfg, ctx).catch((err: unknown) => {
     ctx.mcpLog.error(
       `MCP retry loop for '${cfg.id}' crashed`,
-      { operation: "mcp-retry-loop", serverId: cfg.id, err: err instanceof Error ? (err.stack ?? err.message) : String(err) },
+      { operation: "mcp-retry-loop", serverId: cfg.id, err },
     );
   });
 }
