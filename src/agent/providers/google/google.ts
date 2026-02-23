@@ -12,8 +12,8 @@ import type {
   LlmMessage,
   LlmProvider,
   LlmStreamChunk,
-} from "../llm.ts";
-import { getModelInfo } from "../models.ts";
+} from "../../llm.ts";
+import { getModelInfo } from "../../models.ts";
 import {
   buildGeminiChatParts,
   extractGeminiSystemInstruction,

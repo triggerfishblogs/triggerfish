@@ -7,8 +7,8 @@
  * @module
  */
 
-import type { LlmMessage } from "../llm.ts";
-import type { ContentBlock } from "../../core/image/content.ts";
+import type { LlmMessage } from "../../llm.ts";
+import type { ContentBlock } from "../../../core/image/content.ts";
 
 /** Gemini parts union type. */
 export type GeminiPart = { text: string } | {

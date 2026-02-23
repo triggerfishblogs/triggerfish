@@ -7,9 +7,9 @@
  * @module
  */
 
-import { createLogger } from "../../core/logger/mod.ts";
-import type { LlmCompletionResult, LlmMessage } from "../llm.ts";
-import type { ContentBlock } from "../../core/image/content.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+import type { LlmCompletionResult, LlmMessage } from "../../llm.ts";
+import type { ContentBlock } from "../../../core/image/content.ts";
 import {
   type OpenRouterApiResponse,
   OPENROUTER_API_URL,
