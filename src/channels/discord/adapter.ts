@@ -82,10 +82,10 @@ function attachDiscordMessageListener(
       message.author.id,
       ownerId,
     );
-    log.debug("Message received", {
+    log.ext("DEBUG", "Message received", {
       channelId: message.channelId,
       senderId: message.author.id,
-      isOwner,
+      guildId: message.guildId ?? "",
     });
     handlerRef.current({
       content: message.content,

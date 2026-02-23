@@ -22,7 +22,7 @@ export interface SkillScanner {
 }
 
 /** Prompt injection patterns to detect. */
-const INJECTION_PATTERNS: readonly { readonly pattern: RegExp; readonly message: string }[] = [
+export const INJECTION_PATTERNS: readonly { readonly pattern: RegExp; readonly message: string }[] = [
   {
     pattern: /ignore\s+(all\s+)?previous\s+instructions/i,
     message: "Prompt injection: attempts to override previous instructions",

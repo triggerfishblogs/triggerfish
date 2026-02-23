@@ -18,6 +18,7 @@
 import type { LogLevel } from "./levels.ts";
 import { shouldLog } from "./levels.ts";
 import type { FileWriter } from "./writer.ts";
+import { formatTaggedEntry } from "./sanitizer.ts";
 
 /** Logger interface — one method per severity level. */
 export interface Logger {
@@ -26,6 +27,17 @@ export interface Logger {
   info(msg: string, ...args: unknown[]): void;
   debug(msg: string, ...args: unknown[]): void;
   trace(msg: string, ...args: unknown[]): void;
+  /**
+   * Log a message with provenance-tagged external fields.
+   *
+   * Each value in `externalFields` is sanitized and wrapped in «» delimiters
+   * before writing to the log. Existing callers using the five standard
+   * methods above are unaffected.
+   *
+   * @example
+   * log.ext("DEBUG", "WS upgrade", { origin: req.headers.get("origin") ?? "" })
+   */
+  ext(level: LogLevel, msg: string, externalFields: Record<string, string>): void;
 }
 
 /** Configuration for the global logger. */
@@ -130,6 +142,9 @@ function buildLoggerMethods(component: string): Logger {
     },
     trace(msg: string, ...args: unknown[]) {
       dispatchLogLine("TRACE", component, msg, args);
+    },
+    ext(level: LogLevel, msg: string, externalFields: Record<string, string>) {
+      dispatchLogLine(level, component, formatTaggedEntry(msg, externalFields), []);
     },
   };
 }
