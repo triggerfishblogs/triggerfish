@@ -118,6 +118,29 @@ function buildSessionStatusDef(): ToolDefinition {
   };
 }
 
+/** Build the parameter schema for the message tool. */
+function buildMessageParams(): ToolDefinition["parameters"] {
+  return {
+    channel: {
+      type: "string",
+      description:
+        "Target channel type (e.g. 'signal', 'telegram'). Use channels_list to see connected channels.",
+      required: true,
+    },
+    recipient: {
+      type: "string",
+      description:
+        "Recipient identifier — phone number for Signal, chat ID for Telegram, etc.",
+      required: true,
+    },
+    text: {
+      type: "string",
+      description: "Message text to send",
+      required: true,
+    },
+  };
+}
+
 function buildMessageDef(): ToolDefinition {
   return {
     name: "message",
@@ -125,25 +148,7 @@ function buildMessageDef(): ToolDefinition {
       "Send a message to a connected channel (signal, telegram, etc.). " +
       "Subject to write-down enforcement: your session taint must be able to flow to the channel's classification. " +
       "For Signal, the recipient is a phone number (E.164 format, e.g. '+15551234567') or a group ID prefixed with 'group-'.",
-    parameters: {
-      channel: {
-        type: "string",
-        description:
-          "Target channel type (e.g. 'signal', 'telegram'). Use channels_list to see connected channels.",
-        required: true,
-      },
-      recipient: {
-        type: "string",
-        description:
-          "Recipient identifier — phone number for Signal, chat ID for Telegram, etc.",
-        required: true,
-      },
-      text: {
-        type: "string",
-        description: "Message text to send",
-        required: true,
-      },
-    },
+    parameters: buildMessageParams(),
   };
 }
 
