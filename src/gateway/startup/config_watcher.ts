@@ -81,29 +81,28 @@ export function createConfigWatcher(
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
   let aborted = false;
 
+  async function resolveSecretReferences(
+    config: Record<string, unknown>,
+  ): Promise<Record<string, unknown> | undefined> {
+    if (!resolvedOptions.secretStore) return config;
+    const resolved = await resolveConfigSecrets(
+      config,
+      resolvedOptions.secretStore,
+    );
+    if (!resolved.ok) return undefined;
+    return resolved.value as Record<string, unknown>;
+  }
+
   async function loadConfig(): Promise<Record<string, unknown> | undefined> {
     try {
       const content = await Deno.readTextFile(filePath);
       const parsed = parseYaml(content);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        let config = parsed as Record<string, unknown>;
-
-        // Resolve secret references if a store was provided
-        if (resolvedOptions.secretStore) {
-          const resolved = await resolveConfigSecrets(
-            config,
-            resolvedOptions.secretStore,
-          );
-          if (!resolved.ok) {
-            // Skip this reload if secrets cannot be resolved
-            return undefined;
-          }
-          config = resolved.value as Record<string, unknown>;
-        }
-
-        return config;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return undefined;
       }
-      return undefined;
+      return await resolveSecretReferences(
+        parsed as Record<string, unknown>,
+      );
     } catch {
       return undefined;
     }
