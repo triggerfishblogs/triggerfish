@@ -16,9 +16,7 @@ export {
   TOOL_GROUP_PROMPTS,
 } from "./registry.ts";
 
-export {
-  buildToolExecutor,
-} from "./executor.ts";
+export type { SubsystemExecutor, ToolExecutorOptions } from "./executor_types.ts";
 
 export {
   createSessionToolExecutor,

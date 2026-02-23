@@ -1,0 +1,203 @@
+/**
+ * Built-in filesystem tool handlers — read, write, list, search, edit.
+ *
+ * Each handler validates its input and returns a result string.
+ * Write operations delegate to ExecTools for workspace sandboxing.
+ *
+ * @module
+ */
+
+import type { ToolExecutorOptions } from "./executor_types.ts";
+
+/** Format an error from a filesystem operation. */
+function formatFsError(prefix: string, err: unknown): string {
+  return `${prefix}: ${err instanceof Error ? err.message : String(err)}`;
+}
+
+/** Handle read_file tool call. */
+export async function executeReadFile(
+  input: Record<string, unknown>,
+): Promise<string> {
+  const path = input.path;
+  if (typeof path !== "string" || path.length === 0) {
+    return "Error: read_file requires a 'path' argument (string).";
+  }
+  try {
+    return await Deno.readTextFile(path);
+  } catch (err) {
+    return formatFsError("Error reading file", err);
+  }
+}
+
+/** Handle write_file tool call via ExecTools sandbox. */
+export async function executeWriteFile(
+  input: Record<string, unknown>,
+  execTools: ToolExecutorOptions["execTools"],
+): Promise<string> {
+  const path = input.path;
+  const content = input.content;
+  if (typeof path !== "string" || path.length === 0) {
+    return "Error: write_file requires a 'path' argument (string).";
+  }
+  if (typeof content !== "string") {
+    return "Error: write_file requires a 'content' argument (string).";
+  }
+  const result = await execTools.write(path, content);
+  return result.ok
+    ? `Wrote ${result.value.bytesWritten} bytes to ${result.value.path}`
+    : `Error: ${result.error}`;
+}
+
+/** Handle list_directory tool call. */
+export async function executeListDirectory(
+  input: Record<string, unknown>,
+): Promise<string> {
+  const path = input.path;
+  if (typeof path !== "string" || path.length === 0) {
+    return "Error: list_directory requires a 'path' argument (string).";
+  }
+  try {
+    const entries: string[] = [];
+    for await (const entry of Deno.readDir(path)) {
+      const suffix = entry.isDirectory ? "/" : "";
+      entries.push(`${entry.name}${suffix}`);
+    }
+    return entries.length > 0 ? entries.join("\n") : "(empty directory)";
+  } catch (err) {
+    return formatFsError("Error listing directory", err);
+  }
+}
+
+/** Format command execution output into a result string. */
+function formatCommandOutput(out: {
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly exitCode: number;
+  readonly duration: number;
+}): string {
+  const parts: string[] = [];
+  if (out.stdout) parts.push(out.stdout);
+  if (out.stderr) parts.push(`[stderr] ${out.stderr}`);
+  parts.push(`[exit code: ${out.exitCode}, ${Math.round(out.duration)}ms]`);
+  return parts.join("\n");
+}
+
+/** Handle run_command tool call via ExecTools sandbox. */
+export async function executeRunCommand(
+  input: Record<string, unknown>,
+  execTools: ToolExecutorOptions["execTools"],
+): Promise<string> {
+  const command = input.command ?? input.cmd;
+  if (typeof command !== "string" || command.length === 0) {
+    return "Error: run_command requires a 'command' argument (string).";
+  }
+  const result = await execTools.runCommand(command);
+  if (!result.ok) return `Error: ${result.error}`;
+  return formatCommandOutput(result.value);
+}
+
+/** Run a search command and return stdout or a fallback message. */
+async function runSearchCommand(
+  cmd: string,
+  args: string[],
+  emptyMessage: string,
+): Promise<string> {
+  const proc = new Deno.Command(cmd, {
+    args,
+    stdout: "piped",
+    stderr: "piped",
+  });
+  const output = await proc.output();
+  const stdout = new TextDecoder().decode(output.stdout).trim();
+  return stdout.length > 0 ? stdout : emptyMessage;
+}
+
+/** Validate search_files input and return error message or null. */
+function validateSearchInput(
+  input: Record<string, unknown>,
+): string | null {
+  if (typeof input.path !== "string" || input.path.length === 0) {
+    return "Error: search_files requires a 'path' argument (string).";
+  }
+  if (typeof input.pattern !== "string" || input.pattern.length === 0) {
+    return "Error: search_files requires a 'pattern' argument (string).";
+  }
+  return null;
+}
+
+/** Handle search_files tool call (glob or content search). */
+export async function executeSearchFiles(
+  input: Record<string, unknown>,
+): Promise<string> {
+  const validationError = validateSearchInput(input);
+  if (validationError) return validationError;
+  const searchPath = input.path as string;
+  const pattern = input.pattern as string;
+  try {
+    if (input.content_search === true) {
+      return await runSearchCommand(
+        "grep",
+        ["-rl", pattern, searchPath],
+        "No matches found.",
+      );
+    }
+    return await runSearchCommand(
+      "find",
+      [searchPath, "-name", pattern, "-type", "f"],
+      "No files found matching pattern.",
+    );
+  } catch (err) {
+    return formatFsError("Error searching", err);
+  }
+}
+
+/** Validate edit_file input and return error message or null. */
+function validateEditInput(
+  input: Record<string, unknown>,
+): string | null {
+  if (typeof input.path !== "string" || input.path.length === 0) {
+    return "Error: edit_file requires a 'path' argument (string).";
+  }
+  if (typeof input.old_text !== "string" || input.old_text.length === 0) {
+    return "Error: edit_file requires a non-empty 'old_text' argument (string).";
+  }
+  if (typeof input.new_text !== "string") {
+    return "Error: edit_file requires a 'new_text' argument (string).";
+  }
+  return null;
+}
+
+/** Apply a unique find-and-replace edit to file content. */
+function applyUniqueReplacement(
+  content: string,
+  oldText: string,
+  newText: string,
+): string | null {
+  const count = content.split(oldText).length - 1;
+  if (count === 0) return "Error: old_text not found in file.";
+  if (count > 1) {
+    return `Error: old_text appears ${count} times (must be exactly 1). Provide a larger unique snippet.`;
+  }
+  return null;
+}
+
+/** Handle edit_file tool call (find-and-replace unique string). */
+export async function executeEditFile(
+  input: Record<string, unknown>,
+): Promise<string> {
+  const validationError = validateEditInput(input);
+  if (validationError) return validationError;
+  const path = input.path as string;
+  const oldText = input.old_text as string;
+  const newText = input.new_text as string;
+  try {
+    const content = await Deno.readTextFile(path);
+    const replaceError = applyUniqueReplacement(content, oldText, newText);
+    if (replaceError) return replaceError;
+    const updated = content.replace(oldText, newText);
+    await Deno.writeTextFile(path, updated);
+    return `Edited ${path} (${updated.length} bytes written)`;
+  } catch (err) {
+    return formatFsError("Error editing file", err);
+  }
+}
