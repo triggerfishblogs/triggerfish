@@ -18,6 +18,16 @@ export type {
   TriggerFishConfig,
 } from "./main.ts";
 
+export { probeGateway, enableWindowsAnsi } from "./platform.ts";
+export { runPatrol } from "./dive_command.ts";
+export {
+  runDaemonLogs,
+  runDaemonStart,
+  runDaemonStatus,
+  runDaemonStop,
+  runUpdate,
+} from "./daemon_commands.ts";
+
 export {
   detectDaemonManager,
   generateLaunchdPlist,
