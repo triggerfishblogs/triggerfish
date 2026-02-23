@@ -11,7 +11,6 @@
 import type { Result } from "../core/types/classification.ts";
 import type { Workspace } from "./workspace.ts";
 import { join, resolve } from "@std/path";
-import { buildSafeEnv } from "./sanitize.ts";
 
 /** Result of writing a file. */
 export interface WriteResult {
@@ -142,12 +141,11 @@ async function runShellCommand(
 ): Promise<Result<RunResult, string>> {
   try {
     const start = performance.now();
-    const proc = new Deno.Command("/bin/sh", {
+    const proc = new Deno.Command("sh", {
       args: ["-c", command],
       cwd: options?.cwdOverride ?? workspace.path,
       stdout: "piped",
       stderr: "piped",
-      env: buildSafeEnv({ workspaceHome: workspace.path }),
     });
     const output = await proc.output();
     const duration = performance.now() - start;

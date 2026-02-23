@@ -22,17 +22,6 @@ export {
   validatePathInWorkspace,
 } from "./workspace_paths.ts";
 
-export {
-  buildClaudeEnv,
-  buildSafeEnv,
-  detectShellInjection,
-  SAFE_EXEC_PATH,
-} from "./sanitize.ts";
-export type {
-  InjectionCheckResult,
-  SafeEnvOptions,
-} from "./sanitize.ts";
-
 export { createExecTools } from "./tools.ts";
 export type {
   ExecTools,
