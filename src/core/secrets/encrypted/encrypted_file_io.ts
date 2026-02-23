@@ -129,6 +129,7 @@ async function handleLegacyMigration(
 }
 
 /** Classify parsed JSON and resolve it to an EncryptedSecretsFile. */
+// deno-lint-ignore require-await
 export async function classifyAndResolveSecretsJson(
   parsed: unknown,
   getKey: () => Promise<Result<CryptoKey, string>>,

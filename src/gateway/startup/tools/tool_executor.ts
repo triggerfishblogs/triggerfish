@@ -8,7 +8,6 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import type { createSession } from "../../../core/types/session.ts";
 import type { createProviderRegistry } from "../../../agent/llm.ts";
 import type { createSqliteStorage } from "../../../core/storage/sqlite.ts";

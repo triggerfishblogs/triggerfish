@@ -59,6 +59,7 @@ export function createGoogleToolExecutor(
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
   const dispatch = buildDispatchTable(ctx);
 
+  // deno-lint-ignore require-await
   return async (
     name: string,
     input: Record<string, unknown>,

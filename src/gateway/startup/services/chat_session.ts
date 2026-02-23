@@ -21,10 +21,6 @@ import type { createPathClassifier } from "../../../core/security/path_classific
 import type { createToolFloorRegistry } from "../../../core/security/tool_floors.ts";
 import type { SecretPromptCallback } from "../../../tools/secrets.ts";
 import type { createAutoLaunchBrowserExecutor } from "../../../tools/browser/mod.ts";
-import {
-  createTidePoolTools,
-  TIDEPOOL_SYSTEM_PROMPT,
-} from "../../../tools/tidepool/mod.ts";
 import { createA2UIHost } from "../../../tools/tidepool/host/mod.ts";
 import { createChatSession } from "../../chat.ts";
 import { createGatewayServer } from "../../server/server.ts";

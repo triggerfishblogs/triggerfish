@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type { Result } from "../../core/types/classification.ts";
 import { canFlowTo } from "../../core/types/classification.ts";
 import type { SessionState } from "../../core/types/session.ts";
 import { createPlanToolExecutor } from "../plan/plan.ts";

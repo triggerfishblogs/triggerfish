@@ -122,6 +122,7 @@ async function executeSignalGeneratePairing(
  *
  * Returns the tool result string, or null if the tool name is not recognized.
  */
+// deno-lint-ignore require-await
 export async function dispatchSignalTool(
   ctx: SessionToolContext,
   name: string,

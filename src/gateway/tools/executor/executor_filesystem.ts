@@ -171,7 +171,7 @@ function validateEditInput(
 function applyUniqueReplacement(
   content: string,
   oldText: string,
-  newText: string,
+  _newText: string,
 ): string | null {
   const count = content.split(oldText).length - 1;
   if (count === 0) return "Error: old_text not found in file.";

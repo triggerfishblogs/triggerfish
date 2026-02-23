@@ -40,6 +40,7 @@ async function executeTodoWrite(
 export function createTodoToolExecutor(
   manager: TodoManager,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
+  // deno-lint-ignore require-await
   return async (
     name: string,
     input: Record<string, unknown>,

@@ -113,6 +113,7 @@ async function promptGoogleCredentials(): Promise<
 }
 
 /** Wait for the OAuth callback code, racing against server shutdown. */
+// deno-lint-ignore require-await
 async function awaitOAuthCode(
   codePromise: Promise<string>,
   server: Deno.HttpServer,

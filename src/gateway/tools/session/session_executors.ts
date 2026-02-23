@@ -190,6 +190,7 @@ async function executeSessionStatus(
  *
  * Returns the tool result string, or null if the tool name is not recognized.
  */
+// deno-lint-ignore require-await
 export async function dispatchSessionTool(
   ctx: SessionToolContext,
   name: string,

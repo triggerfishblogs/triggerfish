@@ -146,6 +146,7 @@ async function executeClaudeStop(
 export function createClaudeToolExecutor(
   manager: ClaudeSessionManager,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
+  // deno-lint-ignore require-await
   return async (
     name: string,
     input: Record<string, unknown>,

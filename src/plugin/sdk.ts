@@ -193,6 +193,7 @@ async function enforceQueryHandlerCeiling(
 }
 
 /** Resolve a plugin query through capabilities, handler, or stub fallback. */
+// deno-lint-ignore require-await
 async function resolvePluginQuery(
   query: string,
   config: PluginSdkConfig,

@@ -58,6 +58,7 @@ const TOOL_HANDLERS: Readonly<Record<string, ToolHandler>> = {
 export function createGitHubToolExecutor(
   ctx: GitHubToolContext | undefined,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
+  // deno-lint-ignore require-await
   return async (
     name: string,
     input: Record<string, unknown>,

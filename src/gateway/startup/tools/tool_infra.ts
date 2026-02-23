@@ -28,7 +28,6 @@ import { createPlanManager, createPlanToolExecutor } from "../../../agent/plan/p
 import { mapToolPrefixClassifications } from "../../../agent/orchestrator/orchestrator_types.ts";
 import type { createWorkspace } from "../../../exec/workspace.ts";
 import type { createPathClassifier } from "../../../core/security/path_classification.ts";
-import type { createAutoLaunchBrowserExecutor } from "../../../tools/browser/mod.ts";
 import type { RegisteredChannel } from "../../tools/session/session_tools.ts";
 import { createSessionToolExecutor } from "../../tools/session/session_tools.ts";
 import type { McpBroadcastRefs } from "../infra/mcp.ts";
@@ -36,7 +35,6 @@ import type { wireMcpServers } from "../infra/mcp.ts";
 import type { createToolExecutor } from "../../tools/agent_tools.ts";
 import type { buildWebTools } from "../factory/web_tools.ts";
 import { buildWebTools as buildWebToolsFn } from "../factory/web_tools.ts";
-import { createOrchestratorFactory } from "../factory/orchestrator_factory.ts";
 import {
   createCliSecretPrompt,
 } from "../infra/subsystems.ts";

@@ -226,6 +226,7 @@ async function dispatchClose(tools: BrowserTools): Promise<string> {
 // ─── Dispatch Router ────────────────────────────────────────────────────────
 
 /** Route a browser_* tool call to its handler. Returns null for unknown tools. */
+// deno-lint-ignore require-await
 async function routeBrowserToolCall(
   name: string,
   input: Record<string, unknown>,
@@ -279,6 +280,7 @@ export function createBrowserToolExecutor(
   const tools = opts.tools;
   const lastScreenshotRef: { value: string | undefined } = { value: undefined };
 
+  // deno-lint-ignore require-await
   return async (
     name: string,
     input: Record<string, unknown>,

@@ -58,6 +58,7 @@ function resolveOpenRouterApiKey(configKey?: string): string {
 }
 
 /** Execute a non-streaming OpenRouter completion. */
+// deno-lint-ignore require-await
 async function completeOpenRouter(
   deps: OpenRouterDeps,
   req: OpenRouterRequest,

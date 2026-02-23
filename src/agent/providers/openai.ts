@@ -54,13 +54,11 @@ function convertToOpenAiMessages(messages: readonly LlmMessage[]): any[] {
 }
 
 /** Build OpenAI tools parameter, returning empty object if no tools. */
-// deno-lint-ignore no-explicit-any
 function buildOpenAiToolsParam(
   tools: readonly unknown[],
-): { tools?: any[] } {
-  // deno-lint-ignore no-explicit-any
+): { tools?: unknown[] } {
   return (Array.isArray(tools) && tools.length > 0)
-    ? { tools: tools as any[] }
+    ? { tools: tools as unknown[] }
     : {};
 }
 

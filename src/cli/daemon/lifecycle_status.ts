@@ -98,6 +98,7 @@ async function getWindowsServiceStatus(): Promise<DaemonStatus> {
  *
  * @returns Status information including whether the daemon is running.
  */
+// deno-lint-ignore require-await
 export async function getDaemonStatus(): Promise<DaemonStatus> {
   const manager = detectDaemonManager();
   switch (manager) {

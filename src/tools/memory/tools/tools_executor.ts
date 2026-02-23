@@ -217,6 +217,7 @@ const MEMORY_EXECUTORS: Readonly<Record<string, MemoryExecutorFn>> = {
 export function createMemoryToolExecutor(
   ctx: MemoryToolContext,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
+  // deno-lint-ignore require-await
   return async (
     name: string,
     input: Record<string, unknown>,

@@ -151,6 +151,7 @@ export function createPlanToolExecutor(
   manager: PlanManager,
   sessionId: string,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
+  // deno-lint-ignore require-await
   return async (
     name: string,
     input: Record<string, unknown>,

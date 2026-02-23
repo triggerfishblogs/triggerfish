@@ -60,6 +60,7 @@ async function forwardWebhookToScheduler(
  * Routes POST /webhooks/:sourceId to the scheduler service,
  * reading the HMAC signature from standard webhook headers.
  */
+// deno-lint-ignore require-await
 export async function routeWebhookHttp(
   request: Request,
   url: URL,

@@ -133,6 +133,7 @@ function executeChannelsList(ctx: SessionToolContext): string {
  *
  * Returns the tool result string, or null if the tool name is not recognized.
  */
+// deno-lint-ignore require-await
 export async function dispatchChannelTool(
   ctx: SessionToolContext,
   name: string,

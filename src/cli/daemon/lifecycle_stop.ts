@@ -60,6 +60,7 @@ async function stopWindowsServiceDaemon(): Promise<DaemonResult> {
  *
  * @returns Result indicating success or failure.
  */
+// deno-lint-ignore require-await
 export async function stopDaemon(): Promise<DaemonResult> {
   const manager = detectDaemonManager();
   switch (manager) {

@@ -13,7 +13,6 @@ import type { createSchedulerService } from "../../scheduler/service.ts";
 import type { buildSchedulerConfig } from "./factory/scheduler_config.ts";
 import { createTidePoolTools } from "../../tools/tidepool/mod.ts";
 import { createChatSession } from "../chat.ts";
-import type { ModelsConfig } from "../../agent/providers/config.ts";
 import type { BootstrapResult } from "./bootstrap.ts";
 import type { CoreInfraResult } from "./infra/core_infra.ts";
 import type { ToolInfraResult } from "./tools/tool_infra.ts";

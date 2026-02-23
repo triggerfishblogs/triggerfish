@@ -133,6 +133,7 @@ export async function createSandbox(config: SandboxConfig): Promise<Sandbox> {
   let destroyed = false;
 
   return {
+    // deno-lint-ignore require-await
     async executePluginCode(code: string): Promise<unknown> {
       if (destroyed) throw new Error("Sandbox has been destroyed");
       return executeSandboxedCode(code, allowedHosts, config.name);

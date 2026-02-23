@@ -155,6 +155,7 @@ async function dispatchSessionsSpawn(
 }
 
 /** Dispatch a sessions.* JSON-RPC method. Returns null if method not recognized. */
+// deno-lint-ignore require-await
 async function dispatchSessionRpc(
   method: string,
   params: Record<string, unknown>,
@@ -208,6 +209,7 @@ async function dispatchNotificationsAcknowledge(
 }
 
 /** Dispatch a notifications.* JSON-RPC method. Returns null if method not recognized. */
+// deno-lint-ignore require-await
 async function dispatchNotificationRpc(
   method: string,
   params: Record<string, unknown>,
@@ -227,6 +229,7 @@ async function dispatchNotificationRpc(
 // ─── Main JSON-RPC dispatcher ─────────────────────────────────────────────────
 
 /** Try dispatching to a session RPC handler. */
+// deno-lint-ignore require-await
 async function trySessionDispatch(
   method: string,
   params: Record<string, unknown>,
@@ -241,6 +244,7 @@ async function trySessionDispatch(
 }
 
 /** Try dispatching to a notification RPC handler. */
+// deno-lint-ignore require-await
 async function tryNotificationDispatch(
   method: string,
   params: Record<string, unknown>,
