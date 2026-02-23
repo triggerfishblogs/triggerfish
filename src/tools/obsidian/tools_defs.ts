@@ -48,6 +48,39 @@ function buildObsidianReadDef(): ToolDefinition {
   };
 }
 
+/** Build parameter definitions for the obsidian_write tool. */
+function buildObsidianWriteParams(): ToolDefinition["parameters"] {
+  return {
+    name: {
+      type: "string",
+      description: "Note name or vault-relative path",
+      required: true,
+    },
+    content: {
+      type: "string",
+      description: "Full note content (replaces body if updating)",
+    },
+    append: { type: "string", description: "Text to append to end of note" },
+    prepend: {
+      type: "string",
+      description: "Text to prepend after frontmatter",
+    },
+    folder: {
+      type: "string",
+      description: "Folder to create note in (for new notes)",
+    },
+    frontmatter: {
+      type: "object",
+      description:
+        'Frontmatter fields to set/merge (e.g. {"tags": ["project"]})',
+    },
+    template: {
+      type: "string",
+      description: "Template path to use for new notes",
+    },
+  };
+}
+
 function buildObsidianWriteDef(): ToolDefinition {
   return {
     name: "obsidian_write",
@@ -56,35 +89,7 @@ function buildObsidianWriteDef(): ToolDefinition {
       "or use append/prepend for incremental updates. Frontmatter is merged " +
       "with existing values. Classification is enforced — you cannot write to " +
       "a folder with higher classification than the current session.",
-    parameters: {
-      name: {
-        type: "string",
-        description: "Note name or vault-relative path",
-        required: true,
-      },
-      content: {
-        type: "string",
-        description: "Full note content (replaces body if updating)",
-      },
-      append: { type: "string", description: "Text to append to end of note" },
-      prepend: {
-        type: "string",
-        description: "Text to prepend after frontmatter",
-      },
-      folder: {
-        type: "string",
-        description: "Folder to create note in (for new notes)",
-      },
-      frontmatter: {
-        type: "object",
-        description:
-          'Frontmatter fields to set/merge (e.g. {"tags": ["project"]})',
-      },
-      template: {
-        type: "string",
-        description: "Template path to use for new notes",
-      },
-    },
+    parameters: buildObsidianWriteParams(),
   };
 }
 
