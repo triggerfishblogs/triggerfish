@@ -154,6 +154,7 @@ export function createGatewayServer(
               log.warn("WebSocket upgrade rejected", {
                 status: rejection.status,
                 reason,
+                origin: request.headers.get("origin") ?? "(none)",
               });
               return rejection;
             }
@@ -216,7 +217,11 @@ export function createGatewayServer(
             request.method === "POST" &&
             url.pathname === "/debug/run-triggers"
           ) {
-            if (options?.token) {
+            if (!options?.token) {
+              log.debug("Debug endpoint auth not configured, proceeding", {
+                operation: "debug/run-triggers",
+              });
+            } else {
               const provided = extractBearerToken(request);
               if (provided !== options.token) {
                 log.warn("Debug endpoint access rejected: invalid token", {
