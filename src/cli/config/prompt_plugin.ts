@@ -7,7 +7,7 @@ import { join } from "@std/path";
 import { Confirm, Input, Select } from "@cliffy/prompt";
 import { expandTilde } from "./paths.ts";
 
-import type { PLUGIN_TYPES } from "./config.ts";
+import type { PLUGIN_TYPES } from "./yaml_paths.ts";
 
 type PluginType = typeof PLUGIN_TYPES[number];
 

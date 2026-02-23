@@ -16,7 +16,7 @@ import { promptWebchatConfig } from "./prompt_webchat.ts";
 import { promptEmailConfig } from "./prompt_email.ts";
 import { promptSignalConfig } from "./prompt_signal.ts";
 
-import type { CHANNEL_TYPES } from "./config.ts";
+import type { CHANNEL_TYPES } from "./yaml_paths.ts";
 
 type ChannelType = typeof CHANNEL_TYPES[number];
 

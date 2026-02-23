@@ -7,7 +7,9 @@
  * - chat_spinner.ts — animated spinner
  * - chat_format.ts — text formatting and response rendering
  * - chat_tool_display.ts — tool call/result display
- * - chat_think_filter.ts — streaming thinking-tag filter
+ * - think_filter_types.ts — filter types, interfaces, constants
+ * - think_filter_buffer.ts — buffer-phase resolution
+ * - think_filter.ts — stream processing and filter factory
  * - chat_event_handler.ts — orchestrator event handlers
  *
  * @module
