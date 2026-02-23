@@ -55,35 +55,40 @@ function buildRenderHtmlDef(): ToolDefinition {
   };
 }
 
+/** Build parameter definitions for the tidepool_render_file tool. */
+function buildRenderFileParams(): ToolDefinition["parameters"] {
+  return {
+    label: {
+      type: "string",
+      description: "Short label shown in the chat timeline",
+      required: true,
+    },
+    filename: {
+      type: "string",
+      description: "Original filename (e.g. 'report.pdf', 'chart.png')",
+      required: true,
+    },
+    mime: {
+      type: "string",
+      description:
+        "MIME type (e.g. 'image/png', 'application/pdf', 'text/plain')",
+      required: true,
+    },
+    data: {
+      type: "string",
+      description: "Base64-encoded file data",
+      required: true,
+    },
+  };
+}
+
 function buildRenderFileDef(): ToolDefinition {
   return {
     name: "tidepool_render_file",
     description:
       "Render a file with preview and download in the Tidepool canvas. " +
       "Supports images, PDFs, text/code files, and archives.",
-    parameters: {
-      label: {
-        type: "string",
-        description: "Short label shown in the chat timeline",
-        required: true,
-      },
-      filename: {
-        type: "string",
-        description: "Original filename (e.g. 'report.pdf', 'chart.png')",
-        required: true,
-      },
-      mime: {
-        type: "string",
-        description:
-          "MIME type (e.g. 'image/png', 'application/pdf', 'text/plain')",
-        required: true,
-      },
-      data: {
-        type: "string",
-        description: "Base64-encoded file data",
-        required: true,
-      },
-    },
+    parameters: buildRenderFileParams(),
   };
 }
 
