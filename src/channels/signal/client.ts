@@ -201,6 +201,38 @@ function marshalSignalContactEntry(
   };
 }
 
+/** Read from connection and drain messages until disconnected or deactivated. */
+async function readSignalSocketLoop(
+  state: ClientState,
+  log: ReturnType<typeof createLogger>,
+): Promise<string | null> {
+  const decoder = new TextDecoder();
+  const buf = new Uint8Array(4096);
+  while (state.readLoopActive && state.conn) {
+    const n = await state.conn.read(buf);
+    if (n === null) return "Connection closed";
+    state.buffer += decoder.decode(buf.subarray(0, n));
+    state.buffer = drainSignalBuffer(
+      state.buffer,
+      state.pending,
+      state.notificationHandler,
+      log,
+    );
+  }
+  return null;
+}
+
+/** Try a single reconnection attempt, returning true on success. */
+async function attemptSignalReconnect(
+  state: ClientState,
+  endpoint: string,
+): Promise<boolean> {
+  const target = parseSignalEndpoint(endpoint);
+  state.conn = await openSignalConnection(target);
+  state.buffer = "";
+  return true;
+}
+
 /**
  * Encode a JSON-RPC request as newline-delimited bytes.
  *
@@ -254,25 +286,9 @@ export function createSignalClient(
   async function startReadLoop(): Promise<void> {
     if (!state.conn || state.readLoopActive) return;
     state.readLoopActive = true;
-
-    const decoder = new TextDecoder();
-    const buf = new Uint8Array(4096);
-
     try {
-      while (state.readLoopActive && state.conn) {
-        const n = await state.conn.read(buf);
-        if (n === null) {
-          handleReadLoopDisconnect("Connection closed");
-          break;
-        }
-        state.buffer += decoder.decode(buf.subarray(0, n));
-        state.buffer = drainSignalBuffer(
-          state.buffer,
-          state.pending,
-          state.notificationHandler,
-          log,
-        );
-      }
+      const reason = await readSignalSocketLoop(state, log);
+      if (reason) handleReadLoopDisconnect(reason);
     } catch (err: unknown) {
       log.warn("Signal TCP read loop exited with error", { error: err });
       handleReadLoopDisconnect("Connection error");
@@ -291,23 +307,17 @@ export function createSignalClient(
   async function reconnectSignalDaemon(): Promise<void> {
     if (state.destroyed || state.reconnecting) return;
     state.reconnecting = true;
-
-    let attempt = 0;
-    while (!state.destroyed && attempt < maxRetries) {
-      const delay = baseDelay * Math.pow(2, attempt);
-      await new Promise((r) => setTimeout(r, delay));
+    for (let attempt = 0; !state.destroyed && attempt < maxRetries; attempt++) {
+      await new Promise((r) => setTimeout(r, baseDelay * Math.pow(2, attempt)));
       if (state.destroyed) break;
-      attempt++;
       try {
-        const target = parseSignalEndpoint(options.endpoint);
-        state.conn = await openSignalConnection(target);
-        state.buffer = "";
+        await attemptSignalReconnect(state, options.endpoint);
         startReadLoop();
         state.reconnecting = false;
         return;
       } catch (err: unknown) {
         log.debug("Signal TCP reconnect attempt failed", {
-          attempt,
+          attempt: attempt + 1,
           error: err,
         });
         state.conn = null;
