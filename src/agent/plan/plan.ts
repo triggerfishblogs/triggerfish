@@ -85,12 +85,6 @@ interface PendingPlan {
   readonly planId: string;
 }
 
-/**
- * Create a PlanManager that tracks plan mode state per session.
- *
- * @param options - Configuration including the plans directory path
- * @returns A PlanManager instance
- */
 /** Persist a plan markdown file to disk (non-fatal on failure). */
 async function persistPlanFile(
   plansDir: string,
@@ -199,6 +193,106 @@ function modifyPlanStep(
   });
 }
 
+/** Transition session into plan mode, rejecting if already planning or awaiting approval. */
+function enterPlanMode(
+  states: Map<string, PlanModeState>,
+  sessionId: string,
+  current: PlanModeState,
+  goal: string,
+  scope?: string,
+): string {
+  if (current.mode === "plan") {
+    return JSON.stringify({
+      error: "Already in plan mode",
+      current_goal: current.goal,
+    });
+  }
+  if (current.mode === "awaiting_approval") {
+    return JSON.stringify({
+      error:
+        "A plan is awaiting approval. Approve or reject it before entering plan mode again.",
+    });
+  }
+  states.set(sessionId, { mode: "plan", goal, scope });
+  return JSON.stringify({
+    status: "entered",
+    mode: "plan",
+    blocked_tools: PLAN_BLOCKED_TOOLS,
+  });
+}
+
+/** Finalize plan mode by persisting the plan and transitioning to awaiting_approval. */
+async function exitPlanMode(
+  states: Map<string, PlanModeState>,
+  pendingPlans: Map<string, PendingPlan>,
+  plansDir: string,
+  sessionId: string,
+  current: PlanModeState,
+  plan: ImplementationPlan,
+): Promise<{ readonly planId: string; readonly markdown: string }> {
+  if (current.mode !== "plan") {
+    throw new Error("Not in plan mode. Call plan_enter first.");
+  }
+  const goal = current.goal ?? "Unknown goal";
+  const planId = `plan_${new Date().toISOString().slice(0, 10)}_${
+    crypto.randomUUID().slice(0, 6)
+  }`;
+  const markdown = formatPlanAsMarkdown(planId, goal, plan);
+  await persistPlanFile(plansDir, planId, markdown);
+  states.set(sessionId, { mode: "awaiting_approval", goal });
+  pendingPlans.set(sessionId, { goal, plan, planId });
+  return { planId, markdown };
+}
+
+/** Approve a pending plan, activating it for step-by-step execution. */
+function approvePendingPlan(
+  states: Map<string, PlanModeState>,
+  pendingPlans: Map<string, PendingPlan>,
+  sessionId: string,
+): string | null {
+  const pending = pendingPlans.get(sessionId);
+  if (!pending) return null;
+  states.set(sessionId, {
+    mode: "normal",
+    goal: pending.goal,
+    activePlan: {
+      id: pending.planId,
+      plan: pending.plan,
+      completedSteps: [],
+      currentStep: pending.plan.steps[0]?.id ?? 1,
+    },
+  });
+  pendingPlans.delete(sessionId);
+  return pending.planId;
+}
+
+/** Mark the entire plan as complete, resetting the session to default state. */
+function completePlanExecution(
+  states: Map<string, PlanModeState>,
+  sessionId: string,
+  current: PlanModeState,
+  summary: string,
+  deviations?: readonly string[],
+): string {
+  if (!current.activePlan) {
+    return JSON.stringify({ error: "No active plan" });
+  }
+  const planId = current.activePlan.id;
+  states.set(sessionId, DEFAULT_PLAN_STATE);
+  return JSON.stringify({
+    status: "plan_completed",
+    plan_id: planId,
+    summary,
+    deviations: deviations ?? [],
+  });
+}
+
+/**
+ * Create a PlanManager that tracks plan mode state per session.
+ *
+ * @param options - Configuration including the plans directory path
+ * @returns A PlanManager instance
+ */
 export function createPlanManager(options: PlanManagerOptions): PlanManager {
   const states = new Map<string, PlanModeState>();
   const pendingPlans = new Map<string, PendingPlan>();
@@ -210,65 +304,27 @@ export function createPlanManager(options: PlanManagerOptions): PlanManager {
   return {
     getState,
 
-    enter(sessionId: string, goal: string, scope?: string): string {
-      const current = getState(sessionId);
-      if (current.mode === "plan") {
-        return JSON.stringify({
-          error: "Already in plan mode",
-          current_goal: current.goal,
-        });
-      }
-      if (current.mode === "awaiting_approval") {
-        return JSON.stringify({
-          error:
-            "A plan is awaiting approval. Approve or reject it before entering plan mode again.",
-        });
-      }
-      states.set(sessionId, { mode: "plan", goal, scope });
-      return JSON.stringify({
-        status: "entered",
-        mode: "plan",
-        blocked_tools: PLAN_BLOCKED_TOOLS,
-      });
-    },
+    enter: (sessionId: string, goal: string, scope?: string): string =>
+      enterPlanMode(states, sessionId, getState(sessionId), goal, scope),
 
-    async exit(
+    exit: (
       sessionId: string,
       plan: ImplementationPlan,
-    ): Promise<{ readonly planId: string; readonly markdown: string }> {
-      const current = getState(sessionId);
-      if (current.mode !== "plan") {
-        throw new Error("Not in plan mode. Call plan_enter first.");
-      }
-      const goal = current.goal ?? "Unknown goal";
-      const planId = `plan_${new Date().toISOString().slice(0, 10)}_${
-        crypto.randomUUID().slice(0, 6)
-      }`;
-      const markdown = formatPlanAsMarkdown(planId, goal, plan);
-      await persistPlanFile(options.plansDir, planId, markdown);
-      states.set(sessionId, { mode: "awaiting_approval", goal });
-      pendingPlans.set(sessionId, { goal, plan, planId });
-      return { planId, markdown };
-    },
+    ): Promise<{ readonly planId: string; readonly markdown: string }> =>
+      exitPlanMode(
+        states,
+        pendingPlans,
+        options.plansDir,
+        sessionId,
+        getState(sessionId),
+        plan,
+      ),
 
-    status: (sessionId) => buildPlanStatusSnapshot(getState(sessionId)),
+    status: (sessionId: string): string =>
+      buildPlanStatusSnapshot(getState(sessionId)),
 
-    approve(sessionId: string): string | null {
-      const pending = pendingPlans.get(sessionId);
-      if (!pending) return null;
-      states.set(sessionId, {
-        mode: "normal",
-        goal: pending.goal,
-        activePlan: {
-          id: pending.planId,
-          plan: pending.plan,
-          completedSteps: [],
-          currentStep: pending.plan.steps[0]?.id ?? 1,
-        },
-      });
-      pendingPlans.delete(sessionId);
-      return pending.planId;
-    },
+    approve: (sessionId: string): string | null =>
+      approvePendingPlan(states, pendingPlans, sessionId),
 
     reject(sessionId: string): string {
       pendingPlans.delete(sessionId);
@@ -290,20 +346,18 @@ export function createPlanManager(options: PlanManagerOptions): PlanManager {
       );
     },
 
-    complete(sessionId, summary, deviations): string {
-      const current = getState(sessionId);
-      if (!current.activePlan) {
-        return JSON.stringify({ error: "No active plan" });
-      }
-      const planId = current.activePlan.id;
-      states.set(sessionId, DEFAULT_PLAN_STATE);
-      return JSON.stringify({
-        status: "plan_completed",
-        plan_id: planId,
+    complete: (
+      sessionId: string,
+      summary: string,
+      deviations?: readonly string[],
+    ): string =>
+      completePlanExecution(
+        states,
+        sessionId,
+        getState(sessionId),
         summary,
-        deviations: deviations ?? [],
-      });
-    },
+        deviations,
+      ),
 
     modify(
       sessionId,
