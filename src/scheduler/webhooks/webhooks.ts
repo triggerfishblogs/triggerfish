@@ -55,9 +55,9 @@ export function verifyHmac(
   signature: string,
   secret: string,
 ): boolean {
-  // Extract the algorithm prefix if present (e.g., "sha256=")
+  // Extract the algorithm prefix — only sha256= is accepted.
   const sigParts = signature.split("=");
-  if (sigParts.length < 2) {
+  if (sigParts.length < 2 || sigParts[0] !== "sha256") {
     return false;
   }
 

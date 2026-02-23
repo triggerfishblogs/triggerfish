@@ -2,6 +2,7 @@
  * Tests for webhook HMAC-SHA256 signing and verification.
  */
 import { assertEquals, assert } from "@std/assert";
+import { verifyHmac } from "../../src/scheduler/webhooks/webhooks.ts";
 import {
   signWebhook,
   verifyWebhookSignature,
@@ -85,4 +86,12 @@ Deno.test("verifyWebhookSignature: rejects signature of wrong length", async () 
   );
 
   assertEquals(valid, false);
+});
+
+// ── verifyHmac strict format ─────────────────────────────────────────
+
+Deno.test("verifyHmac: rejects non-sha256 algorithm prefix", () => {
+  // md5= and sha1= prefixes must be rejected — only sha256= is accepted
+  assertEquals(verifyHmac("body", "md5=abc123abc123abc123abc123abc123ab", "secret"), false);
+  assertEquals(verifyHmac("body", "sha1=abc123abc123abc123abc123abc123ab", "secret"), false);
 });

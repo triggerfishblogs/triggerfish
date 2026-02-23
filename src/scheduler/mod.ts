@@ -28,10 +28,15 @@ export {
   verifyHmacAsync,
   computeHmac,
   createWebhookHandler,
+  createRateLimiter,
+  createReplayGuard,
   type WebhookEvent,
   type WebhookEventHandler,
   type WebhookSource,
   type WebhookHandler,
+  type RateLimiter,
+  type RateLimiterConfig,
+  type ReplayGuard,
 } from "./webhooks/mod.ts";
 
 export {
@@ -39,6 +44,7 @@ export {
   type SchedulerService,
   type SchedulerServiceConfig,
   type OrchestratorFactory,
+  type WebhookRequestContext,
   type WebhookSourceConfig,
 } from "./service.ts";
 
