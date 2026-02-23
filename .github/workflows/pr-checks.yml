@@ -128,7 +128,7 @@ jobs:
             Include file path, line number, rule ID, and the offending code snippet for each finding.
             If everything is clean, comment "Serviceability check passed ✅"
           allowed_bots: 'claude'
-          claude_args: "--model sonnet --max-turns 8 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep'"
+          claude_args: "--model sonnet --max-turns 12 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep'"
 
   code-review:
     needs: serviceability
