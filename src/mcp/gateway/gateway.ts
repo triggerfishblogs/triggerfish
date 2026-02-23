@@ -11,7 +11,10 @@
  * @module
  */
 
-import type { Result, ClassificationLevel } from "../../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../core/types/classification.ts";
 import { maxClassification } from "../../core/types/classification.ts";
 import type { SessionState } from "../../core/types/session.ts";
 import type { HookRunner } from "../../core/policy/hooks.ts";
@@ -79,7 +82,134 @@ export interface McpGateway {
   /** Register an MCP server with its classification state. */
   registerServer(server: ServerClassification): void;
   /** Call a tool on a registered MCP server, subject to policy enforcement. */
-  callTool(options: GatewayCallOptions): Promise<Result<GatewayToolResult, string>>;
+  callTool(
+    options: GatewayCallOptions,
+  ): Promise<Result<GatewayToolResult, string>>;
+}
+
+/** Fire MCP_TOOL_CALL hook for an unregistered server. */
+async function fireUnknownServerHook(
+  hookRunner: HookRunner,
+  session: SessionState,
+  serverUri: string,
+  toolName: string,
+): Promise<void> {
+  await hookRunner.evaluateHook("MCP_TOOL_CALL", {
+    session,
+    input: {
+      server_uri: serverUri,
+      tool_name: toolName,
+      server_status: "UNKNOWN",
+    },
+  });
+}
+
+/** Fire MCP_TOOL_CALL hook for a registered server. */
+async function fireToolCallHook(
+  hookRunner: HookRunner,
+  session: SessionState,
+  server: ServerClassification,
+  toolName: string,
+): Promise<void> {
+  await hookRunner.evaluateHook("MCP_TOOL_CALL", {
+    session,
+    input: {
+      server_uri: server.uri,
+      tool_name: toolName,
+      server_status: server.status,
+      server_classification: server.classification,
+    },
+  });
+}
+
+/** Reject calls to servers with UNTRUSTED or BLOCKED status. */
+function rejectDisallowedServerStatus(
+  server: ServerClassification,
+): Result<never, string> | null {
+  if (server.status === "UNTRUSTED") {
+    return { ok: false, error: `Server is UNTRUSTED: ${server.name}` };
+  }
+  if (server.status === "BLOCKED") {
+    return { ok: false, error: `Server is BLOCKED: ${server.name}` };
+  }
+  return null;
+}
+
+/** Build a GatewayToolResult from a successful MCP server response. */
+function buildGatewayToolResult(
+  serverResult: McpServerToolResult,
+  session: SessionState,
+): GatewayToolResult {
+  const sessionTaint = maxClassification(
+    session.taint,
+    serverResult.classification,
+  );
+  return {
+    content: [{ type: "text", text: serverResult.content }],
+    sessionTaint,
+  };
+}
+
+/** Record data lineage for a tool response and attach the lineage ID. */
+async function recordToolResponseLineage(
+  lineageStore: LineageStore,
+  serverResult: McpServerToolResult,
+  server: ServerClassification,
+  session: SessionState,
+  toolName: string,
+  baseResult: GatewayToolResult,
+): Promise<GatewayToolResult> {
+  const lineageRecord = await lineageStore.create({
+    content: serverResult.content,
+    origin: {
+      source_type: "mcp_server",
+      source_name: server.name,
+      accessed_at: new Date().toISOString(),
+      accessed_by: session.userId as string,
+      access_method: toolName,
+    },
+    classification: {
+      level: serverResult.classification,
+      reason: `Data from ${server.name} (${server.classification})`,
+    },
+    sessionId: session.id,
+  });
+  return { ...baseResult, lineageId: lineageRecord.lineage_id };
+}
+
+/** Execute a tool call through the provided MCP server. */
+async function executeMcpServerToolCall(
+  mcpServer: McpServer,
+  callOptions: GatewayCallOptions,
+  server: ServerClassification,
+  lineageStore: LineageStore | undefined,
+): Promise<Result<GatewayToolResult, string>> {
+  const toolResult = await mcpServer.callTool(
+    callOptions.toolName,
+    callOptions.arguments,
+  );
+  if (!toolResult.ok) {
+    return { ok: false, error: toolResult.error };
+  }
+
+  const baseResult = buildGatewayToolResult(
+    toolResult.value,
+    callOptions.session,
+  );
+
+  if (lineageStore) {
+    const enrichedResult = await recordToolResponseLineage(
+      lineageStore,
+      toolResult.value,
+      server,
+      callOptions.session,
+      callOptions.toolName,
+      baseResult,
+    );
+    return { ok: true, value: enrichedResult };
+  }
+
+  return { ok: true, value: baseResult };
 }
 
 /**
@@ -110,97 +240,31 @@ export function createMcpGateway(options: GatewayOptions): McpGateway {
       const { serverUri, toolName, session, mcpServer } = callOptions;
       const server = servers.get(serverUri);
 
-      // Unknown server
       if (!server) {
-        await hookRunner.evaluateHook("MCP_TOOL_CALL", {
-          session,
-          input: {
-            server_uri: serverUri,
-            tool_name: toolName,
-            server_status: "UNKNOWN",
-          },
-        });
+        await fireUnknownServerHook(hookRunner, session, serverUri, toolName);
         return { ok: false, error: `Server not registered: ${serverUri}` };
       }
 
-      // Fire MCP_TOOL_CALL hook for logging/policy
-      await hookRunner.evaluateHook("MCP_TOOL_CALL", {
-        session,
-        input: {
-          server_uri: serverUri,
-          tool_name: toolName,
-          server_status: server.status,
-          server_classification: server.classification,
-        },
-      });
+      await fireToolCallHook(hookRunner, session, server, toolName);
 
-      // Pre-flight: reject UNTRUSTED servers
-      if (server.status === "UNTRUSTED") {
-        return { ok: false, error: `Server is UNTRUSTED: ${server.name}` };
+      const rejection = rejectDisallowedServerStatus(server);
+      if (rejection) {
+        return rejection;
       }
 
-      // Pre-flight: reject BLOCKED servers
-      if (server.status === "BLOCKED") {
-        return { ok: false, error: `Server is BLOCKED: ${server.name}` };
-      }
-
-      // Server is CLASSIFIED — proceed with tool call
-
-      // If an mcpServer is provided, call through it
       if (mcpServer) {
-        const toolResult = await mcpServer.callTool(
-          toolName,
-          callOptions.arguments,
+        return executeMcpServerToolCall(
+          mcpServer,
+          callOptions,
+          server,
+          lineageStore,
         );
-        if (!toolResult.ok) {
-          return { ok: false, error: toolResult.error };
-        }
-
-        const responseClassification = toolResult.value.classification;
-        const sessionTaint = maxClassification(
-          session.taint,
-          responseClassification,
-        );
-
-        // Build base gateway tool result
-        const baseResult: GatewayToolResult = {
-          content: [{ type: "text", text: toolResult.value.content }],
-          sessionTaint,
-        };
-
-        // Create lineage record if store is available
-        if (lineageStore) {
-          const lineageRecord = await lineageStore.create({
-            content: toolResult.value.content,
-            origin: {
-              source_type: "mcp_server",
-              source_name: server.name,
-              accessed_at: new Date().toISOString(),
-              accessed_by: session.userId as string,
-              access_method: toolName,
-            },
-            classification: {
-              level: responseClassification,
-              reason: `Data from ${server.name} (${server.classification})`,
-            },
-            sessionId: session.id,
-          });
-
-          return {
-            ok: true,
-            value: { ...baseResult, lineageId: lineageRecord.lineage_id },
-          };
-        }
-
-        return { ok: true, value: baseResult };
       }
 
-      // Fall back to mock response
       if (mockToolResponse) {
         return { ok: true, value: mockToolResponse };
       }
 
-      // No real MCP client connected — cannot execute
       return {
         ok: false,
         error: `No MCP client available for server: ${server.name}`,
