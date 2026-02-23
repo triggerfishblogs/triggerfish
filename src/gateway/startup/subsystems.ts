@@ -143,6 +143,44 @@ export async function discoverSkills(
 
 // ─── CLI secret prompt ───────────────────────────────────────────────────────
 
+/** Write a string to stderr (visible even when stdout is piped). */
+function writeStderr(text: string): void {
+  Deno.stderr.writeSync(new TextEncoder().encode(text));
+}
+
+/** Build the prompt text for a secret input request. */
+function buildSecretPromptText(name: string, hint?: string): string {
+  return hint
+    ? `Enter value for '${name}' (${hint}): `
+    : `Enter value for '${name}': `;
+}
+
+/** Enable or disable raw mode on stdin, ignoring errors (non-TTY). */
+function setStdinRawMode(enabled: boolean): void {
+  try {
+    Deno.stdin.setRaw(enabled);
+  } catch { /* Non-TTY environments may not support raw mode */ }
+}
+
+/** Read bytes from stdin in raw mode until Enter or EOF. Returns null on Ctrl-C. */
+async function readSecretBytes(): Promise<number[] | null> {
+  const chars: number[] = [];
+  const buf = new Uint8Array(1);
+  while (true) {
+    const n = await Deno.stdin.read(buf);
+    if (n === null) break;
+    const byte = buf[0];
+    if (byte === 13 || byte === 10) break;
+    if (byte === 3) return null;
+    if (byte === 127 || byte === 8) {
+      if (chars.length > 0) chars.pop();
+    } else {
+      chars.push(byte);
+    }
+  }
+  return chars;
+}
+
 /**
  * Create the CLI secret prompt callback.
  *
@@ -151,45 +189,19 @@ export async function discoverSkills(
  * The entered value never appears in logs or LLM context.
  */
 export function createCliSecretPrompt(): SecretPromptCallback {
-  return async (
-    name: string,
-    hint?: string,
-  ): Promise<string | null> => {
-    const promptText = hint
-      ? `Enter value for '${name}' (${hint}): `
-      : `Enter value for '${name}': `;
-    Deno.stderr.writeSync(new TextEncoder().encode(promptText));
-
+  return async (name: string, hint?: string): Promise<string | null> => {
+    writeStderr(buildSecretPromptText(name, hint));
+    setStdinRawMode(true);
     try {
-      Deno.stdin.setRaw(true);
-    } catch {
-      // setRaw may fail in non-TTY environments; proceed without it.
-    }
-
-    const chars: number[] = [];
-    const buf = new Uint8Array(1);
-    try {
-      while (true) {
-        const n = await Deno.stdin.read(buf);
-        if (n === null) break;
-        const byte = buf[0];
-        if (byte === 13 || byte === 10) break; // Enter
-        if (byte === 3) { // Ctrl-C
-          Deno.stderr.writeSync(new TextEncoder().encode("\n"));
-          return null;
-        }
-        if (byte === 127 || byte === 8) { // Backspace
-          if (chars.length > 0) chars.pop();
-        } else {
-          chars.push(byte);
-        }
+      const chars = await readSecretBytes();
+      if (chars === null) {
+        writeStderr("\n");
+        return null;
       }
+      return new TextDecoder().decode(new Uint8Array(chars));
     } finally {
-      try {
-        Deno.stdin.setRaw(false);
-      } catch { /* Ignore */ }
-      Deno.stderr.writeSync(new TextEncoder().encode("\n"));
+      setStdinRawMode(false);
+      writeStderr("\n");
     }
-    return new TextDecoder().decode(new Uint8Array(chars));
   };
 }
