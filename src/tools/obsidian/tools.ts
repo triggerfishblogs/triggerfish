@@ -6,19 +6,17 @@
  * - Writes: verify canFlowTo(sessionTaint, folderClassification) — prevent write-down
  *
  * Types, tool definitions, and system prompt live in `tools_defs.ts`.
+ * Read and write handlers live in `tools_read_write.ts`.
  *
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { canFlowTo } from "../../core/types/classification.ts";
-import type { LineageOrigin, LineageClassification } from "../../core/session/lineage.ts";
 import { getClassificationForPath } from "./vault.ts";
-import { createLogger } from "../../core/logger/logger.ts";
 
 import type { ObsidianToolContext } from "./tools_defs.ts";
-
-const log = createLogger("security");
+import { resolveNotePath } from "./tools_read_write.ts";
+import { executeObsidianRead, executeObsidianWrite } from "./tools_read_write.ts";
 
 // ─── Barrel re-exports from tools_defs.ts ───────────────────────────────────
 
@@ -27,52 +25,6 @@ export {
   OBSIDIAN_SYSTEM_PROMPT,
 } from "./tools_defs.ts";
 export type { ObsidianToolContext } from "./tools_defs.ts";
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Convert a note name to a vault-relative path. */
-function resolveNotePath(name: string): string {
-  // Already has .md extension or contains a path separator
-  if (name.endsWith(".md")) return name;
-  // Has path separators — treat as relative path
-  if (name.includes("/")) return name + ".md";
-  // Just a name — return as top-level .md file
-  return name + ".md";
-}
-
-/** Record a lineage entry for an obsidian operation. */
-async function recordLineage(
-  ctx: ObsidianToolContext,
-  notePath: string,
-  classification: ClassificationLevel,
-  operation: string,
-): Promise<void> {
-  if (!ctx.lineageStore) return;
-
-  const origin: LineageOrigin = {
-    source_type: "obsidian_vault",
-    source_name: notePath,
-    accessed_at: new Date().toISOString(),
-    accessed_by: ctx.sessionId as string,
-    access_method: `obsidian_${operation}`,
-  };
-
-  const lineageClassification: LineageClassification = {
-    level: classification,
-    reason: `Obsidian vault ${operation}: ${notePath}`,
-  };
-
-  try {
-    await ctx.lineageStore.create({
-      content: notePath,
-      origin,
-      classification: lineageClassification,
-      sessionId: ctx.sessionId,
-    });
-  } catch {
-    // Lineage failure should not block the operation
-  }
-}
 
 // ─── Executor ────────────────────────────────────────────────────────────────
 
@@ -90,108 +42,11 @@ export function createObsidianToolExecutor(
     input: Record<string, unknown>,
   ): Promise<string | null> => {
     switch (name) {
-      case "obsidian_read": {
-        const noteName = input.name;
-        if (typeof noteName !== "string" || noteName.length === 0) {
-          return "Error: obsidian_read requires a 'name' argument (non-empty string).";
-        }
+      case "obsidian_read":
+        return executeObsidianRead(ctx, input);
 
-        const notePath = resolveNotePath(noteName);
-
-        // Classification check: note classification must flow to session taint
-        const noteClassification = getClassificationForPath(ctx.vaultContext, notePath);
-        if (!canFlowTo(noteClassification, ctx.getSessionTaint())) {
-          log.warn("Obsidian read blocked: classification exceeds session taint", {
-            notePath,
-            noteClassification,
-            sessionTaint: ctx.getSessionTaint(),
-          });
-          return `Error: Access denied — note classification ${noteClassification} exceeds session level ${ctx.getSessionTaint()}.`;
-        }
-
-        const result = await ctx.noteStore.read(notePath);
-        if (!result.ok) return `Error: ${result.error}`;
-
-        // Record lineage
-        if (ctx.lineageStore) {
-          await recordLineage(ctx, notePath, noteClassification, "read");
-        }
-
-        return JSON.stringify({
-          path: result.value.path,
-          name: result.value.name,
-          content: result.value.content,
-          frontmatter: result.value.frontmatter,
-          tags: result.value.tags,
-          wikilinks: result.value.wikilinks,
-          headings: result.value.headings,
-        });
-      }
-
-      case "obsidian_write": {
-        const noteName = input.name;
-        if (typeof noteName !== "string" || noteName.length === 0) {
-          return "Error: obsidian_write requires a 'name' argument (non-empty string).";
-        }
-
-        const folder = typeof input.folder === "string" ? input.folder : undefined;
-        const notePath = folder
-          ? `${folder}/${resolveNotePath(noteName)}`
-          : resolveNotePath(noteName);
-
-        // Classification check: prevent write-down
-        // Session taint must flow to folder classification
-        const folderClassification = getClassificationForPath(ctx.vaultContext, notePath);
-        if (!canFlowTo(ctx.getSessionTaint(), folderClassification)) {
-          log.warn("Obsidian write-down blocked", {
-            notePath,
-            sessionTaint: ctx.getSessionTaint(),
-            folderClassification,
-          });
-          return `Error: Write-down prevented — session taint ${ctx.getSessionTaint()} cannot write to folder classified ${folderClassification}.`;
-        }
-
-        const content = typeof input.content === "string" ? input.content : undefined;
-        const append = typeof input.append === "string" ? input.append : undefined;
-        const prepend = typeof input.prepend === "string" ? input.prepend : undefined;
-        const template = typeof input.template === "string" ? input.template : undefined;
-        const frontmatter = (input.frontmatter && typeof input.frontmatter === "object" && !Array.isArray(input.frontmatter))
-          ? input.frontmatter as Record<string, unknown>
-          : undefined;
-
-        // Try update first, then create
-        const existing = await ctx.noteStore.read(notePath);
-        let result;
-        if (existing.ok) {
-          result = await ctx.noteStore.update({
-            path: notePath,
-            content,
-            append,
-            prepend,
-            frontmatter,
-          });
-        } else {
-          result = await ctx.noteStore.create({
-            path: notePath,
-            content: content ?? "",
-            frontmatter,
-            template,
-          });
-        }
-
-        if (!result.ok) return `Error: ${result.error}`;
-
-        // Record lineage
-        if (ctx.lineageStore) {
-          await recordLineage(ctx, notePath, folderClassification, "write");
-        }
-
-        return JSON.stringify({
-          written: true,
-          path: result.value.path,
-          name: result.value.name,
-        });
-      }
+      case "obsidian_write":
+        return executeObsidianWrite(ctx, input);
 
       case "obsidian_search": {
         const query = input.query;

@@ -10,8 +10,8 @@
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import type { Result } from "../../core/types/classification.ts";
-import type { DomainPolicy } from "./domains.ts";
-import { resolveAndCheck as defaultResolveAndCheck } from "./domains.ts";
+import type { DomainPolicy } from "./policy.ts";
+import { resolveAndCheck as defaultResolveAndCheck } from "./ssrf.ts";
 
 /** DNS resolution + SSRF check function signature. */
 export type DnsChecker = (hostname: string) => Promise<Result<string, string>>;

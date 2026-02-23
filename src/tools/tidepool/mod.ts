@@ -34,18 +34,19 @@ export { createA2UIHost } from "./host.ts";
 // Tidepool browser HTML compositor
 export { buildTidepoolHtml, TIDEPOOL_HTML } from "./ui.ts";
 
-// A2UI tools (Result-based, canvas)
-export type { TidePoolTools } from "./tools.ts";
-export {
-  createTidePoolTools,
-  getTidepoolToolDefinitions,
-  createTidepoolToolExecutor,
-  TIDEPOOL_SYSTEM_PROMPT,
-} from "./tools.ts";
+// A2UI canvas tools (Result-based)
+export type { TidePoolTools, RenderFileOptions } from "./tools_canvas.ts";
+export { createTidePoolTools } from "./tools_canvas.ts";
+
+// Tool definitions and system prompt
+export { getTidepoolToolDefinitions, TIDEPOOL_SYSTEM_PROMPT } from "./tools_legacy.ts";
+
+// Executor
+export { createTidepoolToolExecutor } from "./tools_executor.ts";
 
 // Legacy callback-based host and tools (backward compatibility)
 export type { TidepoolHost, TidepoolHostOptions } from "./host.ts";
 export { createTidepoolHost } from "./host.ts";
 
-export type { TidepoolTools } from "./tools.ts";
-export { createTidepoolTools } from "./tools.ts";
+export type { TidepoolTools } from "./tools_legacy.ts";
+export { createTidepoolTools } from "./tools_legacy.ts";
