@@ -19,13 +19,16 @@ import { resolveAndCheck } from "../web/domains.ts";
 
 // ─── Barrel re-exports ──────────────────────────────────────────────────────
 
-export { getBrowserToolDefinitions, BROWSER_TOOLS_SYSTEM_PROMPT } from "./tools_defs.ts";
 export {
-  createAutoLaunchBrowserExecutor,
-  createBrowserToolExecutor,
+  BROWSER_TOOLS_SYSTEM_PROMPT,
+  getBrowserToolDefinitions,
+} from "./tools_defs.ts";
+export {
   type AutoLaunchBrowserConfig,
   type BrowserExecutorHandle,
   type BrowserToolExecutorOptions,
+  createAutoLaunchBrowserExecutor,
+  createBrowserToolExecutor,
 } from "./tools_executor.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -93,6 +96,152 @@ export interface BrowserTools {
 
 const DEFAULT_SCROLL_PX = 500;
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/** Parse and validate URL scheme for browser navigation. */
+function parseNavigationUrl(url: string): Result<URL, string> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, error: `Invalid URL: ${url}` };
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return {
+      ok: false,
+      error:
+        `Only http/https URLs are allowed. Got: ${parsed.protocol} — if the user asked to open a browser or a browser tab, navigate to a URL like https://example.com instead.`,
+    };
+  }
+  return { ok: true, value: parsed };
+}
+
+/** Run SSRF DNS check and domain policy check before navigation. */
+async function enforceBrowserNavigationPolicy(
+  url: string,
+  hostname: string,
+  dnsCheck: DnsChecker,
+  domainPolicy: DomainPolicy,
+): Promise<Result<void, string>> {
+  const dnsResult = await dnsCheck(hostname);
+  if (!dnsResult.ok) {
+    return { ok: false, error: dnsResult.error };
+  }
+  if (!domainPolicy.isAllowed(url)) {
+    return {
+      ok: false,
+      error: `Navigation blocked by domain policy: ${url}`,
+    };
+  }
+  return { ok: true, value: undefined };
+}
+
+/** Execute page.goto and build NavigateResult. */
+async function executeBrowserNavigation(
+  page: Page,
+  url: string,
+): Promise<Result<NavigateResult, string>> {
+  try {
+    const response = await page.goto(url, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+    return {
+      ok: true,
+      value: {
+        url: page.url(),
+        title: await page.title(),
+        statusCode: response?.status() ?? 0,
+      },
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Navigation failed: ${(err as Error).message}`,
+    };
+  }
+}
+
+/** Chunked base64 encoding to avoid call stack overflow on large buffers. */
+function encodeBufferToBase64(buffer: Uint8Array): string {
+  const chunks: string[] = [];
+  const chunkSize = 8192;
+  for (let i = 0; i < buffer.length; i += chunkSize) {
+    const slice = buffer.subarray(i, i + chunkSize);
+    chunks.push(String.fromCharCode(...slice));
+  }
+  return btoa(chunks.join(""));
+}
+
+/** Capture screenshot and extract visible text from the page. */
+async function captureBrowserSnapshot(
+  page: Page,
+): Promise<Result<SnapshotResult, string>> {
+  try {
+    const buffer = await page.screenshot({
+      type: "png",
+      fullPage: false,
+    }) as Uint8Array;
+
+    const screenshot = encodeBufferToBase64(buffer);
+
+    const textContent: string = await page.evaluate(
+      // deno-lint-ignore no-explicit-any
+      () => (globalThis as any).document?.body?.innerText ?? "",
+    );
+
+    return { ok: true, value: { screenshot, textContent } };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Snapshot failed: ${(err as Error).message}`,
+    };
+  }
+}
+
+/** Convert scroll direction and amount to pixel deltas. */
+function computeScrollDeltas(
+  direction: ScrollDirection,
+  amount?: number,
+): { readonly dx: number; readonly dy: number } {
+  const px = amount ?? DEFAULT_SCROLL_PX;
+  switch (direction) {
+    case "down":
+      return { dx: 0, dy: px };
+    case "up":
+      return { dx: 0, dy: -px };
+    case "right":
+      return { dx: px, dy: 0 };
+    case "left":
+      return { dx: -px, dy: 0 };
+  }
+}
+
+/** Execute a page scroll by the given pixel deltas. */
+async function scrollBrowserPage(
+  page: Page,
+  direction: ScrollDirection,
+  amount?: number,
+): Promise<Result<void, string>> {
+  const { dx, dy } = computeScrollDeltas(direction, amount);
+  try {
+    await page.evaluate(
+      (scrollX: number, scrollY: number) =>
+        // deno-lint-ignore no-explicit-any
+        (globalThis as any).scrollBy(scrollX, scrollY),
+      dx,
+      dy,
+    );
+    return { ok: true, value: undefined };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Scroll failed: ${(err as Error).message}`,
+    };
+  }
+}
+
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 /**
@@ -110,85 +259,22 @@ export function createBrowserTools(config: BrowserToolsConfig): BrowserTools {
 
   return {
     async navigate(url: string): Promise<Result<NavigateResult, string>> {
-      // Validate URL scheme
-      let parsed: URL;
-      try {
-        parsed = new URL(url);
-      } catch {
-        return { ok: false, error: `Invalid URL: ${url}` };
-      }
+      const parsed = parseNavigationUrl(url);
+      if (!parsed.ok) return parsed;
 
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-        return {
-          ok: false,
-          error:
-            `Only http/https URLs are allowed. Got: ${parsed.protocol} — if the user asked to open a browser or a browser tab, navigate to a URL like https://example.com instead.`,
-        };
-      }
+      const policy = await enforceBrowserNavigationPolicy(
+        url,
+        parsed.value.hostname,
+        dnsCheck,
+        config.domainPolicy,
+      );
+      if (!policy.ok) return policy;
 
-      // SSRF check: resolve DNS and verify IP
-      const dnsResult = await dnsCheck(parsed.hostname);
-      if (!dnsResult.ok) {
-        return { ok: false, error: dnsResult.error };
-      }
-
-      // Domain policy check
-      if (!config.domainPolicy.isAllowed(url)) {
-        return {
-          ok: false,
-          error: `Navigation blocked by domain policy: ${url}`,
-        };
-      }
-
-      try {
-        const response = await page.goto(url, {
-          waitUntil: "domcontentloaded",
-          timeout: 30000,
-        });
-        return {
-          ok: true,
-          value: {
-            url: page.url(),
-            title: await page.title(),
-            statusCode: response?.status() ?? 0,
-          },
-        };
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Navigation failed: ${(err as Error).message}`,
-        };
-      }
+      return executeBrowserNavigation(page, url);
     },
 
-    async snapshot(): Promise<Result<SnapshotResult, string>> {
-      try {
-        const buffer = await page.screenshot({
-          type: "png",
-          fullPage: false,
-        }) as Uint8Array;
-
-        // Base64 encode — chunk to avoid call stack overflow on large buffers
-        const chunks: string[] = [];
-        const chunkSize = 8192;
-        for (let i = 0; i < buffer.length; i += chunkSize) {
-          const slice = buffer.subarray(i, i + chunkSize);
-          chunks.push(String.fromCharCode(...slice));
-        }
-        const screenshot = btoa(chunks.join(""));
-
-        const textContent: string = await page.evaluate(
-          // deno-lint-ignore no-explicit-any
-          () => (globalThis as any).document?.body?.innerText ?? "",
-        );
-
-        return { ok: true, value: { screenshot, textContent } };
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Snapshot failed: ${(err as Error).message}`,
-        };
-      }
+    snapshot(): Promise<Result<SnapshotResult, string>> {
+      return captureBrowserSnapshot(page);
     },
 
     async click(selector: string): Promise<Result<void, string>> {
@@ -233,44 +319,11 @@ export function createBrowserTools(config: BrowserToolsConfig): BrowserTools {
       }
     },
 
-    async scroll(
+    scroll(
       direction: ScrollDirection,
       amount?: number,
     ): Promise<Result<void, string>> {
-      const px = amount ?? DEFAULT_SCROLL_PX;
-
-      let dx = 0;
-      let dy = 0;
-      switch (direction) {
-        case "down":
-          dy = px;
-          break;
-        case "up":
-          dy = -px;
-          break;
-        case "right":
-          dx = px;
-          break;
-        case "left":
-          dx = -px;
-          break;
-      }
-
-      try {
-        await page.evaluate(
-          (scrollX: number, scrollY: number) =>
-            // deno-lint-ignore no-explicit-any
-            (globalThis as any).scrollBy(scrollX, scrollY),
-          dx,
-          dy,
-        );
-        return { ok: true, value: undefined };
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Scroll failed: ${(err as Error).message}`,
-        };
-      }
+      return scrollBrowserPage(page, direction, amount);
     },
 
     async wait(
@@ -285,10 +338,7 @@ export function createBrowserTools(config: BrowserToolsConfig): BrowserTools {
           return { ok: true, value: true };
         }
 
-        // No selector — just wait for the given duration
-        await new Promise<void>((r) =>
-          setTimeout(r, timeout ?? 10000)
-        );
+        await new Promise<void>((r) => setTimeout(r, timeout ?? 10000));
         return { ok: true, value: true };
       } catch (err) {
         return {
