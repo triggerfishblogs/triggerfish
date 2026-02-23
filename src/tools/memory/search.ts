@@ -39,7 +39,11 @@ export interface MemorySearchProvider {
   index(record: MemoryRecord): Promise<void>;
 
   /** Remove a record from the search index. */
-  remove(agentId: string, classification: ClassificationLevel, key: string): Promise<void>;
+  remove(
+    agentId: string,
+    classification: ClassificationLevel,
+    key: string,
+  ): Promise<void>;
 
   /** Search for records matching a query, filtered by classification. */
   search(options: MemorySearchOptions): Promise<readonly MemorySearchResult[]>;
@@ -64,9 +68,7 @@ export function deserialiseRecord(json: string): MemoryRecord {
       : {}),
     expired: stored.expired,
     sourceSessionId: stored.sourceSessionId as SessionId,
-    ...(stored.lineageId !== undefined
-      ? { lineageId: stored.lineageId }
-      : {}),
+    ...(stored.lineageId !== undefined ? { lineageId: stored.lineageId } : {}),
   };
 }
 
@@ -85,9 +87,7 @@ export function serialiseRecord(record: MemoryRecord): string {
       : {}),
     expired: record.expired,
     sourceSessionId: record.sourceSessionId as string,
-    ...(record.lineageId !== undefined
-      ? { lineageId: record.lineageId }
-      : {}),
+    ...(record.lineageId !== undefined ? { lineageId: record.lineageId } : {}),
   };
   return JSON.stringify(stored);
 }
@@ -111,82 +111,130 @@ function applyShadowing(records: MemoryRecord[]): MemoryRecord[] {
   return [...byKey.values()];
 }
 
+/** Find the index of a record matching (agentId, classification, key), or -1. */
+function findRecordIndex(
+  records: readonly MemoryRecord[],
+  agentId: string,
+  classification: ClassificationLevel,
+  key: string,
+): number {
+  return records.findIndex(
+    (r) =>
+      r.agentId === agentId &&
+      r.classification === classification &&
+      r.key === key,
+  );
+}
+
+/** Filter records visible to the given session taint that match the query. */
+function filterVisibleRecords(
+  records: readonly MemoryRecord[],
+  agentId: string,
+  queryLower: string,
+  sessionTaint: ClassificationLevel,
+): MemoryRecord[] {
+  return records.filter(
+    (r) =>
+      r.agentId === agentId &&
+      !r.expired &&
+      canFlowTo(r.classification, sessionTaint) &&
+      (r.content.toLowerCase().includes(queryLower) ||
+        r.tags.some((t) => t.toLowerCase().includes(queryLower))),
+  );
+}
+
+/** Score and rank shadowed records by substring position. */
+function scoreMemoryRecords(
+  shadowed: readonly MemoryRecord[],
+  queryLower: string,
+  maxResults: number,
+): readonly MemorySearchResult[] {
+  const scored: MemorySearchResult[] = shadowed.map((record) => {
+    const pos = record.content.toLowerCase().indexOf(queryLower);
+    return { record, rank: pos === -1 ? 1000 : pos };
+  });
+  scored.sort((a, b) => a.rank - b.rank);
+  return scored.slice(0, maxResults);
+}
+
+/** Upsert a record into the in-memory store by (agentId, classification, key). */
+function upsertMemoryRecord(
+  records: MemoryRecord[],
+  record: MemoryRecord,
+): void {
+  const idx = findRecordIndex(
+    records,
+    record.agentId,
+    record.classification,
+    record.key,
+  );
+  if (idx !== -1) records.splice(idx, 1);
+  records.push(record);
+}
+
+/** Remove a record from the in-memory store by (agentId, classification, key). */
+function removeMemoryRecord(
+  records: MemoryRecord[],
+  agentId: string,
+  classification: ClassificationLevel,
+  key: string,
+): void {
+  const idx = findRecordIndex(records, agentId, classification, key);
+  if (idx !== -1) records.splice(idx, 1);
+}
+
+/** Search the in-memory store with substring matching, shadowing, and scoring. */
+function searchMemoryRecords(
+  records: readonly MemoryRecord[],
+  options: MemorySearchOptions,
+): readonly MemorySearchResult[] {
+  const { agentId, query, sessionTaint, maxResults = 20 } = options;
+  const queryLower = query.toLowerCase();
+  const visible = filterVisibleRecords(
+    records,
+    agentId,
+    queryLower,
+    sessionTaint,
+  );
+  return scoreMemoryRecords(applyShadowing(visible), queryLower, maxResults);
+}
+
+/** Build the MemorySearchProvider method object backed by the given records array. */
+function buildInMemoryProviderMethods(
+  records: MemoryRecord[],
+): MemorySearchProvider {
+  return {
+    index(record: MemoryRecord): Promise<void> {
+      upsertMemoryRecord(records, record);
+      return Promise.resolve();
+    },
+    remove(
+      agentId: string,
+      cl: ClassificationLevel,
+      key: string,
+    ): Promise<void> {
+      removeMemoryRecord(records, agentId, cl, key);
+      return Promise.resolve();
+    },
+    search(
+      options: MemorySearchOptions,
+    ): Promise<readonly MemorySearchResult[]> {
+      return Promise.resolve(searchMemoryRecords(records, options));
+    },
+    close(): Promise<void> {
+      records.length = 0;
+      return Promise.resolve();
+    },
+  };
+}
+
 /**
  * Create an in-memory search provider for testing.
  *
  * Uses simple substring matching on content and tags.
  */
 export function createInMemorySearchProvider(): MemorySearchProvider {
-  const records: MemoryRecord[] = [];
-
-  return {
-    // deno-lint-ignore require-await
-    async index(record: MemoryRecord): Promise<void> {
-      // Upsert: remove existing entry with same (agentId, classification, key)
-      const idx = records.findIndex(
-        (r) =>
-          r.agentId === record.agentId &&
-          r.classification === record.classification &&
-          r.key === record.key,
-      );
-      if (idx !== -1) {
-        records.splice(idx, 1);
-      }
-      records.push(record);
-    },
-
-    // deno-lint-ignore require-await
-    async remove(
-      agentId: string,
-      classification: ClassificationLevel,
-      key: string,
-    ): Promise<void> {
-      const idx = records.findIndex(
-        (r) =>
-          r.agentId === agentId &&
-          r.classification === classification &&
-          r.key === key,
-      );
-      if (idx !== -1) {
-        records.splice(idx, 1);
-      }
-    },
-
-    // deno-lint-ignore require-await
-    async search(
-      options: MemorySearchOptions,
-    ): Promise<readonly MemorySearchResult[]> {
-      const { agentId, query, sessionTaint, maxResults = 20 } = options;
-      const queryLower = query.toLowerCase();
-
-      // Filter by agent, classification, and non-expired
-      const visible = records.filter(
-        (r) =>
-          r.agentId === agentId &&
-          !r.expired &&
-          canFlowTo(r.classification, sessionTaint) &&
-          (r.content.toLowerCase().includes(queryLower) ||
-            r.tags.some((t) => t.toLowerCase().includes(queryLower))),
-      );
-
-      // Apply shadowing
-      const shadowed = applyShadowing(visible);
-
-      // Score by simple substring position (lower = better match)
-      const scored: MemorySearchResult[] = shadowed.map((record) => {
-        const pos = record.content.toLowerCase().indexOf(queryLower);
-        return { record, rank: pos === -1 ? 1000 : pos };
-      });
-
-      scored.sort((a, b) => a.rank - b.rank);
-      return scored.slice(0, maxResults);
-    },
-
-    // deno-lint-ignore require-await
-    async close(): Promise<void> {
-      records.length = 0;
-    },
-  };
+  return buildInMemoryProviderMethods([]);
 }
 
 /** Row shape from FTS5 search queries. */
@@ -306,7 +354,9 @@ export function createFts5SearchProvider(
 
       // Apply shadowing
       const shadowed = applyShadowing(visible.map((v) => v.record));
-      const shadowedKeys = new Set(shadowed.map((r) => `${r.classification}:${r.key}`));
+      const shadowedKeys = new Set(
+        shadowed.map((r) => `${r.classification}:${r.key}`),
+      );
 
       const results = visible.filter(
         (v) => shadowedKeys.has(`${v.record.classification}:${v.record.key}`),
