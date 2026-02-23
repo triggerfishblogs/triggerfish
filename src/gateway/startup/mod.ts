@@ -4,7 +4,7 @@
  * @module
  */
 
-export { startGateway } from "./startup.ts";
+export { runStart } from "./startup.ts";
 export { wireChannels } from "./channels.ts";
 export { wireMcpServers } from "./mcp.ts";
 export type { McpBroadcastRefs } from "./mcp.ts";
