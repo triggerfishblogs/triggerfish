@@ -1,8 +1,7 @@
 /**
  * Conversation compactor — manages context window usage.
  *
- * Provides token counting (via gpt-tokenizer cl100k_base), automatic
- * budget-aware compaction, and LLM-based summarization.
+ * Provides automatic budget-aware compaction and LLM-based summarization.
  *
  * Compaction strategy: the entire conversation history is summarized
  * into ONE message — a comprehensive briefing the LLM reads after its
@@ -16,13 +15,25 @@
  * tools, platform sections) is handled by the orchestrator and is
  * always present — the compactor only manages conversation history.
  *
+ * Token counting utilities are in compactor_tokens.ts.
+ * Keyword extraction is in compactor_keywords.ts.
+ *
  * @module
  */
 
 import type { HistoryEntry } from "./orchestrator.ts";
 import type { LlmMessage, LlmProvider } from "./llm.ts";
 import { extractText } from "../core/image/content.ts";
-import { encode } from "gpt-tokenizer";
+import { countTokens, estimateHistoryTokens } from "./compactor_tokens.ts";
+import { extractKeywords } from "./compactor_keywords.ts";
+
+// Re-export token utilities for backward compatibility
+export {
+  countTokens,
+  estimateTokens,
+  countContentTokens,
+  estimateHistoryTokens,
+} from "./compactor_tokens.ts";
 
 /** Configuration for the conversation compactor. */
 export interface CompactorConfig {
@@ -60,156 +71,6 @@ export interface Compactor {
 }
 
 /**
- * Count tokens in a string using cl100k_base tokenizer.
- *
- * Uses the gpt-tokenizer library which implements cl100k_base encoding.
- * Accurate within ~5% for Claude, GPT-4, and GPT-4o models.
- *
- * @param text - Text to count tokens for
- * @returns Exact token count
- */
-export function countTokens(text: string): number {
-  if (text.length === 0) return 0;
-  return encode(text).length;
-}
-
-/**
- * Estimate token count for a string.
- *
- * @deprecated Use {@link countTokens} for accurate counts. This alias
- * remains for backward compatibility.
- */
-export function estimateTokens(text: string): number {
-  return countTokens(text);
-}
-
-/**
- * Count tokens for a single content entry (string or content blocks).
- * Images are estimated at ~1000 tokens each (no tokenizer for images).
- */
-function countContentTokens(content: HistoryEntry["content"]): number {
-  if (typeof content === "string") {
-    return countTokens(content);
-  }
-  let tokens = 0;
-  for (const block of content) {
-    if (block.type === "text") {
-      tokens += countTokens(block.text);
-    } else if (block.type === "image") {
-      tokens += 1000; // Approximate token cost per image
-    }
-  }
-  return tokens;
-}
-
-/**
- * Count total tokens for a conversation history.
- *
- * @param history - Conversation history entries
- * @returns Sum of tokens across all entries
- */
-export function estimateHistoryTokens(
-  history: readonly HistoryEntry[],
-): number {
-  return history.reduce(
-    (sum, entry) => sum + countContentTokens(entry.content),
-    0,
-  );
-}
-
-/** Common English stop words excluded from keyword extraction. */
-const KEYWORD_STOP_WORDS = new Set([
-  "the",
-  "a",
-  "an",
-  "is",
-  "are",
-  "was",
-  "were",
-  "be",
-  "been",
-  "do",
-  "does",
-  "did",
-  "will",
-  "would",
-  "could",
-  "should",
-  "can",
-  "i",
-  "me",
-  "my",
-  "you",
-  "your",
-  "we",
-  "our",
-  "it",
-  "its",
-  "to",
-  "of",
-  "in",
-  "on",
-  "at",
-  "for",
-  "with",
-  "from",
-  "by",
-  "and",
-  "or",
-  "but",
-  "not",
-  "so",
-  "if",
-  "then",
-  "that",
-  "this",
-  "what",
-  "how",
-  "tell",
-  "about",
-  "please",
-]);
-
-/** Extract significant words from a single text string, filtering stop words. */
-function extractSignificantWords(text: string): readonly string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, "")
-    .split(/\s+/)
-    .filter((w) => w.length > 2 && !KEYWORD_STOP_WORDS.has(w));
-}
-
-/** Collect up to `limit` unique keywords from significant words per message. */
-function collectUniqueKeywords(
-  messages: readonly HistoryEntry[],
-  wordsPerMessage: number,
-  limit: number,
-): readonly string[] {
-  const seen = new Set<string>();
-  const keywords: string[] = [];
-  for (const msg of messages) {
-    if (msg.role !== "user") continue;
-    const text = extractText(msg.content);
-    if (text.startsWith("[")) continue;
-    const words = extractSignificantWords(text);
-    for (const word of words.slice(0, wordsPerMessage)) {
-      if (!seen.has(word)) {
-        seen.add(word);
-        keywords.push(word);
-      }
-    }
-  }
-  return keywords.slice(0, limit);
-}
-
-/**
- * Extract topic keywords from user messages for the auto-compact placeholder.
- */
-function extractKeywords(messages: readonly HistoryEntry[]): readonly string[] {
-  return collectUniqueKeywords(messages, 3, 10);
-}
-
-/**
  * Build a brief text-only digest of the conversation for the LLM
  * summarizer prompt. Truncates individual messages to keep the prompt
  * manageable even when some entries are massive tool results.
@@ -223,8 +84,6 @@ function buildDigest(
 
   for (const entry of history) {
     const text = extractText(entry.content);
-    // Truncate individual messages — the summarizer doesn't need
-    // every byte of a 50k tool result, just the gist.
     const truncated = text.length > 2000
       ? text.slice(0, 2000) + "… [truncated]"
       : text;

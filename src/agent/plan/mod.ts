@@ -7,12 +7,15 @@
 export type {
   PlanManager,
   PlanManagerOptions,
-} from "./plan.ts";
+} from "./plan_types.ts";
 
 export {
   createPlanManager,
-  createPlanToolExecutor,
 } from "./plan.ts";
+
+export {
+  createPlanToolExecutor,
+} from "./executor.ts";
 
 export type {
   AgentMode,

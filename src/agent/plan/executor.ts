@@ -9,7 +9,7 @@
  */
 
 import type { ImplementationPlan, PlanComplexity, PlanStep } from "./types.ts";
-import type { PlanManager } from "./plan.ts";
+import type { PlanManager } from "./plan_types.ts";
 
 // ─── Executor Helpers ──────────────────────────────────────────────────────────
 
