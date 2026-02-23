@@ -186,6 +186,59 @@ export function createSchedulerService(
     }
   }
 
+  /** Log token usage from an orchestrator result. */
+  function logTokenUsage(
+    source: string,
+    result: Result<
+      {
+        readonly response: string;
+        readonly tokenUsage: {
+          readonly inputTokens: number;
+          readonly outputTokens: number;
+        };
+      },
+      string
+    >,
+  ): void {
+    if (!result.ok) return;
+    const { inputTokens, outputTokens } = result.value.tokenUsage;
+    log.info(
+      `[${source}] Token usage — input: ${inputTokens}, output: ${outputTokens}, total: ${
+        inputTokens + outputTokens
+      }`,
+    );
+  }
+
+  /** Record a cron execution result in the cron manager. */
+  function recordCronExecution(
+    jobId: string,
+    startTime: number,
+    result: Result<{ readonly response: string }, string>,
+  ): void {
+    cronManager.recordExecution({
+      jobId,
+      executedAt: new Date(),
+      durationMs: performance.now() - startTime,
+      success: result.ok,
+      error: result.ok ? undefined : result.error,
+    });
+  }
+
+  /** Record a failed cron execution from an unhandled error. */
+  function recordCronFailure(
+    jobId: string,
+    startTime: number,
+    err: unknown,
+  ): void {
+    cronManager.recordExecution({
+      jobId,
+      executedAt: new Date(),
+      durationMs: performance.now() - startTime,
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   /** Execute a cron job in an isolated session. */
   async function executeCronJob(job: CronJob): Promise<void> {
     log.info(`Executing cron job: ${job.id}`);
@@ -194,38 +247,16 @@ export function createSchedulerService(
       const { orchestrator, session } = await config.orchestratorFactory.create(
         "cron",
       );
-
       const result = await orchestrator.executeAgentTurn({
         session,
         message: job.task,
         targetClassification: job.classificationCeiling,
       });
-
-      if (result.ok) {
-        const { inputTokens, outputTokens } = result.value.tokenUsage;
-        log.info(
-          `[cron:${job.id}] Token usage — input: ${inputTokens}, output: ${outputTokens}, total: ${
-            inputTokens + outputTokens
-          }`,
-        );
-      }
+      logTokenUsage(`cron:${job.id}`, result);
       await deliverOutput(result, session.taint, `cron:${job.id}`);
-
-      cronManager.recordExecution({
-        jobId: job.id,
-        executedAt: new Date(),
-        durationMs: performance.now() - startTime,
-        success: result.ok,
-        error: result.ok ? undefined : result.error,
-      });
+      recordCronExecution(job.id, startTime, result);
     } catch (err) {
-      cronManager.recordExecution({
-        jobId: job.id,
-        executedAt: new Date(),
-        durationMs: performance.now() - startTime,
-        success: false,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      recordCronFailure(job.id, startTime, err);
     }
   }
 
@@ -243,6 +274,48 @@ export function createSchedulerService(
     }
   }
 
+  /** Execute the trigger orchestrator with the given TRIGGER.md content. */
+  async function executeTriggerSession(message: string): Promise<void> {
+    log.info("Creating trigger orchestrator session");
+    const { orchestrator, session } = await config.orchestratorFactory.create(
+      "trigger",
+      { isTrigger: true, ceiling: config.trigger.classificationCeiling },
+    );
+    log.info("Trigger orchestrator processing TRIGGER.md");
+    const result = await orchestrator.executeAgentTurn({
+      session,
+      message,
+      targetClassification: config.trigger.classificationCeiling,
+    });
+    log.info(`Trigger completed (ok: ${result.ok}, taint: ${session.taint})`);
+    logTokenUsage("trigger", result);
+    await deliverOutput(result, session.taint, "trigger");
+  }
+
+  /** Execute a webhook event in an isolated orchestrator session. */
+  async function executeWebhookSession(
+    sourceId: string,
+    body: string,
+    event: WebhookEvent,
+    classification: ClassificationLevel,
+  ): Promise<void> {
+    try {
+      const { orchestrator, session } = await config.orchestratorFactory
+        .create(`webhook-${sourceId}`);
+      const message =
+        `Webhook event from ${sourceId}: ${event.event}\n\nPayload:\n${body}`;
+      const result = await orchestrator.executeAgentTurn({
+        session,
+        message,
+        targetClassification: classification,
+      });
+      logTokenUsage(`webhook:${sourceId}`, result);
+      await deliverOutput(result, session.taint, `webhook:${sourceId}`);
+    } catch {
+      // Webhook processing failures are logged but don't fail the HTTP response
+    }
+  }
+
   /** Trigger callback: load TRIGGER.md and send to orchestrator. */
   async function triggerCallback(): Promise<void> {
     const triggerContent = await loadTriggerMd();
@@ -250,35 +323,8 @@ export function createSchedulerService(
       log.debug("No TRIGGER.md found — skipping trigger run");
       return;
     }
-    const message = triggerContent;
-
     try {
-      log.info("Creating trigger orchestrator session");
-      const { orchestrator, session } = await config.orchestratorFactory.create(
-        "trigger",
-        {
-          isTrigger: true,
-          ceiling: config.trigger.classificationCeiling,
-        },
-      );
-
-      log.info("Trigger orchestrator processing TRIGGER.md");
-      const result = await orchestrator.executeAgentTurn({
-        session,
-        message,
-        targetClassification: config.trigger.classificationCeiling,
-      });
-
-      log.info(`Trigger completed (ok: ${result.ok}, taint: ${session.taint})`);
-      if (result.ok) {
-        const { inputTokens, outputTokens } = result.value.tokenUsage;
-        log.info(
-          `[trigger] Token usage — input: ${inputTokens}, output: ${outputTokens}, total: ${
-            inputTokens + outputTokens
-          }`,
-        );
-      }
-      await deliverOutput(result, session.taint, "trigger");
+      await executeTriggerSession(triggerContent);
     } catch (err) {
       log.error(
         `Trigger callback failed: ${
@@ -341,29 +387,7 @@ export function createSchedulerService(
       if (!validation.ok) return validation;
       const { event, classification } = validation.value;
 
-      try {
-        const { orchestrator, session } = await config.orchestratorFactory
-          .create(`webhook-${sourceId}`);
-        const message =
-          `Webhook event from ${sourceId}: ${event.event}\n\nPayload:\n${body}`;
-        const result = await orchestrator.executeAgentTurn({
-          session,
-          message,
-          targetClassification: classification,
-        });
-        if (result.ok) {
-          const { inputTokens, outputTokens } = result.value.tokenUsage;
-          log.info(
-            `[webhook:${sourceId}] Token usage — input: ${inputTokens}, output: ${outputTokens}, total: ${
-              inputTokens + outputTokens
-            }`,
-          );
-        }
-        await deliverOutput(result, session.taint, `webhook:${sourceId}`);
-      } catch {
-        // Webhook processing failures are logged but don't fail the HTTP response
-      }
-
+      await executeWebhookSession(sourceId, body, event, classification);
       await webhookHandler.handleWebhookEvent(event);
       return { ok: true, value: undefined };
     },
