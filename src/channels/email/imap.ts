@@ -116,120 +116,134 @@ export function createImapClient(config: ImapClientConfig): ImapClient {
     return new Date();
   }
 
+  async function establishImapConnection(): Promise<void> {
+    const useTls = config.tls !== false;
+    if (useTls) {
+      conn = await Deno.connectTls({
+        hostname: config.host,
+        port: config.port,
+      });
+    } else {
+      conn = await Deno.connect({
+        hostname: config.host,
+        port: config.port,
+      });
+    }
+    reader = conn.readable.getReader();
+    writer = conn.writable.getWriter();
+  }
+
+  async function authenticateImapLogin(): Promise<void> {
+    await readLine();
+    const loginResult = await sendCommand(
+      `LOGIN ${config.user} ${config.password}`,
+    );
+    const loginTag = loginResult[loginResult.length - 1];
+    if (!loginTag.includes("OK")) {
+      throw new Error("IMAP LOGIN failed");
+    }
+  }
+
+  async function sendImapLogout(): Promise<void> {
+    try {
+      if (writer) {
+        await sendCommand("LOGOUT");
+      }
+    } catch (err: unknown) {
+      log.debug("IMAP logout: connection already closed", { error: err });
+    }
+  }
+
+  function releaseImapResources(): void {
+    try {
+      if (reader) {
+        reader.releaseLock();
+        reader = undefined;
+      }
+      if (writer) {
+        writer.releaseLock();
+        writer = undefined;
+      }
+      if (conn) {
+        conn.close();
+        conn = undefined;
+      }
+    } catch (err: unknown) {
+      log.debug("IMAP cleanup: resource already released", { error: err });
+    }
+    buffer = "";
+    tagCounter = 0;
+  }
+
+  async function selectImapInbox(): Promise<void> {
+    const selectResult = await sendCommand("SELECT INBOX");
+    const selectTag = selectResult[selectResult.length - 1];
+    if (!selectTag.includes("OK")) {
+      throw new Error("IMAP SELECT INBOX failed");
+    }
+  }
+
+  async function searchUnseenUids(): Promise<readonly number[]> {
+    const searchResult = await sendCommand("SEARCH UNSEEN");
+    const searchLine = searchResult.find((l) => l.startsWith("* SEARCH"));
+    if (!searchLine || searchLine.trim() === "* SEARCH") {
+      return [];
+    }
+    return searchLine
+      .replace("* SEARCH ", "")
+      .trim()
+      .split(/\s+/)
+      .map(Number)
+      .filter((n) => !isNaN(n));
+  }
+
+  function extractBodyText(combined: string): string {
+    const bodyMatch = combined.match(
+      /BODY\[TEXT\]\s*\{?\d*\}?\r?\n?([\s\S]*?)(?:\)\s*$|\*\s|A\d+)/,
+    );
+    return bodyMatch ? bodyMatch[1].trim() : "";
+  }
+
+  async function fetchImapMessage(uid: number): Promise<ImapMessage> {
+    const fetchResult = await sendCommand(
+      `FETCH ${uid} (BODY[HEADER.FIELDS (FROM SUBJECT DATE)] BODY[TEXT])`,
+    );
+    const combined = fetchResult.join("\n");
+    const from = parseFrom(combined);
+    const subject = parseSubject(combined);
+    const date = parseDate(combined);
+    const body = extractBodyText(combined);
+    return { uid, from, subject, body, date };
+  }
+
+  async function markMessageSeen(uid: number): Promise<void> {
+    await sendCommand(`STORE ${uid} +FLAGS (\\Seen)`);
+  }
+
   return {
     async connect(): Promise<void> {
-      const useTls = config.tls !== false;
-
-      if (useTls) {
-        conn = await Deno.connectTls({
-          hostname: config.host,
-          port: config.port,
-        });
-      } else {
-        conn = await Deno.connect({
-          hostname: config.host,
-          port: config.port,
-        });
-      }
-
-      reader = conn.readable.getReader();
-      writer = conn.writable.getWriter();
-
-      // Read server greeting
-      await readLine();
-
-      // Login
-      const loginResult = await sendCommand(
-        `LOGIN ${config.user} ${config.password}`,
-      );
-      const loginTag = loginResult[loginResult.length - 1];
-      if (!loginTag.includes("OK")) {
-        throw new Error("IMAP LOGIN failed");
-      }
+      await establishImapConnection();
+      await authenticateImapLogin();
     },
 
     async disconnect(): Promise<void> {
-      try {
-        if (writer) {
-          await sendCommand("LOGOUT");
-        }
-      } catch (err: unknown) {
-        log.debug("IMAP logout: connection already closed", { error: err });
-      }
-
-      try {
-        if (reader) {
-          reader.releaseLock();
-          reader = undefined;
-        }
-        if (writer) {
-          writer.releaseLock();
-          writer = undefined;
-        }
-        if (conn) {
-          conn.close();
-          conn = undefined;
-        }
-      } catch (err: unknown) {
-        log.debug("IMAP cleanup: resource already released", { error: err });
-      }
-      buffer = "";
-      tagCounter = 0;
+      await sendImapLogout();
+      releaseImapResources();
     },
 
     async fetchUnseen(): Promise<readonly ImapMessage[]> {
-      // SELECT INBOX
-      const selectResult = await sendCommand("SELECT INBOX");
-      const selectTag = selectResult[selectResult.length - 1];
-      if (!selectTag.includes("OK")) {
-        throw new Error("IMAP SELECT INBOX failed");
-      }
-
-      // SEARCH UNSEEN
-      const searchResult = await sendCommand("SEARCH UNSEEN");
+      await selectImapInbox();
+      const uids = await searchUnseenUids();
       const messages: ImapMessage[] = [];
-
-      // Parse UIDs from search result (line starts with "* SEARCH")
-      const searchLine = searchResult.find((l) => l.startsWith("* SEARCH"));
-      if (!searchLine || searchLine.trim() === "* SEARCH") {
-        return messages; // No unseen messages
-      }
-
-      const uids = searchLine
-        .replace("* SEARCH ", "")
-        .trim()
-        .split(/\s+/)
-        .map(Number)
-        .filter((n) => !isNaN(n));
-
-      // Fetch each message
       for (const uid of uids) {
         try {
-          const fetchResult = await sendCommand(
-            `FETCH ${uid} (BODY[HEADER.FIELDS (FROM SUBJECT DATE)] BODY[TEXT])`,
-          );
-
-          // Combine all response lines into one string for parsing
-          const combined = fetchResult.join("\n");
-          const from = parseFrom(combined);
-          const subject = parseSubject(combined);
-          const date = parseDate(combined);
-
-          // Extract body text (everything after the header section)
-          const bodyMatch = combined.match(
-            /BODY\[TEXT\]\s*\{?\d*\}?\r?\n?([\s\S]*?)(?:\)\s*$|\*\s|A\d+)/,
-          );
-          const body = bodyMatch ? bodyMatch[1].trim() : "";
-
-          messages.push({ uid, from, subject, body, date });
-
-          // Mark as seen
-          await sendCommand(`STORE ${uid} +FLAGS (\\Seen)`);
+          const msg = await fetchImapMessage(uid);
+          messages.push(msg);
+          await markMessageSeen(uid);
         } catch (err: unknown) {
           log.warn("IMAP message body fetch failed", { error: err, uid });
         }
       }
-
       return messages;
     },
   };
