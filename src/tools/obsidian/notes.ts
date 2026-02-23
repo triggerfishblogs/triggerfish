@@ -225,6 +225,61 @@ function sortNotesByField(
   });
 }
 
+/** Check if a note matches search query by content or name. */
+function noteMatchesQuery(note: ObsidianNote, queryLower: string): boolean {
+  const contentLower = note.content.toLowerCase();
+  const nameLower = note.name.toLowerCase();
+  return contentLower.includes(queryLower) || nameLower.includes(queryLower);
+}
+
+/** Search notes in the vault by content and filename. */
+async function searchNotesInVault(
+  ctx: VaultContext,
+  options: NoteSearchOptions,
+): Promise<Result<readonly ObsidianNote[], string>> {
+  const maxResults = options.maxResults ?? 20;
+  const queryLower = options.query.toLowerCase();
+  const results: ObsidianNote[] = [];
+  try {
+    for await (const note of walkNotes(ctx, options.folder)) {
+      if (!noteMatchesTags(note, options.tags)) continue;
+      if (!noteMatchesQuery(note, queryLower)) continue;
+      results.push(note);
+      if (results.length >= maxResults) break;
+    }
+    return { ok: true, value: results };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Search failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+}
+
+/** List notes in the vault with optional filtering and sorting. */
+async function listNotesInVault(
+  ctx: VaultContext,
+  options: NoteListOptions,
+): Promise<Result<readonly ObsidianNote[], string>> {
+  const maxResults = options.maxResults ?? 100;
+  const notes: ObsidianNote[] = [];
+  try {
+    for await (const note of walkNotes(ctx, options.folder)) {
+      if (!noteMatchesTags(note, options.tags)) continue;
+      notes.push(note);
+    }
+    sortNotesByField(notes, options.sortBy ?? "name");
+    return { ok: true, value: notes.slice(0, maxResults) };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `List failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
 /**
  * Create a NoteStore for the given vault context.
  */
@@ -233,57 +288,8 @@ export function createNoteStore(ctx: VaultContext): NoteStore {
     read: (path) => readNoteFromVault(ctx, path),
     create: (options) => createNoteInVault(ctx, options),
     update: (options) => updateNoteInVault(ctx, options),
-
-    async search(
-      options: NoteSearchOptions,
-    ): Promise<Result<readonly ObsidianNote[], string>> {
-      const maxResults = options.maxResults ?? 20;
-      const queryLower = options.query.toLowerCase();
-      const results: ObsidianNote[] = [];
-      try {
-        for await (const note of walkNotes(ctx, options.folder)) {
-          if (!noteMatchesTags(note, options.tags)) continue;
-          const contentLower = note.content.toLowerCase();
-          const nameLower = note.name.toLowerCase();
-          if (
-            contentLower.includes(queryLower) || nameLower.includes(queryLower)
-          ) {
-            results.push(note);
-            if (results.length >= maxResults) break;
-          }
-        }
-        return { ok: true, value: results };
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Search failed: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        };
-      }
-    },
-
-    async list(
-      options: NoteListOptions,
-    ): Promise<Result<readonly ObsidianNote[], string>> {
-      const maxResults = options.maxResults ?? 100;
-      const notes: ObsidianNote[] = [];
-      try {
-        for await (const note of walkNotes(ctx, options.folder)) {
-          if (!noteMatchesTags(note, options.tags)) continue;
-          notes.push(note);
-        }
-        sortNotesByField(notes, options.sortBy ?? "name");
-        return { ok: true, value: notes.slice(0, maxResults) };
-      } catch (err) {
-        return {
-          ok: false,
-          error: `List failed: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        };
-      }
-    },
+    search: (options) => searchNotesInVault(ctx, options),
+    list: (options) => listNotesInVault(ctx, options),
   };
 }
 
