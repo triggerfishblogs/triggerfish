@@ -1,6 +1,7 @@
 /**
  * End-to-end injection surface tests.
  *
+ * @module
  * Tests the full pipeline: external data tagged with «» provenance delimiters
  * at write time → sanitized and stripped at read time by readLogsForLlm().
  */

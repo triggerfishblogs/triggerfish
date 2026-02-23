@@ -1,5 +1,7 @@
 /**
  * Tests for the classification-aware log reader.
+ *
+ * @module
  */
 import {
   assertEquals,

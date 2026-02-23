@@ -1,5 +1,7 @@
 /**
  * Tests for WebChat WebSocket upgrade header validation.
+ *
+ * @module
  */
 import { assertEquals } from "@std/assert";
 import {

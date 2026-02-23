@@ -1,5 +1,7 @@
 /**
  * Tests for log input sanitization — sanitizeExternal, tagExternal, formatTaggedEntry.
+ *
+ * @module
  */
 import { assertEquals, assertStringIncludes, assertNotEquals } from "@std/assert";
 import {
