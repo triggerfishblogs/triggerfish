@@ -10,9 +10,12 @@
 import { join } from "@std/path";
 import { resolveWithinJail } from "../../core/security/path_jail.ts";
 import { sanitizePathForPrompt } from "../../core/security/path_sanitization.ts";
+import { createLogger } from "../../core/logger/logger.ts";
 import { parse as parseYaml } from "@std/yaml";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { parseClassification } from "../../core/types/classification.ts";
+
+const log = createLogger("skills");
 
 /** Source type indicating where a skill was discovered. */
 export type SkillSource = "bundled" | "managed" | "workspace";
@@ -136,7 +139,8 @@ async function scanSkillDirectory(
       let content: string;
       try {
         content = await Deno.readTextFile(join(skillDir, "SKILL.md"));
-      } catch {
+      } catch (err) {
+        log.debug("Skill SKILL.md read failed, skipping directory", { skillDir, err });
         continue;
       }
       const skill = buildSkillFromFrontmatter(
@@ -151,8 +155,8 @@ async function scanSkillDirectory(
           computeSkillPriority(existing.source, priority);
       if (shouldReplace) skillsByName.set(skill.name, skill);
     }
-  } catch {
-    // Directory doesn't exist or isn't readable — skip
+  } catch (err) {
+    log.debug("Skill directory not readable, skipping", { dir, source, err });
   }
 }
 

@@ -15,6 +15,7 @@
 import { join, resolve } from "@std/path";
 import { isWithinJail } from "../core/security/path_jail.ts";
 import { sanitizePathForPrompt } from "../core/security/path_sanitization.ts";
+import { createLogger } from "../core/logger/logger.ts";
 import type {
   ClassificationLevel,
   Result,
@@ -35,6 +36,8 @@ import {
   searchReadableLevelsForFile,
   validatePathInWorkspace,
 } from "./workspace_paths.ts";
+
+const log = createLogger("security");
 
 export type { ClassifiedPathResult, Workspace, WorkspaceOptions };
 
@@ -123,6 +126,9 @@ export async function createWorkspace(
 ): Promise<Workspace> {
   const sanitizedAgentId = sanitizePathForPrompt(options.agentId);
   if (sanitizedAgentId.length === 0) {
+    log.warn("Workspace agentId rejected: empty after sanitization", {
+      originalAgentId: options.agentId,
+    });
     throw new Error(
       `Workspace agentId "${options.agentId}" is empty after sanitization`,
     );
