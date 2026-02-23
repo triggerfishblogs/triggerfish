@@ -26,6 +26,28 @@ export interface MemoryToolContext {
   readonly sourceSessionId: SessionId;
 }
 
+function buildMemorySaveParams(): ToolDefinition["parameters"] {
+  return {
+    key: {
+      type: "string",
+      description:
+        "Unique identifier for this memory (e.g. 'user-name', 'favorite-color')",
+      required: true,
+    },
+    content: {
+      type: "string",
+      description: "The content to remember",
+      required: true,
+    },
+    tags: {
+      type: "array",
+      description:
+        "Optional tags for categorization (e.g. ['personal', 'preference'])",
+      items: { type: "string" },
+    },
+  };
+}
+
 function buildMemorySaveDef(): ToolDefinition {
   return {
     name: "memory_save",
@@ -33,25 +55,7 @@ function buildMemorySaveDef(): ToolDefinition {
       "The memory persists across sessions. Classification is automatically " +
       "set to the current session's security level — you cannot choose it. " +
       "Use descriptive keys like 'user-birthday' or 'project-deadline'.",
-    parameters: {
-      key: {
-        type: "string",
-        description:
-          "Unique identifier for this memory (e.g. 'user-name', 'favorite-color')",
-        required: true,
-      },
-      content: {
-        type: "string",
-        description: "The content to remember",
-        required: true,
-      },
-      tags: {
-        type: "array",
-        description:
-          "Optional tags for categorization (e.g. ['personal', 'preference'])",
-        items: { type: "string" },
-      },
-    },
+    parameters: buildMemorySaveParams(),
   };
 }
 
