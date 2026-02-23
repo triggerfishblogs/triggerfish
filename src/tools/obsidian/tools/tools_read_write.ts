@@ -7,11 +7,11 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import { canFlowTo } from "../../core/types/classification.ts";
-import type { LineageOrigin, LineageClassification } from "../../core/session/lineage.ts";
-import { getClassificationForPath } from "./vault.ts";
-import { createLogger } from "../../core/logger/logger.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import { canFlowTo } from "../../../core/types/classification.ts";
+import type { LineageOrigin, LineageClassification } from "../../../core/session/lineage.ts";
+import { getClassificationForPath } from "../vault.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
 import type { ObsidianToolContext } from "./tools_defs.ts";
 
 const log = createLogger("security");

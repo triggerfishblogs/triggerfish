@@ -37,8 +37,8 @@ export {
 } from "./markdown.ts";
 export type { FrontmatterResult } from "./markdown.ts";
 
-export type { NoteStore } from "./notes.ts";
-export { createNoteStore } from "./notes.ts";
+export type { NoteStore } from "./notes/mod.ts";
+export { createNoteStore } from "./notes/mod.ts";
 
 export type { DailyNoteManager } from "./daily.ts";
 export { createDailyNoteManager } from "./daily.ts";
@@ -46,9 +46,9 @@ export { createDailyNoteManager } from "./daily.ts";
 export type { LinkResolver } from "./links.ts";
 export { createLinkResolver } from "./links.ts";
 
-export type { ObsidianToolContext } from "./tools.ts";
+export type { ObsidianToolContext } from "./tools/mod.ts";
 export {
   getObsidianToolDefinitions,
   createObsidianToolExecutor,
   OBSIDIAN_SYSTEM_PROMPT,
-} from "./tools.ts";
+} from "./tools/mod.ts";

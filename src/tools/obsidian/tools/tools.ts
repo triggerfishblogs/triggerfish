@@ -11,20 +11,12 @@
  * @module
  */
 
-import { canFlowTo } from "../../core/types/classification.ts";
-import { getClassificationForPath } from "./vault.ts";
+import { canFlowTo } from "../../../core/types/classification.ts";
+import { getClassificationForPath } from "../vault.ts";
 
 import type { ObsidianToolContext } from "./tools_defs.ts";
 import { resolveNotePath } from "./tools_read_write.ts";
 import { executeObsidianRead, executeObsidianWrite } from "./tools_read_write.ts";
-
-// ─── Barrel re-exports from tools_defs.ts ───────────────────────────────────
-
-export {
-  getObsidianToolDefinitions,
-  OBSIDIAN_SYSTEM_PROMPT,
-} from "./tools_defs.ts";
-export type { ObsidianToolContext } from "./tools_defs.ts";
 
 // ─── Executor ────────────────────────────────────────────────────────────────
 

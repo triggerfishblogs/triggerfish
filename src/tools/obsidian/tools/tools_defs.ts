@@ -10,14 +10,14 @@
  * @module
  */
 
-import type { ToolDefinition } from "../../core/types/tool.ts";
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type { SessionId } from "../../core/types/session.ts";
-import type { LineageStore } from "../../core/session/lineage.ts";
-import type { VaultContext } from "./vault.ts";
-import type { NoteStore } from "./notes.ts";
-import type { DailyNoteManager } from "./daily.ts";
-import type { LinkResolver } from "./links.ts";
+import type { ToolDefinition } from "../../../core/types/tool.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import type { SessionId } from "../../../core/types/session.ts";
+import type { LineageStore } from "../../../core/session/lineage.ts";
+import type { VaultContext } from "../vault.ts";
+import type { NoteStore } from "../notes/mod.ts";
+import type { DailyNoteManager } from "../daily.ts";
+import type { LinkResolver } from "../links.ts";
 
 /** Context required by the obsidian tool executor. */
 export interface ObsidianToolContext {

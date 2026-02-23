@@ -6,10 +6,10 @@
  * @module
  */
 
-import type { ObsidianNote } from "./types.ts";
-import type { VaultContext } from "./vault.ts";
-import { isExcluded } from "./vault.ts";
-import { buildNote } from "./markdown.ts";
+import type { ObsidianNote } from "../types.ts";
+import type { VaultContext } from "../vault.ts";
+import { isExcluded } from "../vault.ts";
+import { buildNote } from "../markdown.ts";
 
 /**
  * Walk all .md files in the vault (or a subfolder), yielding parsed notes.

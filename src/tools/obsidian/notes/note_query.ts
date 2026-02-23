@@ -6,13 +6,13 @@
  * @module
  */
 
-import type { Result } from "../../core/types/classification.ts";
+import type { Result } from "../../../core/types/classification.ts";
 import type {
   NoteListOptions,
   NoteSearchOptions,
   ObsidianNote,
-} from "./types.ts";
-import type { VaultContext } from "./vault.ts";
+} from "../types.ts";
+import type { VaultContext } from "../vault.ts";
 import { walkNotes } from "./note_walker.ts";
 
 /** Check if a note matches all required tags. */

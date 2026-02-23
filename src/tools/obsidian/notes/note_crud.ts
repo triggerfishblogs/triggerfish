@@ -7,20 +7,20 @@
  * @module
  */
 
-import type { Result } from "../../core/types/classification.ts";
+import type { Result } from "../../../core/types/classification.ts";
 import type {
   NoteCreateOptions,
   NoteUpdateOptions,
   ObsidianNote,
-} from "./types.ts";
-import type { VaultContext } from "./vault.ts";
-import { isExcluded, resolveVaultPath } from "./vault.ts";
+} from "../types.ts";
+import type { VaultContext } from "../vault.ts";
+import { isExcluded, resolveVaultPath } from "../vault.ts";
 import {
   buildNote,
   mergeFrontmatter,
   parseFrontmatter,
   serializeFrontmatter,
-} from "./markdown.ts";
+} from "../markdown.ts";
 
 /** Ensure a path ends with .md */
 export function ensureMdExtension(path: string): string {

@@ -9,15 +9,15 @@
  * @module
  */
 
-import type { Result } from "../../core/types/classification.ts";
+import type { Result } from "../../../core/types/classification.ts";
 import type {
   NoteCreateOptions,
   NoteListOptions,
   NoteSearchOptions,
   NoteUpdateOptions,
   ObsidianNote,
-} from "./types.ts";
-import type { VaultContext } from "./vault.ts";
+} from "../types.ts";
+import type { VaultContext } from "../vault.ts";
 import {
   readNoteFromVault,
   createNoteInVault,
