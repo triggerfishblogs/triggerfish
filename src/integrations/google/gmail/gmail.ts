@@ -12,7 +12,7 @@ import type {
   GmailService,
   GoogleApiClient,
   GoogleApiResult,
-} from "./types.ts";
+} from "../types.ts";
 
 /** Gmail API base URL. */
 const GMAIL_BASE = "https://gmail.googleapis.com/gmail/v1/users/me";

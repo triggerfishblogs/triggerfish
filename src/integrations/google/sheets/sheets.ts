@@ -10,7 +10,7 @@ import type {
   SheetRange,
   SheetsService,
   SheetWriteOptions,
-} from "./types.ts";
+} from "../types.ts";
 
 /** Sheets API base URL. */
 const SHEETS_BASE = "https://sheets.googleapis.com/v4/spreadsheets";

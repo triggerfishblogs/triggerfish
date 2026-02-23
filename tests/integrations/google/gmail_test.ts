@@ -8,7 +8,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { createGmailService } from "../../../src/integrations/google/gmail.ts";
+import { createGmailService } from "../../../src/integrations/google/gmail/gmail.ts";
 import type { GoogleApiClient, GoogleApiResult } from "../../../src/integrations/google/types.ts";
 
 // ─── Mock Client ────────────────────────────────────────────────────────────

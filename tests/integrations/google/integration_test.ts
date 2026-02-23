@@ -9,14 +9,14 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { createMemorySecretStore } from "../../../src/core/secrets/keychain.ts";
-import { createGoogleAuthManager } from "../../../src/integrations/google/auth.ts";
-import { createGoogleApiClient } from "../../../src/integrations/google/client.ts";
-import { createGmailService } from "../../../src/integrations/google/gmail.ts";
-import { createCalendarService } from "../../../src/integrations/google/calendar.ts";
-import { createDriveService } from "../../../src/integrations/google/drive.ts";
+import { createGoogleAuthManager } from "../../../src/integrations/google/auth/auth.ts";
+import { createGoogleApiClient } from "../../../src/integrations/google/auth/client.ts";
+import { createGmailService } from "../../../src/integrations/google/gmail/gmail.ts";
+import { createCalendarService } from "../../../src/integrations/google/calendar/calendar.ts";
+import { createDriveService } from "../../../src/integrations/google/drive/drive.ts";
 import { createGoogleToolExecutor } from "../../../src/integrations/google/tools.ts";
-import { createTasksService } from "../../../src/integrations/google/tasks.ts";
-import { createSheetsService } from "../../../src/integrations/google/sheets.ts";
+import { createTasksService } from "../../../src/integrations/google/tasks/tasks.ts";
+import { createSheetsService } from "../../../src/integrations/google/sheets/sheets.ts";
 import type { GoogleAuthConfig, GoogleTokens } from "../../../src/integrations/google/types.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 import type { ClassificationLevel } from "../../../src/core/types/classification.ts";

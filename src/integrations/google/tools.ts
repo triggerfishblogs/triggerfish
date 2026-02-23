@@ -10,11 +10,11 @@
 
 import type { GoogleToolContext } from "./types.ts";
 
-import { executeGmailSearch, executeGmailRead, executeGmailSend, executeGmailLabel } from "./tools_exec_gmail.ts";
-import { executeCalendarList, executeCalendarCreate, executeCalendarUpdate } from "./tools_exec_calendar.ts";
-import { executeTasksList, executeTasksCreate, executeTasksComplete } from "./tools_exec_tasks.ts";
-import { executeDriveSearch, executeDriveRead } from "./tools_exec_drive.ts";
-import { executeSheetsRead, executeSheetsWrite } from "./tools_exec_sheets.ts";
+import { executeGmailSearch, executeGmailRead, executeGmailSend, executeGmailLabel } from "./gmail/tools_exec_gmail.ts";
+import { executeCalendarList, executeCalendarCreate, executeCalendarUpdate } from "./calendar/tools_exec_calendar.ts";
+import { executeTasksList, executeTasksCreate, executeTasksComplete } from "./tasks/tools_exec_tasks.ts";
+import { executeDriveSearch, executeDriveRead } from "./drive/tools_exec_drive.ts";
+import { executeSheetsRead, executeSheetsWrite } from "./sheets/tools_exec_sheets.ts";
 
 // ─── Barrel re-exports from tools_defs.ts ───────────────────────────────────
 

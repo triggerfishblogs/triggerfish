@@ -14,29 +14,29 @@ import {
   buildGmailReadDef,
   buildGmailSendDef,
   buildGmailLabelDef,
-} from "./tools_defs_gmail.ts";
+} from "./gmail/tools_defs_gmail.ts";
 
 import {
   buildCalendarListDef,
   buildCalendarCreateDef,
   buildCalendarUpdateDef,
-} from "./tools_defs_calendar.ts";
+} from "./calendar/tools_defs_calendar.ts";
 
 import {
   buildTasksListDef,
   buildTasksCreateDef,
   buildTasksCompleteDef,
-} from "./tools_defs_tasks.ts";
+} from "./tasks/tools_defs_tasks.ts";
 
 import {
   buildDriveSearchDef,
   buildDriveReadDef,
-} from "./tools_defs_drive.ts";
+} from "./drive/tools_defs_drive.ts";
 
 import {
   buildSheetsReadDef,
   buildSheetsWriteDef,
-} from "./tools_defs_sheets.ts";
+} from "./sheets/tools_defs_sheets.ts";
 
 // ── Public API ──
 

@@ -6,7 +6,7 @@
  * @module
  */
 
-import type { DriveService } from "./types.ts";
+import type { DriveService } from "../types.ts";
 
 /** Validate that a value is a non-empty string. */
 function requireNonEmptyString(value: unknown, field: string, tool: string): string | null {

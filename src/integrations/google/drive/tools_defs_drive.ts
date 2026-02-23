@@ -6,7 +6,7 @@
  * @module
  */
 
-import type { ToolDefinition } from "../../core/types/tool.ts";
+import type { ToolDefinition } from "../../../core/types/tool.ts";
 
 /** Build the drive_search tool definition. */
 export function buildDriveSearchDef(): ToolDefinition {

@@ -11,7 +11,7 @@ import type {
   TaskItem,
   TaskListOptions,
   TasksService,
-} from "./types.ts";
+} from "../types.ts";
 
 /** Tasks API base URL. */
 const TASKS_BASE = "https://tasks.googleapis.com/tasks/v1";

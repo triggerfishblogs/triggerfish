@@ -6,7 +6,7 @@
  * @module
  */
 
-import type { GoogleApiResult } from "./types_auth.ts";
+import type { GoogleApiResult } from "../auth/types_auth.ts";
 
 // ─── Gmail ───────────────────────────────────────────────────────────────────
 

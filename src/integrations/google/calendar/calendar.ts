@@ -12,7 +12,7 @@ import type {
   CalendarUpdateOptions,
   GoogleApiClient,
   GoogleApiResult,
-} from "./types.ts";
+} from "../types.ts";
 
 /** Calendar API base URL. */
 const CALENDAR_BASE = "https://www.googleapis.com/calendar/v3";

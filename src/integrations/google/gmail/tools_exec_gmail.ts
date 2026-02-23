@@ -6,7 +6,7 @@
  * @module
  */
 
-import type { GmailService } from "./types.ts";
+import type { GmailService } from "../types.ts";
 
 /** Validate that a value is a non-empty string. */
 function requireNonEmptyString(value: unknown, field: string, tool: string): string | null {

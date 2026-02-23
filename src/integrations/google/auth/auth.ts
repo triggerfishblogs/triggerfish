@@ -7,13 +7,13 @@
  * @module
  */
 
-import type { SecretStore } from "../../core/secrets/keychain.ts";
+import type { SecretStore } from "../../../core/secrets/keychain.ts";
 import type {
   GoogleAuthConfig,
   GoogleAuthManager,
   GoogleAuthResult,
   GoogleTokens,
-} from "./types.ts";
+} from "../types.ts";
 
 /** Key used in the SecretStore for Google tokens. */
 const TOKEN_KEY = "google:tokens";

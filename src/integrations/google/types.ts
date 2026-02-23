@@ -15,7 +15,7 @@ export type {
   GoogleApiClient,
   GoogleApiResult,
   GoogleApiError,
-} from "./types_auth.ts";
+} from "./auth/types_auth.ts";
 
 export type {
   GmailMessage,
@@ -23,7 +23,7 @@ export type {
   GmailSendOptions,
   GmailLabelOptions,
   GmailService,
-} from "./types_gmail.ts";
+} from "./gmail/types_gmail.ts";
 
 export type {
   Attendee,
@@ -32,25 +32,25 @@ export type {
   CalendarCreateOptions,
   CalendarUpdateOptions,
   CalendarService,
-} from "./types_calendar.ts";
+} from "./calendar/types_calendar.ts";
 
 export type {
   TaskItem,
   TaskListOptions,
   TaskCreateOptions,
   TasksService,
-} from "./types_tasks.ts";
+} from "./tasks/types_tasks.ts";
 
 export type {
   DriveFile,
   DriveSearchOptions,
   DriveService,
-} from "./types_drive.ts";
+} from "./drive/types_drive.ts";
 
 export type {
   SheetRange,
   SheetWriteOptions,
   SheetsService,
-} from "./types_sheets.ts";
+} from "./sheets/types_sheets.ts";
 
-export type { GoogleToolContext } from "./types_context.ts";
+export type { GoogleToolContext } from "./auth/types_context.ts";

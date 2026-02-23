@@ -13,7 +13,7 @@ import type {
   DriveService,
   GoogleApiClient,
   GoogleApiResult,
-} from "./types.ts";
+} from "../types.ts";
 
 /** Drive API base URL. */
 const DRIVE_BASE = "https://www.googleapis.com/drive/v3";

@@ -11,7 +11,7 @@ import type {
   GoogleApiClient,
   GoogleApiResult,
   GoogleAuthManager,
-} from "./types.ts";
+} from "../types.ts";
 
 /** Build fetch RequestInit with auth header and optional JSON body. */
 function buildGoogleApiRequestInit(

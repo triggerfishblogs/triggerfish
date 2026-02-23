@@ -9,7 +9,7 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { createMemorySecretStore } from "../../../src/core/secrets/keychain.ts";
-import { createGoogleAuthManager } from "../../../src/integrations/google/auth.ts";
+import { createGoogleAuthManager } from "../../../src/integrations/google/auth/auth.ts";
 import type { GoogleAuthConfig, GoogleTokens } from "../../../src/integrations/google/types.ts";
 
 const TEST_CONFIG: GoogleAuthConfig = {
