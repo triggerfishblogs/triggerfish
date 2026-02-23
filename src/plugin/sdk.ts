@@ -10,7 +10,10 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../core/types/classification.ts";
 import { CLASSIFICATION_ORDER } from "../core/types/classification.ts";
 import { createLogger } from "../core/logger/logger.ts";
 
@@ -108,6 +111,114 @@ function matchesCapability(
   return false;
 }
 
+/** Validate an emit-data payload against the plugin's classification ceiling. */
+function validateEmitDataPayload(
+  payload: EmitDataPayload,
+  pluginName: string,
+  maxClassification: ClassificationLevel,
+  ceilingOrder: number,
+): Result<void, string> {
+  if (!payload.classification) {
+    return {
+      ok: false,
+      error: `Plugin "${pluginName}": emitData requires a classification label`,
+    };
+  }
+
+  const payloadOrder = CLASSIFICATION_ORDER[payload.classification];
+  if (payloadOrder > ceilingOrder) {
+    log.warn("Plugin classification ceiling exceeded", {
+      plugin: pluginName,
+      attempted: payload.classification,
+      ceiling: maxClassification,
+    });
+    return {
+      ok: false,
+      error:
+        `Plugin "${pluginName}": classification "${payload.classification}" exceeds ceiling "${maxClassification}"`,
+    };
+  }
+
+  return { ok: true, value: undefined };
+}
+
+/** Enforce capability restrictions on a query, returning an error if blocked. */
+function enforceQueryCapabilities(
+  query: string,
+  pluginName: string,
+  capabilities: readonly PluginCapability[] | undefined,
+): Result<void, string> {
+  if (capabilities === undefined) {
+    return { ok: true, value: undefined };
+  }
+  if (matchesCapability(query, capabilities)) {
+    return { ok: true, value: undefined };
+  }
+  return {
+    ok: false,
+    error:
+      `Plugin "${pluginName}": query target not covered by declared capabilities`,
+  };
+}
+
+/** Delegate a query to the handler and enforce the classification ceiling. */
+async function enforceQueryHandlerCeiling(
+  query: string,
+  pluginName: string,
+  maxClassification: ClassificationLevel,
+  ceilingOrder: number,
+  handler: QueryHandler,
+): Promise<Result<QueryResult, string>> {
+  const handlerResult = await handler(query, pluginName);
+  const resultOrder = CLASSIFICATION_ORDER[handlerResult.classification];
+  if (resultOrder > ceilingOrder) {
+    log.warn("Plugin query result exceeds classification ceiling", {
+      plugin: pluginName,
+      resultClassification: handlerResult.classification,
+      ceiling: maxClassification,
+    });
+    return {
+      ok: false,
+      error:
+        `Plugin "${pluginName}": query result classification "${handlerResult.classification}" exceeds ceiling "${maxClassification}"`,
+    };
+  }
+  return {
+    ok: true,
+    value: {
+      classification: handlerResult.classification,
+      data: handlerResult.data,
+    },
+  };
+}
+
+/** Resolve a plugin query through capabilities, handler, or stub fallback. */
+async function resolvePluginQuery(
+  query: string,
+  config: PluginSdkConfig,
+  ceilingOrder: number,
+): Promise<Result<QueryResult, string>> {
+  const { pluginName, maxClassification, capabilities, queryHandler } = config;
+
+  const capCheck = enforceQueryCapabilities(query, pluginName, capabilities);
+  if (!capCheck.ok) return capCheck;
+
+  if (queryHandler) {
+    return enforceQueryHandlerCeiling(
+      query,
+      pluginName,
+      maxClassification,
+      ceilingOrder,
+      queryHandler,
+    );
+  }
+
+  return {
+    ok: true,
+    value: { classification: maxClassification, data: { query, rows: [] } },
+  };
+}
+
 /**
  * Create a Plugin SDK instance with classification enforcement.
  *
@@ -115,93 +226,21 @@ function matchesCapability(
  * @returns A PluginSdk instance
  */
 export function createPluginSdk(config: PluginSdkConfig): PluginSdk {
-  const { pluginName, maxClassification, capabilities, queryHandler } = config;
-  const ceilingOrder = CLASSIFICATION_ORDER[maxClassification];
-
-  /**
-   * Internal implementation of queryAsUser that returns a Result.
-   * Used by both queryAsUser (throws on error) and queryAsUserSafe (returns Result).
-   */
-  async function queryAsUserInternal(
-    query: string,
-  ): Promise<Result<QueryResult, string>> {
-    // Validate against declared capabilities if they are configured
-    if (capabilities !== undefined) {
-      if (!matchesCapability(query, capabilities)) {
-        return {
-          ok: false,
-          error: `Plugin "${pluginName}": query target not covered by declared capabilities`,
-        };
-      }
-    }
-
-    // Delegate to query handler if provided
-    if (queryHandler) {
-      const handlerResult = await queryHandler(query, pluginName);
-      const resultOrder = CLASSIFICATION_ORDER[handlerResult.classification];
-      if (resultOrder > ceilingOrder) {
-        log.warn("Plugin query result exceeds classification ceiling", {
-          plugin: pluginName,
-          resultClassification: handlerResult.classification,
-          ceiling: maxClassification,
-        });
-        return {
-          ok: false,
-          error: `Plugin "${pluginName}": query result classification "${handlerResult.classification}" exceeds ceiling "${maxClassification}"`,
-        };
-      }
-      return {
-        ok: true,
-        value: {
-          classification: handlerResult.classification,
-          data: handlerResult.data,
-        },
-      };
-    }
-
-    // No handler provided: return stub result at the plugin's max classification
-    return {
-      ok: true,
-      value: {
-        classification: maxClassification,
-        data: { query, rows: [] },
-      },
-    };
-  }
+  const ceilingOrder = CLASSIFICATION_ORDER[config.maxClassification];
 
   return {
     emitData(payload: EmitDataPayload): Result<void, string> {
-      // Reject data without classification label
-      if (!payload.classification) {
-        return {
-          ok: false,
-          error: `Plugin "${pluginName}": emitData requires a classification label`,
-        };
-      }
-
-      // Reject classification above the plugin's ceiling
-      const payloadOrder = CLASSIFICATION_ORDER[payload.classification];
-      if (payloadOrder > ceilingOrder) {
-        log.warn("Plugin classification ceiling exceeded", {
-          plugin: pluginName,
-          attempted: payload.classification,
-          ceiling: maxClassification,
-        });
-        return {
-          ok: false,
-          error: `Plugin "${pluginName}": classification "${payload.classification}" exceeds ceiling "${maxClassification}"`,
-        };
-      }
-
-      return { ok: true, value: undefined };
+      return validateEmitDataPayload(
+        payload,
+        config.pluginName,
+        config.maxClassification,
+        ceilingOrder,
+      );
     },
 
     async queryAsUser(query: string): Promise<QueryResult> {
-      // Auto-taint: data read through SDK carries classification metadata
-      const result = await queryAsUserInternal(query);
-      if (!result.ok) {
-        throw new Error(result.error);
-      }
+      const result = await resolvePluginQuery(query, config, ceilingOrder);
+      if (!result.ok) throw new Error(result.error);
       return result.value;
     },
 
@@ -209,7 +248,7 @@ export function createPluginSdk(config: PluginSdkConfig): PluginSdk {
     async queryAsUserSafe(
       query: string,
     ): Promise<Result<QueryResult, string>> {
-      return queryAsUserInternal(query);
+      return resolvePluginQuery(query, config, ceilingOrder);
     },
   };
 }
