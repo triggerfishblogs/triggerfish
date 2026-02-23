@@ -8,9 +8,9 @@
  * @module
  */
 
-import { canFlowTo } from "../../core/types/classification.ts";
-import type { SessionId } from "../../core/types/session.ts";
-import { createLogger } from "../../core/logger/logger.ts";
+import { canFlowTo } from "../../../core/types/classification.ts";
+import type { SessionId } from "../../../core/types/session.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
 
 import type { SessionToolContext } from "./session_tools_defs.ts";
 

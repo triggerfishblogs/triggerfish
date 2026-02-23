@@ -10,7 +10,7 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
 
 /** Classification level ordering for sorting (lower number = lower classification). */
 const CLASSIFICATION_ORDER: Readonly<Record<string, number>> = {

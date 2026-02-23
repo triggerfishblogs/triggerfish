@@ -26,11 +26,11 @@ import type { createTidepoolToolExecutor } from "../../../tools/tidepool/mod.ts"
 import { TIDEPOOL_SYSTEM_PROMPT } from "../../../tools/tidepool/mod.ts";
 import type { createImageToolExecutor } from "../../../tools/image/mod.ts";
 import type { createExploreToolExecutor } from "../../../tools/explore/mod.ts";
-import type { createSessionToolExecutor } from "../../tools/session_tools.ts";
+import type { createSessionToolExecutor } from "../../tools/session/session_tools.ts";
 import type { createGitHubToolExecutor } from "../../../integrations/github/mod.ts";
 import type { createClaudeToolExecutor } from "../../../exec/claude.ts";
 import type { createSecretToolExecutor } from "../../../tools/secrets.ts";
-import type { createTriggerToolExecutor } from "../../tools/trigger_tools.ts";
+import type { createTriggerToolExecutor } from "../../tools/trigger/trigger_tools.ts";
 import type { createSkillToolExecutor } from "../../../tools/skills/mod.ts";
 import type { createPlanToolExecutor } from "../../../agent/plan/plan.ts";
 import type { createMemoryToolExecutor } from "../../../tools/memory/mod.ts";

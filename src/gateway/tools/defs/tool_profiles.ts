@@ -7,23 +7,23 @@
  * @module
  */
 
-import { TODO_SYSTEM_PROMPT } from "../../tools/mod.ts";
-import { MEMORY_SYSTEM_PROMPT } from "../../tools/memory/mod.ts";
-import { SECRET_TOOLS_SYSTEM_PROMPT } from "../../tools/secrets.ts";
-import { WEB_TOOLS_SYSTEM_PROMPT } from "../../tools/web/mod.ts";
-import { PLAN_SYSTEM_PROMPT } from "../../agent/plan/tools.ts";
-import { TIDEPOOL_SYSTEM_PROMPT } from "../../tools/tidepool/mod.ts";
-import { SESSION_TOOLS_SYSTEM_PROMPT } from "./session_tools.ts";
-import { IMAGE_TOOLS_SYSTEM_PROMPT } from "../../tools/image/mod.ts";
-import { EXPLORE_SYSTEM_PROMPT } from "../../tools/explore/mod.ts";
+import { TODO_SYSTEM_PROMPT } from "../../../tools/mod.ts";
+import { MEMORY_SYSTEM_PROMPT } from "../../../tools/memory/mod.ts";
+import { SECRET_TOOLS_SYSTEM_PROMPT } from "../../../tools/secrets.ts";
+import { WEB_TOOLS_SYSTEM_PROMPT } from "../../../tools/web/mod.ts";
+import { PLAN_SYSTEM_PROMPT } from "../../../agent/plan/tools.ts";
+import { TIDEPOOL_SYSTEM_PROMPT } from "../../../tools/tidepool/mod.ts";
+import { SESSION_TOOLS_SYSTEM_PROMPT } from "../session/session_tools.ts";
+import { IMAGE_TOOLS_SYSTEM_PROMPT } from "../../../tools/image/mod.ts";
+import { EXPLORE_SYSTEM_PROMPT } from "../../../tools/explore/mod.ts";
 import {
   LLM_TASK_SYSTEM_PROMPT,
   SUMMARIZE_SYSTEM_PROMPT,
-} from "../../tools/mod.ts";
-import { TRIGGER_TOOLS_SYSTEM_PROMPT } from "./trigger_tools.ts";
-import { CLAUDE_SESSION_SYSTEM_PROMPT } from "../../exec/claude.ts";
+} from "../../../tools/mod.ts";
+import { TRIGGER_TOOLS_SYSTEM_PROMPT } from "../trigger/trigger_tools.ts";
+import { CLAUDE_SESSION_SYSTEM_PROMPT } from "../../../exec/claude.ts";
 import { TOOL_GROUPS, type ToolGroupName } from "./tool_groups.ts";
-import type { ToolDefinition } from "../../core/types/tool.ts";
+import type { ToolDefinition } from "../../../core/types/tool.ts";
 
 // ─── Tool profiles ──────────────────────────────────────────────────────────
 

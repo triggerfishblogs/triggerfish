@@ -7,10 +7,10 @@
  * @module
  */
 
-export { getExecInlineDefinitions } from "./exec_tool_defs.ts";
-export { getAgentInlineDefinitions } from "./agent_tool_defs.ts";
-export { getCronInlineDefinitions } from "./cron_tool_defs.ts";
-export { TOOL_GROUPS, type ToolGroupName } from "./tool_groups.ts";
+export { getExecInlineDefinitions } from "./defs/exec_tool_defs.ts";
+export { getAgentInlineDefinitions } from "./defs/agent_tool_defs.ts";
+export { getCronInlineDefinitions } from "./defs/cron_tool_defs.ts";
+export { TOOL_GROUPS, type ToolGroupName } from "./defs/tool_groups.ts";
 export {
   getToolDefinitions,
   resolvePromptsForProfile,
@@ -19,4 +19,4 @@ export {
   TOOL_PROFILES,
   type ToolProfile,
   type ToolProfileName,
-} from "./tool_profiles.ts";
+} from "./defs/tool_profiles.ts";

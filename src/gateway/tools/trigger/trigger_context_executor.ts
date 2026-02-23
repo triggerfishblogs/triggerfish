@@ -15,13 +15,13 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import { canFlowTo } from "../../core/types/classification.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import { canFlowTo } from "../../../core/types/classification.ts";
 import type {
   TriggerResult,
   TriggerStore,
-} from "../../scheduler/triggers/store.ts";
-import { createLogger } from "../../core/logger/logger.ts";
+} from "../../../scheduler/triggers/store.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
 
 const log = createLogger("security");
 

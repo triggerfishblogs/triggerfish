@@ -8,10 +8,10 @@
  * @module
  */
 
-import { createTodoToolExecutor } from "../../tools/mod.ts";
-import { createWebToolExecutor } from "../../tools/web/mod.ts";
-import type { ToolExecutor } from "../../core/types/tool.ts";
-import type { LlmProviderRegistry } from "../../core/types/llm.ts";
+import { createTodoToolExecutor } from "../../../tools/mod.ts";
+import { createWebToolExecutor } from "../../../tools/web/mod.ts";
+import type { ToolExecutor } from "../../../core/types/tool.ts";
+import type { LlmProviderRegistry } from "../../../core/types/llm.ts";
 
 export type { SubsystemExecutor, ToolExecutorOptions } from "./executor_types.ts";
 import type {

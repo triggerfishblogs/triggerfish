@@ -4,11 +4,11 @@
  * @module
  */
 
-import { createExecTools } from "../../exec/tools.ts";
-import type { TodoManager } from "../../tools/mod.ts";
-import type { SearchProvider, WebFetcher } from "../../tools/web/mod.ts";
-import type { LlmProviderRegistry } from "../../core/types/llm.ts";
-import type { CronManager } from "../../scheduler/cron/parser.ts";
+import { createExecTools } from "../../../exec/tools.ts";
+import type { TodoManager } from "../../../tools/mod.ts";
+import type { SearchProvider, WebFetcher } from "../../../tools/web/mod.ts";
+import type { LlmProviderRegistry } from "../../../core/types/llm.ts";
+import type { CronManager } from "../../../scheduler/cron/parser.ts";
 
 /** Generic executor signature used by optional subsystem executors. */
 export type SubsystemExecutor = (

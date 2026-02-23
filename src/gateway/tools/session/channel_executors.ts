@@ -7,8 +7,8 @@
  * @module
  */
 
-import { canFlowTo, type ClassificationLevel } from "../../core/types/classification.ts";
-import { createLogger } from "../../core/logger/logger.ts";
+import { canFlowTo, type ClassificationLevel } from "../../../core/types/classification.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
 
 import type { SessionToolContext } from "./session_tools_defs.ts";
 

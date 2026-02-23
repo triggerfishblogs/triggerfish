@@ -11,8 +11,8 @@ import {
   createTriggerClassificationToolExecutor,
   getTriggerToolDefinitions,
   getTriggerContextToolDefinitions,
-} from "../../src/gateway/tools/trigger_tools.ts";
-import type { TriggerToolContext } from "../../src/gateway/tools/trigger_tools.ts";
+} from "../../src/gateway/tools/trigger/trigger_tools.ts";
+import type { TriggerToolContext } from "../../src/gateway/tools/trigger/trigger_tools.ts";
 
 function makeResult(
   overrides: Partial<TriggerResult> = {},

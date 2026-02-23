@@ -8,27 +8,27 @@
  * @module
  */
 
-import { getTodoToolDefinitions } from "../../tools/mod.ts";
-import { getMemoryToolDefinitions } from "../../tools/memory/mod.ts";
-import { getSecretToolDefinitions } from "../../tools/secrets.ts";
-import { getWebToolDefinitions } from "../../tools/web/mod.ts";
-import { getPlanToolDefinitions } from "../../agent/plan/tools.ts";
-import { getBrowserToolDefinitions } from "../../tools/browser/mod.ts";
-import { getTidepoolToolDefinitions } from "../../tools/tidepool/mod.ts";
-import { getSessionToolDefinitions } from "./session_tools.ts";
-import { getImageToolDefinitions } from "../../tools/image/mod.ts";
-import { getExploreToolDefinitions } from "../../tools/explore/mod.ts";
-import { getGoogleToolDefinitions } from "../../integrations/google/mod.ts";
-import { getGitHubToolDefinitions } from "../../integrations/github/mod.ts";
-import { getObsidianToolDefinitions } from "../../tools/obsidian/mod.ts";
+import { getTodoToolDefinitions } from "../../../tools/mod.ts";
+import { getMemoryToolDefinitions } from "../../../tools/memory/mod.ts";
+import { getSecretToolDefinitions } from "../../../tools/secrets.ts";
+import { getWebToolDefinitions } from "../../../tools/web/mod.ts";
+import { getPlanToolDefinitions } from "../../../agent/plan/tools.ts";
+import { getBrowserToolDefinitions } from "../../../tools/browser/mod.ts";
+import { getTidepoolToolDefinitions } from "../../../tools/tidepool/mod.ts";
+import { getSessionToolDefinitions } from "../session/session_tools.ts";
+import { getImageToolDefinitions } from "../../../tools/image/mod.ts";
+import { getExploreToolDefinitions } from "../../../tools/explore/mod.ts";
+import { getGoogleToolDefinitions } from "../../../integrations/google/mod.ts";
+import { getGitHubToolDefinitions } from "../../../integrations/github/mod.ts";
+import { getObsidianToolDefinitions } from "../../../tools/obsidian/mod.ts";
 import {
   getHealthcheckToolDefinitions,
   getLlmTaskToolDefinitions,
   getSummarizeToolDefinitions,
-} from "../../tools/mod.ts";
-import { getTriggerToolDefinitions } from "./trigger_tools.ts";
-import { getClaudeToolDefinitions } from "../../exec/claude.ts";
-import { getSkillToolDefinitions } from "../../tools/skills/mod.ts";
+} from "../../../tools/mod.ts";
+import { getTriggerToolDefinitions } from "../trigger/trigger_tools.ts";
+import { getClaudeToolDefinitions } from "../../../exec/claude.ts";
+import { getSkillToolDefinitions } from "../../../tools/skills/mod.ts";
 import { getExecInlineDefinitions } from "./exec_tool_defs.ts";
 import { getAgentInlineDefinitions } from "./agent_tool_defs.ts";
 import { getCronInlineDefinitions } from "./cron_tool_defs.ts";

@@ -24,7 +24,7 @@ import {
 } from "../../../tools/skills/prompts.ts";
 import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
 import type { createWorkspace } from "../../../exec/workspace.ts";
-import { createTriggerToolExecutor } from "../../tools/trigger_tools.ts";
+import { createTriggerToolExecutor } from "../../tools/trigger/trigger_tools.ts";
 import { createTriggerStore } from "../../../scheduler/triggers/store.ts";
 import type { McpBroadcastRefs } from "../infra/mcp.ts";
 import { buildSubagentFactory } from "../factory/subagent.ts";

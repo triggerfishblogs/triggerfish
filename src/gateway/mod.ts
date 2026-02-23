@@ -45,8 +45,8 @@ export {
   getSessionToolDefinitions,
   createSessionToolExecutor,
   SESSION_TOOLS_SYSTEM_PROMPT,
-} from "./tools/session_tools.ts";
-export type { SessionToolContext } from "./tools/session_tools.ts";
+} from "./tools/session/session_tools.ts";
+export type { SessionToolContext } from "./tools/session/session_tools.ts";
 
 export { createChatSession } from "./chat.ts";
 export type {
@@ -61,5 +61,5 @@ export {
   getTriggerToolDefinitions,
   createTriggerToolExecutor,
   TRIGGER_TOOLS_SYSTEM_PROMPT,
-} from "./tools/trigger_tools.ts";
-export type { TriggerToolContext } from "./tools/trigger_tools.ts";
+} from "./tools/trigger/trigger_tools.ts";
+export type { TriggerToolContext } from "./tools/trigger/trigger_tools.ts";

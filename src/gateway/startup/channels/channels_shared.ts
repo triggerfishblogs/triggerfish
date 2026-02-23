@@ -5,7 +5,7 @@
  */
 
 import type { ChatSession } from "../../chat.ts";
-import type { RegisteredChannel } from "../../tools/session_tools.ts";
+import type { RegisteredChannel } from "../../tools/session/session_tools.ts";
 import type { NotificationService } from "../../notifications/notifications.ts";
 
 /** Shared dependencies for channel wiring. */

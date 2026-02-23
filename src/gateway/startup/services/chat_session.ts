@@ -32,7 +32,7 @@ import type { createEnhancedSessionManager } from "../../sessions.ts";
 import type { createNotificationService } from "../../notifications/notifications.ts";
 import type { createSchedulerService } from "../../../scheduler/service.ts";
 import type { createPairingService } from "../../../channels/pairing.ts";
-import type { RegisteredChannel } from "../../tools/session_tools.ts";
+import type { RegisteredChannel } from "../../tools/session/session_tools.ts";
 import { TIDEPOOL_PORT } from "../../../cli/constants.ts";
 import {
   resolvePromptsForProfile,

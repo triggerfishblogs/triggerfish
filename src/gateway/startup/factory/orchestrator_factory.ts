@@ -30,7 +30,7 @@ import {
 import { createWorkspace } from "../../../exec/workspace.ts";
 import type { ToolFloorRegistry } from "../../../core/security/tool_floors.ts";
 import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
-import { TRIGGER_SESSION_SYSTEM_PROMPT } from "../../tools/trigger_tools.ts";
+import { TRIGGER_SESSION_SYSTEM_PROMPT } from "../../tools/trigger/trigger_tools.ts";
 import type { EnhancedSessionManager } from "../../sessions.ts";
 import type { CronManager } from "../../../scheduler/cron/parser.ts";
 import type { StorageProvider } from "../../../core/storage/provider.ts";

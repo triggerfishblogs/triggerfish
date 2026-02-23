@@ -7,8 +7,8 @@
  * @module
  */
 
-import type { CronManager } from "../../scheduler/cron/parser.ts";
-import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { CronManager } from "../../../scheduler/cron/parser.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
 
 /** Handle cron_create tool call. */
 export function executeCronCreate(

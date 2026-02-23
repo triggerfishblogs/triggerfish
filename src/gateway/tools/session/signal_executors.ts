@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { SignalChannelAdapter } from "../../channels/signal/adapter.ts";
+import type { SignalChannelAdapter } from "../../../channels/signal/adapter.ts";
 
 import type { SessionToolContext } from "./session_tools_defs.ts";
 
