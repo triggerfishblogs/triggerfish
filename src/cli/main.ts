@@ -353,99 +353,91 @@ export function enableWindowsAnsi(): void {
   }
 }
 
+// ─── Command dispatch ─────────────────────────────────────────────────────────
+
+/** Parsed command context passed to each command handler. */
+interface CommandContext {
+  readonly subcommand?: string | undefined;
+  readonly flags: Readonly<Record<string, boolean | string>>;
+}
+
+/** Build the dispatch map of command name to async handler. */
+function buildCommandDispatchMap(
+  ctx: CommandContext,
+): Record<string, () => Promise<void>> {
+  return {
+    chat: async () => {
+      const { runChat } = await import("../channels/cli/chat.ts");
+      await runChat();
+    },
+    config: async () => {
+      const { runConfig } = await import("./config/config.ts");
+      await runConfig(ctx.subcommand, ctx.flags);
+    },
+    connect: async () => {
+      const { runConnect } = await import("./commands/connect.ts");
+      await runConnect(ctx.subcommand, ctx.flags);
+    },
+    cron: async () => {
+      const { runCron } = await import("./commands/cron.ts");
+      await runCron(ctx.subcommand, ctx.flags);
+    },
+    disconnect: async () => {
+      const { runDisconnect } = await import("./commands/connect.ts");
+      await runDisconnect(ctx.subcommand, ctx.flags);
+    },
+    dive: () => runDive(ctx.flags),
+    patrol: () => runPatrol(),
+    run: async () => {
+      const { runStart } = await import("../gateway/startup/startup.ts");
+      await runStart();
+    },
+    "run-triggers": async () => {
+      const { runTriggers } = await import("./commands/run_triggers.ts");
+      await runTriggers();
+    },
+    start: () => runDaemonStart(),
+    stop: () => runDaemonStop(),
+    status: () => runDaemonStatus(),
+    logs: () => runDaemonLogs(ctx.subcommand, ctx.flags),
+    tidepool: async () => {
+      const { runTidepool } = await import("./commands/tidepool.ts");
+      await runTidepool(ctx.subcommand, ctx.flags);
+    },
+    update: () => runUpdate(),
+    version: () => {
+      showVersion();
+      return Promise.resolve();
+    },
+    help: () => {
+      showHelp();
+      return Promise.resolve();
+    },
+  };
+}
+
+/** Check whether a config file exists at the resolved path. */
+async function detectConfigExists(): Promise<boolean> {
+  try {
+    await Deno.stat(resolveConfigPath());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 /** Main CLI entry point. */
 async function main(): Promise<void> {
   enableWindowsAnsi();
-
-  // Clean up leftover .old binary from a previous Windows update
   await cleanupOldBinary();
 
-  const args = Deno.args;
-
-  // Check if config exists for default command detection
-  const configPath = resolveConfigPath();
-  let configExists = false;
-  try {
-    await Deno.stat(configPath);
-    configExists = true;
-  } catch {
-    // Config doesn't exist
-  }
-
-  const parsed = parseCommand(args, { configExists });
-
-  switch (parsed.command) {
-    case "chat": {
-      const { runChat } = await import("../channels/cli/chat.ts");
-      await runChat();
-      break;
-    }
-    case "config": {
-      const { runConfig } = await import("./config/config.ts");
-      await runConfig(parsed.subcommand, parsed.flags);
-      break;
-    }
-    case "connect": {
-      const { runConnect } = await import("./commands/connect.ts");
-      await runConnect(parsed.subcommand, parsed.flags);
-      break;
-    }
-    case "cron": {
-      const { runCron } = await import("./commands/cron.ts");
-      await runCron(parsed.subcommand, parsed.flags);
-      break;
-    }
-    case "disconnect": {
-      const { runDisconnect } = await import("./commands/connect.ts");
-      await runDisconnect(parsed.subcommand, parsed.flags);
-      break;
-    }
-    case "dive":
-      await runDive(parsed.flags);
-      break;
-    case "patrol":
-      await runPatrol();
-      break;
-    case "run": {
-      const { runStart } = await import("../gateway/startup/startup.ts");
-      await runStart();
-      break;
-    }
-    case "run-triggers": {
-      const { runTriggers } = await import("./commands/run_triggers.ts");
-      await runTriggers();
-      break;
-    }
-    case "start":
-      await runDaemonStart();
-      break;
-    case "stop":
-      await runDaemonStop();
-      break;
-    case "status":
-      await runDaemonStatus();
-      break;
-    case "logs":
-      await runDaemonLogs(parsed.subcommand, parsed.flags);
-      break;
-    case "tidepool": {
-      const { runTidepool } = await import("./commands/tidepool.ts");
-      await runTidepool(parsed.subcommand, parsed.flags);
-      break;
-    }
-    case "update":
-      await runUpdate();
-      break;
-    case "version":
-      showVersion();
-      break;
-    case "help":
-    default:
-      showHelp();
-      break;
-  }
+  const configExists = await detectConfigExists();
+  const parsed = parseCommand(Deno.args, { configExists });
+  const dispatch = buildCommandDispatchMap(parsed);
+  const handler = dispatch[parsed.command] ?? dispatch["help"];
+  await handler();
 }
 
 // Execute main if this is the entry point
