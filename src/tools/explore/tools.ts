@@ -200,24 +200,22 @@ export function buildAgentTasks(
   return tasks;
 }
 
-/**
- * Extract key files from agent response text.
- * Looks for file paths mentioned in the response.
- */
-function extractKeyFiles(text: string): KeyFile[] {
-  const files: KeyFile[] = [];
-  const seen = new Set<string>();
-
-  // Match lines that look like file entries:
-  // - path/to/file.ts — description
-  // - path/to/file.ts # description
-  // ├── file.ts  # description
-  const patterns = [
+/** Regex patterns that match file entries in agent response text. */
+function buildKeyFilePatterns(): RegExp[] {
+  return [
     /^[-*]\s+[`"]?([^\s`"]+\.\w+)[`"]?\s*[-—#:]+\s*(.+)/gm,
     /[├└│─]+\s+([^\s]+\.\w+)\s+#\s*(.+)/gm,
     /^##\s+(.+\.(?:ts|js|json|md|yaml|toml))\b/gm,
   ];
+}
 
+/** Collect unique key files from regex matches against text. */
+function collectKeyFileMatches(
+  text: string,
+  patterns: readonly RegExp[],
+): KeyFile[] {
+  const files: KeyFile[] = [];
+  const seen = new Set<string>();
   for (const pattern of patterns) {
     let match;
     while ((match = pattern.exec(text)) !== null) {
@@ -228,8 +226,30 @@ function extractKeyFiles(text: string): KeyFile[] {
       }
     }
   }
-
   return files;
+}
+
+/**
+ * Extract key files from agent response text.
+ * Looks for file paths mentioned in the response.
+ */
+function extractKeyFiles(text: string): KeyFile[] {
+  return collectKeyFileMatches(text, buildKeyFilePatterns());
+}
+
+/** Check if a section heading is a non-pattern section to skip. */
+function isNonPatternSection(name: string): boolean {
+  return /^(relevant|key|code|summary|entry|module|dependencies)/i.test(name);
+}
+
+/** Extract up to 3 file path examples from a pattern body. */
+function extractPatternExamples(body: string): string[] {
+  const examples: string[] = [];
+  const matches = body.matchAll(/[`"]([^\s`"]+\.(?:ts|js|json))[`"]/g);
+  for (const m of matches) {
+    if (examples.length < 3) examples.push(m[1]);
+  }
+  return examples;
 }
 
 /**
@@ -237,33 +257,18 @@ function extractKeyFiles(text: string): KeyFile[] {
  */
 function extractPatterns(text: string): Pattern[] {
   const patterns: Pattern[] = [];
-
-  // Split on **pattern_name** or ## Pattern Name headers
   const sections = text.split(/(?:^|\n)(?:\*\*|##\s+)([^*\n]+)(?:\*\*)?/);
 
   for (let i = 1; i < sections.length; i += 2) {
     const name = sections[i]?.trim();
     const body = sections[i + 1]?.trim();
     if (!name || !body) continue;
-
-    // Skip non-pattern sections
-    if (/^(relevant|key|code|summary|entry|module|dependencies)/i.test(name)) {
-      continue;
-    }
-
-    // Extract examples (file paths from the body)
-    const examples: string[] = [];
-    const exampleMatches = body.matchAll(
-      /[`"]([^\s`"]+\.(?:ts|js|json))[`"]/g,
-    );
-    for (const m of exampleMatches) {
-      if (examples.length < 3) examples.push(m[1]);
-    }
+    if (isNonPatternSection(name)) continue;
 
     patterns.push({
       name,
       description: body.split("\n")[0]?.trim() ?? "",
-      examples,
+      examples: extractPatternExamples(body),
     });
   }
 
