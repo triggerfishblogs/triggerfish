@@ -91,26 +91,17 @@ export function logFilePath(): string {
 
 // ─── Service definition generators ──────────────────────────────
 
-/**
- * Generate a macOS launchd plist for the Triggerfish daemon.
- *
- * @param options - Daemon configuration including binary path.
- * @returns XML plist string for ~/Library/LaunchAgents/.
- */
-export function generateLaunchdPlist(options: DaemonOptions): string {
-  const logFile = logFilePath();
-  // Capture the user's PATH at install time so MCP subprocess spawning
-  // can find npx, node, deno, python, etc. launchd has a minimal default PATH.
-  const userPath = Deno.env.get("PATH") ?? "/usr/local/bin:/usr/bin:/bin";
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
+/** Build the inner <dict> content for the launchd plist. */
+function buildLaunchdDictEntries(
+  binaryPath: string,
+  userPath: string,
+  logFile: string,
+): string {
+  return `  <key>Label</key>
   <string>${LAUNCHD_LABEL}</string>
   <key>ProgramArguments</key>
   <array>
-    <string>${options.binaryPath}</string>
+    <string>${binaryPath}</string>
     <string>run</string>
   </array>
   <key>RunAtLoad</key>
@@ -125,7 +116,30 @@ export function generateLaunchdPlist(options: DaemonOptions): string {
   <key>StandardOutPath</key>
   <string>${logFile}</string>
   <key>StandardErrorPath</key>
-  <string>${logFile}</string>
+  <string>${logFile}</string>`;
+}
+
+/**
+ * Generate a macOS launchd plist for the Triggerfish daemon.
+ *
+ * @param options - Daemon configuration including binary path.
+ * @returns XML plist string for ~/Library/LaunchAgents/.
+ */
+export function generateLaunchdPlist(options: DaemonOptions): string {
+  const logFile = logFilePath();
+  // Capture the user's PATH at install time so MCP subprocess spawning
+  // can find npx, node, deno, python, etc. launchd has a minimal default PATH.
+  const userPath = Deno.env.get("PATH") ?? "/usr/local/bin:/usr/bin:/bin";
+  const entries = buildLaunchdDictEntries(
+    options.binaryPath,
+    userPath,
+    logFile,
+  );
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+${entries}
 </dict>
 </plist>
 `;
@@ -214,17 +228,23 @@ export async function runCommand(
  */
 export async function runElevatedCommand(encoded: string): Promise<void> {
   const isElevated = await runCommand("powershell", [
-    "-NoProfile", "-Command",
+    "-NoProfile",
+    "-Command",
     "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)",
   ]);
 
   if (isElevated.stdout === "True") {
     await runCommand("powershell", [
-      "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded,
+      "-NoProfile",
+      "-NonInteractive",
+      "-EncodedCommand",
+      encoded,
     ]);
   } else {
     await runCommand("powershell", [
-      "-NoProfile", "-NonInteractive", "-Command",
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
       `$null = Start-Process powershell -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile -NonInteractive -EncodedCommand ${encoded}'`,
     ]);
   }
@@ -233,14 +253,14 @@ export async function runElevatedCommand(encoded: string): Promise<void> {
 // ─── Re-exports from sub-modules ────────────────────────────────
 
 export {
+  cleanupOldBinary,
+  getDaemonStatus,
   installAndStartDaemon,
   stopDaemon,
-  getDaemonStatus,
   uninstallDaemon,
-  cleanupOldBinary,
 } from "./lifecycle.ts";
 
-export { tailLogs, bundleLogs } from "./logs.ts";
+export { bundleLogs, tailLogs } from "./logs.ts";
 
 export type { UpdateResult } from "./updater.ts";
 export { updateTriggerfish } from "./updater.ts";
