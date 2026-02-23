@@ -118,13 +118,13 @@ export async function runAgentTurn(
 
   const sessionKey = session.id as string;
   const ctx = await prepareAgentTurnContext(state, sessionKey, message, signal);
-  return runAgentLoop(
+  return runAgentLoop({
     state,
     session,
-    ctx.systemPrompt,
-    ctx.history,
+    systemPrompt: ctx.systemPrompt,
+    history: ctx.history,
     sessionKey,
     targetClassification,
     signal,
-  );
+  });
 }
