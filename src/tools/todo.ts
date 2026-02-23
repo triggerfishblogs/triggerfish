@@ -38,6 +38,32 @@ function todoKey(agentId: string): string {
   return `todos:${agentId}`;
 }
 
+/** Check that a field is a non-empty string. */
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+/** Valid statuses for todo items. */
+const VALID_TODO_STATUSES: readonly TodoStatus[] = [
+  "pending",
+  "in_progress",
+  "completed",
+];
+
+/** Valid priorities for todo items. */
+const VALID_TODO_PRIORITIES: readonly string[] = ["high", "medium", "low"];
+
+/** Validate that a raw object has valid todo item fields. */
+function hasValidTodoFields(obj: Record<string, unknown>): boolean {
+  if (!isNonEmptyString(obj.id)) return false;
+  if (!isNonEmptyString(obj.content)) return false;
+  if (!VALID_TODO_STATUSES.includes(obj.status as TodoStatus)) return false;
+  if (!VALID_TODO_PRIORITIES.includes(obj.priority as string)) return false;
+  if (!isNonEmptyString(obj.created_at)) return false;
+  if (!isNonEmptyString(obj.updated_at)) return false;
+  return true;
+}
+
 /**
  * Validate a single todo item from untrusted LLM input.
  * Returns the validated item or null if invalid.
@@ -45,27 +71,7 @@ function todoKey(agentId: string): string {
 function validateTodoItem(raw: unknown): TodoItem | null {
   if (typeof raw !== "object" || raw === null) return null;
   const obj = raw as Record<string, unknown>;
-
-  if (typeof obj.id !== "string" || obj.id.length === 0) return null;
-  if (typeof obj.content !== "string" || obj.content.length === 0) return null;
-
-  const validStatuses: readonly TodoStatus[] = [
-    "pending",
-    "in_progress",
-    "completed",
-  ];
-  if (!validStatuses.includes(obj.status as TodoStatus)) return null;
-
-  const validPriorities = ["high", "medium", "low"];
-  if (!validPriorities.includes(obj.priority as string)) return null;
-
-  if (typeof obj.created_at !== "string" || obj.created_at.length === 0) {
-    return null;
-  }
-  if (typeof obj.updated_at !== "string" || obj.updated_at.length === 0) {
-    return null;
-  }
-
+  if (!hasValidTodoFields(obj)) return null;
   return {
     id: obj.id as string,
     content: obj.content as string,
