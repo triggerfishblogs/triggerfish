@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { ChatSession } from "../../gateway/chat.ts";
+import type { ChatSession } from "../../../gateway/chat.ts";
 import type { A2UIHostState } from "./host_types.ts";
 import { sendInitialClientState } from "./host_broadcast.ts";
 import {

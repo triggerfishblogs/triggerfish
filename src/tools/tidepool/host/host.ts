@@ -12,20 +12,20 @@
  * @module
  */
 
-import type { ComponentTree } from "./components.ts";
+import type { ComponentTree } from "../components.ts";
 import type {
   CanvasMessage,
   CanvasRenderComponentMessage,
-} from "./canvas_protocol.ts";
-import { buildTidepoolHtml } from "./ui.ts";
+} from "../canvas_protocol.ts";
+import { buildTidepoolHtml } from "../ui.ts";
 import type { A2UIHost, A2UIHostOptions, A2UIHostState } from "./host_types.ts";
 import { broadcastJsonToClients } from "./host_broadcast.ts";
 import { routeHostRequest } from "./host_server.ts";
 import { closeAllClientSockets } from "./host_server.ts";
 
 // Re-export all public types so existing imports keep working
-export type { TidepoolHost, TidepoolHostOptions } from "./host_legacy.ts";
-export { createTidepoolHost } from "./host_legacy.ts";
+export type { TidepoolHost, TidepoolHostOptions } from "../host_legacy.ts";
+export { createTidepoolHost } from "../host_legacy.ts";
 export type { A2UIHost, A2UIHostOptions } from "./host_types.ts";
 
 // ---------------------------------------------------------------------------

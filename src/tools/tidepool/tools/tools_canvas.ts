@@ -8,17 +8,17 @@
  * @module
  */
 
-import type { A2UIHost } from "./host.ts";
-import type { Result } from "../../core/types/classification.ts";
-import type { A2UIComponent, ComponentTree } from "./components.ts";
+import type { A2UIHost } from "../host/host.ts";
+import type { Result } from "../../../core/types/classification.ts";
+import type { A2UIComponent, ComponentTree } from "../components.ts";
 import type {
   CanvasClearMessage,
   CanvasRenderComponentMessage,
   CanvasRenderFileMessage,
   CanvasRenderHtmlMessage,
   CanvasUpdateMessage,
-} from "./canvas_protocol.ts";
-import { generateRenderId } from "./canvas_protocol.ts";
+} from "../canvas_protocol.ts";
+import { generateRenderId } from "../canvas_protocol.ts";
 
 // ---------------------------------------------------------------------------
 // Render-file options (avoids >3 positional params)

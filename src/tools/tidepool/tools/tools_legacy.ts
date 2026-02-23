@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { TidepoolHost } from "./host.ts";
+import type { TidepoolHost } from "../host/host.ts";
 
 // ─── Barrel re-exports from tools_defs.ts ───────────────────────────────────
 

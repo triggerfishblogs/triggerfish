@@ -7,8 +7,8 @@
  * @module
  */
 
-import type { ComponentTree } from "./components.ts";
-import type { CanvasMessage } from "./canvas_protocol.ts";
+import type { ComponentTree } from "../components.ts";
+import type { CanvasMessage } from "../canvas_protocol.ts";
 
 // ---------------------------------------------------------------------------
 // A2UI WebSocket Host — public interfaces
@@ -17,7 +17,7 @@ import type { CanvasMessage } from "./canvas_protocol.ts";
 /** Options for creating an A2UI host. */
 export interface A2UIHostOptions {
   /** Chat session for handling browser chat messages. */
-  readonly chatSession?: import("../../gateway/chat.ts").ChatSession;
+  readonly chatSession?: import("../../../gateway/chat.ts").ChatSession;
 }
 
 /** A2UI WebSocket host that broadcasts component trees and canvas messages to connected clients. */

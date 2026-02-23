@@ -8,7 +8,7 @@
  */
 
 import type { TidePoolTools } from "./tools_canvas.ts";
-import type { ComponentTree } from "./components.ts";
+import type { ComponentTree } from "../components.ts";
 
 // ---------------------------------------------------------------------------
 // Individual tool executors

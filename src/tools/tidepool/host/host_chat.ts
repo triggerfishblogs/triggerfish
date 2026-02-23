@@ -8,8 +8,8 @@
  * @module
  */
 
-import type { ChatClientMessage, ChatSession } from "../../gateway/chat.ts";
-import type { MessageContent } from "../../core/image/content.ts";
+import type { ChatClientMessage, ChatSession } from "../../../gateway/chat.ts";
+import type { MessageContent } from "../../../core/image/content.ts";
 import { trySendSocketPayload } from "./host_broadcast.ts";
 
 /** Mutable holder so event-listener closures can read/write the current AbortController. */

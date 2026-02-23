@@ -9,7 +9,7 @@
  * @module
  */
 
-import type { ChatSession } from "../../gateway/chat.ts";
+import type { ChatSession } from "../../../gateway/chat.ts";
 import type { A2UIHostState } from "./host_types.ts";
 
 /** Safely send a string payload to a single socket, swallowing send errors. */

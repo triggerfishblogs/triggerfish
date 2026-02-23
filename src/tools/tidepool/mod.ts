@@ -28,25 +28,25 @@ export type {
 export { generateRenderId } from "./canvas_protocol.ts";
 
 // A2UI WebSocket host
-export type { A2UIHost, A2UIHostOptions } from "./host.ts";
-export { createA2UIHost } from "./host.ts";
+export type { A2UIHost, A2UIHostOptions } from "./host/mod.ts";
+export { createA2UIHost } from "./host/mod.ts";
 
 // Tidepool browser HTML compositor
 export { buildTidepoolHtml, TIDEPOOL_HTML } from "./ui.ts";
 
 // A2UI canvas tools (Result-based)
-export type { TidePoolTools, RenderFileOptions } from "./tools_canvas.ts";
-export { createTidePoolTools } from "./tools_canvas.ts";
+export type { TidePoolTools, RenderFileOptions } from "./tools/mod.ts";
+export { createTidePoolTools } from "./tools/mod.ts";
 
 // Tool definitions and system prompt
-export { getTidepoolToolDefinitions, TIDEPOOL_SYSTEM_PROMPT } from "./tools_legacy.ts";
+export { getTidepoolToolDefinitions, TIDEPOOL_SYSTEM_PROMPT } from "./tools/mod.ts";
 
 // Executor
-export { createTidepoolToolExecutor } from "./tools_executor.ts";
+export { createTidepoolToolExecutor } from "./tools/mod.ts";
 
 // Legacy callback-based host and tools (backward compatibility)
-export type { TidepoolHost, TidepoolHostOptions } from "./host.ts";
-export { createTidepoolHost } from "./host.ts";
+export type { TidepoolHost, TidepoolHostOptions } from "./host/mod.ts";
+export { createTidepoolHost } from "./host/mod.ts";
 
-export type { TidepoolTools } from "./tools_legacy.ts";
-export { createTidepoolTools } from "./tools_legacy.ts";
+export type { TidepoolTools } from "./tools/mod.ts";
+export { createTidepoolTools } from "./tools/mod.ts";

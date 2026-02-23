@@ -14,7 +14,7 @@ import type { SessionState } from "../../../core/types/session.ts";
 import type { SecretStore } from "../../../core/secrets/keychain/keychain.ts";
 import type { ChatSession } from "../../chat.ts";
 import type { GatewayServer } from "../../server/server.ts";
-import type { A2UIHost } from "../../../tools/tidepool/host.ts";
+import type { A2UIHost } from "../../../tools/tidepool/host/mod.ts";
 import { parseClassification } from "../../../core/types/classification.ts";
 import {
   buildMcpSystemPrompt,

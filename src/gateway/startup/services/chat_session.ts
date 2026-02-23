@@ -25,7 +25,7 @@ import {
   createTidePoolTools,
   TIDEPOOL_SYSTEM_PROMPT,
 } from "../../../tools/tidepool/mod.ts";
-import { createA2UIHost } from "../../../tools/tidepool/host.ts";
+import { createA2UIHost } from "../../../tools/tidepool/host/mod.ts";
 import { createChatSession } from "../../chat.ts";
 import { createGatewayServer } from "../../server/server.ts";
 import type { createEnhancedSessionManager } from "../../sessions.ts";
