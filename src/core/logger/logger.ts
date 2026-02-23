@@ -78,11 +78,60 @@ function formatLine(
 ): string {
   const ts = new Date().toISOString();
   const extra = args.length > 0
-    ? " " + args.map((a) =>
-        typeof a === "string" ? a : JSON.stringify(a)
-      ).join(" ")
+    ? " " +
+      args.map((a) => typeof a === "string" ? a : JSON.stringify(a)).join(" ")
     : "";
   return `[${ts}] [${level}] [${component}] ${msg}${extra}\n`;
+}
+
+/** Emit a single log line to stderr. */
+function emitToConsole(line: string): void {
+  Deno.stderr.writeSync(new TextEncoder().encode(line));
+}
+
+/** Fire-and-forget write to the file writer, logging failures to stderr. */
+function emitToFileWriter(writer: FileWriter, line: string): void {
+  writer.write(line).catch((err: unknown) => {
+    emitToConsole(
+      `[logger] File write failed: ${
+        err instanceof Error ? err.message : String(err)
+      }\n`,
+    );
+  });
+}
+
+/** Dispatch a log line to configured outputs (stderr and/or file). */
+function dispatchLogLine(
+  level: LogLevel,
+  component: string,
+  msg: string,
+  args: unknown[],
+): void {
+  if (!shouldLog(level, globalLevel)) return;
+  const line = formatLine(level, component, msg, args);
+  if (globalConsole) emitToConsole(line);
+  if (globalFileWriter) emitToFileWriter(globalFileWriter, line);
+}
+
+/** Build a Logger object that delegates each severity to dispatchLogLine. */
+function buildLoggerMethods(component: string): Logger {
+  return {
+    error(msg: string, ...args: unknown[]) {
+      dispatchLogLine("ERROR", component, msg, args);
+    },
+    warn(msg: string, ...args: unknown[]) {
+      dispatchLogLine("WARN", component, msg, args);
+    },
+    info(msg: string, ...args: unknown[]) {
+      dispatchLogLine("INFO", component, msg, args);
+    },
+    debug(msg: string, ...args: unknown[]) {
+      dispatchLogLine("DEBUG", component, msg, args);
+    },
+    trace(msg: string, ...args: unknown[]) {
+      dispatchLogLine("TRACE", component, msg, args);
+    },
+  };
 }
 
 /**
@@ -92,42 +141,7 @@ function formatLine(
  * If `initLogger()` was never called, defaults to stderr-only at INFO.
  */
 export function createLogger(component: string): Logger {
-  function log(level: LogLevel, msg: string, args: unknown[]): void {
-    if (!shouldLog(level, globalLevel)) return;
-
-    const line = formatLine(level, component, msg, args);
-
-    if (globalConsole) {
-      Deno.stderr.writeSync(new TextEncoder().encode(line));
-    }
-
-    if (globalFileWriter) {
-      // Fire-and-forget write — do not block the caller
-      globalFileWriter.write(line).catch((err: unknown) => {
-        Deno.stderr.writeSync(new TextEncoder().encode(
-          `[logger] File write failed: ${err instanceof Error ? err.message : String(err)}\n`,
-        ));
-      });
-    }
-  }
-
-  return {
-    error(msg: string, ...args: unknown[]) {
-      log("ERROR", msg, args);
-    },
-    warn(msg: string, ...args: unknown[]) {
-      log("WARN", msg, args);
-    },
-    info(msg: string, ...args: unknown[]) {
-      log("INFO", msg, args);
-    },
-    debug(msg: string, ...args: unknown[]) {
-      log("DEBUG", msg, args);
-    },
-    trace(msg: string, ...args: unknown[]) {
-      log("TRACE", msg, args);
-    },
-  };
+  return buildLoggerMethods(component);
 }
 
 /** Check whether the global logger has been initialized. */
