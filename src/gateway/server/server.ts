@@ -21,6 +21,10 @@ import {
   upgradeChatWebSocket,
 } from "./handlers.ts";
 import { createLogger } from "../../core/logger/logger.ts";
+import {
+  extractBearerToken,
+  rejectWebSocketUpgrade,
+} from "../../core/security/websocket_auth.ts";
 
 const log = createLogger("gateway");
 import type { JsonRpcRequest } from "./handlers.ts";
@@ -51,8 +55,10 @@ export type { JsonRpcRequest, JsonRpcResponse } from "./handlers.ts";
 export interface GatewayServerOptions {
   /** Port to listen on. Use 0 for a random available port. */
   readonly port?: number;
-  /** Authentication token for connections. */
+  /** Authentication token for connections. When set, all WebSocket upgrades and the debug endpoint require a matching Bearer token. */
   readonly token?: string;
+  /** Allowed WebSocket Origin headers. Use `["*"]` to permit any origin, `["null"]` for file:// origins. When omitted or empty, all origins are permitted. */
+  readonly allowedOrigins?: readonly string[];
   /** Optional scheduler service for webhook endpoints. */
   readonly schedulerService?: SchedulerService;
   /** Optional session manager for JSON-RPC session methods. */
@@ -116,7 +122,8 @@ export function createGatewayServer(
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(json);
           }
-        } catch {
+        } catch (err) {
+          log.warn("Failed to send chat event to socket, removing stale connection", { err });
           chatSockets.delete(ws);
         }
       }
@@ -129,7 +136,8 @@ export function createGatewayServer(
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(json);
           }
-        } catch {
+        } catch (err) {
+          log.warn("Failed to send notification to socket, removing stale connection", { err });
           chatSockets.delete(ws);
         }
       }
@@ -155,6 +163,23 @@ export function createGatewayServer(
           if (request.headers.get("upgrade") === "websocket") {
             const headerRejection = validateGatewayUpgradeHeaders(request);
             if (headerRejection) return headerRejection;
+
+            // Enforce token auth and Origin allowlist before any upgrade
+            const rejection = rejectWebSocketUpgrade(request, {
+              token: options?.token,
+              allowedOrigins: options?.allowedOrigins,
+            });
+            if (rejection) {
+              const reason = rejection.status === 401
+                ? "invalid_token"
+                : "origin_mismatch";
+              log.warn("WebSocket upgrade rejected", {
+                status: rejection.status,
+                reason,
+                origin: request.headers.get("origin") ?? "(none)",
+              });
+              return rejection;
+            }
 
             // Route /chat to the chat session handler
             if (url.pathname === "/chat" && chatSession) {
@@ -194,7 +219,8 @@ export function createGatewayServer(
                   notificationService,
                 );
                 socket.send(JSON.stringify(rpcResponse));
-              } catch {
+              } catch (err) {
+                log.warn("JSON-RPC message processing failed", { err });
                 socket.send(JSON.stringify({
                   jsonrpc: "2.0",
                   id: null,
@@ -220,6 +246,23 @@ export function createGatewayServer(
             request.method === "POST" &&
             url.pathname === "/debug/run-triggers"
           ) {
+            if (!options?.token) {
+              log.debug("Debug endpoint auth not configured, proceeding", {
+                operation: "debug/run-triggers",
+              });
+            } else {
+              const provided = extractBearerToken(request);
+              if (provided !== options.token) {
+                log.warn("Debug endpoint access rejected: invalid token", {
+                  operation: "debug/run-triggers",
+                  reason: "invalid_token",
+                });
+                return new Response("Unauthorized", { status: 401 });
+              }
+              log.info("Debug endpoint access authorized", {
+                operation: "debug/run-triggers",
+              });
+            }
             if (!schedulerService) {
               return new Response(
                 JSON.stringify({ error: "Scheduler not configured" }),
@@ -227,9 +270,7 @@ export function createGatewayServer(
               );
             }
             schedulerService.runTrigger().catch((err: unknown) => {
-              log.warn("Trigger execution failed", {
-                error: err instanceof Error ? err.message : String(err),
-              });
+              log.warn("Trigger execution failed", { err });
             });
             return new Response(
               JSON.stringify({ ok: true, message: "Trigger fired" }),

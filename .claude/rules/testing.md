@@ -16,7 +16,7 @@
 |-------|-------------|
 | 0 | `deno task test tests/setup_test.ts` |
 | 1 | `deno task test tests/core/types/` |
-| 2–3 | `deno task test tests/core/policy/` |
+| 2–3 | `deno task test tests/core/policy/ tests/core/security/` |
 | 4 | `deno task test tests/core/session/ tests/core/storage/` |
 | 5 | `deno task test tests/core/session/lineage_test.ts` |
 | 6 | `deno task test tests/mcp/client/` |

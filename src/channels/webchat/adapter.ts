@@ -107,8 +107,8 @@ function attachSocketEventHandlers(
           sessionTaint: "PUBLIC" as ClassificationLevel,
         });
       }
-    } catch {
-      // Ignore malformed frames
+    } catch (err) {
+      log.warn("WebChat: malformed message frame received", { sessionId, err });
     }
   };
 
@@ -132,7 +132,13 @@ function routeWebChatRequest(
 ): Response {
   if (req.headers.get("upgrade") === "websocket") {
     const rejection = validateWebChatUpgrade(req, config);
-    if (rejection) return rejection;
+    if (rejection) {
+      log.warn("WebSocket upgrade rejected", {
+        status: rejection.status,
+        origin: req.headers.get("origin") ?? "(none)",
+      });
+      return rejection;
+    }
 
     log.ext("DEBUG", "WebSocket upgrade accepted", {
       origin: req.headers.get("origin") ?? "",

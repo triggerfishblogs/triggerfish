@@ -31,3 +31,9 @@ export { createToolFloorRegistry } from "./tool_floors.ts";
 export type { ToolFloorRegistry } from "./tool_floors.ts";
 
 export { isWithinJail, resolveWithinJail } from "./path_jail.ts";
+
+export {
+  extractBearerToken,
+  isOriginAllowed,
+  rejectWebSocketUpgrade,
+} from "./websocket_auth.ts";
