@@ -9,7 +9,7 @@
  */
 
 import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { SecretStore } from "../core/secrets/keychain.ts";
+import type { SecretStore } from "../core/secrets/keychain/keychain.ts";
 import type { McpClient, McpToolDefinition } from "./client/protocol.ts";
 import type { McpServer } from "./gateway/gateway.ts";
 import type { Transport } from "./client/transport.ts";

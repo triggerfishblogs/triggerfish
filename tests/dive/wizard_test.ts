@@ -17,7 +17,7 @@ import {
   storeWizardSecrets,
 } from "../../src/dive/wizard.ts";
 import type { WizardAnswers } from "../../src/dive/wizard.ts";
-import { createMemorySecretStore } from "../../src/core/secrets/keychain.ts";
+import { createMemorySecretStore } from "../../src/core/secrets/keychain/keychain.ts";
 
 // ─── Test fixtures ───────────────────────────────────────────────────────────
 

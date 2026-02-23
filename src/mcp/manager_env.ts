@@ -12,7 +12,7 @@ import type {
   ClassificationLevel,
   Result,
 } from "../core/types/classification.ts";
-import type { SecretStore } from "../core/secrets/keychain.ts";
+import type { SecretStore } from "../core/secrets/keychain/keychain.ts";
 import type { McpClient } from "./client/protocol.ts";
 import type { McpServer, McpServerToolResult } from "./gateway/gateway.ts";
 

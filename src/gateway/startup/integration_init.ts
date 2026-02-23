@@ -22,7 +22,7 @@ import {
   buildSkillsSystemPrompt,
   buildTriggersSystemPrompt,
 } from "../../tools/skills/prompts.ts";
-import { createKeychain } from "../../core/secrets/keychain.ts";
+import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
 import type { createWorkspace } from "../../exec/workspace.ts";
 import { createTriggerToolExecutor } from "../tools/trigger_tools.ts";
 import { createTriggerStore } from "../../scheduler/triggers/store.ts";

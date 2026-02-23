@@ -23,7 +23,7 @@ import { logDir as resolveLogDir } from "../../cli/daemon/daemon.ts";
 import { loadConfigWithSecrets } from "../../core/config.ts";
 import type { TriggerFishConfig } from "../../core/config.ts";
 import { resolveBaseDir, resolveConfigPath } from "../../cli/config/paths.ts";
-import { createKeychain } from "../../core/secrets/keychain.ts";
+import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
 
 /** Result of the bootstrap phase: config loaded and logger ready. */
 export interface BootstrapResult {

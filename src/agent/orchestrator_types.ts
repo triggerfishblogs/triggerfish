@@ -10,7 +10,7 @@
 
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import type { ToolDefinition, ToolExecutor } from "../core/types/tool.ts";
-import type { SecretStore } from "../core/secrets/keychain.ts";
+import type { SecretStore } from "../core/secrets/keychain/keychain.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
 import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
 import type { DomainClassifier } from "../core/types/domain.ts";

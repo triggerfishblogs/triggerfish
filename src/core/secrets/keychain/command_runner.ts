@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { Result } from "../types/classification.ts";
+import type { Result } from "../../types/classification.ts";
 
 /** Pipe stdin data to a child process writer. */
 async function pipeStdinData(

@@ -80,13 +80,13 @@ export interface ToolInfraResult {
   readonly browserHandle: ReturnType<typeof initializeBrowserExecutor>;
   readonly channelAdapters: Map<string, RegisteredChannel>;
   readonly toolClassifications: Map<string, ClassificationLevel>;
-  readonly keychain: ReturnType<typeof import("../../core/secrets/keychain.ts").createKeychain>;
+  readonly keychain: ReturnType<typeof import("../../core/secrets/keychain/keychain.ts").createKeychain>;
   readonly mcpBroadcastRefs: McpBroadcastRefs;
   readonly mcpWiring: ReturnType<typeof wireMcpServers> | null;
   readonly toolExecutor: ReturnType<typeof createToolExecutor>;
   readonly skillsPrompt: string;
   readonly triggersPrompt: string;
-  readonly mainKeychain: ReturnType<typeof import("../../core/secrets/keychain.ts").createKeychain>;
+  readonly mainKeychain: ReturnType<typeof import("../../core/secrets/keychain/keychain.ts").createKeychain>;
   readonly domainClassifier: ReturnType<
     typeof buildWebTools
   >["domainClassifier"];

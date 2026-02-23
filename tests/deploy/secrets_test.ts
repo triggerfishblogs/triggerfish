@@ -5,7 +5,7 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { createFileSecretStore } from "../../src/core/secrets/file_provider.ts";
+import { createFileSecretStore } from "../../src/core/secrets/backends/file_provider.ts";
 
 // Helper to temporarily set/unset env vars
 function withEnv(

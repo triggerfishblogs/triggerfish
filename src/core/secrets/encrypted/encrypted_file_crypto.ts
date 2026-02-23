@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { Result } from "../types/classification.ts";
+import type { Result } from "../../types/classification.ts";
 import type { EncryptedEntry } from "./encrypted_file_types.ts";
 
 /** Encode a Uint8Array to base64 string. */

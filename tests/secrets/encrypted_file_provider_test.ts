@@ -6,7 +6,7 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
-import { createEncryptedFileSecretStore } from "../../src/core/secrets/encrypted_file_provider.ts";
+import { createEncryptedFileSecretStore } from "../../src/core/secrets/encrypted/encrypted_file_provider.ts";
 
 // Helper: create a temp dir and return its path + a cleanup function
 async function withTempDir(

@@ -9,7 +9,7 @@
 
 import { Confirm, Input, Select } from "@cliffy/prompt";
 
-import { createKeychain } from "../core/secrets/keychain.ts";
+import { createKeychain } from "../core/secrets/keychain/keychain.ts";
 
 import type { SearchProviderChoice } from "./wizard_types.ts";
 

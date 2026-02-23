@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { Result } from "../types/classification.ts";
+import type { Result } from "../../types/classification.ts";
 
 /** Service name used for all keychain entries. */
 export const SECRET_SERVICE_NAME = "triggerfish";

@@ -9,19 +9,18 @@
  * @module
  */
 
-export { createKeychain } from "./keychain.ts";
-export { createMemorySecretStore } from "./memory_store.ts";
-export type { SecretStore } from "./secret_store.ts";
-export { SECRET_SERVICE_NAME } from "./secret_store.ts";
-export { createLinuxKeychain } from "./linux_keychain.ts";
-export { createMacKeychain } from "./mac_keychain.ts";
-export { runCommand } from "./command_runner.ts";
-export { createFileSecretStore } from "./file_provider.ts";
-export type { FileSecretStoreOptions } from "./file_provider.ts";
-export { createEncryptedFileSecretStore } from "./encrypted_file_provider.ts";
-export type { EncryptedFileSecretStoreOptions } from "./encrypted_file_provider.ts";
-export { loadOrCreateMachineKey } from "./key_manager.ts";
-export type { MachineKeyOptions } from "./key_manager.ts";
+// keychain/ — OS keychain integration
+export { createKeychain, createLinuxKeychain, createMacKeychain, runCommand } from "./keychain/mod.ts";
+
+// backends/ — storage backends and interfaces
+export { createMemorySecretStore, createFileSecretStore, loadOrCreateMachineKey, SECRET_SERVICE_NAME } from "./backends/mod.ts";
+export type { SecretStore, FileSecretStoreOptions, MachineKeyOptions } from "./backends/mod.ts";
+
+// encrypted/ — AES-256-GCM encrypted file store
+export { createEncryptedFileSecretStore } from "./encrypted/mod.ts";
+export type { EncryptedFileSecretStoreOptions } from "./encrypted/mod.ts";
+
+// resolver — secret reference resolution
 export {
   findSecretRefs,
   resolveConfigSecrets,

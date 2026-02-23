@@ -23,10 +23,10 @@
  * @module
  */
 
-import type { Result } from "../types/classification.ts";
-import type { SecretStore } from "./secret_store.ts";
-import { loadOrCreateMachineKey } from "./key_manager.ts";
-import { createLogger } from "../logger/logger.ts";
+import type { Result } from "../../types/classification.ts";
+import type { SecretStore } from "../backends/secret_store.ts";
+import { loadOrCreateMachineKey } from "../backends/key_manager.ts";
+import { createLogger } from "../../logger/logger.ts";
 import type {
   EncryptedFileSecretStoreOptions,
   EncryptedSecretsFile,

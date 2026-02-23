@@ -9,19 +9,19 @@
  */
 
 import { join } from "@std/path";
-import { isDockerEnvironment } from "../env.ts";
-import { createEncryptedFileSecretStore } from "./encrypted_file_provider.ts";
+import { isDockerEnvironment } from "../../env.ts";
+import { createEncryptedFileSecretStore } from "../encrypted/encrypted_file_provider.ts";
 import { createLinuxKeychain } from "./linux_keychain.ts";
 import { createMacKeychain } from "./mac_keychain.ts";
-import { createMemorySecretStore } from "./memory_store.ts";
-import type { SecretStore } from "./secret_store.ts";
-import { createLogger } from "../logger/logger.ts";
+import { createMemorySecretStore } from "../backends/memory_store.ts";
+import type { SecretStore } from "../backends/secret_store.ts";
+import { createLogger } from "../../logger/logger.ts";
 
 const log = createLogger("secrets");
 
 // Re-export so existing `import … from "./keychain.ts"` sites compile.
-export { createMemorySecretStore } from "./memory_store.ts";
-export type { SecretStore } from "./secret_store.ts";
+export { createMemorySecretStore } from "../backends/memory_store.ts";
+export type { SecretStore } from "../backends/secret_store.ts";
 
 /** Resolve encrypted-file secret store paths for Windows. */
 function resolveWindowsSecretStorePaths(): {

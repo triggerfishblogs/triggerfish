@@ -8,7 +8,7 @@
  */
 
 import { createLogger } from "../core/logger/mod.ts";
-import type { SecretStore } from "../core/secrets/keychain.ts";
+import type { SecretStore } from "../core/secrets/keychain/keychain.ts";
 import type { Transport } from "./client/transport.ts";
 import { SSETransport, StdioTransport } from "./client/transport.ts";
 import { createMcpClient } from "./client/protocol.ts";

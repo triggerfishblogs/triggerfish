@@ -19,7 +19,7 @@ import {
   createSheetsService,
   createTasksService,
 } from "../../integrations/google/mod.ts";
-import { createKeychain } from "../../core/secrets/keychain.ts";
+import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
 
 /**
  * Build Google Workspace tool executor.

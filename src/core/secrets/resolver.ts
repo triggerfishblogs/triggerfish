@@ -16,7 +16,7 @@
  */
 
 import type { Result } from "../types/classification.ts";
-import type { SecretStore } from "./secret_store.ts";
+import type { SecretStore } from "./backends/secret_store.ts";
 
 // ─── Config-level resolution (`secret:<key>`) ────────────────────────────────
 

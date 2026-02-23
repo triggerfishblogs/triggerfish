@@ -6,9 +6,9 @@
  * @module
  */
 
-import type { Result } from "../types/classification.ts";
-import type { SecretStore } from "./secret_store.ts";
-import { SECRET_SERVICE_NAME } from "./secret_store.ts";
+import type { Result } from "../../types/classification.ts";
+import type { SecretStore } from "../backends/secret_store.ts";
+import { SECRET_SERVICE_NAME } from "../backends/secret_store.ts";
 import { runCommand } from "./command_runner.ts";
 
 /** Lookup a secret from Linux libsecret. */

@@ -7,8 +7,8 @@
  */
 
 import { Input } from "@cliffy/prompt";
-import { createKeychain } from "../../core/secrets/keychain.ts";
-import type { SecretStore } from "../../core/secrets/keychain.ts";
+import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
+import type { SecretStore } from "../../core/secrets/keychain/keychain.ts";
 import { createGoogleAuthManager } from "../../integrations/google/mod.ts";
 import type { GoogleAuthConfig } from "../../integrations/google/mod.ts";
 

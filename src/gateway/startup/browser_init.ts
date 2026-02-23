@@ -24,7 +24,7 @@ import {
   createGitHubToolExecutor,
   resolveGitHubToken,
 } from "../../integrations/github/mod.ts";
-import { createKeychain } from "../../core/secrets/keychain.ts";
+import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
 import { createExploreToolExecutor } from "../../tools/explore/mod.ts";
 import type { createHookRunner } from "../../core/policy/hooks/hooks.ts";
 import { wireMcpServers } from "./mcp.ts";

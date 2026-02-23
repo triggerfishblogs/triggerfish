@@ -36,7 +36,7 @@ import {
   createGitHubToolExecutor,
   resolveGitHubToken,
 } from "../../integrations/github/mod.ts";
-import type { createKeychain } from "../../core/secrets/keychain.ts";
+import type { createKeychain } from "../../core/secrets/keychain/keychain.ts";
 import { createSessionToolExecutor } from "../tools/session_tools.ts";
 import { createTriggerClassificationToolExecutor } from "../tools/trigger_tools.ts";
 import type { EnhancedSessionManager } from "../sessions.ts";

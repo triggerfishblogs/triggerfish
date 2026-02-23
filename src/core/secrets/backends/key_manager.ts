@@ -9,8 +9,8 @@
  */
 
 import { dirname } from "@std/path";
-import type { Result } from "../types/classification.ts";
-import { createLogger } from "../logger/logger.ts";
+import type { Result } from "../../types/classification.ts";
+import { createLogger } from "../../logger/logger.ts";
 
 const log = createLogger("secrets");
 

@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { SecretStore } from "../../../core/secrets/keychain.ts";
+import type { SecretStore } from "../../../core/secrets/keychain/keychain.ts";
 import type {
   GoogleAuthConfig,
   GoogleAuthManager,

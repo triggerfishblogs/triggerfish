@@ -6,7 +6,7 @@
  */
 
 import { Input } from "@cliffy/prompt";
-import { createKeychain } from "../../core/secrets/keychain.ts";
+import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
 
 /** Print GitHub PAT setup instructions. */
 function printGithubSetupInstructions(): void {

@@ -5,7 +5,7 @@
 
 import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
 import { backupConfig, resolveConfigPath } from "./paths.ts";
-import { createKeychain } from "../../core/secrets/keychain.ts";
+import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
 import { findSecretRefs } from "../../core/secrets/resolver.ts";
 import { readNestedYamlValue, writeNestedYamlValue } from "./config.ts";
 import type { SecretFieldDescriptor } from "./secrets_fields.ts";

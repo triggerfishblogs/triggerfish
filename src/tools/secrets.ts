@@ -15,7 +15,7 @@
  */
 
 import type { ToolDefinition } from "../core/types/tool.ts";
-import type { SecretStore } from "../core/secrets/keychain.ts";
+import type { SecretStore } from "../core/secrets/keychain/keychain.ts";
 import { createLogger } from "../core/logger/logger.ts";
 
 const log = createLogger("secrets");

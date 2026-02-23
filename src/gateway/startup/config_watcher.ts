@@ -12,7 +12,7 @@
  */
 
 import { parse as parseYaml } from "@std/yaml";
-import type { SecretStore } from "../../core/secrets/keychain.ts";
+import type { SecretStore } from "../../core/secrets/keychain/keychain.ts";
 import { resolveConfigSecrets } from "../../core/secrets/resolver.ts";
 
 /** Callback invoked when configuration changes. */

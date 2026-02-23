@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { Result } from "../types/classification.ts";
+import type { Result } from "../../types/classification.ts";
 import type { SecretStore } from "./secret_store.ts";
 
 /** Lookup a secret from an in-memory store. */

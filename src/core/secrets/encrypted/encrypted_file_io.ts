@@ -8,7 +8,7 @@
  */
 
 import { dirname } from "@std/path";
-import type { Result } from "../types/classification.ts";
+import type { Result } from "../../types/classification.ts";
 import type {
   EncryptedEntry,
   EncryptedSecretsFile,

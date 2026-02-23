@@ -7,7 +7,7 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
-import { loadOrCreateMachineKey } from "../../src/core/secrets/key_manager.ts";
+import { loadOrCreateMachineKey } from "../../src/core/secrets/backends/key_manager.ts";
 
 // Helper: create a temp dir and return its path + a cleanup function
 async function withTempDir(
