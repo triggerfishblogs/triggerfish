@@ -16,6 +16,7 @@ import type {
   MessageHandler,
 } from "../types.ts";
 import { createLogger } from "../../core/logger/logger.ts";
+import { isOriginAllowed } from "../../core/security/websocket_auth.ts";
 
 const log = createLogger("webchat");
 
@@ -82,22 +83,28 @@ function attachSocketEventHandlers(
 /**
  * Handle an incoming HTTP request to the WebChat server.
  *
- * WebSocket upgrade requests get a new session; all other requests
- * receive a health-check response.
+ * WebSocket upgrade requests are validated against the Origin allowlist before
+ * the connection is accepted. All other requests receive a 404 response with no
+ * identifying information to avoid server fingerprinting.
  */
 function routeWebChatRequest(
   req: Request,
   connections: Map<string, WebSocket>,
   handlerRef: { current: MessageHandler | null },
+  allowedOrigins: readonly string[],
 ): Response {
   if (req.headers.get("upgrade") === "websocket") {
+    const origin = req.headers.get("origin");
+    if (!isOriginAllowed(origin, allowedOrigins)) {
+      return new Response("Forbidden", { status: 403 });
+    }
     const { socket, response } = Deno.upgradeWebSocket(req);
     const sessionId = `webchat-${crypto.randomUUID()}`;
     attachSocketEventHandlers(socket, sessionId, connections, handlerRef);
     return response;
   }
 
-  return new Response("WebChat OK", { status: 200 });
+  return new Response(null, { status: 404 });
 }
 
 /**
@@ -165,7 +172,13 @@ export function createWebChatChannel(
     async connect(): Promise<void> {
       server = Deno.serve(
         { port },
-        (req) => routeWebChatRequest(req, connections, handlerRef),
+        (req) =>
+          routeWebChatRequest(
+            req,
+            connections,
+            handlerRef,
+            config.allowedOrigins ?? ["*"],
+          ),
       );
       connected = true;
       log.info("WebChat adapter connected", { port });

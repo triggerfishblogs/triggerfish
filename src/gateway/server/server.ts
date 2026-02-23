@@ -21,6 +21,10 @@ import {
   upgradeChatWebSocket,
 } from "./handlers.ts";
 import { createLogger } from "../../core/logger/logger.ts";
+import {
+  extractBearerToken,
+  rejectWebSocketUpgrade,
+} from "../../core/security/websocket_auth.ts";
 
 const log = createLogger("gateway");
 import type { JsonRpcRequest } from "./handlers.ts";
@@ -32,8 +36,10 @@ export type { JsonRpcRequest, JsonRpcResponse } from "./handlers.ts";
 export interface GatewayServerOptions {
   /** Port to listen on. Use 0 for a random available port. */
   readonly port?: number;
-  /** Authentication token for connections. */
+  /** Authentication token for connections. When set, all WebSocket upgrades and the debug endpoint require a matching Bearer token. */
   readonly token?: string;
+  /** Allowed WebSocket Origin headers. Use `["*"]` to permit any origin, `["null"]` for file:// origins. When omitted or empty, all origins are permitted. */
+  readonly allowedOrigins?: readonly string[];
   /** Optional scheduler service for webhook endpoints. */
   readonly schedulerService?: SchedulerService;
   /** Optional session manager for JSON-RPC session methods. */
@@ -134,6 +140,13 @@ export function createGatewayServer(
 
           // Handle WebSocket upgrade
           if (request.headers.get("upgrade") === "websocket") {
+            // Enforce token auth and Origin allowlist before any upgrade
+            const rejection = rejectWebSocketUpgrade(request, {
+              token: options?.token,
+              allowedOrigins: options?.allowedOrigins,
+            });
+            if (rejection) return rejection;
+
             // Route /chat to the chat session handler
             if (url.pathname === "/chat" && chatSession) {
               return upgradeChatWebSocket(request, chatSession, chatSockets);
@@ -190,6 +203,12 @@ export function createGatewayServer(
             request.method === "POST" &&
             url.pathname === "/debug/run-triggers"
           ) {
+            if (options?.token) {
+              const provided = extractBearerToken(request);
+              if (provided !== options.token) {
+                return new Response("Unauthorized", { status: 401 });
+              }
+            }
             if (!schedulerService) {
               return new Response(
                 JSON.stringify({ error: "Scheduler not configured" }),
@@ -207,8 +226,8 @@ export function createGatewayServer(
             );
           }
 
-          // Default HTTP response
-          return new Response("Triggerfish Gateway", { status: 200 });
+          // Default HTTP response — no identifying information
+          return new Response(null, { status: 404 });
         },
       );
 
