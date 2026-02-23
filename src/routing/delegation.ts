@@ -285,31 +285,41 @@ function serialiseDelegationChain(chain: DelegationChain): string {
   });
 }
 
+/** Shape of a serialised delegation certificate in JSON storage. */
+interface SerialisedCertificate {
+  readonly delegator: string;
+  readonly delegate: string;
+  readonly permissions: readonly string[];
+  readonly expiry: string;
+  readonly signature: string;
+  readonly publicKey: string;
+}
+
+/** Convert a serialised certificate record to a DelegationCertificate. */
+function hydrateStoredCertificate(
+  c: SerialisedCertificate,
+): DelegationCertificate {
+  return {
+    delegator: c.delegator,
+    delegate: c.delegate,
+    permissions: [...c.permissions],
+    expiry: new Date(c.expiry),
+    signature: c.signature,
+    publicKey: c.publicKey,
+  };
+}
+
 /** Deserialise a stored JSON string back to a DelegationChain. */
 function deserialiseDelegationChain(raw: string): DelegationChain {
   const parsed = JSON.parse(raw) as {
     readonly root: string;
     readonly leaf: string;
-    readonly certificates: readonly {
-      readonly delegator: string;
-      readonly delegate: string;
-      readonly permissions: readonly string[];
-      readonly expiry: string;
-      readonly signature: string;
-      readonly publicKey: string;
-    }[];
+    readonly certificates: readonly SerialisedCertificate[];
   };
   return {
     root: parsed.root,
     leaf: parsed.leaf,
-    certificates: parsed.certificates.map((c) => ({
-      delegator: c.delegator,
-      delegate: c.delegate,
-      permissions: [...c.permissions],
-      expiry: new Date(c.expiry),
-      signature: c.signature,
-      publicKey: c.publicKey,
-    })),
+    certificates: parsed.certificates.map(hydrateStoredCertificate),
   };
 }
 
