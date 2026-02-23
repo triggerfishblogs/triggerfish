@@ -19,10 +19,7 @@ import type {
 
 // ─── Barrel re-exports from todo_defs.ts ────────────────────────────────────
 
-export {
-  getTodoToolDefinitions,
-  TODO_SYSTEM_PROMPT,
-} from "./todo_defs.ts";
+export { getTodoToolDefinitions, TODO_SYSTEM_PROMPT } from "./todo_defs.ts";
 export type {
   TodoItem,
   TodoList,
@@ -52,14 +49,22 @@ function validateTodoItem(raw: unknown): TodoItem | null {
   if (typeof obj.id !== "string" || obj.id.length === 0) return null;
   if (typeof obj.content !== "string" || obj.content.length === 0) return null;
 
-  const validStatuses: readonly TodoStatus[] = ["pending", "in_progress", "completed"];
+  const validStatuses: readonly TodoStatus[] = [
+    "pending",
+    "in_progress",
+    "completed",
+  ];
   if (!validStatuses.includes(obj.status as TodoStatus)) return null;
 
   const validPriorities = ["high", "medium", "low"];
   if (!validPriorities.includes(obj.priority as string)) return null;
 
-  if (typeof obj.created_at !== "string" || obj.created_at.length === 0) return null;
-  if (typeof obj.updated_at !== "string" || obj.updated_at.length === 0) return null;
+  if (typeof obj.created_at !== "string" || obj.created_at.length === 0) {
+    return null;
+  }
+  if (typeof obj.updated_at !== "string" || obj.updated_at.length === 0) {
+    return null;
+  }
 
   return {
     id: obj.id as string,
@@ -73,6 +78,67 @@ function validateTodoItem(raw: unknown): TodoItem | null {
 
 // ─── Manager ────────────────────────────────────────────────────────────────
 
+/** Parse and validate a todo list from raw storage JSON, returning empty on failure. */
+function parseTodoListFromStorage(raw: string | null): readonly TodoItem[] {
+  if (raw === null) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.todos)) return [];
+    return parsed.todos
+      .map(validateTodoItem)
+      .filter((item: TodoItem | null): item is TodoItem => item !== null);
+  } catch {
+    return [];
+  }
+}
+
+/** Mark old items absent from the new list as completed (auto-preserve). */
+function preserveAbsentTodoItems(
+  oldItems: readonly TodoItem[],
+  newIds: ReadonlySet<string>,
+): readonly TodoItem[] {
+  return oldItems
+    .filter((old) => !newIds.has(old.id))
+    .map((old): TodoItem => ({
+      ...old,
+      status: "completed" as TodoStatus,
+      updated_at: new Date().toISOString(),
+    }));
+}
+
+/** Resolve preserved items from storage when not all incoming items are done. */
+async function resolvePreservedTodoItems(
+  storage: TodoManagerOptions["storage"],
+  key: string,
+  validated: readonly TodoItem[],
+): Promise<readonly TodoItem[]> {
+  const allDone = validated.every((t) => t.status === "completed");
+  if (allDone) return [];
+  const oldRaw = await storage.get(key);
+  const oldItems = parseTodoListFromStorage(oldRaw);
+  const newIds = new Set(validated.map((t) => t.id));
+  return preserveAbsentTodoItems(oldItems, newIds);
+}
+
+/** Write validated todo items to storage, merging preserved items. */
+async function writeTodoList(
+  storage: TodoManagerOptions["storage"],
+  key: string,
+  todos: readonly TodoItem[],
+): Promise<TodoList> {
+  const validated = todos
+    .map(validateTodoItem)
+    .filter((item): item is TodoItem => item !== null);
+  if (validated.length === 0) {
+    await storage.delete(key);
+    return { todos: [] };
+  }
+  const preserved = await resolvePreservedTodoItems(storage, key, validated);
+  const merged: TodoList = { todos: [...preserved, ...validated] };
+  await storage.set(key, JSON.stringify(merged));
+  return merged;
+}
+
 /**
  * Create a TodoManager bound to a specific agent and storage provider.
  */
@@ -83,68 +149,10 @@ export function createTodoManager(options: TodoManagerOptions): TodoManager {
   return {
     async read(): Promise<TodoList> {
       const raw = await storage.get(key);
-      if (raw === null) {
-        return { todos: [] };
-      }
-      try {
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed.todos)) {
-          return { todos: [] };
-        }
-        const validated = parsed.todos
-          .map(validateTodoItem)
-          .filter((item: TodoItem | null): item is TodoItem => item !== null);
-        return { todos: validated };
-      } catch {
-        return { todos: [] };
-      }
+      return { todos: [...parseTodoListFromStorage(raw)] };
     },
-
-    async write(todos: readonly TodoItem[]): Promise<TodoList> {
-      const validated = todos
-        .map(validateTodoItem)
-        .filter((item): item is TodoItem => item !== null);
-
-      // If the LLM sends an empty list, clear everything.
-      if (validated.length === 0) {
-        await storage.delete(key);
-        return { todos: [] };
-      }
-
-      // If all items are completed, store them but don't preserve old items —
-      // the LLM is done and should be able to move on with a clean slate.
-      const allDone = validated.every((t) => t.status === "completed");
-
-      let preserved: readonly TodoItem[] = [];
-      if (!allDone) {
-        // Auto-preserve: any previously-stored items whose IDs are absent
-        // from the incoming write get kept as completed.
-        const oldRaw = await storage.get(key);
-        if (oldRaw !== null) {
-          try {
-            const parsed = JSON.parse(oldRaw);
-            if (Array.isArray(parsed.todos)) {
-              const oldItems = parsed.todos
-                .map(validateTodoItem)
-                .filter((item: TodoItem | null): item is TodoItem => item !== null);
-              const newIds = new Set(validated.map((t) => t.id));
-              preserved = oldItems
-                .filter((old: TodoItem) => !newIds.has(old.id))
-                .map((old: TodoItem): TodoItem => ({
-                  ...old,
-                  status: "completed" as TodoStatus,
-                  updated_at: new Date().toISOString(),
-                }));
-            }
-          } catch {
-            // corrupted storage — skip preservation
-          }
-        }
-      }
-
-      const merged: TodoList = { todos: [...preserved, ...validated] };
-      await storage.set(key, JSON.stringify(merged));
-      return merged;
+    write(todos: readonly TodoItem[]): Promise<TodoList> {
+      return writeTodoList(storage, key, todos);
     },
   };
 }
@@ -160,7 +168,10 @@ export function createTodoManager(options: TodoManagerOptions): TodoManager {
 export function createTodoToolExecutor(
   manager: TodoManager,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
-  return async (name: string, input: Record<string, unknown>): Promise<string | null> => {
+  return async (
+    name: string,
+    input: Record<string, unknown>,
+  ): Promise<string | null> => {
     switch (name) {
       case "todo_read": {
         const list = await manager.read();
@@ -201,6 +212,45 @@ function visibleLength(s: string): number {
   return s.replace(/\x1b\[[0-9;]*m/g, "").length;
 }
 
+/** Format a single todo item as an ANSI-styled content line. */
+function formatTodoItemAnsi(todo: TodoItem): string {
+  switch (todo.status) {
+    case "completed":
+      return `${DIM}${GREEN}✓${RESET} ${DIM}${STRIKETHROUGH}${todo.content}${RESET}`;
+    case "in_progress":
+      return `${YELLOW}${BOLD}▶${RESET} ${BOLD}${todo.content}${RESET}`;
+    case "pending":
+      return `${DIM}○${RESET} ${todo.content}`;
+  }
+}
+
+/** Wrap content lines in a box with a header, returning the rendered lines. */
+function wrapTodoContentInBox(
+  header: string,
+  contentLines: readonly string[],
+): string {
+  const allVisible = [header, ...contentLines];
+  const maxWidth = Math.max(...allVisible.map(visibleLength));
+  const boxInner = Math.max(maxWidth + 2, 20);
+  const lines: string[] = [];
+  const dashesAfter = boxInner - visibleLength(header) - 3;
+  lines.push(
+    `  ${CYAN}╭─ ${RESET}${header}${CYAN} ${
+      "─".repeat(Math.max(dashesAfter, 1))
+    }╮${RESET}`,
+  );
+  for (const line of contentLines) {
+    const pad = boxInner - visibleLength(line) - 2;
+    lines.push(
+      `  ${CYAN}│${RESET} ${line}${
+        " ".repeat(Math.max(pad, 0))
+      } ${CYAN}│${RESET}`,
+    );
+  }
+  lines.push(`  ${CYAN}╰${"─".repeat(boxInner)}╯${RESET}`);
+  return lines.join("\n");
+}
+
 /**
  * Format a todo list as ANSI-styled text for CLI display inside a box.
  *
@@ -212,40 +262,8 @@ export function formatTodoListAnsi(todos: readonly TodoItem[]): string {
   if (todos.length === 0) {
     return `  ${DIM}╭─ 📋 No tasks ─╮${RESET}\n  ${DIM}╰────────────────╯${RESET}`;
   }
-
-  // Build content lines (without box borders yet)
-  const header = `📋 Tasks`;
-  const contentLines: string[] = [];
-  for (const todo of todos) {
-    switch (todo.status) {
-      case "completed":
-        contentLines.push(`${DIM}${GREEN}✓${RESET} ${DIM}${STRIKETHROUGH}${todo.content}${RESET}`);
-        break;
-      case "in_progress":
-        contentLines.push(`${YELLOW}${BOLD}▶${RESET} ${BOLD}${todo.content}${RESET}`);
-        break;
-      case "pending":
-        contentLines.push(`${DIM}○${RESET} ${todo.content}`);
-        break;
-    }
-  }
-
-  // Calculate box width from the widest visible line
-  const allVisible = [header, ...contentLines];
-  const maxWidth = Math.max(...allVisible.map(visibleLength));
-  const boxInner = Math.max(maxWidth + 2, 20); // +2 for padding
-
-  // Build box
-  const lines: string[] = [];
-  const headerVis = visibleLength(header);
-  const dashesAfter = boxInner - headerVis - 3; // 3 = "─ " before + " " after
-  lines.push(`  ${CYAN}╭─ ${RESET}${header}${CYAN} ${"─".repeat(Math.max(dashesAfter, 1))}╮${RESET}`);
-  for (const line of contentLines) {
-    const pad = boxInner - visibleLength(line) - 2; // 2 for "│ " prefix spacing inside
-    lines.push(`  ${CYAN}│${RESET} ${line}${" ".repeat(Math.max(pad, 0))} ${CYAN}│${RESET}`);
-  }
-  lines.push(`  ${CYAN}╰${"─".repeat(boxInner)}╯${RESET}`);
-  return lines.join("\n");
+  const contentLines = todos.map(formatTodoItemAnsi);
+  return wrapTodoContentInBox("📋 Tasks", contentLines);
 }
 
 /**
@@ -260,11 +278,17 @@ export function formatTodoListHtml(todos: readonly TodoItem[]): string {
   const items = todos.map((todo) => {
     switch (todo.status) {
       case "completed":
-        return `<div class="todo-item todo-done"><span class="todo-check">✓</span> <s>${escapeHtml(todo.content)}</s></div>`;
+        return `<div class="todo-item todo-done"><span class="todo-check">✓</span> <s>${
+          escapeHtml(todo.content)
+        }</s></div>`;
       case "in_progress":
-        return `<div class="todo-item todo-active"><span class="todo-arrow">▶</span> ${escapeHtml(todo.content)}</div>`;
+        return `<div class="todo-item todo-active"><span class="todo-arrow">▶</span> ${
+          escapeHtml(todo.content)
+        }</div>`;
       case "pending":
-        return `<div class="todo-item todo-pending"><span class="todo-circle">○</span> ${escapeHtml(todo.content)}</div>`;
+        return `<div class="todo-item todo-pending"><span class="todo-circle">○</span> ${
+          escapeHtml(todo.content)
+        }</div>`;
     }
   }).join("");
   return `<div class="todo-list"><div class="todo-header">📋 Tasks</div>${items}</div>`;
@@ -272,7 +296,8 @@ export function formatTodoListHtml(todos: readonly TodoItem[]): string {
 
 /** HTML-escape a string. */
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 /**
