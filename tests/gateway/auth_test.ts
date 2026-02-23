@@ -6,6 +6,8 @@
  *
  * Auth is opt-in: when no token or allowedOrigins is configured, all existing
  * behavior is preserved (backward compatibility).
+ *
+ * @module
  */
 import { assertEquals } from "@std/assert";
 import { createGatewayServer } from "../../src/gateway/server/server.ts";

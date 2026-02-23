@@ -1,5 +1,7 @@
 /**
  * Unit tests for WebSocket authentication and Origin validation helpers.
+ *
+ * @module
  */
 import { assertEquals } from "@std/assert";
 import {

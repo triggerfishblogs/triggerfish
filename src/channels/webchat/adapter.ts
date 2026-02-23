@@ -96,6 +96,10 @@ function routeWebChatRequest(
   if (req.headers.get("upgrade") === "websocket") {
     const origin = req.headers.get("origin");
     if (!isOriginAllowed(origin, allowedOrigins)) {
+      log.warn("WebSocket upgrade rejected: Origin not in allowlist", {
+        origin,
+        allowedOrigins,
+      });
       return new Response("Forbidden", { status: 403 });
     }
     const { socket, response } = Deno.upgradeWebSocket(req);

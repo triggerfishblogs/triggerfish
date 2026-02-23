@@ -145,7 +145,16 @@ export function createGatewayServer(
               token: options?.token,
               allowedOrigins: options?.allowedOrigins,
             });
-            if (rejection) return rejection;
+            if (rejection) {
+              const reason = rejection.status === 401
+                ? "invalid_token"
+                : "origin_mismatch";
+              log.warn("WebSocket upgrade rejected", {
+                status: rejection.status,
+                reason,
+              });
+              return rejection;
+            }
 
             // Route /chat to the chat session handler
             if (url.pathname === "/chat" && chatSession) {
@@ -206,6 +215,10 @@ export function createGatewayServer(
             if (options?.token) {
               const provided = extractBearerToken(request);
               if (provided !== options.token) {
+                log.warn("Debug endpoint access rejected: invalid token", {
+                  operation: "debug/run-triggers",
+                  reason: "invalid_token",
+                });
                 return new Response("Unauthorized", { status: 401 });
               }
             }
@@ -216,9 +229,7 @@ export function createGatewayServer(
               );
             }
             schedulerService.runTrigger().catch((err: unknown) => {
-              log.warn("Trigger execution failed", {
-                error: err instanceof Error ? err.message : String(err),
-              });
+              log.warn("Trigger execution failed", { err });
             });
             return new Response(
               JSON.stringify({ ok: true, message: "Trigger fired" }),

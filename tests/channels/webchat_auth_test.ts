@@ -4,6 +4,8 @@
  * Verifies that the WebChat adapter enforces the allowedOrigins config on
  * WebSocket upgrade requests, and that non-WebSocket requests return 404
  * with no identifying information.
+ *
+ * @module
  */
 import { assertEquals } from "@std/assert";
 import { createWebChatChannel } from "../../src/channels/webchat/adapter.ts";
