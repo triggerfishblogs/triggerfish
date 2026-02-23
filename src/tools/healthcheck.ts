@@ -134,6 +134,23 @@ async function checkStorage(
   }
 }
 
+/** Discover skills and build a health result from the discovery. */
+async function discoverSkillHealth(
+  loader: SkillLoader,
+): Promise<ComponentHealth> {
+  const skills = await loader.discover();
+  const bySource: Record<string, number> = {};
+  for (const skill of skills) {
+    bySource[skill.source] = (bySource[skill.source] ?? 0) + 1;
+  }
+  return {
+    name: "skills",
+    status: "healthy",
+    message: `${skills.length} skills discovered`,
+    details: { total: skills.length, bySource },
+  };
+}
+
 /** Check skill loader health. */
 async function checkSkills(loader?: SkillLoader): Promise<ComponentHealth> {
   if (!loader) {
@@ -144,17 +161,7 @@ async function checkSkills(loader?: SkillLoader): Promise<ComponentHealth> {
     };
   }
   try {
-    const skills = await loader.discover();
-    const bySource: Record<string, number> = {};
-    for (const skill of skills) {
-      bySource[skill.source] = (bySource[skill.source] ?? 0) + 1;
-    }
-    return {
-      name: "skills",
-      status: "healthy",
-      message: `${skills.length} skills discovered`,
-      details: { total: skills.length, bySource },
-    };
+    return await discoverSkillHealth(loader);
   } catch (err) {
     return {
       name: "skills",
