@@ -15,6 +15,144 @@ import {
 } from "../../cli/chat/chat_ui.ts";
 import type { ChatEvent } from "../../core/types/chat_event.ts";
 
+/** Read a secret value from stdin and send the response over WebSocket. */
+async function handleSecretPromptEvent(
+  evt: ChatEvent & { type: "secret_prompt" },
+  ws: WebSocket,
+  log: ReturnType<typeof createLogger>,
+): Promise<void> {
+  const hintStr = evt.hint ? ` (${evt.hint})` : "";
+  const enc = new TextEncoder();
+  Deno.stderr.writeSync(
+    enc.encode(`  Enter value for '${evt.name}'${hintStr}: `),
+  );
+  const lineBuf = new Uint8Array(4096);
+  const nRead = await Deno.stdin.read(lineBuf);
+  const value = nRead !== null
+    ? new TextDecoder().decode(lineBuf.subarray(0, nRead)).trimEnd()
+    : null;
+  try {
+    ws.send(JSON.stringify({
+      type: "secret_prompt_response",
+      nonce: evt.nonce,
+      value: value && value.length > 0 ? value : null,
+    }));
+  } catch (_err: unknown) {
+    log.debug("WebSocket send failed: connection closed");
+  }
+}
+
+/** Dispatch a REPL slash command, returning true if the input was a quit command. */
+function dispatchSlashCommand(
+  line: string,
+  ws: WebSocket,
+  providerName: string,
+  config: TriggerFishConfig,
+): "quit" | "handled" | "not_command" {
+  if (line === "/quit" || line === "/exit" || line === "/q") {
+    console.log("\n  Goodbye.\n");
+    return "quit";
+  }
+  if (line === "/clear") {
+    ws.send(JSON.stringify({ type: "clear" }));
+    console.log("\x1b[2J\x1b[H");
+    printBanner(providerName, config.models.primary.model, "");
+    return "handled";
+  }
+  if (line === "/compact") {
+    console.log("  Compacting conversation history...");
+    ws.send(JSON.stringify({ type: "compact" }));
+    return "handled";
+  }
+  return "not_command";
+}
+
+/** Create a one-shot message handler that resolves on response/error events. */
+function createResponseHandler(
+  ws: WebSocket,
+  log: ReturnType<typeof createLogger>,
+  resolve: () => void,
+): (event: MessageEvent) => void {
+  const handler = async (event: MessageEvent) => {
+    try {
+      const data = typeof event.data === "string"
+        ? event.data
+        : new TextDecoder().decode(event.data as ArrayBuffer);
+      const evt = JSON.parse(data) as ChatEvent;
+      if (evt.type === "secret_prompt") {
+        await handleSecretPromptEvent(evt, ws, log);
+        return;
+      }
+      if (evt.type === "response" || evt.type === "error") {
+        if (evt.type === "error") renderError(evt.message);
+        ws.removeEventListener("message", handler);
+        resolve();
+      }
+    } catch (err: unknown) {
+      log.warn("Message parse failed", { error: err });
+    }
+  };
+  return handler;
+}
+
+/** Send a user line to the daemon and wait for the response/error event. */
+async function sendLineAndAwaitResponse(
+  line: string,
+  ws: WebSocket,
+  log: ReturnType<typeof createLogger>,
+): Promise<void> {
+  console.log();
+  const responsePromise = Promise.withResolvers<void>();
+  const handler = createResponseHandler(ws, log, responsePromise.resolve);
+  ws.addEventListener("message", handler);
+  ws.send(JSON.stringify({ type: "message", content: line }));
+  await responsePromise.promise;
+}
+
+/** Process a single complete line from stdin, returning true if the REPL should exit. */
+async function processReplLine(
+  line: string,
+  ws: WebSocket,
+  providerName: string,
+  config: TriggerFishConfig,
+  log: ReturnType<typeof createLogger>,
+): Promise<boolean> {
+  const result = dispatchSlashCommand(line, ws, providerName, config);
+  if (result === "quit") {
+    ws.close();
+    return true;
+  }
+  if (result === "handled" || line.length === 0) {
+    renderPrompt();
+    return false;
+  }
+  await sendLineAndAwaitResponse(line, ws, log);
+  renderPrompt();
+  return false;
+}
+
+/** REPL state for the line-buffered stdin reader. */
+interface ReplState {
+  partial: string;
+}
+
+/** Drain complete lines from the buffer and process each one. Returns true to exit. */
+async function drainCompleteLines(
+  state: ReplState,
+  ws: WebSocket,
+  providerName: string,
+  config: TriggerFishConfig,
+  log: ReturnType<typeof createLogger>,
+): Promise<boolean> {
+  let newlineIdx: number;
+  while ((newlineIdx = state.partial.indexOf("\n")) !== -1) {
+    const line = state.partial.slice(0, newlineIdx).trimEnd();
+    state.partial = state.partial.slice(newlineIdx + 1);
+    if (await processReplLine(line, ws, providerName, config, log)) return true;
+  }
+  return false;
+}
+
 /**
  * Simple line-buffered REPL for non-TTY environments (piped input).
  *
@@ -29,99 +167,14 @@ export async function runSimpleWsRepl(
   const log = createLogger("cli");
   const decoder = new TextDecoder();
   const buf = new Uint8Array(8192);
-  let partial = "";
+  const state: ReplState = { partial: "" };
 
   renderPrompt();
-
   while (true) {
     const n = await Deno.stdin.read(buf);
     if (n === null) break;
-
-    partial += decoder.decode(buf.subarray(0, n));
-
-    let newlineIdx: number;
-    while ((newlineIdx = partial.indexOf("\n")) !== -1) {
-      const line = partial.slice(0, newlineIdx).trimEnd();
-      partial = partial.slice(newlineIdx + 1);
-
-      if (line === "/quit" || line === "/exit" || line === "/q") {
-        console.log("\n  Goodbye.\n");
-        ws.close();
-        return;
-      }
-
-      if (line === "/clear") {
-        ws.send(JSON.stringify({ type: "clear" }));
-        console.log("\x1b[2J\x1b[H");
-        printBanner(providerName, config.models.primary.model, "");
-        renderPrompt();
-        continue;
-      }
-
-      if (line === "/compact") {
-        console.log("  Compacting conversation history...");
-        ws.send(JSON.stringify({ type: "compact" }));
-        // compact_start/compact_complete handled by the main event handler
-        renderPrompt();
-        continue;
-      }
-
-      if (line.length === 0) {
-        renderPrompt();
-        continue;
-      }
-
-      // Send to daemon and wait for response
-      console.log();
-      const responsePromise = Promise.withResolvers<void>();
-
-      const handler = async (event: MessageEvent) => {
-        try {
-          const data = typeof event.data === "string"
-            ? event.data
-            : new TextDecoder().decode(event.data as ArrayBuffer);
-          const evt = JSON.parse(data) as ChatEvent;
-
-          // Handle secret prompt in non-TTY mode: read a line from stdin
-          if (evt.type === "secret_prompt") {
-            const hintStr = evt.hint ? ` (${evt.hint})` : "";
-            const enc = new TextEncoder();
-            Deno.stderr.writeSync(enc.encode(`  Enter value for '${evt.name}'${hintStr}: `));
-            const lineBuf = new Uint8Array(4096);
-            const nRead = await Deno.stdin.read(lineBuf);
-            const value = nRead !== null
-              ? new TextDecoder().decode(lineBuf.subarray(0, nRead)).trimEnd()
-              : null;
-            try {
-              ws.send(JSON.stringify({
-                type: "secret_prompt_response",
-                nonce: evt.nonce,
-                value: value && value.length > 0 ? value : null,
-              }));
-            } catch (_err: unknown) {
-              log.debug("WebSocket send failed: connection closed");
-            }
-            return;
-          }
-
-          if (evt.type === "response" || evt.type === "error") {
-            if (evt.type === "error") {
-              renderError(evt.message);
-            }
-            ws.removeEventListener("message", handler);
-            responsePromise.resolve();
-          }
-        } catch (err: unknown) {
-          log.warn("Message parse failed", { error: err });
-        }
-      };
-
-      ws.addEventListener("message", handler);
-      ws.send(JSON.stringify({ type: "message", content: line }));
-      await responsePromise.promise;
-
-      renderPrompt();
-    }
+    state.partial += decoder.decode(buf.subarray(0, n));
+    if (await drainCompleteLines(state, ws, providerName, config, log)) return;
   }
   ws.close();
 }
