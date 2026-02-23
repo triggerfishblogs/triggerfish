@@ -3,7 +3,9 @@
  *
  * Sub-modules:
  * - setup_resolver.ts: Binary and Java resolution
- * - setup_installer.ts: Download and install signal-cli + JRE
+ * - setup_archive.ts: Archive download and extraction utilities
+ * - setup_jre.ts: JRE download and installation from Adoptium
+ * - setup_signal_cli.ts: Signal-cli download and installation from GitHub
  * - setup_link.ts: Device linking and QR code rendering
  * - setup_daemon.ts: Daemon TCP/Unix lifecycle management
  *
@@ -25,13 +27,15 @@ export {
   warnIfOldVersion,
 } from "./setup_resolver.ts";
 
-// ─── Installer: download + install ──────────────────────────────
+// ─── JRE installer: download + install JRE ──────────────────────
+export { downloadJre } from "./setup_jre.ts";
+
+// ─── Signal-cli installer: download + install signal-cli ────────
 export {
-  downloadJre,
   downloadSignalCli,
   fetchLatestVersion,
   type SignalCliInstall,
-} from "./setup_installer.ts";
+} from "./setup_signal_cli.ts";
 
 // ─── Link: device linking + QR ──────────────────────────────────
 export {
