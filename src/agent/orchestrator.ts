@@ -29,7 +29,8 @@ import {
   URL_WRITE_TOOLS,
 } from "../core/security/constants.ts";
 import type { SessionId } from "../core/types/session.ts";
-import type { LlmMessage } from "./llm.ts";
+import type { SessionState } from "../core/types/session.ts";
+import type { LlmMessage, LlmProvider } from "./llm.ts";
 import {
   countTokens,
   createCompactor,
@@ -37,12 +38,14 @@ import {
 } from "./compactor.ts";
 import type { Compactor, CompactResult } from "./compactor.ts";
 import type { ContentBlock, ImageContentBlock } from "../core/image/content.ts";
+import type { MessageContent } from "../core/image/content.ts";
 import {
   extractText,
   hasImages,
   normalizeContent,
 } from "../core/image/content.ts";
 import { createPlanToolExecutor } from "./plan/plan.ts";
+import type { PlanManager } from "./plan/plan.ts";
 import {
   buildAwaitingApprovalPrompt,
   buildPlanExecutionPrompt,
@@ -52,6 +55,7 @@ import type {
   HistoryEntry,
   Orchestrator,
   OrchestratorConfig,
+  OrchestratorEventCallback,
   ParsedToolCall,
   ProcessMessageOptions,
   ProcessMessageResult,
@@ -88,6 +92,46 @@ export {
   SOFT_LIMIT_ITERATIONS,
 } from "./orchestrator_types.ts";
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+/** Computed security context returned alongside the hook input. */
+interface SecurityContext {
+  readonly toolName: string;
+  readonly toolFloor: ClassificationLevel | null;
+  readonly resourceClassification: ClassificationLevel | null;
+  readonly operationType: "read" | "write" | null;
+  readonly isOwner: boolean;
+  /** True when the active session is a trigger session. */
+  readonly isTrigger: boolean;
+  readonly nonOwnerCeiling: ClassificationLevel | null;
+  readonly resourceParam: string | null;
+}
+
+/** Mutable per-iteration token accumulator. */
+interface TokenAccumulator {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+/** Shared orchestrator state passed to extracted helpers. */
+interface OrchestratorState {
+  readonly config: OrchestratorConfig;
+  readonly baseTools: readonly ToolDefinition[];
+  readonly getExtraTools: (() => readonly ToolDefinition[]) | undefined;
+  readonly getExtraSystemPromptSections: (() => readonly string[]) | undefined;
+  readonly baseSystemPromptSections: readonly string[];
+  readonly planManager: PlanManager | undefined;
+  readonly visionProvider: LlmProvider | undefined;
+  readonly emit: OrchestratorEventCallback;
+  readonly debug: boolean;
+  readonly orchLog: ReturnType<typeof createLogger>;
+  readonly compactor: Compactor;
+  readonly histories: Map<string, HistoryEntry[]>;
+  readonly toolExecutor: ToolExecutor | undefined;
+}
+
+// ─── SPINE.md loader ─────────────────────────────────────────────────────────
+
 /**
  * Load SPINE.md content from the filesystem.
  * Returns the file content or null if the file cannot be read.
@@ -108,9 +152,33 @@ async function readSpineFromDisk(
   }
 }
 
-/** Convert tool definitions to OpenAI native tool format for LLM providers. */
-function convertToolsToNativeFormat(tools: readonly ToolDefinition[]) {
-  return tools.map((t) => ({
+// ─── Tool format conversion ──────────────────────────────────────────────────
+
+/** Convert a single tool parameter definition to OpenAI property format. */
+function convertParameterToProperty(
+  v: ToolDefinition["parameters"][string],
+): Record<string, unknown> {
+  const prop: Record<string, unknown> = {
+    type: v.type,
+    description: v.description,
+  };
+  if (v.items) prop.items = v.items;
+  if (v.enum) prop.enum = v.enum;
+  return prop;
+}
+
+/** Extract required parameter names from a tool definition. */
+function extractRequiredParameterNames(
+  parameters: ToolDefinition["parameters"],
+): string[] {
+  return Object.entries(parameters)
+    .filter(([_, v]) => v.required !== false)
+    .map(([k]) => k);
+}
+
+/** Convert a single tool definition to OpenAI native format. */
+function convertSingleToolToNativeFormat(t: ToolDefinition) {
+  return {
     type: "function" as const,
     function: {
       name: t.name,
@@ -118,25 +186,52 @@ function convertToolsToNativeFormat(tools: readonly ToolDefinition[]) {
       parameters: {
         type: "object" as const,
         properties: Object.fromEntries(
-          Object.entries(t.parameters).map(([k, v]) => {
-            const prop: Record<string, unknown> = {
-              type: v.type,
-              description: v.description,
-            };
-            if (v.items) prop.items = v.items;
-            if (v.enum) prop.enum = v.enum;
-            return [k, prop];
-          }),
+          Object.entries(t.parameters).map(
+            ([k, v]) => [k, convertParameterToProperty(v)],
+          ),
         ),
-        required: Object.entries(t.parameters)
-          .filter(([_, v]) => v.required !== false)
-          .map(([k]) => k),
+        required: extractRequiredParameterNames(t.parameters),
       },
     },
-  }));
+  };
 }
 
-/** Parse native tool calls from LLM provider response (OpenAI or Anthropic format). */
+/** Convert tool definitions to OpenAI native tool format for LLM providers. */
+function convertToolsToNativeFormat(tools: readonly ToolDefinition[]) {
+  return tools.map(convertSingleToolToNativeFormat);
+}
+
+// ─── Tool call parsing ───────────────────────────────────────────────────────
+
+/** Try parsing an OpenAI-format tool call. */
+function parseOpenAiToolCall(
+  t: Record<string, unknown>,
+  orchLog: ReturnType<typeof createLogger>,
+): ParsedToolCall | null {
+  if (typeof (t as { function?: unknown }).function !== "object") return null;
+  const fn = (t as { function: { name: string; arguments: string } }).function;
+  let args: Record<string, unknown> = {};
+  try {
+    args = JSON.parse(fn.arguments);
+  } catch (parseErr: unknown) {
+    orchLog.warn("Tool call arguments malformed", {
+      tool: fn.name,
+      error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+    });
+  }
+  return { name: fn.name, args };
+}
+
+/** Try parsing an Anthropic-format tool call. */
+function parseAnthropicToolCall(
+  t: Record<string, unknown>,
+): ParsedToolCall | null {
+  if (t.type !== "tool_use" || typeof t.name !== "string") return null;
+  const input = (t.input ?? {}) as Record<string, unknown>;
+  return { name: t.name as string, args: input };
+}
+
+/** Parse native tool calls from LLM provider response. */
 function parseNativeToolCalls(
   rawCalls: readonly unknown[],
   orchLog: ReturnType<typeof createLogger>,
@@ -145,35 +240,12 @@ function parseNativeToolCalls(
     .map((tc: unknown): ParsedToolCall | null => {
       const t = tc as Record<string, unknown>;
       if (t === null || typeof t !== "object") return null;
-
-      // OpenAI format: { function: { name, arguments } }
-      if (typeof (t as { function?: unknown }).function === "object") {
-        const fn = (t as { function: { name: string; arguments: string } })
-          .function;
-        let args: Record<string, unknown> = {};
-        try {
-          args = JSON.parse(fn.arguments);
-        } catch (parseErr: unknown) {
-          orchLog.warn("Tool call arguments malformed", {
-            tool: fn.name,
-            error: parseErr instanceof Error
-              ? parseErr.message
-              : String(parseErr),
-          });
-        }
-        return { name: fn.name, args };
-      }
-
-      // Anthropic format: { type: "tool_use", name, input }
-      if (t.type === "tool_use" && typeof t.name === "string") {
-        const input = (t.input ?? {}) as Record<string, unknown>;
-        return { name: t.name as string, args: input };
-      }
-
-      return null;
+      return parseOpenAiToolCall(t, orchLog) ?? parseAnthropicToolCall(t);
     })
     .filter((tc): tc is ParsedToolCall => tc !== null);
 }
+
+// ─── Access control helpers ──────────────────────────────────────────────────
 
 /** Check trigger tool access ceiling. Returns error message or null. */
 function enforceTriggerToolCeiling(
@@ -262,6 +334,910 @@ function escalateResponseClassification(
   }
 }
 
+// ─── Security context assembly ───────────────────────────────────────────────
+
+/** No-classification sentinel result. */
+const NO_RESOURCE_CLASSIFICATION = {
+  classification: null,
+  operation: null,
+  param: null,
+} as const;
+
+/** Resource classification result shape. */
+type ResourceClassResult = {
+  classification: ClassificationLevel | null;
+  operation: "read" | "write" | null;
+  param: string | null;
+};
+
+/** Extract the path parameter from tool call arguments. */
+function extractPathParam(call: ParsedToolCall): string | null {
+  return (call.args.path ?? call.args.directory ?? call.args.search_path) as
+    | string
+    | null ?? null;
+}
+
+/** Classify a resource using a classifier and known tool sets. */
+function classifyResourceByToolSets(
+  toolName: string,
+  param: string,
+  classifier: { classify(p: string): { classification: ClassificationLevel } },
+  readSet: ReadonlySet<string>,
+  writeSet: ReadonlySet<string>,
+): ResourceClassResult {
+  if (readSet.has(toolName)) {
+    return {
+      classification: classifier.classify(param).classification,
+      operation: "read",
+      param,
+    };
+  }
+  if (writeSet.has(toolName)) {
+    return {
+      classification: classifier.classify(param).classification,
+      operation: "write",
+      param,
+    };
+  }
+  return NO_RESOURCE_CLASSIFICATION;
+}
+
+/** Classify a filesystem path tool call. */
+function classifyFilesystemResource(
+  call: ParsedToolCall,
+  config: OrchestratorConfig,
+): ResourceClassResult {
+  const pathParam = extractPathParam(call);
+  if (!config.pathClassifier || !pathParam) return NO_RESOURCE_CLASSIFICATION;
+  return classifyResourceByToolSets(
+    call.name,
+    pathParam,
+    config.pathClassifier,
+    FILESYSTEM_READ_TOOLS,
+    FILESYSTEM_WRITE_TOOLS,
+  );
+}
+
+/** Classify a URL-based tool call. */
+function classifyUrlResource(
+  call: ParsedToolCall,
+  config: OrchestratorConfig,
+): ResourceClassResult {
+  const urlParam = (call.args.url) as string | undefined ?? null;
+  if (!config.domainClassifier || !urlParam) return NO_RESOURCE_CLASSIFICATION;
+  return classifyResourceByToolSets(
+    call.name,
+    urlParam,
+    config.domainClassifier,
+    URL_READ_TOOLS,
+    URL_WRITE_TOOLS,
+  );
+}
+
+/** Build identity context fields for the hook input. */
+function assembleIdentityContext(config: OrchestratorConfig): {
+  isOwner: boolean;
+  isTrigger: boolean;
+  nonOwnerCeiling: ClassificationLevel | null;
+} {
+  return {
+    isOwner: config.isOwnerSession?.() ?? false,
+    isTrigger: config.isTriggerSession?.() ?? false,
+    nonOwnerCeiling: config.getNonOwnerCeiling?.() ?? null,
+  };
+}
+
+/** Resolve resource classification from filesystem or URL tools. */
+function resolveResourceClassification(
+  call: ParsedToolCall,
+  config: OrchestratorConfig,
+): ResourceClassResult {
+  const fsResult = classifyFilesystemResource(call, config);
+  if (fsResult.classification !== null) return fsResult;
+  return classifyUrlResource(call, config);
+}
+
+/** Populate hook input with resource and identity fields. */
+function populateHookInputFields(
+  hookInput: Record<string, unknown>,
+  resource: ResourceClassResult,
+  identity: {
+    isOwner: boolean;
+    isTrigger: boolean;
+    nonOwnerCeiling: ClassificationLevel | null;
+  },
+): void {
+  if (resource.classification !== null) {
+    hookInput.resource_classification = resource.classification;
+    hookInput.operation_type = resource.operation;
+  }
+  hookInput.is_owner = identity.isOwner;
+  hookInput.is_trigger = identity.isTrigger;
+  if (identity.nonOwnerCeiling !== null) {
+    hookInput.non_owner_ceiling = identity.nonOwnerCeiling;
+  }
+}
+
+/** Build enriched hook input for PRE_TOOL_CALL with security context. */
+function assembleSecurityContext(
+  call: ParsedToolCall,
+  config: OrchestratorConfig,
+): { input: Record<string, unknown>; ctx: SecurityContext } {
+  const hookInput: Record<string, unknown> = { tool_call: call };
+  const toolName = call.name;
+  const toolFloor = config.toolFloorRegistry?.getFloor(toolName) ?? null;
+  if (toolFloor !== null) hookInput.tool_floor = toolFloor;
+
+  const resource = resolveResourceClassification(call, config);
+  const identity = assembleIdentityContext(config);
+  populateHookInputFields(hookInput, resource, identity);
+
+  return {
+    input: hookInput,
+    ctx: {
+      toolName,
+      toolFloor,
+      resourceClassification: resource.classification,
+      operationType: resource.operation,
+      resourceParam: resource.param,
+      ...identity,
+    },
+  };
+}
+
+// ─── Policy block explanation ────────────────────────────────────────────────
+
+/** Render tool-floor enforcement error. */
+function renderToolFloorError(
+  ctx: SecurityContext,
+  sessionTaint: ClassificationLevel,
+): string {
+  return `Error: "${ctx.toolName}" requires a minimum session taint of ${ctx.toolFloor}. ` +
+    `Your current session taint is ${sessionTaint}. ` +
+    `Access higher-classified data first to escalate your session taint, ` +
+    `or use a tool that doesn't require ${ctx.toolFloor} clearance.`;
+}
+
+/** Render resource write-down error. */
+function renderWriteDownError(
+  ctx: SecurityContext,
+  sessionTaint: ClassificationLevel,
+): string {
+  return `Error: Write-down blocked — your session taint is ${sessionTaint}, ` +
+    `but the target resource${
+      ctx.resourceParam ? ` "${ctx.resourceParam}"` : ""
+    } is classified ${ctx.resourceClassification}. ` +
+    `A ${sessionTaint}-tainted session cannot write to ${ctx.resourceClassification}-level destinations. ` +
+    `Use /clear to reset your session context and taint before writing to ${ctx.resourceClassification}-classified resources.`;
+}
+
+/** Render resource read-ceiling error. */
+function renderReadCeilingError(ctx: SecurityContext): string {
+  return `Error: Access denied — the resource${
+    ctx.resourceParam ? ` "${ctx.resourceParam}"` : ""
+  } is classified ${ctx.resourceClassification}, ` +
+    `which exceeds your session ceiling of ${ctx.nonOwnerCeiling}. ` +
+    `You do not have permission to access ${ctx.resourceClassification}-classified resources.`;
+}
+
+/** Build a detailed error message for a blocked tool call. */
+function renderPolicyBlockExplanation(
+  ruleId: string | null,
+  ctx: SecurityContext,
+  sessionTaint: ClassificationLevel,
+): string {
+  switch (ruleId) {
+    case "tool-floor-enforcement":
+      return renderToolFloorError(ctx, sessionTaint);
+    case "resource-write-down":
+      return renderWriteDownError(ctx, sessionTaint);
+    case "resource-read-ceiling":
+      return renderReadCeilingError(ctx);
+    case "no-write-down":
+      return `Error: Write-down blocked — your session taint is ${sessionTaint}, ` +
+        `which exceeds the target classification. ` +
+        `Use /clear to reset your session context and taint before outputting to lower-classified channels.`;
+    default:
+      return `Tool call blocked by policy: ${ruleId ?? "denied"}`;
+  }
+}
+
+// ─── Tool executor wrapper ───────────────────────────────────────────────────
+
+/** Enforce access control for trigger sessions. */
+function enforceAccessControl(
+  name: string,
+  config: OrchestratorConfig,
+): string | null {
+  const isActiveTrigger = config.isTriggerSession?.() ?? false;
+  if (isActiveTrigger) {
+    return enforceTriggerToolCeiling(
+      name,
+      config.getNonOwnerCeiling?.() ?? null,
+      config.toolClassifications,
+    );
+  }
+  if (config.isOwnerSession && !config.isOwnerSession()) {
+    return enforceNonOwnerToolCeiling(
+      name,
+      config.getNonOwnerCeiling?.() ?? null,
+      config.toolClassifications,
+    );
+  }
+  return null;
+}
+
+/** Resolve secret references in tool input, returning error or resolved input. */
+async function resolveToolSecrets(
+  input: Record<string, unknown>,
+  config: OrchestratorConfig,
+): Promise<{ resolved: Record<string, unknown>; error: string | null }> {
+  if (!config.secretStore) return { resolved: input, error: null };
+  const resolution = await resolveSecretRefs(input, config.secretStore);
+  if (!resolution.ok) return { resolved: input, error: null };
+  if (resolution.value.missing.length > 0) {
+    return {
+      resolved: input,
+      error:
+        `Error: The following secrets were referenced but not found in the secret store: ${
+          resolution.value.missing.map((n) => `'${n}'`).join(", ")
+        }. Use secret_save to store them first.`,
+    };
+  }
+  return { resolved: resolution.value.resolved, error: null };
+}
+
+/** Create the classification-enforcing tool executor wrapper. */
+function wrapToolExecutorWithEnforcement(
+  rawToolExecutor: ToolExecutor,
+  config: OrchestratorConfig,
+): ToolExecutor {
+  return async (
+    name: string,
+    input: Record<string, unknown>,
+  ): Promise<string> => {
+    const accessErr = enforceAccessControl(name, config);
+    if (accessErr) return accessErr;
+
+    escalateToolPrefixTaint(
+      name,
+      config.toolClassifications,
+      config.escalateTaint,
+    );
+
+    const { resolved, error } = await resolveToolSecrets(input, config);
+    if (error) return error;
+
+    const result = await rawToolExecutor(name, resolved);
+    escalateResponseClassification(result, config.escalateTaint, name);
+    return result;
+  };
+}
+
+// ─── System prompt assembly ──────────────────────────────────────────────────
+
+/** Append platform-level system prompt sections after SPINE.md. */
+function appendSystemPromptSections(
+  base: string,
+  sections: readonly string[],
+): string {
+  let prompt = base;
+  for (const section of sections) {
+    prompt += "\n\n" + section;
+  }
+  return prompt;
+}
+
+/** Inject plan mode context into the system prompt. */
+function appendPlanModeContext(
+  systemPrompt: string,
+  planManager: PlanManager,
+  sessionKey: string,
+): string {
+  const planState = planManager.getState(sessionKey);
+  let prompt = systemPrompt;
+  if (planState.mode === "plan" && planState.goal) {
+    prompt += "\n\n" + buildPlanModePrompt(planState.goal, planState.scope);
+  }
+  if (planState.mode === "awaiting_approval") {
+    prompt += "\n\n" + buildAwaitingApprovalPrompt();
+  }
+  if (planState.activePlan) {
+    prompt += "\n\n" + buildPlanExecutionPrompt(planState.activePlan);
+  }
+  return prompt;
+}
+
+/** Build the full system prompt for an agent turn. */
+async function buildFullSystemPrompt(
+  state: OrchestratorState,
+  sessionKey: string,
+): Promise<string> {
+  const spineContent = await readSpineFromDisk(state.config.spinePath);
+  let systemPrompt = spineContent ?? DEFAULT_SYSTEM_PROMPT;
+
+  const effectiveSections = state.getExtraSystemPromptSections
+    ? [
+      ...state.baseSystemPromptSections,
+      ...state.getExtraSystemPromptSections(),
+    ]
+    : state.baseSystemPromptSections;
+  systemPrompt = appendSystemPromptSections(systemPrompt, effectiveSections);
+
+  if (state.planManager) {
+    systemPrompt = appendPlanModeContext(
+      systemPrompt,
+      state.planManager,
+      sessionKey,
+    );
+  }
+  return systemPrompt;
+}
+
+// ─── Vision fallback ─────────────────────────────────────────────────────────
+
+/** Build a vision description request message for a single image. */
+function buildImageDescriptionMessage(
+  image: ImageContentBlock,
+): LlmMessage {
+  return {
+    role: "user",
+    content: [
+      { type: "image", source: image.source },
+      {
+        type: "text",
+        text: "Describe this image in detail. Be specific about what you see.",
+      },
+    ],
+  };
+}
+
+/** Describe a single image using the vision provider. */
+async function describeImageWithVisionProvider(
+  image: ImageContentBlock,
+  visionProvider: LlmProvider,
+  signal?: AbortSignal,
+): Promise<string> {
+  try {
+    const result = await visionProvider.complete(
+      [buildImageDescriptionMessage(image)],
+      [],
+      { ...(signal ? { signal } : {}) },
+    );
+    return result.content;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return `[Image description unavailable: ${msg}]`;
+  }
+}
+
+/** Describe multiple images using the vision provider. */
+async function transcribeImagesForNonVisionModel(
+  images: readonly ImageContentBlock[],
+  visionProvider: LlmProvider,
+  signal?: AbortSignal,
+): Promise<readonly string[]> {
+  const descriptions: string[] = [];
+  for (const image of images) {
+    descriptions.push(
+      await describeImageWithVisionProvider(image, visionProvider, signal),
+    );
+  }
+  return descriptions;
+}
+
+/** Build text-only message by inlining vision descriptions where images were. */
+function buildTextOnlyFromImageDescriptions(
+  blocks: readonly ContentBlock[],
+  descriptions: readonly string[],
+): string {
+  const parts: string[] = [];
+  let descIdx = 0;
+  for (const block of blocks) {
+    if (block.type === "image") {
+      parts.push(
+        `[The user shared an image. A vision model described it as follows: ${
+          descriptions[descIdx++]
+        }]`,
+      );
+    } else {
+      parts.push(block.text);
+    }
+  }
+  return parts.join("\n\n");
+}
+
+/** The image-description addendum appended to the system prompt. */
+const IMAGE_DESCRIPTION_ADDENDUM = "\n\n## Image Descriptions\n" +
+  "The user's message may contain image descriptions provided by a vision model " +
+  "in brackets like [The user shared an image. A vision model described it as follows: ...]. " +
+  "Treat these descriptions as if you can see the images yourself. " +
+  "Do NOT use image_analyze or any other tool to re-examine these images — the descriptions are already complete.";
+
+/** Process vision fallback: describe images and replace history entry. */
+async function processVisionFallback(
+  state: OrchestratorState,
+  message: MessageContent,
+  history: HistoryEntry[],
+  signal: AbortSignal | undefined,
+): Promise<string> {
+  if (!state.visionProvider || typeof message === "string") return "";
+  if (!hasImages(message as readonly ContentBlock[])) return "";
+
+  const blocks = normalizeContent(message);
+  const images = blocks.filter(
+    (b): b is ImageContentBlock => b.type === "image",
+  );
+
+  state.emit({ type: "vision_start", imageCount: images.length });
+  const descriptions = await transcribeImagesForNonVisionModel(
+    images,
+    state.visionProvider,
+    signal,
+  );
+  state.emit({ type: "vision_complete", imageCount: images.length });
+
+  const textOnly = buildTextOnlyFromImageDescriptions(blocks, descriptions);
+  history[history.length - 1] = { role: "user", content: textOnly };
+  return IMAGE_DESCRIPTION_ADDENDUM;
+}
+
+// ─── Empty/junk response recovery ────────────────────────────────────────────
+
+/** Detect whether the final text is empty, bare JSON junk, or leaked intent. */
+function classifyResponseQuality(
+  finalText: string,
+  hasTools: boolean,
+): { isEmptyOrJunk: boolean; isLeakedIntent: boolean } {
+  const isEmptyOrJunk = finalText.length === 0 ||
+    (finalText.length < 200 && finalText.startsWith("{") &&
+      finalText.endsWith("}"));
+  const isLeakedIntent = hasTools && finalText.length < 300 &&
+    LEAKED_INTENT_PATTERN.test(finalText);
+  return { isEmptyOrJunk, isLeakedIntent };
+}
+
+/** Build the nudge message for empty/junk or leaked-intent responses. */
+function buildRecoveryNudge(
+  isLeakedIntent: boolean,
+  nudgeCount: number,
+): string {
+  if (isLeakedIntent) {
+    return "[SYSTEM] You described your intent but didn't use a tool. Use the tools provided to you directly instead of narrating what you plan to do.";
+  }
+  if (nudgeCount === 1) {
+    return "[SYSTEM] Your response was empty. Please respond to the user's message with a helpful answer. If the user asked you to search or look something up, use the web_search tool.";
+  }
+  return "[SYSTEM] Your previous response was still empty. You MUST write a natural language response. Summarize what you know and answer the user directly.";
+}
+
+/** The fallback response when the model returns empty/junk after all nudges. */
+const FALLBACK_RESPONSE =
+  "I'm sorry, I wasn't able to generate a response. The language model returned empty or malformed output. " +
+  "This may be a temporary issue — please try again, or consider switching to a more capable model (e.g. google/gemini-2.0-flash-001).";
+
+// ─── PRE_OUTPUT hook ─────────────────────────────────────────────────────────
+
+/** Fire PRE_OUTPUT hook and return the result. */
+async function evaluatePreOutputHook(
+  config: OrchestratorConfig,
+  session: SessionState,
+  responseText: string,
+  targetClassification: ClassificationLevel,
+): Promise<Result<void, string>> {
+  const outputTaint = config.getSessionTaint?.() ?? session.taint;
+  const outputSession = outputTaint !== session.taint
+    ? { ...session, taint: outputTaint }
+    : session;
+  const isOwnerOutput = config.isOwnerSession !== undefined &&
+    config.isOwnerSession();
+  const effectiveTarget = isOwnerOutput ? outputTaint : targetClassification;
+
+  const result = await config.hookRunner.evaluateHook("PRE_OUTPUT", {
+    session: outputSession,
+    input: {
+      content: responseText,
+      target_classification: effectiveTarget,
+    },
+  });
+  if (!result.allowed) {
+    return { ok: false, error: result.message ?? "Output blocked by policy" };
+  }
+  return { ok: true, value: undefined };
+}
+
+// ─── Tool call execution ─────────────────────────────────────────────────────
+
+/** Check plan mode blocking and execute plan tools. */
+async function executePlanModeToolCall(
+  planManager: PlanManager,
+  sessionKey: string,
+  call: ParsedToolCall,
+): Promise<{ resultText: string | undefined; blocked: boolean }> {
+  if (planManager.isToolBlocked(sessionKey, call.name)) {
+    return {
+      resultText: `Tool "${call.name}" is blocked in plan mode. ` +
+        `Use plan.exit to present your implementation plan first.`,
+      blocked: true,
+    };
+  }
+  const planExecutor = createPlanToolExecutor(planManager, sessionKey);
+  const planResult = await planExecutor(call.name, call.args);
+  if (planResult !== null) {
+    return { resultText: planResult, blocked: false };
+  }
+  return { resultText: undefined, blocked: false };
+}
+
+/** Pre-escalate taint for owner/trigger resource access. */
+function preEscalateOwnerTriggerTaint(
+  secCtx: SecurityContext,
+  config: OrchestratorConfig,
+  call: ParsedToolCall,
+): void {
+  if (
+    secCtx.resourceClassification === null ||
+    (!secCtx.isOwner && !secCtx.isTrigger) ||
+    !config.escalateTaint
+  ) return;
+  config.escalateTaint(
+    secCtx.resourceClassification,
+    `${call.name}: ${secCtx.resourceParam}`,
+  );
+}
+
+/** Check integration write-down (session taint vs tool classification). */
+function checkIntegrationWriteDown(
+  call: ParsedToolCall,
+  config: OrchestratorConfig,
+): { resultText: string | undefined; blocked: boolean } {
+  if (!config.toolClassifications || !config.getSessionTaint) {
+    return { resultText: undefined, blocked: false };
+  }
+  const integrationTaint = config.getSessionTaint();
+  for (const [prefix, level] of config.toolClassifications) {
+    if (call.name.startsWith(prefix)) {
+      if (!canFlowTo(integrationTaint, level)) {
+        return {
+          resultText:
+            `Error: Session taint ${integrationTaint} cannot flow to ${call.name} (classified ${level}). ` +
+            `Accessing a lower-classified tool from a higher-tainted session risks data leakage. ` +
+            `Use /clear to reset your session context and taint before using ${level}-classified tools.`,
+          blocked: true,
+        };
+      }
+      break;
+    }
+  }
+  return { resultText: undefined, blocked: false };
+}
+
+/** Post-hook escalation for non-owner sessions. */
+function escalateNonOwnerResourceTaint(
+  secCtx: SecurityContext,
+  config: OrchestratorConfig,
+  call: ParsedToolCall,
+): void {
+  if (
+    secCtx.resourceClassification === null || secCtx.isOwner ||
+    secCtx.isTrigger || !config.escalateTaint
+  ) return;
+  config.escalateTaint(
+    secCtx.resourceClassification,
+    `${call.name}: ${secCtx.resourceParam}`,
+  );
+}
+
+/** Evaluate PRE_TOOL_CALL hook with real-time session taint. */
+async function evaluatePreToolCallHook(
+  config: OrchestratorConfig,
+  session: SessionState,
+  secInput: Record<string, unknown>,
+) {
+  const currentTaint = config.getSessionTaint?.() ?? session.taint;
+  const hookSession = currentTaint !== session.taint
+    ? { ...session, taint: currentTaint }
+    : session;
+  const result = await config.hookRunner.evaluateHook("PRE_TOOL_CALL", {
+    session: hookSession,
+    input: secInput,
+  });
+  return { result, currentTaint };
+}
+
+/** Execute the tool after policy approval (write-down + escalation + dispatch). */
+async function executeAfterPolicyApproval(
+  call: ParsedToolCall,
+  config: OrchestratorConfig,
+  secCtx: SecurityContext,
+  toolExecutor: ToolExecutor,
+): Promise<{ resultText: string; blocked: boolean }> {
+  const writeDown = checkIntegrationWriteDown(call, config);
+  if (writeDown.resultText !== undefined) {
+    return { resultText: writeDown.resultText, blocked: writeDown.blocked };
+  }
+  escalateNonOwnerResourceTaint(secCtx, config, call);
+  return {
+    resultText: await toolExecutor(call.name, call.args),
+    blocked: false,
+  };
+}
+
+/** Execute a single tool call through the full security pipeline. */
+async function executeSecurityEnforcedToolCall(
+  call: ParsedToolCall,
+  config: OrchestratorConfig,
+  session: SessionState,
+  toolExecutor: ToolExecutor,
+): Promise<{ resultText: string; blocked: boolean }> {
+  const { input: secInput, ctx: secCtx } = assembleSecurityContext(
+    call,
+    config,
+  );
+  preEscalateOwnerTriggerTaint(secCtx, config, call);
+
+  const { result: preToolResult, currentTaint } = await evaluatePreToolCallHook(
+    config,
+    session,
+    secInput,
+  );
+
+  if (!preToolResult.allowed) {
+    return {
+      resultText: renderPolicyBlockExplanation(
+        preToolResult.ruleId,
+        secCtx,
+        currentTaint,
+      ),
+      blocked: true,
+    };
+  }
+  return executeAfterPolicyApproval(call, config, secCtx, toolExecutor);
+}
+
+/** Dispatch a single tool call (plan mode + security). */
+async function dispatchSingleToolCall(
+  call: ParsedToolCall,
+  orchestratorState: OrchestratorState,
+  config: OrchestratorConfig,
+  session: SessionState,
+  sessionKey: string,
+): Promise<{ resultText: string; blocked: boolean }> {
+  if (orchestratorState.planManager) {
+    const planResult = await executePlanModeToolCall(
+      orchestratorState.planManager,
+      sessionKey,
+      call,
+    );
+    if (planResult.resultText !== undefined) {
+      return { resultText: planResult.resultText, blocked: planResult.blocked };
+    }
+  }
+
+  return executeSecurityEnforcedToolCall(
+    call,
+    config,
+    session,
+    orchestratorState.toolExecutor!,
+  );
+}
+
+/** Execute a single tool call with event emission and format the result. */
+async function executeAndFormatToolCall(
+  call: ParsedToolCall,
+  orchestratorState: OrchestratorState,
+  session: SessionState,
+  sessionKey: string,
+): Promise<string> {
+  orchestratorState.emit({
+    type: "tool_call",
+    name: call.name,
+    args: call.args,
+  });
+  const { resultText, blocked } = await dispatchSingleToolCall(
+    call,
+    orchestratorState,
+    orchestratorState.config,
+    session,
+    sessionKey,
+  );
+  orchestratorState.emit({
+    type: "tool_result",
+    name: call.name,
+    result: resultText,
+    blocked,
+  });
+  return `[TOOL_RESULT name="${call.name}"]\n${resultText}\n[/TOOL_RESULT]`;
+}
+
+/** Process all tool calls for one iteration and return result parts. */
+async function processToolCallBatch(
+  parsedCalls: readonly ParsedToolCall[],
+  orchestratorState: OrchestratorState,
+  session: SessionState,
+  sessionKey: string,
+  signal: AbortSignal | undefined,
+): Promise<Result<string[], string>> {
+  const resultParts: string[] = [];
+  for (const call of parsedCalls) {
+    if (signal?.aborted) {
+      return { ok: false, error: "Operation cancelled by user" };
+    }
+    resultParts.push(
+      await executeAndFormatToolCall(
+        call,
+        orchestratorState,
+        session,
+        sessionKey,
+      ),
+    );
+  }
+  return { ok: true, value: resultParts };
+}
+
+// ─── Debug logging ───────────────────────────────────────────────────────────
+
+/** Log to the structured logger at TRACE level. */
+function traceLog(
+  orchLog: ReturnType<typeof createLogger>,
+  debug: boolean,
+  label: string,
+  data: unknown,
+): void {
+  if (!debug) return;
+  const str = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+  const preview = str.length > 500
+    ? str.slice(0, 500) + `... [${str.length} chars]`
+    : str;
+  orchLog.trace(`${label}: ${preview}`);
+}
+
+/** Log first-iteration debug details (system prompt + history preview). */
+function logFirstIterationDetails(
+  orchLog: ReturnType<typeof createLogger>,
+  debug: boolean,
+  systemPrompt: string,
+  history: readonly HistoryEntry[],
+): void {
+  if (!debug) return;
+  orchLog.trace(
+    `=== SYSTEM PROMPT ===\n${systemPrompt}\n=== END SYSTEM PROMPT ===`,
+  );
+  for (const h of history) {
+    const preview = typeof h.content === "string"
+      ? h.content.slice(0, 100)
+      : "(non-string)";
+    orchLog.trace(`history ${h.role}: ${preview}`);
+  }
+}
+
+// ─── LLM iteration ──────────────────────────────────────────────────────────
+
+/** Build the LLM messages array from system prompt and history. */
+function buildLlmMessages(
+  systemPrompt: string,
+  history: readonly HistoryEntry[],
+): LlmMessage[] {
+  return [{ role: "system", content: systemPrompt }, ...history];
+}
+
+/** Resolve the live tool list for this iteration. */
+function resolveActiveToolList(
+  state: OrchestratorState,
+): readonly ToolDefinition[] {
+  return state.getExtraTools
+    ? [...state.baseTools, ...state.getExtraTools()]
+    : state.baseTools;
+}
+
+/** Inject soft limit warning into history when approaching max iterations. */
+function injectSoftLimitWarning(
+  history: HistoryEntry[],
+  iterations: number,
+): void {
+  if (iterations !== SOFT_LIMIT_ITERATIONS) return;
+  history.push({
+    role: "user",
+    content:
+      `[SYSTEM] You have used many tool calls (${iterations}/${MAX_TOOL_ITERATIONS}). ` +
+      `You have ${MAX_TOOL_ITERATIONS - iterations} remaining iterations. ` +
+      "Please provide your best answer now based on the information gathered so far. " +
+      "If you cannot find what you're looking for, say so rather than continuing to search.",
+  });
+}
+
+// ─── History compaction helpers ──────────────────────────────────────────────
+
+/** Compact history using sliding-window strategy (no LLM). */
+function compactHistoryWithSlidingWindow(
+  history: HistoryEntry[],
+  compactor: Compactor,
+  messagesBefore: number,
+  tokensBefore: number,
+): CompactResult {
+  const compacted = [...compactor.compact(history)];
+  history.length = 0;
+  history.push(...compacted);
+  return {
+    messagesBefore,
+    messagesAfter: history.length,
+    tokensBefore,
+    tokensAfter: estimateHistoryTokens(history),
+  };
+}
+
+/** Compact history using LLM-based summarization. */
+async function compactHistoryWithSummarization(
+  history: HistoryEntry[],
+  compactor: Compactor,
+  provider: LlmProvider,
+  messagesBefore: number,
+  tokensBefore: number,
+): Promise<CompactResult> {
+  const summarized = [...await compactor.summarize(history, provider)];
+  history.length = 0;
+  history.push(...summarized);
+  return {
+    messagesBefore,
+    messagesAfter: history.length,
+    tokensBefore,
+    tokensAfter: estimateHistoryTokens(history),
+  };
+}
+
+// ─── Agent turn: final response handling ─────────────────────────────────────
+
+/** Handle the final text response (no tool calls). */
+async function handleFinalResponse(
+  finalText: string,
+  completion: { content: string },
+  hasTools: boolean,
+  emptyNudgeCount: number,
+  state: OrchestratorState,
+  session: SessionState,
+  history: HistoryEntry[],
+  targetClassification: ClassificationLevel,
+  tokens: TokenAccumulator,
+): Promise<Result<ProcessMessageResult, string> | null> {
+  const { isEmptyOrJunk, isLeakedIntent } = classifyResponseQuality(
+    finalText,
+    hasTools,
+  );
+  const isJunkFinal = finalText.length === 0 || isEmptyOrJunk || isLeakedIntent;
+  const responseText = isJunkFinal && emptyNudgeCount >= 2
+    ? FALLBACK_RESPONSE
+    : finalText;
+
+  const hookResult = await evaluatePreOutputHook(
+    state.config,
+    session,
+    responseText,
+    targetClassification,
+  );
+  if (!hookResult.ok) {
+    return { ok: false, error: hookResult.error };
+  }
+
+  state.emit({ type: "response", text: responseText });
+  history.push({
+    role: "assistant",
+    content: responseText.length > 0 ? responseText : completion.content,
+  });
+
+  return {
+    ok: true,
+    value: {
+      response: responseText,
+      tokenUsage: {
+        inputTokens: tokens.inputTokens,
+        outputTokens: tokens.outputTokens,
+      },
+    },
+  };
+}
+
+// ─── Orchestrator factory ────────────────────────────────────────────────────
+
 /**
  * Create an agent orchestrator.
  *
@@ -279,791 +1255,568 @@ function escalateResponseClassification(
  * @param config - Orchestrator configuration
  * @returns An Orchestrator instance
  */
-export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
-  const { hookRunner, providerRegistry, spinePath } = config;
-  const baseTools = config.tools ?? [];
-  const getExtraTools = config.getExtraTools;
-  const getExtraSystemPromptSections = config.getExtraSystemPromptSections;
-  const rawToolExecutor = config.toolExecutor;
-
-  /** Computed security context returned alongside the hook input. */
-  interface SecurityContext {
-    readonly toolName: string;
-    readonly toolFloor: ClassificationLevel | null;
-    readonly resourceClassification: ClassificationLevel | null;
-    readonly operationType: "read" | "write" | null;
-    readonly isOwner: boolean;
-    /** True when the active session is a trigger session. Undefined isTriggerSession is always false. */
-    readonly isTrigger: boolean;
-    readonly nonOwnerCeiling: ClassificationLevel | null;
-    readonly resourceParam: string | null;
-  }
-
-  /**
-   * Build enriched hook input for PRE_TOOL_CALL with security context.
-   * Returns both the hook input (flat Record for policy engine) and
-   * the structured SecurityContext (for building detailed error messages).
-   */
-  function assembleSecurityContext(
-    call: ParsedToolCall,
-  ): { input: Record<string, unknown>; ctx: SecurityContext } {
-    const hookInput: Record<string, unknown> = { tool_call: call };
-    const toolName = call.name;
-
-    // Tool floor
-    const toolFloor = config.toolFloorRegistry?.getFloor(toolName) ?? null;
-    if (toolFloor !== null) {
-      hookInput.tool_floor = toolFloor;
-    }
-
-    // Resource classification for filesystem and URL tools
-    let resourceClassification: ClassificationLevel | null = null;
-    let operationType: "read" | "write" | null = null;
-    let resourceParam: string | null = null;
-
-    // --- FILESYSTEM TOOLS ---
-    const pathParam =
-      (call.args.path ?? call.args.directory ?? call.args.search_path) as
-        | string
-        | null ?? null;
-    if (config.pathClassifier && pathParam) {
-      if (FILESYSTEM_READ_TOOLS.has(toolName)) {
-        const result = config.pathClassifier.classify(pathParam);
-        resourceClassification = result.classification;
-        operationType = "read";
-        resourceParam = pathParam;
-      } else if (FILESYSTEM_WRITE_TOOLS.has(toolName)) {
-        const result = config.pathClassifier.classify(pathParam);
-        resourceClassification = result.classification;
-        operationType = "write";
-        resourceParam = pathParam;
-      }
-    }
-
-    // --- URL TOOLS ---
-    const urlParam = (call.args.url) as string | undefined ?? null;
-    if (
-      config.domainClassifier && urlParam && resourceClassification === null
-    ) {
-      if (URL_READ_TOOLS.has(toolName)) {
-        const result = config.domainClassifier.classify(urlParam);
-        resourceClassification = result.classification;
-        operationType = "read";
-        resourceParam = urlParam;
-      } else if (URL_WRITE_TOOLS.has(toolName)) {
-        const result = config.domainClassifier.classify(urlParam);
-        resourceClassification = result.classification;
-        operationType = "write";
-        resourceParam = urlParam;
-      }
-    }
-
-    // Set hook input fields (same fields regardless of source)
-    if (resourceClassification !== null) {
-      hookInput.resource_classification = resourceClassification;
-      hookInput.operation_type = operationType;
-    }
-
-    // Identity context
-    // isOwner: undefined is always false — must be explicitly set (matches isTrigger pattern)
-    const isOwner = config.isOwnerSession?.() ?? false;
-    hookInput.is_owner = isOwner;
-    // isTrigger: undefined is always false — must be explicitly set
-    const isTrigger = config.isTriggerSession?.() ?? false;
-    hookInput.is_trigger = isTrigger;
-    const nonOwnerCeiling = config.getNonOwnerCeiling?.() ?? null;
-    if (nonOwnerCeiling !== null) {
-      hookInput.non_owner_ceiling = nonOwnerCeiling;
-    }
-
-    return {
-      input: hookInput,
-      ctx: {
-        toolName,
-        toolFloor,
-        resourceClassification,
-        operationType,
-        isOwner,
-        isTrigger,
-        nonOwnerCeiling,
-        resourceParam,
-      },
-    };
-  }
-
-  /**
-   * Build a detailed, actionable error message for a blocked tool call.
-   *
-   * Uses the ruleId from the policy engine to determine which security
-   * check failed, then includes the actual classification levels and
-   * remediation advice (e.g. /clear to reset session taint).
-   */
-  function renderPolicyBlockExplanation(
-    ruleId: string | null,
-    ctx: SecurityContext,
-    sessionTaint: ClassificationLevel,
-  ): string {
-    switch (ruleId) {
-      case "tool-floor-enforcement":
-        return `Error: "${ctx.toolName}" requires a minimum session taint of ${ctx.toolFloor}. ` +
-          `Your current session taint is ${sessionTaint}. ` +
-          `Access higher-classified data first to escalate your session taint, ` +
-          `or use a tool that doesn't require ${ctx.toolFloor} clearance.`;
-
-      case "resource-write-down":
-        return `Error: Write-down blocked — your session taint is ${sessionTaint}, ` +
-          `but the target resource${
-            ctx.resourceParam ? ` "${ctx.resourceParam}"` : ""
-          } is classified ${ctx.resourceClassification}. ` +
-          `A ${sessionTaint}-tainted session cannot write to ${ctx.resourceClassification}-level destinations. ` +
-          `Use /clear to reset your session context and taint before writing to ${ctx.resourceClassification}-classified resources.`;
-
-      case "resource-read-ceiling":
-        return `Error: Access denied — the resource${
-          ctx.resourceParam ? ` "${ctx.resourceParam}"` : ""
-        } is classified ${ctx.resourceClassification}, ` +
-          `which exceeds your session ceiling of ${ctx.nonOwnerCeiling}. ` +
-          `You do not have permission to access ${ctx.resourceClassification}-classified resources.`;
-
-      case "no-write-down":
-        return `Error: Write-down blocked — your session taint is ${sessionTaint}, ` +
-          `which exceeds the target classification. ` +
-          `Use /clear to reset your session context and taint before outputting to lower-classified channels.`;
-
-      default:
-        return `Tool call blocked by policy: ${ruleId ?? "denied"}`;
-    }
-  }
-
-  // Wrap tool executor with classification enforcement for integrations.
-  // Only tools whose name matches a prefix in toolClassifications are gated.
-  // Built-in tools (read_file, todo_, plan., etc.) have no entry and pass through.
-  // Matched integrations: escalate taint on entry.
-  // Write-down check is done in executeAgentTurn (before this wrapper) so that
-  // blocked=true can be set on the tool_result event for channel notification.
-  const toolExecutor: ToolExecutor | undefined = rawToolExecutor
-    ? async (name: string, input: Record<string, unknown>): Promise<string> => {
-      // Trigger and non-owner access control
-      const isActiveTrigger = config.isTriggerSession?.() ?? false;
-      if (isActiveTrigger) {
-        const err = enforceTriggerToolCeiling(
-          name,
-          config.getNonOwnerCeiling?.() ?? null,
-          config.toolClassifications,
-        );
-        if (err) return err;
-      } else if (config.isOwnerSession && !config.isOwnerSession()) {
-        const err = enforceNonOwnerToolCeiling(
-          name,
-          config.getNonOwnerCeiling?.() ?? null,
-          config.toolClassifications,
-        );
-        if (err) return err;
-      }
-
-      escalateToolPrefixTaint(
-        name,
-        config.toolClassifications,
-        config.escalateTaint,
-      );
-
-      // Resolve {{secret:name}} references in tool input before dispatch.
-      let resolvedInput = input;
-      if (config.secretStore) {
-        const resolution = await resolveSecretRefs(input, config.secretStore);
-        if (resolution.ok) {
-          if (resolution.value.missing.length > 0) {
-            return `Error: The following secrets were referenced but not found in the secret store: ${
-              resolution.value.missing.map((n) => `'${n}'`).join(", ")
-            }. Use secret_save to store them first.`;
-          }
-          resolvedInput = resolution.value.resolved;
-        }
-      }
-
-      const result = await rawToolExecutor(name, resolvedInput);
-      escalateResponseClassification(result, config.escalateTaint, name);
-      return result;
-    }
-    : undefined;
-  const baseSystemPromptSections = config.systemPromptSections ?? [];
-  const planManager = config.planManager;
-  const visionProvider = config.visionProvider;
-  const emit = config.onEvent ?? (() => {});
-  const debug = config.debug ?? false;
-  const histories = new Map<string, HistoryEntry[]>();
-
-  // Derive effective budget: explicit config > provider contextWindow > 100k default
-  const provider0 = providerRegistry.getDefault();
+/** Derive effective context budget and create the compactor. */
+function initializeCompactor(config: OrchestratorConfig): Compactor {
+  const provider0 = config.providerRegistry.getDefault();
   const effectiveBudget = config.compactorConfig?.contextBudget ??
-    provider0?.contextWindow ??
-    100_000;
-  const compactor: Compactor = createCompactor({
+    provider0?.contextWindow ?? 100_000;
+  return createCompactor({
     ...config.compactorConfig,
     contextBudget: effectiveBudget,
   });
+}
 
-  const orchLog = createLogger("orchestrator");
+/** Build the shared orchestrator state from config. */
+function buildOrchestratorState(
+  config: OrchestratorConfig,
+  compactor: Compactor,
+  histories: Map<string, HistoryEntry[]>,
+): OrchestratorState {
+  return {
+    config,
+    baseTools: config.tools ?? [],
+    getExtraTools: config.getExtraTools,
+    getExtraSystemPromptSections: config.getExtraSystemPromptSections,
+    baseSystemPromptSections: config.systemPromptSections ?? [],
+    planManager: config.planManager,
+    visionProvider: config.visionProvider,
+    emit: config.onEvent ?? (() => {}),
+    debug: config.debug ?? false,
+    orchLog: createLogger("orchestrator"),
+    compactor,
+    histories,
+    toolExecutor: config.toolExecutor
+      ? wrapToolExecutorWithEnforcement(config.toolExecutor, config)
+      : undefined,
+  };
+}
 
-  /** Log to the structured logger at TRACE level (replaces old debugLog). */
-  function debugLog(label: string, data: unknown): void {
-    if (!debug) return;
-    const str = typeof data === "string" ? data : JSON.stringify(data, null, 2);
-    const preview = str.length > 500
-      ? str.slice(0, 500) + `… [${str.length} chars]`
-      : str;
-    orchLog.trace(`${label}: ${preview}`);
+export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
+  const histories = new Map<string, HistoryEntry[]>();
+  const compactor = initializeCompactor(config);
+  const state = buildOrchestratorState(config, compactor, histories);
+
+  return {
+    executeAgentTurn: (options) => runAgentTurn(state, options),
+    getHistory: (id) => histories.get(id as string) ?? [],
+    clearHistory: (id) => histories.delete(id as string),
+    compactHistory: (id) =>
+      compactSessionHistory(id, histories, config.providerRegistry, compactor),
+  };
+}
+
+// ─── Agent turn implementation ───────────────────────────────────────────────
+
+/** Fire PRE_CONTEXT_INJECTION hook. */
+async function firePreContextHook(
+  config: OrchestratorConfig,
+  session: SessionState,
+  message: MessageContent,
+): Promise<Result<void, string>> {
+  const result = await config.hookRunner.evaluateHook(
+    "PRE_CONTEXT_INJECTION",
+    {
+      session,
+      input: { content: extractText(message), source_type: "OWNER" },
+    },
+  );
+  if (!result.allowed) {
+    return { ok: false, error: result.message ?? "Input blocked by policy" };
   }
+  return { ok: true, value: undefined };
+}
 
-  /**
-   * Describe images using the vision provider.
-   * Returns a text description for each image block.
-   */
-  async function transcribeImagesForNonVisionModel(
-    images: readonly ImageContentBlock[],
-    signal?: AbortSignal,
-  ): Promise<readonly string[]> {
-    const descriptions: string[] = [];
-    for (const image of images) {
-      const messages: LlmMessage[] = [
-        {
-          role: "user",
-          content: [
-            { type: "image", source: image.source },
-            {
-              type: "text",
-              text:
-                "Describe this image in detail. Be specific about what you see.",
-            },
-          ],
-        },
-      ];
-      try {
-        const result = await visionProvider!.complete(messages, [], {
-          ...(signal ? { signal } : {}),
-        });
-        descriptions.push(result.content);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        descriptions.push(`[Image description unavailable: ${msg}]`);
-      }
-    }
-    return descriptions;
+/** Get or create conversation history for a session. */
+function ensureSessionHistory(
+  histories: Map<string, HistoryEntry[]>,
+  sessionKey: string,
+): HistoryEntry[] {
+  if (!histories.has(sessionKey)) {
+    histories.set(sessionKey, []);
   }
+  return histories.get(sessionKey)!;
+}
 
-  async function executeAgentTurn(
-    options: ProcessMessageOptions,
-  ): Promise<Result<ProcessMessageResult, string>> {
-    const { session, message, targetClassification, signal } = options;
-
-    // 1. Fire PRE_CONTEXT_INJECTION hook
-    const preContextResult = await hookRunner.evaluateHook(
-      "PRE_CONTEXT_INJECTION",
-      {
-        session,
-        input: { content: extractText(message), source_type: "OWNER" },
-      },
-    );
-
-    if (!preContextResult.allowed) {
-      return {
-        ok: false,
-        error: preContextResult.message ?? "Input blocked by policy",
-      };
-    }
-
-    // Session key for history and plan state lookups
-    const sessionKey = session.id as string;
-
-    // 2. Get the default LLM provider
-    const provider = providerRegistry.getDefault();
-    if (!provider) {
-      return { ok: false, error: "No default LLM provider configured" };
-    }
-
-    // 3. Build LLM context — load SPINE.md or use default prompt
-    const spineContent = await readSpineFromDisk(spinePath);
-    let systemPrompt = spineContent ?? DEFAULT_SYSTEM_PROMPT;
-
-    // Append platform-level sections (layered after SPINE.md).
-    // getExtraSystemPromptSections is called live to pick up dynamic sources (e.g. MCP).
-    const effectiveSystemPromptSections = getExtraSystemPromptSections
-      ? [...baseSystemPromptSections, ...getExtraSystemPromptSections()]
-      : baseSystemPromptSections;
-    for (const section of effectiveSystemPromptSections) {
-      systemPrompt += "\n\n" + section;
-    }
-
-    // Inject plan mode context based on current session plan state
-    if (planManager) {
-      const planState = planManager.getState(sessionKey);
-      if (planState.mode === "plan" && planState.goal) {
-        systemPrompt += "\n\n" +
-          buildPlanModePrompt(planState.goal, planState.scope);
-      }
-      if (planState.mode === "awaiting_approval") {
-        systemPrompt += "\n\n" + buildAwaitingApprovalPrompt();
-      }
-      if (planState.activePlan) {
-        systemPrompt += "\n\n" + buildPlanExecutionPrompt(planState.activePlan);
-      }
-    }
-
-    // Get or create conversation history for this session
-    if (!histories.has(sessionKey)) {
-      histories.set(sessionKey, []);
-    }
-    const history = histories.get(sessionKey)!;
-
-    // Add user message to history
-    history.push({ role: "user", content: message });
-
-    // Vision fallback: describe images for non-vision primary models
-    if (
-      visionProvider && typeof message !== "string" &&
-      hasImages(message as readonly ContentBlock[])
-    ) {
-      const blocks = normalizeContent(message);
-      const images = blocks.filter(
-        (b): b is ImageContentBlock => b.type === "image",
-      );
-
-      emit({ type: "vision_start", imageCount: images.length });
-      debugLog(
-        "vision",
-        `describing ${images.length} image(s) via vision provider`,
-      );
-
-      const descriptions = await transcribeImagesForNonVisionModel(
-        images,
-        signal,
-      );
-
-      emit({ type: "vision_complete", imageCount: images.length });
-
-      // Build text-only message: inline descriptions where images were
-      const parts: string[] = [];
-      let descIdx = 0;
-      for (const block of blocks) {
-        if (block.type === "image") {
-          parts.push(
-            `[The user shared an image. A vision model described it as follows: ${
-              descriptions[descIdx++]
-            }]`,
-          );
-        } else {
-          parts.push(block.text);
-        }
-      }
-      const textOnlyMessage = parts.join("\n\n");
-
-      // Replace the last history entry with the text-only version
-      history[history.length - 1] = { role: "user", content: textOnlyMessage };
-
-      // Tell the LLM that image descriptions are already provided
-      systemPrompt += "\n\n## Image Descriptions\n" +
-        "The user's message may contain image descriptions provided by a vision model " +
-        "in brackets like [The user shared an image. A vision model described it as follows: ...]. " +
-        "Treat these descriptions as if you can see the images yourself. " +
-        "Do NOT use image_analyze or any other tool to re-examine these images — the descriptions are already complete.";
-    }
-
-    // Auto-compact history if approaching context limits.
-    // Pass system prompt token count as overhead so the compactor measures
-    // total context usage (system + history), not just history tokens alone.
-    const systemPromptTokens = countTokens(systemPrompt);
-    const compacted = compactor.compact(history, systemPromptTokens);
-    if (compacted.length < history.length) {
-      history.length = 0;
-      history.push(...compacted);
-    }
-
-    // 4. Agent loop — call LLM, parse tool calls, execute, repeat
-    let iterations = 0;
-    let emptyNudgeCount = 0; // Track empty-response recovery attempts
-    const MAX_EMPTY_NUDGES = 2;
-    let totalInputTokens = 0;
-    let totalOutputTokens = 0;
-    while (iterations < MAX_TOOL_ITERATIONS) {
-      iterations++;
-
-      // Check abort signal
-      if (signal?.aborted) {
-        return { ok: false, error: "Operation cancelled by user" };
-      }
-
-      emit({
-        type: "llm_start",
-        iteration: iterations,
-        maxIterations: MAX_TOOL_ITERATIONS,
-      });
-
-      // Build messages array: system prompt + conversation history
-      const messages: LlmMessage[] = [
-        { role: "system", content: systemPrompt },
-        ...history,
-      ];
-
-      debugLog(
-        `iter${iterations} sending`,
-        `${messages.length} msgs, sysPrompt=${systemPrompt.length}chars, history=${history.length} entries`,
-      );
-      if (debug && iterations === 1) {
-        orchLog.trace(
-          `=== SYSTEM PROMPT ===\n${systemPrompt}\n=== END SYSTEM PROMPT ===`,
-        );
-        for (const h of history) {
-          const preview = typeof h.content === "string"
-            ? h.content.slice(0, 100)
-            : "(non-string)";
-          orchLog.trace(`history ${h.role}: ${preview}`);
-        }
-      }
-
-      // Resolve live tool list — merges static tools with dynamic extra tools (e.g. MCP servers).
-      const tools = getExtraTools
-        ? [...baseTools, ...getExtraTools()]
-        : baseTools;
-
-      // Call LLM provider — pass native tool definitions for providers that support them
-      const nativeTools = (tools.length > 0 && toolExecutor)
-        ? convertToolsToNativeFormat(tools)
-        : [];
-
-      const completion = await provider.complete(messages, nativeTools, {
-        ...(signal ? { signal } : {}),
-      });
-
-      // Accumulate token usage across all iterations in this turn.
-      totalInputTokens += completion.usage.inputTokens;
-      totalOutputTokens += completion.usage.outputTokens;
-      orchLog.debug(
-        `iter${iterations} tokens — input: ${completion.usage.inputTokens}, output: ${completion.usage.outputTokens}, cumulative: ${totalInputTokens}+${totalOutputTokens}`,
-      );
-
-      // Close the race window: if the signal was aborted while the LLM was finishing,
-      // treat the response as cancelled rather than emitting it.
-      if (signal?.aborted) {
-        return { ok: false, error: "Operation cancelled by user" };
-      }
-
-      debugLog(`iter${iterations} raw`, completion.content);
-
-      // Parse native tool calls from provider response
-      const hasTools = (tools.length > 0 && toolExecutor) || planManager;
-      let parsedCalls: readonly ParsedToolCall[] = [];
-
-      // Check for native tool calls from provider (OpenAI or Anthropic/Gemini format)
-      if (
-        hasTools && Array.isArray(completion.toolCalls) &&
-        completion.toolCalls.length > 0
-      ) {
-        parsedCalls = parseNativeToolCalls(completion.toolCalls, orchLog);
-        debugLog(`iter${iterations} nativeToolCalls`, parsedCalls.length);
-      }
-
-      debugLog(`iter${iterations} parsedCalls`, parsedCalls.length);
-
-      emit({
-        type: "llm_complete",
-        iteration: iterations,
-        hasToolCalls: parsedCalls.length > 0,
-      });
-
-      if (parsedCalls.length === 0) {
-        // No tool calls — this is the final response
-        const finalText = completion.content.trim();
-        debugLog(`iter${iterations} finalText`, finalText || "(EMPTY)");
-
-        // Recovery: if the model returned empty text, bare JSON gibberish,
-        // or leaked tool intent (e.g. "We need to search web"), retry with
-        // a nudge (up to MAX_EMPTY_NUDGES). Catches unreliable models.
-        const isEmptyOrJunk = finalText.length === 0 ||
-          (finalText.length < 200 && finalText.startsWith("{") &&
-            finalText.endsWith("}"));
-        const isLeakedIntent = hasTools && finalText.length < 300 &&
-          LEAKED_INTENT_PATTERN.test(finalText);
-        if (
-          (isEmptyOrJunk || isLeakedIntent) &&
-          emptyNudgeCount < MAX_EMPTY_NUDGES && iterations < MAX_TOOL_ITERATIONS
-        ) {
-          emptyNudgeCount++;
-          debugLog(
-            `iter${iterations}`,
-            `${
-              isLeakedIntent ? "leaked intent" : "junk/empty"
-            } (${finalText.length} chars) — nudge ${emptyNudgeCount}/${MAX_EMPTY_NUDGES}`,
-          );
-          // Don't push empty assistant messages into history
-          if (completion.content.trim().length > 0) {
-            history.push({ role: "assistant", content: completion.content });
-          }
-          const nudge = isLeakedIntent
-            ? "[SYSTEM] You described your intent but didn't use a tool. Use the tools provided to you directly instead of narrating what you plan to do."
-            : (emptyNudgeCount === 1
-              ? "[SYSTEM] Your response was empty. Please respond to the user's message with a helpful answer. If the user asked you to search or look something up, use the web_search tool."
-              : "[SYSTEM] Your previous response was still empty. You MUST write a natural language response. Summarize what you know and answer the user directly.");
-          history.push({ role: "user", content: nudge });
-          continue;
-        }
-
-        // If the model returned empty/junk after exhausting nudges, provide a fallback
-        const isJunkFinal = finalText.length === 0 || isEmptyOrJunk ||
-          isLeakedIntent;
-        const responseText = isJunkFinal && emptyNudgeCount >= MAX_EMPTY_NUDGES
-          ? "I'm sorry, I wasn't able to generate a response. The language model returned empty or malformed output. This may be a temporary issue — please try again, or consider switching to a more capable model (e.g. google/gemini-2.0-flash-001)."
-          : finalText;
-
-        // Fire PRE_OUTPUT hook — use real-time session taint (same pattern
-        // as PRE_TOOL_CALL) so the write-down check sees post-escalation taint.
-        // For owner sessions the output target IS the current session taint:
-        // the owner reads their own session, so there is no write-down.
-        // For non-owner channels the fixed targetClassification (channel level)
-        // is correct and blocks output to lower-classified channels.
-        const outputTaint = config.getSessionTaint?.() ?? session.taint;
-        const outputSession = outputTaint !== session.taint
-          ? { ...session, taint: outputTaint }
-          : session;
-        const isOwnerOutput = config.isOwnerSession !== undefined &&
-          config.isOwnerSession();
-        const effectiveTargetClassification = isOwnerOutput
-          ? outputTaint
-          : targetClassification;
-
-        const preOutputResult = await hookRunner.evaluateHook("PRE_OUTPUT", {
-          session: outputSession,
-          input: {
-            content: responseText,
-            target_classification: effectiveTargetClassification,
-          },
-        });
-
-        if (!preOutputResult.allowed) {
-          return {
-            ok: false,
-            error: preOutputResult.message ?? "Output blocked by policy",
-          };
-        }
-
-        emit({ type: "response", text: responseText });
-
-        // Add assistant response to history
-        history.push({
-          role: "assistant",
-          content: responseText.length > 0 ? responseText : completion.content,
-        });
-
-        return {
-          ok: true,
-          value: {
-            response: responseText,
-            tokenUsage: {
-              inputTokens: totalInputTokens,
-              outputTokens: totalOutputTokens,
-            },
-          },
-        };
-      }
-
-      // Tool calls found — add assistant message to history
-      // If the model used native tool calls and content is empty, synthesize
-      // a descriptive placeholder so the history stays coherent
-      const assistantContent = completion.content.trim().length > 0
-        ? completion.content
-        : `[Used tools: ${parsedCalls.map((c) => c.name).join(", ")}]`;
-      history.push({ role: "assistant", content: assistantContent });
-
-      // Inject soft limit warning to help the LLM wrap up
-      if (iterations === SOFT_LIMIT_ITERATIONS) {
-        history.push({
-          role: "user",
-          content:
-            `[SYSTEM] You have used many tool calls (${iterations}/${MAX_TOOL_ITERATIONS}). ` +
-            `You have ${
-              MAX_TOOL_ITERATIONS - iterations
-            } remaining iterations. ` +
-            "Please provide your best answer now based on the information gathered so far. " +
-            "If you cannot find what you're looking for, say so rather than continuing to search.",
-        });
-      }
-
-      // Execute each tool call and build results
-      const resultParts: string[] = [];
-      for (const call of parsedCalls) {
-        // Check abort signal before each tool execution
-        if (signal?.aborted) {
-          return { ok: false, error: "Operation cancelled by user" };
-        }
-
-        emit({ type: "tool_call", name: call.name, args: call.args });
-
-        let resultText: string | undefined;
-        let blocked = false;
-
-        // Step 1: Plan mode filter (only if plan manager exists)
-        if (planManager && planManager.isToolBlocked(sessionKey, call.name)) {
-          resultText = `Tool "${call.name}" is blocked in plan mode. ` +
-            `Use plan.exit to present your implementation plan first.`;
-          blocked = true;
-        } else if (planManager) {
-          // Step 2: Try plan tools (returns null if not a plan tool)
-          const planExecutor = createPlanToolExecutor(planManager, sessionKey);
-          const planResult = await planExecutor(call.name, call.args);
-          if (planResult !== null) {
-            resultText = planResult;
-          }
-        }
-
-        // Step 3: Universal security + execution path (runs if not handled above)
-        if (resultText === undefined) {
-          const { input: secInput, ctx: secCtx } = assembleSecurityContext(
-            call,
-          );
-
-          // Owner/trigger pre-escalation: escalate taint from the resolved resource
-          // classification BEFORE the hook so tool floor checks see the
-          // post-escalation taint. Owner sessions have no ceiling — reads
-          // are always allowed. Trigger sessions are ceiling-gated but also
-          // pre-escalate so that tool floor checks work correctly.
-          // Write-down checks still work because maxClassification only goes up
-          // (taint ≥ resource → no write-down).
-          if (
-            secCtx.resourceClassification !== null &&
-            (secCtx.isOwner || secCtx.isTrigger) && config.escalateTaint
-          ) {
-            config.escalateTaint(
-              secCtx.resourceClassification,
-              `${call.name}: ${secCtx.resourceParam}`,
-            );
-          }
-
-          // Use real-time session taint for hook evaluation — reflects both
-          // prior tool calls in this turn and the owner pre-escalation above.
-          const currentTaint = config.getSessionTaint?.() ?? session.taint;
-          const hookSession = currentTaint !== session.taint
-            ? { ...session, taint: currentTaint }
-            : session;
-          const preToolResult = await hookRunner.evaluateHook("PRE_TOOL_CALL", {
-            session: hookSession,
-            input: secInput,
-          });
-          if (!preToolResult.allowed) {
-            resultText = renderPolicyBlockExplanation(
-              preToolResult.ruleId,
-              secCtx,
-              currentTaint,
-            );
-            blocked = true;
-          } else {
-            // Integration write-down check — runs here (not inside toolExecutor) so that
-            // `blocked` can be set to true, enabling channels like Telegram to notify the
-            // user directly when a tool is blocked due to session taint exceeding the tool's
-            // classification level.
-            if (config.toolClassifications && config.getSessionTaint) {
-              const integrationTaint = config.getSessionTaint();
-              for (const [prefix, level] of config.toolClassifications) {
-                if (call.name.startsWith(prefix)) {
-                  if (!canFlowTo(integrationTaint, level)) {
-                    resultText =
-                      `Error: Session taint ${integrationTaint} cannot flow to ${call.name} (classified ${level}). ` +
-                      `Accessing a lower-classified tool from a higher-tainted session risks data leakage. ` +
-                      `Use /clear to reset your session context and taint before using ${level}-classified tools.`;
-                    blocked = true;
-                  }
-                  break;
-                }
-              }
-            }
-
-            if (resultText === undefined) {
-              // Non-owner escalation: only after hook confirms the read/write is allowed.
-              // Excludes trigger sessions — they escalate pre-hook (same as owners).
-              if (
-                secCtx.resourceClassification !== null && !secCtx.isOwner &&
-                !secCtx.isTrigger && config.escalateTaint
-              ) {
-                config.escalateTaint(
-                  secCtx.resourceClassification,
-                  `${call.name}: ${secCtx.resourceParam}`,
-                );
-              }
-              resultText = await toolExecutor!(call.name, call.args);
-            }
-          }
-        }
-
-        emit({
-          type: "tool_result",
-          name: call.name,
-          result: resultText,
-          blocked,
-        });
-        resultParts.push(
-          `[TOOL_RESULT name="${call.name}"]\n${resultText}\n[/TOOL_RESULT]`,
-        );
-      }
-
-      // Add tool results as a user message
-      history.push({ role: "user", content: resultParts.join("\n\n") });
-    }
-
-    // Exceeded max iterations
-    return {
-      ok: false,
-      error: "Agent loop exceeded maximum tool call iterations",
-    };
-  }
-
-  function getHistory(sessionId: SessionId): readonly HistoryEntry[] {
-    const sessionKey = sessionId as string;
-    return histories.get(sessionKey) ?? [];
-  }
-
-  function clearHistory(sessionId: SessionId): void {
-    histories.delete(sessionId as string);
-  }
-
-  async function compactHistory(sessionId: SessionId): Promise<CompactResult> {
-    const sessionKey = sessionId as string;
-    const history = histories.get(sessionKey) ?? [];
-    const messagesBefore = history.length;
-    const tokensBefore = estimateHistoryTokens(history);
-
-    if (history.length === 0) {
-      return {
-        messagesBefore: 0,
-        messagesAfter: 0,
-        tokensBefore: 0,
-        tokensAfter: 0,
-      };
-    }
-
-    const provider = providerRegistry.getDefault();
-    if (!provider) {
-      // Fall back to sliding-window compaction
-      const compacted = [...compactor.compact(history)];
-      history.length = 0;
-      history.push(...compacted);
-      const tokensAfter = estimateHistoryTokens(history);
-      return {
-        messagesBefore,
-        messagesAfter: history.length,
-        tokensBefore,
-        tokensAfter,
-      };
-    }
-
-    const summarized = [...await compactor.summarize(history, provider)];
+/** Auto-compact history if approaching context limits. */
+function autoCompactHistory(
+  history: HistoryEntry[],
+  compactor: Compactor,
+  systemPromptTokens: number,
+): void {
+  const compacted = compactor.compact(history, systemPromptTokens);
+  if (compacted.length < history.length) {
     history.length = 0;
-    history.push(...summarized);
-    const tokensAfter = estimateHistoryTokens(history);
-    return {
-      messagesBefore,
-      messagesAfter: history.length,
-      tokensBefore,
-      tokensAfter,
-    };
+    history.push(...compacted);
+  }
+}
+
+/** Run a single LLM iteration and return the completion. */
+async function runLlmIteration(
+  state: OrchestratorState,
+  systemPrompt: string,
+  history: readonly HistoryEntry[],
+  iterations: number,
+  signal: AbortSignal | undefined,
+) {
+  const provider = state.config.providerRegistry.getDefault()!;
+  const messages = buildLlmMessages(systemPrompt, history);
+
+  traceLog(
+    state.orchLog,
+    state.debug,
+    `iter${iterations} sending`,
+    `${messages.length} msgs, sysPrompt=${systemPrompt.length}chars, history=${history.length} entries`,
+  );
+  if (iterations === 1) {
+    logFirstIterationDetails(state.orchLog, state.debug, systemPrompt, history);
   }
 
-  return { executeAgentTurn, getHistory, clearHistory, compactHistory };
+  const tools = resolveActiveToolList(state);
+  const nativeTools = (tools.length > 0 && state.toolExecutor)
+    ? convertToolsToNativeFormat(tools)
+    : [];
+
+  const completion = await provider.complete(messages, nativeTools, {
+    ...(signal ? { signal } : {}),
+  });
+  return { completion, tools };
+}
+
+/** Prepare system prompt, history, and vision fallback for the turn. */
+async function prepareAgentTurnContext(
+  state: OrchestratorState,
+  sessionKey: string,
+  message: MessageContent,
+  signal: AbortSignal | undefined,
+): Promise<{ systemPrompt: string; history: HistoryEntry[] }> {
+  let systemPrompt = await buildFullSystemPrompt(state, sessionKey);
+  const history = ensureSessionHistory(state.histories, sessionKey);
+  history.push({ role: "user", content: message });
+
+  const visionAddendum = await processVisionFallback(
+    state,
+    message,
+    history,
+    signal,
+  );
+  if (visionAddendum) systemPrompt += visionAddendum;
+
+  autoCompactHistory(history, state.compactor, countTokens(systemPrompt));
+  return { systemPrompt, history };
+}
+
+/** Validate pre-conditions for an agent turn: run pre-context hook and verify provider. */
+async function validateAgentTurnPreconditions(
+  config: OrchestratorConfig,
+  session: SessionState,
+  message: MessageContent,
+): Promise<Result<true, string>> {
+  const hookResult = await firePreContextHook(config, session, message);
+  if (!hookResult.ok) return hookResult;
+  if (!config.providerRegistry.getDefault()) {
+    return { ok: false, error: "No default LLM provider configured" };
+  }
+  return { ok: true, value: true };
+}
+
+/** Run the full agent turn loop. */
+async function runAgentTurn(
+  state: OrchestratorState,
+  options: ProcessMessageOptions,
+): Promise<Result<ProcessMessageResult, string>> {
+  const { session, message, targetClassification, signal } = options;
+  const guard = await validateAgentTurnPreconditions(
+    state.config,
+    session,
+    message,
+  );
+  if (!guard.ok) return guard;
+
+  const sessionKey = session.id as string;
+  const ctx = await prepareAgentTurnContext(state, sessionKey, message, signal);
+  return runAgentLoop(
+    state,
+    session,
+    ctx.systemPrompt,
+    ctx.history,
+    sessionKey,
+    targetClassification,
+    signal,
+  );
+}
+
+/** Accumulate token usage and log iteration stats. */
+function accumulateTokenUsage(
+  tokens: TokenAccumulator,
+  completion: { usage: { inputTokens: number; outputTokens: number } },
+  iterations: number,
+  orchLog: ReturnType<typeof createLogger>,
+): void {
+  tokens.inputTokens += completion.usage.inputTokens;
+  tokens.outputTokens += completion.usage.outputTokens;
+  orchLog.debug(
+    `iter${iterations} tokens — input: ${completion.usage.inputTokens}, output: ${completion.usage.outputTokens}, cumulative: ${tokens.inputTokens}+${tokens.outputTokens}`,
+  );
+}
+
+/** Parse tool calls from completion and determine tool availability. */
+function parseCompletionToolCalls(
+  completion: { toolCalls?: readonly unknown[] },
+  tools: readonly ToolDefinition[],
+  state: OrchestratorState,
+): { parsedCalls: readonly ParsedToolCall[]; hasTools: boolean } {
+  const hasTools = !!(tools.length > 0 && state.toolExecutor) ||
+    !!state.planManager;
+  let parsedCalls: readonly ParsedToolCall[] = [];
+  if (
+    hasTools && Array.isArray(completion.toolCalls) &&
+    completion.toolCalls.length > 0
+  ) {
+    parsedCalls = parseNativeToolCalls(completion.toolCalls, state.orchLog);
+  }
+  return { parsedCalls, hasTools };
+}
+
+/** Mutable nudge counter passed between iterations. */
+interface NudgeState {
+  count: number;
+}
+
+/** Bundled context for a single agent loop iteration. */
+interface AgentLoopContext {
+  readonly state: OrchestratorState;
+  readonly session: SessionState;
+  readonly systemPrompt: string;
+  readonly history: HistoryEntry[];
+  readonly sessionKey: string;
+  readonly targetClassification: ClassificationLevel;
+  readonly signal: AbortSignal | undefined;
+  readonly tokens: TokenAccumulator;
+  readonly nudge: NudgeState;
+}
+
+/** Result of a single agent loop iteration. */
+type IterationOutcome =
+  | { action: "continue" }
+  | { action: "return"; result: Result<ProcessMessageResult, string> };
+
+/** Successful LLM iteration result. */
+type LlmIterationResult = Awaited<ReturnType<typeof runLlmIteration>>;
+
+/** Result of calling the LLM in the agent loop: success with completion, or abort. */
+type LlmCallOutcome =
+  | {
+    ok: true;
+    completion: LlmIterationResult["completion"];
+    tools: LlmIterationResult["tools"];
+  }
+  | { ok: false; result: Result<ProcessMessageResult, string> };
+
+/** Abort sentinel for cancelled operations. */
+const CANCELLED_RESULT: LlmCallOutcome = {
+  ok: false,
+  result: { ok: false, error: "Operation cancelled by user" },
+};
+
+/** Emit event, call LLM, accumulate tokens, and check abort. */
+async function callLlmAndRecordUsage(
+  ctx: AgentLoopContext,
+  iterations: number,
+): Promise<LlmCallOutcome> {
+  ctx.state.emit({
+    type: "llm_start",
+    iteration: iterations,
+    maxIterations: MAX_TOOL_ITERATIONS,
+  });
+  const { completion, tools } = await runLlmIteration(
+    ctx.state,
+    ctx.systemPrompt,
+    ctx.history,
+    iterations,
+    ctx.signal,
+  );
+  accumulateTokenUsage(ctx.tokens, completion, iterations, ctx.state.orchLog);
+  if (ctx.signal?.aborted) return CANCELLED_RESULT;
+  traceLog(
+    ctx.state.orchLog,
+    ctx.state.debug,
+    `iter${iterations} raw`,
+    completion.content,
+  );
+  return { ok: true, completion, tools };
+}
+
+/** Emit completion event and trace parsed tool call count. */
+function emitToolCallParseResult(
+  ctx: AgentLoopContext,
+  parsedCalls: readonly ParsedToolCall[],
+  iterations: number,
+): void {
+  traceLog(
+    ctx.state.orchLog,
+    ctx.state.debug,
+    `iter${iterations} parsedCalls`,
+    parsedCalls.length,
+  );
+  ctx.state.emit({
+    type: "llm_complete",
+    iteration: iterations,
+    hasToolCalls: parsedCalls.length > 0,
+  });
+}
+
+/** Dispatch tool call execution and convert result to iteration outcome. */
+async function dispatchToolCallExecution(
+  ctx: AgentLoopContext,
+  parsedCalls: readonly ParsedToolCall[],
+  completion: { content: string },
+  iterations: number,
+): Promise<IterationOutcome> {
+  const toolResult = await handleToolCallsIteration(
+    parsedCalls,
+    completion,
+    ctx.state,
+    ctx.session,
+    ctx.history,
+    ctx.sessionKey,
+    iterations,
+    ctx.signal,
+  );
+  if (!toolResult.ok) {
+    return { action: "return", result: toolResult };
+  }
+  return { action: "continue" };
+}
+
+/** Parse tool calls from LLM output, trace results, and dispatch to appropriate handler. */
+async function dispatchIterationOutcome(
+  ctx: AgentLoopContext,
+  completion: { content: string; toolCalls?: readonly unknown[] },
+  tools: readonly ToolDefinition[],
+  iterations: number,
+): Promise<IterationOutcome> {
+  const { parsedCalls, hasTools } = parseCompletionToolCalls(
+    completion,
+    tools,
+    ctx.state,
+  );
+  emitToolCallParseResult(ctx, parsedCalls, iterations);
+
+  if (parsedCalls.length === 0) {
+    return await handleNoToolCallsIteration(
+      completion,
+      hasTools,
+      ctx.nudge,
+      iterations,
+      ctx.state,
+      ctx.session,
+      ctx.history,
+      ctx.targetClassification,
+      ctx.tokens,
+    );
+  }
+
+  return await dispatchToolCallExecution(
+    ctx,
+    parsedCalls,
+    completion,
+    iterations,
+  );
+}
+
+/** Handle the case when no tool calls were returned. Returns 'continue' to nudge, a result, or null. */
+async function handleNoToolCallsIteration(
+  completion: { content: string },
+  hasTools: boolean,
+  nudge: NudgeState,
+  iterations: number,
+  state: OrchestratorState,
+  session: SessionState,
+  history: HistoryEntry[],
+  targetClassification: ClassificationLevel,
+  tokens: TokenAccumulator,
+): Promise<
+  { action: "continue" } | {
+    action: "return";
+    result: Result<ProcessMessageResult, string>;
+  }
+> {
+  const finalText = completion.content.trim();
+  traceLog(
+    state.orchLog,
+    state.debug,
+    `iter${iterations} finalText`,
+    finalText || "(EMPTY)",
+  );
+
+  const { isEmptyOrJunk, isLeakedIntent } = classifyResponseQuality(
+    finalText,
+    hasTools,
+  );
+  if (
+    (isEmptyOrJunk || isLeakedIntent) &&
+    nudge.count < 2 && iterations < MAX_TOOL_ITERATIONS
+  ) {
+    nudge.count++;
+    if (completion.content.trim().length > 0) {
+      history.push({ role: "assistant", content: completion.content });
+    }
+    history.push({
+      role: "user",
+      content: buildRecoveryNudge(isLeakedIntent, nudge.count),
+    });
+    return { action: "continue" };
+  }
+
+  const result = await handleFinalResponse(
+    finalText,
+    completion,
+    hasTools,
+    nudge.count,
+    state,
+    session,
+    history,
+    targetClassification,
+    tokens,
+  );
+  if (result) return { action: "return", result };
+  return {
+    action: "return",
+    result: { ok: false, error: "No response generated" },
+  };
+}
+
+/** Append tool call results to history and return early on abort. */
+async function handleToolCallsIteration(
+  parsedCalls: readonly ParsedToolCall[],
+  completion: { content: string },
+  state: OrchestratorState,
+  session: SessionState,
+  history: HistoryEntry[],
+  sessionKey: string,
+  iterations: number,
+  signal: AbortSignal | undefined,
+): Promise<Result<void, string>> {
+  const assistantContent = completion.content.trim().length > 0
+    ? completion.content
+    : `[Used tools: ${parsedCalls.map((c) => c.name).join(", ")}]`;
+  history.push({ role: "assistant", content: assistantContent });
+
+  injectSoftLimitWarning(history, iterations);
+
+  const batchResult = await processToolCallBatch(
+    parsedCalls,
+    state,
+    session,
+    sessionKey,
+    signal,
+  );
+  if (!batchResult.ok) return batchResult;
+
+  history.push({ role: "user", content: batchResult.value.join("\n\n") });
+  return { ok: true, value: undefined };
+}
+
+/** Build the agent loop context from turn parameters. */
+function buildAgentLoopContext(
+  state: OrchestratorState,
+  session: SessionState,
+  systemPrompt: string,
+  history: HistoryEntry[],
+  sessionKey: string,
+  targetClassification: ClassificationLevel,
+  signal: AbortSignal | undefined,
+): AgentLoopContext {
+  return {
+    state,
+    session,
+    systemPrompt,
+    history,
+    sessionKey,
+    targetClassification,
+    signal,
+    tokens: { inputTokens: 0, outputTokens: 0 },
+    nudge: { count: 0 },
+  };
+}
+
+/** The main agent loop: call LLM, parse tool calls, execute, repeat. */
+async function runAgentLoop(
+  state: OrchestratorState,
+  session: SessionState,
+  systemPrompt: string,
+  history: HistoryEntry[],
+  sessionKey: string,
+  targetClassification: ClassificationLevel,
+  signal: AbortSignal | undefined,
+): Promise<Result<ProcessMessageResult, string>> {
+  const ctx = buildAgentLoopContext(
+    state,
+    session,
+    systemPrompt,
+    history,
+    sessionKey,
+    targetClassification,
+    signal,
+  );
+  for (let i = 1; i <= MAX_TOOL_ITERATIONS; i++) {
+    if (signal?.aborted) {
+      return { ok: false, error: "Operation cancelled by user" };
+    }
+    const llmResult = await callLlmAndRecordUsage(ctx, i);
+    if (!llmResult.ok) return llmResult.result;
+    const outcome = await dispatchIterationOutcome(
+      ctx,
+      llmResult.completion,
+      llmResult.tools,
+      i,
+    );
+    if (outcome.action === "continue") continue;
+    return outcome.result;
+  }
+  return {
+    ok: false,
+    error: "Agent loop exceeded maximum tool call iterations",
+  };
+}
+
+// ─── compactSessionHistory ───────────────────────────────────────────────────
+
+/** Sentinel result for empty conversation history. */
+const EMPTY_COMPACT_RESULT: CompactResult = {
+  messagesBefore: 0,
+  messagesAfter: 0,
+  tokensBefore: 0,
+  tokensAfter: 0,
+};
+
+/** Compact a session's history using summarization or sliding-window fallback. */
+async function compactSessionHistory(
+  sessionId: SessionId,
+  histories: Map<string, HistoryEntry[]>,
+  providerRegistry: OrchestratorConfig["providerRegistry"],
+  compactor: Compactor,
+): Promise<CompactResult> {
+  const history = histories.get(sessionId as string) ?? [];
+  if (history.length === 0) return EMPTY_COMPACT_RESULT;
+
+  const messagesBefore = history.length;
+  const tokensBefore = estimateHistoryTokens(history);
+  const provider = providerRegistry.getDefault();
+
+  if (!provider) {
+    return compactHistoryWithSlidingWindow(
+      history,
+      compactor,
+      messagesBefore,
+      tokensBefore,
+    );
+  }
+  return await compactHistoryWithSummarization(
+    history,
+    compactor,
+    provider,
+    messagesBefore,
+    tokensBefore,
+  );
 }
