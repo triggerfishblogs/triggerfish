@@ -19,7 +19,10 @@ const log = createLogger("security");
 // ─── SSRF Denylist (hardcoded, non-overridable) ─────────────────────────────
 
 /** IPv4 CIDR ranges that are always blocked (private/reserved). */
-const SSRF_DENY_CIDRS_V4: readonly { readonly addr: number; readonly mask: number }[] = [
+const SSRF_DENY_CIDRS_V4: readonly {
+  readonly addr: number;
+  readonly mask: number;
+}[] = [
   // 127.0.0.0/8 — loopback
   { addr: 0x7F000000, mask: 0xFF000000 },
   // 10.0.0.0/8 — private
@@ -36,10 +39,10 @@ const SSRF_DENY_CIDRS_V4: readonly { readonly addr: number; readonly mask: numbe
 
 /** Well-known private/reserved IPv6 addresses (checked as exact prefixes). */
 const SSRF_DENY_V6_PREFIXES: readonly string[] = [
-  "::1",      // loopback
-  "fc",       // fc00::/7 — unique local (fc and fd)
+  "::1", // loopback
+  "fc", // fc00::/7 — unique local (fc and fd)
   "fd",
-  "fe80:",    // fe80::/10 — link-local
+  "fe80:", // fe80::/10 — link-local
 ];
 
 /**
@@ -59,6 +62,27 @@ function parseIpv4(ip: string): number | null {
   return result >>> 0;
 }
 
+/** Check if an IPv4 numeric address matches any denied CIDR range. */
+function isPrivateIpv4(ipv4: number): boolean {
+  for (const cidr of SSRF_DENY_CIDRS_V4) {
+    if ((ipv4 & cidr.mask) === (cidr.addr & cidr.mask)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Check if a normalized IPv6 string matches any denied prefix. */
+function isPrivateIpv6(normalized: string): boolean {
+  if (normalized === "::1" || normalized === "0:0:0:0:0:0:0:1") {
+    return true;
+  }
+  for (const prefix of SSRF_DENY_V6_PREFIXES) {
+    if (normalized.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
 /**
  * Check if an IP address falls within the hardcoded SSRF denylist.
  *
@@ -66,34 +90,12 @@ function parseIpv4(ip: string): number | null {
  * This function is pure and deterministic.
  */
 export function isPrivateIp(ip: string): boolean {
-  // Try IPv4
   const ipv4 = parseIpv4(ip);
-  if (ipv4 !== null) {
-    for (const cidr of SSRF_DENY_CIDRS_V4) {
-      if ((ipv4 & cidr.mask) === (cidr.addr & cidr.mask)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // IPv6 checks
+  if (ipv4 !== null) return isPrivateIpv4(ipv4);
   const normalized = ip.toLowerCase();
-  if (normalized === "::1" || normalized === "0:0:0:0:0:0:0:1") {
-    return true;
-  }
-  for (const prefix of SSRF_DENY_V6_PREFIXES) {
-    if (normalized.startsWith(prefix)) {
-      return true;
-    }
-  }
-
-  // IPv4-mapped IPv6 (::ffff:x.x.x.x)
+  if (isPrivateIpv6(normalized)) return true;
   const v4Mapped = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (v4Mapped) {
-    return isPrivateIp(v4Mapped[1]);
-  }
-
+  if (v4Mapped) return isPrivateIp(v4Mapped[1]);
   return false;
 }
 
@@ -107,11 +109,16 @@ export async function resolveAndCheck(
 ): Promise<Result<string, string>> {
   let addresses: Deno.NetAddr[];
   try {
-    addresses = await Deno.resolveDns(hostname, "A") as unknown as Deno.NetAddr[];
+    addresses = await Deno.resolveDns(
+      hostname,
+      "A",
+    ) as unknown as Deno.NetAddr[];
   } catch (err) {
     return {
       ok: false,
-      error: `DNS resolution failed for ${hostname}: ${err instanceof Error ? err.message : String(err)}`,
+      error: `DNS resolution failed for ${hostname}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
     };
   }
 
@@ -211,6 +218,31 @@ function matchesAny(hostname: string, patterns: readonly string[]): boolean {
   return false;
 }
 
+/** Determine if a hostname passes the denylist/allowlist checks. */
+function evaluateDomainAllowance(
+  hostname: string,
+  config: DomainSecurityConfig,
+): boolean {
+  if (matchesAny(hostname, config.denylist)) return false;
+  if (config.allowlist.length > 0) {
+    return matchesAny(hostname, config.allowlist);
+  }
+  return true;
+}
+
+/** Resolve the classification level for a hostname from the classification map. */
+function resolveDomainClassification(
+  hostname: string,
+  classificationMap: readonly DomainClassification[],
+): ClassificationLevel {
+  for (const entry of classificationMap) {
+    if (globToRegex(entry.pattern).test(hostname)) {
+      return entry.classification;
+    }
+  }
+  return "PUBLIC";
+}
+
 /**
  * Create a domain security policy.
  *
@@ -221,45 +253,27 @@ export function createDomainPolicy(config: DomainSecurityConfig): DomainPolicy {
   return {
     isAllowed(url: string): boolean {
       const hostname = extractHostname(url);
-      if (hostname === null) {
-        return false;
-      }
-
-      // Denylist always wins
-      if (matchesAny(hostname, config.denylist)) {
-        return false;
-      }
-
-      // If allowlist is non-empty, hostname must match
-      if (config.allowlist.length > 0) {
-        return matchesAny(hostname, config.allowlist);
-      }
-
-      // Empty allowlist = allow all (minus denylist)
-      return true;
+      if (hostname === null) return false;
+      return evaluateDomainAllowance(hostname, config);
     },
-
     getClassification(url: string): ClassificationLevel {
       const hostname = extractHostname(url);
-      if (hostname === null) {
-        return "PUBLIC";
-      }
-
-      for (const entry of config.classificationMap) {
-        if (globToRegex(entry.pattern).test(hostname)) {
-          return entry.classification;
-        }
-      }
-
-      return "PUBLIC";
+      if (hostname === null) return "PUBLIC";
+      return resolveDomainClassification(hostname, config.classificationMap);
     },
   };
 }
 
 // ─── Domain Classifier (for orchestrator resource classification) ────────────
 
-export type { DomainClassificationResult, DomainClassifier } from "../../core/types/domain.ts";
-import type { DomainClassificationResult, DomainClassifier } from "../../core/types/domain.ts";
+export type {
+  DomainClassificationResult,
+  DomainClassifier,
+} from "../../core/types/domain.ts";
+import type {
+  DomainClassificationResult,
+  DomainClassifier,
+} from "../../core/types/domain.ts";
 
 /**
  * Create a domain classifier from a domain policy.
