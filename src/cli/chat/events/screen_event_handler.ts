@@ -7,12 +7,12 @@
  * @module
  */
 
-import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
-import type { ScreenManager } from "../terminal/screen.ts";
-import { extractTodosFromEvent, formatTodoListAnsi } from "../../tools/todo.ts";
-import { DIM, RED, RESET, YELLOW } from "./ansi.ts";
-import type { ToolDisplayMode } from "./ansi.ts";
-import { formatResponse } from "./format.ts";
+import type { OrchestratorEvent } from "../../../agent/orchestrator/orchestrator_types.ts";
+import type { ScreenManager } from "../../terminal/screen.ts";
+import { extractTodosFromEvent, formatTodoListAnsi } from "../../../tools/todo.ts";
+import { DIM, RED, RESET, YELLOW } from "../render/ansi.ts";
+import type { ToolDisplayMode } from "../render/ansi.ts";
+import { formatResponse } from "../render/format.ts";
 import {
   type EventCallback,
   formatPlanMarkdown,
@@ -21,8 +21,8 @@ import {
   formatToolResultExpanded,
   isPlanExitTool,
   isTodoTool,
-} from "./tool_display.ts";
-import { createSpinner } from "./spinner.ts";
+} from "../render/tool_display.ts";
+import { createSpinner } from "../render/spinner.ts";
 import {
   type ScreenHandlerState,
   buildScreenHandlerState,

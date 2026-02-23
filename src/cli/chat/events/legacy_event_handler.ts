@@ -7,18 +7,18 @@
  * @module
  */
 
-import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
-import { extractTodosFromEvent, formatTodoListAnsi } from "../../tools/todo.ts";
-import { writeln } from "./ansi.ts";
-import { renderResponse } from "./format.ts";
-import { renderToolResult } from "./tool_display.ts";
+import type { OrchestratorEvent } from "../../../agent/orchestrator/orchestrator_types.ts";
+import { extractTodosFromEvent, formatTodoListAnsi } from "../../../tools/todo.ts";
+import { writeln } from "../render/ansi.ts";
+import { renderResponse } from "../render/format.ts";
+import { renderToolResult } from "../render/tool_display.ts";
 import {
   type EventCallback,
   formatToolCompact,
   isTodoTool,
-} from "./tool_display.ts";
-import type { Spinner } from "./spinner.ts";
-import { createSpinner } from "./spinner.ts";
+} from "../render/tool_display.ts";
+import type { Spinner } from "../render/spinner.ts";
+import { createSpinner } from "../render/spinner.ts";
 
 // ─── Legacy event dispatch ───────────────────────────────────────────────────
 

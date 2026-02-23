@@ -13,7 +13,7 @@
  * @module
  */
 
-export type { EventCallback } from "./tool_display.ts";
+export type { EventCallback } from "../render/tool_display.ts";
 
 export { createEventHandler } from "./legacy_event_handler.ts";
 export { createScreenEventHandler } from "./screen_event_handler.ts";

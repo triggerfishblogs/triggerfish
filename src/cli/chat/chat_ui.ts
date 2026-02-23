@@ -2,28 +2,22 @@
  * Rich terminal UI for the Triggerfish chat interface.
  *
  * Re-exports from focused sub-modules:
- * - chat_ansi.ts — ANSI escape codes and write helpers
- * - chat_banner.ts — ASCII art banner
- * - chat_spinner.ts — animated spinner
- * - chat_format.ts — text formatting and response rendering
- * - chat_tool_display.ts — tool call/result display
- * - think_filter_types.ts — filter types, interfaces, constants
- * - think_filter_buffer.ts — buffer-phase resolution
- * - think_filter.ts — stream processing and filter factory
- * - chat_event_handler.ts — orchestrator event handlers
+ * - render/ — ANSI codes, banner, spinner, formatting, tool display
+ * - events/ — orchestrator event handlers
+ * - thinking/ — stream filter for thinking tags
  *
  * @module
  */
 
 // ─── ANSI + constants ────────────────────────────────────────────
-export type { ToolDisplayMode } from "./ansi.ts";
+export type { ToolDisplayMode } from "./render/ansi.ts";
 
 // ─── Banner ──────────────────────────────────────────────────────
-export { printBanner, formatBanner } from "./banner.ts";
+export { printBanner, formatBanner } from "./render/banner.ts";
 
 // ─── Spinner ─────────────────────────────────────────────────────
-export type { Spinner } from "./spinner.ts";
-export { createSpinner } from "./spinner.ts";
+export type { Spinner } from "./render/spinner.ts";
+export { createSpinner } from "./render/spinner.ts";
 
 // ─── Formatting ──────────────────────────────────────────────────
 export {
@@ -32,7 +26,7 @@ export {
   renderError,
   formatError,
   renderPrompt,
-} from "./format.ts";
+} from "./render/format.ts";
 
 // ─── Tool display ────────────────────────────────────────────────
 export {
@@ -42,11 +36,11 @@ export {
   formatToolCallExpanded,
   formatToolResultExpanded,
   formatToolCompact,
-} from "./tool_display.ts";
-export type { EventCallback } from "./tool_display.ts";
+} from "./render/tool_display.ts";
+export type { EventCallback } from "./render/tool_display.ts";
 
 // ─── Event handlers ──────────────────────────────────────────────
 export {
   createEventHandler,
   createScreenEventHandler,
-} from "./event_handler.ts";
+} from "./events/event_handler.ts";

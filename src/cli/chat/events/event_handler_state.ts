@@ -6,10 +6,10 @@
  * @module
  */
 
-import type { ScreenManager } from "../terminal/screen.ts";
-import { BOLD, GREEN, RESET } from "./ansi.ts";
-import type { Spinner } from "./spinner.ts";
-import { createThinkingFilter } from "./think_filter.ts";
+import type { ScreenManager } from "../../terminal/screen.ts";
+import { BOLD, GREEN, RESET } from "../render/ansi.ts";
+import type { Spinner } from "../render/spinner.ts";
+import { createThinkingFilter } from "../thinking/think_filter.ts";
 
 // ─── State ───────────────────────────────────────────────────────────────────
 

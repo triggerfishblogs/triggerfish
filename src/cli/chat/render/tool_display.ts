@@ -3,7 +3,7 @@
  * @module
  */
 
-import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
+import type { OrchestratorEvent } from "../../../agent/orchestrator/orchestrator_types.ts";
 import {
   BOLD,
   CYAN,

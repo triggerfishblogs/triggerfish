@@ -4,7 +4,7 @@
  */
 
 import { RESET, BOLD, DIM, CYAN, BLUE, writeln } from "./ansi.ts";
-import { VERSION } from "../version.ts";
+import { VERSION } from "../../version.ts";
 
 /** Print the Triggerfish ASCII art banner with session info. */
 export function printBanner(
