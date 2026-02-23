@@ -2,7 +2,7 @@
  * Tests for gateway factory helpers — buildSchedulerConfig.
  */
 import { assertEquals } from "@std/assert";
-import { buildSchedulerConfig } from "../../src/gateway/startup/factory.ts";
+import { buildSchedulerConfig } from "../../src/gateway/startup/scheduler_config.ts";
 import type { TriggerFishConfig } from "../../src/core/config.ts";
 import type { OrchestratorFactory } from "../../src/scheduler/service_types.ts";
 

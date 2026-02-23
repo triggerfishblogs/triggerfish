@@ -27,10 +27,8 @@ import type { createWorkspace } from "../../exec/workspace.ts";
 import { createTriggerToolExecutor } from "../tools/trigger_tools.ts";
 import { createTriggerStore } from "../../scheduler/triggers/store.ts";
 import type { McpBroadcastRefs } from "./mcp.ts";
-import {
-  buildSubagentFactory,
-  createOrchestratorFactory,
-} from "./factory.ts";
+import { buildSubagentFactory } from "./subagent.ts";
+import { createOrchestratorFactory } from "./orchestrator_factory.ts";
 import {
   buildObsidianExecutor,
   discoverSkills,

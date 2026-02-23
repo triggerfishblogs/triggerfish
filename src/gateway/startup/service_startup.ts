@@ -10,7 +10,7 @@
 
 import type { createLogger } from "../../core/logger/mod.ts";
 import type { createSchedulerService } from "../../scheduler/service.ts";
-import type { buildSchedulerConfig } from "./factory.ts";
+import type { buildSchedulerConfig } from "./scheduler_config.ts";
 import { createTidePoolTools } from "../../tools/tidepool/mod.ts";
 import { createChatSession } from "../chat.ts";
 import type { ModelsConfig } from "../../agent/providers/config.ts";

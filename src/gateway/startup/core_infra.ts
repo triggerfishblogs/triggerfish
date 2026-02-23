@@ -19,10 +19,8 @@ import type { createEnhancedSessionManager } from "../sessions.ts";
 import type { createNotificationService } from "../notifications/notifications.ts";
 import type { createTriggerStore } from "../../scheduler/triggers/store.ts";
 import type { createToolFloorRegistry } from "../../core/security/tool_floors.ts";
-import {
-  buildSchedulerConfig,
-  createOrchestratorFactory,
-} from "./factory.ts";
+import { createOrchestratorFactory } from "./orchestrator_factory.ts";
+import { buildSchedulerConfig } from "./scheduler_config.ts";
 import type { BootstrapResult } from "./bootstrap.ts";
 import {
   buildFilesystemPathMap,

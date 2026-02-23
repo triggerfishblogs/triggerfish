@@ -34,9 +34,10 @@ import type { createTriggerToolExecutor } from "../tools/trigger_tools.ts";
 import type { createSkillToolExecutor } from "../../tools/skills/mod.ts";
 import type { createPlanToolExecutor } from "../../agent/plan/plan.ts";
 import type { createMemoryToolExecutor } from "../../tools/memory/mod.ts";
-import type { buildWebTools, buildSubagentFactory } from "./factory.ts";
+import type { buildWebTools } from "./web_tools.ts";
+import type { buildSubagentFactory } from "./subagent.ts";
 import type { buildObsidianExecutor, discoverSkills } from "./subsystems.ts";
-import { buildGoogleExecutor } from "./factory.ts";
+import { buildGoogleExecutor } from "./google_executor.ts";
 import { createToolExecutor, TOOL_GROUPS } from "../tools/agent_tools.ts";
 import type { wireMcpServers } from "./mcp.ts";
 

@@ -29,7 +29,7 @@ import { createExploreToolExecutor } from "../../tools/explore/mod.ts";
 import type { createHookRunner } from "../../core/policy/hooks.ts";
 import { wireMcpServers } from "./mcp.ts";
 import type { McpBroadcastRefs } from "./mcp.ts";
-import { buildSubagentFactory } from "./factory.ts";
+import { buildSubagentFactory } from "./subagent.ts";
 
 /** Build browser domain policy from web config. */
 export function buildBrowserDomainPolicyFromConfig(config: TriggerFishConfig) {

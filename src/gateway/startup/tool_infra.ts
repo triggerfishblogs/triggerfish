@@ -34,11 +34,9 @@ import { createSessionToolExecutor } from "../tools/session_tools.ts";
 import type { McpBroadcastRefs } from "./mcp.ts";
 import type { wireMcpServers } from "./mcp.ts";
 import type { createToolExecutor } from "../tools/agent_tools.ts";
-import type { buildWebTools } from "./factory.ts";
-import {
-  buildWebTools as buildWebToolsFn,
-  createOrchestratorFactory,
-} from "./factory.ts";
+import type { buildWebTools } from "./web_tools.ts";
+import { buildWebTools as buildWebToolsFn } from "./web_tools.ts";
+import { createOrchestratorFactory } from "./orchestrator_factory.ts";
 import {
   createCliSecretPrompt,
 } from "./subsystems.ts";
