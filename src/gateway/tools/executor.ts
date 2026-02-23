@@ -348,7 +348,86 @@ function executeCronHistory(
   ).join("\n");
 }
 
+// ─── Built-in tool dispatch ──────────────────────────────────────────────────
+
+/** Dispatch filesystem and agent tools. Returns null if not matched. */
+function dispatchBuiltinTool(
+  name: string,
+  input: Record<string, unknown>,
+  opts: ToolExecutorOptions,
+): Promise<string> | string | null {
+  switch (name) {
+    case "read_file":
+      return executeReadFile(input);
+    case "write_file":
+      return executeWriteFile(input, opts.execTools);
+    case "list_directory":
+      return executeListDirectory(input);
+    case "run_command":
+      return executeRunCommand(input, opts.execTools);
+    case "search_files":
+      return executeSearchFiles(input);
+    case "edit_file":
+      return executeEditFile(input);
+    case "subagent":
+      return opts.subagentFactory
+        ? executeSubagent(input, opts.subagentFactory)
+        : "Sub-agent spawning is not available in this context.";
+    case "agents_list":
+      return opts.providerRegistry
+        ? executeAgentsList(opts.providerRegistry)
+        : "No provider registry available.";
+    default:
+      return null;
+  }
+}
+
+/** Dispatch cron tools. Returns null if not matched. */
+function dispatchCronTool(
+  name: string,
+  input: Record<string, unknown>,
+  cronManager: CronManager | undefined,
+): string | null {
+  const unavailable = "Cron management is not available in this context.";
+  switch (name) {
+    case "cron_create":
+      return cronManager ? executeCronCreate(input, cronManager) : unavailable;
+    case "cron_list":
+      return cronManager ? executeCronList(cronManager) : unavailable;
+    case "cron_delete":
+      return cronManager ? executeCronDelete(input, cronManager) : unavailable;
+    case "cron_history":
+      return cronManager ? executeCronHistory(input, cronManager) : unavailable;
+    default:
+      return null;
+  }
+}
+
 // ─── Main executor factory ───────────────────────────────────────────────────
+
+/** Route a single tool call through subsystems, builtins, and cron. */
+async function routeToolCall(
+  opts: ToolExecutorOptions,
+  todoExecutor: SubsystemExecutor | null,
+  webExecutor: SubsystemExecutor,
+  name: string,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const subsystemResult = await dispatchToSubsystems(
+    opts,
+    todoExecutor,
+    webExecutor,
+    name,
+    input,
+  );
+  if (subsystemResult !== null) return subsystemResult;
+
+  const builtinResult = dispatchBuiltinTool(name, input, opts);
+  if (builtinResult !== null) return builtinResult;
+
+  return dispatchCronTool(name, input, opts.cronManager) ??
+    `Unknown tool: ${name}`;
+}
 
 /**
  * Create a tool executor backed by ExecTools, direct filesystem access,
@@ -359,7 +438,6 @@ function executeCronHistory(
  * run_command) use ExecTools for sandboxing. Cron tools delegate to CronManager.
  */
 export function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
-  const { execTools, cronManager } = opts;
   const todoExecutor = opts.todoManager
     ? createTodoToolExecutor(opts.todoManager)
     : null;
@@ -368,63 +446,6 @@ export function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
     opts.webFetcher,
   );
 
-  return async (
-    name: string,
-    input: Record<string, unknown>,
-  ): Promise<string> => {
-    // Try subsystem executors first
-    const subsystemResult = await dispatchToSubsystems(
-      opts,
-      todoExecutor,
-      webExecutor,
-      name,
-      input,
-    );
-    if (subsystemResult !== null) return subsystemResult;
-
-    // Built-in tool dispatch
-    switch (name) {
-      case "read_file":
-        return executeReadFile(input);
-      case "write_file":
-        return executeWriteFile(input, execTools);
-      case "list_directory":
-        return executeListDirectory(input);
-      case "run_command":
-        return executeRunCommand(input, execTools);
-      case "search_files":
-        return executeSearchFiles(input);
-      case "edit_file":
-        return executeEditFile(input);
-
-      case "subagent":
-        return opts.subagentFactory
-          ? executeSubagent(input, opts.subagentFactory)
-          : "Sub-agent spawning is not available in this context.";
-      case "agents_list":
-        return opts.providerRegistry
-          ? executeAgentsList(opts.providerRegistry)
-          : "No provider registry available.";
-
-      case "cron_create":
-        return cronManager
-          ? executeCronCreate(input, cronManager)
-          : "Cron management is not available in this context.";
-      case "cron_list":
-        return cronManager
-          ? executeCronList(cronManager)
-          : "Cron management is not available in this context.";
-      case "cron_delete":
-        return cronManager
-          ? executeCronDelete(input, cronManager)
-          : "Cron management is not available in this context.";
-      case "cron_history":
-        return cronManager
-          ? executeCronHistory(input, cronManager)
-          : "Cron management is not available in this context.";
-
-      default:
-        return `Unknown tool: ${name}`;
-    }
-  };
+  return (name: string, input: Record<string, unknown>): Promise<string> =>
+    routeToolCall(opts, todoExecutor, webExecutor, name, input);
 }
