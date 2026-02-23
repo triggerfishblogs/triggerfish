@@ -262,5 +262,5 @@ export {
 
 export { bundleLogs, tailLogs } from "./logs.ts";
 
-export type { UpdateResult } from "./updater.ts";
-export { updateTriggerfish } from "./updater.ts";
+export type { UpdateResult } from "./updater/mod.ts";
+export { updateTriggerfish } from "./updater/mod.ts";
