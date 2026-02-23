@@ -20,10 +20,15 @@ import { createTrigger } from "./triggers/trigger.ts";
 import type { Trigger } from "./triggers/trigger.ts";
 import { createWebhookHandler } from "./webhooks/webhooks.ts";
 import type { WebhookHandler } from "./webhooks/webhooks.ts";
+import { createRateLimiter } from "./webhooks/rate_limiter.ts";
+import type { RateLimiter } from "./webhooks/rate_limiter.ts";
+import { createReplayGuard } from "./webhooks/replay_guard.ts";
+import type { ReplayGuard } from "./webhooks/replay_guard.ts";
 import { createLogger } from "../core/logger/mod.ts";
 import type {
   SchedulerService,
   SchedulerServiceConfig,
+  WebhookRequestContext,
 } from "./service_types.ts";
 import { tickCronJobs } from "./service_cron.ts";
 import { runTriggerCallback } from "./service_trigger.ts";
@@ -39,6 +44,7 @@ export type {
   OrchestratorFactory,
   SchedulerService,
   SchedulerServiceConfig,
+  WebhookRequestContext,
   WebhookSourceConfig,
 } from "./service_types.ts";
 
@@ -63,7 +69,9 @@ interface ProcessWebhookOptions {
   readonly webhookHandler: WebhookHandler;
   readonly sourceId: string;
   readonly body: string;
-  readonly signature: string;
+  readonly context: WebhookRequestContext;
+  readonly replayGuard: ReplayGuard;
+  readonly getRateLimiter: (sourceId: string) => RateLimiter;
 }
 
 // ─── Lifecycle helpers ───────────────────────────────────────────────────────
@@ -109,8 +117,15 @@ function stopSchedulerTimers(state: SchedulerState): void {
 async function processWebhookRequest(
   options: ProcessWebhookOptions,
 ): Promise<Result<void, string>> {
-  const { config, webhookHandler, sourceId, body, signature } = options;
-  const validation = await validateWebhookRequest({ config, sourceId, body, signature });
+  const { config, webhookHandler, sourceId, body, context, replayGuard, getRateLimiter } = options;
+  const validation = await validateWebhookRequest({
+    config,
+    sourceId,
+    body,
+    context,
+    replayGuard,
+    getRateLimiter,
+  });
   if (!validation.ok) return validation;
   const { event, classification } = validation.value;
   await executeWebhookSession({ config, sourceId, body, event, classification });
@@ -135,6 +150,21 @@ export function createSchedulerService(
   const state: SchedulerState = { cronTickId: undefined, trigger: undefined };
   const infra: SchedulerInfra = { state, config, cronManager };
 
+  const replayGuard = createReplayGuard(config.webhooks.replayGuardSize ?? 10_000);
+  const rateLimiters = new Map<string, RateLimiter>();
+
+  function getRateLimiter(sourceId: string): RateLimiter {
+    if (!rateLimiters.has(sourceId)) {
+      const source = config.webhooks.sources[sourceId];
+      const rlConfig = source?.rateLimit ?? config.webhooks.rateLimit ?? {
+        perMinute: 60,
+        burst: 10,
+      };
+      rateLimiters.set(sourceId, createRateLimiter(rlConfig));
+    }
+    return rateLimiters.get(sourceId)!;
+  }
+
   return {
     cronManager,
     webhookHandler,
@@ -147,7 +177,15 @@ export function createSchedulerService(
       log.info("Forced trigger run requested");
       await runTriggerCallback(config);
     },
-    handleWebhookRequest: (sourceId, body, signature) =>
-      processWebhookRequest({ config, webhookHandler, sourceId, body, signature }),
+    handleWebhookRequest: (sourceId, body, context) =>
+      processWebhookRequest({
+        config,
+        webhookHandler,
+        sourceId,
+        body,
+        context,
+        replayGuard,
+        getRateLimiter,
+      }),
   };
 }

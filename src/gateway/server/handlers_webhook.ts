@@ -22,6 +22,8 @@ function extractWebhookSignature(request: Request): string {
 function mapWebhookErrorStatus(errorMessage: string): number {
   if (errorMessage.includes("Invalid HMAC")) return 401;
   if (errorMessage.includes("Unknown webhook")) return 404;
+  if (errorMessage.includes("Rate limit exceeded")) return 429;
+  if (errorMessage.includes("Replay detected")) return 409;
   return 400;
 }
 
@@ -45,8 +47,9 @@ async function forwardWebhookToScheduler(
   scheduler: SchedulerService,
 ): Promise<Response> {
   const signature = extractWebhookSignature(request);
+  const timestamp = request.headers.get("x-timestamp") ?? undefined;
   const body = await request.text();
-  const result = await scheduler.handleWebhookRequest(sourceId, body, signature);
+  const result = await scheduler.handleWebhookRequest(sourceId, body, { signature, timestamp });
 
   if (result.ok) {
     return jsonResponse({ ok: true }, 200);

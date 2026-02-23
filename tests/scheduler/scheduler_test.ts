@@ -296,11 +296,32 @@ function createTestConfig(
     },
     webhooks: {
       enabled: true,
+      maxAgeMs: 0, // Disable timestamp enforcement in unit tests
       sources: {
         github: { secret: "gh-secret", classification: "INTERNAL" },
       },
     },
     ...overrides,
+  };
+}
+
+/** Config with timestamp enforcement enabled (5-minute window). */
+function createTimestampConfig(factory: OrchestratorFactory): SchedulerServiceConfig {
+  return {
+    orchestratorFactory: factory,
+    triggerMdPath: "/tmp/nonexistent-trigger.md",
+    trigger: {
+      enabled: false,
+      intervalMinutes: 30,
+      classificationCeiling: "INTERNAL",
+    },
+    webhooks: {
+      enabled: true,
+      maxAgeMs: 300_000,
+      sources: {
+        github: { secret: "gh-secret", classification: "INTERNAL" },
+      },
+    },
   };
 }
 
@@ -317,7 +338,7 @@ Deno.test("SchedulerService: webhook rejects when disabled", async () => {
     webhooks: { enabled: false, sources: {} },
   }));
 
-  const result = await svc.handleWebhookRequest("github", "{}", "sha256=abc");
+  const result = await svc.handleWebhookRequest("github", "{}", { signature: "sha256=abc" });
   assertEquals(result.ok, false);
   if (!result.ok) {
     assertEquals(result.error, "Webhooks are disabled");
@@ -328,7 +349,7 @@ Deno.test("SchedulerService: webhook rejects unknown source", async () => {
   const { factory } = createMockFactory();
   const svc = createSchedulerService(createTestConfig(factory));
 
-  const result = await svc.handleWebhookRequest("unknown", "{}", "sha256=abc");
+  const result = await svc.handleWebhookRequest("unknown", "{}", { signature: "sha256=abc" });
   assertEquals(result.ok, false);
   if (!result.ok) {
     assert(result.error.includes("Unknown webhook source"));
@@ -340,7 +361,7 @@ Deno.test("SchedulerService: webhook rejects invalid signature", async () => {
   const svc = createSchedulerService(createTestConfig(factory));
 
   const body = '{"event":"push","data":{}}';
-  const result = await svc.handleWebhookRequest("github", body, "sha256=bad");
+  const result = await svc.handleWebhookRequest("github", body, { signature: "sha256=bad" });
   assertEquals(result.ok, false);
   if (!result.ok) {
     assertEquals(result.error, "Invalid HMAC signature");
@@ -353,7 +374,7 @@ Deno.test("SchedulerService: webhook processes valid request", async () => {
 
   const body = '{"event":"push","data":{"ref":"main"}}';
   const sig = await computeHmac(body, "gh-secret");
-  const result = await svc.handleWebhookRequest("github", body, sig);
+  const result = await svc.handleWebhookRequest("github", body, { signature: sig });
   assertEquals(result.ok, true);
   assertEquals(calls.length, 1);
   assertEquals(calls[0], "webhook-github");
@@ -369,7 +390,7 @@ Deno.test("SchedulerService: webhook dispatches to event handler", async () => {
 
   const body = '{"event":"push","data":{"ref":"main"}}';
   const sig = await computeHmac(body, "gh-secret");
-  await svc.handleWebhookRequest("github", body, sig);
+  await svc.handleWebhookRequest("github", body, { signature: sig });
 
   assertExists(receivedEvent);
 });
@@ -513,7 +534,7 @@ Deno.test("SchedulerService: webhook output delivered via notificationService", 
 
   const body = '{"event":"push","data":{"ref":"main"}}';
   const sig = await computeHmac(body, "gh-secret");
-  const result = await svc.handleWebhookRequest("github", body, sig);
+  const result = await svc.handleWebhookRequest("github", body, { signature: sig });
   assertEquals(result.ok, true);
   assertEquals(calls.length, 1);
 
@@ -546,7 +567,7 @@ Deno.test("SchedulerService: delivery failure does not crash scheduler", async (
   const body = '{"event":"push","data":{"ref":"main"}}';
   const sig = await computeHmac(body, "gh-secret");
   // Should not throw
-  const result = await svc.handleWebhookRequest("github", body, sig);
+  const result = await svc.handleWebhookRequest("github", body, { signature: sig });
   assertEquals(result.ok, true);
 
   // Notification should still be stored despite channel failure
@@ -561,7 +582,7 @@ Deno.test("SchedulerService: no error when notificationService is absent", async
   const body = '{"event":"push","data":{"ref":"main"}}';
   const sig = await computeHmac(body, "gh-secret");
   // Should not throw even without notificationService
-  const result = await svc.handleWebhookRequest("github", body, sig);
+  const result = await svc.handleWebhookRequest("github", body, { signature: sig });
   assertEquals(result.ok, true);
   assertEquals(calls.length, 1);
 });
@@ -661,7 +682,7 @@ Deno.test("SchedulerService: token usage from executeAgentTurn is logged without
   const body = '{"event":"push","data":{"ref":"main"}}';
   const sig = await computeHmac(body, "gh-secret");
   // Should succeed — the token logging code path runs without throwing
-  const result = await svc.handleWebhookRequest("github", body, sig);
+  const result = await svc.handleWebhookRequest("github", body, { signature: sig });
   assertEquals(result.ok, true);
 });
 
@@ -675,6 +696,93 @@ Deno.test("SchedulerService: runTrigger() fires trigger callback immediately", a
   assertEquals(calls.length, 1);
   assertEquals(calls[0], "trigger");
   assertEquals(options[0]?.isTrigger, true);
+});
+
+// ── Replay prevention ────────────────────────────────────────────────
+
+Deno.test("SchedulerService: webhook rejects replayed request (same signature)", async () => {
+  const { factory } = createMockFactory();
+  const svc = createSchedulerService(createTestConfig(factory));
+
+  const body = '{"event":"push","data":{"ref":"replay-test"}}';
+  const sig = await computeHmac(body, "gh-secret");
+
+  const first = await svc.handleWebhookRequest("github", body, { signature: sig });
+  assertEquals(first.ok, true);
+
+  const replay = await svc.handleWebhookRequest("github", body, { signature: sig });
+  assertEquals(replay.ok, false);
+  if (!replay.ok) {
+    assert(replay.error.includes("Replay"));
+  }
+});
+
+// ── Timestamp validation ─────────────────────────────────────────────
+
+Deno.test("SchedulerService: webhook rejects missing timestamp when maxAgeMs configured", async () => {
+  const { factory } = createMockFactory();
+  const svc = createSchedulerService(createTimestampConfig(factory));
+  const body = '{"event":"push","data":{}}';
+  const sig = await computeHmac(body, "gh-secret");
+  // No timestamp in context → rejected
+  const result = await svc.handleWebhookRequest("github", body, { signature: sig });
+  assertEquals(result.ok, false);
+  if (!result.ok) assert(result.error.includes("timestamp"));
+});
+
+Deno.test("SchedulerService: webhook rejects expired timestamp", async () => {
+  const { factory } = createMockFactory();
+  const svc = createSchedulerService(createTimestampConfig(factory));
+  const body = '{"event":"push","data":{}}';
+  const sig = await computeHmac(body, "gh-secret");
+  const expired = String(Date.now() - 600_000); // 10 minutes ago (5-min window)
+  const result = await svc.handleWebhookRequest("github", body, { signature: sig, timestamp: expired });
+  assertEquals(result.ok, false);
+  if (!result.ok) assert(result.error.includes("timestamp"));
+});
+
+Deno.test("SchedulerService: webhook accepts valid recent timestamp", async () => {
+  const { factory } = createMockFactory();
+  const svc = createSchedulerService(createTimestampConfig(factory));
+  const body = '{"event":"push","data":{}}';
+  const sig = await computeHmac(body, "gh-secret");
+  const result = await svc.handleWebhookRequest("github", body, {
+    signature: sig,
+    timestamp: String(Date.now()),
+  });
+  assertEquals(result.ok, true);
+});
+
+// ── Rate limiting ────────────────────────────────────────────────────
+
+Deno.test("SchedulerService: webhook rate limiter blocks requests beyond burst limit", async () => {
+  const { factory } = createMockFactory();
+  const svc = createSchedulerService({
+    ...createTestConfig(factory),
+    webhooks: {
+      enabled: true,
+      maxAgeMs: 0,
+      rateLimit: { perMinute: 60, burst: 2 }, // burst=2 for fast test
+      sources: { github: { secret: "gh-secret", classification: "INTERNAL" } },
+    },
+  });
+
+  // First 2 requests succeed (within burst)
+  for (let i = 0; i < 2; i++) {
+    const body = `{"event":"push","data":{"ref":"${i}"}}`;
+    const sig = await computeHmac(body, "gh-secret");
+    const result = await svc.handleWebhookRequest("github", body, { signature: sig });
+    assertEquals(result.ok, true, `Request ${i} should succeed`);
+  }
+
+  // 3rd request exceeds burst
+  const body3 = '{"event":"push","data":{"ref":"overflow"}}';
+  const sig3 = await computeHmac(body3, "gh-secret");
+  const limited = await svc.handleWebhookRequest("github", body3, { signature: sig3 });
+  assertEquals(limited.ok, false);
+  if (!limited.ok) {
+    assert(limited.error.includes("Rate limit"));
+  }
 });
 
 Deno.test("SchedulerService: trigger callback passes isTrigger=true and ceiling to factory", async () => {
