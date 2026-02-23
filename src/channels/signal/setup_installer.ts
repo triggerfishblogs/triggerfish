@@ -17,6 +17,128 @@ import {
 
 const log = createLogger("signal");
 
+/** Extract a tar.gz archive by piping a response body to `tar xzf`. */
+async function extractTarGzFromResponse(
+  body: ReadableStream<Uint8Array>,
+  destDir: string,
+): Promise<Result<void, string>> {
+  const tar = new Deno.Command("tar", {
+    args: ["xzf", "-", "-C", destDir],
+    stdin: "piped",
+    stdout: "piped",
+    stderr: "piped",
+  });
+  const child = tar.spawn();
+  const writer = child.stdin.getWriter();
+
+  for await (const chunk of body) {
+    await writer.write(chunk);
+  }
+  await writer.close();
+
+  const status = await child.status;
+  if (!status.success) {
+    const stderr = new TextDecoder().decode(
+      await child.stderr.getReader().read().then((r) =>
+        r.value ?? new Uint8Array()
+      ),
+    );
+    return { ok: false, error: `tar extraction failed: ${stderr}` };
+  }
+  return { ok: true, value: undefined };
+}
+
+/** Extract a zip archive on Windows via PowerShell. */
+async function extractZipOnWindows(
+  body: ReadableStream<Uint8Array>,
+  destDir: string,
+): Promise<Result<void, string>> {
+  const tmpZip = `${destDir}\\jre-download.zip`;
+  const file = await Deno.open(tmpZip, {
+    write: true,
+    create: true,
+    truncate: true,
+  });
+  for await (const chunk of body) {
+    await file.write(chunk);
+  }
+  file.close();
+  const ps = new Deno.Command("powershell", {
+    args: [
+      "-NoProfile",
+      "-Command",
+      `Expand-Archive -Force -Path '${tmpZip}' -DestinationPath '${destDir}'`,
+    ],
+    stdout: "piped",
+    stderr: "piped",
+  });
+  const psOut = await ps.output();
+  await Deno.remove(tmpZip).catch((err: unknown) => {
+    log.debug("Temp zip cleanup failed", {
+      path: tmpZip,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
+  if (!psOut.success) {
+    const stderr = new TextDecoder().decode(psOut.stderr);
+    return { ok: false, error: `zip extraction failed: ${stderr}` };
+  }
+  return { ok: true, value: undefined };
+}
+
+/** Download a URL and extract the archive to a destination directory. */
+async function downloadAndExtractArchive(
+  url: string,
+  destDir: string,
+  isWindows: boolean,
+): Promise<Result<void, string>> {
+  let resp: Response;
+  try {
+    resp = await fetch(url, { redirect: "follow" });
+    if (!resp.ok || !resp.body) {
+      return { ok: false, error: `Download failed: HTTP ${resp.status}` };
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Download failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+
+  if (isWindows) {
+    return extractZipOnWindows(resp.body, destDir);
+  }
+  return extractTarGzFromResponse(resp.body, destDir);
+}
+
+/** List directory entries for debugging. */
+async function listDirectoryEntries(dirPath: string): Promise<string[]> {
+  const entries: string[] = [];
+  try {
+    for await (const e of Deno.readDir(dirPath)) entries.push(e.name);
+  } catch (_err: unknown) {
+    log.debug("Directory listing failed", { path: dirPath });
+  }
+  return entries;
+}
+
+/** Find the first existing file from a list of candidates. */
+async function locateFirstExistingPath(
+  candidates: string[],
+): Promise<string | null> {
+  for (const candidate of candidates) {
+    try {
+      await Deno.stat(candidate);
+      return candidate;
+    } catch (_err: unknown) {
+      log.debug("Binary candidate not found", { path: candidate });
+    }
+  }
+  return null;
+}
+
 /** Adoptium API response shape for asset metadata (subset). */
 interface AdoptiumAsset {
   readonly binary: {
@@ -39,18 +161,31 @@ interface AdoptiumAsset {
  *
  * @returns Version string (e.g. "0.13.24") and asset list.
  */
-export async function fetchLatestVersion(): Promise<Result<GitHubRelease, string>> {
+export async function fetchLatestVersion(): Promise<
+  Result<GitHubRelease, string>
+> {
   try {
-    const resp = await fetch("https://api.github.com/repos/AsamK/signal-cli/releases/latest", {
-      headers: { "Accept": "application/vnd.github+json" },
-    });
+    const resp = await fetch(
+      "https://api.github.com/repos/AsamK/signal-cli/releases/latest",
+      {
+        headers: { "Accept": "application/vnd.github+json" },
+      },
+    );
     if (!resp.ok) {
-      return { ok: false, error: `GitHub API returned ${resp.status}: ${await resp.text()}` };
+      return {
+        ok: false,
+        error: `GitHub API returned ${resp.status}: ${await resp.text()}`,
+      };
     }
     const release = await resp.json() as GitHubRelease;
     return { ok: true, value: release };
   } catch (err) {
-    return { ok: false, error: `Failed to fetch releases: ${err instanceof Error ? err.message : String(err)}` };
+    return {
+      ok: false,
+      error: `Failed to fetch releases: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
   }
 }
 
@@ -66,32 +201,52 @@ export async function downloadJre(): Promise<Result<string, string>> {
   await Deno.mkdir(javaDir, { recursive: true });
 
   // Map Deno.build to Adoptium API parameters
-  const osMap: Record<string, string> = { linux: "linux", darwin: "mac", windows: "windows" };
+  const osMap: Record<string, string> = {
+    linux: "linux",
+    darwin: "mac",
+    windows: "windows",
+  };
   const archMap: Record<string, string> = { x86_64: "x64", aarch64: "aarch64" };
 
   const adoptOs = osMap[Deno.build.os];
   const adoptArch = archMap[Deno.build.arch];
 
   if (!adoptOs || !adoptArch) {
-    return { ok: false, error: `Unsupported platform: ${Deno.build.os}/${Deno.build.arch}` };
+    return {
+      ok: false,
+      error: `Unsupported platform: ${Deno.build.os}/${Deno.build.arch}`,
+    };
   }
 
   // Fetch metadata to get download URL and size
   console.log("  Fetching JRE 21 release info...");
   let assets: AdoptiumAsset[];
   try {
-    const metaUrl = `https://api.adoptium.net/v3/assets/latest/21/hotspot?image_type=jre&os=${adoptOs}&architecture=${adoptArch}`;
+    const metaUrl =
+      `https://api.adoptium.net/v3/assets/latest/21/hotspot?image_type=jre&os=${adoptOs}&architecture=${adoptArch}`;
     const metaResp = await fetch(metaUrl);
     if (!metaResp.ok) {
-      return { ok: false, error: `Adoptium API returned ${metaResp.status}: ${await metaResp.text()}` };
+      return {
+        ok: false,
+        error: `Adoptium API returned ${metaResp.status}: ${await metaResp
+          .text()}`,
+      };
     }
     assets = await metaResp.json() as AdoptiumAsset[];
   } catch (err) {
-    return { ok: false, error: `Failed to fetch JRE metadata: ${err instanceof Error ? err.message : String(err)}` };
+    return {
+      ok: false,
+      error: `Failed to fetch JRE metadata: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
   }
 
   if (assets.length === 0) {
-    return { ok: false, error: `No JRE 21 release found for ${adoptOs}/${adoptArch}` };
+    return {
+      ok: false,
+      error: `No JRE 21 release found for ${adoptOs}/${adoptArch}`,
+    };
   }
 
   // Pick the right archive format: .zip for Windows, .tar.gz for others
@@ -106,86 +261,37 @@ export async function downloadJre(): Promise<Result<string, string>> {
   const releaseName = asset.release_name;
   console.log(`  Downloading JRE 21 (${releaseName}, ${sizeMB} MB)...`);
 
-  // Download
-  let resp: Response;
-  try {
-    resp = await fetch(asset.binary.package.link, { redirect: "follow" });
-    if (!resp.ok || !resp.body) {
-      return { ok: false, error: `JRE download failed: HTTP ${resp.status}` };
-    }
-  } catch (err) {
-    return { ok: false, error: `JRE download failed: ${err instanceof Error ? err.message : String(err)}` };
-  }
-
-  // Extract archive to javaDir
-  try {
-    if (isWindows) {
-      // Write .zip to temp file, then extract with PowerShell
-      const tmpZip = `${javaDir}\\jre-download.zip`;
-      const file = await Deno.open(tmpZip, { write: true, create: true, truncate: true });
-      for await (const chunk of resp.body) {
-        await file.write(chunk);
-      }
-      file.close();
-      const ps = new Deno.Command("powershell", {
-        args: ["-NoProfile", "-Command", `Expand-Archive -Force -Path '${tmpZip}' -DestinationPath '${javaDir}'`],
-        stdout: "piped",
-        stderr: "piped",
-      });
-      const psOut = await ps.output();
-      await Deno.remove(tmpZip).catch((err: unknown) => {
-        log.debug("Temp zip cleanup failed", {
-          path: tmpZip,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-      if (!psOut.success) {
-        const stderr = new TextDecoder().decode(psOut.stderr);
-        return { ok: false, error: `JRE zip extraction failed: ${stderr}` };
-      }
-    } else {
-      const tar = new Deno.Command("tar", {
-        args: ["xzf", "-", "-C", javaDir],
-        stdin: "piped",
-        stdout: "piped",
-        stderr: "piped",
-      });
-      const child = tar.spawn();
-      const writer = child.stdin.getWriter();
-
-      for await (const chunk of resp.body) {
-        await writer.write(chunk);
-      }
-      await writer.close();
-
-      const status = await child.status;
-      if (!status.success) {
-        const stderr = new TextDecoder().decode(await child.stderr.getReader().read().then((r) => r.value ?? new Uint8Array()));
-        return { ok: false, error: `JRE tar extraction failed: ${stderr}` };
-      }
-    }
-  } catch (err) {
-    return { ok: false, error: `JRE extraction failed: ${err instanceof Error ? err.message : String(err)}` };
+  // Download and extract
+  const extractResult = await downloadAndExtractArchive(
+    asset.binary.package.link,
+    javaDir,
+    isWindows,
+  );
+  if (!extractResult.ok) {
+    return { ok: false, error: `JRE ${extractResult.error}` };
   }
 
   // Resolve JAVA_HOME from extracted directory
   const javaHome = resolveJavaHome();
   if (!javaHome) {
-    // List what was extracted for debugging
-    const entries: string[] = [];
-    try {
-      for await (const e of Deno.readDir(javaDir)) entries.push(e.name);
-    } catch (_err: unknown) {
-      log.debug("JRE directory listing failed", { path: javaDir });
-    }
-    return { ok: false, error: `JRE extracted but JAVA_HOME not found. Contents: [${entries.join(", ")}]` };
+    const entries = await listDirectoryEntries(javaDir);
+    return {
+      ok: false,
+      error: `JRE extracted but JAVA_HOME not found. Contents: [${
+        entries.join(", ")
+      }]`,
+    };
   }
 
   // Verify it works
   const javaBin = javaHomeBin(javaHome);
   const verify = await tryJava(javaBin);
   if (!verify.ok) {
-    return { ok: false, error: `Installed JRE at ${javaBin} does not run correctly: ${verify.error}` };
+    return {
+      ok: false,
+      error:
+        `Installed JRE at ${javaBin} does not run correctly: ${verify.error}`,
+    };
   }
 
   console.log(`  Installed: ${verify.value}`);
@@ -209,7 +315,9 @@ export interface SignalCliInstall {
  * @param release - GitHub release metadata.
  * @returns Path to the installed signal-cli binary and optional JAVA_HOME.
  */
-export async function downloadSignalCli(release: GitHubRelease): Promise<Result<SignalCliInstall, string>> {
+export async function downloadSignalCli(
+  release: GitHubRelease,
+): Promise<Result<SignalCliInstall, string>> {
   const version = release.tag_name.replace(/^v/, "");
   const binDir = resolveSignalCliBinDir();
   const installDir = `${binDir}/signal-cli-${version}`;
@@ -218,7 +326,9 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
   await Deno.mkdir(binDir, { recursive: true });
 
   const os = Deno.build.os;
-  let asset: { name: string; browser_download_url: string; size: number } | undefined;
+  let asset:
+    | { name: string; browser_download_url: string; size: number }
+    | undefined;
   let isNative = false;
 
   // On Linux, prefer the native build
@@ -237,7 +347,11 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
     asset = release.assets.find((a) => a.name === jvmName);
 
     if (!asset) {
-      return { ok: false, error: `No suitable signal-cli asset found for ${os} in release ${release.tag_name}` };
+      return {
+        ok: false,
+        error:
+          `No suitable signal-cli asset found for ${os} in release ${release.tag_name}`,
+      };
     }
 
     // JVM build requires Java — check or download
@@ -248,89 +362,59 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
       console.log("  Java 21+ not found — downloading portable JRE...");
       const jreResult = await downloadJre();
       if (!jreResult.ok) {
-        return { ok: false, error: `JVM build requires Java 21+ and auto-install failed: ${jreResult.error}` };
+        return {
+          ok: false,
+          error:
+            `JVM build requires Java 21+ and auto-install failed: ${jreResult.error}`,
+        };
       }
       javaHome = jreResult.value;
     }
   }
 
   const sizeMB = (asset.size / 1024 / 1024).toFixed(1);
-  console.log(`  Downloading signal-cli ${version} (${isNative ? "native" : "JVM"}, ${sizeMB} MB)...`);
+  console.log(
+    `  Downloading signal-cli ${version} (${
+      isNative ? "native" : "JVM"
+    }, ${sizeMB} MB)...`,
+  );
 
-  // Download
-  let resp: Response;
+  // Clean any previous install of this version
   try {
-    resp = await fetch(asset.browser_download_url, { redirect: "follow" });
-    if (!resp.ok || !resp.body) {
-      return { ok: false, error: `Download failed: HTTP ${resp.status}` };
-    }
-  } catch (err) {
-    return { ok: false, error: `Download failed: ${err instanceof Error ? err.message : String(err)}` };
+    await Deno.remove(installDir, { recursive: true });
+  } catch (_err: unknown) {
+    log.debug("Previous signal-cli install directory removal skipped", {
+      path: installDir,
+    });
   }
 
-  // Extract via tar — pipe download stream to `tar xzf - -C binDir`
-  try {
-    // Clean any previous install of this version
-    try { await Deno.remove(installDir, { recursive: true }); } catch (_err: unknown) { log.debug("Previous signal-cli install directory removal skipped", { path: installDir }); }
-
-    const tar = new Deno.Command("tar", {
-      args: ["xzf", "-", "-C", binDir],
-      stdin: "piped",
-      stdout: "piped",
-      stderr: "piped",
-    });
-    const child = tar.spawn();
-    const writer = child.stdin.getWriter();
-
-    for await (const chunk of resp.body) {
-      await writer.write(chunk);
-    }
-    await writer.close();
-
-    const status = await child.status;
-    if (!status.success) {
-      const stderr = new TextDecoder().decode(await child.stderr.getReader().read().then(r => r.value ?? new Uint8Array()));
-      return { ok: false, error: `tar extraction failed: ${stderr}` };
-    }
-  } catch (err) {
-    return { ok: false, error: `Extraction failed: ${err instanceof Error ? err.message : String(err)}` };
+  // Download and extract
+  const extractResult = await downloadAndExtractArchive(
+    asset.browser_download_url,
+    binDir,
+    false,
+  );
+  if (!extractResult.ok) {
+    return extractResult;
   }
 
   // Find the binary — native extracts flat, JVM extracts to signal-cli-{version}/bin/
-  const candidates = Deno.build.os === "windows"
-    ? [
-        `${binDir}/signal-cli.bat`,                           // native: flat in binDir (Windows)
-        `${binDir}/signal-cli-${version}/bin/signal-cli.bat`, // JVM: nested (Windows)
-        `${installDir}/bin/signal-cli.bat`,                   // alternate nested (Windows)
-      ]
-    : [
-        `${binDir}/signal-cli`,                      // native: flat in binDir
-        `${binDir}/signal-cli-${version}/bin/signal-cli`,  // JVM: nested
-        `${installDir}/bin/signal-cli`,               // alternate nested
-      ];
+  const ext = Deno.build.os === "windows" ? ".bat" : "";
+  const candidates = [
+    `${binDir}/signal-cli${ext}`,
+    `${binDir}/signal-cli-${version}/bin/signal-cli${ext}`,
+    `${installDir}/bin/signal-cli${ext}`,
+  ];
 
-  let binaryPath: string | null = null;
-  for (const candidate of candidates) {
-    try {
-      await Deno.stat(candidate);
-      binaryPath = candidate;
-      break;
-    } catch (_err: unknown) {
-      log.debug("Signal-cli binary candidate not found", { path: candidate });
-    }
-  }
-
+  const binaryPath = await locateFirstExistingPath(candidates);
   if (!binaryPath) {
-    // List what's actually in binDir for debugging
-    const entries: string[] = [];
-    try {
-      for await (const e of Deno.readDir(binDir)) {
-        entries.push(e.name);
-      }
-    } catch (_err: unknown) {
-      log.debug("Signal-cli bin directory listing failed", { path: binDir });
-    }
-    return { ok: false, error: `Binary not found after extraction. binDir contents: [${entries.join(", ")}]` };
+    const entries = await listDirectoryEntries(binDir);
+    return {
+      ok: false,
+      error: `Binary not found after extraction. binDir contents: [${
+        entries.join(", ")
+      }]`,
+    };
   }
 
   // Ensure executable
@@ -346,7 +430,10 @@ export async function downloadSignalCli(release: GitHubRelease): Promise<Result<
   const verifyEnv = javaHome ? { JAVA_HOME: javaHome } : undefined;
   const verify = await trySignalCli(binaryPath, verifyEnv);
   if (!verify.ok) {
-    return { ok: false, error: `Installed binary at ${binaryPath} does not run correctly` };
+    return {
+      ok: false,
+      error: `Installed binary at ${binaryPath} does not run correctly`,
+    };
   }
 
   console.log(`  Installed: ${verify.value.version}`);
