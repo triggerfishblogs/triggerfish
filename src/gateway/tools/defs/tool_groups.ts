@@ -29,6 +29,7 @@ import {
 import { getTriggerToolDefinitions } from "../trigger/trigger_tools.ts";
 import { getClaudeToolDefinitions } from "../../../exec/claude.ts";
 import { getSkillToolDefinitions } from "../../../tools/skills/mod.ts";
+import { getLogReaderToolDefinitions } from "../../../tools/log_reader_tool.ts";
 import { getExecInlineDefinitions } from "./exec_tool_defs.ts";
 import { getAgentInlineDefinitions } from "./agent_tool_defs.ts";
 import { getCronInlineDefinitions } from "./cron_tool_defs.ts";
@@ -55,6 +56,7 @@ export const TOOL_GROUPS = {
   trigger: getTriggerToolDefinitions,
   claude: getClaudeToolDefinitions,
   skills: getSkillToolDefinitions,
+  logReader: getLogReaderToolDefinitions,
   agents: getAgentInlineDefinitions,
   cron: getCronInlineDefinitions,
 } as const;

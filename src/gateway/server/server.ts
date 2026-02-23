@@ -25,6 +25,25 @@ import { createLogger } from "../../core/logger/logger.ts";
 const log = createLogger("gateway");
 import type { JsonRpcRequest } from "./handlers.ts";
 
+/** Maximum total bytes across all HTTP headers on WS upgrade. */
+const MAX_GATEWAY_HEADER_BYTES = 8192;
+
+/**
+ * Validate WebSocket upgrade request headers against size limits.
+ *
+ * Returns HTTP 431 if total header bytes exceed the limit, null otherwise.
+ */
+function validateGatewayUpgradeHeaders(request: Request): Response | null {
+  let total = 0;
+  for (const [k, v] of request.headers.entries()) {
+    total += k.length + v.length;
+  }
+  if (total > MAX_GATEWAY_HEADER_BYTES) {
+    return new Response("Request Header Fields Too Large", { status: 431 });
+  }
+  return null;
+}
+
 // Re-export handler types for backward compatibility
 export type { JsonRpcRequest, JsonRpcResponse } from "./handlers.ts";
 
@@ -134,12 +153,23 @@ export function createGatewayServer(
 
           // Handle WebSocket upgrade
           if (request.headers.get("upgrade") === "websocket") {
+            const headerRejection = validateGatewayUpgradeHeaders(request);
+            if (headerRejection) return headerRejection;
+
             // Route /chat to the chat session handler
             if (url.pathname === "/chat" && chatSession) {
+              log.ext("DEBUG", "Gateway /chat WS upgrade", {
+                origin: request.headers.get("origin") ?? "",
+                userAgent: request.headers.get("user-agent") ?? "",
+              });
               return upgradeChatWebSocket(request, chatSession, chatSockets);
             }
 
             // All other WebSocket connections: JSON-RPC control plane
+            log.ext("DEBUG", "Gateway control plane WS upgrade", {
+              origin: request.headers.get("origin") ?? "",
+              userAgent: request.headers.get("user-agent") ?? "",
+            });
             const { socket, response } = Deno.upgradeWebSocket(request);
 
             socket.addEventListener("message", async (event: MessageEvent) => {

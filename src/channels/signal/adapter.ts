@@ -120,7 +120,7 @@ function dispatchSignalNotification(
         defaultGroupMode,
       )
     ) return;
-    log.debug("Group message received", {
+    log.ext("DEBUG", "Group message received", {
       groupId: groupInfo.groupId,
       sender: senderPhone,
     });
@@ -132,7 +132,7 @@ function dispatchSignalNotification(
       sessionTaint: "PUBLIC" as ClassificationLevel,
     });
   } else {
-    log.debug("DM received", { sender: senderPhone });
+    log.ext("DEBUG", "DM received", { sender: senderPhone });
     handler({
       content: messageText,
       sessionId: `signal-${senderPhone}`,

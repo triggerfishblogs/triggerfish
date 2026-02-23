@@ -69,10 +69,9 @@ function attachSlackMessageListener(
 
     const isOwner = ownerId !== undefined ? msg.user === ownerId : true;
 
-    log.debug("Message received", {
+    log.ext("DEBUG", "Message received", {
       channel: msg.channel,
-      senderId: msg.user,
-      isOwner,
+      senderId: msg.user ?? "",
     });
     handlerRef.current({
       content: msg.text,

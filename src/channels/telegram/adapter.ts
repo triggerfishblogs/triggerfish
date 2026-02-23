@@ -91,10 +91,10 @@ export function createTelegramChannel(
     if (!handler) return;
     const isOwner = checkTelegramOwnership(ctx.from.id, ownerId);
     trackTelegramMessage(chatMessageIds, ctx.chat.id, ctx.message.message_id);
-    log.debug("Message received", {
-      chatId: ctx.chat.id,
-      senderId: ctx.from.id,
-      isOwner,
+    log.ext("DEBUG", "Message received", {
+      chatId: String(ctx.chat.id),
+      senderId: String(ctx.from.id),
+      username: ctx.from.username ?? "",
     });
     handler({
       content: ctx.message.text,
