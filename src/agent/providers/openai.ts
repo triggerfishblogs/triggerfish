@@ -98,6 +98,92 @@ function assembleOpenAiToolCalls(
     }));
 }
 
+/** Build the base chat completion request params shared by complete and stream. */
+function buildOpenAiRequestParams(
+  model: string,
+  maxTokens: number,
+  messages: readonly LlmMessage[],
+  tools: readonly unknown[],
+):
+  & {
+    model: string;
+    max_tokens: number;
+    messages: ReturnType<typeof convertToOpenAiMessages>;
+  }
+  & Record<string, unknown> {
+  return {
+    model,
+    max_tokens: maxTokens,
+    messages: convertToOpenAiMessages(messages),
+    ...buildOpenAiToolsParam(tools),
+  };
+}
+
+/** Extract abort signal from provider options. */
+function extractOpenAiAbortSignal(
+  options: Record<string, unknown>,
+): AbortSignal | undefined {
+  return options.signal as AbortSignal | undefined;
+}
+
+/** Parse an OpenAI chat completion response into an LlmCompletionResult. */
+function parseOpenAiCompletionResponse(
+  // deno-lint-ignore no-explicit-any
+  response: any,
+): LlmCompletionResult {
+  const choice = response.choices[0];
+  return {
+    content: choice?.message?.content ?? "",
+    toolCalls: choice?.message?.tool_calls ?? [],
+    usage: {
+      inputTokens: response.usage?.prompt_tokens ?? 0,
+      outputTokens: response.usage?.completion_tokens ?? 0,
+    },
+  };
+}
+
+/** Build the final done:true stream chunk from accumulated usage and tool calls. */
+function buildOpenAiFinalStreamChunk(
+  inputTokens: number,
+  outputTokens: number,
+  toolCallAccum: Map<number, { id?: string; name: string; arguments: string }>,
+): LlmStreamChunk {
+  const toolCalls = assembleOpenAiToolCalls(toolCallAccum);
+  return {
+    text: "",
+    done: true,
+    usage: { inputTokens, outputTokens },
+    ...(toolCalls.length > 0 ? { toolCalls } : {}),
+  };
+}
+
+/** Consume an OpenAI streaming response and yield LlmStreamChunks. */
+async function* consumeOpenAiStream(
+  // deno-lint-ignore no-explicit-any
+  stream: AsyncIterable<any>,
+): AsyncIterable<LlmStreamChunk> {
+  let inputTokens = 0;
+  let outputTokens = 0;
+  const toolCallAccum = new Map<
+    number,
+    { id?: string; name: string; arguments: string }
+  >();
+
+  for await (const chunk of stream) {
+    const delta = chunk.choices?.[0]?.delta;
+    if (delta?.content) yield { text: delta.content, done: false };
+    if (Array.isArray(delta?.tool_calls)) {
+      accumulateOpenAiToolCallDelta(toolCallAccum, delta.tool_calls);
+    }
+    if (chunk.usage) {
+      inputTokens = chunk.usage.prompt_tokens ?? 0;
+      outputTokens = chunk.usage.completion_tokens ?? 0;
+    }
+  }
+
+  yield buildOpenAiFinalStreamChunk(inputTokens, outputTokens, toolCallAccum);
+}
+
 /**
  * Create an OpenAI LLM provider.
  *
@@ -130,25 +216,18 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
       tools: readonly unknown[],
       options: Record<string, unknown>,
     ): Promise<LlmCompletionResult> {
-      const signal = options.signal as AbortSignal | undefined;
+      const signal = extractOpenAiAbortSignal(options);
+      const params = buildOpenAiRequestParams(
+        model,
+        maxTokens,
+        messages,
+        tools,
+      );
       const response = await getClient().chat.completions.create(
-        {
-          model,
-          max_tokens: maxTokens,
-          messages: convertToOpenAiMessages(messages),
-          ...buildOpenAiToolsParam(tools),
-        },
+        params,
         signal ? { signal } : undefined,
       );
-      const choice = response.choices[0];
-      return {
-        content: choice?.message?.content ?? "",
-        toolCalls: choice?.message?.tool_calls ?? [],
-        usage: {
-          inputTokens: response.usage?.prompt_tokens ?? 0,
-          outputTokens: response.usage?.completion_tokens ?? 0,
-        },
-      };
+      return parseOpenAiCompletionResponse(response);
     },
 
     async *stream(
@@ -156,45 +235,18 @@ export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
       tools: readonly unknown[],
       options: Record<string, unknown>,
     ): AsyncIterable<LlmStreamChunk> {
-      const signal = options.signal as AbortSignal | undefined;
+      const signal = extractOpenAiAbortSignal(options);
+      const params = buildOpenAiRequestParams(
+        model,
+        maxTokens,
+        messages,
+        tools,
+      );
       const stream = await getClient().chat.completions.create(
-        {
-          model,
-          max_tokens: maxTokens,
-          messages: convertToOpenAiMessages(messages),
-          stream: true,
-          stream_options: { include_usage: true },
-          ...buildOpenAiToolsParam(tools),
-        },
+        { ...params, stream: true, stream_options: { include_usage: true } },
         signal ? { signal } : undefined,
       );
-
-      let inputTokens = 0;
-      let outputTokens = 0;
-      const toolCallAccum = new Map<
-        number,
-        { id?: string; name: string; arguments: string }
-      >();
-
-      for await (const chunk of stream) {
-        const delta = chunk.choices?.[0]?.delta;
-        if (delta?.content) yield { text: delta.content, done: false };
-        if (Array.isArray(delta?.tool_calls)) {
-          accumulateOpenAiToolCallDelta(toolCallAccum, delta.tool_calls);
-        }
-        if (chunk.usage) {
-          inputTokens = chunk.usage.prompt_tokens ?? 0;
-          outputTokens = chunk.usage.completion_tokens ?? 0;
-        }
-      }
-
-      const toolCalls = assembleOpenAiToolCalls(toolCallAccum);
-      yield {
-        text: "",
-        done: true,
-        usage: { inputTokens, outputTokens },
-        ...(toolCalls.length > 0 ? { toolCalls } : {}),
-      };
+      yield* consumeOpenAiStream(stream);
     },
   };
 }
