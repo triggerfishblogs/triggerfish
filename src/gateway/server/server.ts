@@ -207,6 +207,11 @@ export function createGatewayServer(
                   : new TextDecoder().decode(event.data as ArrayBuffer);
 
                 if (data.length > MAX_JSONRPC_MESSAGE_BYTES) {
+                  log.warn("JSON-RPC WebSocket message rejected: exceeds size limit", {
+                    operation: "handleJsonRpcSocketMessage",
+                    byteLength: data.length,
+                    limitBytes: MAX_JSONRPC_MESSAGE_BYTES,
+                  });
                   socket.send(JSON.stringify({
                     jsonrpc: "2.0",
                     id: null,

@@ -88,6 +88,11 @@ async function forwardWebhookToScheduler(
   const timestamp = request.headers.get("x-timestamp") ?? undefined;
   const bodyResult = await consumeWebhookBody(request, MAX_WEBHOOK_BODY_BYTES);
   if (!bodyResult.ok) {
+    log.warn("Webhook body rejected: exceeds size limit", {
+      operation: "forwardWebhookToScheduler",
+      sourceId,
+      limitBytes: MAX_WEBHOOK_BODY_BYTES,
+    });
     return jsonResponse({ error: bodyResult.error }, 413);
   }
   const result = await scheduler.handleWebhookRequest(

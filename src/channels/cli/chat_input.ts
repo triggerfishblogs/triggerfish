@@ -14,7 +14,7 @@ import { formatError } from "../../cli/chat/chat_ui.ts";
 import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
 import { taintColor } from "../../cli/terminal/screen.ts";
-import { imageBlock } from "../../core/image/content.ts";
+import { imageBlock, MAX_IMAGE_BYTES } from "../../core/image/content.ts";
 import type {
   ContentBlock,
   ImageContentBlock,
@@ -91,6 +91,7 @@ function buildMessageContent(
 export async function handleClipboardPaste(
   pendingImages: ImageContentBlock[],
   screen: ScreenManager,
+  log: Logger,
 ): Promise<ImageContentBlock[]> {
   const clipResult = await readClipboardImage();
   if (clipResult.ok) {
@@ -99,6 +100,10 @@ export async function handleClipboardPaste(
       clipResult.value.mimeType,
     );
     if (!imgResult.ok) {
+      log.warn("Clipboard image rejected: exceeds size limit", {
+        byteLength: clipResult.value.data.length,
+        limitBytes: MAX_IMAGE_BYTES,
+      });
       screen.setStatus(imgResult.error);
       setTimeout(() => screen.clearStatus(), 3000);
       return pendingImages;

@@ -202,6 +202,7 @@ export async function routeInputKeypress(
       rs.pendingImages = await handleClipboardPaste(
         rs.pendingImages,
         screen,
+        log,
       );
       break;
 

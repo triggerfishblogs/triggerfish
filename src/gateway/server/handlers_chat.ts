@@ -155,6 +155,11 @@ function handleChatSocketMessage(
   try {
     const data = parseSocketEventData(event);
     if (data.length > MAX_CHAT_MESSAGE_BYTES) {
+      log.warn("Chat WebSocket message rejected: exceeds size limit", {
+        operation: "handleChatSocketMessage",
+        byteLength: data.length,
+        limitBytes: MAX_CHAT_MESSAGE_BYTES,
+      });
       sendSafeWebSocket(socket, {
         type: "error",
         message: "Message too large: exceeds 256KB limit",
