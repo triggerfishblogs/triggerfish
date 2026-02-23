@@ -154,12 +154,8 @@ async function replaceBinary(
   }
 }
 
-/**
- * Find the installed triggerfish binary path.
- */
-async function findInstalledBinary(): Promise<string> {
-  // First, try to resolve from the currently running executable.
-  // This handles custom install directories on any platform.
+/** Try to resolve binary from the currently running executable. */
+async function resolveRunningExecutable(): Promise<string | null> {
   try {
     const execPath = Deno.execPath();
     if (execPath && execPath.toLowerCase().includes("triggerfish")) {
@@ -169,19 +165,21 @@ async function findInstalledBinary(): Promise<string> {
   } catch {
     // Fall through to candidate search
   }
+  return null;
+}
 
-  // Check common locations in order of preference
-  const candidates: string[] = [];
-
+/** Build platform-specific candidate binary paths. */
+function buildBinaryCandidatePaths(): string[] {
   if (Deno.build.os === "windows") {
     const localAppData = Deno.env.get("LOCALAPPDATA") ?? "";
-    candidates.push(`${localAppData}\\Triggerfish\\triggerfish.exe`);
-  } else {
-    const home = Deno.env.get("HOME") ?? "";
-    candidates.push("/usr/local/bin/triggerfish");
-    candidates.push(`${home}/.local/bin/triggerfish`);
+    return [`${localAppData}\\Triggerfish\\triggerfish.exe`];
   }
+  const home = Deno.env.get("HOME") ?? "";
+  return ["/usr/local/bin/triggerfish", `${home}/.local/bin/triggerfish`];
+}
 
+/** Find the first existing path from a list of candidates, or return the first as default. */
+async function resolveFirstExistingPath(candidates: string[]): Promise<string> {
   for (const path of candidates) {
     try {
       await Deno.stat(path);
@@ -190,14 +188,18 @@ async function findInstalledBinary(): Promise<string> {
       continue;
     }
   }
+  return candidates[0];
+}
 
-  // Return platform-appropriate default
-  if (Deno.build.os === "windows") {
-    const localAppData = Deno.env.get("LOCALAPPDATA") ?? "";
-    return `${localAppData}\\Triggerfish\\triggerfish.exe`;
-  }
-  const home = Deno.env.get("HOME") ?? "";
-  return `${home}/.local/bin/triggerfish`;
+/**
+ * Find the installed triggerfish binary path.
+ */
+async function findInstalledBinary(): Promise<string> {
+  const running = await resolveRunningExecutable();
+  if (running) return running;
+
+  const candidates = buildBinaryCandidatePaths();
+  return resolveFirstExistingPath(candidates);
 }
 
 /**
@@ -377,12 +379,41 @@ async function performBinarySwap(
   return null;
 }
 
-export async function updateTriggerfish(): Promise<UpdateResult> {
-  console.log("Checking for updates...");
-  const release = await fetchLatestRelease();
-  if ("error" in release) return { ok: false, message: release.error };
-  const { tag: latestTag, downloadUrl, checksumsUrl } = release.metadata;
+/** Download and verify the release binary. Returns the temp path or an error message. */
+async function downloadAndVerifyRelease(
+  metadata: ReleaseMetadata,
+): Promise<{ tmpPath: string } | { error: string }> {
+  const tmpPath = join(resolveBaseDir(), ".update-tmp");
+  const dlError = await downloadBinaryToFile(metadata.downloadUrl, tmpPath);
+  if (dlError) return { error: dlError };
 
+  const csError = await verifyBinaryChecksum(metadata.checksumsUrl, tmpPath);
+  if (csError) {
+    try {
+      await Deno.remove(tmpPath);
+    } catch { /* cleanup */ }
+    return { error: csError };
+  }
+  return { tmpPath };
+}
+
+/** Stop the daemon if running, swap the binary, and restart if needed. */
+async function stopAndSwapBinary(tmpPath: string): Promise<{
+  wasRunning: boolean;
+  error?: string;
+}> {
+  const binaryPath = await findInstalledBinary();
+  const wasRunning = (await getDaemonStatus()).running;
+  if (wasRunning) {
+    console.log("  Stopping daemon...");
+    await stopDaemon();
+  }
+  const swapError = await performBinarySwap(tmpPath, binaryPath, wasRunning);
+  return { wasRunning, error: swapError ?? undefined };
+}
+
+/** Check whether the current version already matches the latest. */
+function checkAlreadyUpToDate(latestTag: string): UpdateResult | null {
   if (VERSION !== "dev" && VERSION === latestTag) {
     return {
       ok: true,
@@ -391,31 +422,14 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
       newVersion: latestTag,
     };
   }
-  console.log(`  Current: ${VERSION}`);
-  console.log(`  Latest:  ${latestTag}`);
+  return null;
+}
 
-  const tmpPath = join(resolveBaseDir(), ".update-tmp");
-  const dlError = await downloadBinaryToFile(downloadUrl, tmpPath);
-  if (dlError) return { ok: false, message: dlError };
-
-  const csError = await verifyBinaryChecksum(checksumsUrl, tmpPath);
-  if (csError) {
-    try {
-      await Deno.remove(tmpPath);
-    } catch { /* cleanup */ }
-    return { ok: false, message: csError };
-  }
-
-  const binaryPath = await findInstalledBinary();
-  const wasRunning = (await getDaemonStatus()).running;
-  if (wasRunning) {
-    console.log("  Stopping daemon...");
-    await stopDaemon();
-  }
-
-  const swapError = await performBinarySwap(tmpPath, binaryPath, wasRunning);
-  if (swapError) return { ok: false, message: swapError };
-
+/** Build the success result after a completed update. */
+function buildUpdateSuccessResult(
+  latestTag: string,
+  wasRunning: boolean,
+): UpdateResult {
   return {
     ok: true,
     message: `Updated from ${VERSION} to ${latestTag}`,
@@ -423,4 +437,25 @@ export async function updateTriggerfish(): Promise<UpdateResult> {
     newVersion: latestTag,
     wasRunning,
   };
+}
+
+export async function updateTriggerfish(): Promise<UpdateResult> {
+  console.log("Checking for updates...");
+  const release = await fetchLatestRelease();
+  if ("error" in release) return { ok: false, message: release.error };
+  const { tag: latestTag } = release.metadata;
+
+  const upToDate = checkAlreadyUpToDate(latestTag);
+  if (upToDate) return upToDate;
+
+  console.log(`  Current: ${VERSION}`);
+  console.log(`  Latest:  ${latestTag}`);
+
+  const downloaded = await downloadAndVerifyRelease(release.metadata);
+  if ("error" in downloaded) return { ok: false, message: downloaded.error };
+
+  const swap = await stopAndSwapBinary(downloaded.tmpPath);
+  if (swap.error) return { ok: false, message: swap.error };
+
+  return buildUpdateSuccessResult(latestTag, swap.wasRunning);
 }
