@@ -188,8 +188,8 @@ async function pollForClaudeResponse(
   return entry.output.slice(outputBefore);
 }
 
-/** Gracefully terminate a running Claude session with SIGTERM then SIGKILL. */
-async function terminateClaudeSession(entry: SessionEntry): Promise<void> {
+/** Close the stdin writer, ignoring errors if already closed. */
+function closeSessionStdinWriter(entry: SessionEntry): void {
   try {
     entry.stdinWriter.close().catch((err: unknown) => {
       log.debug("Stdin writer close failed during termination", {
@@ -199,27 +199,44 @@ async function terminateClaudeSession(entry: SessionEntry): Promise<void> {
   } catch {
     // Already closed
   }
+}
+
+/** Send SIGKILL and mark session terminated if still running. */
+function forceKillClaudeSession(entry: SessionEntry): void {
+  if (entry.session.status !== "running") return;
+  try {
+    entry.process.kill("SIGKILL");
+  } catch {
+    // Already dead
+  }
+  entry.session = {
+    ...entry.session,
+    status: "terminated",
+    endedAt: new Date(),
+  };
+}
+
+/** Wait for session to exit within a deadline, polling every 100ms. */
+async function awaitClaudeSessionExit(
+  entry: SessionEntry,
+  deadlineMs: number,
+): Promise<void> {
+  const deadline = Date.now() + deadlineMs;
+  while (entry.session.status === "running" && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
+/** Gracefully terminate a running Claude session with SIGTERM then SIGKILL. */
+async function terminateClaudeSession(entry: SessionEntry): Promise<void> {
+  closeSessionStdinWriter(entry);
   try {
     entry.process.kill("SIGTERM");
   } catch {
     // Already dead
   }
-  const deadline = Date.now() + 5000;
-  while (entry.session.status === "running" && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  if (entry.session.status === "running") {
-    try {
-      entry.process.kill("SIGKILL");
-    } catch {
-      // Already dead
-    }
-    entry.session = {
-      ...entry.session,
-      status: "terminated",
-      endedAt: new Date(),
-    };
-  }
+  await awaitClaudeSessionExit(entry, 5000);
+  forceKillClaudeSession(entry);
   if (entry.timeoutId !== null) clearTimeout(entry.timeoutId);
 }
 
@@ -281,6 +298,24 @@ function encodeUserMessage(content: string): Uint8Array {
   return new TextEncoder().encode(json);
 }
 
+/** Extract text content from a single parsed stream-json message, or null. */
+function extractTextFromStreamMessage(
+  parsed: Record<string, unknown>,
+): readonly string[] {
+  if (parsed.type === "assistant") {
+    const msg = parsed as unknown as StreamJsonAssistantMessage;
+    if (!msg.message?.content) return [];
+    return msg.message.content
+      .filter((b) => b.type === "text" && b.text)
+      .map((b) => b.text!);
+  }
+  if (parsed.type === "result") {
+    const msg = parsed as unknown as StreamJsonResultMessage;
+    return msg.result ? [msg.result] : [];
+  }
+  return [];
+}
+
 /**
  * Parse accumulated output, extracting text from assistant messages
  * and result messages.
@@ -288,30 +323,14 @@ function encodeUserMessage(content: string): Uint8Array {
 function parseStreamOutput(raw: string): string {
   const lines = raw.split("\n").filter((l) => l.trim().length > 0);
   const parts: string[] = [];
-
   for (const line of lines) {
     try {
       const parsed = JSON.parse(line) as Record<string, unknown>;
-      if (parsed.type === "assistant") {
-        const msg = parsed as unknown as StreamJsonAssistantMessage;
-        if (msg.message?.content) {
-          for (const block of msg.message.content) {
-            if (block.type === "text" && block.text) {
-              parts.push(block.text);
-            }
-          }
-        }
-      } else if (parsed.type === "result") {
-        const msg = parsed as unknown as StreamJsonResultMessage;
-        if (msg.result) {
-          parts.push(msg.result);
-        }
-      }
+      parts.push(...extractTextFromStreamMessage(parsed));
     } catch {
       // Non-JSON line — skip
     }
   }
-
   return parts.join("\n");
 }
 
