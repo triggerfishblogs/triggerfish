@@ -3,8 +3,8 @@
  * @module
  */
 
-import { createLogger } from "../../core/logger/logger.ts";
-import type { Result } from "../../core/types/classification.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+import type { Result } from "../../../core/types/classification.ts";
 import { createDaemonStderrCollector } from "./setup_daemon_stderr.ts";
 
 

@@ -23,7 +23,7 @@ import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("signal");
 import { chunkMessage } from "../telegram/adapter.ts";
-import { createSignalClient } from "./client.ts";
+import { createSignalClient } from "./protocol/client.ts";
 import type {
   SignalClientInterface,
   SignalConfig,

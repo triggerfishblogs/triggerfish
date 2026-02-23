@@ -3,8 +3,8 @@
  * @module
  */
 
-import { createLogger } from "../../core/logger/logger.ts";
-import type { Result } from "../../core/types/classification.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+import type { Result } from "../../../core/types/classification.ts";
 
 const log = createLogger("signal");
 

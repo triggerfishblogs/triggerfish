@@ -8,8 +8,8 @@
  * @module
  */
 
-import { createLogger } from "../../core/logger/logger.ts";
-import type { SignalNotification } from "./types.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+import type { SignalNotification } from "../types.ts";
 import {
   openSignalConnection,
   parseSignalEndpoint,

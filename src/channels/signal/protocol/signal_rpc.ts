@@ -8,12 +8,12 @@
  * @module
  */
 
-import { createLogger } from "../../core/logger/logger.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
 import type {
   JsonRpcRequest,
   JsonRpcResponse,
   SignalNotification,
-} from "./types.ts";
+} from "../types.ts";
 
 /** Pending request awaiting a JSON-RPC response. */
 export interface PendingRequest {

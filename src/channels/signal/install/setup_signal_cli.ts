@@ -3,14 +3,14 @@
  * @module
  */
 
-import { createLogger } from "../../core/logger/logger.ts";
-import type { Result } from "../../core/types/classification.ts";
-import type { GitHubRelease } from "./setup_resolver.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+import type { Result } from "../../../core/types/classification.ts";
+import type { GitHubRelease } from "../setup/setup_resolver.ts";
 import {
   checkJava,
   resolveSignalCliBinDir,
   trySignalCli,
-} from "./setup_resolver.ts";
+} from "../setup/setup_resolver.ts";
 import {
   downloadAndExtractArchive,
   listDirectoryEntries,

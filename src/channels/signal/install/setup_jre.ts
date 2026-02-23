@@ -3,13 +3,13 @@
  * @module
  */
 
-import type { Result } from "../../core/types/classification.ts";
+import type { Result } from "../../../core/types/classification.ts";
 import {
   javaHomeBin,
   resolveJavaHome,
   resolveSignalCliBinDir,
   tryJava,
-} from "./setup_resolver.ts";
+} from "../setup/setup_resolver.ts";
 import {
   downloadAndExtractArchive,
   listDirectoryEntries,

@@ -8,7 +8,7 @@
  * @module
  */
 
-import { createLogger } from "../../core/logger/logger.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
 
 const log = createLogger("signal");
 

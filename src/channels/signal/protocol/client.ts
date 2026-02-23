@@ -9,8 +9,8 @@
  * @module
  */
 
-import { createLogger } from "../../core/logger/logger.ts";
-import type { JsonRpcResponse, SignalClientInterface } from "./types.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+import type { JsonRpcResponse, SignalClientInterface } from "../types.ts";
 import {
   encodeSignalRpcRequest,
   type PendingRequest,

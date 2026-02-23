@@ -7,15 +7,15 @@
  * @module
  */
 
-import { createLogger } from "../../core/logger/logger.ts";
-import type { Result } from "../../core/types/classification.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+import type { Result } from "../../../core/types/classification.ts";
 import type {
   JsonRpcResponse,
   SignalClientInterface,
   SignalContactEntry,
   SignalGroupEntry,
   SignalNotification,
-} from "./types.ts";
+} from "../types.ts";
 import {
   openSignalConnection,
   parseSignalEndpoint,
@@ -25,7 +25,7 @@ import { type ClientState, destroySignalConnection } from "./signal_connection.t
 import {
   marshalSignalContactEntry,
   marshalSignalGroupEntry,
-} from "./signal_marshal.ts";
+} from "../install/signal_marshal.ts";
 
 /** Dependencies injected from the client factory closure. */
 export interface SignalInterfaceDeps {

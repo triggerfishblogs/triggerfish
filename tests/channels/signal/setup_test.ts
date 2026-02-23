@@ -7,7 +7,7 @@ import { assertEquals, assert } from "@std/assert";
 import {
   warnIfOldVersion,
   SIGNAL_CLI_KNOWN_GOOD_VERSION,
-} from "../../../src/channels/signal/setup.ts";
+} from "../../../src/channels/signal/setup/setup.ts";
 
 // ─── warnIfOldVersion ────────────────────────────────────────────────────────
 

@@ -17,8 +17,8 @@ import {
   startDaemonUnix,
   waitForDaemon,
   waitForDaemonUnix,
-} from "../../../channels/signal/setup.ts";
-import type { DaemonHandle } from "../../../channels/signal/setup.ts";
+} from "../../../channels/signal/setup/setup.ts";
+import type { DaemonHandle } from "../../../channels/signal/setup/setup.ts";
 import type { ChannelWiringDeps } from "./channels_shared.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
 

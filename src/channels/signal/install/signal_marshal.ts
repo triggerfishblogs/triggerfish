@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { SignalContactEntry, SignalGroupEntry } from "./types.ts";
+import type { SignalContactEntry, SignalGroupEntry } from "../types.ts";
 
 /** Map a raw signal-cli group record to a typed SignalGroupEntry. */
 export function marshalSignalGroupEntry(

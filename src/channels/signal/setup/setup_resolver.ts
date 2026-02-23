@@ -3,14 +3,14 @@
  * @module
  */
 
-import { createLogger } from "../../core/logger/logger.ts";
-import type { Result } from "../../core/types/classification.ts";
-import { resolveBaseDir } from "../../cli/config/paths.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+import type { Result } from "../../../core/types/classification.ts";
+import { resolveBaseDir } from "../../../cli/config/paths.ts";
 
-import { resolveJavaHome as resolveJavaHomeImpl } from "./setup_java.ts";
+import { resolveJavaHome as resolveJavaHomeImpl } from "../install/setup_java.ts";
 
-// ─── Re-exports from setup_java.ts ─────────────────────────────
-export { checkJava, javaHomeBin, resolveJavaHome, tryJava } from "./setup_java.ts";
+// ─── Re-exports from install/setup_java.ts ──────────────────────
+export { checkJava, javaHomeBin, resolveJavaHome, tryJava } from "../install/setup_java.ts";
 
 const log = createLogger("signal");
 

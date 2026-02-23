@@ -8,9 +8,9 @@
  * @module
  */
 
-import { createLogger } from "../../core/logger/logger.ts";
-import type { Result } from "../../core/types/classification.ts";
-import { resolveSignalCliBinDir } from "./setup_resolver.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+import type { Result } from "../../../core/types/classification.ts";
+import { resolveSignalCliBinDir } from "../setup/setup_resolver.ts";
 
 const log = createLogger("signal");
 
