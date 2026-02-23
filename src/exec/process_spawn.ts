@@ -10,15 +10,9 @@
 
 import type { Result } from "../core/types/classification.ts";
 import type { ClaudeSessionConfig } from "./session_types.ts";
+import { buildClaudeEnv } from "./sanitize.ts";
 
-/** Filter CLAUDECODE from environment to avoid nesting guard. */
-export function buildClaudeEnv(): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const [k, v] of Object.entries(Deno.env.toObject())) {
-    if (k !== "CLAUDECODE") env[k] = v;
-  }
-  return env;
-}
+export { buildClaudeEnv };
 
 /** Build CLI args from session config and workspace path. */
 export function buildClaudeArgs(
