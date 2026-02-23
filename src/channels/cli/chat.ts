@@ -14,6 +14,7 @@
 
 import { join } from "@std/path";
 import { createLogger } from "../../core/logger/logger.ts";
+import type { Logger } from "../../core/logger/logger.ts";
 import { loadConfig } from "../../core/config.ts";
 import { resolveBaseDir, resolveConfigPath } from "../../cli/config/paths.ts";
 import {
@@ -32,6 +33,7 @@ import {
 import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import { loadInputHistory, saveInputHistory } from "../../cli/chat/history.ts";
 import { createScreenManager, taintColor } from "../../cli/terminal/screen.ts";
+import type { ScreenManager } from "../../cli/terminal/screen.ts";
 import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
 import { imageBlock } from "../../core/image/content.ts";
 import type {
@@ -40,14 +42,238 @@ import type {
   MessageContent,
 } from "../../core/image/content.ts";
 import { readClipboardImage } from "../../tools/image/clipboard.ts";
-import {
-  createWsMessageRouter,
-} from "./chat_ws_router.ts";
-import type { WsRouterState } from "./chat_ws_router.ts";
+import { createWsMessageRouter } from "./chat_ws_router.ts";
+import type { PasswordModeState, WsRouterState } from "./chat_ws_router.ts";
 import { runSimpleWsRepl } from "./chat_simple_repl.ts";
 
 // Re-export for external importers
 export { runSimpleWsRepl } from "./chat_simple_repl.ts";
+
+/** Result of dispatching a slash command. */
+interface SlashCommandResult {
+  /** Whether the input was recognized as a slash command. */
+  readonly handled: boolean;
+  /** Whether the caller should exit the REPL. */
+  readonly shouldExit: boolean;
+  /** New display mode, if the command toggled it. */
+  readonly newDisplayMode?: ToolDisplayMode;
+}
+
+/**
+ * Route a keypress while password mode (secret_prompt) is active.
+ *
+ * Handles enter (submit), esc/ctrl+c (cancel), backspace, and
+ * printable character input. Mutates `pm.chars` and `state.passwordMode`
+ * as side effects.
+ */
+function routePasswordKeypress(
+  keypress: { readonly key: string; readonly char: string | null },
+  pm: PasswordModeState,
+  state: WsRouterState,
+  ws: WebSocket,
+  screen: ScreenManager,
+  editor: LineEditor,
+  log: Logger,
+): void {
+  if (keypress.key === "enter") {
+    const value = pm.chars.join("");
+    try {
+      ws.send(JSON.stringify({
+        type: "secret_prompt_response",
+        nonce: pm.nonce,
+        value,
+      }));
+    } catch (_err: unknown) {
+      log.debug("WebSocket send failed: connection closed");
+    }
+    screen.writeOutput(`  \x1b[32m\u2713 Secret submitted\x1b[0m`);
+    screen.clearStatus();
+    state.passwordMode = null;
+    screen.redrawInput(editor);
+    return;
+  }
+  if (keypress.key === "esc" || keypress.key === "ctrl+c") {
+    try {
+      ws.send(JSON.stringify({
+        type: "secret_prompt_response",
+        nonce: pm.nonce,
+        value: null,
+      }));
+    } catch (_err: unknown) {
+      log.debug("WebSocket send failed: connection closed");
+    }
+    screen.writeOutput(`  \x1b[33m\u2717 Secret entry cancelled\x1b[0m`);
+    screen.clearStatus();
+    state.passwordMode = null;
+    screen.redrawInput(editor);
+    return;
+  }
+  if (keypress.key === "backspace") {
+    if (pm.chars.length > 0) {
+      pm.chars.pop();
+      const masked = "\u25cf".repeat(pm.chars.length);
+      screen.setStatus(`\u{1f512} ${pm.name}: ${masked}`);
+    }
+    return;
+  }
+  if (keypress.char !== null) {
+    pm.chars.push(keypress.char);
+    const masked = "\u25cf".repeat(pm.chars.length);
+    screen.setStatus(`\u{1f512} ${pm.name}: ${masked}`);
+  }
+}
+
+/**
+ * Dispatch a slash command entered by the user.
+ *
+ * Recognizes /quit, /exit, /q, /clear, /help, /verbose, and /compact.
+ * Returns whether the command was handled and whether the REPL should exit.
+ */
+function dispatchSlashCommand(
+  text: string,
+  ws: WebSocket,
+  screen: ScreenManager,
+  editor: LineEditor,
+  config: { readonly models: { readonly primary: { readonly model: string } } },
+  providerName: string,
+  displayMode: ToolDisplayMode,
+): SlashCommandResult {
+  if (text === "/quit" || text === "/exit" || text === "/q") {
+    return { handled: true, shouldExit: true };
+  }
+
+  if (text === "/clear") {
+    ws.send(JSON.stringify({ type: "clear" }));
+    screen.setTaint("PUBLIC");
+    screen.cleanup();
+    screen.init();
+    screen.writeOutput(
+      formatBanner(providerName, config.models.primary.model, ""),
+    );
+    screen.redrawInput(editor);
+    return { handled: true, shouldExit: false };
+  }
+
+  if (text === "/help") {
+    screen.writeOutput(
+      "  Commands:\n" +
+        "    /quit, /exit, /q     \u2014 Exit chat\n" +
+        "    /clear               \u2014 Clear screen\n" +
+        "    /compact             \u2014 Summarize conversation history\n" +
+        "    /verbose             \u2014 Toggle tool display detail\n" +
+        "    /help                \u2014 Show this help\n" +
+        "    Ctrl+V               \u2014 Paste image from clipboard\n" +
+        "    Ctrl+O               \u2014 Toggle tool display mode\n" +
+        "    ESC                  \u2014 Interrupt current operation\n" +
+        "    Shift+Enter          \u2014 New line in message\n" +
+        "    Up/Down              \u2014 Navigate input history\n" +
+        "    Tab                  \u2014 Accept suggestion",
+    );
+    return { handled: true, shouldExit: false };
+  }
+
+  if (text === "/verbose") {
+    const newMode: ToolDisplayMode = displayMode === "compact"
+      ? "expanded"
+      : "compact";
+    screen.writeOutput(`  Tool display: ${newMode}`);
+    return { handled: true, shouldExit: false, newDisplayMode: newMode };
+  }
+
+  if (text === "/compact") {
+    screen.writeOutput("  Compacting conversation history...");
+    ws.send(JSON.stringify({ type: "compact" }));
+    return { handled: true, shouldExit: false };
+  }
+
+  return { handled: false, shouldExit: false };
+}
+
+/**
+ * Build multimodal message content and send it to the daemon.
+ *
+ * If `pendingImages` is non-empty, wraps both images and text into a
+ * ContentBlock array. Sets `state.isProcessing` and handles send failures.
+ * Returns the new (emptied) pending images array.
+ */
+function submitChatMessage(
+  text: string,
+  pendingImages: ImageContentBlock[],
+  state: WsRouterState,
+  ws: WebSocket,
+  screen: ScreenManager,
+  editor: LineEditor,
+  log: Logger,
+): ImageContentBlock[] {
+  let messageContent: MessageContent = text;
+  if (pendingImages.length > 0) {
+    const blocks: ContentBlock[] = [
+      ...pendingImages,
+      { type: "text" as const, text },
+    ];
+    messageContent = blocks;
+    pendingImages = [];
+  }
+
+  state.isProcessing = true;
+  try {
+    ws.send(
+      JSON.stringify({ type: "message", content: messageContent }),
+    );
+  } catch (err: unknown) {
+    log.debug("WebSocket send failed: connection closed", { error: err });
+    screen.writeOutput(formatError("Lost connection to daemon"));
+    state.isProcessing = false;
+    screen.writeOutput("");
+    screen.redrawInput(editor);
+  }
+  return pendingImages.length > 0 ? pendingImages : [];
+}
+
+/**
+ * Handle Ctrl+V clipboard image paste.
+ *
+ * Reads an image from the OS clipboard and appends it to the pending
+ * images list. Shows a status message indicating success or failure.
+ */
+async function handleClipboardPaste(
+  pendingImages: ImageContentBlock[],
+  screen: ScreenManager,
+): Promise<ImageContentBlock[]> {
+  const clipResult = await readClipboardImage();
+  if (clipResult.ok) {
+    const img = imageBlock(
+      clipResult.value.data,
+      clipResult.value.mimeType,
+    );
+    pendingImages = [...pendingImages, img];
+    const sizeKb = (clipResult.value.data.length / 1024).toFixed(1);
+    screen.setStatus(
+      `Image pasted (${clipResult.value.mimeType}, ${sizeKb}KB) \u2014 will send with next message`,
+    );
+    setTimeout(() => screen.clearStatus(), 3000);
+  } else {
+    screen.setStatus(clipResult.error);
+    setTimeout(() => screen.clearStatus(), 3000);
+  }
+  return pendingImages;
+}
+
+/**
+ * Delete one word backward from the cursor position.
+ *
+ * Skips trailing spaces, then deletes back to the previous space boundary.
+ * Returns the updated line editor.
+ */
+function deleteWordBackward(editor: LineEditor): LineEditor {
+  const text = editor.text;
+  let cursor = editor.cursor;
+  while (cursor > 0 && text[cursor - 1] === " ") cursor--;
+  while (cursor > 0 && text[cursor - 1] !== " ") cursor--;
+  return editor.setText(
+    text.slice(0, cursor) + text.slice(editor.cursor),
+  );
+}
 
 /**
  * Run an interactive chat REPL.
@@ -280,54 +506,15 @@ export async function runChat(): Promise<void> {
 
     // ─── Password mode (secret_prompt active) ─────────────
     if (state.passwordMode !== null) {
-      const pm = state.passwordMode;
-      if (keypress.key === "enter") {
-        const value = pm.chars.join("");
-        try {
-          ws.send(JSON.stringify({
-            type: "secret_prompt_response",
-            nonce: pm.nonce,
-            value,
-          }));
-        } catch (_err: unknown) {
-          log.debug("WebSocket send failed: connection closed");
-        }
-        screen.writeOutput(`  \x1b[32m\u2713 Secret submitted\x1b[0m`);
-        screen.clearStatus();
-        state.passwordMode = null;
-        screen.redrawInput(editor);
-        continue;
-      }
-      if (keypress.key === "esc" || keypress.key === "ctrl+c") {
-        try {
-          ws.send(JSON.stringify({
-            type: "secret_prompt_response",
-            nonce: pm.nonce,
-            value: null,
-          }));
-        } catch (_err: unknown) {
-          log.debug("WebSocket send failed: connection closed");
-        }
-        screen.writeOutput(`  \x1b[33m\u2717 Secret entry cancelled\x1b[0m`);
-        screen.clearStatus();
-        state.passwordMode = null;
-        screen.redrawInput(editor);
-        continue;
-      }
-      if (keypress.key === "backspace") {
-        if (pm.chars.length > 0) {
-          pm.chars.pop();
-          const masked = "\u25cf".repeat(pm.chars.length);
-          screen.setStatus(`\u{1f512} ${pm.name}: ${masked}`);
-        }
-        continue;
-      }
-      if (keypress.char !== null) {
-        pm.chars.push(keypress.char);
-        const masked = "\u25cf".repeat(pm.chars.length);
-        screen.setStatus(`\u{1f512} ${pm.name}: ${masked}`);
-        continue;
-      }
+      routePasswordKeypress(
+        keypress,
+        state.passwordMode,
+        state,
+        ws,
+        screen,
+        editor,
+        log,
+      );
       continue;
     }
 
@@ -351,17 +538,21 @@ export async function runChat(): Promise<void> {
         const displayText = text.includes("\n")
           ? text.split("\n").join(`\n  ${"\x1b[2m"}·\x1b[0m `)
           : text;
-        screen.writeOutput(`  ${taintColor(screen.getTaint())}\x1b[1m❯\x1b[0m ${displayText}`);
+        screen.writeOutput(
+          `  ${taintColor(screen.getTaint())}\x1b[1m❯\x1b[0m ${displayText}`,
+        );
         screen.writeOutput("");
 
         // Add to history and save
         inputHistory = inputHistory.push(text);
         inputHistory = inputHistory.resetNavigation();
-        saveInputHistory(historyFilePath, inputHistory).catch((err: unknown) => {
-          log.debug("Input history save failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        });
+        saveInputHistory(historyFilePath, inputHistory).catch(
+          (err: unknown) => {
+            log.debug("Input history save failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          },
+        );
 
         // Clear editor
         editor = editor.clear();
@@ -370,78 +561,36 @@ export async function runChat(): Promise<void> {
 
         // Handle slash commands locally (only in idle mode)
         if (!state.isProcessing) {
-          if (text === "/quit" || text === "/exit" || text === "/q") {
+          const cmd = dispatchSlashCommand(
+            text,
+            ws,
+            screen,
+            editor,
+            config,
+            state.providerName,
+            displayMode,
+          );
+          if (cmd.shouldExit) {
             screen.writeOutput("  Goodbye.");
             cleanup();
             return;
           }
-
-          if (text === "/clear") {
-            ws.send(JSON.stringify({ type: "clear" }));
-            screen.setTaint("PUBLIC");
-            screen.cleanup();
-            screen.init();
-            screen.writeOutput(
-              formatBanner(state.providerName, config.models.primary.model, ""),
-            );
-            screen.redrawInput(editor);
+          if (cmd.newDisplayMode !== undefined) {
+            displayMode = cmd.newDisplayMode;
+          }
+          if (cmd.handled) {
             break;
           }
 
-          if (text === "/help") {
-            screen.writeOutput(
-              "  Commands:\n" +
-                "    /quit, /exit, /q     — Exit chat\n" +
-                "    /clear               — Clear screen\n" +
-                "    /compact             — Summarize conversation history\n" +
-                "    /verbose             — Toggle tool display detail\n" +
-                "    /help                — Show this help\n" +
-                "    Ctrl+V               — Paste image from clipboard\n" +
-                "    Ctrl+O               — Toggle tool display mode\n" +
-                "    ESC                  — Interrupt current operation\n" +
-                "    Shift+Enter          — New line in message\n" +
-                "    Up/Down              — Navigate input history\n" +
-                "    Tab                  — Accept suggestion",
-            );
-            break;
-          }
-
-          if (text === "/verbose") {
-            displayMode = displayMode === "compact" ? "expanded" : "compact";
-            screen.writeOutput(`  Tool display: ${displayMode}`);
-            break;
-          }
-
-          if (text === "/compact") {
-            screen.writeOutput("  Compacting conversation history...");
-            ws.send(JSON.stringify({ type: "compact" }));
-            break;
-          }
-
-          // Build message content — multimodal if images are pending
-          let messageContent: MessageContent = text;
-          if (pendingImages.length > 0) {
-            const blocks: ContentBlock[] = [
-              ...pendingImages,
-              { type: "text" as const, text },
-            ];
-            messageContent = blocks;
-            pendingImages = [];
-          }
-
-          // Send message to daemon via WebSocket
-          state.isProcessing = true;
-          try {
-            ws.send(
-              JSON.stringify({ type: "message", content: messageContent }),
-            );
-          } catch (err: unknown) {
-            log.debug("WebSocket send failed: connection closed", { error: err });
-            screen.writeOutput(formatError("Lost connection to daemon"));
-            state.isProcessing = false;
-            screen.writeOutput("");
-            screen.redrawInput(editor);
-          }
+          pendingImages = submitChatMessage(
+            text,
+            pendingImages,
+            state,
+            ws,
+            screen,
+            editor,
+            log,
+          );
         } else {
           // Processing mode — queue the message
           messageQueue.push(text);
@@ -523,23 +672,7 @@ export async function runChat(): Promise<void> {
         break;
 
       case "ctrl+v": {
-        // Paste image from clipboard
-        const clipResult = await readClipboardImage();
-        if (clipResult.ok) {
-          const img = imageBlock(
-            clipResult.value.data,
-            clipResult.value.mimeType,
-          );
-          pendingImages.push(img);
-          const sizeKb = (clipResult.value.data.length / 1024).toFixed(1);
-          screen.setStatus(
-            `Image pasted (${clipResult.value.mimeType}, ${sizeKb}KB) — will send with next message`,
-          );
-          setTimeout(() => screen.clearStatus(), 3000);
-        } else {
-          screen.setStatus(clipResult.error);
-          setTimeout(() => screen.clearStatus(), 3000);
-        }
+        pendingImages = await handleClipboardPaste(pendingImages, screen);
         break;
       }
 
@@ -563,16 +696,7 @@ export async function runChat(): Promise<void> {
         break;
 
       case "ctrl+w": {
-        // Delete word backwards
-        const text = editor.text;
-        let cursor = editor.cursor;
-        // Skip trailing spaces
-        while (cursor > 0 && text[cursor - 1] === " ") cursor--;
-        // Delete to previous space
-        while (cursor > 0 && text[cursor - 1] !== " ") cursor--;
-        editor = editor.setText(
-          text.slice(0, cursor) + text.slice(editor.cursor),
-        );
+        editor = deleteWordBackward(editor);
         screen.redrawInput(editor);
         break;
       }
