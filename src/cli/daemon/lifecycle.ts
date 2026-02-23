@@ -85,8 +85,8 @@ async function installSystemdDaemon(
     : { ok: false, message: `Failed to start daemon: ${result.stderr}` };
 }
 
-/** Start via Windows Service (service must already be installed). */
-async function startWindowsService(): Promise<DaemonResult> {
+/** Query Windows Service state and return early result if not startable. */
+async function queryWindowsServiceState(): Promise<DaemonResult | null> {
   const queryResult = await runCommand("sc", ["query", WINDOWS_SERVICE_NAME]);
   if (!queryResult.success) {
     return {
@@ -102,7 +102,11 @@ async function startWindowsService(): Promise<DaemonResult> {
         `Daemon is already running (Windows Service: ${WINDOWS_SERVICE_NAME})`,
     };
   }
+  return null;
+}
 
+/** Issue the start command and verify the service is running. */
+async function issueWindowsServiceStart(): Promise<DaemonResult> {
   const startScript = [
     `Start-Service -Name '${WINDOWS_SERVICE_NAME}' -ErrorAction Stop`,
     `Start-Sleep -Seconds 2`,
@@ -121,6 +125,13 @@ async function startWindowsService(): Promise<DaemonResult> {
       ok: false,
       message: "Failed to start service. Try running from an admin terminal.",
     };
+}
+
+/** Start via Windows Service (service must already be installed). */
+async function startWindowsService(): Promise<DaemonResult> {
+  const earlyResult = await queryWindowsServiceState();
+  if (earlyResult) return earlyResult;
+  return issueWindowsServiceStart();
 }
 
 /**
@@ -149,53 +160,60 @@ export async function installAndStartDaemon(
  *
  * @returns Result indicating success or failure.
  */
+
+/** Stop launchd daemon (macOS). */
+async function stopLaunchdDaemon(): Promise<DaemonResult> {
+  const plistPath = launchdPlistPath();
+  const result = await runCommand("launchctl", ["unload", plistPath]);
+  return result.success
+    ? { ok: true, message: "Daemon stopped" }
+    : { ok: false, message: `Failed to stop daemon: ${result.stderr}` };
+}
+
+/** Stop systemd daemon (Linux). */
+async function stopSystemdDaemon(): Promise<DaemonResult> {
+  const result = await runCommand("systemctl", [
+    "--user",
+    "stop",
+    SYSTEMD_UNIT,
+  ]);
+  return result.success
+    ? { ok: true, message: "Daemon stopped" }
+    : { ok: false, message: `Failed to stop daemon: ${result.stderr}` };
+}
+
+/** Stop Windows Service and verify it stopped. */
+async function stopWindowsServiceDaemon(): Promise<DaemonResult> {
+  const stopScript = [
+    `Stop-Service -Name '${WINDOWS_SERVICE_NAME}' -Force -ErrorAction Stop`,
+    `Start-Sleep -Seconds 2`,
+  ].join("; ");
+  await runElevatedCommand(encodeUtf16Base64(stopScript));
+
+  const verifyResult = await runCommand("sc", [
+    "query",
+    WINDOWS_SERVICE_NAME,
+  ]);
+  const stopped = verifyResult.stdout.includes("STOPPED") ||
+    !verifyResult.success;
+  return stopped ? { ok: true, message: "Daemon stopped" } : {
+    ok: false,
+    message: "Failed to stop daemon. Try running from an admin terminal.",
+  };
+}
+
 export async function stopDaemon(): Promise<DaemonResult> {
   const manager = detectDaemonManager();
-
-  if (manager === "launchd") {
-    const plistPath = launchdPlistPath();
-    const result = await runCommand("launchctl", ["unload", plistPath]);
-    return result.success
-      ? { ok: true, message: "Daemon stopped" }
-      : { ok: false, message: `Failed to stop daemon: ${result.stderr}` };
+  switch (manager) {
+    case "launchd":
+      return stopLaunchdDaemon();
+    case "systemd":
+      return stopSystemdDaemon();
+    case "windows-service":
+      return stopWindowsServiceDaemon();
+    default:
+      return { ok: false, message: `Unsupported daemon manager: ${manager}` };
   }
-
-  if (manager === "systemd") {
-    const result = await runCommand("systemctl", [
-      "--user",
-      "stop",
-      SYSTEMD_UNIT,
-    ]);
-    return result.success
-      ? { ok: true, message: "Daemon stopped" }
-      : { ok: false, message: `Failed to stop daemon: ${result.stderr}` };
-  }
-
-  if (manager === "windows-service") {
-    // Include a 2-second delay after stopping to let the service release
-    // file locks before any subsequent binary replacement or restart.
-    const stopScript = [
-      `Stop-Service -Name '${WINDOWS_SERVICE_NAME}' -Force -ErrorAction Stop`,
-      `Start-Sleep -Seconds 2`,
-    ].join("; ");
-    const encoded = encodeUtf16Base64(stopScript);
-
-    await runElevatedCommand(encoded);
-
-    // Verify it stopped
-    const verifyResult = await runCommand("sc", [
-      "query",
-      WINDOWS_SERVICE_NAME,
-    ]);
-    const stopped = verifyResult.stdout.includes("STOPPED") ||
-      !verifyResult.success;
-    return stopped ? { ok: true, message: "Daemon stopped" } : {
-      ok: false,
-      message: "Failed to stop daemon. Try running from an admin terminal.",
-    };
-  }
-
-  return { ok: false, message: `Unsupported daemon manager: ${manager}` };
 }
 
 /**
@@ -222,20 +240,8 @@ async function getLaunchdStatus(): Promise<DaemonStatus> {
   };
 }
 
-/** Get systemd daemon status (Linux). */
-async function getSystemdStatus(): Promise<DaemonStatus> {
-  const result = await runCommand("systemctl", [
-    "--user",
-    "is-active",
-    SYSTEMD_UNIT,
-  ]);
-  if (result.stdout !== "active") {
-    return {
-      running: false,
-      manager: "systemd",
-      message: "Daemon is not running",
-    };
-  }
+/** Fetch PID and uptime from systemctl show output. */
+async function fetchSystemdRunningDetails(): Promise<DaemonStatus> {
   const showResult = await runCommand("systemctl", [
     "--user",
     "show",
@@ -251,6 +257,23 @@ async function getSystemdStatus(): Promise<DaemonStatus> {
     manager: "systemd",
     message: `Daemon is running (systemd: ${SYSTEMD_UNIT})`,
   };
+}
+
+/** Get systemd daemon status (Linux). */
+async function getSystemdStatus(): Promise<DaemonStatus> {
+  const result = await runCommand("systemctl", [
+    "--user",
+    "is-active",
+    SYSTEMD_UNIT,
+  ]);
+  if (result.stdout !== "active") {
+    return {
+      running: false,
+      manager: "systemd",
+      message: "Daemon is not running",
+    };
+  }
+  return fetchSystemdRunningDetails();
 }
 
 /** Get Windows Service daemon status. */
