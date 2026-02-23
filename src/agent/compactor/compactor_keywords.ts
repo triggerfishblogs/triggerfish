@@ -8,8 +8,8 @@
  * @module
  */
 
-import type { HistoryEntry } from "./orchestrator.ts";
-import { extractText } from "../core/image/content.ts";
+import type { HistoryEntry } from "../orchestrator/orchestrator_types.ts";
+import { extractText } from "../../core/image/content.ts";
 
 /** Common English stop words excluded from keyword extraction. */
 const KEYWORD_STOP_WORDS = new Set([

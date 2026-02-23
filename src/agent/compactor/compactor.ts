@@ -21,9 +21,9 @@
  * @module
  */
 
-import type { HistoryEntry } from "./orchestrator.ts";
-import type { LlmMessage, LlmProvider } from "./llm.ts";
-import { extractText } from "../core/image/content.ts";
+import type { HistoryEntry } from "../orchestrator/orchestrator_types.ts";
+import type { LlmMessage, LlmProvider } from "../llm.ts";
+import { extractText } from "../../core/image/content.ts";
 import { countTokens, estimateHistoryTokens } from "./compactor_tokens.ts";
 import { extractKeywords } from "./compactor_keywords.ts";
 
@@ -41,7 +41,7 @@ export interface CompactorConfig {
   readonly contextBudget: number;
 }
 
-export type { CompactResult } from "../core/types/orchestrator.ts";
+export type { CompactResult } from "../../core/types/orchestrator.ts";
 
 /** The compactor interface for managing conversation history size. */
 export interface Compactor {

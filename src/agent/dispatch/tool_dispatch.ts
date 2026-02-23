@@ -8,17 +8,17 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../core/types/classification.ts";
-import { canFlowTo } from "../core/types/classification.ts";
-import type { SessionState } from "../core/types/session.ts";
-import { createPlanToolExecutor } from "./plan/plan.ts";
-import type { PlanManager } from "./plan/plan.ts";
+import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import { canFlowTo } from "../../core/types/classification.ts";
+import type { SessionState } from "../../core/types/session.ts";
+import { createPlanToolExecutor } from "../plan/plan.ts";
+import type { PlanManager } from "../plan/plan.ts";
 import type {
   OrchestratorConfig,
   ParsedToolCall,
   ToolExecutor,
-} from "./orchestrator_types.ts";
-import type { OrchestratorState } from "./orchestrator.ts";
+} from "../orchestrator/orchestrator_types.ts";
+import type { OrchestratorState } from "../orchestrator/orchestrator.ts";
 import {
   assembleSecurityContext,
   renderPolicyBlockExplanation,

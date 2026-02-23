@@ -7,11 +7,11 @@
  * @module
  */
 
-import type { SessionId } from "../core/types/session.ts";
-import type { LlmProvider } from "./llm.ts";
+import type { SessionId } from "../../core/types/session.ts";
+import type { LlmProvider } from "../llm.ts";
 import type { Compactor, CompactResult } from "./compactor.ts";
 import { estimateHistoryTokens } from "./compactor.ts";
-import type { HistoryEntry, OrchestratorConfig } from "./orchestrator_types.ts";
+import type { HistoryEntry, OrchestratorConfig } from "../orchestrator/orchestrator_types.ts";
 
 /** Compact history using sliding-window strategy (no LLM). */
 function compactHistoryWithSlidingWindow(

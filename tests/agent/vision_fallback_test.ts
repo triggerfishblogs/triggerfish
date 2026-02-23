@@ -11,8 +11,8 @@
 import { assertEquals, assert, assertExists } from "@std/assert";
 import type { LlmProvider } from "../../src/agent/llm.ts";
 import { createProviderRegistry } from "../../src/agent/llm.ts";
-import { createOrchestrator } from "../../src/agent/orchestrator.ts";
-import type { OrchestratorEvent } from "../../src/agent/orchestrator.ts";
+import { createOrchestrator } from "../../src/agent/orchestrator/orchestrator.ts";
+import type { OrchestratorEvent } from "../../src/agent/orchestrator/orchestrator_types.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
 import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks/hooks.ts";
 import { createSession } from "../../src/core/types/session.ts";

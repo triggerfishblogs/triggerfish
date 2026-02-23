@@ -37,7 +37,7 @@ import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import { loadInputHistory, saveInputHistory } from "../../cli/chat/history.ts";
 import { createScreenManager } from "../../cli/terminal/screen.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
-import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
+import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
 import { createWsMessageRouter } from "./chat_ws_router.ts";
 import type { WsRouterState } from "./chat_ws_router.ts";
 import { runSimpleWsRepl } from "./chat_simple_repl.ts";

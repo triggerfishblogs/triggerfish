@@ -7,15 +7,15 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../core/types/classification.ts";
-import type { SessionState } from "../core/types/session.ts";
+import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type { SessionState } from "../../core/types/session.ts";
 import type {
   HistoryEntry,
   OrchestratorConfig,
   ProcessMessageResult,
-} from "./orchestrator_types.ts";
-import { LEAKED_INTENT_PATTERN } from "./orchestrator_types.ts";
-import type { OrchestratorState, TokenAccumulator } from "./orchestrator.ts";
+} from "../orchestrator/orchestrator_types.ts";
+import { LEAKED_INTENT_PATTERN } from "../orchestrator/orchestrator_types.ts";
+import type { OrchestratorState, TokenAccumulator } from "../orchestrator/orchestrator.ts";
 
 // ─── Response quality ────────────────────────────────────────────────────────
 

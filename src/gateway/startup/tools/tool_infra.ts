@@ -25,7 +25,7 @@ import { createTodoManager } from "../../../tools/mod.ts";
 import { createImageToolExecutor } from "../../../tools/image/mod.ts";
 import { createTidepoolToolExecutor } from "../../../tools/tidepool/mod.ts";
 import { createPlanManager, createPlanToolExecutor } from "../../../agent/plan/plan.ts";
-import { mapToolPrefixClassifications } from "../../../agent/orchestrator.ts";
+import { mapToolPrefixClassifications } from "../../../agent/orchestrator/orchestrator_types.ts";
 import type { createWorkspace } from "../../../exec/workspace.ts";
 import type { createPathClassifier } from "../../../core/security/path_classification.ts";
 import type { createAutoLaunchBrowserExecutor } from "../../../tools/browser/mod.ts";

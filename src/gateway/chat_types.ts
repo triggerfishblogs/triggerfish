@@ -18,7 +18,7 @@ import type { PlanManager } from "../agent/plan/plan.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
 import type { DomainClassifier } from "../core/types/domain.ts";
 import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
-import type { CompactorConfig } from "../agent/compactor.ts";
+import type { CompactorConfig } from "../agent/compactor/compactor.ts";
 import type { MessageContent } from "../core/image/content.ts";
 import type { ChannelAdapter, ChannelMessage } from "../channels/types.ts";
 import type { PairingService } from "../channels/pairing.ts";

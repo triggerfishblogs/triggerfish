@@ -14,8 +14,8 @@ import {
   estimateTokens,
   countTokens,
   estimateHistoryTokens,
-} from "../../src/agent/compactor.ts";
-import type { HistoryEntry } from "../../src/agent/orchestrator.ts";
+} from "../../src/agent/compactor/compactor.ts";
+import type { HistoryEntry } from "../../src/agent/orchestrator/orchestrator_types.ts";
 
 // ─── Token counting ──────────────────────────────────────────
 

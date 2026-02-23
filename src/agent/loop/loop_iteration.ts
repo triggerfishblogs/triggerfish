@@ -8,24 +8,24 @@
  * @module
  */
 
-import type { Result } from "../core/types/classification.ts";
-import { convertToolsToNativeFormat, parseNativeToolCalls } from "./tool_format.ts";
-import { processToolCallBatch } from "./tool_dispatch.ts";
+import type { Result } from "../../core/types/classification.ts";
+import { convertToolsToNativeFormat, parseNativeToolCalls } from "../dispatch/tool_format.ts";
+import { processToolCallBatch } from "../dispatch/tool_dispatch.ts";
 import {
   buildRecoveryNudge,
   classifyResponseQuality,
   handleFinalResponse,
-} from "./response_handling.ts";
+} from "../dispatch/response_handling.ts";
 import type {
   HistoryEntry,
   ParsedToolCall,
   ToolDefinition,
-} from "./orchestrator_types.ts";
+} from "../orchestrator/orchestrator_types.ts";
 import {
   MAX_TOOL_ITERATIONS,
   SOFT_LIMIT_ITERATIONS,
-} from "./orchestrator_types.ts";
-import type { OrchestratorState } from "./orchestrator.ts";
+} from "../orchestrator/orchestrator_types.ts";
+import type { OrchestratorState } from "../orchestrator/orchestrator.ts";
 import type {
   AgentLoopContext,
   IterationOutcome,

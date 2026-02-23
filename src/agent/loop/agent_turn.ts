@@ -7,21 +7,21 @@
  * @module
  */
 
-import type { Result } from "../core/types/classification.ts";
-import type { SessionState } from "../core/types/session.ts";
-import type { MessageContent } from "../core/image/content.ts";
-import { extractText } from "../core/image/content.ts";
-import { countTokens } from "./compactor.ts";
-import { buildFullSystemPrompt } from "./system_prompt.ts";
-import { processVisionFallback } from "./vision_fallback.ts";
+import type { Result } from "../../core/types/classification.ts";
+import type { SessionState } from "../../core/types/session.ts";
+import type { MessageContent } from "../../core/image/content.ts";
+import { extractText } from "../../core/image/content.ts";
+import { countTokens } from "../compactor/compactor_tokens.ts";
+import { buildFullSystemPrompt } from "../orchestrator/system_prompt.ts";
+import { processVisionFallback } from "../orchestrator/vision_fallback.ts";
 import { runAgentLoop } from "./agent_loop.ts";
 import type {
   HistoryEntry,
   OrchestratorConfig,
   ProcessMessageOptions,
   ProcessMessageResult,
-} from "./orchestrator_types.ts";
-import type { OrchestratorState } from "./orchestrator.ts";
+} from "../orchestrator/orchestrator_types.ts";
+import type { OrchestratorState } from "../orchestrator/orchestrator.ts";
 
 /** Fire PRE_CONTEXT_INJECTION hook. */
 async function firePreContextHook(

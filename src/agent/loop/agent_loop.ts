@@ -8,11 +8,11 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../core/types/classification.ts";
-import type { SessionState } from "../core/types/session.ts";
-import type { HistoryEntry, ProcessMessageResult } from "./orchestrator_types.ts";
-import { MAX_TOOL_ITERATIONS } from "./orchestrator_types.ts";
-import type { OrchestratorState } from "./orchestrator.ts";
+import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type { SessionState } from "../../core/types/session.ts";
+import type { HistoryEntry, ProcessMessageResult } from "../orchestrator/orchestrator_types.ts";
+import { MAX_TOOL_ITERATIONS } from "../orchestrator/orchestrator_types.ts";
+import type { OrchestratorState } from "../orchestrator/orchestrator.ts";
 import type { AgentLoopContext } from "./loop_types.ts";
 import { callLlmAndRecordUsage, dispatchIterationOutcome } from "./loop_iteration.ts";
 

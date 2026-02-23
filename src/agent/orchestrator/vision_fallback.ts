@@ -8,10 +8,10 @@
  * @module
  */
 
-import type { ContentBlock, ImageContentBlock } from "../core/image/content.ts";
-import type { MessageContent } from "../core/image/content.ts";
-import { hasImages, normalizeContent } from "../core/image/content.ts";
-import type { LlmMessage, LlmProvider } from "./llm.ts";
+import type { ContentBlock, ImageContentBlock } from "../../core/image/content.ts";
+import type { MessageContent } from "../../core/image/content.ts";
+import { hasImages, normalizeContent } from "../../core/image/content.ts";
+import type { LlmMessage, LlmProvider } from "../llm.ts";
 import type { HistoryEntry } from "./orchestrator_types.ts";
 import type { OrchestratorState } from "./orchestrator.ts";
 

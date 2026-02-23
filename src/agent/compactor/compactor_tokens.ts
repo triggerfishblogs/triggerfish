@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { HistoryEntry } from "./orchestrator.ts";
+import type { HistoryEntry } from "../orchestrator/orchestrator_types.ts";
 import { encode } from "gpt-tokenizer";
 
 /**

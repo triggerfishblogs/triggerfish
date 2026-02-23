@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
+import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
 import type { ScreenManager } from "../terminal/screen.ts";
 import { extractTodosFromEvent, formatTodoListAnsi } from "../../tools/todo.ts";
 import { DIM, RED, RESET, YELLOW } from "./ansi.ts";

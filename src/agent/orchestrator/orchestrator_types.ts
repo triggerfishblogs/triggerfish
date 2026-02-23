@@ -8,16 +8,16 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../core/types/classification.ts";
-import type { ToolDefinition, ToolExecutor } from "../core/types/tool.ts";
-import type { SecretStore } from "../core/secrets/keychain/keychain.ts";
-import type { PathClassifier } from "../core/security/path_classification.ts";
-import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
-import type { DomainClassifier } from "../core/types/domain.ts";
-import type { HookRunner } from "../core/policy/hooks/hooks.ts";
-import type { LlmProviderRegistry, LlmProvider } from "./llm.ts";
-import type { CompactorConfig } from "./compactor.ts";
-import type { PlanManager } from "./plan/plan.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { ToolDefinition, ToolExecutor } from "../../core/types/tool.ts";
+import type { SecretStore } from "../../core/secrets/keychain/keychain.ts";
+import type { PathClassifier } from "../../core/security/path_classification.ts";
+import type { ToolFloorRegistry } from "../../core/security/tool_floors.ts";
+import type { DomainClassifier } from "../../core/types/domain.ts";
+import type { HookRunner } from "../../core/policy/hooks/hooks.ts";
+import type { LlmProviderRegistry, LlmProvider } from "../llm.ts";
+import type { CompactorConfig } from "../compactor/compactor.ts";
+import type { PlanManager } from "../plan/plan.ts";
 
 /** Default system prompt used when no SPINE.md is found. */
 export const DEFAULT_SYSTEM_PROMPT =
@@ -38,7 +38,7 @@ export const SOFT_LIMIT_ITERATIONS = 20;
 export const LEAKED_INTENT_PATTERN =
   /\b(?:(?:I(?:'ll| will| need to| should| can| am going to)\s+(?:search|fetch|look up|find|check|browse|retrieve|use web_))|(?:(?:Let|let) me (?:search|fetch|look|find|check|browse|retrieve|use))|(?:(?:We|I) need to (?:fetch|search|look up|find|check|browse|retrieve)))/i;
 
-export type { ToolDefinition, ToolExecutor } from "../core/types/tool.ts";
+export type { ToolDefinition, ToolExecutor } from "../../core/types/tool.ts";
 
 /** Configuration for creating an orchestrator. */
 export interface OrchestratorConfig {
@@ -159,7 +159,7 @@ export type {
   ProcessMessageResult,
   HistoryEntry,
   CompactResult,
-} from "../core/types/orchestrator.ts";
+} from "../../core/types/orchestrator.ts";
 
 /** Events emitted by the orchestrator during message processing. */
 export type OrchestratorEvent =

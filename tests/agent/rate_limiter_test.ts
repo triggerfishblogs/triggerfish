@@ -8,7 +8,7 @@ import { assertEquals, assertExists } from "@std/assert";
 import {
   createRateLimiter,
   createRateLimitedProvider,
-} from "../../src/agent/rate_limiter.ts";
+} from "../../src/agent/rate_limiter/rate_limiter.ts";
 import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../../src/agent/llm.ts";
 
 // ---------------------------------------------------------------------------

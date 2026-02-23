@@ -14,7 +14,7 @@ import {
 } from "../../cli/chat/chat_ui.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
 import type { LineEditor } from "../../cli/terminal/terminal.ts";
-import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
+import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
 import type { ChatEvent } from "../../core/types/chat_event.ts";
 
 import type { WsRouterDeps, WsRouterState } from "./chat_ws_types.ts";

@@ -20,14 +20,14 @@
  * @module
  */
 
-import { createLogger } from "../core/logger/mod.ts";
-import type { LlmProvider } from "./llm.ts";
-import { createCompactor } from "./compactor.ts";
-import type { Compactor } from "./compactor.ts";
-import type { PlanManager } from "./plan/plan.ts";
-import { wrapToolExecutorWithEnforcement } from "./access_control.ts";
-import { runAgentTurn } from "./agent_turn.ts";
-import { compactSessionHistory } from "./history_compaction.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+import type { LlmProvider } from "../llm.ts";
+import { createCompactor } from "../compactor/compactor.ts";
+import type { Compactor } from "../compactor/compactor.ts";
+import type { PlanManager } from "../plan/plan.ts";
+import { wrapToolExecutorWithEnforcement } from "../dispatch/access_control.ts";
+import { runAgentTurn } from "../loop/agent_turn.ts";
+import { compactSessionHistory } from "../compactor/history_compaction.ts";
 import type {
   HistoryEntry,
   Orchestrator,

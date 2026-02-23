@@ -7,15 +7,15 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../core/types/classification.ts";
-import type { SessionState } from "../core/types/session.ts";
+import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type { SessionState } from "../../core/types/session.ts";
 import type {
   HistoryEntry,
   ProcessMessageResult,
   ToolDefinition,
-} from "./orchestrator_types.ts";
-import type { OrchestratorState, TokenAccumulator } from "./orchestrator.ts";
-import type { LlmMessage } from "./llm.ts";
+} from "../orchestrator/orchestrator_types.ts";
+import type { OrchestratorState, TokenAccumulator } from "../orchestrator/orchestrator.ts";
+import type { LlmMessage } from "../llm.ts";
 
 // ─── Debug logging ───────────────────────────────────────────────────────────
 

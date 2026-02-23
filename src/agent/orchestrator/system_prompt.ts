@@ -7,13 +7,13 @@
  * @module
  */
 
-import { createLogger } from "../core/logger/mod.ts";
+import { createLogger } from "../../core/logger/mod.ts";
 import {
   buildAwaitingApprovalPrompt,
   buildPlanExecutionPrompt,
   buildPlanModePrompt,
-} from "./plan/prompt.ts";
-import type { PlanManager } from "./plan/plan.ts";
+} from "../plan/prompt.ts";
+import type { PlanManager } from "../plan/plan.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./orchestrator_types.ts";
 import type { OrchestratorState } from "./orchestrator.ts";
 

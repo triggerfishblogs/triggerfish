@@ -19,8 +19,8 @@
  */
 
 import { createLogger } from "../core/logger/mod.ts";
-import { createOrchestrator } from "../agent/orchestrator.ts";
-import type { Orchestrator } from "../agent/orchestrator.ts";
+import { createOrchestrator } from "../agent/orchestrator/orchestrator.ts";
+import type { Orchestrator } from "../agent/orchestrator/orchestrator.ts";
 import type { SessionState } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import type { ChannelAdapter, ChannelMessage } from "../channels/types.ts";

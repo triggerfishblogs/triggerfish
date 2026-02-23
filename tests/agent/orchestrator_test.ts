@@ -8,7 +8,8 @@ import {
   type LlmProvider,
   createProviderRegistry,
 } from "../../src/agent/llm.ts";
-import { createOrchestrator, LEAKED_INTENT_PATTERN } from "../../src/agent/orchestrator.ts";
+import { createOrchestrator } from "../../src/agent/orchestrator/orchestrator.ts";
+import { LEAKED_INTENT_PATTERN } from "../../src/agent/orchestrator/orchestrator_types.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
 import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks/hooks.ts";
 import { createSession } from "../../src/core/types/session.ts";

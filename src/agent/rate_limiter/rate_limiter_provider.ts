@@ -14,7 +14,7 @@ import type {
   LlmMessage,
   LlmProvider,
   LlmStreamChunk,
-} from "./llm.ts";
+} from "../llm.ts";
 
 import type { RateLimiter } from "./rate_limiter_types.ts";
 

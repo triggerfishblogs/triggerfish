@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
+import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
 import { extractTodosFromEvent, formatTodoListAnsi } from "../../tools/todo.ts";
 import { writeln } from "./ansi.ts";
 import { renderResponse } from "./format.ts";

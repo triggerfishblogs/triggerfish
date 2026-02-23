@@ -7,8 +7,8 @@
  * @module
  */
 
-import { createLogger } from "../core/logger/mod.ts";
-import type { ParsedToolCall, ToolDefinition } from "./orchestrator_types.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+import type { ParsedToolCall, ToolDefinition } from "../orchestrator/orchestrator_types.ts";
 
 // ─── Tool format conversion ──────────────────────────────────────────────────
 

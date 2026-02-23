@@ -8,14 +8,14 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../core/types/classification.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
 import {
   FILESYSTEM_READ_TOOLS,
   FILESYSTEM_WRITE_TOOLS,
   URL_READ_TOOLS,
   URL_WRITE_TOOLS,
-} from "../core/security/constants.ts";
-import type { OrchestratorConfig, ParsedToolCall } from "./orchestrator_types.ts";
+} from "../../core/security/constants.ts";
+import type { OrchestratorConfig, ParsedToolCall } from "../orchestrator/orchestrator_types.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

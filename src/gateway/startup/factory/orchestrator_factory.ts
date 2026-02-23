@@ -20,8 +20,10 @@ import {
 import type { ModelsConfig } from "../../../agent/providers/config.ts";
 import {
   createOrchestrator,
+} from "../../../agent/orchestrator/orchestrator.ts";
+import {
   mapToolPrefixClassifications,
-} from "../../../agent/orchestrator.ts";
+} from "../../../agent/orchestrator/orchestrator_types.ts";
 import { createPolicyEngine } from "../../../core/policy/engine.ts";
 import {
   createDefaultRules,

@@ -8,8 +8,8 @@
 import { assertEquals, assert, assertStringIncludes } from "@std/assert";
 import type { LlmProvider } from "../../src/agent/llm.ts";
 import { createProviderRegistry } from "../../src/agent/llm.ts";
-import { createOrchestrator } from "../../src/agent/orchestrator.ts";
-import type { ToolDefinition } from "../../src/agent/orchestrator.ts";
+import { createOrchestrator } from "../../src/agent/orchestrator/orchestrator.ts";
+import type { ToolDefinition } from "../../src/agent/orchestrator/orchestrator_types.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
 import {
   createHookRunner,

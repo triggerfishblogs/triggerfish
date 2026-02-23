@@ -11,7 +11,7 @@
 import type {
   Orchestrator,
   OrchestratorConfig,
-} from "../agent/orchestrator.ts";
+} from "../agent/orchestrator/orchestrator.ts";
 import type { SessionState } from "../core/types/session.ts";
 import { updateTaint } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
