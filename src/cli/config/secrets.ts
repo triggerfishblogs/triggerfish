@@ -7,7 +7,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
 import { backupConfig, resolveConfigPath } from "./paths.ts";
 import { createKeychain } from "../../core/secrets/keychain.ts";
 import { findSecretRefs } from "../../core/secrets/resolver.ts";
-import { writeNestedYamlValue, readNestedYamlValue } from "./config.ts";
+import { readNestedYamlValue, writeNestedYamlValue } from "./config.ts";
 
 /**
  * Store a secret in the OS keychain.
@@ -108,63 +108,91 @@ const KNOWN_SECRET_FIELDS: ReadonlyArray<{
   },
 ];
 
+/** A secret field descriptor with its config path and keychain key derivation. */
+interface SecretFieldDescriptor {
+  readonly path: string;
+  readonly keychainKey: (
+    parsed: Record<string, unknown>,
+  ) => string | undefined;
+}
+
+/** Result of reading and parsing the config YAML file. */
+interface ParsedConfigResult {
+  readonly configPath: string;
+  readonly parsed: Record<string, unknown>;
+}
+
 /**
- * Migrate plaintext secrets in triggerfish.yaml to the OS keychain.
+ * Read and parse the triggerfish.yaml config file.
  *
- * Detects plaintext values in known secret fields, stores them in
- * the keychain, and rewrites the config with `secret:` references.
- * Creates a timestamped backup before modifying the file.
+ * Exits the process if the file cannot be read or parsed.
  */
-export async function runConfigMigrateSecrets(): Promise<void> {
+function loadConfigYaml(): ParsedConfigResult {
   const configPath = resolveConfigPath();
 
   let raw: string;
   try {
-    raw = await Deno.readTextFile(configPath);
+    raw = Deno.readTextFileSync(configPath);
   } catch {
     console.error(`Cannot read config: ${configPath}`);
     Deno.exit(1);
-    return;
   }
 
-  let parsed: Record<string, unknown>;
   try {
     const p = parseYaml(raw);
     if (typeof p !== "object" || p === null) {
       console.error("Config file did not parse to an object");
       Deno.exit(1);
-      return;
     }
-    parsed = p as Record<string, unknown>;
+    return { configPath, parsed: p as Record<string, unknown> };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`Failed to parse config: ${message}`);
     Deno.exit(1);
-    return;
   }
+}
 
-  // Also detect provider apiKey fields dynamically
+/**
+ * Build dynamic secret field descriptors for provider apiKey entries.
+ *
+ * Scans `models.providers` in the parsed config and creates a field
+ * descriptor for each provider's `apiKey`.
+ */
+function collectProviderSecretFields(
+  parsed: Record<string, unknown>,
+): ReadonlyArray<SecretFieldDescriptor> {
   const providers = (
     (parsed.models as Record<string, unknown> | undefined)
       ?.providers
   ) as Record<string, unknown> | undefined;
 
-  const dynamicSecretFields: Array<{
-    path: string;
-    keychainKey: () => string;
-  }> = [];
+  if (!providers) return [];
 
-  if (providers) {
-    for (const providerName of Object.keys(providers)) {
-      dynamicSecretFields.push({
-        path: `models.providers.${providerName}.apiKey`,
-        keychainKey: () => `provider:${providerName}:apiKey`,
-      });
-    }
-  }
+  return Object.keys(providers).map((providerName) => ({
+    path: `models.providers.${providerName}.apiKey`,
+    keychainKey: () => `provider:${providerName}:apiKey`,
+  }));
+}
 
-  const allFields = [...KNOWN_SECRET_FIELDS, ...dynamicSecretFields];
+/** Outcome of migrating secret fields to the keychain. */
+interface SecretMigrationOutcome {
+  readonly migrated: ReadonlyArray<{
+    readonly path: string;
+    readonly keychainKey: string;
+  }>;
+  readonly alreadyRefs: readonly string[];
+}
 
+/**
+ * Iterate all secret field descriptors, store plaintext values in the keychain,
+ * and rewrite config entries with `secret:` references.
+ *
+ * Exits the process if any keychain write fails.
+ */
+async function migrateSecretFieldsToKeychain(
+  parsed: Record<string, unknown>,
+  allFields: ReadonlyArray<SecretFieldDescriptor>,
+): Promise<SecretMigrationOutcome> {
   const store = createKeychain();
   const migrated: Array<{ path: string; keychainKey: string }> = [];
   const alreadyRefs: string[] = [];
@@ -181,56 +209,95 @@ export async function runConfigMigrateSecrets(): Promise<void> {
     const keychainKey = field.keychainKey(parsed);
     if (!keychainKey) continue;
 
-    // Store in keychain
     const result = await store.setSecret(keychainKey, value);
     if (!result.ok) {
-      console.error(`Failed to store secret for ${field.path}: ${result.error}`);
+      console.error(
+        `Failed to store secret for ${field.path}: ${result.error}`,
+      );
       Deno.exit(1);
-      return;
     }
 
-    // Update parsed config with reference
     writeNestedYamlValue(parsed, field.path, `secret:${keychainKey}`);
     migrated.push({ path: field.path, keychainKey });
   }
 
-  if (migrated.length === 0) {
-    if (alreadyRefs.length > 0) {
-      console.log(`All ${alreadyRefs.length} secret field(s) already use secret: references. Nothing to migrate.`);
-    } else {
-      console.log("No plaintext secrets found in known fields. Nothing to migrate.");
-    }
-    return;
-  }
+  return { migrated, alreadyRefs };
+}
 
-  // Create backup before modifying
+/**
+ * Write the updated config YAML back to disk after creating a backup.
+ */
+async function persistMigratedSecretConfig(
+  configPath: string,
+  parsed: Record<string, unknown>,
+): Promise<void> {
   await backupConfig(configPath);
-
-  // Write updated config
   const yaml = stringifyYaml(parsed);
   const content =
     `# Triggerfish Configuration\n# Generated by triggerfish dive\n\n${yaml}`;
   await Deno.writeTextFile(configPath, content);
+}
 
+/**
+ * Print a summary of migration results to the console.
+ */
+function reportSecretMigrationResults(
+  configPath: string,
+  parsed: Record<string, unknown>,
+  { migrated, alreadyRefs }: SecretMigrationOutcome,
+): void {
   console.log(`\nMigrated ${migrated.length} secret(s) to OS keychain:\n`);
   for (const { path, keychainKey } of migrated) {
     console.log(`  ${path}  \u2192  secret:${keychainKey}`);
   }
   console.log(`\nBackup saved. Config updated: ${configPath}`);
 
-  // Report any refs already in place
   if (alreadyRefs.length > 0) {
-    console.log(`\n${alreadyRefs.length} field(s) already used secret: references (unchanged):`);
+    console.log(
+      `\n${alreadyRefs.length} field(s) already used secret: references (unchanged):`,
+    );
     for (const p of alreadyRefs) {
       console.log(`  ${p}`);
     }
   }
 
-  // Show any other secret: refs in the config for awareness
   const allRefs = findSecretRefs(parsed);
   if (allRefs.length > 0) {
-    console.log(`\n${allRefs.length} total secret: reference(s) now in config.`);
+    console.log(
+      `\n${allRefs.length} total secret: reference(s) now in config.`,
+    );
   }
 
   console.log();
+}
+
+/**
+ * Migrate plaintext secrets in triggerfish.yaml to the OS keychain.
+ *
+ * Detects plaintext values in known secret fields, stores them in
+ * the keychain, and rewrites the config with `secret:` references.
+ * Creates a timestamped backup before modifying the file.
+ */
+export async function runConfigMigrateSecrets(): Promise<void> {
+  const { configPath, parsed } = loadConfigYaml();
+  const dynamicFields = collectProviderSecretFields(parsed);
+  const allFields = [...KNOWN_SECRET_FIELDS, ...dynamicFields];
+
+  const outcome = await migrateSecretFieldsToKeychain(parsed, allFields);
+
+  if (outcome.migrated.length === 0) {
+    if (outcome.alreadyRefs.length > 0) {
+      console.log(
+        `All ${outcome.alreadyRefs.length} secret field(s) already use secret: references. Nothing to migrate.`,
+      );
+    } else {
+      console.log(
+        "No plaintext secrets found in known fields. Nothing to migrate.",
+      );
+    }
+    return;
+  }
+
+  await persistMigratedSecretConfig(configPath, parsed);
+  reportSecretMigrationResults(configPath, parsed, outcome);
 }
