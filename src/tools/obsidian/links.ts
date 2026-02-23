@@ -8,7 +8,7 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
-import type { WikilinkTarget, Backlink } from "./types.ts";
+import type { Backlink, WikilinkTarget } from "./types.ts";
 import type { VaultContext } from "./vault.ts";
 import { isExcluded } from "./vault.ts";
 import { extractWikilinks } from "./markdown.ts";
@@ -20,7 +20,163 @@ export interface LinkResolver {
   /** Find all notes that link to a given note name. */
   getBacklinks(noteName: string): Promise<Result<readonly Backlink[], string>>;
   /** Get all outgoing wikilinks from a note. */
-  getOutlinks(notePath: string): Promise<Result<readonly WikilinkTarget[], string>>;
+  getOutlinks(
+    notePath: string,
+  ): Promise<Result<readonly WikilinkTarget[], string>>;
+}
+
+/** Find the shortest matching .md path for a wikilink target name. */
+async function findShortestMatchingNote(
+  ctx: VaultContext,
+  targetName: string,
+): Promise<string | null> {
+  let bestMatch: string | null = null;
+
+  for await (const entry of walkMdFiles(ctx.realVaultPath)) {
+    const relativePath = entry.path.substring(ctx.realVaultPath.length + 1);
+    if (isExcluded(ctx, relativePath)) continue;
+
+    const name = entry.name.replace(/\.md$/, "");
+    if (name.toLowerCase() !== targetName) continue;
+
+    if (bestMatch === null || relativePath.length < bestMatch.length) {
+      bestMatch = relativePath;
+    }
+  }
+
+  return bestMatch;
+}
+
+/** Resolve a wikilink to its target note path. */
+async function resolveVaultWikilink(
+  ctx: VaultContext,
+  link: string,
+): Promise<Result<WikilinkTarget, string>> {
+  try {
+    const resolvedPath = await findShortestMatchingNote(
+      ctx,
+      link.toLowerCase(),
+    );
+    return { ok: true, value: { link, resolvedPath } };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Wikilink resolution failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+}
+
+/** Collect backlink entries for a single source file. */
+function collectBacklinksFromNote(
+  entry: { name: string; path: string },
+  relativePath: string,
+  targetLower: string,
+  wikilinks: readonly string[],
+): Backlink | null {
+  for (const wl of wikilinks) {
+    if (wl.toLowerCase() === targetLower) {
+      return {
+        sourcePath: relativePath,
+        sourceName: entry.name.replace(/\.md$/, ""),
+        linkText: wl,
+      };
+    }
+  }
+  return null;
+}
+
+/** Scan all vault notes and collect backlinks to a target name. */
+async function scanVaultForBacklinks(
+  ctx: VaultContext,
+  targetLower: string,
+): Promise<Backlink[]> {
+  const backlinks: Backlink[] = [];
+
+  for await (const entry of walkMdFiles(ctx.realVaultPath)) {
+    const relativePath = entry.path.substring(ctx.realVaultPath.length + 1);
+    if (isExcluded(ctx, relativePath)) continue;
+
+    const content = await Deno.readTextFile(entry.path);
+    const wikilinks = extractWikilinks(content);
+    const backlink = collectBacklinksFromNote(
+      entry,
+      relativePath,
+      targetLower,
+      wikilinks,
+    );
+    if (backlink) backlinks.push(backlink);
+  }
+
+  return backlinks;
+}
+
+/** Find all notes that link to a given note name. */
+async function findVaultBacklinks(
+  ctx: VaultContext,
+  noteName: string,
+): Promise<Result<readonly Backlink[], string>> {
+  try {
+    const backlinks = await scanVaultForBacklinks(
+      ctx,
+      noteName.toLowerCase(),
+    );
+    return { ok: true, value: backlinks };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Backlink search failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+}
+
+/** Build a name-to-shortest-path index of all vault notes. */
+async function buildVaultNoteIndex(
+  ctx: VaultContext,
+): Promise<Map<string, string>> {
+  const noteIndex = new Map<string, string>();
+
+  for await (const entry of walkMdFiles(ctx.realVaultPath)) {
+    const relativePath = entry.path.substring(ctx.realVaultPath.length + 1);
+    if (isExcluded(ctx, relativePath)) continue;
+    const name = entry.name.replace(/\.md$/, "").toLowerCase();
+    const existing = noteIndex.get(name);
+    if (!existing || relativePath.length < existing.length) {
+      noteIndex.set(name, relativePath);
+    }
+  }
+
+  return noteIndex;
+}
+
+/** Get all outgoing wikilinks from a note, resolved against the vault. */
+async function findVaultOutlinks(
+  ctx: VaultContext,
+  notePath: string,
+): Promise<Result<readonly WikilinkTarget[], string>> {
+  try {
+    const absolutePath = `${ctx.realVaultPath}/${notePath}`;
+    const content = await Deno.readTextFile(absolutePath);
+    const wikilinks = extractWikilinks(content);
+    const noteIndex = await buildVaultNoteIndex(ctx);
+
+    const targets: WikilinkTarget[] = wikilinks.map((link) => ({
+      link,
+      resolvedPath: noteIndex.get(link.toLowerCase()) ?? null,
+    }));
+
+    return { ok: true, value: targets };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Outlink extraction failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
 }
 
 /**
@@ -28,103 +184,14 @@ export interface LinkResolver {
  */
 export function createLinkResolver(ctx: VaultContext): LinkResolver {
   return {
-    async resolveWikilink(link: string): Promise<Result<WikilinkTarget, string>> {
-      const targetName = link.toLowerCase();
-
-      try {
-        let bestMatch: string | null = null;
-
-        for await (const entry of walkMdFiles(ctx.realVaultPath)) {
-          const relativePath = entry.path.substring(ctx.realVaultPath.length + 1);
-          if (isExcluded(ctx, relativePath)) continue;
-
-          const name = entry.name.replace(/\.md$/, "");
-          if (name.toLowerCase() === targetName) {
-            // Shortest path wins on conflict
-            if (bestMatch === null || relativePath.length < bestMatch.length) {
-              bestMatch = relativePath;
-            }
-          }
-        }
-
-        return {
-          ok: true,
-          value: {
-            link,
-            resolvedPath: bestMatch,
-          },
-        };
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Failed to resolve wikilink: ${err instanceof Error ? err.message : String(err)}`,
-        };
-      }
+    resolveWikilink(link: string) {
+      return resolveVaultWikilink(ctx, link);
     },
-
-    async getBacklinks(noteName: string): Promise<Result<readonly Backlink[], string>> {
-      const backlinks: Backlink[] = [];
-      const targetLower = noteName.toLowerCase();
-
-      try {
-        for await (const entry of walkMdFiles(ctx.realVaultPath)) {
-          const relativePath = entry.path.substring(ctx.realVaultPath.length + 1);
-          if (isExcluded(ctx, relativePath)) continue;
-
-          const content = await Deno.readTextFile(entry.path);
-          const wikilinks = extractWikilinks(content);
-
-          for (const wl of wikilinks) {
-            if (wl.toLowerCase() === targetLower) {
-              backlinks.push({
-                sourcePath: relativePath,
-                sourceName: entry.name.replace(/\.md$/, ""),
-                linkText: wl,
-              });
-              break; // Only count each source file once
-            }
-          }
-        }
-
-        return { ok: true, value: backlinks };
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Failed to find backlinks: ${err instanceof Error ? err.message : String(err)}`,
-        };
-      }
+    getBacklinks(noteName: string) {
+      return findVaultBacklinks(ctx, noteName);
     },
-
-    async getOutlinks(notePath: string): Promise<Result<readonly WikilinkTarget[], string>> {
-      try {
-        const absolutePath = `${ctx.realVaultPath}/${notePath}`;
-        const content = await Deno.readTextFile(absolutePath);
-        const wikilinks = extractWikilinks(content);
-
-        // Build an index of all note names for resolution
-        const noteIndex = new Map<string, string>(); // lowercase name → relative path (shortest)
-        for await (const entry of walkMdFiles(ctx.realVaultPath)) {
-          const relativePath = entry.path.substring(ctx.realVaultPath.length + 1);
-          if (isExcluded(ctx, relativePath)) continue;
-          const name = entry.name.replace(/\.md$/, "").toLowerCase();
-          const existing = noteIndex.get(name);
-          if (!existing || relativePath.length < existing.length) {
-            noteIndex.set(name, relativePath);
-          }
-        }
-
-        const targets: WikilinkTarget[] = wikilinks.map((link) => ({
-          link,
-          resolvedPath: noteIndex.get(link.toLowerCase()) ?? null,
-        }));
-
-        return { ok: true, value: targets };
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Failed to get outlinks: ${err instanceof Error ? err.message : String(err)}`,
-        };
-      }
+    getOutlinks(notePath: string) {
+      return findVaultOutlinks(ctx, notePath);
     },
   };
 }
