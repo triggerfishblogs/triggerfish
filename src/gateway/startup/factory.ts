@@ -19,21 +19,24 @@ import {
 } from "../../agent/providers/config.ts";
 import type { ModelsConfig } from "../../agent/providers/config.ts";
 import {
-  mapToolPrefixClassifications,
   createOrchestrator,
+  mapToolPrefixClassifications,
 } from "../../agent/orchestrator.ts";
 // OrchestratorFactory is imported below with other scheduler types
 import { createPolicyEngine } from "../../core/policy/engine.ts";
-import { createDefaultRules, createHookRunner } from "../../core/policy/hooks.ts";
+import {
+  createDefaultRules,
+  createHookRunner,
+} from "../../core/policy/hooks.ts";
 import { createWorkspace } from "../../exec/workspace.ts";
 import { createExecTools } from "../../exec/tools.ts";
 import { createPathClassifier } from "../../core/security/path_classification.ts";
 import type { ToolFloorRegistry } from "../../core/security/tool_floors.ts";
 import {
+  createHealthcheckToolExecutor,
   createLlmTaskToolExecutor,
   createSummarizeToolExecutor,
   createTodoManager,
-  createHealthcheckToolExecutor,
 } from "../../tools/mod.ts";
 import {
   createMemoryStore,
@@ -52,7 +55,10 @@ import type {
   SearchProvider,
   WebFetcher,
 } from "../../tools/web/mod.ts";
-import { createPlanManager, createPlanToolExecutor } from "../../agent/plan/plan.ts";
+import {
+  createPlanManager,
+  createPlanToolExecutor,
+} from "../../agent/plan/plan.ts";
 import {
   createCalendarService,
   createDriveService,
@@ -69,9 +75,7 @@ import {
   resolveGitHubToken,
 } from "../../integrations/github/mod.ts";
 import { createKeychain } from "../../core/secrets/keychain.ts";
-import {
-  createSessionToolExecutor,
-} from "../tools/session_tools.ts";
+import { createSessionToolExecutor } from "../tools/session_tools.ts";
 import {
   createTriggerClassificationToolExecutor,
   TRIGGER_SESSION_SYSTEM_PROMPT,
@@ -80,15 +84,19 @@ import type { EnhancedSessionManager } from "../sessions.ts";
 import type { CronManager } from "../../scheduler/cron/parser.ts";
 import type { StorageProvider } from "../../core/storage/provider.ts";
 import type {
-  OrchestratorFactory,
   OrchestratorCreateOptions,
+  OrchestratorFactory,
   SchedulerServiceConfig,
   WebhookSourceConfig,
 } from "../../scheduler/service_types.ts";
 import { createSkillLoader } from "../../tools/skills/loader.ts";
 import { buildSkillsSystemPrompt } from "../../tools/skills/prompts.ts";
 import { createSkillToolExecutor } from "../../tools/skills/mod.ts";
-import { resolveToolsForProfile, resolvePromptsForProfile, createToolExecutor } from "../tools/agent_tools.ts";
+import {
+  createToolExecutor,
+  resolvePromptsForProfile,
+  resolveToolsForProfile,
+} from "../tools/agent_tools.ts";
 
 /**
  * Build web search/fetch infrastructure from config.
@@ -97,7 +105,11 @@ import { resolveToolsForProfile, resolvePromptsForProfile, createToolExecutor } 
  */
 export function buildWebTools(
   config: TriggerFishConfig,
-): { searchProvider: SearchProvider | undefined; webFetcher: WebFetcher; domainClassifier: DomainClassifier } {
+): {
+  searchProvider: SearchProvider | undefined;
+  webFetcher: WebFetcher;
+  domainClassifier: DomainClassifier;
+} {
   const webConfig = config.web;
 
   // Build domain security config
@@ -160,6 +172,85 @@ export function buildSubagentFactory(
   };
 }
 
+/** Symlink SPINE.md into a workspace directory. */
+async function symlinkSpineToWorkspace(
+  spinePath: string,
+  workspacePath: string,
+): Promise<void> {
+  try {
+    const workspaceSpine = join(workspacePath, "SPINE.md");
+    try {
+      await Deno.remove(workspaceSpine);
+    } catch { /* doesn't exist yet */ }
+    await Deno.symlink(spinePath, workspaceSpine);
+  } catch {
+    // SPINE.md may not exist yet — not fatal
+  }
+}
+
+/** Build memory tool executor for a scheduler agent. */
+function buildSchedulerMemoryExecutor(
+  storage: StorageProvider,
+  agentId: string,
+  sessionTaint: ClassificationLevel,
+  sourceSessionId: SessionId,
+) {
+  const store = createMemoryStore({ storage });
+  return createMemoryToolExecutor({
+    store,
+    agentId,
+    sessionTaint,
+    sourceSessionId,
+  });
+}
+
+/** Build GitHub tool executor for a scheduler agent. */
+async function buildSchedulerGitHubExecutor(
+  keychain: ReturnType<typeof createKeychain>,
+  config: TriggerFishConfig,
+  sessionTaint: ClassificationLevel,
+  sourceSessionId: SessionId,
+) {
+  const tokenResult = await resolveGitHubToken({ secretStore: keychain });
+  return createGitHubToolExecutor(
+    tokenResult.ok
+      ? {
+        client: createGitHubClient({
+          token: tokenResult.value,
+          baseUrl: config.github?.base_url,
+          classificationConfig: config.github?.classification_overrides
+            ? {
+              overrides: config.github.classification_overrides as Readonly<
+                Record<string, ClassificationLevel>
+              >,
+            }
+            : undefined,
+        }),
+        sessionTaint,
+        sourceSessionId,
+      }
+      : undefined,
+  );
+}
+
+/** Build skill loader for scheduler agents. */
+function buildSchedulerSkillLoader(
+  baseDir: string,
+  srcDir: string,
+) {
+  const bundledDir = join(srcDir, "..", "..", "skills", "bundled");
+  const managedDir = join(baseDir, "skills");
+  const workspaceDir = join(baseDir, "workspaces", "main", "skills");
+  return createSkillLoader({
+    directories: [bundledDir, managedDir, workspaceDir],
+    dirTypes: {
+      [bundledDir]: "bundled",
+      [managedDir]: "managed",
+      [workspaceDir]: "workspace",
+    },
+  });
+}
+
 /**
  * Create an OrchestratorFactory from config.
  *
@@ -190,39 +281,20 @@ export function createOrchestratorFactory(
   const hookRunner = createHookRunner(engine);
 
   const spinePath = join(baseDir, "SPINE.md");
-  const { searchProvider, webFetcher, domainClassifier: schedulerDomainClassifier } = buildWebTools(config);
+  const {
+    searchProvider,
+    webFetcher,
+    domainClassifier: schedulerDomainClassifier,
+  } = buildWebTools(config);
   const schedulerKeychain = createKeychain();
 
   // Shared by all scheduler orchestrators — same config-driven map
   const schedulerToolClassifications = mapToolPrefixClassifications(config);
 
-  // Discover skills for scheduler agents (same directories as main session)
-  const factoryBundledSkillsDir = join(
-    import.meta.dirname ?? ".",
-    "..",
-    "..",
-    "skills",
-    "bundled",
-  );
-  const factoryManagedSkillsDir = join(baseDir, "skills");
-  const factoryWorkspaceSkillsDir = join(
+  const factorySkillLoader = buildSchedulerSkillLoader(
     baseDir,
-    "workspaces",
-    "main",
-    "skills",
+    import.meta.dirname ?? ".",
   );
-  const factorySkillLoader = createSkillLoader({
-    directories: [
-      factoryBundledSkillsDir,
-      factoryManagedSkillsDir,
-      factoryWorkspaceSkillsDir,
-    ],
-    dirTypes: {
-      [factoryBundledSkillsDir]: "bundled",
-      [factoryManagedSkillsDir]: "managed",
-      [factoryWorkspaceSkillsDir]: "workspace",
-    },
-  });
   let factorySkillsPrompt = "";
   // Discover is async — do it lazily on first create()
   let factorySkillsDiscovered = false;
@@ -246,16 +318,7 @@ export function createOrchestratorFactory(
         basePath: join(baseDir, "workspaces"),
       });
 
-      // Symlink SPINE.md into workspace so the agent can read AND edit its identity
-      try {
-        const workspaceSpine = join(workspace.path, "SPINE.md");
-        try {
-          await Deno.remove(workspaceSpine);
-        } catch { /* doesn't exist yet */ }
-        await Deno.symlink(spinePath, workspaceSpine);
-      } catch {
-        // SPINE.md may not exist yet — not fatal
-      }
+      await symlinkSpineToWorkspace(spinePath, workspace.path);
 
       const execTools = createExecTools(workspace);
       const todoManager = storage
@@ -266,22 +329,14 @@ export function createOrchestratorFactory(
         channelId: channelId as ChannelId,
       });
 
-      // Memory for scheduler agents (uses storage-backed store, no FTS5)
-      let schedulerMemoryExecutor:
-        | ((
-          name: string,
-          input: Record<string, unknown>,
-        ) => Promise<string | null>)
-        | undefined;
-      if (storage) {
-        const schedulerMemoryStore = createMemoryStore({ storage });
-        schedulerMemoryExecutor = createMemoryToolExecutor({
-          store: schedulerMemoryStore,
+      const schedulerMemoryExecutor = storage
+        ? buildSchedulerMemoryExecutor(
+          storage,
           agentId,
-          sessionTaint: session.taint,
-          sourceSessionId: session.id,
-        });
-      }
+          session.taint,
+          session.id,
+        )
+        : undefined;
 
       // Plan manager for scheduler agents
       const planManager = createPlanManager({
@@ -298,28 +353,11 @@ export function createOrchestratorFactory(
         })
         : undefined;
 
-      // GitHub tools for scheduler agents
-      const schedulerGithubTokenResult = await resolveGitHubToken({
-        secretStore: schedulerKeychain,
-      });
-      const schedulerGithubExecutor = createGitHubToolExecutor(
-        schedulerGithubTokenResult.ok
-          ? {
-            client: createGitHubClient({
-              token: schedulerGithubTokenResult.value,
-              baseUrl: config.github?.base_url,
-              classificationConfig: config.github?.classification_overrides
-                ? {
-                  overrides: config.github.classification_overrides as Readonly<
-                    Record<string, ClassificationLevel>
-                  >,
-                }
-                : undefined,
-            }),
-            sessionTaint: session.taint,
-            sourceSessionId: session.id,
-          }
-          : undefined,
+      const schedulerGithubExecutor = await buildSchedulerGitHubExecutor(
+        schedulerKeychain,
+        config,
+        session.taint,
+        session.id,
       );
 
       const factorySkillExecutor = createSkillToolExecutor({
@@ -357,15 +395,20 @@ export function createOrchestratorFactory(
         ),
       });
       // Build path classifier for scheduler workspace
-      const schedulerPathClassifier = fsPathMap ? createPathClassifier(
-        { paths: fsPathMap, defaultClassification: fsDefault ?? "CONFIDENTIAL" },
-        {
-          basePath: workspace.path,
-          internalPath: workspace.internalPath,
-          confidentialPath: workspace.confidentialPath,
-          restrictedPath: workspace.restrictedPath,
-        },
-      ) : undefined;
+      const schedulerPathClassifier = fsPathMap
+        ? createPathClassifier(
+          {
+            paths: fsPathMap,
+            defaultClassification: fsDefault ?? "CONFIDENTIAL",
+          },
+          {
+            basePath: workspace.path,
+            internalPath: workspace.internalPath,
+            confidentialPath: workspace.confidentialPath,
+            restrictedPath: workspace.restrictedPath,
+          },
+        )
+        : undefined;
 
       // Select tool profile based on session type — triggers/cron/subagents
       // each get only the tools they have wired executors for.
@@ -435,7 +478,8 @@ export function buildSchedulerConfig(
     triggerMdPath: join(baseDir, "TRIGGER.md"),
     trigger: {
       // interval_minutes: 0 disables triggers without requiring the enabled flag
-      enabled: (sched?.trigger?.enabled ?? true) && (sched?.trigger?.interval_minutes ?? 30) !== 0,
+      enabled: (sched?.trigger?.enabled ?? true) &&
+        (sched?.trigger?.interval_minutes ?? 30) !== 0,
       intervalMinutes: sched?.trigger?.interval_minutes ?? 30,
       quietHours: sched?.trigger?.quiet_hours
         ? {
@@ -443,7 +487,8 @@ export function buildSchedulerConfig(
           end: sched.trigger.quiet_hours.end ?? 7,
         }
         : { start: 22, end: 7 },
-      classificationCeiling: (sched?.trigger?.classification_ceiling ?? "CONFIDENTIAL") as ClassificationLevel,
+      classificationCeiling: (sched?.trigger?.classification_ceiling ??
+        "CONFIDENTIAL") as ClassificationLevel,
     },
     webhooks: {
       enabled: sched?.webhooks?.enabled ?? false,
