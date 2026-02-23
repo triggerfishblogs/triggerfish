@@ -21,6 +21,17 @@ export interface FileSecretStoreOptions {
   readonly path: string;
 }
 
+/** Strip matching surrounding quotes (single or double) from a value. */
+function stripEnvQuotes(value: string): string {
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
 /**
  * Parse a .env file into key-value pairs.
  *
@@ -30,25 +41,12 @@ function parseEnvFile(content: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const line of content.split("\n")) {
     const trimmed = line.trim();
-    if (trimmed === "" || trimmed.startsWith("#")) {
-      continue;
-    }
+    if (trimmed === "" || trimmed.startsWith("#")) continue;
     const eqIdx = trimmed.indexOf("=");
-    if (eqIdx === -1) {
-      continue;
-    }
+    if (eqIdx === -1) continue;
     const key = trimmed.slice(0, eqIdx).trim();
-    let value = trimmed.slice(eqIdx + 1).trim();
-
-    // Remove surrounding quotes
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-
-    result[key] = value;
+    const rawValue = trimmed.slice(eqIdx + 1).trim();
+    result[key] = stripEnvQuotes(rawValue);
   }
   return result;
 }
