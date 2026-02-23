@@ -58,12 +58,12 @@ export const DEFAULT_ALLOWED_MCP_COMMANDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Validate an MCP stdio command against the built-in allowlist.
+ * Enforce the MCP stdio command allowlist.
  *
  * Strips leading path components so /usr/bin/node passes as "node".
  * Per-server additional commands can be permitted via extraAllowed.
  */
-export function validateMcpCommand(
+export function enforceCommandAllowlist(
   command: string,
   extraAllowed?: readonly string[],
 ): Result<string, string> {
@@ -115,10 +115,19 @@ export async function connectOneMcpServer(
   ctx: McpConnectionContext,
 ): Promise<ConnectedMcpServer> {
   if (cfg.command) {
-    const validation = validateMcpCommand(cfg.command, cfg.allowedCommands);
+    const validation = enforceCommandAllowlist(cfg.command, cfg.allowedCommands);
     if (!validation.ok) {
+      const allowlistKind = cfg.allowedCommands?.length ? "per-server" : "default";
+      ctx.mcpLog.warn(
+        `MCP server '${cfg.id}': command rejected by ${allowlistKind} allowlist`,
+        { serverId: cfg.id, command: cfg.command, allowlistKind, reason: validation.error },
+      );
       throw new Error(`MCP server '${cfg.id}': ${validation.error}`);
     }
+    ctx.mcpLog.debug(
+      `MCP server '${cfg.id}': command permitted`,
+      { serverId: cfg.id, command: cfg.command },
+    );
   }
 
   const resolvedEnv = cfg.env
@@ -169,10 +178,16 @@ export async function connectAllMcpServers(
 /** Notify all status listeners and sync the connected array. */
 export function notifyMcpStatusListeners(state: McpManagerState): void {
   const statuses = Array.from(state.statusMap.values());
+  const log = createLogger("mcp");
   for (const cb of state.statusListeners) {
     try {
       cb(statuses);
-    } catch { /* Listeners must not throw */ }
+    } catch (err: unknown) {
+      log.warn(
+        "MCP status listener threw — listener errors must not propagate",
+        { err: err instanceof Error ? (err.stack ?? err.message) : String(err) },
+      );
+    }
   }
   state.connected = statuses
     .filter((s) => s.state === "connected" && s.server !== undefined)
@@ -194,10 +209,16 @@ export function formatMcpConnectionError(err: unknown): string {
 export async function disconnectAllMcpServers(
   state: McpManagerState,
 ): Promise<void> {
+  const log = createLogger("mcp");
   for (const entry of state.connected) {
     try {
       await entry.transport.disconnect();
-    } catch { /* Best-effort */ }
+    } catch (err: unknown) {
+      log.warn(
+        `MCP server '${entry.id}': transport disconnect failed`,
+        { serverId: entry.id, err: err instanceof Error ? (err.stack ?? err.message) : String(err) },
+      );
+    }
   }
   markAllMcpServersDisconnected(state);
 }

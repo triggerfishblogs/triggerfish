@@ -26,7 +26,7 @@ import { startAllMcpServers } from "./manager_retry.ts";
 
 export { resolveEnvVars, createMcpServerAdapter } from "./manager_env.ts";
 export {
-  validateMcpCommand,
+  enforceCommandAllowlist,
   DEFAULT_ALLOWED_MCP_COMMANDS,
 } from "./manager_connection.ts";
 

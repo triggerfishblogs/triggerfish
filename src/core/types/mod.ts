@@ -14,6 +14,7 @@ export {
   canFlowTo,
   compareClassification,
   maxClassification,
+  minClassification,
   parseClassification,
 } from "./classification.ts";
 

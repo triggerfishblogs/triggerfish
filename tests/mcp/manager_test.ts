@@ -8,7 +8,7 @@ import {
   createMcpServerManager,
   resolveEnvVars,
   createMcpServerAdapter,
-  validateMcpCommand,
+  enforceCommandAllowlist,
   DEFAULT_ALLOWED_MCP_COMMANDS,
 } from "../../src/mcp/manager.ts";
 import type { McpServerConfig } from "../../src/mcp/manager.ts";
@@ -266,10 +266,10 @@ Deno.test("McpServerManager: getConnected reflects newly connected servers", asy
   assertEquals(manager.getConnected().length, 0);
 });
 
-// --- validateMcpCommand ---
+// --- enforceCommandAllowlist ---
 
-Deno.test("validateMcpCommand: rejects commands not in allowlist", () => {
-  const result = validateMcpCommand("curl");
+Deno.test("enforceCommandAllowlist: rejects commands not in allowlist", () => {
+  const result = enforceCommandAllowlist("curl");
   assertEquals(result.ok, false);
   if (!result.ok) {
     assertEquals(result.error.includes("curl"), true);
@@ -277,24 +277,24 @@ Deno.test("validateMcpCommand: rejects commands not in allowlist", () => {
   }
 });
 
-Deno.test("validateMcpCommand: allows all built-in commands", () => {
+Deno.test("enforceCommandAllowlist: allows all built-in commands", () => {
   for (const cmd of DEFAULT_ALLOWED_MCP_COMMANDS) {
-    const result = validateMcpCommand(cmd);
+    const result = enforceCommandAllowlist(cmd);
     assertEquals(result.ok, true, `Expected "${cmd}" to be allowed`);
   }
 });
 
-Deno.test("validateMcpCommand: strips path prefix and validates by basename", () => {
-  assertEquals(validateMcpCommand("/usr/bin/node").ok, true);
-  assertEquals(validateMcpCommand("/usr/local/bin/npx").ok, true);
-  assertEquals(validateMcpCommand("/usr/bin/curl").ok, false);
-  assertEquals(validateMcpCommand("C:\\Windows\\System32\\cmd.exe").ok, false);
+Deno.test("enforceCommandAllowlist: strips path prefix and validates by basename", () => {
+  assertEquals(enforceCommandAllowlist("/usr/bin/node").ok, true);
+  assertEquals(enforceCommandAllowlist("/usr/local/bin/npx").ok, true);
+  assertEquals(enforceCommandAllowlist("/usr/bin/curl").ok, false);
+  assertEquals(enforceCommandAllowlist("C:\\Windows\\System32\\cmd.exe").ok, false);
 });
 
-Deno.test("validateMcpCommand: extraAllowed extends built-in allowlist", () => {
-  assertEquals(validateMcpCommand("my-mcp-server", ["my-mcp-server"]).ok, true);
-  assertEquals(validateMcpCommand("npx", ["my-mcp-server"]).ok, true);
-  assertEquals(validateMcpCommand("other-tool", ["my-mcp-server"]).ok, false);
+Deno.test("enforceCommandAllowlist: extraAllowed extends built-in allowlist", () => {
+  assertEquals(enforceCommandAllowlist("my-mcp-server", ["my-mcp-server"]).ok, true);
+  assertEquals(enforceCommandAllowlist("npx", ["my-mcp-server"]).ok, true);
+  assertEquals(enforceCommandAllowlist("other-tool", ["my-mcp-server"]).ok, false);
 });
 
 Deno.test("McpServerManager: connectAll rejects disallowed command gracefully", async () => {

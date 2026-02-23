@@ -7,6 +7,7 @@
  * @module
  */
 
+import { createLogger } from "../core/logger/mod.ts";
 import type {
   ConnectedMcpServer,
   McpServerConfig,
@@ -35,7 +36,11 @@ async function pollMcpServerHealth(
     if (!current || current.state !== "connected") return;
     try {
       await entry.client.listTools();
-    } catch {
+    } catch (err: unknown) {
+      createLogger("mcp").warn(
+        `MCP server '${entry.id}' health check failed — marking unhealthy`,
+        { serverId: entry.id, err: err instanceof Error ? (err.stack ?? err.message) : String(err) },
+      );
       return;
     }
   }
@@ -150,7 +155,8 @@ function markMcpServerPermanentlyFailed(
   lastError: string,
 ): void {
   ctx.mcpLog.error(
-    `MCP server '${cfg.id}' permanently failed after ${maxRetries} attempts: ${lastError}`,
+    `MCP server '${cfg.id}' permanently failed after ${maxRetries} attempts`,
+    { operation: "mcp-server-retry", serverId: cfg.id, attempts: maxRetries, lastError },
   );
   ctx.state.statusMap.set(cfg.id, {
     id: cfg.id,
@@ -170,9 +176,8 @@ function launchMcpServerRetryLoop(
 ): void {
   runMcpRetryLoop(cfg, ctx).catch((err: unknown) => {
     ctx.mcpLog.error(
-      `MCP retry loop for '${cfg.id}' crashed: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
+      `MCP retry loop for '${cfg.id}' crashed`,
+      { operation: "mcp-retry-loop", serverId: cfg.id, err: err instanceof Error ? (err.stack ?? err.message) : String(err) },
     );
   });
 }
