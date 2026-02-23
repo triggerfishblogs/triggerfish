@@ -131,6 +131,133 @@ function extractGeminiResponseText(
   }
 }
 
+// ─── Provider context and chat preparation ──────────────────────────────────
+
+/** Shared context for Google provider operations. */
+interface GoogleProviderContext {
+  readonly genAI: GoogleGenerativeAI;
+  readonly modelName: string;
+  readonly maxTokens: number;
+}
+
+// deno-lint-ignore no-explicit-any
+type GeminiChat = any;
+
+/** Prepare a Gemini chat session from messages and tools. */
+function prepareGeminiChat(
+  ctx: GoogleProviderContext,
+  messages: readonly LlmMessage[],
+  tools: readonly unknown[],
+): { chat: GeminiChat; userParts: GeminiPart[] } {
+  const systemInstruction = extractGeminiSystemInstruction(messages);
+  const modelConfig = buildGeminiModelConfig(systemInstruction, tools);
+  const model = ctx.genAI.getGenerativeModel({
+    model: ctx.modelName,
+    generationConfig: { maxOutputTokens: ctx.maxTokens },
+    ...modelConfig,
+  });
+  const { history, userParts } = buildGeminiChatParts(messages);
+  const chat = model.startChat({ history });
+  return { chat, userParts };
+}
+
+// deno-lint-ignore no-explicit-any
+type GeminiUsageMetadata = any;
+
+/** Build an LlmCompletionResult's usage field from Gemini metadata. */
+function buildGeminiUsage(
+  meta: GeminiUsageMetadata,
+): { inputTokens: number; outputTokens: number } {
+  return {
+    inputTokens: meta?.promptTokenCount ?? 0,
+    outputTokens: meta?.candidatesTokenCount ?? 0,
+  };
+}
+
+/** Execute a non-streaming Gemini completion. */
+async function executeGeminiCompletion(
+  ctx: GoogleProviderContext,
+  messages: readonly LlmMessage[],
+  tools: readonly unknown[],
+  signal: AbortSignal | undefined,
+): Promise<LlmCompletionResult> {
+  const { chat, userParts } = prepareGeminiChat(ctx, messages, tools);
+
+  // deno-lint-ignore no-explicit-any
+  let result: any;
+  try {
+    result = await raceWithAbortSignal(
+      chat.sendMessage(userParts),
+      signal,
+    );
+  } catch (err) {
+    throw wrapGoogleError(err, ctx.modelName);
+  }
+  const response = result.response;
+  return {
+    content: extractGeminiResponseText(response),
+    toolCalls: extractGeminiFunctionCalls(response),
+    usage: buildGeminiUsage(response.usageMetadata),
+  };
+}
+
+/** Throw an AbortError if the signal is already aborted. */
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new DOMException("Operation cancelled", "AbortError");
+  }
+}
+
+/** Build the final stream chunk with usage and optional tool calls. */
+function buildFinalStreamChunk(
+  // deno-lint-ignore no-explicit-any
+  finalResponse: any,
+): LlmStreamChunk {
+  const geminiFunctionCalls = extractGeminiFunctionCalls(finalResponse);
+  return {
+    text: "",
+    done: true,
+    usage: buildGeminiUsage(finalResponse.usageMetadata),
+    ...(geminiFunctionCalls.length > 0
+      ? { toolCalls: geminiFunctionCalls }
+      : {}),
+  };
+}
+
+/** Execute a streaming Gemini completion, yielding chunks. */
+async function* streamGeminiCompletion(
+  ctx: GoogleProviderContext,
+  messages: readonly LlmMessage[],
+  tools: readonly unknown[],
+  signal: AbortSignal | undefined,
+): AsyncIterable<LlmStreamChunk> {
+  const { chat, userParts } = prepareGeminiChat(ctx, messages, tools);
+
+  let streamResult;
+  try {
+    streamResult = await chat.sendMessageStream(userParts);
+  } catch (err) {
+    throw wrapGoogleError(err, ctx.modelName);
+  }
+
+  throwIfAborted(signal);
+
+  try {
+    for await (const chunk of streamResult.stream) {
+      throwIfAborted(signal);
+      const text = chunk.text();
+      if (text) yield { text, done: false };
+    }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    throw wrapGoogleError(err, ctx.modelName);
+  }
+
+  yield buildFinalStreamChunk(await streamResult.response);
+}
+
+// ─── Factory ────────────────────────────────────────────────────────────────
+
 /**
  * Create a Google (Gemini) LLM provider.
  *
@@ -139,116 +266,31 @@ function extractGeminiResponseText(
  */
 export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
   const apiKey = config.apiKey ?? Deno.env.get("GOOGLE_API_KEY") ?? "";
-
-  const genAI = new GoogleGenerativeAI(apiKey);
   const modelName = config.model ?? "gemini-2.0-flash";
-  const maxTokens = config.maxTokens ?? 4096;
+  const ctx: GoogleProviderContext = {
+    genAI: new GoogleGenerativeAI(apiKey),
+    modelName,
+    maxTokens: config.maxTokens ?? 4096,
+  };
 
   return {
     name: "google",
     supportsStreaming: true,
     contextWindow: getModelInfo(modelName).contextWindow,
-
-    async complete(
-      messages: readonly LlmMessage[],
-      tools: readonly unknown[],
-      options: Record<string, unknown>,
-    ): Promise<LlmCompletionResult> {
-      const signal = options.signal as AbortSignal | undefined;
-      const systemInstruction = extractGeminiSystemInstruction(messages);
-      const modelConfig = buildGeminiModelConfig(systemInstruction, tools);
-
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        generationConfig: { maxOutputTokens: maxTokens },
-        ...modelConfig,
-      });
-
-      const { history, userParts } = buildGeminiChatParts(messages);
-      const chat = model.startChat({ history });
-
-      let result;
-      try {
-        result = await raceWithAbortSignal(
-          chat.sendMessage(userParts),
-          signal,
-        );
-      } catch (err) {
-        throw wrapGoogleError(err, modelName);
-      }
-      const response = result.response;
-      const usageMetadata = response.usageMetadata;
-
-      return {
-        content: extractGeminiResponseText(response),
-        toolCalls: extractGeminiFunctionCalls(response),
-        usage: {
-          inputTokens: usageMetadata?.promptTokenCount ?? 0,
-          outputTokens: usageMetadata?.candidatesTokenCount ?? 0,
-        },
-      };
-    },
-
-    async *stream(
-      messages: readonly LlmMessage[],
-      tools: readonly unknown[],
-      options: Record<string, unknown>,
-    ): AsyncIterable<LlmStreamChunk> {
-      const signal = options.signal as AbortSignal | undefined;
-      const systemInstruction = extractGeminiSystemInstruction(messages);
-      const modelConfig = buildGeminiModelConfig(systemInstruction, tools);
-
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        generationConfig: { maxOutputTokens: maxTokens },
-        ...modelConfig,
-      });
-
-      const { history, userParts } = buildGeminiChatParts(messages);
-      const chat = model.startChat({ history });
-
-      let streamResult;
-      try {
-        streamResult = await chat.sendMessageStream(userParts);
-      } catch (err) {
-        throw wrapGoogleError(err, modelName);
-      }
-
-      if (signal?.aborted) {
-        throw new DOMException("Operation cancelled", "AbortError");
-      }
-
-      try {
-        for await (const chunk of streamResult.stream) {
-          if (signal?.aborted) {
-            throw new DOMException("Operation cancelled", "AbortError");
-          }
-          const text = chunk.text();
-          if (text) {
-            yield { text, done: false };
-          }
-        }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") throw err;
-        throw wrapGoogleError(err, modelName);
-      }
-
-      const finalResponse = await streamResult.response;
-      const meta = finalResponse.usageMetadata;
-      const geminiFunctionCalls = extractGeminiFunctionCalls(finalResponse);
-
-      yield {
-        text: "",
-        done: true,
-        usage: {
-          inputTokens: meta?.promptTokenCount ?? 0,
-          outputTokens: meta?.candidatesTokenCount ?? 0,
-        },
-        ...(geminiFunctionCalls.length > 0
-          ? { toolCalls: geminiFunctionCalls }
-          : {}),
-      };
-    },
+    complete: (messages, tools, options) =>
+      executeGeminiCompletion(
+        ctx,
+        messages,
+        tools,
+        options.signal as AbortSignal | undefined,
+      ),
+    stream: (messages, tools, options) =>
+      streamGeminiCompletion(
+        ctx,
+        messages,
+        tools,
+        options.signal as AbortSignal | undefined,
+      ),
   };
 }
 
