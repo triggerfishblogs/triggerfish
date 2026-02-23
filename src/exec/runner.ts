@@ -11,6 +11,7 @@ import type { Result } from "../core/types/classification.ts";
 import type { Workspace } from "./workspace.ts";
 import type { RunResult } from "./tools.ts";
 import { createExecTools } from "./tools.ts";
+import { detectShellInjection } from "./sanitize.ts";
 
 /** A logged execution history entry. */
 export interface ExecHistoryEntry {
@@ -65,6 +66,21 @@ export function createExecRunner(
 
   return {
     async executeCommand(command: string): Promise<Result<RunResult, string>> {
+      const injectionCheck = detectShellInjection(command);
+      if (!injectionCheck.safe) {
+        history.push({
+          command,
+          timestamp: new Date(),
+          allowed: false,
+          exitCode: null,
+          duration: null,
+        });
+        return {
+          ok: false,
+          error: `Command rejected — shell injection detected: ${injectionCheck.reason}`,
+        };
+      }
+
       if (isDenied(command, denyList)) {
         history.push({
           command,
