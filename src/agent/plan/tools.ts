@@ -120,39 +120,43 @@ function buildPlanCompleteDef(): ToolDefinition {
   };
 }
 
+function buildPlanModifyParams(): ToolDefinition["parameters"] {
+  return {
+    step_id: {
+      type: "number",
+      description: "Which step needs changing",
+      required: true,
+    },
+    reason: {
+      type: "string",
+      description: "Why the change is needed",
+      required: true,
+    },
+    new_description: {
+      type: "string",
+      description: "Updated step description",
+      required: true,
+    },
+    new_files: {
+      type: "array",
+      description: "Updated file list (optional)",
+      required: false,
+      items: { type: "string" },
+    },
+    new_verification: {
+      type: "string",
+      description: "Updated verification command (optional)",
+      required: false,
+    },
+  };
+}
+
 function buildPlanModifyDef(): ToolDefinition {
   return {
     name: "plan_modify",
     description:
       "Request a modification to an approved plan step. Requires user approval.",
-    parameters: {
-      step_id: {
-        type: "number",
-        description: "Which step needs changing",
-        required: true,
-      },
-      reason: {
-        type: "string",
-        description: "Why the change is needed",
-        required: true,
-      },
-      new_description: {
-        type: "string",
-        description: "Updated step description",
-        required: true,
-      },
-      new_files: {
-        type: "array",
-        description: "Updated file list (optional)",
-        required: false,
-        items: { type: "string" },
-      },
-      new_verification: {
-        type: "string",
-        description: "Updated verification command (optional)",
-        required: false,
-      },
-    },
+    parameters: buildPlanModifyParams(),
   };
 }
 
