@@ -293,20 +293,91 @@ async function runMcpRetryLoop(
   }
 }
 
-export function createMcpServerManager(): McpServerManager {
-  const mcpLog = createLogger("mcp");
-  const state: McpManagerState = {
+/** Disconnect all transports and mark all servers as disconnected. */
+async function disconnectAllMcpServers(state: McpManagerState): Promise<void> {
+  for (const entry of state.connected) {
+    try {
+      await entry.transport.disconnect();
+    } catch { /* Best-effort */ }
+  }
+  for (const [id, status] of state.statusMap.entries()) {
+    state.statusMap.set(id, {
+      ...status,
+      state: "disconnected",
+      server: undefined,
+    });
+  }
+  state.connected = [];
+  notifyMcpStatusListeners(state);
+}
+
+/** Launch a single MCP server config into a background retry loop. */
+function launchMcpServerRetryLoop(
+  cfg: McpServerConfig,
+  secretStore: SecretStore | undefined,
+  mcpLog: ReturnType<typeof createLogger>,
+  state: McpManagerState,
+): void {
+  runMcpRetryLoop(cfg, secretStore, mcpLog, state).catch(
+    (err: unknown) => {
+      mcpLog.error(
+        `MCP retry loop for '${cfg.id}' crashed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    },
+  );
+}
+
+/** Mark a config as failed (missing command/url) in the status map. */
+function markMcpServerFailed(
+  cfg: McpServerConfig,
+  mcpLog: ReturnType<typeof createLogger>,
+  state: McpManagerState,
+): void {
+  mcpLog.warn(`MCP server '${cfg.id}': no command or url — skipping`);
+  state.statusMap.set(cfg.id, {
+    id: cfg.id,
+    config: cfg,
+    state: "failed",
+    lastError: "no command or url configured",
+  });
+}
+
+/** Start all enabled MCP servers with background retry loops. */
+function startAllMcpServers(
+  configs: readonly McpServerConfig[],
+  secretStore: SecretStore | undefined,
+  mcpLog: ReturnType<typeof createLogger>,
+  state: McpManagerState,
+): void {
+  const activeConfigs = configs.filter((cfg) => cfg.enabled !== false);
+  state.configuredCount = activeConfigs.length;
+  for (const cfg of activeConfigs) {
+    if (!cfg.command && !cfg.url) {
+      markMcpServerFailed(cfg, mcpLog, state);
+      continue;
+    }
+    launchMcpServerRetryLoop(cfg, secretStore, mcpLog, state);
+  }
+}
+
+/** Build the initial mutable state for an MCP server manager. */
+function buildMcpManagerState(): McpManagerState {
+  return {
     connected: [],
     configuredCount: 0,
     statusMap: new Map(),
     statusListeners: new Set(),
   };
+}
+
+export function createMcpServerManager(): McpServerManager {
+  const mcpLog = createLogger("mcp");
+  const state = buildMcpManagerState();
 
   return {
-    async connectAll(
-      configs,
-      secretStore?,
-    ): Promise<readonly ConnectedMcpServer[]> {
+    async connectAll(configs, secretStore?) {
       state.connected = await connectAllMcpServers(
         configs,
         secretStore,
@@ -314,60 +385,15 @@ export function createMcpServerManager(): McpServerManager {
       );
       return state.connected;
     },
-
-    async disconnectAll(): Promise<void> {
-      for (const entry of state.connected) {
-        try {
-          await entry.transport.disconnect();
-        } catch { /* Best-effort */ }
-      }
-      for (const [id, status] of state.statusMap.entries()) {
-        state.statusMap.set(id, {
-          ...status,
-          state: "disconnected",
-          server: undefined,
-        });
-      }
-      state.connected = [];
-      notifyMcpStatusListeners(state);
-    },
-
+    disconnectAll: () => disconnectAllMcpServers(state),
     getConnected: () => state.connected,
-
-    startAll(configs, secretStore?): void {
-      const activeConfigs = configs.filter((cfg) => cfg.enabled !== false);
-      state.configuredCount = activeConfigs.length;
-      for (const cfg of activeConfigs) {
-        if (!cfg.command && !cfg.url) {
-          mcpLog.warn(`MCP server '${cfg.id}': no command or url — skipping`);
-          state.statusMap.set(cfg.id, {
-            id: cfg.id,
-            config: cfg,
-            state: "failed",
-            lastError: "no command or url configured",
-          });
-          continue;
-        }
-        runMcpRetryLoop(cfg, secretStore, mcpLog, state).catch(
-          (err: unknown) => {
-            mcpLog.error(
-              `MCP retry loop for '${cfg.id}' crashed: ${
-                err instanceof Error ? err.message : String(err)
-              }`,
-            );
-          },
-        );
-      }
-    },
-
+    startAll: (configs, secretStore?) =>
+      startAllMcpServers(configs, secretStore, mcpLog, state),
     getStatus: () => Array.from(state.statusMap.values()),
     getConfiguredCount: () => state.configuredCount,
-
-    onStatusChange(cb): () => void {
+    onStatusChange(cb) {
       state.statusListeners.add(cb);
-      return () => {
-        state.statusListeners.delete(cb);
-      };
+      return () => state.statusListeners.delete(cb);
     },
   };
 }
