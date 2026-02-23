@@ -23,233 +23,58 @@
  * @module
  */
 
-import { dirname } from "@std/path";
 import type { Result } from "../types/classification.ts";
 import type { SecretStore } from "./secret_store.ts";
 import { loadOrCreateMachineKey } from "./key_manager.ts";
 import { createLogger } from "../logger/logger.ts";
+import type {
+  EncryptedFileSecretStoreOptions,
+  EncryptedSecretsFile,
+  SecretsFileCache,
+} from "./encrypted_file_types.ts";
+import { decryptSecretEntry, encryptSecretValue } from "./encrypted_file_crypto.ts";
+import {
+  classifyAndResolveSecretsJson,
+  parseSecretsJson,
+  readSecretsFileRaw,
+  writeUpdatedSecretsFile,
+} from "./encrypted_file_io.ts";
+
+export type { EncryptedFileSecretStoreOptions } from "./encrypted_file_types.ts";
 
 const log = createLogger("secrets");
 
-/** Options for creating an encrypted file-backed secret store. */
-export interface EncryptedFileSecretStoreOptions {
-  /** Path to the encrypted secrets JSON file. */
-  readonly secretsPath: string;
-  /** Path to the companion key file (32 raw bytes). */
-  readonly keyPath: string;
+/** Load the encryption key, caching it after the first successful load. */
+async function resolveEncryptionKey(
+  keyPath: string,
+  cached: { key: CryptoKey | null },
+): Promise<Result<CryptoKey, string>> {
+  if (cached.key !== null) return { ok: true, value: cached.key };
+  const result = await loadOrCreateMachineKey({ keyPath });
+  if (result.ok) cached.key = result.value;
+  return result;
 }
 
-/** An encrypted entry in the secrets file. */
-interface EncryptedEntry {
-  /** Base64-encoded 12-byte IV. */
-  readonly iv: string;
-  /** Base64-encoded AES-GCM ciphertext + 16-byte auth tag. */
-  readonly ct: string;
-}
-
-/** The on-disk format for the encrypted secrets file (version 1). */
-interface EncryptedSecretsFile {
-  readonly v: 1;
-  readonly entries: Record<string, EncryptedEntry>;
-}
-
-/** Encode a Uint8Array to base64 string. */
-function toBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-/** Decode a base64 string to Uint8Array. */
-function fromBase64(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
-/** Persist an encrypted secrets file to disk with restrictive permissions. */
-async function persistSecretsFile(
+/** Load and cache the encrypted secrets file from disk. */
+async function loadSecretsFile(
   secretsPath: string,
-  file: EncryptedSecretsFile,
-): Promise<void> {
-  await Deno.mkdir(dirname(secretsPath), { recursive: true });
-  await Deno.writeTextFile(secretsPath, JSON.stringify(file, null, 2) + "\n");
-  if (Deno.build.os !== "windows") {
-    try {
-      await Deno.chmod(secretsPath, 0o600);
-    } catch { /* Best-effort */ }
-  }
-}
-
-/** Encrypt a plaintext value with AES-256-GCM using a fresh 12-byte IV. */
-async function encryptSecretValue(
-  key: CryptoKey,
-  plaintext: string,
-): Promise<Result<EncryptedEntry, string>> {
-  try {
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encoded = new TextEncoder().encode(plaintext);
-    const ciphertext = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv },
-      key,
-      encoded,
-    );
-    return {
-      ok: true,
-      value: { iv: toBase64(iv), ct: toBase64(new Uint8Array(ciphertext)) },
-    };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: `Encryption failed: ${message}` };
-  }
-}
-
-/** Decrypt an AES-256-GCM encrypted entry back to plaintext. */
-async function decryptSecretEntry(
-  key: CryptoKey,
-  entry: EncryptedEntry,
-): Promise<Result<string, string>> {
-  try {
-    const iv = fromBase64(entry.iv);
-    const ct = fromBase64(entry.ct);
-    const plaintext = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: iv.buffer as ArrayBuffer },
-      key,
-      ct.buffer as ArrayBuffer,
-    );
-    return { ok: true, value: new TextDecoder().decode(plaintext) };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: `Decryption failed: ${message}` };
-  }
-}
-
-/** Migrate a legacy flat JSON secrets file to encrypted v1 format. */
-async function migrateLegacySecretsFile(
-  legacy: Record<string, string>,
-  key: CryptoKey,
-): Promise<Result<EncryptedSecretsFile, string>> {
-  const entries: Record<string, EncryptedEntry> = {};
-  for (const [name, value] of Object.entries(legacy)) {
-    const result = await encryptSecretValue(key, value);
-    if (!result.ok) {
-      return {
-        ok: false,
-        error: `Migration failed for '${name}': ${result.error}`,
-      };
-    }
-    entries[name] = result.value;
-  }
-  return { ok: true, value: { v: 1, entries } };
-}
-
-/** Check if parsed JSON is a legacy flat format (no v/entries fields). */
-function isLegacySecretsFormat(parsed: unknown): boolean {
-  return (
-    typeof parsed === "object" &&
-    parsed !== null &&
-    !("v" in parsed) &&
-    !("entries" in parsed)
-  );
-}
-
-/** Validate that parsed JSON conforms to the v1 encrypted format. */
-function isValidSecretsFileFormat(parsed: unknown): boolean {
-  return (
-    typeof parsed === "object" &&
-    parsed !== null &&
-    (parsed as Record<string, unknown>)["v"] === 1 &&
-    typeof (parsed as Record<string, unknown>)["entries"] === "object"
-  );
-}
-
-/** Write an updated secrets file and return success, caching the update. */
-async function writeUpdatedSecretsFile(
-  secretsPath: string,
-  updated: EncryptedSecretsFile,
-  cache: { file: EncryptedSecretsFile | null },
-): Promise<Result<true, string>> {
-  try {
-    await persistSecretsFile(secretsPath, updated);
-    cache.file = updated;
-    return { ok: true, value: true };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: `Failed to write secrets file: ${message}` };
-  }
-}
-
-/** Read raw secrets file text, returning an empty v1 file if missing. */
-async function readSecretsFileRaw(
-  secretsPath: string,
-): Promise<Result<string, EncryptedSecretsFile>> {
-  try {
-    return { ok: true, value: await Deno.readTextFile(secretsPath) };
-  } catch {
-    return { ok: false, error: { v: 1, entries: {} } };
-  }
-}
-
-/** Parse raw JSON text into an unknown value. */
-function parseSecretsJson(
-  raw: string,
-  secretsPath: string,
-): Result<unknown, string> {
-  try {
-    return { ok: true, value: JSON.parse(raw) };
-  } catch {
-    return {
-      ok: false,
-      error: `Failed to parse secrets file: ${secretsPath}`,
-    };
-  }
-}
-
-/** Handle legacy format migration: encrypt all plaintext entries. */
-async function handleLegacyMigration(
-  parsed: Record<string, string>,
   getKey: () => Promise<Result<CryptoKey, string>>,
-  secretsPath: string,
-  cache: { file: EncryptedSecretsFile | null },
+  cache: SecretsFileCache,
 ): Promise<Result<EncryptedSecretsFile, string>> {
-  const keyResult = await getKey();
-  if (!keyResult.ok) return { ok: false, error: keyResult.error };
-  const migrated = await migrateLegacySecretsFile(parsed, keyResult.value);
-  if (!migrated.ok) return migrated;
-  cache.file = migrated.value;
-  await persistSecretsFile(secretsPath, migrated.value);
-  console.log("Migrating secrets.json to encrypted format");
-  return { ok: true, value: migrated.value };
-}
-
-/** Classify parsed JSON and resolve it to an EncryptedSecretsFile. */
-async function classifyAndResolveSecretsJson(
-  parsed: unknown,
-  getKey: () => Promise<Result<CryptoKey, string>>,
-  secretsPath: string,
-  cache: { file: EncryptedSecretsFile | null },
-): Promise<Result<EncryptedSecretsFile, string>> {
-  if (isLegacySecretsFormat(parsed)) {
-    return handleLegacyMigration(
-      parsed as Record<string, string>,
-      getKey,
-      secretsPath,
-      cache,
-    );
+  if (cache.file !== null) return { ok: true, value: cache.file };
+  const rawResult = await readSecretsFileRaw(secretsPath);
+  if (!rawResult.ok) {
+    cache.file = rawResult.error;
+    return { ok: true, value: cache.file };
   }
-  if (!isValidSecretsFileFormat(parsed)) {
-    return {
-      ok: false,
-      error: `Unrecognized secrets file format: ${secretsPath}`,
-    };
-  }
-  cache.file = parsed as EncryptedSecretsFile;
-  return { ok: true, value: cache.file };
+  const jsonResult = parseSecretsJson(rawResult.value, secretsPath);
+  if (!jsonResult.ok) return jsonResult;
+  return classifyAndResolveSecretsJson(
+    jsonResult.value,
+    getKey,
+    secretsPath,
+    cache,
+  );
 }
 
 /**
@@ -264,32 +89,11 @@ export function createEncryptedFileSecretStore(
   options: EncryptedFileSecretStoreOptions,
 ): SecretStore {
   const { secretsPath, keyPath } = options;
-  let cachedKey: CryptoKey | null = null;
-  const cache: { file: EncryptedSecretsFile | null } = { file: null };
+  const keyCache: { key: CryptoKey | null } = { key: null };
+  const fileCache: SecretsFileCache = { file: null };
 
-  async function getKey(): Promise<Result<CryptoKey, string>> {
-    if (cachedKey !== null) return { ok: true, value: cachedKey };
-    const result = await loadOrCreateMachineKey({ keyPath });
-    if (result.ok) cachedKey = result.value;
-    return result;
-  }
-
-  async function loadFile(): Promise<Result<EncryptedSecretsFile, string>> {
-    if (cache.file !== null) return { ok: true, value: cache.file };
-    const rawResult = await readSecretsFileRaw(secretsPath);
-    if (!rawResult.ok) {
-      cache.file = rawResult.error;
-      return { ok: true, value: cache.file };
-    }
-    const jsonResult = parseSecretsJson(rawResult.value, secretsPath);
-    if (!jsonResult.ok) return jsonResult;
-    return classifyAndResolveSecretsJson(
-      jsonResult.value,
-      getKey,
-      secretsPath,
-      cache,
-    );
-  }
+  const getKey = () => resolveEncryptionKey(keyPath, keyCache);
+  const loadFile = () => loadSecretsFile(secretsPath, getKey, fileCache);
 
   return {
     async getSecret(name: string): Promise<Result<string, string>> {
@@ -324,7 +128,7 @@ export function createEncryptedFileSecretStore(
         v: 1,
         entries: { ...fileResult.value.entries, [name]: encResult.value },
       };
-      return writeUpdatedSecretsFile(secretsPath, updated, cache);
+      return writeUpdatedSecretsFile(secretsPath, updated, fileCache);
     },
 
     async deleteSecret(name: string): Promise<Result<true, string>> {
@@ -342,7 +146,7 @@ export function createEncryptedFileSecretStore(
       return writeUpdatedSecretsFile(
         secretsPath,
         { v: 1, entries: newEntries },
-        cache,
+        fileCache,
       );
     },
 
