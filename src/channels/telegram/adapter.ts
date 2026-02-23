@@ -206,6 +206,16 @@ export function createTelegramChannel(
   };
 }
 
+/** Find a readable split point in text, preferring newlines then spaces. */
+function findChunkSplitPoint(text: string, maxLength: number): number {
+  let splitAt = text.lastIndexOf("\n", maxLength);
+  if (splitAt <= 0 || splitAt < maxLength * 0.5) {
+    splitAt = text.lastIndexOf(" ", maxLength);
+  }
+  if (splitAt <= 0) splitAt = maxLength;
+  return splitAt;
+}
+
 /**
  * Split a message into chunks that fit within a character limit.
  * Tries to split on newlines or spaces for readability.
@@ -221,19 +231,9 @@ export function chunkMessage(text: string, maxLength: number): string[] {
       chunks.push(remaining);
       break;
     }
-
-    // Find a good split point (newline or space near the limit)
-    let splitAt = remaining.lastIndexOf("\n", maxLength);
-    if (splitAt <= 0 || splitAt < maxLength * 0.5) {
-      splitAt = remaining.lastIndexOf(" ", maxLength);
-    }
-    if (splitAt <= 0) {
-      splitAt = maxLength; // Hard split
-    }
-
+    const splitAt = findChunkSplitPoint(remaining, maxLength);
     chunks.push(remaining.slice(0, splitAt));
     remaining = remaining.slice(splitAt).trimStart();
   }
-
   return chunks;
 }
