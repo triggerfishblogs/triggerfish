@@ -126,32 +126,62 @@ function buildPullsCreateDef(): ToolDefinition {
   };
 }
 
+/** Build the parameter schema for the pulls_review tool. */
+function buildPullsReviewParams(): ToolDefinition["parameters"] {
+  return {
+    repo: {
+      type: "string",
+      description: 'Repository in "owner/name" format',
+      required: true,
+    },
+    pr_number: {
+      type: "number",
+      description: "Pull request number",
+      required: true,
+    },
+    event: {
+      type: "string",
+      description: 'Review event: "APPROVE", "REQUEST_CHANGES", or "COMMENT"',
+      required: true,
+    },
+    body: {
+      type: "string",
+      description: "Review comment body",
+      required: true,
+    },
+  };
+}
+
 function buildPullsReviewDef(): ToolDefinition {
   return {
     name: "github_pulls_review",
     description:
       "Submit a review on a pull request. Events: APPROVE, REQUEST_CHANGES, COMMENT.",
-    parameters: {
-      repo: {
-        type: "string",
-        description: 'Repository in "owner/name" format',
-        required: true,
-      },
-      pr_number: {
-        type: "number",
-        description: "Pull request number",
-        required: true,
-      },
-      event: {
-        type: "string",
-        description: 'Review event: "APPROVE", "REQUEST_CHANGES", or "COMMENT"',
-        required: true,
-      },
-      body: {
-        type: "string",
-        description: "Review comment body",
-        required: true,
-      },
+    parameters: buildPullsReviewParams(),
+  };
+}
+
+/** Build the parameter schema for the pulls_merge tool. */
+function buildPullsMergeParams(): ToolDefinition["parameters"] {
+  return {
+    repo: {
+      type: "string",
+      description: 'Repository in "owner/name" format',
+      required: true,
+    },
+    pr_number: {
+      type: "number",
+      description: "Pull request number",
+      required: true,
+    },
+    method: {
+      type: "string",
+      description:
+        'Merge method: "merge", "squash", or "rebase" (default: "merge")',
+    },
+    commit_title: {
+      type: "string",
+      description: "Custom commit title for squash/merge",
     },
   };
 }
@@ -161,26 +191,30 @@ function buildPullsMergeDef(): ToolDefinition {
     name: "github_pulls_merge",
     description:
       "Merge a pull request. Supports merge, squash, or rebase methods.",
-    parameters: {
-      repo: {
-        type: "string",
-        description: 'Repository in "owner/name" format',
-        required: true,
-      },
-      pr_number: {
-        type: "number",
-        description: "Pull request number",
-        required: true,
-      },
-      method: {
-        type: "string",
-        description:
-          'Merge method: "merge", "squash", or "rebase" (default: "merge")',
-      },
-      commit_title: {
-        type: "string",
-        description: "Custom commit title for squash/merge",
-      },
+    parameters: buildPullsMergeParams(),
+  };
+}
+
+/** Build the parameter schema for the issues_list tool. */
+function buildIssuesListParams(): ToolDefinition["parameters"] {
+  return {
+    repo: {
+      type: "string",
+      description: 'Repository in "owner/name" format',
+      required: true,
+    },
+    state: {
+      type: "string",
+      description:
+        'Filter by state: "open", "closed", or "all" (default: "open")',
+    },
+    labels: {
+      type: "string",
+      description: "Comma-separated list of label names to filter by",
+    },
+    per_page: {
+      type: "number",
+      description: "Number of issues to return (default: 20)",
     },
   };
 }
@@ -190,26 +224,7 @@ function buildIssuesListDef(): ToolDefinition {
     name: "github_issues_list",
     description:
       "List issues for a repository. Returns issue number, title, state, labels, and author.",
-    parameters: {
-      repo: {
-        type: "string",
-        description: 'Repository in "owner/name" format',
-        required: true,
-      },
-      state: {
-        type: "string",
-        description:
-          'Filter by state: "open", "closed", or "all" (default: "open")',
-      },
-      labels: {
-        type: "string",
-        description: "Comma-separated list of label names to filter by",
-      },
-      per_page: {
-        type: "number",
-        description: "Number of issues to return (default: 20)",
-      },
-    },
+    parameters: buildIssuesListParams(),
   };
 }
 
@@ -281,32 +296,37 @@ function buildActionsRunsDef(): ToolDefinition {
   };
 }
 
+/** Build the parameter schema for the actions_trigger tool. */
+function buildActionsTriggerParams(): ToolDefinition["parameters"] {
+  return {
+    repo: {
+      type: "string",
+      description: 'Repository in "owner/name" format',
+      required: true,
+    },
+    workflow: {
+      type: "string",
+      description: "Workflow file name or ID (e.g. deploy.yml)",
+      required: true,
+    },
+    ref: {
+      type: "string",
+      description: "Git reference (branch or tag) to run the workflow on",
+      required: true,
+    },
+    inputs: {
+      type: "object",
+      description: "Workflow input parameters as key-value pairs",
+    },
+  };
+}
+
 function buildActionsTriggerDef(): ToolDefinition {
   return {
     name: "github_actions_trigger",
     description:
       "Trigger a GitHub Actions workflow via workflow_dispatch event.",
-    parameters: {
-      repo: {
-        type: "string",
-        description: 'Repository in "owner/name" format',
-        required: true,
-      },
-      workflow: {
-        type: "string",
-        description: "Workflow file name or ID (e.g. deploy.yml)",
-        required: true,
-      },
-      ref: {
-        type: "string",
-        description: "Git reference (branch or tag) to run the workflow on",
-        required: true,
-      },
-      inputs: {
-        type: "object",
-        description: "Workflow input parameters as key-value pairs",
-      },
-    },
+    parameters: buildActionsTriggerParams(),
   };
 }
 
