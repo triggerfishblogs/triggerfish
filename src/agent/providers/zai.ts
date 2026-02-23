@@ -132,6 +132,28 @@ function parseZaiCompletionResult(
   };
 }
 
+/** Send a request to the Z.AI API and return the validated response. */
+async function fetchZaiResponse(
+  apiKey: string,
+  body: string,
+  signal: AbortSignal | undefined,
+  operationLabel: string,
+): Promise<Response> {
+  const response = await fetch(ZAI_API_URL, {
+    method: "POST",
+    headers: buildZaiHeaders(apiKey),
+    body,
+    ...(signal ? { signal } : {}),
+  });
+  if (!response.ok) {
+    const errBody = await response.text();
+    throw new Error(
+      `Z.AI ${operationLabel} failed (${response.status}): ${errBody}`,
+    );
+  }
+  return response;
+}
+
 /**
  * Create a Z.AI LLM provider.
  *
@@ -167,18 +189,7 @@ export function createZaiProvider(config: ZaiConfig): LlmProvider {
       const signal = options.signal as AbortSignal | undefined;
       validateZaiVisionCapability(messages, model);
       const body = prepareZaiPayload(model, maxTokens, messages, tools);
-      const response = await fetch(ZAI_API_URL, {
-        method: "POST",
-        headers: buildZaiHeaders(apiKey),
-        body,
-        ...(signal ? { signal } : {}),
-      });
-      if (!response.ok) {
-        const errBody = await response.text();
-        throw new Error(
-          `Z.AI request failed (${response.status}): ${errBody}`,
-        );
-      }
+      const response = await fetchZaiResponse(apiKey, body, signal, "request");
       return parseZaiCompletionResult(
         (await response.json()) as ZaiApiResponse,
       );
@@ -198,19 +209,8 @@ export function createZaiProvider(config: ZaiConfig): LlmProvider {
         tools,
         { stream: true },
       );
-      const response = await fetch(ZAI_API_URL, {
-        method: "POST",
-        headers: buildZaiHeaders(apiKey),
-        body,
-        ...(signal ? { signal } : {}),
-      });
-      if (!response.ok) {
-        const errBody = await response.text();
-        throw new Error(
-          `Z.AI stream failed (${response.status}): ${errBody}`,
-        );
-      }
-      if (!response.body) throw new Error("No response body for streaming");
+      const response = await fetchZaiResponse(apiKey, body, signal, "stream");
+      if (!response.body) throw new Error("Z.AI stream response has no body");
       yield* parseSseStream(response.body);
     },
   };
