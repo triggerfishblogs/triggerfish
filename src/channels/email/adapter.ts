@@ -56,7 +56,8 @@ export interface EmailConfig {
  */
 export function createEmailChannel(config: EmailConfig): ChannelAdapter {
   const log = createLogger("email");
-  const classification = (config.classification ?? "CONFIDENTIAL") as ClassificationLevel;
+  const classification = (config.classification ??
+    "CONFIDENTIAL") as ClassificationLevel;
   const pollInterval = config.pollInterval ?? 30000;
   let connected = false;
   let handler: MessageHandler | null = null;
@@ -70,21 +71,88 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
     tls: true,
   });
 
+  function buildSmtpPayload(
+    toAddress: string,
+    content: string,
+  ): string {
+    return JSON.stringify({
+      personalizations: [{ to: [{ email: toAddress }] }],
+      from: { email: config.fromAddress },
+      subject: "Triggerfish",
+      content: [{ type: "text/plain", value: content }],
+    });
+  }
+
+  async function sendSmtpRelay(
+    toAddress: string,
+    content: string,
+  ): Promise<void> {
+    const response = await fetch(config.smtpApiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${config.smtpApiKey}`,
+      },
+      body: buildSmtpPayload(toAddress, content),
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Email send failed (${response.status}): ${err}`);
+    }
+  }
+
+  function resolveEmailOwnership(senderAddress: string): boolean {
+    return config.ownerEmail !== undefined
+      ? senderAddress === config.ownerEmail
+      : true;
+  }
+
+  function dispatchEmailMessage(
+    msgHandler: MessageHandler,
+    msg: {
+      readonly from: string;
+      readonly subject: string;
+      readonly body: string;
+    },
+  ): void {
+    const sessionId = `email-${msg.from}`;
+    const isOwner = resolveEmailOwnership(msg.from);
+    log.debug("Email received", {
+      from: msg.from,
+      subject: msg.subject,
+      isOwner,
+    });
+    msgHandler({
+      content: msg.body || msg.subject,
+      sessionId,
+      senderId: msg.from,
+      isOwner,
+      sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
+    });
+  }
+
+  async function pollEmailInbox(): Promise<void> {
+    if (!handler) return;
+    try {
+      const messages = await imapClient.fetchUnseen();
+      for (const msg of messages) {
+        dispatchEmailMessage(handler, msg);
+      }
+    } catch (err: unknown) {
+      log.warn("IMAP unseen email poll failed", { error: err });
+    }
+  }
+
   return {
     classification,
     isOwner: true,
 
     async connect(): Promise<void> {
-      // Connect IMAP client
       await imapClient.connect();
-
-      // Start polling for new emails
       pollTimer = setInterval(async () => {
-        await pollEmails();
+        await pollEmailInbox();
       }, pollInterval);
-
-      // Do initial poll
-      await pollEmails();
+      await pollEmailInbox();
       connected = true;
       log.info("Email adapter connected", { imapHost: config.imapHost });
     },
@@ -101,27 +169,8 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
 
     async send(message: ChannelMessage): Promise<void> {
       if (!message.sessionId) return;
-
       const toAddress = message.sessionId.replace("email-", "");
-
-      const response = await fetch(config.smtpApiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${config.smtpApiKey}`,
-        },
-        body: JSON.stringify({
-          personalizations: [{ to: [{ email: toAddress }] }],
-          from: { email: config.fromAddress },
-          subject: "Triggerfish",
-          content: [{ type: "text/plain", value: message.content }],
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`Email send failed (${response.status}): ${err}`);
-      }
+      await sendSmtpRelay(toAddress, message.content);
     },
 
     onMessage(msgHandler: MessageHandler): void {
@@ -129,37 +178,7 @@ export function createEmailChannel(config: EmailConfig): ChannelAdapter {
     },
 
     status(): ChannelStatus {
-      return {
-        connected,
-        channelType: "email",
-      };
+      return { connected, channelType: "email" };
     },
   };
-
-  /** Poll IMAP for unseen emails and dispatch to handler. */
-  async function pollEmails(): Promise<void> {
-    if (!handler) return;
-
-    try {
-      const messages = await imapClient.fetchUnseen();
-
-      for (const msg of messages) {
-        const sessionId = `email-${msg.from}`;
-        const isOwner = config.ownerEmail !== undefined
-          ? msg.from === config.ownerEmail
-          : true;
-
-        log.debug("Email received", { from: msg.from, subject: msg.subject, isOwner });
-        handler({
-          content: msg.body || msg.subject,
-          sessionId,
-          senderId: msg.from,
-          isOwner,
-          sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
-        });
-      }
-    } catch (err: unknown) {
-      log.warn("IMAP unseen email poll failed", { error: err });
-    }
-  }
 }
