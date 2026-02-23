@@ -60,6 +60,7 @@ function attachSocketEventHandlers(
     if (!handlerRef.current) return;
     try {
       const frame = JSON.parse(event.data as string) as WsFrame;
+      log.debug("WebChat frame received", { sessionId, type: frame.type });
       if (frame.type === "message" && frame.content) {
         handlerRef.current({
           content: frame.content,
@@ -69,8 +70,8 @@ function attachSocketEventHandlers(
           sessionTaint: "PUBLIC" as ClassificationLevel,
         });
       }
-    } catch {
-      // Ignore malformed frames
+    } catch (err) {
+      log.warn("WebChat: malformed message frame received", { err });
     }
   };
 
@@ -104,6 +105,7 @@ function routeWebChatRequest(
     }
     const { socket, response } = Deno.upgradeWebSocket(req);
     const sessionId = `webchat-${crypto.randomUUID()}`;
+    log.info("WebSocket upgrade accepted", { sessionId, origin });
     attachSocketEventHandlers(socket, sessionId, connections, handlerRef);
     return response;
   }
@@ -137,7 +139,14 @@ function dispatchWebChatFrame(
   if (!message.sessionId) return;
 
   const socket = connections.get(message.sessionId);
-  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    log.debug("WebChat frame not delivered: session not open or unknown", {
+      sessionId: message.sessionId,
+    });
+    return;
+  }
+
+  log.debug("WebChat frame sent", { sessionId: message.sessionId });
 
   const frame: WsFrame = {
     type: "message",

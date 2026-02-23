@@ -103,7 +103,8 @@ export function createGatewayServer(
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(json);
           }
-        } catch {
+        } catch (err) {
+          log.warn("Failed to send chat event to socket, removing stale connection", { err });
           chatSockets.delete(ws);
         }
       }
@@ -116,7 +117,8 @@ export function createGatewayServer(
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(json);
           }
-        } catch {
+        } catch (err) {
+          log.warn("Failed to send notification to socket, removing stale connection", { err });
           chatSockets.delete(ws);
         }
       }
@@ -155,6 +157,7 @@ export function createGatewayServer(
               });
               return rejection;
             }
+            log.info("WebSocket upgrade accepted", { pathname: url.pathname });
 
             // Route /chat to the chat session handler
             if (url.pathname === "/chat" && chatSession) {
@@ -186,7 +189,8 @@ export function createGatewayServer(
                   notificationService,
                 );
                 socket.send(JSON.stringify(rpcResponse));
-              } catch {
+              } catch (err) {
+                log.warn("JSON-RPC message processing failed", { err });
                 socket.send(JSON.stringify({
                   jsonrpc: "2.0",
                   id: null,
@@ -221,6 +225,9 @@ export function createGatewayServer(
                 });
                 return new Response("Unauthorized", { status: 401 });
               }
+              log.info("Debug endpoint access authorized", {
+                operation: "debug/run-triggers",
+              });
             }
             if (!schedulerService) {
               return new Response(
