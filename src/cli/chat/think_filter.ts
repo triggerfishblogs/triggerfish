@@ -56,169 +56,300 @@ const OPEN_TAG_RE = /<think(?:ing)?>/i;
 /** Regex to match `</think>` or `</thinking>` closing tags. */
 const CLOSE_TAG_RE = /<\/think(?:ing)?>/i;
 
-/** Create a stream filter for thinking tags. */
-export function createThinkingFilter(): ThinkingFilter {
-  let state: ThinkFilterState = "buffering";
-  let pendingBuffer = "";
-  // For character-by-character processing:
-  let tagBuffer = "";       // accumulates `<...>` tags
-  let closeBuffer = "";     // sliding buffer for `</think>` detection
+/** Mutable state for the character-by-character processor. */
+interface FilterState {
+  state: ThinkFilterState;
+  pendingBuffer: string;
+  tagBuffer: string;
+  closeBuffer: string;
+}
 
-  /**
-   * Resolve the pending buffer. Checks for think tags and returns the
-   * appropriate result. Transitions state out of `buffering`.
-   */
-  function resolveBuffer(extra: string): ThinkFilterResult {
-    const buf = pendingBuffer + extra;
-    pendingBuffer = "";
+/** Accumulator for character-by-character processing results. */
+interface CharAccumulator {
+  visible: string;
+  thinking: string;
+  entered: boolean;
+  exited: boolean;
+}
 
-    // Case 1: `<think>...content...</think>rest` — standard think tags
-    const openMatch = buf.match(OPEN_TAG_RE);
-    if (openMatch) {
-      const preOpen = buf.slice(0, openMatch.index!);
-      const afterOpen = buf.slice(openMatch.index! + openMatch[0].length);
-      const closeMatch = afterOpen.match(CLOSE_TAG_RE);
-      if (closeMatch) {
-        const thinkContent = afterOpen.slice(0, closeMatch.index!);
-        const afterClose = afterOpen.slice(closeMatch.index! + closeMatch[0].length);
-        state = "normal";
-        return {
-          visible: preOpen + afterClose,
-          thinking: thinkContent,
-          enteredThinking: true,
-          exitedThinking: true,
-        };
-      }
-      state = "suppressing";
-      closeBuffer = "";
-      return {
-        visible: preOpen,
-        thinking: afterOpen,
-        enteredThinking: true,
-        exitedThinking: false,
-      };
-    }
+/** Handle buffer containing an opening think tag. */
+function resolveBufferWithOpenTag(
+  buf: string,
+  openMatch: RegExpMatchArray,
+  fs: FilterState,
+): ThinkFilterResult {
+  const preOpen = buf.slice(0, openMatch.index!);
+  const afterOpen = buf.slice(openMatch.index! + openMatch[0].length);
+  const closeMatch = afterOpen.match(CLOSE_TAG_RE);
 
-    // Case 2: No `<think>` but `</think>` present — bare closing tag.
-    const closeMatch = buf.match(CLOSE_TAG_RE);
-    if (closeMatch) {
-      const thinkContent = buf.slice(0, closeMatch.index!);
-      const afterClose = buf.slice(closeMatch.index! + closeMatch[0].length);
-      state = "normal";
-      return {
-        visible: afterClose,
-        thinking: thinkContent,
-        enteredThinking: true,
-        exitedThinking: true,
-      };
-    }
-
-    // Case 3: No think tags — flush as visible.
-    state = "normal";
-    return {
-      visible: buf,
-      thinking: "",
-      enteredThinking: false,
-      exitedThinking: false,
-    };
+  if (closeMatch) {
+    return resolveBufferOpenAndClose(preOpen, afterOpen, closeMatch, fs);
   }
 
-  const self: ThinkingFilter = {
-    get isThinking(): boolean {
-      return state === "suppressing" || state === "buffering";
-    },
+  fs.state = "suppressing";
+  fs.closeBuffer = "";
+  return {
+    visible: preOpen,
+    thinking: afterOpen,
+    enteredThinking: true,
+    exitedThinking: false,
+  };
+}
 
-    filter(text: string): ThinkFilterResult {
-      // ── Buffering phase: accumulate and check for tags ──
-      if (state === "buffering") {
-        pendingBuffer += text;
+/** Handle buffer with both opening and closing think tags. */
+function resolveBufferOpenAndClose(
+  preOpen: string,
+  afterOpen: string,
+  closeMatch: RegExpMatchArray,
+  fs: FilterState,
+): ThinkFilterResult {
+  const thinkContent = afterOpen.slice(0, closeMatch.index!);
+  const afterClose = afterOpen.slice(closeMatch.index! + closeMatch[0].length);
+  fs.state = "normal";
+  return {
+    visible: preOpen + afterClose,
+    thinking: thinkContent,
+    enteredThinking: true,
+    exitedThinking: true,
+  };
+}
 
-        // Check for think tags
-        if (CLOSE_TAG_RE.test(pendingBuffer) || OPEN_TAG_RE.test(pendingBuffer)) {
-          return resolveBuffer("");
-        }
+/** Handle buffer containing a bare closing think tag (no opener). */
+function resolveBufferWithCloseTag(
+  buf: string,
+  closeMatch: RegExpMatchArray,
+  fs: FilterState,
+): ThinkFilterResult {
+  const thinkContent = buf.slice(0, closeMatch.index!);
+  const afterClose = buf.slice(closeMatch.index! + closeMatch[0].length);
+  fs.state = "normal";
+  return {
+    visible: afterClose,
+    thinking: thinkContent,
+    enteredThinking: true,
+    exitedThinking: true,
+  };
+}
 
-        // Buffer not resolved yet — check threshold
-        if (pendingBuffer.length >= THINK_BUFFER_MAX) {
-          return resolveBuffer("");
-        }
+/** Flush the buffer as visible text (no think tags found). */
+function resolveBufferAsVisible(
+  buf: string,
+  fs: FilterState,
+): ThinkFilterResult {
+  fs.state = "normal";
+  return {
+    visible: buf,
+    thinking: "",
+    enteredThinking: false,
+    exitedThinking: false,
+  };
+}
 
-        // Still buffering
-        return { visible: "", thinking: "", enteredThinking: false, exitedThinking: false };
-      }
+/**
+ * Resolve the pending buffer by checking for think tags.
+ * Transitions state out of `buffering`.
+ */
+function resolveThinkBuffer(
+  fs: FilterState,
+  extra: string,
+): ThinkFilterResult {
+  const buf = fs.pendingBuffer + extra;
+  fs.pendingBuffer = "";
 
-      // ── Character-by-character processing ──
-      let visible = "";
-      let thinking = "";
-      let entered = false;
-      let exited = false;
+  const openMatch = buf.match(OPEN_TAG_RE);
+  if (openMatch) {
+    return resolveBufferWithOpenTag(buf, openMatch, fs);
+  }
 
-      for (const ch of text) {
-        switch (state) {
-          case "normal":
-            if (ch === "<") {
-              state = "in_tag";
-              tagBuffer = "<";
-            } else {
-              visible += ch;
-            }
-            break;
+  const closeMatch = buf.match(CLOSE_TAG_RE);
+  if (closeMatch) {
+    return resolveBufferWithCloseTag(buf, closeMatch, fs);
+  }
 
-          case "in_tag":
-            tagBuffer += ch;
-            if (ch === ">") {
-              if (/^<think(?:ing)?>$/i.test(tagBuffer)) {
-                state = "suppressing";
-                entered = true;
-                tagBuffer = "";
-                closeBuffer = "";
-              } else if (/^<\/think(?:ing)?>$/i.test(tagBuffer)) {
-                tagBuffer = "";
-                state = "normal";
-              } else {
-                visible += tagBuffer;
-                tagBuffer = "";
-                state = "normal";
-              }
-            } else if (tagBuffer.length > 12) {
-              visible += tagBuffer;
-              tagBuffer = "";
-              state = "normal";
-            }
-            break;
+  return resolveBufferAsVisible(buf, fs);
+}
 
-          case "suppressing": {
-            thinking += ch;
-            closeBuffer += ch;
-            if (closeBuffer.length > 12) {
-              closeBuffer = closeBuffer.slice(-12);
-            }
-            if (ch === ">" && /<\/think(?:ing)?>$/i.test(closeBuffer)) {
-              exited = true;
-              const match = closeBuffer.match(/<\/think(?:ing)?>$/i);
-              if (match) {
-                thinking = thinking.slice(0, -match[0].length);
-              }
-              state = "normal";
-              closeBuffer = "";
-            }
-            break;
-          }
+/** Empty filter result for when still buffering. */
+const EMPTY_RESULT: ThinkFilterResult = {
+  visible: "",
+  thinking: "",
+  enteredThinking: false,
+  exitedThinking: false,
+};
 
-          default:
-            break;
-        }
-      }
-      return { visible, thinking, enteredThinking: entered, exitedThinking: exited };
-    },
+/** Process buffering-phase input. Returns result or null to continue. */
+function filterBufferingChunk(
+  fs: FilterState,
+  text: string,
+): ThinkFilterResult {
+  fs.pendingBuffer += text;
 
-    reset(): void {
-      state = "buffering";
-      pendingBuffer = "";
-      tagBuffer = "";
-      closeBuffer = "";
-    },
+  if (
+    CLOSE_TAG_RE.test(fs.pendingBuffer) || OPEN_TAG_RE.test(fs.pendingBuffer)
+  ) {
+    return resolveThinkBuffer(fs, "");
+  }
+
+  if (fs.pendingBuffer.length >= THINK_BUFFER_MAX) {
+    return resolveThinkBuffer(fs, "");
+  }
+
+  return EMPTY_RESULT;
+}
+
+/** Process a character in `normal` state. */
+function processNormalChar(
+  ch: string,
+  fs: FilterState,
+  acc: CharAccumulator,
+): void {
+  if (ch === "<") {
+    fs.state = "in_tag";
+    fs.tagBuffer = "<";
+  } else {
+    acc.visible += ch;
+  }
+}
+
+/** Process a character in `in_tag` state. */
+function processInTagChar(
+  ch: string,
+  fs: FilterState,
+  acc: CharAccumulator,
+): void {
+  fs.tagBuffer += ch;
+  if (ch === ">") {
+    finalizeTagBuffer(fs, acc);
+  } else if (fs.tagBuffer.length > 12) {
+    acc.visible += fs.tagBuffer;
+    fs.tagBuffer = "";
+    fs.state = "normal";
+  }
+}
+
+/** Finalize a completed tag buffer when `>` is encountered. */
+function finalizeTagBuffer(fs: FilterState, acc: CharAccumulator): void {
+  if (/^<think(?:ing)?>$/i.test(fs.tagBuffer)) {
+    fs.state = "suppressing";
+    acc.entered = true;
+    fs.tagBuffer = "";
+    fs.closeBuffer = "";
+  } else if (/^<\/think(?:ing)?>$/i.test(fs.tagBuffer)) {
+    fs.tagBuffer = "";
+    fs.state = "normal";
+  } else {
+    acc.visible += fs.tagBuffer;
+    fs.tagBuffer = "";
+    fs.state = "normal";
+  }
+}
+
+/** Process a character in `suppressing` state. */
+function processSuppressingChar(
+  ch: string,
+  fs: FilterState,
+  acc: CharAccumulator,
+): void {
+  acc.thinking += ch;
+  fs.closeBuffer += ch;
+  if (fs.closeBuffer.length > 12) {
+    fs.closeBuffer = fs.closeBuffer.slice(-12);
+  }
+  if (ch === ">") {
+    detectSuppressingCloseTag(fs, acc);
+  }
+}
+
+/** Check if the close buffer ends with a closing think tag. */
+function detectSuppressingCloseTag(
+  fs: FilterState,
+  acc: CharAccumulator,
+): void {
+  if (!/<\/think(?:ing)?>$/i.test(fs.closeBuffer)) return;
+
+  acc.exited = true;
+  const match = fs.closeBuffer.match(/<\/think(?:ing)?>$/i);
+  if (match) {
+    acc.thinking = acc.thinking.slice(0, -match[0].length);
+  }
+  fs.state = "normal";
+  fs.closeBuffer = "";
+}
+
+/** Dispatch a single character to the appropriate state handler. */
+function dispatchCharToStateHandler(
+  ch: string,
+  fs: FilterState,
+  acc: CharAccumulator,
+): void {
+  switch (fs.state) {
+    case "normal":
+      processNormalChar(ch, fs, acc);
+      break;
+    case "in_tag":
+      processInTagChar(ch, fs, acc);
+      break;
+    case "suppressing":
+      processSuppressingChar(ch, fs, acc);
+      break;
+    default:
+      break;
+  }
+}
+
+/** Run the character-by-character state machine over text. */
+function filterStreamChunk(
+  fs: FilterState,
+  text: string,
+): ThinkFilterResult {
+  const acc: CharAccumulator = {
+    visible: "",
+    thinking: "",
+    entered: false,
+    exited: false,
   };
 
-  return self;
+  for (const ch of text) {
+    dispatchCharToStateHandler(ch, fs, acc);
+  }
+
+  return {
+    visible: acc.visible,
+    thinking: acc.thinking,
+    enteredThinking: acc.entered,
+    exitedThinking: acc.exited,
+  };
+}
+
+/** Reset filter state to initial buffering mode. */
+function resetFilterState(fs: FilterState): void {
+  fs.state = "buffering";
+  fs.pendingBuffer = "";
+  fs.tagBuffer = "";
+  fs.closeBuffer = "";
+}
+
+/** Create a stream filter for thinking tags. */
+export function createThinkingFilter(): ThinkingFilter {
+  const fs: FilterState = {
+    state: "buffering",
+    pendingBuffer: "",
+    tagBuffer: "",
+    closeBuffer: "",
+  };
+
+  return {
+    get isThinking(): boolean {
+      return fs.state === "suppressing" || fs.state === "buffering";
+    },
+    filter(text: string): ThinkFilterResult {
+      if (fs.state === "buffering") {
+        return filterBufferingChunk(fs, text);
+      }
+      return filterStreamChunk(fs, text);
+    },
+    reset(): void {
+      resetFilterState(fs);
+    },
+  };
 }
