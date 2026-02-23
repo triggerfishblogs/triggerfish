@@ -47,6 +47,48 @@ function toDriveFile(file: DriveApiFile): DriveFile {
   };
 }
 
+/** Search Drive files by query and convert to DriveFile. */
+async function searchDriveFiles(
+  client: GoogleApiClient,
+  options: DriveSearchOptions,
+): Promise<GoogleApiResult<readonly DriveFile[]>> {
+  const params: Record<string, string> = {
+    q: options.query,
+    pageSize: String(options.maxResults ?? 10),
+    fields: "files(id,name,mimeType,modifiedTime,size,webViewLink)",
+  };
+  const result = await client.get<{
+    readonly files?: readonly DriveApiFile[];
+  }>(`${DRIVE_BASE}/files`, params);
+  if (!result.ok) return result;
+  const files = (result.value.files ?? []).map(toDriveFile);
+  return { ok: true, value: files };
+}
+
+/** Download or export a single Drive file by ID. */
+async function readDriveFileContent(
+  client: GoogleApiClient,
+  fileId: string,
+): Promise<GoogleApiResult<string>> {
+  const metaResult = await client.get<DriveApiFile>(
+    `${DRIVE_BASE}/files/${fileId}`,
+    { fields: "id,name,mimeType" },
+  );
+  if (!metaResult.ok) return metaResult;
+
+  const exportMime = EXPORT_MIME_TYPES[metaResult.value.mimeType];
+  if (exportMime) {
+    return client.get<string>(
+      `${DRIVE_BASE}/files/${fileId}/export`,
+      { mimeType: exportMime },
+    );
+  }
+  return client.get<string>(
+    `${DRIVE_BASE}/files/${fileId}`,
+    { alt: "media" },
+  );
+}
+
 /**
  * Create a Google Drive service.
  *
@@ -54,50 +96,7 @@ function toDriveFile(file: DriveApiFile): DriveFile {
  */
 export function createDriveService(client: GoogleApiClient): DriveService {
   return {
-    async search(
-      options: DriveSearchOptions,
-    ): Promise<GoogleApiResult<readonly DriveFile[]>> {
-      const params: Record<string, string> = {
-        q: options.query,
-        pageSize: String(options.maxResults ?? 10),
-        fields: "files(id,name,mimeType,modifiedTime,size,webViewLink)",
-      };
-
-      const result = await client.get<{
-        readonly files?: readonly DriveApiFile[];
-      }>(`${DRIVE_BASE}/files`, params);
-
-      if (!result.ok) return result;
-      const files = (result.value.files ?? []).map(toDriveFile);
-      return { ok: true, value: files };
-    },
-
-    async read(fileId: string): Promise<GoogleApiResult<string>> {
-      // First get file metadata to determine MIME type
-      const metaResult = await client.get<DriveApiFile>(
-        `${DRIVE_BASE}/files/${fileId}`,
-        { fields: "id,name,mimeType" },
-      );
-      if (!metaResult.ok) return metaResult;
-
-      const mimeType = metaResult.value.mimeType;
-      const exportMime = EXPORT_MIME_TYPES[mimeType];
-
-      if (exportMime) {
-        // Google Workspace file — export
-        const result = await client.get<string>(
-          `${DRIVE_BASE}/files/${fileId}/export`,
-          { mimeType: exportMime },
-        );
-        return result;
-      }
-
-      // Regular file — download media
-      const result = await client.get<string>(
-        `${DRIVE_BASE}/files/${fileId}`,
-        { alt: "media" },
-      );
-      return result;
-    },
+    search: (options) => searchDriveFiles(client, options),
+    read: (fileId) => readDriveFileContent(client, fileId),
   };
 }
