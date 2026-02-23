@@ -5,16 +5,22 @@
  */
 
 export {
-  getExploreToolDefinitions,
-  createExploreToolExecutor,
-  buildAgentTasks,
-  assembleResult,
   EXPLORE_SYSTEM_PROMPT,
-} from "./tools.ts";
+  getExploreToolDefinitions,
+} from "./tools_defs.ts";
 
 export type {
-  ExploreResult,
   ExploreDepth,
+  ExploreResult,
   KeyFile,
   Pattern,
-} from "./tools.ts";
+} from "./tools_defs.ts";
+
+export { buildAgentTasks } from "./prompts.ts";
+export type { AgentTask } from "./prompts.ts";
+
+export { extractKeyFiles, extractPatterns, truncateTree } from "./parsers.ts";
+
+export { assembleResult, buildTemplateSummary } from "./assembly.ts";
+
+export { createExploreToolExecutor } from "./executor.ts";
