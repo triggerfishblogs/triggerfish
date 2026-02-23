@@ -13,10 +13,15 @@ import {
   renderPrompt,
 } from "../../cli/chat/chat_ui.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
-import { taintColor } from "../../cli/terminal/screen.ts";
 import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import type { OrchestratorEvent } from "../../agent/orchestrator.ts";
 import type { ChatEvent } from "../../core/types/chat_event.ts";
+
+import type { WsRouterDeps, WsRouterState } from "./chat_ws_types.ts";
+import { sendNextQueuedMessage } from "./chat_ws_types.ts";
+
+export type { PasswordModeState, WsRouterState, WsRouterDeps } from "./chat_ws_types.ts";
+export { sendNextQueuedMessage } from "./chat_ws_types.ts";
 
 const log = createLogger("cli");
 
@@ -28,60 +33,6 @@ interface RouterContext {
   readonly eventHandler: (evt: OrchestratorEvent) => void;
   readonly state: WsRouterState;
   readonly deps: WsRouterDeps;
-}
-
-/** Password-mode state — active when the daemon sends a secret_prompt event. */
-export interface PasswordModeState {
-  readonly nonce: string;
-  readonly name: string;
-  readonly hint?: string;
-  readonly chars: string[];
-}
-
-/** Mutable refs shared between the WS router and the keypress loop. */
-export interface WsRouterState {
-  isProcessing: boolean;
-  passwordMode: PasswordModeState | null;
-  providerName: string;
-}
-
-/** Dependencies injected into the WebSocket message router. */
-export interface WsRouterDeps {
-  readonly screen: ScreenManager;
-  readonly isTty: boolean;
-  readonly getEditor: () => LineEditor;
-  readonly eventHandler: (evt: OrchestratorEvent) => void;
-  readonly state: WsRouterState;
-  readonly messageQueue: string[];
-  readonly ws: WebSocket;
-  readonly resolveConnected: () => void;
-}
-
-/**
- * Send the next queued message over the WebSocket.
- *
- * Called after a response completes to drain any messages queued
- * while the previous turn was processing.
- */
-export function sendNextQueuedMessage(deps: WsRouterDeps): void {
-  const { messageQueue, screen, state, ws } = deps;
-  if (messageQueue.length === 0) return;
-  const next = messageQueue.shift()!;
-  const editor = deps.getEditor();
-  screen.writeOutput(
-    `  ${taintColor(screen.getTaint())}\x1b[1m❯\x1b[0m ${next}`,
-  );
-  screen.writeOutput(`  \x1b[2m(queued)\x1b[0m`);
-  screen.writeOutput("");
-  state.isProcessing = true;
-  try {
-    ws.send(JSON.stringify({ type: "message", content: next }));
-  } catch (err: unknown) {
-    log.debug("WebSocket send failed: connection closed", { error: err });
-    screen.writeOutput(formatError("Lost connection to daemon"));
-    state.isProcessing = false;
-    screen.redrawInput(editor);
-  }
 }
 
 // ─── Per-event-type handlers (unexported) ───────────────────────

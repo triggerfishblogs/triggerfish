@@ -5,6 +5,8 @@
 
 import { createLogger } from "../../core/logger/logger.ts";
 import type { Result } from "../../core/types/classification.ts";
+import { createDaemonStderrCollector } from "./setup_daemon_stderr.ts";
+
 
 const log = createLogger("signal");
 
@@ -30,6 +32,13 @@ export async function isDaemonRunning(
   }
 }
 
+/** Build env with optional JAVA_HOME. */
+function buildDaemonEnv(
+  javaHome?: string,
+): Record<string, string> | undefined {
+  return javaHome ? { ...Deno.env.toObject(), JAVA_HOME: javaHome } : undefined;
+}
+
 /** Result of starting the signal-cli daemon. */
 export interface DaemonHandle {
   /** The child process. */
@@ -38,114 +47,6 @@ export interface DaemonHandle {
   readonly stderrText: () => Promise<string>;
   /** Resolves with the first stderr output received within 5s of start. */
   readonly earlyStderr: Promise<string>;
-}
-
-// ─── Shared stderr collector ─────────────────────────────────────────────────
-
-/** Merge Uint8Array chunks into a single trimmed string. */
-function mergeStderrChunks(chunks: readonly Uint8Array[]): string {
-  const total = chunks.reduce((n, c) => n + c.length, 0);
-  const merged = new Uint8Array(total);
-  let offset = 0;
-  for (const c of chunks) {
-    merged.set(c, offset);
-    offset += c.length;
-  }
-  return new TextDecoder().decode(merged).trim();
-}
-
-/** Decode chunks and return the first line. */
-function extractFirstStderrLine(chunks: readonly Uint8Array[]): string {
-  const decoder = new TextDecoder();
-  return chunks.map((c) => decoder.decode(c)).join("").split("\n")[0].trim();
-}
-
-/** Read stderr stream, pushing chunks and resolving early promise on first line. */
-async function readDaemonStderr(
-  child: Deno.ChildProcess,
-  chunks: Uint8Array[],
-  resolveEarly: (line: string) => void,
-  deadline: number,
-): Promise<void> {
-  const reader = child.stderr.getReader();
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done || !value) {
-        resolveEarly(extractFirstStderrLine(chunks));
-        break;
-      }
-      chunks.push(value);
-      if (Date.now() < deadline) {
-        const soFar = extractFirstStderrLine(chunks);
-        if (
-          chunks.map((c) => new TextDecoder().decode(c)).join("").includes("\n")
-        ) {
-          resolveEarly(soFar);
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
-
-/** Stderr collector result for daemon processes. */
-interface StderrCollector {
-  readonly earlyStderr: Promise<string>;
-  readonly stderrText: () => Promise<string>;
-}
-
-/** Create a stderr collector that provides early and full stderr access. */
-function createDaemonStderrCollector(
-  child: Deno.ChildProcess,
-): StderrCollector {
-  const chunks: Uint8Array[] = [];
-  let earlyResolved = false;
-  let earlyResolve: (s: string) => void;
-  let fullResolve: (s: string) => void;
-  const earlyStderr = new Promise<string>((r) => {
-    earlyResolve = r;
-  });
-  const fullPromise = new Promise<string>((r) => {
-    fullResolve = r;
-  });
-
-  const deadline = Date.now() + 5000;
-  const timer = setTimeout(() => {
-    if (!earlyResolved) {
-      earlyResolved = true;
-      earlyResolve!(extractFirstStderrLine(chunks));
-    }
-  }, 5000);
-
-  (async () => {
-    try {
-      await readDaemonStderr(child, chunks, (line) => {
-        if (!earlyResolved) {
-          earlyResolved = true;
-          earlyResolve!(line);
-        }
-      }, deadline);
-    } catch (err: unknown) {
-      log.debug("Daemon stderr reader terminated", { error: err });
-      if (!earlyResolved) {
-        earlyResolved = true;
-        earlyResolve!("");
-      }
-    }
-    clearTimeout(timer);
-    fullResolve!(mergeStderrChunks(chunks));
-  })();
-
-  return { earlyStderr, stderrText: () => fullPromise };
-}
-
-/** Build env with optional JAVA_HOME. */
-function buildDaemonEnv(
-  javaHome?: string,
-): Record<string, string> | undefined {
-  return javaHome ? { ...Deno.env.toObject(), JAVA_HOME: javaHome } : undefined;
 }
 
 /** Spawn a signal-cli daemon process and attach stderr collector. */

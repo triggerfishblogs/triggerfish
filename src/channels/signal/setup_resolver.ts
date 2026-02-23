@@ -1,11 +1,16 @@
 /**
- * Signal binary and Java resolution — find signal-cli and JRE on disk.
+ * Signal binary resolution — find signal-cli on disk.
  * @module
  */
 
 import { createLogger } from "../../core/logger/logger.ts";
 import type { Result } from "../../core/types/classification.ts";
 import { resolveBaseDir } from "../../cli/config/paths.ts";
+
+import { resolveJavaHome as resolveJavaHomeImpl } from "./setup_java.ts";
+
+// ─── Re-exports from setup_java.ts ─────────────────────────────
+export { checkJava, javaHomeBin, resolveJavaHome, tryJava } from "./setup_java.ts";
 
 const log = createLogger("signal");
 
@@ -179,123 +184,8 @@ export async function checkSignalCli(): Promise<
   const flatResult = await trySignalCli(`${binDir}/signal-cli${ext}`);
   if (flatResult.ok) return flatResult;
 
-  const jvmResult = await scanJvmBuildDirs(binDir, ext, resolveJavaHome());
+  const jvmResult = await scanJvmBuildDirs(binDir, ext, resolveJavaHomeImpl());
   if (jvmResult.ok) return jvmResult;
 
   return { ok: false, error: "signal-cli not found" };
-}
-
-// ─── Java resolution ─────────────────────────────────────────────
-
-/** Validate that the Java version is 21 or newer. */
-function validateJavaVersion(versionText: string): Result<string, string> {
-  const firstLine = versionText.split("\n")[0];
-  const match = versionText.match(/(\d+)\.\d+/);
-  if (!match) return { ok: true, value: firstLine };
-  const major = parseInt(match[1], 10);
-  if (major >= 21) return { ok: true, value: firstLine };
-  return {
-    ok: false,
-    error: `Java ${major} found, but signal-cli requires Java 21+`,
-  };
-}
-
-/** Try running a java binary and verify it's 21+. */
-export async function tryJava(path: string): Promise<Result<string, string>> {
-  try {
-    const cmd = new Deno.Command(path, {
-      args: ["--version"],
-      stdout: "piped",
-      stderr: "piped",
-    });
-    const child = cmd.spawn();
-    const output = await raceProcessWithTimeout(child);
-    if (output === null) return { ok: false, error: "timed out" };
-    if (!output.success) {
-      return { ok: false, error: "java returned non-zero exit code" };
-    }
-    const versionText = new TextDecoder().decode(output.stdout).trim();
-    return validateJavaVersion(versionText);
-  } catch (_err: unknown) {
-    log.debug("Java binary not found", { path });
-    return { ok: false, error: "not found" };
-  }
-}
-
-/** Probe a JDK candidate directory for a java binary, returning JAVA_HOME or null. */
-function probeJdkCandidate(candidate: string): string | null {
-  if (Deno.build.os === "darwin") {
-    const macHome = `${candidate}/Contents/Home`;
-    try {
-      Deno.statSync(`${macHome}/bin/java`);
-      return macHome;
-    } catch (_err: unknown) {
-      log.debug("File access failed", { path: `${macHome}/bin/java` });
-    }
-  }
-  const javaBinName = Deno.build.os === "windows" ? "java.exe" : "java";
-  try {
-    Deno.statSync(`${candidate}/bin/${javaBinName}`);
-    return candidate;
-  } catch (_err: unknown) {
-    log.debug("File access failed", {
-      path: `${candidate}/bin/${javaBinName}`,
-    });
-  }
-  return null;
-}
-
-/** Return the JAVA_HOME for a managed JRE, or null if none installed. */
-export function resolveJavaHome(): string | null {
-  const javaDir = `${resolveSignalCliBinDir()}/java`;
-  try {
-    for (const entry of Deno.readDirSync(javaDir)) {
-      if (!entry.isDirectory || !entry.name.startsWith("jdk-")) continue;
-      const result = probeJdkCandidate(`${javaDir}/${entry.name}`);
-      if (result !== null) return result;
-    }
-  } catch (_err: unknown) {
-    log.debug("File access failed", { path: javaDir });
-  }
-  return null;
-}
-
-/** Return the path to the java binary for a given JAVA_HOME. */
-export function javaHomeBin(javaHome: string): string {
-  return Deno.build.os === "windows"
-    ? `${javaHome}/bin/java.exe`
-    : `${javaHome}/bin/java`;
-}
-
-/**
- * Check if Java 21+ is available — checks managed JRE first, then PATH.
- *
- * @returns Java version string and JAVA_HOME path (if managed), or error.
- */
-export async function checkJava(): Promise<
-  Result<{ version: string; javaHome?: string }, string>
-> {
-  // 1. Check managed JRE in ~/.triggerfish/bin/java/
-  const managedHome = resolveJavaHome();
-  if (managedHome) {
-    const javaBin = javaHomeBin(managedHome);
-    const result = await tryJava(javaBin);
-    if (result.ok) {
-      return {
-        ok: true,
-        value: { version: result.value, javaHome: managedHome },
-      };
-    }
-  }
-
-  // 2. Check system PATH
-  const pathResult = await tryJava("java");
-  if (pathResult.ok) {
-    return { ok: true, value: { version: pathResult.value } };
-  }
-
-  return {
-    ok: false,
-    error: "Java 21+ not found (checked ~/.triggerfish/bin/java/ and PATH)",
-  };
 }
