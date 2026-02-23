@@ -21,8 +21,8 @@
 import { createLogger } from "../core/logger/mod.ts";
 import { createOrchestrator } from "../agent/orchestrator.ts";
 import type {
-  OrchestratorEvent,
-  OrchestratorEventCallback,
+  Orchestrator,
+  OrchestratorConfig,
 } from "../agent/orchestrator.ts";
 import type { SessionState } from "../core/types/session.ts";
 import { updateTaint } from "../core/types/session.ts";
@@ -250,6 +250,370 @@ async function preloadPairedUsers(
   } catch { /* ignore if prefix listing not supported */ }
 }
 
+// ─── Mutable chat session state ─────────────────────────────────────────────
+
+/** Mutable state shared across chat session helpers via parameter passing. */
+interface ChatSessionMutableState {
+  activeSend: ChatEventSender | null;
+  activeSessionId: string;
+  activeNonOwnerCeiling: ClassificationLevel | null;
+  mutex: Promise<void>;
+  readonly ownerSessionId: string;
+  readonly sessionStates: Map<string, SessionState>;
+}
+
+// ─── Taint helpers ──────────────────────────────────────────────────────────
+
+/** Resolve the current taint level for the active session. */
+function resolveSessionTaint(
+  state: ChatSessionMutableState,
+  ownerGetTaint: (() => ClassificationLevel) | undefined,
+): ClassificationLevel {
+  if (state.activeSessionId === state.ownerSessionId && ownerGetTaint) {
+    return ownerGetTaint();
+  }
+  return state.sessionStates.get(state.activeSessionId)?.taint ?? "PUBLIC";
+}
+
+/** Escalate taint for the active session and emit a taint_changed event. */
+function applyTaintEscalation(
+  state: ChatSessionMutableState,
+  level: ClassificationLevel,
+  reason: string,
+  ownerGetTaint: (() => ClassificationLevel) | undefined,
+  ownerEscalateTaint:
+    | ((level: ClassificationLevel, reason: string) => void)
+    | undefined,
+): void {
+  const prevTaint = resolveSessionTaint(state, ownerGetTaint);
+  if (state.activeSessionId === state.ownerSessionId && ownerEscalateTaint) {
+    ownerEscalateTaint(level, reason);
+  } else {
+    const s = state.sessionStates.get(state.activeSessionId);
+    if (s) {
+      state.sessionStates.set(
+        state.activeSessionId,
+        updateTaint(s, level, reason),
+      );
+    }
+  }
+  const newTaint = resolveSessionTaint(state, ownerGetTaint);
+  if (newTaint !== prevTaint && state.activeSend) {
+    state.activeSend({ type: "taint_changed", level: newTaint });
+  }
+}
+
+// ─── Orchestrator config assembly ───────────────────────────────────────────
+
+/** Assemble the OrchestratorConfig from ChatSessionConfig and taint closures. */
+function assembleOrchestratorConfig(
+  config: ChatSessionConfig,
+  state: ChatSessionMutableState,
+  getSessionTaint: () => ClassificationLevel,
+  escalateTaint: (level: ClassificationLevel, reason: string) => void,
+): OrchestratorConfig {
+  return {
+    hookRunner: config.hookRunner,
+    providerRegistry: config.providerRegistry,
+    spinePath: config.spinePath,
+    tools: config.tools,
+    getExtraTools: config.getExtraTools,
+    getExtraSystemPromptSections: config.getExtraSystemPromptSections,
+    toolExecutor: config.toolExecutor,
+    onEvent: (event) => {
+      if (state.activeSend) state.activeSend(event as ChatEvent);
+    },
+    compactorConfig: config.compactorConfig,
+    systemPromptSections: config.systemPromptSections,
+    planManager: config.planManager,
+    enableStreaming: config.enableStreaming,
+    debug: config.debug,
+    visionProvider: config.visionProvider,
+    toolClassifications: config.toolClassifications,
+    getSessionTaint,
+    escalateTaint,
+    isOwnerSession: () => state.activeSessionId === state.ownerSessionId,
+    getNonOwnerCeiling: () => state.activeNonOwnerCeiling,
+    pathClassifier: config.pathClassifier,
+    domainClassifier: config.domainClassifier,
+    toolFloorRegistry: config.toolFloorRegistry,
+    secretStore: config.secretStore,
+  };
+}
+
+// ─── Mutex acquisition ──────────────────────────────────────────────────────
+
+/** Acquire the promise-chain mutex, returning a release function. */
+async function acquireTurnMutex(
+  state: ChatSessionMutableState,
+): Promise<() => void> {
+  const prev = state.mutex;
+  let release: () => void;
+  state.mutex = new Promise<void>((r) => {
+    release = r;
+  });
+  await prev;
+  return release!;
+}
+
+// ─── Owner turn execution ───────────────────────────────────────────────────
+
+/** Run a single owner agent turn under the mutex. */
+async function runOwnerAgentTurn(
+  state: ChatSessionMutableState,
+  orchestrator: Orchestrator,
+  getSession: () => SessionState,
+  content: MessageContent,
+  targetClassification: ClassificationLevel,
+  sendEvent: ChatEventSender,
+  signal?: AbortSignal,
+): Promise<void> {
+  const release = await acquireTurnMutex(state);
+  state.activeSend = sendEvent;
+  state.activeSessionId = state.ownerSessionId;
+  try {
+    const result = await orchestrator.executeAgentTurn({
+      session: getSession(),
+      message: content,
+      targetClassification,
+      signal,
+    });
+    if (!result.ok && !signal?.aborted) {
+      sendEvent({ type: "error", message: result.error });
+    }
+  } catch (err: unknown) {
+    sendTurnErrorIfNotAborted(sendEvent, err, signal);
+  } finally {
+    state.activeSend = null;
+    state.activeSessionId = state.ownerSessionId;
+    release();
+  }
+}
+
+// ─── Non-owner turn execution ───────────────────────────────────────────────
+
+/** Resolve the non-owner classification ceiling for a sender. */
+function resolveNonOwnerCeiling(
+  userSessions: UserSessionManager,
+  effectiveSenderId: string,
+): ClassificationLevel | null {
+  return userSessions.hasExplicitClassification(effectiveSenderId)
+    ? userSessions.getClassification(effectiveSenderId)
+    : null;
+}
+
+/** Persist updated session state back to the user session manager after a turn. */
+function persistNonOwnerSession(
+  state: ChatSessionMutableState,
+  userSessions: UserSessionManager,
+  channelType: string,
+  effectiveSenderId: string,
+  userSessionId: string,
+): void {
+  const updated = state.sessionStates.get(userSessionId);
+  if (updated) {
+    userSessions.updateSession(channelType, effectiveSenderId, updated);
+  }
+}
+
+/** Run a single non-owner agent turn under the mutex. */
+async function runNonOwnerAgentTurn(
+  state: ChatSessionMutableState,
+  orchestrator: Orchestrator,
+  msg: ChannelMessage,
+  channelType: string,
+  channelState: ChannelState,
+  signal?: AbortSignal,
+): Promise<void> {
+  const senderId = msg.senderId ?? "";
+  const effectiveSenderId = senderId || "unknown";
+  const userSessions = channelState.userSessions;
+  const userSession = userSessions.getOrCreate(channelType, effectiveSenderId);
+  const userCls = userSessions.getClassification(effectiveSenderId);
+  const sendEvent = buildSendEvent(
+    channelState.adapter,
+    channelState.channelName,
+    msg,
+  );
+
+  const release = await acquireTurnMutex(state);
+  const userSessionId = userSession.id as string;
+  state.sessionStates.set(userSessionId, userSession);
+  state.activeSend = sendEvent;
+  state.activeSessionId = userSessionId;
+  state.activeNonOwnerCeiling = resolveNonOwnerCeiling(
+    userSessions,
+    effectiveSenderId,
+  );
+
+  try {
+    const result = await orchestrator.executeAgentTurn({
+      session: userSession,
+      message: msg.content,
+      targetClassification: userCls,
+      signal,
+    });
+    if (!result.ok && !signal?.aborted) {
+      sendEvent({ type: "error", message: result.error });
+    }
+  } catch (err: unknown) {
+    sendTurnErrorIfNotAborted(sendEvent, err, signal);
+  } finally {
+    persistNonOwnerSession(
+      state,
+      userSessions,
+      channelType,
+      effectiveSenderId,
+      userSessionId,
+    );
+    state.activeSend = null;
+    state.activeSessionId = state.ownerSessionId;
+    state.activeNonOwnerCeiling = null;
+    release();
+  }
+}
+
+// ─── Channel registration ───────────────────────────────────────────────────
+
+/** Build a ChannelState from registration config and persist it. */
+async function registerChannelState(
+  channelStates: Map<string, ChannelState>,
+  pairingService: ChatSessionConfig["pairingService"],
+  channelType: string,
+  channelConfig: ChannelRegistrationConfig,
+): Promise<void> {
+  const mgr = createUserSessionManager({
+    channelDefault: channelConfig.classification,
+    userOverrides: parseUserOverrides(channelConfig.userClassifications),
+  });
+  const pairingCls = channelConfig.pairingClassification ??
+    "INTERNAL" as ClassificationLevel;
+  if (channelConfig.pairing) {
+    await preloadPairedUsers(pairingService, channelType, mgr, pairingCls);
+  }
+  channelStates.set(channelType, {
+    userSessions: mgr,
+    adapter: channelConfig.adapter,
+    channelName: channelConfig.channelName,
+    respondToUnclassified: channelConfig.respondToUnclassified ?? true,
+    pairing: channelConfig.pairing ?? false,
+    pairingClassification: pairingCls,
+  });
+}
+
+// ─── Channel message routing ────────────────────────────────────────────────
+
+/** Route a channel message to the owner or non-owner turn handler. */
+async function routeChannelMessage(
+  state: ChatSessionMutableState,
+  orchestrator: Orchestrator,
+  getSession: () => SessionState,
+  ownerTargetClassification: ClassificationLevel,
+  channelStates: Map<string, ChannelState>,
+  pairingService: ChatSessionConfig["pairingService"],
+  msg: ChannelMessage,
+  channelType: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const channelState = channelStates.get(channelType);
+  if (!channelState) {
+    chatLog.error(`No channel config registered for ${channelType}`);
+    return;
+  }
+
+  if (msg.isOwner !== false) {
+    return runOwnerAgentTurn(
+      state,
+      orchestrator,
+      getSession,
+      msg.content,
+      ownerTargetClassification,
+      buildSendEvent(channelState.adapter, channelState.channelName, msg),
+      signal,
+    );
+  }
+
+  const senderId = msg.senderId ?? "";
+  const allowed = await checkNonOwnerAccess(
+    msg,
+    channelType,
+    senderId,
+    channelState,
+    pairingService,
+  );
+  if (!allowed) return;
+
+  await runNonOwnerAgentTurn(
+    state,
+    orchestrator,
+    msg,
+    channelType,
+    channelState,
+    signal,
+  );
+}
+
+// ─── History compaction ─────────────────────────────────────────────────────
+
+/** Compact conversation history and emit status events. */
+async function compactChatHistory(
+  orchestrator: Orchestrator,
+  getSession: () => SessionState,
+  sendEvent: ChatEventSender,
+): Promise<void> {
+  sendEvent({ type: "compact_start" });
+  try {
+    const result = await orchestrator.compactHistory(getSession().id);
+    sendEvent({
+      type: "compact_complete",
+      messagesBefore: result.messagesBefore,
+      messagesAfter: result.messagesAfter,
+      tokensBefore: result.tokensBefore,
+      tokensAfter: result.tokensAfter,
+    });
+  } catch (err: unknown) {
+    sendEvent({
+      type: "error",
+      message: `Compact failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    });
+  }
+}
+
+// ─── Secret prompt helpers ──────────────────────────────────────────────────
+
+/** Resolve a pending secret prompt by nonce. */
+function resolveSecretPrompt(
+  pendingSecretPrompts: Map<string, (value: string | null) => void>,
+  nonce: string,
+  value: string | null,
+): void {
+  const resolve = pendingSecretPrompts.get(nonce);
+  if (resolve) {
+    pendingSecretPrompts.delete(nonce);
+    resolve(value);
+  }
+}
+
+/** Create a secret prompt callback for Tidepool mode. */
+function buildTidepoolSecretPrompt(
+  pendingSecretPrompts: Map<string, (value: string | null) => void>,
+  sendEvent: ChatEventSender,
+): (name: string, hint?: string) => Promise<string | null> {
+  return (name, hint) => {
+    const nonce = crypto.randomUUID();
+    return new Promise<string | null>((resolve) => {
+      pendingSecretPrompts.set(nonce, resolve);
+      sendEvent(
+        hint !== undefined
+          ? { type: "secret_prompt", nonce, name, hint }
+          : { type: "secret_prompt", nonce, name },
+      );
+    });
+  };
+}
+
 // ─── createChatSession ──────────────────────────────────────────────────────
 
 /**
@@ -265,67 +629,44 @@ async function preloadPairedUsers(
  * The mutex guarantees no concurrent access.
  */
 export function createChatSession(config: ChatSessionConfig): ChatSession {
-  let activeSend: ChatEventSender | null = null;
   const ownerSessionId = config.session.id as string;
-  let activeSessionId: string = ownerSessionId;
   const ownerTargetClassification = config.targetClassification ??
     "INTERNAL" as ClassificationLevel;
-  let activeNonOwnerCeiling: ClassificationLevel | null = null;
-  const sessionStates = new Map<string, SessionState>();
-  sessionStates.set(ownerSessionId, config.session);
   const channelStates = new Map<string, ChannelState>();
   const pairingService = config.pairingService;
   const ownerGetTaint = config.getSessionTaint;
   const ownerEscalateTaint = config.escalateTaint;
 
-  function getSessionTaint(): ClassificationLevel {
-    if (activeSessionId === ownerSessionId && ownerGetTaint) {
-      return ownerGetTaint();
-    }
-    return sessionStates.get(activeSessionId)?.taint ?? "PUBLIC";
-  }
+  const state: ChatSessionMutableState = {
+    activeSend: null,
+    activeSessionId: ownerSessionId,
+    activeNonOwnerCeiling: null,
+    mutex: Promise.resolve(),
+    ownerSessionId,
+    sessionStates: new Map<string, SessionState>([
+      [ownerSessionId, config.session],
+    ]),
+  };
 
-  function escalateTaint(level: ClassificationLevel, reason: string): void {
-    const prevTaint = getSessionTaint();
-    if (activeSessionId === ownerSessionId && ownerEscalateTaint) {
-      ownerEscalateTaint(level, reason);
-    } else {
-      const s = sessionStates.get(activeSessionId);
-      if (s) sessionStates.set(activeSessionId, updateTaint(s, level, reason));
-    }
-    const newTaint = getSessionTaint();
-    if (newTaint !== prevTaint && activeSend) {
-      activeSend({ type: "taint_changed", level: newTaint });
-    }
-  }
+  const getSessionTaint = (): ClassificationLevel =>
+    resolveSessionTaint(state, ownerGetTaint);
 
-  const orchestrator = createOrchestrator({
-    hookRunner: config.hookRunner,
-    providerRegistry: config.providerRegistry,
-    spinePath: config.spinePath,
-    tools: config.tools,
-    getExtraTools: config.getExtraTools,
-    getExtraSystemPromptSections: config.getExtraSystemPromptSections,
-    toolExecutor: config.toolExecutor,
-    onEvent: (event) => {
-      if (activeSend) activeSend(event as ChatEvent);
-    },
-    compactorConfig: config.compactorConfig,
-    systemPromptSections: config.systemPromptSections,
-    planManager: config.planManager,
-    enableStreaming: config.enableStreaming,
-    debug: config.debug,
-    visionProvider: config.visionProvider,
-    toolClassifications: config.toolClassifications,
+  const escalateTaint = (level: ClassificationLevel, reason: string): void =>
+    applyTaintEscalation(
+      state,
+      level,
+      reason,
+      ownerGetTaint,
+      ownerEscalateTaint,
+    );
+
+  const orchestratorConfig = assembleOrchestratorConfig(
+    config,
+    state,
     getSessionTaint,
     escalateTaint,
-    isOwnerSession: () => activeSessionId === ownerSessionId,
-    getNonOwnerCeiling: () => activeNonOwnerCeiling,
-    pathClassifier: config.pathClassifier,
-    domainClassifier: config.domainClassifier,
-    toolFloorRegistry: config.toolFloorRegistry,
-    secretStore: config.secretStore,
-  });
+  );
+  const orchestrator = createOrchestrator(orchestratorConfig);
 
   const initialSession = config.session;
   const getSession = (): SessionState =>
@@ -337,219 +678,50 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     string,
     (value: string | null) => void
   >();
-  let mutex: Promise<void> = Promise.resolve();
-
-  async function executeAgentTurn(
-    content: MessageContent,
-    sendEvent: ChatEventSender,
-    signal?: AbortSignal,
-  ): Promise<void> {
-    const prev = mutex;
-    let resolve: () => void;
-    mutex = new Promise<void>((r) => {
-      resolve = r;
-    });
-    await prev;
-    activeSend = sendEvent;
-    activeSessionId = ownerSessionId;
-    try {
-      const result = await orchestrator.executeAgentTurn({
-        session: getSession(),
-        message: content,
-        targetClassification: ownerTargetClassification,
-        signal,
-      });
-      if (!result.ok && !signal?.aborted) {
-        sendEvent({ type: "error", message: result.error });
-      }
-    } catch (err: unknown) {
-      sendTurnErrorIfNotAborted(sendEvent, err, signal);
-    } finally {
-      activeSend = null;
-      activeSessionId = ownerSessionId;
-      resolve!();
-    }
-  }
-
-  async function registerChannel(
-    channelType: string,
-    channelConfig: ChannelRegistrationConfig,
-  ): Promise<void> {
-    const mgr = createUserSessionManager({
-      channelDefault: channelConfig.classification,
-      userOverrides: parseUserOverrides(channelConfig.userClassifications),
-    });
-    const pairingCls = channelConfig.pairingClassification ??
-      "INTERNAL" as ClassificationLevel;
-    if (channelConfig.pairing) {
-      await preloadPairedUsers(pairingService, channelType, mgr, pairingCls);
-    }
-    channelStates.set(channelType, {
-      userSessions: mgr,
-      adapter: channelConfig.adapter,
-      channelName: channelConfig.channelName,
-      respondToUnclassified: channelConfig.respondToUnclassified ?? true,
-      pairing: channelConfig.pairing ?? false,
-      pairingClassification: pairingCls,
-    });
-  }
-
-  async function executeNonOwnerTurn(
-    msg: ChannelMessage,
-    channelType: string,
-    channelState: ChannelState,
-    signal?: AbortSignal,
-  ): Promise<void> {
-    const senderId = msg.senderId ?? "";
-    const effectiveSenderId = senderId || "unknown";
-    const userSessions = channelState.userSessions;
-    const userSession = userSessions.getOrCreate(
-      channelType,
-      effectiveSenderId,
-    );
-    const userCls = userSessions.getClassification(effectiveSenderId);
-    const sendEvent = buildSendEvent(
-      channelState.adapter,
-      channelState.channelName,
-      msg,
-    );
-
-    const prev = mutex;
-    let resolve: () => void;
-    mutex = new Promise<void>((r) => {
-      resolve = r;
-    });
-    await prev;
-
-    const userSessionId = userSession.id as string;
-    sessionStates.set(userSessionId, userSession);
-    activeSend = sendEvent;
-    activeSessionId = userSessionId;
-    activeNonOwnerCeiling =
-      userSessions.hasExplicitClassification(effectiveSenderId)
-        ? userSessions.getClassification(effectiveSenderId)
-        : null;
-
-    try {
-      const result = await orchestrator.executeAgentTurn({
-        session: userSession,
-        message: msg.content,
-        targetClassification: userCls,
-        signal,
-      });
-      if (!result.ok && !signal?.aborted) {
-        sendEvent({ type: "error", message: result.error });
-      }
-    } catch (err: unknown) {
-      sendTurnErrorIfNotAborted(sendEvent, err, signal);
-    } finally {
-      const updated = sessionStates.get(userSessionId);
-      if (updated) {
-        userSessions.updateSession(channelType, effectiveSenderId, updated);
-      }
-      activeSend = null;
-      activeSessionId = ownerSessionId;
-      activeNonOwnerCeiling = null;
-      resolve!();
-    }
-  }
-
-  async function handleChannelMessage(
-    msg: ChannelMessage,
-    channelType: string,
-    signal?: AbortSignal,
-  ): Promise<void> {
-    const channelState = channelStates.get(channelType);
-    if (!channelState) {
-      chatLog.error(`No channel config registered for ${channelType}`);
-      return;
-    }
-
-    if (msg.isOwner !== false) {
-      return executeAgentTurn(
-        msg.content,
-        buildSendEvent(channelState.adapter, channelState.channelName, msg),
-        signal,
-      );
-    }
-
-    const senderId = msg.senderId ?? "";
-    const allowed = await checkNonOwnerAccess(
-      msg,
-      channelType,
-      senderId,
-      channelState,
-      pairingService,
-    );
-    if (!allowed) return;
-
-    await executeNonOwnerTurn(msg, channelType, channelState, signal);
-  }
-
-  function clear(): void {
-    orchestrator.clearHistory(getSession().id);
-    if (config.resetSession) config.resetSession();
-  }
-
-  async function compact(sendEvent: ChatEventSender): Promise<void> {
-    sendEvent({ type: "compact_start" });
-    try {
-      const result = await orchestrator.compactHistory(getSession().id);
-      sendEvent({
-        type: "compact_complete",
-        messagesBefore: result.messagesBefore,
-        messagesAfter: result.messagesAfter,
-        tokensBefore: result.tokensBefore,
-        tokensAfter: result.tokensAfter,
-      });
-    } catch (err: unknown) {
-      sendEvent({
-        type: "error",
-        message: `Compact failed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      });
-    }
-  }
-
-  function handleSecretPromptResponse(
-    nonce: string,
-    value: string | null,
-  ): void {
-    const resolve = pendingSecretPrompts.get(nonce);
-    if (resolve) {
-      pendingSecretPrompts.delete(nonce);
-      resolve(value);
-    }
-  }
-
-  function createTidepoolSecretPrompt(
-    sendEvent: ChatEventSender,
-  ): (name: string, hint?: string) => Promise<string | null> {
-    return (name, hint) => {
-      const nonce = crypto.randomUUID();
-      return new Promise<string | null>((resolve) => {
-        pendingSecretPrompts.set(nonce, resolve);
-        sendEvent(
-          hint !== undefined
-            ? { type: "secret_prompt", nonce, name, hint }
-            : { type: "secret_prompt", nonce, name },
-        );
-      });
-    };
-  }
 
   let mcpStatusConnected = -1;
   let mcpStatusConfigured = 0;
 
   return {
-    executeAgentTurn,
-    registerChannel,
-    handleChannelMessage,
-    clear,
-    compact,
-    handleSecretPromptResponse,
-    createTidepoolSecretPrompt,
+    executeAgentTurn: (content, sendEvent, signal) =>
+      runOwnerAgentTurn(
+        state,
+        orchestrator,
+        getSession,
+        content,
+        ownerTargetClassification,
+        sendEvent,
+        signal,
+      ),
+    registerChannel: (channelType, channelConfig) =>
+      registerChannelState(
+        channelStates,
+        pairingService,
+        channelType,
+        channelConfig,
+      ),
+    handleChannelMessage: (msg, channelType, signal) =>
+      routeChannelMessage(
+        state,
+        orchestrator,
+        getSession,
+        ownerTargetClassification,
+        channelStates,
+        pairingService,
+        msg,
+        channelType,
+        signal,
+      ),
+    clear() {
+      orchestrator.clearHistory(getSession().id);
+      if (config.resetSession) config.resetSession();
+    },
+    compact: (sendEvent) =>
+      compactChatHistory(orchestrator, getSession, sendEvent),
+    handleSecretPromptResponse: (nonce, value) =>
+      resolveSecretPrompt(pendingSecretPrompts, nonce, value),
+    createTidepoolSecretPrompt: (sendEvent) =>
+      buildTidepoolSecretPrompt(pendingSecretPrompts, sendEvent),
     getMcpStatus() {
       if (mcpStatusConnected < 0 || mcpStatusConfigured === 0) return null;
       return { connected: mcpStatusConnected, configured: mcpStatusConfigured };
