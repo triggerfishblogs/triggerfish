@@ -40,16 +40,13 @@ export interface WhatsAppConfig {
 /** WhatsApp Cloud API base URL. */
 const WA_API_BASE = "https://graph.facebook.com/v18.0";
 
-/**
- * Create a WhatsApp channel adapter.
- *
- * Sends messages via the WhatsApp Cloud API and receives them via webhook.
- * The webhook server listens on the configured port for incoming message
- * notifications from Meta.
- *
- * @param config - WhatsApp configuration.
- * @returns A ChannelAdapter wired to WhatsApp.
- */
+/** Mutable connection state shared between adapter methods. */
+interface WhatsAppAdapterState {
+  connected: boolean;
+  readonly handlerRef: { current: MessageHandler | null };
+  server: Deno.HttpServer | null;
+}
+
 /** Handle an incoming WhatsApp webhook HTTP request. */
 function handleWhatsAppWebhookRequest(
   req: Request,
@@ -80,6 +77,27 @@ function verifyWhatsAppWebhook(url: URL, verifyToken: string): Response {
   return new Response("Forbidden", { status: 403 });
 }
 
+/** Forward a single WhatsApp text message to the handler. */
+function forwardWhatsAppTextMessage(
+  msg: Record<string, unknown>,
+  handler: MessageHandler,
+  ownerPhone: string | undefined,
+): void {
+  if (msg.type !== "text") return;
+  const from = msg.from as string;
+  const textObj = msg.text as { body: string } | undefined;
+  if (!textObj?.body) return;
+  const isOwner = ownerPhone !== undefined ? from === ownerPhone : true;
+  log.debug("Message received", { from, isOwner });
+  handler({
+    content: textObj.body,
+    sessionId: `whatsapp-${from}`,
+    senderId: from,
+    isOwner,
+    sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
+  });
+}
+
 /** Process incoming WhatsApp webhook payload from Meta. */
 function dispatchWhatsAppWebhookMessages(
   body: Record<string, unknown>,
@@ -96,19 +114,7 @@ function dispatchWhatsAppWebhookMessages(
         Record<string, unknown>
       >;
       for (const msg of messages) {
-        if (msg.type !== "text") continue;
-        const from = msg.from as string;
-        const textObj = msg.text as { body: string } | undefined;
-        if (!textObj?.body) continue;
-        const isOwner = ownerPhone !== undefined ? from === ownerPhone : true;
-        log.debug("Message received", { from, isOwner });
-        handler({
-          content: textObj.body,
-          sessionId: `whatsapp-${from}`,
-          senderId: from,
-          isOwner,
-          sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
-        });
+        forwardWhatsAppTextMessage(msg, handler, ownerPhone);
       }
     }
   }
@@ -143,62 +149,107 @@ async function sendWhatsAppTextMessage(
   }
 }
 
+/** Truncate content to the WhatsApp message length limit. */
+function truncateWhatsAppContent(content: string): string {
+  return content.length > MAX_MESSAGE_LENGTH
+    ? content.slice(0, MAX_MESSAGE_LENGTH)
+    : content;
+}
+
+/** Send a WhatsApp message, extracting the phone from the session ID. */
+async function sendWhatsAppChannelMessage(
+  message: ChannelMessage,
+  config: WhatsAppConfig,
+): Promise<void> {
+  if (!message.sessionId) return;
+  const phone = message.sessionId.replace("whatsapp-", "");
+  const text = truncateWhatsAppContent(message.content);
+  await sendWhatsAppTextMessage(
+    phone,
+    text,
+    config.phoneNumberId,
+    config.accessToken,
+  );
+}
+
+/** Start the webhook HTTP server and mark the adapter as connected. */
+function connectWhatsAppWebhook(
+  config: WhatsAppConfig,
+  webhookPort: number,
+  state: WhatsAppAdapterState,
+): void {
+  state.server = Deno.serve(
+    { port: webhookPort },
+    (req) =>
+      handleWhatsAppWebhookRequest(req, config.verifyToken, (body) => {
+        if (state.handlerRef.current) {
+          dispatchWhatsAppWebhookMessages(
+            body,
+            state.handlerRef.current,
+            config.ownerPhone,
+          );
+        }
+      }),
+  );
+  state.connected = true;
+  log.info("WhatsApp adapter connected", { port: webhookPort });
+}
+
+/** Shut down the webhook HTTP server and mark the adapter as disconnected. */
+async function disconnectWhatsAppWebhook(
+  state: WhatsAppAdapterState,
+): Promise<void> {
+  if (state.server) {
+    await state.server.shutdown();
+    state.server = null;
+  }
+  state.connected = false;
+  log.info("WhatsApp adapter disconnected");
+}
+
+/** Assemble the ChannelAdapter method object for WhatsApp. */
+function assembleWhatsAppAdapter(
+  config: WhatsAppConfig,
+  webhookPort: number,
+  classification: ClassificationLevel,
+  state: WhatsAppAdapterState,
+): ChannelAdapter {
+  return {
+    classification,
+    isOwner: true,
+    // deno-lint-ignore require-await
+    connect: async () => connectWhatsAppWebhook(config, webhookPort, state),
+    disconnect: () => disconnectWhatsAppWebhook(state),
+    send: (message: ChannelMessage) =>
+      sendWhatsAppChannelMessage(message, config),
+    onMessage(msgHandler: MessageHandler): void {
+      state.handlerRef.current = msgHandler;
+    },
+    status: (): ChannelStatus => ({
+      connected: state.connected,
+      channelType: "whatsapp",
+    }),
+  };
+}
+
+/**
+ * Create a WhatsApp channel adapter.
+ *
+ * Sends messages via the WhatsApp Cloud API and receives them via webhook.
+ * The webhook server listens on the configured port for incoming message
+ * notifications from Meta.
+ *
+ * @param config - WhatsApp configuration.
+ * @returns A ChannelAdapter wired to WhatsApp.
+ */
 export function createWhatsAppChannel(config: WhatsAppConfig): ChannelAdapter {
   const classification = (config.classification ??
     "PUBLIC") as ClassificationLevel;
   const webhookPort = config.webhookPort ?? 8443;
-  let connected = false;
-  let handler: MessageHandler | null = null;
-  let server: Deno.HttpServer | null = null;
-
-  return {
-    classification,
-    isOwner: true,
-
-    // deno-lint-ignore require-await
-    async connect(): Promise<void> {
-      server = Deno.serve(
-        { port: webhookPort },
-        (req) =>
-          handleWhatsAppWebhookRequest(req, config.verifyToken, (body) => {
-            if (handler) {
-              dispatchWhatsAppWebhookMessages(body, handler, config.ownerPhone);
-            }
-          }),
-      );
-      connected = true;
-      log.info("WhatsApp adapter connected", { port: webhookPort });
-    },
-
-    async disconnect(): Promise<void> {
-      if (server) {
-        await server.shutdown();
-        server = null;
-      }
-      connected = false;
-      log.info("WhatsApp adapter disconnected");
-    },
-
-    async send(message: ChannelMessage): Promise<void> {
-      if (!message.sessionId) return;
-      const phone = message.sessionId.replace("whatsapp-", "");
-      const text = message.content.length > MAX_MESSAGE_LENGTH
-        ? message.content.slice(0, MAX_MESSAGE_LENGTH)
-        : message.content;
-      await sendWhatsAppTextMessage(
-        phone,
-        text,
-        config.phoneNumberId,
-        config.accessToken,
-      );
-    },
-
-    onMessage(msgHandler: MessageHandler): void {
-      handler = msgHandler;
-    },
-
-    status(): ChannelStatus {
-      return { connected, channelType: "whatsapp" };
-    },
+  const state: WhatsAppAdapterState = {
+    connected: false,
+    handlerRef: { current: null },
+    server: null,
   };
+  return assembleWhatsAppAdapter(config, webhookPort, classification, state);
 }
