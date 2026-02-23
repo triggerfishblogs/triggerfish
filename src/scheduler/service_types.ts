@@ -48,10 +48,23 @@ export interface OrchestratorFactory {
   }>;
 }
 
+/** Per-request context passed to handleWebhookRequest. */
+export interface WebhookRequestContext {
+  /** Signature header value (e.g. "sha256=abcdef..."). */
+  readonly signature: string;
+  /** Value of X-Timestamp header as Unix milliseconds string. Optional. */
+  readonly timestamp?: string;
+}
+
 /** Per-source webhook configuration. */
 export interface WebhookSourceConfig {
   readonly secret: string;
   readonly classification: ClassificationLevel;
+  /** Per-source rate limit override. Falls back to global rateLimit if absent. */
+  readonly rateLimit?: {
+    readonly perMinute: number;
+    readonly burst: number;
+  };
 }
 
 /** Configuration for the scheduler service. */
@@ -74,6 +87,18 @@ export interface SchedulerServiceConfig {
   readonly webhooks: {
     readonly enabled: boolean;
     readonly sources: Readonly<Record<string, WebhookSourceConfig>>;
+    /**
+     * Maximum age of a webhook request in ms. Requests with missing or older
+     * timestamps are rejected. Set to 0 to disable. Default: 300_000 (5 min).
+     */
+    readonly maxAgeMs?: number;
+    /** Global default rate limit applied per sourceId. Default: 60/min, burst 10. */
+    readonly rateLimit?: {
+      readonly perMinute: number;
+      readonly burst: number;
+    };
+    /** Max signatures retained in the replay guard. Default: 10_000. */
+    readonly replayGuardSize?: number;
   };
   /** Optional pre-created CronManager (e.g. persistent). */
   readonly cronManager?: CronManager;
@@ -99,7 +124,7 @@ export interface SchedulerService {
   handleWebhookRequest(
     sourceId: string,
     body: string,
-    signature: string,
+    context: WebhookRequestContext,
   ): Promise<Result<void, string>>;
   /**
    * Force an immediate trigger run, bypassing the interval timer.

@@ -8,6 +8,7 @@
  */
 
 import type { ToolExecutorOptions } from "./executor_types.ts";
+import { executeLogRead } from "../../../tools/log_reader_tool.ts";
 
 /** Format an error from a filesystem operation. */
 function formatFsError(prefix: string, err: unknown): string {
@@ -180,6 +181,9 @@ function applyUniqueReplacement(
   }
   return null;
 }
+
+/** Handle log_read tool call — provenance-aware log reader for LLM context. */
+export { executeLogRead };
 
 /** Handle edit_file tool call (find-and-replace unique string). */
 export async function executeEditFile(

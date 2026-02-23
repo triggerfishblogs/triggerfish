@@ -104,6 +104,30 @@ function buildRateLimitBaseRule(): PolicyRule {
 }
 
 /**
+ * Build the log-file content redact rule for PRE_CONTEXT_INJECTION.
+ *
+ * Marks log file content as REDACT so the orchestrator knows the content
+ * has been pre-processed by readLogsForLlm() before entering LLM context.
+ * The actual injection scanning and stripping is done by log_reader.ts;
+ * this rule signals that the content carries provenance warnings.
+ */
+function buildLogFileRedactRule(): PolicyRule {
+  return {
+    id: "log-file-redact",
+    priority: 950,
+    hook: "PRE_CONTEXT_INJECTION",
+    conditions: [{
+      field: "source_type",
+      operator: "equals",
+      value: "LOG_FILE",
+    }],
+    action: "REDACT",
+    message:
+      "Log file content: external regions scanned and sanitized before LLM context injection",
+  };
+}
+
+/**
  * Create the default system policy rules.
  *
  * These rules enforce core security invariants that cannot be disabled.
@@ -118,5 +142,6 @@ export function createDefaultRules(): PolicyRule[] {
     buildResourceWriteDownRule(),
     buildResourceReadCeilingRule(),
     buildRateLimitBaseRule(),
+    buildLogFileRedactRule(),
   ];
 }

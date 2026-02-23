@@ -22,6 +22,7 @@ import type {
 import {
   executeEditFile,
   executeListDirectory,
+  executeLogRead,
   executeReadFile,
   executeRunCommand,
   executeSearchFiles,
@@ -146,6 +147,9 @@ function dispatchFilesystemTool(
       return executeSearchFiles(input);
     case "edit_file":
       return executeEditFile(input);
+    case "log_read":
+      // executeLogRead returns Promise<string | null>; null cannot occur here since name === "log_read"
+      return executeLogRead(name, input).then((r) => r ?? "No log files found or logs are empty.");
     default:
       return null;
   }

@@ -22,6 +22,7 @@ import {
 } from "../../../tools/mod.ts";
 import { TRIGGER_TOOLS_SYSTEM_PROMPT } from "../trigger/trigger_tools.ts";
 import { CLAUDE_SESSION_SYSTEM_PROMPT } from "../../../exec/claude.ts";
+import { LOG_READER_SYSTEM_PROMPT } from "../../../tools/log_reader_tool.ts";
 import { TOOL_GROUPS, type ToolGroupName } from "./tool_groups.ts";
 import type { ToolDefinition } from "../../../core/types/tool.ts";
 
@@ -37,14 +38,14 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "exec", "todo", "memory", "secrets", "web", "plan", "browser",
     "tidepool", "sessions", "image", "explore", "google", "github",
     "obsidian", "llmTask", "summarize", "healthcheck", "trigger",
-    "claude", "skills", "agents", "cron",
+    "claude", "skills", "logReader", "agents", "cron",
   ],
   /** CLI chat — everything except tidepool canvas tools. */
   cli: [
     "exec", "todo", "memory", "secrets", "web", "plan", "browser",
     "sessions", "image", "explore", "google", "github", "obsidian",
     "llmTask", "summarize", "healthcheck", "trigger", "claude",
-    "skills", "agents", "cron",
+    "skills", "logReader", "agents", "cron",
   ],
   /** Trigger sessions — tools with wired executors, no interactive tools. */
   triggerSession: [
@@ -106,6 +107,7 @@ export const TOOL_GROUP_PROMPTS: Partial<
   claude: CLAUDE_SESSION_SYSTEM_PROMPT,
   secrets: SECRET_TOOLS_SYSTEM_PROMPT,
   trigger: TRIGGER_TOOLS_SYSTEM_PROMPT,
+  logReader: LOG_READER_SYSTEM_PROMPT,
 };
 
 /**

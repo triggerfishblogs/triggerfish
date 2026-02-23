@@ -40,3 +40,4 @@
 | 21 | `deno task test tests/routing/ tests/models/ tests/dive/` |
 | B1 | `deno task test tests/integrations/google/` |
 | B3 | `deno task test tests/tools/obsidian/` |
+| B4 | `deno task test tests/log_poisoning/` |

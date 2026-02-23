@@ -16,9 +16,13 @@ import type {
   MessageHandler,
 } from "../types.ts";
 import { createLogger } from "../../core/logger/logger.ts";
-import { isOriginAllowed } from "../../core/security/websocket_auth.ts";
 
 const log = createLogger("webchat");
+
+/** Maximum bytes for a single HTTP header value on WS upgrade (RFC 6585). */
+export const MAX_SINGLE_HEADER_BYTES = 512;
+/** Maximum total bytes across all HTTP headers on WS upgrade. */
+export const MAX_TOTAL_HEADER_BYTES = 8192;
 
 /** Configuration for the WebChat channel adapter. */
 export interface WebChatConfig {
@@ -26,7 +30,7 @@ export interface WebChatConfig {
   readonly port?: number;
   /** Classification level for this channel. Default: PUBLIC */
   readonly classification?: ClassificationLevel;
-  /** Allowed origins for CORS. Default: ["*"] */
+  /** Allowed origins for CORS. Default: ["*"] (allow all) */
   readonly allowedOrigins?: readonly string[];
 }
 
@@ -35,6 +39,40 @@ interface WsFrame {
   readonly type: "message" | "ping" | "pong";
   readonly content?: string;
   readonly sessionId?: string;
+}
+
+/**
+ * Validate WebSocket upgrade headers for size and origin.
+ *
+ * Returns HTTP 431 if any single header exceeds MAX_SINGLE_HEADER_BYTES or
+ * total headers exceed MAX_TOTAL_HEADER_BYTES. Returns HTTP 403 if the Origin
+ * header is not in the configured allowedOrigins list (when not wildcard).
+ * Returns null if the request should proceed.
+ */
+export function validateWebChatUpgrade(
+  req: Request,
+  config: WebChatConfig,
+): Response | null {
+  let totalBytes = 0;
+  for (const [name, value] of req.headers.entries()) {
+    if (value.length > MAX_SINGLE_HEADER_BYTES) {
+      return new Response("Request Header Fields Too Large", { status: 431 });
+    }
+    totalBytes += name.length + value.length;
+  }
+  if (totalBytes > MAX_TOTAL_HEADER_BYTES) {
+    return new Response("Request Header Fields Too Large", { status: 431 });
+  }
+
+  const allowedOrigins = config.allowedOrigins ?? ["*"];
+  if (!allowedOrigins.includes("*")) {
+    const origin = req.headers.get("origin") ?? "";
+    if (!allowedOrigins.includes(origin)) {
+      return new Response("Forbidden: Origin not allowed", { status: 403 });
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -60,7 +98,6 @@ function attachSocketEventHandlers(
     if (!handlerRef.current) return;
     try {
       const frame = JSON.parse(event.data as string) as WsFrame;
-      log.debug("WebChat frame received", { sessionId, type: frame.type });
       if (frame.type === "message" && frame.content) {
         handlerRef.current({
           content: frame.content,
@@ -71,7 +108,7 @@ function attachSocketEventHandlers(
         });
       }
     } catch (err) {
-      log.warn("WebChat: malformed message frame received", { err });
+      log.warn("WebChat: malformed message frame received", { sessionId, err });
     }
   };
 
@@ -84,33 +121,38 @@ function attachSocketEventHandlers(
 /**
  * Handle an incoming HTTP request to the WebChat server.
  *
- * WebSocket upgrade requests are validated against the Origin allowlist before
- * the connection is accepted. All other requests receive a 404 response with no
- * identifying information to avoid server fingerprinting.
+ * WebSocket upgrade requests are validated for header size and origin before
+ * upgrade. All other requests receive a health-check response.
  */
 function routeWebChatRequest(
   req: Request,
   connections: Map<string, WebSocket>,
   handlerRef: { current: MessageHandler | null },
-  allowedOrigins: readonly string[],
+  config: WebChatConfig,
 ): Response {
   if (req.headers.get("upgrade") === "websocket") {
-    const origin = req.headers.get("origin");
-    if (!isOriginAllowed(origin, allowedOrigins)) {
-      log.warn("WebSocket upgrade rejected: Origin not in allowlist", {
-        origin,
-        allowedOrigins,
+    const rejection = validateWebChatUpgrade(req, config);
+    if (rejection) {
+      log.warn("WebSocket upgrade rejected", {
+        status: rejection.status,
+        origin: req.headers.get("origin") ?? "(none)",
       });
-      return new Response("Forbidden", { status: 403 });
+      return rejection;
     }
+
+    log.ext("DEBUG", "WebSocket upgrade accepted", {
+      origin: req.headers.get("origin") ?? "",
+      userAgent: req.headers.get("user-agent") ?? "",
+      forwardedFor: req.headers.get("x-forwarded-for") ?? "",
+    });
+
     const { socket, response } = Deno.upgradeWebSocket(req);
     const sessionId = `webchat-${crypto.randomUUID()}`;
-    log.info("WebSocket upgrade accepted", { sessionId, origin });
     attachSocketEventHandlers(socket, sessionId, connections, handlerRef);
     return response;
   }
 
-  return new Response(null, { status: 404 });
+  return new Response("WebChat OK", { status: 200 });
 }
 
 /**
@@ -139,14 +181,7 @@ function dispatchWebChatFrame(
   if (!message.sessionId) return;
 
   const socket = connections.get(message.sessionId);
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    log.debug("WebChat frame not delivered: session not open or unknown", {
-      sessionId: message.sessionId,
-    });
-    return;
-  }
-
-  log.debug("WebChat frame sent", { sessionId: message.sessionId });
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
   const frame: WsFrame = {
     type: "message",
@@ -185,13 +220,7 @@ export function createWebChatChannel(
     async connect(): Promise<void> {
       server = Deno.serve(
         { port },
-        (req) =>
-          routeWebChatRequest(
-            req,
-            connections,
-            handlerRef,
-            config.allowedOrigins ?? ["*"],
-          ),
+        (req) => routeWebChatRequest(req, connections, handlerRef, config),
       );
       connected = true;
       log.info("WebChat adapter connected", { port });

@@ -43,3 +43,12 @@ export {
 } from "./healthcheck.ts";
 
 export type { HealthcheckDeps } from "./healthcheck.ts";
+
+export { readLogsForLlm } from "./log_reader.ts";
+export type { LogReadResult, LogReaderOptions } from "./log_reader.ts";
+
+export {
+  executeLogRead,
+  getLogReaderToolDefinitions,
+  LOG_READER_SYSTEM_PROMPT,
+} from "./log_reader_tool.ts";

@@ -88,7 +88,10 @@ function forwardWhatsAppTextMessage(
   const textObj = msg.text as { body: string } | undefined;
   if (!textObj?.body) return;
   const isOwner = ownerPhone !== undefined ? from === ownerPhone : true;
-  log.debug("Message received", { from, isOwner });
+  log.ext("DEBUG", "Message received", {
+    from,
+    type: msg.type as string,
+  });
   handler({
     content: textObj.body,
     sessionId: `whatsapp-${from}`,
