@@ -394,35 +394,13 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     });
   }
 
-  async function handleChannelMessage(
+  async function executeNonOwnerTurn(
     msg: ChannelMessage,
     channelType: string,
+    channelState: ChannelState,
     signal?: AbortSignal,
   ): Promise<void> {
-    const channelState = channelStates.get(channelType);
-    if (!channelState) {
-      chatLog.error(`No channel config registered for ${channelType}`);
-      return;
-    }
-
-    if (msg.isOwner !== false) {
-      return executeAgentTurn(
-        msg.content,
-        buildSendEvent(channelState.adapter, channelState.channelName, msg),
-        signal,
-      );
-    }
-
     const senderId = msg.senderId ?? "";
-    const allowed = await checkNonOwnerAccess(
-      msg,
-      channelType,
-      senderId,
-      channelState,
-      pairingService,
-    );
-    if (!allowed) return;
-
     const effectiveSenderId = senderId || "unknown";
     const userSessions = channelState.userSessions;
     const userSession = userSessions.getOrCreate(
@@ -474,6 +452,38 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
       activeNonOwnerCeiling = null;
       resolve!();
     }
+  }
+
+  async function handleChannelMessage(
+    msg: ChannelMessage,
+    channelType: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const channelState = channelStates.get(channelType);
+    if (!channelState) {
+      chatLog.error(`No channel config registered for ${channelType}`);
+      return;
+    }
+
+    if (msg.isOwner !== false) {
+      return executeAgentTurn(
+        msg.content,
+        buildSendEvent(channelState.adapter, channelState.channelName, msg),
+        signal,
+      );
+    }
+
+    const senderId = msg.senderId ?? "";
+    const allowed = await checkNonOwnerAccess(
+      msg,
+      channelType,
+      senderId,
+      channelState,
+      pairingService,
+    );
+    if (!allowed) return;
+
+    await executeNonOwnerTurn(msg, channelType, channelState, signal);
   }
 
   function clear(): void {
