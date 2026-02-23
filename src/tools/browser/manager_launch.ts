@@ -58,13 +58,13 @@ export function baseChromeArgs(config: BrowserManagerConfig): string[] {
  *
  * @exported for testing
  */
-export async function applyStealthPatches(page: Page): Promise<void> {
-  // 1. Override navigator.webdriver — the #1 automation detection signal
+async function patchWebdriverFlag(page: Page): Promise<void> {
   await page.evaluateOnNewDocument(() => {
     Object.defineProperty(navigator, "webdriver", { get: () => undefined });
   });
+}
 
-  // 2. Populate window.chrome so the environment looks like a real browser
+async function patchWindowChrome(page: Page): Promise<void> {
   await page.evaluateOnNewDocument(() => {
     if (!("chrome" in window)) {
       Object.defineProperty(window, "chrome", {
@@ -75,9 +75,9 @@ export async function applyStealthPatches(page: Page): Promise<void> {
       });
     }
   });
+}
 
-  // 3. Strip "HeadlessChrome" token from the navigator.userAgent string.
-  //    Also re-override via evaluateOnNewDocument so navigations preserve the patch.
+async function patchHeadlessUserAgent(page: Page): Promise<void> {
   const ua = await page.evaluate(() => navigator.userAgent) as string;
   const patchedUa = ua.replace(/HeadlessChrome\//g, "Chrome/");
   if (patchedUa !== ua) {
@@ -92,6 +92,12 @@ export async function applyStealthPatches(page: Page): Promise<void> {
       patchedUa,
     );
   }
+}
+
+export async function applyStealthPatches(page: Page): Promise<void> {
+  await patchWebdriverFlag(page);
+  await patchWindowChrome(page);
+  await patchHeadlessUserAgent(page);
 }
 
 /** Launch Chrome via puppeteer.launch() for a direct binary, wrapped in a timeout. */
@@ -119,7 +125,10 @@ export async function launchDirect(
     return { ok: true, value: { browser, page } };
   } catch (err) {
     log.error("Direct Chrome process launch failed", (err as Error).message);
-    return { ok: false, error: `Browser launch failed: ${(err as Error).message}` };
+    return {
+      ok: false,
+      error: `Browser launch failed: ${(err as Error).message}`,
+    };
   }
 }
 
@@ -149,10 +158,15 @@ export async function launchFlatpak(
     await Deno.writeTextFile(wrapperPath, wrapperScript);
     await Deno.chmod(wrapperPath, 0o755);
   } catch (err) {
-    log.error("Flatpak wrapper script file write failed", (err as Error).message);
+    log.error(
+      "Flatpak wrapper script file write failed",
+      (err as Error).message,
+    );
     return {
       ok: false,
-      error: `Failed to write Flatpak wrapper script: ${(err as Error).message}`,
+      error: `Failed to write Flatpak wrapper script: ${
+        (err as Error).message
+      }`,
     };
   }
 
@@ -180,6 +194,9 @@ export async function launchFlatpak(
     return { ok: true, value: { browser, page } };
   } catch (err) {
     log.error("flatpak chrome launch failed", (err as Error).message);
-    return { ok: false, error: `Flatpak Chrome launch failed: ${(err as Error).message}` };
+    return {
+      ok: false,
+      error: `Flatpak Chrome launch failed: ${(err as Error).message}`,
+    };
   }
 }
