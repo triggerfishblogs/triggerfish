@@ -18,6 +18,10 @@ export interface ChannelMessage {
   readonly senderId?: string;
   /** Whether the sender is the configured channel owner. */
   readonly isOwner?: boolean;
+  /** True when the message arrives from a group/channel context, false for a DM. */
+  readonly isGroup?: boolean;
+  /** Platform-native group identifier (Telegram chat ID, Discord channel ID, etc.). */
+  readonly groupId?: string;
 }
 
 /** Status information for a channel adapter. */

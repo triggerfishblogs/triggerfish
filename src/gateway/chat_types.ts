@@ -22,6 +22,7 @@ import type { CompactorConfig } from "../agent/compactor/compactor.ts";
 import type { MessageContent } from "../core/image/content.ts";
 import type { ChannelAdapter, ChannelMessage } from "../channels/types.ts";
 import type { PairingService } from "../channels/pairing.ts";
+import type { UserRateLimiterConfig } from "../channels/rate_limiter.ts";
 import type {
   ToolDefinition,
   ToolExecutor,
@@ -60,6 +61,16 @@ export interface ChannelRegistrationConfig {
   readonly pairing?: boolean;
   /** Classification level assigned to paired users. Default: INTERNAL. */
   readonly pairingClassification?: ClassificationLevel;
+  /**
+   * Per-user rate limit for non-owner senders.
+   *
+   * When set, individual senders are limited to `maxRequests` messages
+   * per `windowMs` milliseconds. Excess messages are silently dropped.
+   * Protects against DoS by group members spamming the agent.
+   *
+   * Omitting this field disables per-user rate limiting.
+   */
+  readonly nonOwnerRateLimit?: UserRateLimiterConfig;
 }
 
 /** Configuration for creating a ChatSession. */

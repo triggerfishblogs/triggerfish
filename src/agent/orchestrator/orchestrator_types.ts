@@ -110,6 +110,25 @@ export interface OrchestratorConfig {
    * before dispatch. The resolved values are never logged or returned to the LLM.
    */
   readonly secretStore?: SecretStore;
+  /**
+   * Per-call tool filter applied based on isOwner status.
+   *
+   * Called at every LLM iteration to remove tools the current session
+   * is not allowed to see. Non-owner sessions never receive owner-only
+   * tools in their tool list.
+   */
+  readonly filterTools?: (
+    tools: readonly ToolDefinition[],
+    isOwner: boolean,
+  ) => readonly ToolDefinition[];
+  /**
+   * Set of tool names that are restricted to owner sessions.
+   *
+   * Defense-in-depth: the executor rejects these tools even if the LLM
+   * somehow invokes them (e.g., jailbreak, prompt injection). Should
+   * mirror the set used in `filterTools` for consistency.
+   */
+  readonly ownerOnlyTools?: ReadonlySet<string>;
 }
 
 /** Config shape for building integration/plugin/channel classification map. */

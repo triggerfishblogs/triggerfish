@@ -68,17 +68,22 @@ function attachSlackMessageListener(
     if (!msg.text || !msg.channel) return;
 
     const isOwner = ownerId !== undefined ? msg.user === ownerId : true;
+    // Slack channel IDs: "D..." = DM, "C..." = public channel, "G..." = private group
+    const isGroup = !msg.channel.startsWith("D");
 
     log.debug("Message received", {
       channel: msg.channel,
       senderId: msg.user,
       isOwner,
+      isGroup,
     });
     handlerRef.current({
       content: msg.text,
       sessionId: `slack-${msg.channel}`,
       senderId: msg.user,
       isOwner,
+      isGroup,
+      groupId: isGroup ? msg.channel : undefined,
       sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
     });
   });

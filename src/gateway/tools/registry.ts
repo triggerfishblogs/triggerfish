@@ -20,3 +20,7 @@ export {
   type ToolProfile,
   type ToolProfileName,
 } from "./defs/tool_profiles.ts";
+export {
+  filterToolsForRole,
+  OWNER_ONLY_TOOLS,
+} from "./defs/role_filter.ts";

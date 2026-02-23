@@ -47,19 +47,16 @@ export function enforceNonOwnerToolCeiling(
     return `Error: Tool calls are not available in this session.`;
   }
   if (!toolClassifications) return null;
-  let matched = false;
   for (const [prefix, level] of toolClassifications) {
     if (name.startsWith(prefix)) {
-      matched = true;
       if (!canFlowTo(level, ceiling)) {
         return `Error: ${name} (classified ${level}) exceeds session ceiling ${ceiling}. Access denied.`;
       }
-      break;
+      return null;
     }
   }
-  if (!matched) {
-    return `Error: Tool calls are not available in this session.`;
-  }
+  // No prefix match: built-in ungated tool. Built-in tools pass through here;
+  // role-based filtering (ownerOnlyTools) blocks privileged ones separately.
   return null;
 }
 
@@ -117,7 +114,12 @@ function enforceAccessControl(
       config.toolClassifications,
     );
   }
-  if (config.isOwnerSession && !config.isOwnerSession()) {
+  const isOwner = config.isOwnerSession?.() ?? true;
+  if (!isOwner) {
+    // Defense-in-depth: block owner-only tools even if the LLM somehow calls them.
+    if (config.ownerOnlyTools?.has(name)) {
+      return `Error: Tool ${name} is restricted to the owner.`;
+    }
     return enforceNonOwnerToolCeiling(
       name,
       config.getNonOwnerCeiling?.() ?? null,

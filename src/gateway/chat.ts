@@ -29,6 +29,10 @@ import {
   parseUserOverrides,
 } from "../channels/user_sessions.ts";
 import type { UserSessionManager } from "../channels/user_sessions.ts";
+import {
+  createUserRateLimiter,
+} from "../channels/rate_limiter.ts";
+import type { UserRateLimiter } from "../channels/rate_limiter.ts";
 
 import type {
   ChannelRegistrationConfig,
@@ -74,6 +78,8 @@ interface ChannelState {
   readonly respondToUnclassified: boolean;
   readonly pairing: boolean;
   readonly pairingClassification: ClassificationLevel;
+  /** Optional per-user rate limiter. undefined = no rate limiting. */
+  readonly rateLimiter: UserRateLimiter | undefined;
 }
 
 // ─── Channel registration ───────────────────────────────────────────────────
@@ -94,6 +100,9 @@ async function registerChannelState(
   if (channelConfig.pairing) {
     await preloadPairedUsers(pairingService, channelType, mgr, pairingCls);
   }
+  const rateLimiter = channelConfig.nonOwnerRateLimit
+    ? createUserRateLimiter(channelConfig.nonOwnerRateLimit)
+    : undefined;
   channelStates.set(channelType, {
     userSessions: mgr,
     adapter: channelConfig.adapter,
@@ -101,6 +110,7 @@ async function registerChannelState(
     respondToUnclassified: channelConfig.respondToUnclassified ?? true,
     pairing: channelConfig.pairing ?? false,
     pairingClassification: pairingCls,
+    rateLimiter,
   });
 }
 
@@ -145,6 +155,17 @@ async function routeChannelMessage(
     pairingService,
   );
   if (!allowed) return;
+
+  if (channelState.rateLimiter) {
+    channelState.rateLimiter.prune();
+    const effectiveSenderId = senderId || "unknown";
+    if (!channelState.rateLimiter.isAllowed(effectiveSenderId)) {
+      chatLog.warn(
+        `[${channelType}] Rate limit exceeded for sender ${effectiveSenderId}`,
+      );
+      return;
+    }
+  }
 
   await runNonOwnerAgentTurn(
     state,

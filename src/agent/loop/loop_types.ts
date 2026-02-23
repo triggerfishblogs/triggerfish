@@ -67,13 +67,16 @@ export function buildLlmMessages(
   return [{ role: "system", content: systemPrompt }, ...history];
 }
 
-/** Resolve the live tool list for this iteration. */
+/** Resolve the live tool list for this iteration, filtered by role. */
 export function resolveActiveToolList(
   state: OrchestratorState,
 ): readonly ToolDefinition[] {
-  return state.getExtraTools
+  const allTools: readonly ToolDefinition[] = state.getExtraTools
     ? [...state.baseTools, ...state.getExtraTools()]
     : state.baseTools;
+  if (!state.config.filterTools) return allTools;
+  const isOwner = state.config.isOwnerSession?.() ?? true;
+  return state.config.filterTools(allTools, isOwner);
 }
 
 // ─── Agent loop types ────────────────────────────────────────────────────────

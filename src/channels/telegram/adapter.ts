@@ -90,17 +90,21 @@ export function createTelegramChannel(
   bot.on("message:text", (ctx) => {
     if (!handler) return;
     const isOwner = checkTelegramOwnership(ctx.from.id, ownerId);
+    const isGroup = ctx.chat.type !== "private";
     trackTelegramMessage(chatMessageIds, ctx.chat.id, ctx.message.message_id);
     log.debug("Message received", {
       chatId: ctx.chat.id,
       senderId: ctx.from.id,
       isOwner,
+      isGroup,
     });
     handler({
       content: ctx.message.text,
       sessionId: `telegram-${ctx.chat.id}`,
       senderId: String(ctx.from.id),
       isOwner,
+      isGroup,
+      groupId: isGroup ? String(ctx.chat.id) : undefined,
       sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
     });
   });
@@ -108,6 +112,7 @@ export function createTelegramChannel(
   bot.command("addtrigger", (ctx) => {
     if (!handler || !ctx.from) return;
     const isOwner = checkTelegramOwnership(ctx.from.id, ownerId);
+    const isGroup = ctx.chat.type !== "private";
     if (ctx.message) {
       trackTelegramMessage(chatMessageIds, ctx.chat.id, ctx.message.message_id);
     }
@@ -119,6 +124,8 @@ export function createTelegramChannel(
       sessionId: `telegram-${ctx.chat.id}`,
       senderId: String(ctx.from.id),
       isOwner,
+      isGroup,
+      groupId: isGroup ? String(ctx.chat.id) : undefined,
       sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
     });
   });

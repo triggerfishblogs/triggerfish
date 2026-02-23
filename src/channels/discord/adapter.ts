@@ -82,16 +82,20 @@ function attachDiscordMessageListener(
       message.author.id,
       ownerId,
     );
+    const isGroup = message.guildId !== null;
     log.debug("Message received", {
       channelId: message.channelId,
       senderId: message.author.id,
       isOwner,
+      isGroup,
     });
     handlerRef.current({
       content: message.content,
       sessionId: `discord-${message.channelId}`,
       senderId: message.author.id,
       isOwner,
+      isGroup,
+      groupId: isGroup ? message.channelId : undefined,
       sessionTaint,
     });
   });

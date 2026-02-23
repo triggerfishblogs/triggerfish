@@ -24,6 +24,10 @@ import type {
   ChatSessionConfig,
 } from "./chat_types.ts";
 import { buildSendEvent } from "./chat_event_sender.ts";
+import {
+  filterToolsForRole,
+  OWNER_ONLY_TOOLS,
+} from "./tools/defs/role_filter.ts";
 
 // ─── Mutable chat session state ─────────────────────────────────────────────
 
@@ -113,6 +117,8 @@ export function assembleOrchestratorConfig(
     domainClassifier: config.domainClassifier,
     toolFloorRegistry: config.toolFloorRegistry,
     secretStore: config.secretStore,
+    filterTools: filterToolsForRole,
+    ownerOnlyTools: OWNER_ONLY_TOOLS,
   };
 }
 
