@@ -16,9 +16,7 @@
 import { join } from "@std/path";
 import { isDockerEnvironment } from "../../core/env.ts";
 import { createGatewayServer } from "../server/server.ts";
-import {
-  createSessionToolExecutor,
-} from "../tools/session_tools.ts";
+import { createSessionToolExecutor } from "../tools/session_tools.ts";
 import type { RegisteredChannel } from "../tools/session_tools.ts";
 import { createEnhancedSessionManager } from "../sessions.ts";
 import { createSessionManager } from "../../core/session/manager.ts";
@@ -29,9 +27,7 @@ import {
   createTidePoolTools,
   TIDEPOOL_SYSTEM_PROMPT,
 } from "../../tools/tidepool/mod.ts";
-import {
-  mapToolPrefixClassifications,
-} from "../../agent/orchestrator.ts";
+import { mapToolPrefixClassifications } from "../../agent/orchestrator.ts";
 import { createProviderRegistry } from "../../agent/llm.ts";
 import {
   loadProvidersFromConfig,
@@ -39,7 +35,10 @@ import {
 } from "../../agent/providers/config.ts";
 import type { ModelsConfig } from "../../agent/providers/config.ts";
 import { createPolicyEngine } from "../../core/policy/engine.ts";
-import { createDefaultRules, createHookRunner } from "../../core/policy/hooks.ts";
+import {
+  createDefaultRules,
+  createHookRunner,
+} from "../../core/policy/hooks.ts";
 import { createSession, updateTaint } from "../../core/types/session.ts";
 import type { ChannelId, UserId } from "../../core/types/session.ts";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
@@ -67,25 +66,19 @@ import {
   createMemoryToolExecutor,
 } from "../../tools/memory/mod.ts";
 import {
-  createDomainPolicy as createBrowserDomainPolicy,
   createAutoLaunchBrowserExecutor,
   createBrowserManager,
+  createDomainPolicy as createBrowserDomainPolicy,
 } from "../../tools/browser/mod.ts";
-import {
-  createImageToolExecutor,
-} from "../../tools/image/mod.ts";
-import {
-  createExploreToolExecutor,
-} from "../../tools/explore/mod.ts";
+import { createImageToolExecutor } from "../../tools/image/mod.ts";
+import { createExploreToolExecutor } from "../../tools/explore/mod.ts";
 import {
   createGitHubClient,
   createGitHubToolExecutor,
   resolveGitHubToken,
 } from "../../integrations/github/mod.ts";
 import { createKeychain } from "../../core/secrets/keychain.ts";
-import {
-  createSecretToolExecutor,
-} from "../../tools/secrets.ts";
+import { createSecretToolExecutor } from "../../tools/secrets.ts";
 import type { SecretPromptCallback } from "../../tools/secrets.ts";
 import { createPairingService } from "../../channels/pairing.ts";
 import {
@@ -99,9 +92,7 @@ import type {
   TelegramChannelConfig,
 } from "./channels.ts";
 import { createNotificationService } from "../notifications/notifications.ts";
-import {
-  createTriggerToolExecutor,
-} from "../tools/trigger_tools.ts";
+import { createTriggerToolExecutor } from "../tools/trigger_tools.ts";
 import { parseClassification } from "../../core/types/classification.ts";
 import { createSkillToolExecutor } from "../../tools/skills/mod.ts";
 import {
@@ -116,7 +107,10 @@ import { logDir as resolveLogDir } from "../../cli/daemon/daemon.ts";
 import { loadConfigWithSecrets } from "../../core/config.ts";
 import { resolveBaseDir, resolveConfigPath } from "../../cli/config/paths.ts";
 import { TIDEPOOL_PORT } from "../../cli/constants.ts";
-import { buildSkillsSystemPrompt, buildTriggersSystemPrompt } from "../../tools/skills/prompts.ts";
+import {
+  buildSkillsSystemPrompt,
+  buildTriggersSystemPrompt,
+} from "../../tools/skills/prompts.ts";
 import {
   buildGoogleExecutor,
   buildSchedulerConfig,
@@ -124,8 +118,16 @@ import {
   buildWebTools,
   createOrchestratorFactory,
 } from "./factory.ts";
-import { createToolExecutor, resolveToolsForProfile, resolvePromptsForProfile, TOOL_GROUPS } from "../tools/agent_tools.ts";
-import { createPlanManager, createPlanToolExecutor } from "../../agent/plan/plan.ts";
+import {
+  createToolExecutor,
+  resolvePromptsForProfile,
+  resolveToolsForProfile,
+  TOOL_GROUPS,
+} from "../tools/agent_tools.ts";
+import {
+  createPlanManager,
+  createPlanToolExecutor,
+} from "../../agent/plan/plan.ts";
 import { wireMcpServers } from "./mcp.ts";
 import type { McpBroadcastRefs } from "./mcp.ts";
 import {
@@ -135,16 +137,67 @@ import {
 } from "./subsystems.ts";
 import type { ObsidianPluginConfig } from "./subsystems.ts";
 
-/**
- * Start the gateway server with scheduler and persistent cron storage.
- */
-export async function runStart(): Promise<void> {
-  console.log("Starting Triggerfish gateway...\n");
+/** Dependencies for the shutdown handler. */
+interface ShutdownDeps {
+  signalDaemonState: {
+    handle: { child: { kill(signo?: number | Deno.Signal): void } } | null;
+  };
+  schedulerService: { stop(): void };
+  server: { stop(): Promise<void> };
+  tidepoolHost: { stop(): Promise<void> };
+  memoryDb: { close(): void };
+  storage: { close(): Promise<void> };
+  log: ReturnType<typeof createLogger>;
+}
 
-  const baseDir = resolveBaseDir();
-  const configPath = resolveConfigPath(baseDir);
+/** Register SIGTERM/SIGINT handlers for graceful shutdown. */
+function registerShutdownHandlers(deps: ShutdownDeps): void {
+  let shuttingDown = false;
+  const handleShutdown = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    deps.log.info("Shutting down...");
+    if (deps.signalDaemonState.handle) {
+      try {
+        deps.signalDaemonState.handle.child.kill("SIGTERM");
+      } catch { /* already dead */ }
+      deps.signalDaemonState.handle = null;
+    }
+    try {
+      deps.schedulerService.stop();
+    } catch { /* best effort */ }
+    try {
+      await deps.server.stop();
+    } catch { /* best effort */ }
+    try {
+      await deps.tidepoolHost.stop();
+    } catch { /* best effort */ }
+    try {
+      deps.memoryDb.close();
+    } catch { /* best effort */ }
+    try {
+      await deps.storage.close();
+    } catch { /* best effort */ }
+    deps.log.info("Shutdown complete");
+    try {
+      await shutdownLogger();
+    } catch { /* best effort */ }
+    Deno.exit(0);
+  };
+  try {
+    Deno.addSignalListener("SIGTERM", () => {
+      handleShutdown();
+    });
+  } catch { /* not supported on all platforms */ }
+  try {
+    Deno.addSignalListener("SIGINT", () => {
+      handleShutdown();
+    });
+  } catch { /* not supported on all platforms */ }
+}
 
-  // Check if config exists
+/** Check config exists, printing environment-appropriate help if missing. */
+async function verifyConfigExists(configPath: string): Promise<void> {
   try {
     await Deno.stat(configPath);
   } catch {
@@ -164,14 +217,68 @@ export async function runStart(): Promise<void> {
     }
     Deno.exit(1);
   }
+}
 
-  // Create default directories on first run
+/** Create default directories on first run. */
+async function ensureBaseDirs(baseDir: string): Promise<void> {
   for (const sub of ["logs", "data", "skills"]) {
     await Deno.mkdir(join(baseDir, sub), { recursive: true });
   }
   if (isDockerEnvironment()) {
     await Deno.mkdir(join(baseDir, "workspace"), { recursive: true });
   }
+}
+
+/** Parse filesystem path classification config into a Map. */
+function buildFilesystemPathMap(
+  fsConfig: Record<string, unknown> | undefined,
+): {
+  fsPathMap: Map<string, ClassificationLevel>;
+  fsDefault: ClassificationLevel;
+} {
+  const fsPathMap = new Map<string, ClassificationLevel>();
+  const paths = (fsConfig as { paths?: Record<string, string> })?.paths;
+  if (paths) {
+    for (const [pattern, level] of Object.entries(paths)) {
+      const parsed = parseClassification(level);
+      if (parsed.ok) fsPathMap.set(pattern, parsed.value);
+    }
+  }
+  let fsDefault: ClassificationLevel = "CONFIDENTIAL";
+  const defaultLevel = (fsConfig as { default?: string })?.default;
+  if (defaultLevel) {
+    const parsed = parseClassification(defaultLevel);
+    if (parsed.ok) fsDefault = parsed.value;
+  }
+  return { fsPathMap, fsDefault };
+}
+
+/** Build tool floor registry from enterprise config overrides. */
+function buildToolFloorRegistryFromConfig(
+  toolsConfig: Record<string, unknown> | undefined,
+) {
+  const overrides = new Map<string, ClassificationLevel>();
+  const floors = (toolsConfig as { floors?: Record<string, string> })?.floors;
+  if (floors) {
+    for (const [tool, level] of Object.entries(floors)) {
+      const parsed = parseClassification(level);
+      if (parsed.ok) overrides.set(tool, parsed.value);
+    }
+  }
+  return createToolFloorRegistry(overrides.size > 0 ? overrides : undefined);
+}
+
+/**
+ * Start the gateway server with scheduler and persistent cron storage.
+ */
+export async function runStart(): Promise<void> {
+  console.log("Starting Triggerfish gateway...\n");
+
+  const baseDir = resolveBaseDir();
+  const configPath = resolveConfigPath(baseDir);
+
+  await verifyConfigExists(configPath);
+  await ensureBaseDirs(baseDir);
 
   // Initialize structured logger early so we capture startup.
   // On Windows, when running as a service the C# wrapper already captures
@@ -189,7 +296,10 @@ export async function runStart(): Promise<void> {
 
   // Load config and resolve secret references from OS keychain
   const keychainForConfig = createKeychain();
-  const configResult = await loadConfigWithSecrets(configPath, keychainForConfig);
+  const configResult = await loadConfigWithSecrets(
+    configPath,
+    keychainForConfig,
+  );
   if (!configResult.ok) {
     log.error("Failed to load configuration:", configResult.error);
     Deno.exit(1);
@@ -199,8 +309,12 @@ export async function runStart(): Promise<void> {
 
   // Re-initialize logger with YAML-configured level.
   // Priority: logging.level in triggerfish.yaml > TRIGGERFISH_DEBUG=1 compat > "normal"
-  const debugCompat = Deno.env.get("TRIGGERFISH_DEBUG") === "1" ? "debug" : undefined;
-  const userLevel = parseUserLogLevel(config.logging?.level ?? debugCompat ?? "normal");
+  const debugCompat = Deno.env.get("TRIGGERFISH_DEBUG") === "1"
+    ? "debug"
+    : undefined;
+  const userLevel = parseUserLogLevel(
+    config.logging?.level ?? debugCompat ?? "normal",
+  );
   initLogger({
     level: USER_LEVEL_MAP[userLevel],
     fileWriter,
@@ -233,40 +347,18 @@ export async function runStart(): Promise<void> {
   const triggerStore = createTriggerStore(storage);
 
   // Build filesystem security config (shared by factory and main session)
-  const fsConfig = config.filesystem;
-  const fsPathMap = new Map<string, ClassificationLevel>();
-  if (fsConfig?.paths) {
-    for (const [pattern, level] of Object.entries(fsConfig.paths)) {
-      const parsed = parseClassification(level);
-      if (parsed.ok) {
-        fsPathMap.set(pattern, parsed.value);
-      }
-    }
-  }
-  let fsDefault: ClassificationLevel = "CONFIDENTIAL";
-  if (fsConfig?.default) {
-    const parsed = parseClassification(fsConfig.default);
-    if (parsed.ok) {
-      fsDefault = parsed.value;
-    }
-  }
-
+  const { fsPathMap, fsDefault } = buildFilesystemPathMap(
+    config.filesystem as Record<string, unknown> | undefined,
+  );
   if (fsDefault === "PUBLIC") {
-    log.warn("filesystem.default is set to PUBLIC — all unmapped paths are accessible at PUBLIC level");
+    log.warn(
+      "filesystem.default is set to PUBLIC — all unmapped paths are accessible at PUBLIC level",
+    );
   }
 
   // Build tool floor registry from enterprise overrides (shared by factory and main session)
-  const toolFloorOverrides = new Map<string, ClassificationLevel>();
-  if (config.tools?.floors) {
-    for (const [tool, level] of Object.entries(config.tools.floors)) {
-      const parsed = parseClassification(level);
-      if (parsed.ok) {
-        toolFloorOverrides.set(tool, parsed.value);
-      }
-    }
-  }
-  const toolFloorRegistry = createToolFloorRegistry(
-    toolFloorOverrides.size > 0 ? toolFloorOverrides : undefined,
+  const toolFloorRegistry = buildToolFloorRegistryFromConfig(
+    config.tools as Record<string, unknown> | undefined,
   );
 
   // Build orchestrator factory and scheduler with persistent cron manager
@@ -310,16 +402,14 @@ export async function runStart(): Promise<void> {
     basePath: join(baseDir, "workspaces"),
   });
 
-  // Symlink SPINE.md into workspace so the agent can read AND edit its identity
+  // Symlink SPINE.md into workspace (reuses pattern from factory.ts)
   try {
     const workspaceSpine = join(mainWorkspace.path, "SPINE.md");
     try {
       await Deno.remove(workspaceSpine);
     } catch { /* doesn't exist yet */ }
     await Deno.symlink(spinePath, workspaceSpine);
-  } catch {
-    // SPINE.md may not exist yet — not fatal
-  }
+  } catch { /* SPINE.md may not exist yet — not fatal */ }
 
   // Build path classifier for main workspace
   const pathClassifier = createPathClassifier(
@@ -334,7 +424,9 @@ export async function runStart(): Promise<void> {
 
   const execTools = createExecTools(mainWorkspace);
   const todoManager = createTodoManager({ storage, agentId: "main-session" });
-  const { searchProvider, webFetcher, domainClassifier } = buildWebTools(config);
+  const { searchProvider, webFetcher, domainClassifier } = buildWebTools(
+    config,
+  );
 
   // Initialize memory system with FTS5 search
   const { Database } = await import("@db/sqlite");
@@ -392,7 +484,9 @@ export async function runStart(): Promise<void> {
 
   // Tidepool tools (lazy getter — tools resolve after host creation)
   // deno-lint-ignore prefer-const
-  let tidepoolTools: import("../../tools/tidepool/mod.ts").TidePoolTools | undefined;
+  let tidepoolTools:
+    | import("../../tools/tidepool/mod.ts").TidePoolTools
+    | undefined;
   const tidepoolExecutor = createTidepoolToolExecutor(() => tidepoolTools);
 
   // Image analysis tools
@@ -493,7 +587,8 @@ export async function runStart(): Promise<void> {
   }
 
   // Discover skills from bundled, managed, and workspace directories
-  const { skills: discoveredSkills, loader: skillLoader } = await discoverSkills(baseDir);
+  const { skills: discoveredSkills, loader: skillLoader } =
+    await discoverSkills(baseDir);
   const SKILLS_SYSTEM_PROMPT = buildSkillsSystemPrompt(discoveredSkills);
   const TRIGGERS_SYSTEM_PROMPT = buildTriggersSystemPrompt(baseDir);
 
@@ -643,10 +738,12 @@ export async function runStart(): Promise<void> {
     ) => {
       isTidepoolCall = true;
       activeSecretPrompt = chatSession.createTidepoolSecretPrompt(sendEvent);
-      return chatSession.executeAgentTurn(content, sendEvent, signal).finally(() => {
-        isTidepoolCall = false;
-        activeSecretPrompt = cliSecretPrompt;
-      });
+      return chatSession.executeAgentTurn(content, sendEvent, signal).finally(
+        () => {
+          isTidepoolCall = false;
+          activeSecretPrompt = cliSecretPrompt;
+        },
+      );
     },
   };
 
@@ -663,7 +760,9 @@ export async function runStart(): Promise<void> {
   notificationService.registerChannel({
     name: "tidepool",
     // deno-lint-ignore require-await
-    send: async (msg) => { tidepoolHost.broadcastNotification(msg); },
+    send: async (msg) => {
+      tidepoolHost.broadcastNotification(msg);
+    },
   });
 
   // Wrap the chatSession for CLI WebSocket clients so that secret_save prompts
@@ -677,9 +776,11 @@ export async function runStart(): Promise<void> {
       signal?: Parameters<typeof chatSession.executeAgentTurn>[2],
     ) => {
       activeSecretPrompt = chatSession.createTidepoolSecretPrompt(sendEvent);
-      return chatSession.executeAgentTurn(content, sendEvent, signal).finally(() => {
-        activeSecretPrompt = cliSecretPrompt;
-      });
+      return chatSession.executeAgentTurn(content, sendEvent, signal).finally(
+        () => {
+          activeSecretPrompt = cliSecretPrompt;
+        },
+      );
     },
   };
 
@@ -698,23 +799,31 @@ export async function runStart(): Promise<void> {
   notificationService.registerChannel({
     name: "cli-websocket",
     // deno-lint-ignore require-await
-    send: async (msg) => { server.broadcastNotification(msg); },
+    send: async (msg) => {
+      server.broadcastNotification(msg);
+    },
   });
 
   // --- Channel wiring ---
   const channelDeps = { chatSession, notificationService, channelAdapters };
 
-  const telegramConfig = config.channels?.telegram as TelegramChannelConfig | undefined;
+  const telegramConfig = config.channels?.telegram as
+    | TelegramChannelConfig
+    | undefined;
   if (telegramConfig?.botToken) {
     await wireTelegramChannel(telegramConfig, channelDeps);
   }
 
-  const discordConfig = config.channels?.discord as DiscordChannelConfig | undefined;
+  const discordConfig = config.channels?.discord as
+    | DiscordChannelConfig
+    | undefined;
   if (discordConfig) {
     await wireDiscordChannel(discordConfig, channelDeps);
   }
 
-  const signalConfig = config.channels?.signal as SignalChannelConfig | undefined;
+  const signalConfig = config.channels?.signal as
+    | SignalChannelConfig
+    | undefined;
   const signalDaemonState = signalConfig
     ? wireSignalChannel(signalConfig, channelDeps)
     : { handle: null };
@@ -728,43 +837,16 @@ export async function runStart(): Promise<void> {
   log.info("Triggerfish is running!");
 
   // Graceful shutdown handler
-  let shuttingDown = false;
-  const handleShutdown = async () => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    log.info("Shutting down...");
-
-    // Stop signal-cli daemon if we spawned it
-    if (signalDaemonState.handle) {
-      try { signalDaemonState.handle.child.kill("SIGTERM"); } catch { /* already dead */ }
-      signalDaemonState.handle = null;
-    }
-
-    // Stop scheduler (cron tick loop + triggers)
-    try { schedulerService.stop(); } catch { /* best effort */ }
-
-    // Stop gateway and tidepool servers
-    try { await server.stop(); } catch { /* best effort */ }
-    try { await tidepoolHost.stop(); } catch { /* best effort */ }
-
-    // Close database connections
-    try { memoryDb.close(); } catch { /* best effort */ }
-    try { await storage.close(); } catch { /* best effort */ }
-
-    log.info("Shutdown complete");
-
-    // Close the log file handle so the file lock is released before exit.
-    // Without this, a stop→start cycle on Windows can hit EBUSY if the
-    // old process's handle lingers.
-    try { await shutdownLogger(); } catch { /* best effort */ }
-    Deno.exit(0);
+  const shutdownDeps = {
+    signalDaemonState,
+    schedulerService,
+    server,
+    tidepoolHost,
+    memoryDb,
+    storage,
+    log,
   };
-  try {
-    Deno.addSignalListener("SIGTERM", () => { handleShutdown(); });
-  } catch { /* not supported on all platforms */ }
-  try {
-    Deno.addSignalListener("SIGINT", () => { handleShutdown(); });
-  } catch { /* not supported on all platforms */ }
+  registerShutdownHandlers(shutdownDeps);
 
   // Keep running until interrupted
   await new Promise(() => {}); // Never resolves — signal handler calls Deno.exit()
