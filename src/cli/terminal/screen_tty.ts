@@ -271,6 +271,101 @@ function advanceStreamCursor(
   return { row, col };
 }
 
+// ─── Input bar composition helpers ──────────────────────────────
+
+/** Layout dimensions for the input bar region. */
+interface InputBarLayout {
+  readonly topSepRow: number;
+  readonly firstInputRow: number;
+  readonly bottomSepRow: number;
+}
+
+/** Compute the row positions for the input bar. */
+function computeInputBarLayout(
+  totalRows: number,
+  lineCount: number,
+): InputBarLayout {
+  const bottomSepRow = totalRows - 1;
+  const firstInputRow = bottomSepRow - lineCount;
+  const topSepRow = firstInputRow - 1;
+  return { topSepRow, firstInputRow, bottomSepRow };
+}
+
+/** Draw ghost autocomplete suggestion after single-line input text. */
+function renderGhostSuggestion(
+  lines: readonly string[],
+  suggestion: string,
+): void {
+  if (lines.length === 1 && suggestion.length > 0) {
+    rawWrite(`${DIM}${suggestion}${RESET}`);
+  }
+}
+
+/** Options for rendering input bar content. */
+interface InputBarRenderOptions {
+  readonly editor: LineEditor;
+  readonly lines: readonly string[];
+  readonly layout: VisualRowLayout;
+  readonly bar: InputBarLayout;
+  readonly taint: ClassificationLevel;
+  readonly mcpConnected: number;
+  readonly mcpConfigured: number;
+  readonly columns: number;
+}
+
+/** Render the input bar contents: separators, editor lines, and ghost text. */
+function renderInputBarContent(opts: InputBarRenderOptions): void {
+  const color = taintColor(opts.taint);
+  rawWrite(HIDE_CURSOR);
+  renderTopSeparator(opts.bar.topSepRow, color, opts.columns);
+  renderInputLines(opts.lines, opts.layout.perLine, opts.bar.firstInputRow);
+  renderGhostSuggestion(opts.lines, opts.editor.suggestion);
+  const mcp = formatMcpIndicator(opts.mcpConnected, opts.mcpConfigured);
+  renderBottomSeparator(
+    opts.bar.bottomSepRow,
+    opts.taint,
+    color,
+    mcp,
+    opts.columns,
+  );
+}
+
+/** Position the terminal cursor at the editor's insertion point. */
+function placeInputBarCursor(
+  editor: LineEditor,
+  prefixLen: number,
+  firstInputRow: number,
+  visualRowsPerLine: readonly number[],
+  columns: number,
+): CursorPosition {
+  const cursor = computeCursorPosition(
+    editor.text,
+    editor.cursor,
+    prefixLen,
+    firstInputRow,
+    visualRowsPerLine,
+    columns,
+  );
+  rawWrite(moveTo(cursor.row, cursor.col));
+  rawWrite(SHOW_CURSOR);
+  return cursor;
+}
+
+/** Full render pass: draw content and position cursor, returning cursor position. */
+function renderInputBarFrame(
+  opts: InputBarRenderOptions,
+  prefixLen: number,
+): CursorPosition {
+  renderInputBarContent(opts);
+  return placeInputBarCursor(
+    opts.editor,
+    prefixLen,
+    opts.bar.firstInputRow,
+    opts.layout.perLine,
+    opts.columns,
+  );
+}
+
 // ─── Spinner helpers ────────────────────────────────────────────
 
 /** Format a spinner status text from the current frame and verb state. */
@@ -325,53 +420,35 @@ export function createTtyScreenManager(): ScreenManager {
     }
   }
 
+  function adjustInputLineCount(newCount: number): void {
+    if (newCount === inputLineCount) return;
+    const oldCount = inputLineCount;
+    inputLineCount = newCount;
+    setupScrollRegion();
+    if (newCount < oldCount) {
+      clearStaleSeparatorRows(oldCount, newCount, size.rows);
+    }
+  }
+
   function drawInputBar(editor: LineEditor): void {
     const lines = editor.text.split("\n");
-    const prefixLen = 3; // " ❯ " or " · "
+    const prefixLen = 3;
     const layout = computeVisualRowLayout(lines, prefixLen, size.columns);
-    const newLineCount = Math.max(layout.total, 1);
-
-    // If line count changed, adjust scroll region
-    if (newLineCount !== inputLineCount) {
-      const oldLineCount = inputLineCount;
-      inputLineCount = newLineCount;
-      setupScrollRegion();
-
-      if (newLineCount < oldLineCount) {
-        clearStaleSeparatorRows(oldLineCount, newLineCount, size.rows);
-      }
-    }
-
-    const color = taintColor(currentTaint);
-    // Layout: topSep(1) + input(inputLineCount) + bottomSep(1) + status(1)
-    const bottomSepRow = size.rows - 1;
-    const firstInputRow = bottomSepRow - inputLineCount;
-    const topSepRow = firstInputRow - 1;
-
-    rawWrite(HIDE_CURSOR);
-    renderTopSeparator(topSepRow, color, size.columns);
-    renderInputLines(lines, layout.perLine, firstInputRow);
-
-    // Draw ghost suggestion on the last line (only for single-line input)
-    if (lines.length === 1 && editor.suggestion.length > 0) {
-      rawWrite(`${DIM}${editor.suggestion}${RESET}`);
-    }
-
-    const mcp = formatMcpIndicator(mcpConnected, mcpConfigured);
-    renderBottomSeparator(bottomSepRow, currentTaint, color, mcp, size.columns);
-
-    const cursor = computeCursorPosition(
-      editor.text,
-      editor.cursor,
-      prefixLen,
-      firstInputRow,
-      layout.perLine,
-      size.columns,
-    );
+    adjustInputLineCount(Math.max(layout.total, 1));
+    const bar = computeInputBarLayout(size.rows, inputLineCount);
+    const opts: InputBarRenderOptions = {
+      editor,
+      lines,
+      layout,
+      bar,
+      columns: size.columns,
+      taint: currentTaint,
+      mcpConnected,
+      mcpConfigured,
+    };
+    const cursor = renderInputBarFrame(opts, prefixLen);
     knownCursorRow = cursor.row;
     knownCursorCol = cursor.col;
-    rawWrite(moveTo(cursor.row, cursor.col));
-    rawWrite(SHOW_CURSOR);
   }
 
   function drawStatusBar(): void {
