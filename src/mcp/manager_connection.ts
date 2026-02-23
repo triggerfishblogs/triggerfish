@@ -8,6 +8,7 @@
  */
 
 import { createLogger } from "../core/logger/mod.ts";
+import type { Result } from "../core/types/classification.ts";
 import type { SecretStore } from "../core/secrets/keychain/keychain.ts";
 import type { Transport } from "./client/transport.ts";
 import { SSETransport, StdioTransport } from "./client/transport.ts";
@@ -49,6 +50,36 @@ export function buildMcpManagerState(): McpManagerState {
   };
 }
 
+// ─── Command allowlist ───────────────────────────────────────────────────────
+
+/** Commands permitted to run as MCP stdio servers by default. */
+export const DEFAULT_ALLOWED_MCP_COMMANDS: ReadonlySet<string> = new Set([
+  "npx", "node", "python3", "python", "deno", "uvx",
+]);
+
+/**
+ * Validate an MCP stdio command against the built-in allowlist.
+ *
+ * Strips leading path components so /usr/bin/node passes as "node".
+ * Per-server additional commands can be permitted via extraAllowed.
+ */
+export function validateMcpCommand(
+  command: string,
+  extraAllowed?: readonly string[],
+): Result<string, string> {
+  const baseName = command.replace(/^.*[/\\]/, "");
+  const allowed: ReadonlySet<string> = extraAllowed?.length
+    ? new Set([...DEFAULT_ALLOWED_MCP_COMMANDS, ...extraAllowed])
+    : DEFAULT_ALLOWED_MCP_COMMANDS;
+  if (!allowed.has(baseName)) {
+    return {
+      ok: false,
+      error: `MCP command not in allowlist: "${baseName}". Allowed: ${[...allowed].join(", ")}`,
+    };
+  }
+  return { ok: true, value: command };
+}
+
 // ─── Single-server connection ────────────────────────────────────────────────
 
 /** Create the appropriate transport for an MCP server config. */
@@ -72,7 +103,7 @@ function assembleConnectedServer(
     id: cfg.id,
     classification: cfg.classification,
     tools: [],
-    server: createMcpServerAdapter(client, cfg.classification),
+    server: createMcpServerAdapter(client, cfg.classification, cfg.classificationCeiling),
     client,
     transport,
   };
@@ -83,12 +114,19 @@ export async function connectOneMcpServer(
   cfg: McpServerConfig,
   ctx: McpConnectionContext,
 ): Promise<ConnectedMcpServer> {
+  if (cfg.command) {
+    const validation = validateMcpCommand(cfg.command, cfg.allowedCommands);
+    if (!validation.ok) {
+      throw new Error(`MCP server '${cfg.id}': ${validation.error}`);
+    }
+  }
+
   const resolvedEnv = cfg.env
     ? await resolveEnvVars(cfg.env, ctx.secretStore)
     : undefined;
 
   const transport = createTransportForConfig(cfg, resolvedEnv);
-  const client = createMcpClient(transport);
+  const client = createMcpClient(transport, cfg.toolCallTimeoutMs ?? 60_000);
   await client.initialize();
   const tools = await client.listTools();
 
