@@ -16,4 +16,4 @@ export type {
   TunnelProvider,
   TunnelService,
   TunnelStatus,
-} from "./tunnel.ts";
+} from "./tunnel_types.ts";
