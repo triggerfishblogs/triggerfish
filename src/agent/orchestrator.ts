@@ -16,7 +16,10 @@
  */
 
 import { createLogger } from "../core/logger/mod.ts";
-import type { Result, ClassificationLevel } from "../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../core/types/classification.ts";
 import { canFlowTo } from "../core/types/classification.ts";
 import { resolveSecretRefs } from "../core/secrets/resolver.ts";
 import {
@@ -27,12 +30,24 @@ import {
 } from "../core/security/constants.ts";
 import type { SessionId } from "../core/types/session.ts";
 import type { LlmMessage } from "./llm.ts";
-import { createCompactor, estimateHistoryTokens, countTokens } from "./compactor.ts";
+import {
+  countTokens,
+  createCompactor,
+  estimateHistoryTokens,
+} from "./compactor.ts";
 import type { Compactor, CompactResult } from "./compactor.ts";
-import type { ImageContentBlock, ContentBlock } from "../core/image/content.ts";
-import { extractText, hasImages, normalizeContent } from "../core/image/content.ts";
+import type { ContentBlock, ImageContentBlock } from "../core/image/content.ts";
+import {
+  extractText,
+  hasImages,
+  normalizeContent,
+} from "../core/image/content.ts";
 import { createPlanToolExecutor } from "./plan/plan.ts";
-import { buildPlanModePrompt, buildAwaitingApprovalPrompt, buildPlanExecutionPrompt } from "./plan/prompt.ts";
+import {
+  buildAwaitingApprovalPrompt,
+  buildPlanExecutionPrompt,
+  buildPlanModePrompt,
+} from "./plan/prompt.ts";
 import type {
   HistoryEntry,
   Orchestrator,
@@ -40,6 +55,7 @@ import type {
   ParsedToolCall,
   ProcessMessageOptions,
   ProcessMessageResult,
+  ToolDefinition,
   ToolExecutor,
 } from "./orchestrator_types.ts";
 import {
@@ -76,7 +92,9 @@ export {
  * Load SPINE.md content from the filesystem.
  * Returns the file content or null if the file cannot be read.
  */
-async function readSpineFromDisk(spinePath: string | undefined): Promise<string | null> {
+async function readSpineFromDisk(
+  spinePath: string | undefined,
+): Promise<string | null> {
   if (!spinePath) return null;
   try {
     return await Deno.readTextFile(spinePath);
@@ -87,6 +105,160 @@ async function readSpineFromDisk(spinePath: string | undefined): Promise<string 
       error: err instanceof Error ? err.message : String(err),
     });
     return null;
+  }
+}
+
+/** Convert tool definitions to OpenAI native tool format for LLM providers. */
+function convertToolsToNativeFormat(tools: readonly ToolDefinition[]) {
+  return tools.map((t) => ({
+    type: "function" as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: {
+        type: "object" as const,
+        properties: Object.fromEntries(
+          Object.entries(t.parameters).map(([k, v]) => {
+            const prop: Record<string, unknown> = {
+              type: v.type,
+              description: v.description,
+            };
+            if (v.items) prop.items = v.items;
+            if (v.enum) prop.enum = v.enum;
+            return [k, prop];
+          }),
+        ),
+        required: Object.entries(t.parameters)
+          .filter(([_, v]) => v.required !== false)
+          .map(([k]) => k),
+      },
+    },
+  }));
+}
+
+/** Parse native tool calls from LLM provider response (OpenAI or Anthropic format). */
+function parseNativeToolCalls(
+  rawCalls: readonly unknown[],
+  orchLog: ReturnType<typeof createLogger>,
+): ParsedToolCall[] {
+  return rawCalls
+    .map((tc: unknown): ParsedToolCall | null => {
+      const t = tc as Record<string, unknown>;
+      if (t === null || typeof t !== "object") return null;
+
+      // OpenAI format: { function: { name, arguments } }
+      if (typeof (t as { function?: unknown }).function === "object") {
+        const fn = (t as { function: { name: string; arguments: string } })
+          .function;
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(fn.arguments);
+        } catch (parseErr: unknown) {
+          orchLog.warn("Tool call arguments malformed", {
+            tool: fn.name,
+            error: parseErr instanceof Error
+              ? parseErr.message
+              : String(parseErr),
+          });
+        }
+        return { name: fn.name, args };
+      }
+
+      // Anthropic format: { type: "tool_use", name, input }
+      if (t.type === "tool_use" && typeof t.name === "string") {
+        const input = (t.input ?? {}) as Record<string, unknown>;
+        return { name: t.name as string, args: input };
+      }
+
+      return null;
+    })
+    .filter((tc): tc is ParsedToolCall => tc !== null);
+}
+
+/** Check trigger tool access ceiling. Returns error message or null. */
+function enforceTriggerToolCeiling(
+  name: string,
+  ceiling: ClassificationLevel | null,
+  toolClassifications:
+    | ReadonlyMap<string, ClassificationLevel>
+    | undefined,
+): string | null {
+  if (ceiling === null || !toolClassifications) return null;
+  for (const [prefix, level] of toolClassifications) {
+    if (name.startsWith(prefix)) {
+      if (!canFlowTo(level, ceiling)) {
+        return `Error: ${name} (classified ${level}) exceeds trigger ceiling ${ceiling}. Access denied.`;
+      }
+      break;
+    }
+  }
+  return null;
+}
+
+/** Check non-owner tool access ceiling. Returns error message or null. */
+function enforceNonOwnerToolCeiling(
+  name: string,
+  ceiling: ClassificationLevel | null,
+  toolClassifications:
+    | ReadonlyMap<string, ClassificationLevel>
+    | undefined,
+): string | null {
+  if (ceiling === null) {
+    return `Error: Tool calls are not available in this session.`;
+  }
+  if (!toolClassifications) return null;
+  let matched = false;
+  for (const [prefix, level] of toolClassifications) {
+    if (name.startsWith(prefix)) {
+      matched = true;
+      if (!canFlowTo(level, ceiling)) {
+        return `Error: ${name} (classified ${level}) exceeds session ceiling ${ceiling}. Access denied.`;
+      }
+      break;
+    }
+  }
+  if (!matched) {
+    return `Error: Tool calls are not available in this session.`;
+  }
+  return null;
+}
+
+/** Escalate session taint when calling a classified tool prefix. */
+function escalateToolPrefixTaint(
+  name: string,
+  toolClassifications:
+    | ReadonlyMap<string, ClassificationLevel>
+    | undefined,
+  escalateTaint:
+    | ((level: ClassificationLevel, reason: string) => void)
+    | undefined,
+): void {
+  if (!toolClassifications || !escalateTaint) return;
+  for (const [prefix, level] of toolClassifications) {
+    if (name.startsWith(prefix)) {
+      escalateTaint(level, `Tool call: ${name}`);
+      break;
+    }
+  }
+}
+
+/** Escalate taint from _classification field in tool response JSON. */
+function escalateResponseClassification(
+  result: string,
+  escalateTaint:
+    | ((level: ClassificationLevel, reason: string) => void)
+    | undefined,
+  toolName: string,
+): void {
+  if (!escalateTaint) return;
+  try {
+    const parsed = JSON.parse(result);
+    const cls = parsed._classification;
+    if (typeof cls === "string") {
+      escalateTaint(cls as ClassificationLevel, `Tool response: ${toolName}`);
+    }
+  } catch {
+    /* Not JSON or no _classification — expected for most tools */
   }
 }
 
@@ -150,7 +322,10 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     let resourceParam: string | null = null;
 
     // --- FILESYSTEM TOOLS ---
-    const pathParam = (call.args.path ?? call.args.directory ?? call.args.search_path) as string | null ?? null;
+    const pathParam =
+      (call.args.path ?? call.args.directory ?? call.args.search_path) as
+        | string
+        | null ?? null;
     if (config.pathClassifier && pathParam) {
       if (FILESYSTEM_READ_TOOLS.has(toolName)) {
         const result = config.pathClassifier.classify(pathParam);
@@ -167,7 +342,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
     // --- URL TOOLS ---
     const urlParam = (call.args.url) as string | undefined ?? null;
-    if (config.domainClassifier && urlParam && resourceClassification === null) {
+    if (
+      config.domainClassifier && urlParam && resourceClassification === null
+    ) {
       if (URL_READ_TOOLS.has(toolName)) {
         const result = config.domainClassifier.classify(urlParam);
         resourceClassification = result.classification;
@@ -201,7 +378,16 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
     return {
       input: hookInput,
-      ctx: { toolName, toolFloor, resourceClassification, operationType, isOwner, isTrigger, nonOwnerCeiling, resourceParam },
+      ctx: {
+        toolName,
+        toolFloor,
+        resourceClassification,
+        operationType,
+        isOwner,
+        isTrigger,
+        nonOwnerCeiling,
+        resourceParam,
+      },
     };
   }
 
@@ -226,12 +412,16 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
       case "resource-write-down":
         return `Error: Write-down blocked — your session taint is ${sessionTaint}, ` +
-          `but the target resource${ctx.resourceParam ? ` "${ctx.resourceParam}"` : ""} is classified ${ctx.resourceClassification}. ` +
+          `but the target resource${
+            ctx.resourceParam ? ` "${ctx.resourceParam}"` : ""
+          } is classified ${ctx.resourceClassification}. ` +
           `A ${sessionTaint}-tainted session cannot write to ${ctx.resourceClassification}-level destinations. ` +
           `Use /clear to reset your session context and taint before writing to ${ctx.resourceClassification}-classified resources.`;
 
       case "resource-read-ceiling":
-        return `Error: Access denied — the resource${ctx.resourceParam ? ` "${ctx.resourceParam}"` : ""} is classified ${ctx.resourceClassification}, ` +
+        return `Error: Access denied — the resource${
+          ctx.resourceParam ? ` "${ctx.resourceParam}"` : ""
+        } is classified ${ctx.resourceClassification}, ` +
           `which exceeds your session ceiling of ${ctx.nonOwnerCeiling}. ` +
           `You do not have permission to access ${ctx.resourceClassification}-classified resources.`;
 
@@ -253,95 +443,48 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   // blocked=true can be set on the tool_result event for channel notification.
   const toolExecutor: ToolExecutor | undefined = rawToolExecutor
     ? async (name: string, input: Record<string, unknown>): Promise<string> => {
-        // Trigger session tool access enforcement.
-        // Trigger sessions are not owners but may call all built-in tools.
-        // Integration tools are ceiling-gated to the trigger's classification ceiling.
-        // isTriggerSession undefined is always false — must be explicitly set.
-        const isActiveTrigger = config.isTriggerSession?.() ?? false;
-        if (isActiveTrigger) {
-          const ceiling = config.getNonOwnerCeiling?.() ?? null;
-          if (ceiling !== null && config.toolClassifications) {
-            for (const [prefix, level] of config.toolClassifications) {
-              if (name.startsWith(prefix)) {
-                if (!canFlowTo(level, ceiling)) {
-                  return `Error: ${name} (classified ${level}) exceeds trigger ceiling ${ceiling}. Access denied.`;
-                }
-                break;
-              }
-            }
-          }
-        // Non-owner tool access enforcement (external channels only — not triggers).
-        } else if (config.isOwnerSession && !config.isOwnerSession()) {
-          const ceiling = config.getNonOwnerCeiling?.() ?? null;
-
-          // No explicit classification → all tools blocked.
-          if (ceiling === null) {
-            return `Error: Tool calls are not available in this session.`;
-          }
-
-          // Has explicit classification → only classified tools at or below ceiling.
-          if (config.toolClassifications) {
-            let matched = false;
-            for (const [prefix, level] of config.toolClassifications) {
-              if (name.startsWith(prefix)) {
-                matched = true;
-                if (!canFlowTo(level, ceiling)) {
-                  return `Error: ${name} (classified ${level}) exceeds session ceiling ${ceiling}. Access denied.`;
-                }
-                break;
-              }
-            }
-            // Unclassified tools (built-ins) are never available to non-owners.
-            if (!matched) {
-              return `Error: Tool calls are not available in this session.`;
-            }
-          }
-        }
-
-        if (config.toolClassifications && config.escalateTaint) {
-          for (const [prefix, level] of config.toolClassifications) {
-            if (name.startsWith(prefix)) {
-              // Taint escalation for allowed integration calls.
-              // Write-down check has already run in executeAgentTurn (before toolExecutor is called),
-              // so this point is only reached when the call is permitted.
-              config.escalateTaint(level, `Tool call: ${name}`);
-              break;
-            }
-          }
-        }
-
-        // Resolve {{secret:name}} references in tool input before dispatch.
-        // The LLM never sees the resolved values — substitution happens here,
-        // below the LLM layer.
-        let resolvedInput = input;
-        if (config.secretStore) {
-          const resolution = await resolveSecretRefs(input, config.secretStore);
-          if (resolution.ok) {
-            if (resolution.value.missing.length > 0) {
-              return `Error: The following secrets were referenced but not found in the secret store: ${
-                resolution.value.missing.map((n) => `'${n}'`).join(", ")
-              }. Use secret_save to store them first.`;
-            }
-            resolvedInput = resolution.value.resolved;
-          }
-        }
-
-        const result = await rawToolExecutor(name, resolvedInput);
-
-        // Post-call: escalate based on response-level classification
-        // (e.g. GitHub per-repo classification in _classification field)
-        if (config.escalateTaint) {
-          try {
-            const parsed = JSON.parse(result);
-            const cls = parsed._classification;
-            if (typeof cls === "string") {
-              config.escalateTaint(cls as ClassificationLevel, `Tool response: ${name}`);
-            }
-          } catch { /* Tool response is not JSON or has no _classification field — expected for most tools */ }
-        }
-
-        return result;
+      // Trigger and non-owner access control
+      const isActiveTrigger = config.isTriggerSession?.() ?? false;
+      if (isActiveTrigger) {
+        const err = enforceTriggerToolCeiling(
+          name,
+          config.getNonOwnerCeiling?.() ?? null,
+          config.toolClassifications,
+        );
+        if (err) return err;
+      } else if (config.isOwnerSession && !config.isOwnerSession()) {
+        const err = enforceNonOwnerToolCeiling(
+          name,
+          config.getNonOwnerCeiling?.() ?? null,
+          config.toolClassifications,
+        );
+        if (err) return err;
       }
+
+      escalateToolPrefixTaint(
+        name,
+        config.toolClassifications,
+        config.escalateTaint,
+      );
+
+      // Resolve {{secret:name}} references in tool input before dispatch.
+      let resolvedInput = input;
+      if (config.secretStore) {
+        const resolution = await resolveSecretRefs(input, config.secretStore);
+        if (resolution.ok) {
+          if (resolution.value.missing.length > 0) {
+            return `Error: The following secrets were referenced but not found in the secret store: ${
+              resolution.value.missing.map((n) => `'${n}'`).join(", ")
+            }. Use secret_save to store them first.`;
+          }
+          resolvedInput = resolution.value.resolved;
+        }
+      }
+
+      const result = await rawToolExecutor(name, resolvedInput);
+      escalateResponseClassification(result, config.escalateTaint, name);
+      return result;
+    }
     : undefined;
   const baseSystemPromptSections = config.systemPromptSections ?? [];
   const planManager = config.planManager;
@@ -352,9 +495,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
   // Derive effective budget: explicit config > provider contextWindow > 100k default
   const provider0 = providerRegistry.getDefault();
-  const effectiveBudget = config.compactorConfig?.contextBudget
-    ?? provider0?.contextWindow
-    ?? 100_000;
+  const effectiveBudget = config.compactorConfig?.contextBudget ??
+    provider0?.contextWindow ??
+    100_000;
   const compactor: Compactor = createCompactor({
     ...config.compactorConfig,
     contextBudget: effectiveBudget,
@@ -366,7 +509,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
   function debugLog(label: string, data: unknown): void {
     if (!debug) return;
     const str = typeof data === "string" ? data : JSON.stringify(data, null, 2);
-    const preview = str.length > 500 ? str.slice(0, 500) + `… [${str.length} chars]` : str;
+    const preview = str.length > 500
+      ? str.slice(0, 500) + `… [${str.length} chars]`
+      : str;
     orchLog.trace(`${label}: ${preview}`);
   }
 
@@ -385,7 +530,11 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           role: "user",
           content: [
             { type: "image", source: image.source },
-            { type: "text", text: "Describe this image in detail. Be specific about what you see." },
+            {
+              type: "text",
+              text:
+                "Describe this image in detail. Be specific about what you see.",
+            },
           ],
         },
       ];
@@ -408,10 +557,13 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     const { session, message, targetClassification, signal } = options;
 
     // 1. Fire PRE_CONTEXT_INJECTION hook
-    const preContextResult = await hookRunner.evaluateHook("PRE_CONTEXT_INJECTION", {
-      session,
-      input: { content: extractText(message), source_type: "OWNER" },
-    });
+    const preContextResult = await hookRunner.evaluateHook(
+      "PRE_CONTEXT_INJECTION",
+      {
+        session,
+        input: { content: extractText(message), source_type: "OWNER" },
+      },
+    );
 
     if (!preContextResult.allowed) {
       return {
@@ -446,7 +598,8 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     if (planManager) {
       const planState = planManager.getState(sessionKey);
       if (planState.mode === "plan" && planState.goal) {
-        systemPrompt += "\n\n" + buildPlanModePrompt(planState.goal, planState.scope);
+        systemPrompt += "\n\n" +
+          buildPlanModePrompt(planState.goal, planState.scope);
       }
       if (planState.mode === "awaiting_approval") {
         systemPrompt += "\n\n" + buildAwaitingApprovalPrompt();
@@ -466,16 +619,25 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     history.push({ role: "user", content: message });
 
     // Vision fallback: describe images for non-vision primary models
-    if (visionProvider && typeof message !== "string" && hasImages(message as readonly ContentBlock[])) {
+    if (
+      visionProvider && typeof message !== "string" &&
+      hasImages(message as readonly ContentBlock[])
+    ) {
       const blocks = normalizeContent(message);
       const images = blocks.filter(
         (b): b is ImageContentBlock => b.type === "image",
       );
 
       emit({ type: "vision_start", imageCount: images.length });
-      debugLog("vision", `describing ${images.length} image(s) via vision provider`);
+      debugLog(
+        "vision",
+        `describing ${images.length} image(s) via vision provider`,
+      );
 
-      const descriptions = await transcribeImagesForNonVisionModel(images, signal);
+      const descriptions = await transcribeImagesForNonVisionModel(
+        images,
+        signal,
+      );
 
       emit({ type: "vision_complete", imageCount: images.length });
 
@@ -485,7 +647,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       for (const block of blocks) {
         if (block.type === "image") {
           parts.push(
-            `[The user shared an image. A vision model described it as follows: ${descriptions[descIdx++]}]`,
+            `[The user shared an image. A vision model described it as follows: ${
+              descriptions[descIdx++]
+            }]`,
           );
         } else {
           parts.push(block.text);
@@ -528,7 +692,11 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
         return { ok: false, error: "Operation cancelled by user" };
       }
 
-      emit({ type: "llm_start", iteration: iterations, maxIterations: MAX_TOOL_ITERATIONS });
+      emit({
+        type: "llm_start",
+        iteration: iterations,
+        maxIterations: MAX_TOOL_ITERATIONS,
+      });
 
       // Build messages array: system prompt + conversation history
       const messages: LlmMessage[] = [
@@ -536,11 +704,18 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
         ...history,
       ];
 
-      debugLog(`iter${iterations} sending`, `${messages.length} msgs, sysPrompt=${systemPrompt.length}chars, history=${history.length} entries`);
+      debugLog(
+        `iter${iterations} sending`,
+        `${messages.length} msgs, sysPrompt=${systemPrompt.length}chars, history=${history.length} entries`,
+      );
       if (debug && iterations === 1) {
-        orchLog.trace(`=== SYSTEM PROMPT ===\n${systemPrompt}\n=== END SYSTEM PROMPT ===`);
+        orchLog.trace(
+          `=== SYSTEM PROMPT ===\n${systemPrompt}\n=== END SYSTEM PROMPT ===`,
+        );
         for (const h of history) {
-          const preview = typeof h.content === "string" ? h.content.slice(0, 100) : "(non-string)";
+          const preview = typeof h.content === "string"
+            ? h.content.slice(0, 100)
+            : "(non-string)";
           orchLog.trace(`history ${h.role}: ${preview}`);
         }
       }
@@ -552,30 +727,7 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
       // Call LLM provider — pass native tool definitions for providers that support them
       const nativeTools = (tools.length > 0 && toolExecutor)
-        ? tools.map((t) => ({
-            type: "function" as const,
-            function: {
-              name: t.name,
-              description: t.description,
-              parameters: {
-                type: "object" as const,
-                properties: Object.fromEntries(
-                  Object.entries(t.parameters).map(([k, v]) => {
-                    const prop: Record<string, unknown> = {
-                      type: v.type,
-                      description: v.description,
-                    };
-                    if (v.items) prop.items = v.items;
-                    if (v.enum) prop.enum = v.enum;
-                    return [k, prop];
-                  }),
-                ),
-                required: Object.entries(t.parameters)
-                  .filter(([_, v]) => v.required !== false)
-                  .map(([k]) => k),
-              },
-            },
-          }))
+        ? convertToolsToNativeFormat(tools)
         : [];
 
       const completion = await provider.complete(messages, nativeTools, {
@@ -585,7 +737,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       // Accumulate token usage across all iterations in this turn.
       totalInputTokens += completion.usage.inputTokens;
       totalOutputTokens += completion.usage.outputTokens;
-      orchLog.debug(`iter${iterations} tokens — input: ${completion.usage.inputTokens}, output: ${completion.usage.outputTokens}, cumulative: ${totalInputTokens}+${totalOutputTokens}`);
+      orchLog.debug(
+        `iter${iterations} tokens — input: ${completion.usage.inputTokens}, output: ${completion.usage.outputTokens}, cumulative: ${totalInputTokens}+${totalOutputTokens}`,
+      );
 
       // Close the race window: if the signal was aborted while the LLM was finishing,
       // treat the response as cancelled rather than emitting it.
@@ -600,36 +754,11 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       let parsedCalls: readonly ParsedToolCall[] = [];
 
       // Check for native tool calls from provider (OpenAI or Anthropic/Gemini format)
-      if (hasTools && Array.isArray(completion.toolCalls) && completion.toolCalls.length > 0) {
-        parsedCalls = completion.toolCalls
-          .map((tc: unknown): ParsedToolCall | null => {
-            const t = tc as Record<string, unknown>;
-            if (t === null || typeof t !== "object") return null;
-
-            // OpenAI format: { function: { name, arguments } }
-            if (typeof (t as { function?: unknown }).function === "object") {
-              const fn = (t as { function: { name: string; arguments: string } }).function;
-              let args: Record<string, unknown> = {};
-              try {
-                args = JSON.parse(fn.arguments);
-              } catch (parseErr: unknown) {
-                orchLog.warn("Tool call arguments malformed", {
-                  tool: fn.name,
-                  error: parseErr instanceof Error ? parseErr.message : String(parseErr),
-                });
-              }
-              return { name: fn.name, args };
-            }
-
-            // Anthropic format: { type: "tool_use", name, input }
-            if (t.type === "tool_use" && typeof t.name === "string") {
-              const input = (t.input ?? {}) as Record<string, unknown>;
-              return { name: t.name as string, args: input };
-            }
-
-            return null;
-          })
-          .filter((tc): tc is ParsedToolCall => tc !== null);
+      if (
+        hasTools && Array.isArray(completion.toolCalls) &&
+        completion.toolCalls.length > 0
+      ) {
+        parsedCalls = parseNativeToolCalls(completion.toolCalls, orchLog);
         debugLog(`iter${iterations} nativeToolCalls`, parsedCalls.length);
       }
 
@@ -650,12 +779,21 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
         // or leaked tool intent (e.g. "We need to search web"), retry with
         // a nudge (up to MAX_EMPTY_NUDGES). Catches unreliable models.
         const isEmptyOrJunk = finalText.length === 0 ||
-          (finalText.length < 200 && finalText.startsWith("{") && finalText.endsWith("}"));
+          (finalText.length < 200 && finalText.startsWith("{") &&
+            finalText.endsWith("}"));
         const isLeakedIntent = hasTools && finalText.length < 300 &&
           LEAKED_INTENT_PATTERN.test(finalText);
-        if ((isEmptyOrJunk || isLeakedIntent) && emptyNudgeCount < MAX_EMPTY_NUDGES && iterations < MAX_TOOL_ITERATIONS) {
+        if (
+          (isEmptyOrJunk || isLeakedIntent) &&
+          emptyNudgeCount < MAX_EMPTY_NUDGES && iterations < MAX_TOOL_ITERATIONS
+        ) {
           emptyNudgeCount++;
-          debugLog(`iter${iterations}`, `${isLeakedIntent ? "leaked intent" : "junk/empty"} (${finalText.length} chars) — nudge ${emptyNudgeCount}/${MAX_EMPTY_NUDGES}`);
+          debugLog(
+            `iter${iterations}`,
+            `${
+              isLeakedIntent ? "leaked intent" : "junk/empty"
+            } (${finalText.length} chars) — nudge ${emptyNudgeCount}/${MAX_EMPTY_NUDGES}`,
+          );
           // Don't push empty assistant messages into history
           if (completion.content.trim().length > 0) {
             history.push({ role: "assistant", content: completion.content });
@@ -670,7 +808,8 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
         }
 
         // If the model returned empty/junk after exhausting nudges, provide a fallback
-        const isJunkFinal = finalText.length === 0 || isEmptyOrJunk || isLeakedIntent;
+        const isJunkFinal = finalText.length === 0 || isEmptyOrJunk ||
+          isLeakedIntent;
         const responseText = isJunkFinal && emptyNudgeCount >= MAX_EMPTY_NUDGES
           ? "I'm sorry, I wasn't able to generate a response. The language model returned empty or malformed output. This may be a temporary issue — please try again, or consider switching to a more capable model (e.g. google/gemini-2.0-flash-001)."
           : finalText;
@@ -685,7 +824,8 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
         const outputSession = outputTaint !== session.taint
           ? { ...session, taint: outputTaint }
           : session;
-        const isOwnerOutput = config.isOwnerSession !== undefined && config.isOwnerSession();
+        const isOwnerOutput = config.isOwnerSession !== undefined &&
+          config.isOwnerSession();
         const effectiveTargetClassification = isOwnerOutput
           ? outputTaint
           : targetClassification;
@@ -708,13 +848,19 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
         emit({ type: "response", text: responseText });
 
         // Add assistant response to history
-        history.push({ role: "assistant", content: responseText.length > 0 ? responseText : completion.content });
+        history.push({
+          role: "assistant",
+          content: responseText.length > 0 ? responseText : completion.content,
+        });
 
         return {
           ok: true,
           value: {
             response: responseText,
-            tokenUsage: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens },
+            tokenUsage: {
+              inputTokens: totalInputTokens,
+              outputTokens: totalOutputTokens,
+            },
           },
         };
       }
@@ -733,7 +879,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           role: "user",
           content:
             `[SYSTEM] You have used many tool calls (${iterations}/${MAX_TOOL_ITERATIONS}). ` +
-            `You have ${MAX_TOOL_ITERATIONS - iterations} remaining iterations. ` +
+            `You have ${
+              MAX_TOOL_ITERATIONS - iterations
+            } remaining iterations. ` +
             "Please provide your best answer now based on the information gathered so far. " +
             "If you cannot find what you're looking for, say so rather than continuing to search.",
         });
@@ -768,7 +916,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
 
         // Step 3: Universal security + execution path (runs if not handled above)
         if (resultText === undefined) {
-          const { input: secInput, ctx: secCtx } = assembleSecurityContext(call);
+          const { input: secInput, ctx: secCtx } = assembleSecurityContext(
+            call,
+          );
 
           // Owner/trigger pre-escalation: escalate taint from the resolved resource
           // classification BEFORE the hook so tool floor checks see the
@@ -777,8 +927,14 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           // pre-escalate so that tool floor checks work correctly.
           // Write-down checks still work because maxClassification only goes up
           // (taint ≥ resource → no write-down).
-          if (secCtx.resourceClassification !== null && (secCtx.isOwner || secCtx.isTrigger) && config.escalateTaint) {
-            config.escalateTaint(secCtx.resourceClassification, `${call.name}: ${secCtx.resourceParam}`);
+          if (
+            secCtx.resourceClassification !== null &&
+            (secCtx.isOwner || secCtx.isTrigger) && config.escalateTaint
+          ) {
+            config.escalateTaint(
+              secCtx.resourceClassification,
+              `${call.name}: ${secCtx.resourceParam}`,
+            );
           }
 
           // Use real-time session taint for hook evaluation — reflects both
@@ -792,7 +948,11 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
             input: secInput,
           });
           if (!preToolResult.allowed) {
-            resultText = renderPolicyBlockExplanation(preToolResult.ruleId, secCtx, currentTaint);
+            resultText = renderPolicyBlockExplanation(
+              preToolResult.ruleId,
+              secCtx,
+              currentTaint,
+            );
             blocked = true;
           } else {
             // Integration write-down check — runs here (not inside toolExecutor) so that
@@ -818,8 +978,14 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
             if (resultText === undefined) {
               // Non-owner escalation: only after hook confirms the read/write is allowed.
               // Excludes trigger sessions — they escalate pre-hook (same as owners).
-              if (secCtx.resourceClassification !== null && !secCtx.isOwner && !secCtx.isTrigger && config.escalateTaint) {
-                config.escalateTaint(secCtx.resourceClassification, `${call.name}: ${secCtx.resourceParam}`);
+              if (
+                secCtx.resourceClassification !== null && !secCtx.isOwner &&
+                !secCtx.isTrigger && config.escalateTaint
+              ) {
+                config.escalateTaint(
+                  secCtx.resourceClassification,
+                  `${call.name}: ${secCtx.resourceParam}`,
+                );
               }
               resultText = await toolExecutor!(call.name, call.args);
             }
@@ -832,7 +998,9 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
           result: resultText,
           blocked,
         });
-        resultParts.push(`[TOOL_RESULT name="${call.name}"]\n${resultText}\n[/TOOL_RESULT]`);
+        resultParts.push(
+          `[TOOL_RESULT name="${call.name}"]\n${resultText}\n[/TOOL_RESULT]`,
+        );
       }
 
       // Add tool results as a user message
@@ -862,7 +1030,12 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     const tokensBefore = estimateHistoryTokens(history);
 
     if (history.length === 0) {
-      return { messagesBefore: 0, messagesAfter: 0, tokensBefore: 0, tokensAfter: 0 };
+      return {
+        messagesBefore: 0,
+        messagesAfter: 0,
+        tokensBefore: 0,
+        tokensAfter: 0,
+      };
     }
 
     const provider = providerRegistry.getDefault();
@@ -872,14 +1045,24 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
       history.length = 0;
       history.push(...compacted);
       const tokensAfter = estimateHistoryTokens(history);
-      return { messagesBefore, messagesAfter: history.length, tokensBefore, tokensAfter };
+      return {
+        messagesBefore,
+        messagesAfter: history.length,
+        tokensBefore,
+        tokensAfter,
+      };
     }
 
     const summarized = [...await compactor.summarize(history, provider)];
     history.length = 0;
     history.push(...summarized);
     const tokensAfter = estimateHistoryTokens(history);
-    return { messagesBefore, messagesAfter: history.length, tokensBefore, tokensAfter };
+    return {
+      messagesBefore,
+      messagesAfter: history.length,
+      tokensBefore,
+      tokensAfter,
+    };
   }
 
   return { executeAgentTurn, getHistory, clearHistory, compactHistory };
