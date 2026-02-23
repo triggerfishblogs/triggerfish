@@ -10,7 +10,7 @@
 import { Checkbox, Input, Select } from "@cliffy/prompt";
 import { join } from "@std/path";
 
-import { expandTilde } from "../cli/config/paths.ts";
+import { expandTilde } from "../../cli/config/paths.ts";
 
 // ── Result type ───────────────────────────────────────────────────────────────
 

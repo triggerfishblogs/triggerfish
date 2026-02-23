@@ -63,7 +63,7 @@ export {
 } from "./wizard_generators.ts";
 
 export { storeWizardSecrets } from "./wizard_secrets.ts";
-export { runWizardSelective } from "./wizard_selective.ts";
+export { runWizardSelective } from "../selective/wizard_selective.ts";
 
 // ── Step result interfaces ────────────────────────────────────────────────────
 

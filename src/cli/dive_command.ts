@@ -12,7 +12,8 @@ import { join } from "@std/path";
 import { resolveBaseDir, resolveConfigPath } from "./config/paths.ts";
 import { createPatrolCheck } from "../dive/patrol.ts";
 import type { PatrolInput } from "../dive/patrol.ts";
-import { runWizard, runWizardSelective } from "../dive/wizard.ts";
+import { runWizard } from "../dive/wizard/wizard.ts";
+import { runWizardSelective } from "../dive/selective/wizard_selective.ts";
 import { getDaemonStatus, installAndStartDaemon } from "./daemon/daemon.ts";
 import { probeGateway } from "./platform.ts";
 

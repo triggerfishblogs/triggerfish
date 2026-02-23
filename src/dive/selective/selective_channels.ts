@@ -10,10 +10,10 @@
 
 import { Checkbox, Input } from "@cliffy/prompt";
 
-import { promptChannelConfig } from "../cli/config/config.ts";
+import { promptChannelConfig } from "../../cli/config/config.ts";
 import { readNestedConfigValue } from "./selective_config.ts";
 
-import type { ChannelChoice } from "./wizard_types.ts";
+import type { ChannelChoice } from "../wizard/wizard_types.ts";
 
 // ── Channel selection ─────────────────────────────────────────────────────────
 

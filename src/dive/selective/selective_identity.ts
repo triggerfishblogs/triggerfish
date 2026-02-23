@@ -9,9 +9,9 @@
 
 import { Input, Select } from "@cliffy/prompt";
 
-import { generateSpine } from "./wizard_generators.ts";
+import { generateSpine } from "../wizard/wizard_generators.ts";
 
-import type { ToneChoice, WizardAnswers } from "./wizard_types.ts";
+import type { ToneChoice, WizardAnswers } from "../wizard/wizard_types.ts";
 
 // ── SPINE.md parsing ──────────────────────────────────────────────────────────
 

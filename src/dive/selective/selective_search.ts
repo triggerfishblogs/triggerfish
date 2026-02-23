@@ -12,7 +12,7 @@ import { Input, Select } from "@cliffy/prompt";
 
 import { readNestedConfigValue } from "./selective_config.ts";
 
-import type { SearchProviderChoice } from "./wizard_types.ts";
+import type { SearchProviderChoice } from "../wizard/wizard_types.ts";
 
 // ── Provider-specific collectors ──────────────────────────────────────────────
 

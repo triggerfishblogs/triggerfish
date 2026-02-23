@@ -4,8 +4,8 @@
  * @module
  */
 
-import { createKeychain } from "../core/secrets/keychain/keychain.ts";
-import type { SecretStore } from "../core/secrets/keychain/keychain.ts";
+import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
+import type { SecretStore } from "../../core/secrets/keychain/keychain.ts";
 import type { WizardAnswers } from "./wizard_types.ts";
 
 /**

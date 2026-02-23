@@ -9,7 +9,7 @@
 
 import { Input, Select } from "@cliffy/prompt";
 
-import { verifyProvider } from "./verify.ts";
+import { verifyProvider } from "../verify.ts";
 
 import type { ProviderChoice } from "./wizard_types.ts";
 import { DEFAULT_MODELS, PROVIDER_LABELS } from "./wizard_types.ts";

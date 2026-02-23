@@ -9,7 +9,7 @@
 
 import { Confirm, Input, Select } from "@cliffy/prompt";
 
-import { createKeychain } from "../core/secrets/keychain/keychain.ts";
+import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
 
 import type { SearchProviderChoice } from "./wizard_types.ts";
 
@@ -73,7 +73,7 @@ function printGoogleWorkspaceInstructions(): void {
 /** Attempt the Google OAuth flow via the CLI connect command. */
 async function attemptGoogleOAuth(): Promise<void> {
   console.log("");
-  const { performGoogleOAuth } = await import("../cli/commands/connect.ts");
+  const { performGoogleOAuth } = await import("../../cli/commands/connect.ts");
   const success = await performGoogleOAuth();
   if (success) {
     console.log("");

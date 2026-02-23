@@ -15,8 +15,8 @@ import {
   generateConfig,
   generateSpine,
   storeWizardSecrets,
-} from "../../src/dive/wizard.ts";
-import type { WizardAnswers } from "../../src/dive/wizard.ts";
+} from "../../src/dive/wizard/wizard.ts";
+import type { WizardAnswers } from "../../src/dive/wizard/wizard.ts";
 import { createMemorySecretStore } from "../../src/core/secrets/keychain/keychain.ts";
 
 // ─── Test fixtures ───────────────────────────────────────────────────────────

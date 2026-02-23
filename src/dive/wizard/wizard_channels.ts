@@ -9,7 +9,7 @@
 
 import { Checkbox, Input } from "@cliffy/prompt";
 
-import { promptChannelConfig } from "../cli/config/config.ts";
+import { promptChannelConfig } from "../../cli/config/config.ts";
 
 import type { ChannelChoice } from "./wizard_types.ts";
 

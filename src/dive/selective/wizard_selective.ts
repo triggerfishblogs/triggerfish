@@ -9,14 +9,14 @@ import { Checkbox, Confirm } from "@cliffy/prompt";
 import { join } from "@std/path";
 import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
 
-import { runWizard } from "./wizard.ts";
+import { runWizard } from "../wizard/wizard.ts";
 import { reconfigureLlmProvider } from "./selective_llm.ts";
 import { reconfigureAgentIdentity } from "./selective_identity.ts";
 import { reconfigureChannels } from "./selective_channels.ts";
 import { reconfigurePlugins } from "./selective_plugins.ts";
 import { reconfigureSearchProvider } from "./selective_search.ts";
 
-import type { DiveResult, WizardSection } from "./wizard_types.ts";
+import type { DiveResult, WizardSection } from "../wizard/wizard_types.ts";
 
 // ── Mutable reconfiguration state ─────────────────────────────────────────────
 

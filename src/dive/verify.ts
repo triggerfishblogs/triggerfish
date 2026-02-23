@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { ProviderChoice } from "./wizard_types.ts";
+import type { ProviderChoice } from "./wizard/wizard_types.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
