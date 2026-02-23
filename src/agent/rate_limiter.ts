@@ -154,6 +154,89 @@ function checkRateCapacity(
   return !(config.rpm !== Infinity && requests + 1 > config.rpm);
 }
 
+/** Build a snapshot of current rate limiter state. */
+function buildRateLimiterSnapshot(
+  tokenEvents: UsageEvent[],
+  requestEvents: UsageEvent[],
+  config: RateLimiterConfig,
+  windowMs: number,
+): RateLimiterSnapshot {
+  const now = Date.now();
+  return {
+    tokensUsed: sumWindowTokens(tokenEvents, requestEvents, windowMs, now),
+    requestsUsed: countWindowRequests(
+      tokenEvents,
+      requestEvents,
+      windowMs,
+      now,
+    ),
+    tpmLimit: config.tpm,
+    rpmLimit: config.rpm,
+    windowMs,
+  };
+}
+
+/** Poll until rate capacity is available, then record the request event. */
+function pollUntilCapacityAvailable(
+  tokenEvents: UsageEvent[],
+  requestEvents: UsageEvent[],
+  config: RateLimiterConfig,
+  windowMs: number,
+  estimatedTokens: number,
+  pollMs: number,
+): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const id = setInterval(() => {
+      if (
+        checkRateCapacity(
+          tokenEvents,
+          requestEvents,
+          config,
+          windowMs,
+          estimatedTokens,
+          Date.now(),
+        )
+      ) {
+        clearInterval(id);
+        requestEvents.push({ ts: Date.now(), tokens: 0 });
+        resolve();
+      }
+    }, pollMs);
+  });
+}
+
+/** Wait for capacity, recording the request event when available. */
+async function waitForRateCapacity(
+  tokenEvents: UsageEvent[],
+  requestEvents: UsageEvent[],
+  config: RateLimiterConfig,
+  windowMs: number,
+  pollMs: number,
+  estimatedTokens: number,
+): Promise<void> {
+  if (
+    checkRateCapacity(
+      tokenEvents,
+      requestEvents,
+      config,
+      windowMs,
+      estimatedTokens,
+      Date.now(),
+    )
+  ) {
+    requestEvents.push({ ts: Date.now(), tokens: 0 });
+    return;
+  }
+  await pollUntilCapacityAvailable(
+    tokenEvents,
+    requestEvents,
+    config,
+    windowMs,
+    estimatedTokens,
+    pollMs,
+  );
+}
+
 /**
  * Create a standalone rate limiter.
  *
@@ -171,55 +254,23 @@ export function createRateLimiter(config: RateLimiterConfig): RateLimiter {
 
   return {
     snapshot(): RateLimiterSnapshot {
-      const now = Date.now();
-      return {
-        tokensUsed: sumWindowTokens(tokenEvents, requestEvents, windowMs, now),
-        requestsUsed: countWindowRequests(
-          tokenEvents,
-          requestEvents,
-          windowMs,
-          now,
-        ),
-        tpmLimit: config.tpm,
-        rpmLimit: config.rpm,
+      return buildRateLimiterSnapshot(
+        tokenEvents,
+        requestEvents,
+        config,
         windowMs,
-      };
+      );
     },
-
-    async waitForCapacity(estimatedTokens: number): Promise<void> {
-      if (
-        checkRateCapacity(
-          tokenEvents,
-          requestEvents,
-          config,
-          windowMs,
-          estimatedTokens,
-          Date.now(),
-        )
-      ) {
-        requestEvents.push({ ts: Date.now(), tokens: 0 });
-        return;
-      }
-      await new Promise<void>((resolve) => {
-        const id = setInterval(() => {
-          if (
-            checkRateCapacity(
-              tokenEvents,
-              requestEvents,
-              config,
-              windowMs,
-              estimatedTokens,
-              Date.now(),
-            )
-          ) {
-            clearInterval(id);
-            requestEvents.push({ ts: Date.now(), tokens: 0 });
-            resolve();
-          }
-        }, pollMs);
-      });
+    waitForCapacity(estimatedTokens: number): Promise<void> {
+      return waitForRateCapacity(
+        tokenEvents,
+        requestEvents,
+        config,
+        windowMs,
+        pollMs,
+        estimatedTokens,
+      );
     },
-
     recordUsage(inputTokens: number, outputTokens: number): void {
       tokenEvents.push({ ts: Date.now(), tokens: inputTokens + outputTokens });
     },
