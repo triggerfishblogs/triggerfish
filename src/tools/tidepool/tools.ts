@@ -190,6 +190,29 @@ function sendCanvasClear(host: A2UIHost): Result<void, string> {
   return { ok: true, value: undefined };
 }
 
+/** Apply a component update to the current tree and broadcast the result. */
+function applyComponentUpdate(
+  host: A2UIHost,
+  currentTree: ComponentTree,
+  componentId: string,
+  props: Record<string, unknown>,
+): { tree: ComponentTree; result: Result<void, string> } {
+  const patchedRoot = patchComponent(currentTree.root, componentId, props);
+  if (!patchedRoot) {
+    return {
+      tree: currentTree,
+      result: { ok: false, error: `Component not found: ${componentId}` },
+    };
+  }
+  const updated: ComponentTree = {
+    root: patchedRoot,
+    version: currentTree.version + 1,
+  };
+  const msg: CanvasUpdateMessage = { type: "canvas_update", tree: updated };
+  host.sendCanvas(msg);
+  return { tree: updated, result: { ok: true, value: undefined } };
+}
+
 /**
  * Create A2UI Tide Pool tools backed by an A2UIHost.
  *
@@ -217,17 +240,14 @@ export function createTidePoolTools(host: A2UIHost): TidePoolTools {
       if (!currentTree) {
         return { ok: false, error: "No tree rendered yet" };
       }
-      const patchedRoot = patchComponent(currentTree.root, componentId, props);
-      if (!patchedRoot) {
-        return { ok: false, error: `Component not found: ${componentId}` };
-      }
-      currentTree = { root: patchedRoot, version: currentTree.version + 1 };
-      const msg: CanvasUpdateMessage = {
-        type: "canvas_update",
-        tree: currentTree,
-      };
-      host.sendCanvas(msg);
-      return { ok: true, value: undefined };
+      const { tree, result } = applyComponentUpdate(
+        host,
+        currentTree,
+        componentId,
+        props,
+      );
+      currentTree = tree;
+      return result;
     },
     clear() {
       currentTree = null;
