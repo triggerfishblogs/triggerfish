@@ -4,9 +4,9 @@
  * @module
  */
 
-import type { ChatSession } from "../chat.ts";
-import type { RegisteredChannel } from "../tools/session_tools.ts";
-import type { NotificationService } from "../notifications/notifications.ts";
+import type { ChatSession } from "../../chat.ts";
+import type { RegisteredChannel } from "../../tools/session_tools.ts";
+import type { NotificationService } from "../../notifications/notifications.ts";
 
 /** Shared dependencies for channel wiring. */
 export interface ChannelWiringDeps {

@@ -7,10 +7,10 @@
  * @module
  */
 
-import type { TriggerFishConfig } from "../../core/config.ts";
-import type { createChatSession } from "../chat.ts";
-import type { RegisteredChannel } from "../tools/session_tools.ts";
-import type { createNotificationService } from "../notifications/notifications.ts";
+import type { TriggerFishConfig } from "../../../core/config.ts";
+import type { createChatSession } from "../../chat.ts";
+import type { RegisteredChannel } from "../../tools/session_tools.ts";
+import type { createNotificationService } from "../../notifications/notifications.ts";
 import type { ChannelWiringDeps } from "./channels_shared.ts";
 import { wireTelegramChannel } from "./channels_telegram.ts";
 import type { TelegramChannelConfig } from "./channels_telegram.ts";

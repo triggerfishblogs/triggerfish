@@ -35,11 +35,11 @@ export type {
   RoutingDecision,
 } from "./notifications/priority_router.ts";
 
-export { createConfigWatcher } from "./startup/config_watcher.ts";
+export { createConfigWatcher } from "./startup/services/config_watcher.ts";
 export type {
   ConfigChangeCallback,
   ConfigWatcher,
-} from "./startup/config_watcher.ts";
+} from "./startup/services/config_watcher.ts";
 
 export {
   getSessionToolDefinitions,

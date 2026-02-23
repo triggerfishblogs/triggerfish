@@ -8,25 +8,25 @@
  */
 
 import { join } from "@std/path";
-import { createSqliteStorage } from "../../core/storage/sqlite.ts";
-import { createPairingService } from "../../channels/pairing.ts";
-import { createPersistentCronManager } from "../../scheduler/cron/cron.ts";
-import { createSessionManager } from "../../core/session/manager.ts";
-import { createEnhancedSessionManager } from "../sessions.ts";
-import { createNotificationService } from "../notifications/notifications.ts";
-import { createTriggerStore } from "../../scheduler/triggers/store.ts";
-import { createProviderRegistry } from "../../agent/llm.ts";
+import { createSqliteStorage } from "../../../core/storage/sqlite.ts";
+import { createPairingService } from "../../../channels/pairing.ts";
+import { createPersistentCronManager } from "../../../scheduler/cron/cron.ts";
+import { createSessionManager } from "../../../core/session/manager.ts";
+import { createEnhancedSessionManager } from "../../sessions.ts";
+import { createNotificationService } from "../../notifications/notifications.ts";
+import { createTriggerStore } from "../../../scheduler/triggers/store.ts";
+import { createProviderRegistry } from "../../../agent/llm.ts";
 import {
   loadProvidersFromConfig,
-} from "../../agent/providers/config.ts";
-import type { ModelsConfig } from "../../agent/providers/config.ts";
-import { createPolicyEngine } from "../../core/policy/engine.ts";
+} from "../../../agent/providers/config.ts";
+import type { ModelsConfig } from "../../../agent/providers/config.ts";
+import { createPolicyEngine } from "../../../core/policy/engine.ts";
 import {
   createDefaultRules,
   createHookRunner,
-} from "../../core/policy/hooks/hooks.ts";
-import type { createLogger } from "../../core/logger/mod.ts";
-import type { TriggerFishConfig } from "../../core/config.ts";
+} from "../../../core/policy/hooks/hooks.ts";
+import type { createLogger } from "../../../core/logger/mod.ts";
+import type { TriggerFishConfig } from "../../../core/config.ts";
 
 /** Initialize persistent storage, pairing service, and cron manager. */
 export async function initializePersistentStorage(

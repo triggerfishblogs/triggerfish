@@ -7,8 +7,8 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type { SessionId } from "../../core/types/session.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import type { SessionId } from "../../../core/types/session.ts";
 import {
   createCalendarService,
   createDriveService,
@@ -18,8 +18,8 @@ import {
   createGoogleToolExecutor,
   createSheetsService,
   createTasksService,
-} from "../../integrations/google/mod.ts";
-import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
+} from "../../../integrations/google/mod.ts";
+import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
 
 /**
  * Build Google Workspace tool executor.

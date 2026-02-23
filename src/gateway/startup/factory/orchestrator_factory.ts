@@ -8,49 +8,49 @@
  */
 
 import { join } from "@std/path";
-import type { TriggerFishConfig } from "../../core/config.ts";
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import { createSession, updateTaint } from "../../core/types/session.ts";
-import type { ChannelId, UserId } from "../../core/types/session.ts";
-import { createProviderRegistry } from "../../agent/llm.ts";
+import type { TriggerFishConfig } from "../../../core/config.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import { createSession, updateTaint } from "../../../core/types/session.ts";
+import type { ChannelId, UserId } from "../../../core/types/session.ts";
+import { createProviderRegistry } from "../../../agent/llm.ts";
 import {
   loadProvidersFromConfig,
   resolveVisionProvider,
-} from "../../agent/providers/config.ts";
-import type { ModelsConfig } from "../../agent/providers/config.ts";
+} from "../../../agent/providers/config.ts";
+import type { ModelsConfig } from "../../../agent/providers/config.ts";
 import {
   createOrchestrator,
   mapToolPrefixClassifications,
-} from "../../agent/orchestrator.ts";
-import { createPolicyEngine } from "../../core/policy/engine.ts";
+} from "../../../agent/orchestrator.ts";
+import { createPolicyEngine } from "../../../core/policy/engine.ts";
 import {
   createDefaultRules,
   createHookRunner,
-} from "../../core/policy/hooks/hooks.ts";
-import { createWorkspace } from "../../exec/workspace.ts";
-import type { ToolFloorRegistry } from "../../core/security/tool_floors.ts";
-import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
-import { TRIGGER_SESSION_SYSTEM_PROMPT } from "../tools/trigger_tools.ts";
-import type { EnhancedSessionManager } from "../sessions.ts";
-import type { CronManager } from "../../scheduler/cron/parser.ts";
-import type { StorageProvider } from "../../core/storage/provider.ts";
+} from "../../../core/policy/hooks/hooks.ts";
+import { createWorkspace } from "../../../exec/workspace.ts";
+import type { ToolFloorRegistry } from "../../../core/security/tool_floors.ts";
+import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
+import { TRIGGER_SESSION_SYSTEM_PROMPT } from "../../tools/trigger_tools.ts";
+import type { EnhancedSessionManager } from "../../sessions.ts";
+import type { CronManager } from "../../../scheduler/cron/parser.ts";
+import type { StorageProvider } from "../../../core/storage/provider.ts";
 import type {
   OrchestratorCreateOptions,
   OrchestratorFactory,
-} from "../../scheduler/service_types.ts";
-import { buildSkillsSystemPrompt } from "../../tools/skills/prompts.ts";
+} from "../../../scheduler/service_types.ts";
+import { buildSkillsSystemPrompt } from "../../../tools/skills/prompts.ts";
 import {
   resolvePromptsForProfile,
   resolveToolsForProfile,
-} from "../tools/agent_tools.ts";
+} from "../../tools/agent_tools.ts";
 import { buildWebTools } from "./web_tools.ts";
-import type { FactoryInfra } from "./scheduler_tool_assembly.ts";
+import type { FactoryInfra } from "../tools/scheduler_tool_assembly.ts";
 import {
   assembleSchedulerToolExecutor,
   buildSchedulerGitHubExecutor,
   buildSchedulerPathClassifier,
   buildSchedulerSkillLoader,
-} from "./scheduler_tool_assembly.ts";
+} from "../tools/scheduler_tool_assembly.ts";
 
 /** Symlink SPINE.md into a workspace directory. */
 async function symlinkSpineToWorkspace(

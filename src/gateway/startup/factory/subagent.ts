@@ -6,7 +6,7 @@
  * @module
  */
 
-import type { OrchestratorFactory } from "../../scheduler/service_types.ts";
+import type { OrchestratorFactory } from "../../../scheduler/service_types.ts";
 
 /**
  * Build a subagent factory that uses OrchestratorFactory to spawn isolated agents.

@@ -8,54 +8,54 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import { createSession, updateTaint } from "../../core/types/session.ts";
-import type { ChannelId, UserId } from "../../core/types/session.ts";
-import type { TriggerFishConfig } from "../../core/config.ts";
-import type { createLogger } from "../../core/logger/mod.ts";
-import type { createProviderRegistry } from "../../agent/llm.ts";
-import { resolveVisionProvider } from "../../agent/providers/config.ts";
-import type { createHookRunner } from "../../core/policy/hooks/hooks.ts";
-import type { createKeychain } from "../../core/secrets/keychain/keychain.ts";
-import type { createPathClassifier } from "../../core/security/path_classification.ts";
-import type { createToolFloorRegistry } from "../../core/security/tool_floors.ts";
-import type { SecretPromptCallback } from "../../tools/secrets.ts";
-import type { createAutoLaunchBrowserExecutor } from "../../tools/browser/mod.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import { createSession, updateTaint } from "../../../core/types/session.ts";
+import type { ChannelId, UserId } from "../../../core/types/session.ts";
+import type { TriggerFishConfig } from "../../../core/config.ts";
+import type { createLogger } from "../../../core/logger/mod.ts";
+import type { createProviderRegistry } from "../../../agent/llm.ts";
+import { resolveVisionProvider } from "../../../agent/providers/config.ts";
+import type { createHookRunner } from "../../../core/policy/hooks/hooks.ts";
+import type { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
+import type { createPathClassifier } from "../../../core/security/path_classification.ts";
+import type { createToolFloorRegistry } from "../../../core/security/tool_floors.ts";
+import type { SecretPromptCallback } from "../../../tools/secrets.ts";
+import type { createAutoLaunchBrowserExecutor } from "../../../tools/browser/mod.ts";
 import {
   createTidePoolTools,
   TIDEPOOL_SYSTEM_PROMPT,
-} from "../../tools/tidepool/mod.ts";
-import { createA2UIHost } from "../../tools/tidepool/host.ts";
-import { createChatSession } from "../chat.ts";
-import { createGatewayServer } from "../server/server.ts";
-import type { createEnhancedSessionManager } from "../sessions.ts";
-import type { createNotificationService } from "../notifications/notifications.ts";
-import type { createSchedulerService } from "../../scheduler/service.ts";
-import type { createPairingService } from "../../channels/pairing.ts";
-import type { RegisteredChannel } from "../tools/session_tools.ts";
-import { TIDEPOOL_PORT } from "../../cli/constants.ts";
+} from "../../../tools/tidepool/mod.ts";
+import { createA2UIHost } from "../../../tools/tidepool/host.ts";
+import { createChatSession } from "../../chat.ts";
+import { createGatewayServer } from "../../server/server.ts";
+import type { createEnhancedSessionManager } from "../../sessions.ts";
+import type { createNotificationService } from "../../notifications/notifications.ts";
+import type { createSchedulerService } from "../../../scheduler/service.ts";
+import type { createPairingService } from "../../../channels/pairing.ts";
+import type { RegisteredChannel } from "../../tools/session_tools.ts";
+import { TIDEPOOL_PORT } from "../../../cli/constants.ts";
 import {
   resolvePromptsForProfile,
   resolveToolsForProfile,
-} from "../tools/agent_tools.ts";
-import type { createToolExecutor } from "../tools/agent_tools.ts";
-import type { wireMcpServers } from "./mcp.ts";
-import type { buildWebTools } from "./web_tools.ts";
-import type { MainSessionState } from "./tool_executor.ts";
+} from "../../tools/agent_tools.ts";
+import type { createToolExecutor } from "../../tools/agent_tools.ts";
+import type { wireMcpServers } from "../infra/mcp.ts";
+import type { buildWebTools } from "../factory/web_tools.ts";
+import type { MainSessionState } from "../tools/tool_executor.ts";
 import {
   buildExtraToolsGetter,
   buildExtraSystemPromptGetter,
-} from "./tool_executor.ts";
+} from "../tools/tool_executor.ts";
 import {
   wireTelegramChannel,
   wireDiscordChannel,
   wireSignalChannel,
-} from "./channels.ts";
+} from "../channels/channels.ts";
 import type {
   TelegramChannelConfig,
   DiscordChannelConfig,
   SignalChannelConfig,
-} from "./channels.ts";
+} from "../channels/channels.ts";
 
 /** Build session lifecycle callbacks (escalate, reset). */
 export function buildSessionLifecycleCallbacks(
@@ -90,7 +90,7 @@ export interface ChatSessionDeps {
   readonly mcpWiring: ReturnType<typeof wireMcpServers> | null;
   readonly isTidepoolCallRef: { value: boolean };
   readonly tidepoolToolsRef: {
-    value: import("../../tools/tidepool/mod.ts").TidePoolTools | undefined;
+    value: import("../../../tools/tidepool/mod.ts").TidePoolTools | undefined;
   };
   readonly toolExecutor: ReturnType<typeof createToolExecutor>;
   readonly skillsPrompt: string;

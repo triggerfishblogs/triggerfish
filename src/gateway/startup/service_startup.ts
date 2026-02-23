@@ -10,13 +10,13 @@
 
 import type { createLogger } from "../../core/logger/mod.ts";
 import type { createSchedulerService } from "../../scheduler/service.ts";
-import type { buildSchedulerConfig } from "./scheduler_config.ts";
+import type { buildSchedulerConfig } from "./factory/scheduler_config.ts";
 import { createTidePoolTools } from "../../tools/tidepool/mod.ts";
 import { createChatSession } from "../chat.ts";
 import type { ModelsConfig } from "../../agent/providers/config.ts";
 import type { BootstrapResult } from "./bootstrap.ts";
-import type { CoreInfraResult } from "./core_infra.ts";
-import type { ToolInfraResult } from "./tool_infra.ts";
+import type { CoreInfraResult } from "./infra/core_infra.ts";
+import type { ToolInfraResult } from "./tools/tool_infra.ts";
 import type { ShutdownDeps } from "./shutdown.ts";
 import {
   assembleChatSession,
@@ -25,7 +25,7 @@ import {
   wrapChatSessionForGateway,
   startGatewayServer,
   wireMessageChannels,
-} from "./chat_session.ts";
+} from "./services/chat_session.ts";
 
 /** Create the main chat session from assembled infrastructure. */
 export function buildMainChatSession(

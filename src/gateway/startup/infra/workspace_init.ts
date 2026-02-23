@@ -8,16 +8,16 @@
  */
 
 import { join } from "@std/path";
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import { createWorkspace } from "../../exec/workspace.ts";
-import { createPathClassifier } from "../../core/security/path_classification.ts";
-import { createSqliteStorage } from "../../core/storage/sqlite.ts";
-import type { createSession } from "../../core/types/session.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import { createWorkspace } from "../../../exec/workspace.ts";
+import { createPathClassifier } from "../../../core/security/path_classification.ts";
+import { createSqliteStorage } from "../../../core/storage/sqlite.ts";
+import type { createSession } from "../../../core/types/session.ts";
 import {
   createFts5SearchProvider,
   createMemoryStore,
   createMemoryToolExecutor,
-} from "../../tools/memory/mod.ts";
+} from "../../../tools/memory/mod.ts";
 
 /** Create main workspace and symlink SPINE.md into it. */
 export async function initializeMainWorkspace(

@@ -7,13 +7,13 @@
  */
 
 import { join } from "@std/path";
-import type { TriggerFishConfig } from "../../core/config.ts";
-import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { TriggerFishConfig } from "../../../core/config.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import type {
   OrchestratorFactory,
   SchedulerServiceConfig,
   WebhookSourceConfig,
-} from "../../scheduler/service_types.ts";
+} from "../../../scheduler/service_types.ts";
 
 /** Build webhook sources map from config. */
 function buildWebhookSources(

@@ -8,38 +8,38 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type { createSession } from "../../core/types/session.ts";
-import type { createProviderRegistry } from "../../agent/llm.ts";
-import type { createSqliteStorage } from "../../core/storage/sqlite.ts";
-import type { SecretPromptCallback } from "../../tools/secrets.ts";
-import type { createExecTools } from "../../exec/tools.ts";
-import type { createPersistentCronManager } from "../../scheduler/cron/cron.ts";
-import type { createTodoManager } from "../../tools/mod.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import type { createSession } from "../../../core/types/session.ts";
+import type { createProviderRegistry } from "../../../agent/llm.ts";
+import type { createSqliteStorage } from "../../../core/storage/sqlite.ts";
+import type { SecretPromptCallback } from "../../../tools/secrets.ts";
+import type { createExecTools } from "../../../exec/tools.ts";
+import type { createPersistentCronManager } from "../../../scheduler/cron/cron.ts";
+import type { createTodoManager } from "../../../tools/mod.ts";
 import {
   createHealthcheckToolExecutor,
   createLlmTaskToolExecutor,
   createSummarizeToolExecutor,
-} from "../../tools/mod.ts";
-import type { createAutoLaunchBrowserExecutor } from "../../tools/browser/mod.ts";
-import type { createTidepoolToolExecutor } from "../../tools/tidepool/mod.ts";
-import { TIDEPOOL_SYSTEM_PROMPT } from "../../tools/tidepool/mod.ts";
-import type { createImageToolExecutor } from "../../tools/image/mod.ts";
-import type { createExploreToolExecutor } from "../../tools/explore/mod.ts";
-import type { createSessionToolExecutor } from "../tools/session_tools.ts";
-import type { createGitHubToolExecutor } from "../../integrations/github/mod.ts";
-import type { createClaudeToolExecutor } from "../../exec/claude.ts";
-import type { createSecretToolExecutor } from "../../tools/secrets.ts";
-import type { createTriggerToolExecutor } from "../tools/trigger_tools.ts";
-import type { createSkillToolExecutor } from "../../tools/skills/mod.ts";
-import type { createPlanToolExecutor } from "../../agent/plan/plan.ts";
-import type { createMemoryToolExecutor } from "../../tools/memory/mod.ts";
-import type { buildWebTools } from "./web_tools.ts";
-import type { buildSubagentFactory } from "./subagent.ts";
-import type { buildObsidianExecutor, discoverSkills } from "./subsystems.ts";
-import { buildGoogleExecutor } from "./google_executor.ts";
-import { createToolExecutor, TOOL_GROUPS } from "../tools/agent_tools.ts";
-import type { wireMcpServers } from "./mcp.ts";
+} from "../../../tools/mod.ts";
+import type { createAutoLaunchBrowserExecutor } from "../../../tools/browser/mod.ts";
+import type { createTidepoolToolExecutor } from "../../../tools/tidepool/mod.ts";
+import { TIDEPOOL_SYSTEM_PROMPT } from "../../../tools/tidepool/mod.ts";
+import type { createImageToolExecutor } from "../../../tools/image/mod.ts";
+import type { createExploreToolExecutor } from "../../../tools/explore/mod.ts";
+import type { createSessionToolExecutor } from "../../tools/session_tools.ts";
+import type { createGitHubToolExecutor } from "../../../integrations/github/mod.ts";
+import type { createClaudeToolExecutor } from "../../../exec/claude.ts";
+import type { createSecretToolExecutor } from "../../../tools/secrets.ts";
+import type { createTriggerToolExecutor } from "../../tools/trigger_tools.ts";
+import type { createSkillToolExecutor } from "../../../tools/skills/mod.ts";
+import type { createPlanToolExecutor } from "../../../agent/plan/plan.ts";
+import type { createMemoryToolExecutor } from "../../../tools/memory/mod.ts";
+import type { buildWebTools } from "../factory/web_tools.ts";
+import type { buildSubagentFactory } from "../factory/subagent.ts";
+import type { buildObsidianExecutor, discoverSkills } from "../infra/subsystems.ts";
+import { buildGoogleExecutor } from "../factory/google_executor.ts";
+import { createToolExecutor, TOOL_GROUPS } from "../../tools/agent_tools.ts";
+import type { wireMcpServers } from "../infra/mcp.ts";
 
 /** Mutable state bag for the main daemon session. */
 export interface MainSessionState {
@@ -127,7 +127,7 @@ export function buildExtraToolsGetter(
   mcpWiring: ReturnType<typeof wireMcpServers> | null,
   isTidepoolCallRef: { value: boolean },
   tidepoolToolsRef: {
-    value: import("../../tools/tidepool/mod.ts").TidePoolTools | undefined;
+    value: import("../../../tools/tidepool/mod.ts").TidePoolTools | undefined;
   },
 ) {
   return () => [

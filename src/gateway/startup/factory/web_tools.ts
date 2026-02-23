@@ -6,21 +6,21 @@
  * @module
  */
 
-import type { TriggerFishConfig } from "../../core/config.ts";
-import type { ClassificationLevel } from "../../core/types/classification.ts";
+import type { TriggerFishConfig } from "../../../core/config.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import {
   createBraveSearchProvider,
   createDomainClassifier,
   createDomainPolicy,
   createRateLimitedSearchProvider,
   createWebFetcher,
-} from "../../tools/web/mod.ts";
+} from "../../../tools/web/mod.ts";
 import type {
   DomainClassifier,
   DomainSecurityConfig,
   SearchProvider,
   WebFetcher,
-} from "../../tools/web/mod.ts";
+} from "../../../tools/web/mod.ts";
 
 /** Result of building web tools from config. */
 export interface WebToolsResult {

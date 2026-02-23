@@ -8,45 +8,45 @@
  */
 
 import { join } from "@std/path";
-import type { TriggerFishConfig } from "../../core/config.ts";
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type { SessionId } from "../../core/types/session.ts";
-import type { createSession } from "../../core/types/session.ts";
-import type { createProviderRegistry } from "../../agent/llm.ts";
-import type { resolveVisionProvider } from "../../agent/providers/config.ts";
-import type { createWorkspace } from "../../exec/workspace.ts";
-import { createExecTools } from "../../exec/tools.ts";
-import { createPathClassifier } from "../../core/security/path_classification.ts";
+import type { TriggerFishConfig } from "../../../core/config.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import type { SessionId } from "../../../core/types/session.ts";
+import type { createSession } from "../../../core/types/session.ts";
+import type { createProviderRegistry } from "../../../agent/llm.ts";
+import type { resolveVisionProvider } from "../../../agent/providers/config.ts";
+import type { createWorkspace } from "../../../exec/workspace.ts";
+import { createExecTools } from "../../../exec/tools.ts";
+import { createPathClassifier } from "../../../core/security/path_classification.ts";
 import {
   createHealthcheckToolExecutor,
   createLlmTaskToolExecutor,
   createSummarizeToolExecutor,
   createTodoManager,
-} from "../../tools/mod.ts";
+} from "../../../tools/mod.ts";
 import {
   createMemoryStore,
   createMemoryToolExecutor,
-} from "../../tools/memory/mod.ts";
+} from "../../../tools/memory/mod.ts";
 import {
   createPlanManager,
   createPlanToolExecutor,
-} from "../../agent/plan/plan.ts";
+} from "../../../agent/plan/plan.ts";
 import {
   createGitHubClient,
   createGitHubToolExecutor,
   resolveGitHubToken,
-} from "../../integrations/github/mod.ts";
-import type { createKeychain } from "../../core/secrets/keychain/keychain.ts";
-import { createSessionToolExecutor } from "../tools/session_tools.ts";
-import { createTriggerClassificationToolExecutor } from "../tools/trigger_tools.ts";
-import type { EnhancedSessionManager } from "../sessions.ts";
-import type { CronManager } from "../../scheduler/cron/parser.ts";
-import type { StorageProvider } from "../../core/storage/provider.ts";
-import { createSkillLoader } from "../../tools/skills/loader.ts";
-import { createSkillToolExecutor } from "../../tools/skills/mod.ts";
-import { createToolExecutor } from "../tools/agent_tools.ts";
-import type { buildWebTools } from "./web_tools.ts";
-import { buildGoogleExecutor } from "./google_executor.ts";
+} from "../../../integrations/github/mod.ts";
+import type { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
+import { createSessionToolExecutor } from "../../tools/session_tools.ts";
+import { createTriggerClassificationToolExecutor } from "../../tools/trigger_tools.ts";
+import type { EnhancedSessionManager } from "../../sessions.ts";
+import type { CronManager } from "../../../scheduler/cron/parser.ts";
+import type { StorageProvider } from "../../../core/storage/provider.ts";
+import { createSkillLoader } from "../../../tools/skills/loader.ts";
+import { createSkillToolExecutor } from "../../../tools/skills/mod.ts";
+import { createToolExecutor } from "../../tools/agent_tools.ts";
+import type { buildWebTools } from "../factory/web_tools.ts";
+import { buildGoogleExecutor } from "../factory/google_executor.ts";
 
 /** Shared infrastructure captured once at factory creation. */
 export interface FactoryInfra {

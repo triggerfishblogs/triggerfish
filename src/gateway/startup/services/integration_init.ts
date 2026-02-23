@@ -7,36 +7,36 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import { updateTaint } from "../../core/types/session.ts";
-import type { TriggerFishConfig } from "../../core/config.ts";
-import { createProviderRegistry } from "../../agent/llm.ts";
-import type { createHookRunner } from "../../core/policy/hooks/hooks.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import { updateTaint } from "../../../core/types/session.ts";
+import type { TriggerFishConfig } from "../../../core/config.ts";
+import { createProviderRegistry } from "../../../agent/llm.ts";
+import type { createHookRunner } from "../../../core/policy/hooks/hooks.ts";
 import {
   createClaudeSessionManager,
   createClaudeToolExecutor,
-} from "../../exec/claude.ts";
-import { createSecretToolExecutor } from "../../tools/secrets.ts";
-import { createSkillToolExecutor } from "../../tools/skills/mod.ts";
+} from "../../../exec/claude.ts";
+import { createSecretToolExecutor } from "../../../tools/secrets.ts";
+import { createSkillToolExecutor } from "../../../tools/skills/mod.ts";
 import {
   buildSkillsSystemPrompt,
   buildTriggersSystemPrompt,
-} from "../../tools/skills/prompts.ts";
-import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
-import type { createWorkspace } from "../../exec/workspace.ts";
-import { createTriggerToolExecutor } from "../tools/trigger_tools.ts";
-import { createTriggerStore } from "../../scheduler/triggers/store.ts";
-import type { McpBroadcastRefs } from "./mcp.ts";
-import { buildSubagentFactory } from "./subagent.ts";
-import { createOrchestratorFactory } from "./orchestrator_factory.ts";
+} from "../../../tools/skills/prompts.ts";
+import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
+import type { createWorkspace } from "../../../exec/workspace.ts";
+import { createTriggerToolExecutor } from "../../tools/trigger_tools.ts";
+import { createTriggerStore } from "../../../scheduler/triggers/store.ts";
+import type { McpBroadcastRefs } from "../infra/mcp.ts";
+import { buildSubagentFactory } from "../factory/subagent.ts";
+import { createOrchestratorFactory } from "../factory/orchestrator_factory.ts";
 import {
   buildObsidianExecutor,
   discoverSkills,
-} from "./subsystems.ts";
-import type { ObsidianPluginConfig } from "./subsystems.ts";
-import type { BootstrapResult } from "./bootstrap.ts";
-import type { CoreInfraResult } from "./core_infra.ts";
-import type { MainSessionState } from "./tool_executor.ts";
+} from "../infra/subsystems.ts";
+import type { ObsidianPluginConfig } from "../infra/subsystems.ts";
+import type { BootstrapResult } from "../bootstrap.ts";
+import type { CoreInfraResult } from "../infra/core_infra.ts";
+import type { MainSessionState } from "../tools/tool_executor.ts";
 import {
   buildGitHubExecutor,
   buildExploreExecutor,

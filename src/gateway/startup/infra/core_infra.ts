@@ -7,25 +7,25 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type { UserId } from "../../core/types/session.ts";
-import type { createSqliteStorage } from "../../core/storage/sqlite.ts";
-import type { createLogger } from "../../core/logger/mod.ts";
-import type { TriggerFishConfig } from "../../core/config.ts";
-import type { createPairingService } from "../../channels/pairing.ts";
-import type { createPersistentCronManager } from "../../scheduler/cron/cron.ts";
-import { createSchedulerService } from "../../scheduler/service.ts";
-import type { createEnhancedSessionManager } from "../sessions.ts";
-import type { createNotificationService } from "../notifications/notifications.ts";
-import type { createTriggerStore } from "../../scheduler/triggers/store.ts";
-import type { createToolFloorRegistry } from "../../core/security/tool_floors.ts";
-import { createOrchestratorFactory } from "./orchestrator_factory.ts";
-import { buildSchedulerConfig } from "./scheduler_config.ts";
-import type { BootstrapResult } from "./bootstrap.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import type { UserId } from "../../../core/types/session.ts";
+import type { createSqliteStorage } from "../../../core/storage/sqlite.ts";
+import type { createLogger } from "../../../core/logger/mod.ts";
+import type { TriggerFishConfig } from "../../../core/config.ts";
+import type { createPairingService } from "../../../channels/pairing.ts";
+import type { createPersistentCronManager } from "../../../scheduler/cron/cron.ts";
+import { createSchedulerService } from "../../../scheduler/service.ts";
+import type { createEnhancedSessionManager } from "../../sessions.ts";
+import type { createNotificationService } from "../../notifications/notifications.ts";
+import type { createTriggerStore } from "../../../scheduler/triggers/store.ts";
+import type { createToolFloorRegistry } from "../../../core/security/tool_floors.ts";
+import { createOrchestratorFactory } from "../factory/orchestrator_factory.ts";
+import { buildSchedulerConfig } from "../factory/scheduler_config.ts";
+import type { BootstrapResult } from "../bootstrap.ts";
 import {
   buildFilesystemPathMap,
   buildToolFloorRegistryFromConfig,
-} from "./bootstrap.ts";
+} from "../bootstrap.ts";
 import {
   initializePersistentStorage,
   initializeSessionInfrastructure,

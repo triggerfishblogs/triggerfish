@@ -6,8 +6,8 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import { createSignalChannel } from "../../channels/signal/adapter.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import { createSignalChannel } from "../../../channels/signal/adapter.ts";
 import {
   checkSignalCli,
   isDaemonHealthy,
@@ -17,10 +17,10 @@ import {
   startDaemonUnix,
   waitForDaemon,
   waitForDaemonUnix,
-} from "../../channels/signal/setup.ts";
-import type { DaemonHandle } from "../../channels/signal/setup.ts";
+} from "../../../channels/signal/setup.ts";
+import type { DaemonHandle } from "../../../channels/signal/setup.ts";
 import type { ChannelWiringDeps } from "./channels_shared.ts";
-import { createLogger } from "../../core/logger/mod.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
 
 const log = createLogger("startup-channels-signal");
 

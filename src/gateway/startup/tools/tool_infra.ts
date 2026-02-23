@@ -8,60 +8,60 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import { createSession } from "../../core/types/session.ts";
-import type { ChannelId, UserId } from "../../core/types/session.ts";
-import type { TriggerFishConfig } from "../../core/config.ts";
-import { createProviderRegistry } from "../../agent/llm.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import { createSession } from "../../../core/types/session.ts";
+import type { ChannelId, UserId } from "../../../core/types/session.ts";
+import type { TriggerFishConfig } from "../../../core/config.ts";
+import { createProviderRegistry } from "../../../agent/llm.ts";
 import {
   resolveVisionProvider,
-} from "../../agent/providers/config.ts";
-import type { ModelsConfig } from "../../agent/providers/config.ts";
-import type { createHookRunner } from "../../core/policy/hooks/hooks.ts";
-import { createExecTools } from "../../exec/tools.ts";
-import type { createSqliteStorage } from "../../core/storage/sqlite.ts";
-import type { SecretPromptCallback } from "../../tools/secrets.ts";
-import { createTodoManager } from "../../tools/mod.ts";
-import { createImageToolExecutor } from "../../tools/image/mod.ts";
-import { createTidepoolToolExecutor } from "../../tools/tidepool/mod.ts";
-import { createPlanManager, createPlanToolExecutor } from "../../agent/plan/plan.ts";
-import { mapToolPrefixClassifications } from "../../agent/orchestrator.ts";
-import type { createWorkspace } from "../../exec/workspace.ts";
-import type { createPathClassifier } from "../../core/security/path_classification.ts";
-import type { createAutoLaunchBrowserExecutor } from "../../tools/browser/mod.ts";
-import type { RegisteredChannel } from "../tools/session_tools.ts";
-import { createSessionToolExecutor } from "../tools/session_tools.ts";
-import type { McpBroadcastRefs } from "./mcp.ts";
-import type { wireMcpServers } from "./mcp.ts";
-import type { createToolExecutor } from "../tools/agent_tools.ts";
-import type { buildWebTools } from "./web_tools.ts";
-import { buildWebTools as buildWebToolsFn } from "./web_tools.ts";
-import { createOrchestratorFactory } from "./orchestrator_factory.ts";
+} from "../../../agent/providers/config.ts";
+import type { ModelsConfig } from "../../../agent/providers/config.ts";
+import type { createHookRunner } from "../../../core/policy/hooks/hooks.ts";
+import { createExecTools } from "../../../exec/tools.ts";
+import type { createSqliteStorage } from "../../../core/storage/sqlite.ts";
+import type { SecretPromptCallback } from "../../../tools/secrets.ts";
+import { createTodoManager } from "../../../tools/mod.ts";
+import { createImageToolExecutor } from "../../../tools/image/mod.ts";
+import { createTidepoolToolExecutor } from "../../../tools/tidepool/mod.ts";
+import { createPlanManager, createPlanToolExecutor } from "../../../agent/plan/plan.ts";
+import { mapToolPrefixClassifications } from "../../../agent/orchestrator.ts";
+import type { createWorkspace } from "../../../exec/workspace.ts";
+import type { createPathClassifier } from "../../../core/security/path_classification.ts";
+import type { createAutoLaunchBrowserExecutor } from "../../../tools/browser/mod.ts";
+import type { RegisteredChannel } from "../../tools/session_tools.ts";
+import { createSessionToolExecutor } from "../../tools/session_tools.ts";
+import type { McpBroadcastRefs } from "../infra/mcp.ts";
+import type { wireMcpServers } from "../infra/mcp.ts";
+import type { createToolExecutor } from "../../tools/agent_tools.ts";
+import type { buildWebTools } from "../factory/web_tools.ts";
+import { buildWebTools as buildWebToolsFn } from "../factory/web_tools.ts";
+import { createOrchestratorFactory } from "../factory/orchestrator_factory.ts";
 import {
   createCliSecretPrompt,
-} from "./subsystems.ts";
-import type { BootstrapResult } from "./bootstrap.ts";
-import type { CoreInfraResult } from "./core_infra.ts";
+} from "../infra/subsystems.ts";
+import type { BootstrapResult } from "../bootstrap.ts";
+import type { CoreInfraResult } from "../infra/core_infra.ts";
 import {
   initializeLlmProviders,
-} from "./storage.ts";
+} from "../infra/storage.ts";
 import {
   initializeMainWorkspace,
   buildMainPathClassifier,
   initializeMemorySystem,
-} from "./workspace_init.ts";
+} from "../infra/workspace_init.ts";
 import {
   initializeBrowserExecutor,
-} from "./browser_init.ts";
+} from "../services/browser_init.ts";
 import type { MainSessionState } from "./tool_executor.ts";
 import { assembleMainToolExecutor } from "./tool_executor.ts";
 import {
   buildIntegrationExecutors,
-} from "./integration_init.ts";
+} from "../services/integration_init.ts";
 
 /** Mutable ref to tidepool tools, set after host starts. */
 export type TidepoolToolsRef = {
-  value: import("../../tools/tidepool/mod.ts").TidePoolTools | undefined;
+  value: import("../../../tools/tidepool/mod.ts").TidePoolTools | undefined;
 };
 
 /** Result of tool infrastructure initialization. */
@@ -80,13 +80,13 @@ export interface ToolInfraResult {
   readonly browserHandle: ReturnType<typeof initializeBrowserExecutor>;
   readonly channelAdapters: Map<string, RegisteredChannel>;
   readonly toolClassifications: Map<string, ClassificationLevel>;
-  readonly keychain: ReturnType<typeof import("../../core/secrets/keychain/keychain.ts").createKeychain>;
+  readonly keychain: ReturnType<typeof import("../../../core/secrets/keychain/keychain.ts").createKeychain>;
   readonly mcpBroadcastRefs: McpBroadcastRefs;
   readonly mcpWiring: ReturnType<typeof wireMcpServers> | null;
   readonly toolExecutor: ReturnType<typeof createToolExecutor>;
   readonly skillsPrompt: string;
   readonly triggersPrompt: string;
-  readonly mainKeychain: ReturnType<typeof import("../../core/secrets/keychain/keychain.ts").createKeychain>;
+  readonly mainKeychain: ReturnType<typeof import("../../../core/secrets/keychain/keychain.ts").createKeychain>;
   readonly domainClassifier: ReturnType<
     typeof buildWebTools
   >["domainClassifier"];

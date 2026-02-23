@@ -9,8 +9,8 @@
  */
 
 import { bootstrapConfigAndLogging } from "./bootstrap.ts";
-import { initializeCoreInfrastructure } from "./core_infra.ts";
-import { initializeToolInfrastructure } from "./tool_infra.ts";
+import { initializeCoreInfrastructure } from "./infra/core_infra.ts";
+import { initializeToolInfrastructure } from "./tools/tool_infra.ts";
 import { startServicesAndChannels } from "./service_startup.ts";
 import { registerShutdownHandlers } from "./shutdown.ts";
 

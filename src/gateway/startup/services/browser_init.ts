@@ -8,28 +8,28 @@
  */
 
 import { join } from "@std/path";
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type { TriggerFishConfig } from "../../core/config.ts";
-import type { createSession } from "../../core/types/session.ts";
-import { createSqliteStorage } from "../../core/storage/sqlite.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import type { TriggerFishConfig } from "../../../core/config.ts";
+import type { createSession } from "../../../core/types/session.ts";
+import { createSqliteStorage } from "../../../core/storage/sqlite.ts";
 import {
   createAutoLaunchBrowserExecutor,
   createBrowserManager,
   createDomainPolicy as createBrowserDomainPolicy,
-} from "../../tools/browser/mod.ts";
-import { createProviderRegistry } from "../../agent/llm.ts";
-import { resolveVisionProvider } from "../../agent/providers/config.ts";
+} from "../../../tools/browser/mod.ts";
+import { createProviderRegistry } from "../../../agent/llm.ts";
+import { resolveVisionProvider } from "../../../agent/providers/config.ts";
 import {
   createGitHubClient,
   createGitHubToolExecutor,
   resolveGitHubToken,
-} from "../../integrations/github/mod.ts";
-import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
-import { createExploreToolExecutor } from "../../tools/explore/mod.ts";
-import type { createHookRunner } from "../../core/policy/hooks/hooks.ts";
-import { wireMcpServers } from "./mcp.ts";
-import type { McpBroadcastRefs } from "./mcp.ts";
-import { buildSubagentFactory } from "./subagent.ts";
+} from "../../../integrations/github/mod.ts";
+import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
+import { createExploreToolExecutor } from "../../../tools/explore/mod.ts";
+import type { createHookRunner } from "../../../core/policy/hooks/hooks.ts";
+import { wireMcpServers } from "../infra/mcp.ts";
+import type { McpBroadcastRefs } from "../infra/mcp.ts";
+import { buildSubagentFactory } from "../factory/subagent.ts";
 
 /** Build browser domain policy from web config. */
 export function buildBrowserDomainPolicyFromConfig(config: TriggerFishConfig) {
