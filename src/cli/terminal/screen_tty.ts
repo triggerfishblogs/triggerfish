@@ -380,266 +380,290 @@ function renderSpinnerStatusText(
   return `${CYAN}${ch}${RESET} ${labelSuffix}`;
 }
 
+// ─── TTY state container ─────────────────────────────────────────
+
+/** Mutable state for the TTY screen manager. */
+interface TtyState {
+  size: { rows: number; columns: number };
+  statusText: string;
+  inputLineCount: number;
+  currentTaint: ClassificationLevel;
+  spinnerTimer: ReturnType<typeof setInterval> | null;
+  spinnerFrame: number;
+  spinnerLabel: string;
+  spinnerVerbIdx: number;
+  resizePollTimer: ReturnType<typeof setInterval> | null;
+  mcpConnected: number;
+  mcpConfigured: number;
+  knownCursorRow: number;
+  knownCursorCol: number;
+  streamCursorRow: number;
+  streamCursorCol: number;
+}
+
+/** Create the initial TTY state. */
+function createTtyState(): TtyState {
+  return {
+    size: getTermSize(),
+    statusText: "",
+    inputLineCount: 1,
+    currentTaint: "PUBLIC",
+    spinnerTimer: null,
+    spinnerFrame: 0,
+    spinnerLabel: "",
+    spinnerVerbIdx: 0,
+    resizePollTimer: null,
+    mcpConnected: -1,
+    mcpConfigured: 0,
+    knownCursorRow: 1,
+    knownCursorCol: 1,
+    streamCursorRow: 0,
+    streamCursorCol: 1,
+  };
+}
+
+// ─── TTY state operations ────────────────────────────────────────
+
+/** Compute the bottom row of the scroll region. */
+function computeScrollBottom(s: TtyState): number {
+  return s.size.rows - s.inputLineCount - 3;
+}
+
+/** Apply the DECSTBM scroll region based on current state. */
+function applyScrollRegion(s: TtyState): void {
+  const bottom = computeScrollBottom(s);
+  if (bottom >= 1) {
+    rawWrite(setScrollRegion(1, bottom));
+  }
+}
+
+/** Adjust the input line count and update scroll region if changed. */
+function adjustInputLineCount(s: TtyState, newCount: number): void {
+  if (newCount === s.inputLineCount) return;
+  const oldCount = s.inputLineCount;
+  s.inputLineCount = newCount;
+  applyScrollRegion(s);
+  if (newCount < oldCount) {
+    clearStaleSeparatorRows(oldCount, newCount, s.size.rows);
+  }
+}
+
+/** Draw the status bar at the bottom of the terminal. */
+function drawStatusBar(s: TtyState): void {
+  rawWrite(HIDE_CURSOR);
+  rawWrite(moveTo(s.size.rows, 1));
+  rawWrite(CLEAR_LINE);
+  if (s.statusText.length > 0) {
+    rawWrite(` ${s.statusText}${RESET}`);
+  }
+  rawWrite(moveTo(s.knownCursorRow, s.knownCursorCol));
+  rawWrite(SHOW_CURSOR);
+}
+
+/** Draw the input bar and update the known cursor position. */
+function drawInputBar(s: TtyState, editor: LineEditor): void {
+  const lines = editor.text.split("\n");
+  const prefixLen = 3;
+  const layout = computeVisualRowLayout(lines, prefixLen, s.size.columns);
+  adjustInputLineCount(s, Math.max(layout.total, 1));
+  const bar = computeInputBarLayout(s.size.rows, s.inputLineCount);
+  const opts: InputBarRenderOptions = {
+    editor,
+    lines,
+    layout,
+    bar,
+    columns: s.size.columns,
+    taint: s.currentTaint,
+    mcpConnected: s.mcpConnected,
+    mcpConfigured: s.mcpConfigured,
+  };
+  const cursor = renderInputBarFrame(opts, prefixLen);
+  s.knownCursorRow = cursor.row;
+  s.knownCursorCol = cursor.col;
+}
+
+/** Reset stream cursor and write text into the scroll region. */
+function writeOutputToScrollRegion(s: TtyState, text: string): void {
+  s.streamCursorRow = 0;
+  s.streamCursorCol = 1;
+  rawWrite(HIDE_CURSOR);
+  rawWrite(moveTo(computeScrollBottom(s), 1));
+  rawWrite("\n");
+  for (const line of text.split("\n")) {
+    rawWrite(`${line}${CLEAR_LINE}\n`);
+  }
+  rawWrite(moveTo(s.knownCursorRow, s.knownCursorCol));
+  rawWrite(SHOW_CURSOR);
+}
+
+/** Initialize the stream cursor if not yet active. */
+function initializeStreamCursor(s: TtyState): void {
+  if (s.streamCursorRow === 0) {
+    s.streamCursorRow = computeScrollBottom(s);
+    s.streamCursorCol = 1;
+  }
+}
+
+/** Write a streaming text chunk and advance the stream cursor. */
+function writeStreamChunk(s: TtyState, text: string): void {
+  if (text.length === 0) return;
+  rawWrite(HIDE_CURSOR);
+  const scrollBottom = computeScrollBottom(s);
+  initializeStreamCursor(s);
+  rawWrite(moveTo(s.streamCursorRow, s.streamCursorCol));
+  rawWrite(text);
+  const newPos = advanceStreamCursor(
+    text,
+    s.streamCursorRow,
+    s.streamCursorCol,
+    scrollBottom,
+    s.size.columns,
+  );
+  s.streamCursorRow = newPos.row;
+  s.streamCursorCol = newPos.col;
+  rawWrite(moveTo(s.knownCursorRow, s.knownCursorCol));
+  rawWrite(SHOW_CURSOR);
+}
+
+/** Initialize the screen: reset size, scroll region, and clear input area. */
+function initializeScreen(s: TtyState): void {
+  s.size = getTermSize();
+  s.inputLineCount = 1;
+  applyScrollRegion(s);
+  const topSepRow = s.size.rows - 1 - s.inputLineCount - 1;
+  clearRowRange(topSepRow, s.size.rows);
+  rawWrite(moveTo(1, 1));
+}
+
+/** Clear stale input area rows during a terminal resize. */
+function clearResizeInputArea(
+  s: TtyState,
+  oldRows: number,
+): void {
+  const oldTopSep = oldRows - s.inputLineCount - 2;
+  for (let r = oldTopSep; r <= oldRows; r++) {
+    if (r >= 1 && r <= s.size.rows) {
+      rawWrite(moveTo(r, 1));
+      rawWrite(CLEAR_LINE);
+    }
+  }
+  const newTopSep = s.size.rows - s.inputLineCount - 2;
+  clearRowRange(newTopSep, s.size.rows);
+}
+
+/** Handle terminal resize: refresh size, clear areas, reset scroll region. */
+function handleTerminalResize(s: TtyState): void {
+  const oldRows = s.size.rows;
+  s.size = getTermSize();
+  s.streamCursorRow = 0;
+  s.streamCursorCol = 1;
+  clearResizeInputArea(s, oldRows);
+  applyScrollRegion(s);
+  drawStatusBar(s);
+}
+
+/** Start the animated spinner timer. */
+function startSpinnerTimer(s: TtyState, text: string): void {
+  if (s.spinnerTimer !== null) {
+    clearInterval(s.spinnerTimer);
+  }
+  s.spinnerLabel = text;
+  s.spinnerFrame = 0;
+  s.spinnerVerbIdx = Math.floor(Math.random() * THINKING_VERBS.length);
+  const tick = () => advanceSpinnerFrame(s);
+  tick();
+  s.spinnerTimer = setInterval(tick, 80);
+}
+
+/** Advance spinner one frame, cycling the verb periodically. */
+function advanceSpinnerFrame(s: TtyState): void {
+  if (s.spinnerFrame > 0 && s.spinnerFrame % 30 === 0) {
+    s.spinnerVerbIdx = (s.spinnerVerbIdx + 1) % THINKING_VERBS.length;
+  }
+  s.statusText = renderSpinnerStatusText(
+    s.spinnerFrame,
+    s.spinnerVerbIdx,
+    s.spinnerLabel,
+  );
+  drawStatusBar(s);
+  s.spinnerFrame++;
+}
+
+/** Stop the spinner and clear the status bar. */
+function stopSpinnerTimer(s: TtyState): void {
+  if (s.spinnerTimer !== null) {
+    clearInterval(s.spinnerTimer);
+    s.spinnerTimer = null;
+  }
+  s.statusText = "";
+  drawStatusBar(s);
+}
+
+/** Clear all timers and reset scroll region for exit. */
+function cleanupTtyState(s: TtyState): void {
+  if (s.spinnerTimer !== null) {
+    clearInterval(s.spinnerTimer);
+    s.spinnerTimer = null;
+  }
+  if (s.resizePollTimer !== null) {
+    clearInterval(s.resizePollTimer);
+    s.resizePollTimer = null;
+  }
+  rawWrite(RESET_SCROLL);
+  rawWrite(moveTo(s.size.rows, 1));
+  rawWrite(SHOW_CURSOR);
+  rawWrite("\n");
+}
+
 // ─── TTY screen manager ─────────────────────────────────────────
 
 /** Create a TTY-aware screen manager with scroll regions. */
 export function createTtyScreenManager(): ScreenManager {
-  let size = getTermSize();
-  let statusText = "";
-  let inputLineCount = 1;
-  let currentTaint: ClassificationLevel = "PUBLIC";
-  let spinnerTimer: ReturnType<typeof setInterval> | null = null;
-  let spinnerFrame = 0;
-  let spinnerLabel = "";
-  let spinnerVerbIdx = 0;
-  let resizePollTimer: ReturnType<typeof setInterval> | null = null;
-  // MCP server connection indicator
-  let mcpConnected = -1; // -1 = not configured (hidden)
-  let mcpConfigured = 0;
-
-  // Track the last known cursor position so we never rely on
-  // the terminal's single-slot SAVE_CURSOR / RESTORE_CURSOR,
-  // which breaks when scroll region scrolling invalidates it.
-  let knownCursorRow = 1;
-  let knownCursorCol = 1;
-
-  // Track cursor position during active streaming (writeChunk).
-  // streamCursorRow=0 means "not actively streaming".
-  let streamCursorRow = 0;
-  let streamCursorCol = 1;
-
-  function getScrollBottom(): number {
-    // Reserve: top separator + input lines + bottom separator + status bar
-    return size.rows - inputLineCount - 3;
-  }
-
-  function setupScrollRegion(): void {
-    const bottom = getScrollBottom();
-    if (bottom >= 1) {
-      rawWrite(setScrollRegion(1, bottom));
-    }
-  }
-
-  function adjustInputLineCount(newCount: number): void {
-    if (newCount === inputLineCount) return;
-    const oldCount = inputLineCount;
-    inputLineCount = newCount;
-    setupScrollRegion();
-    if (newCount < oldCount) {
-      clearStaleSeparatorRows(oldCount, newCount, size.rows);
-    }
-  }
-
-  function drawInputBar(editor: LineEditor): void {
-    const lines = editor.text.split("\n");
-    const prefixLen = 3;
-    const layout = computeVisualRowLayout(lines, prefixLen, size.columns);
-    adjustInputLineCount(Math.max(layout.total, 1));
-    const bar = computeInputBarLayout(size.rows, inputLineCount);
-    const opts: InputBarRenderOptions = {
-      editor,
-      lines,
-      layout,
-      bar,
-      columns: size.columns,
-      taint: currentTaint,
-      mcpConnected,
-      mcpConfigured,
-    };
-    const cursor = renderInputBarFrame(opts, prefixLen);
-    knownCursorRow = cursor.row;
-    knownCursorCol = cursor.col;
-  }
-
-  function drawStatusBar(): void {
-    rawWrite(HIDE_CURSOR);
-    rawWrite(moveTo(size.rows, 1));
-    rawWrite(CLEAR_LINE);
-    if (statusText.length > 0) {
-      rawWrite(` ${statusText}${RESET}`);
-    }
-    // Return cursor to its known position instead of using
-    // SAVE/RESTORE which is a single slot and breaks during scrolling
-    rawWrite(moveTo(knownCursorRow, knownCursorCol));
-    rawWrite(SHOW_CURSOR);
-  }
+  const s = createTtyState();
 
   return {
     isTty: true,
-
-    init(): void {
-      size = getTermSize();
-      inputLineCount = 1;
-      setupScrollRegion();
-
-      // Clear the top separator, input, bottom separator, and status rows
-      const topSepRow = size.rows - 1 - inputLineCount - 1;
-      clearRowRange(topSepRow, size.rows);
-
-      // Position cursor in scroll region
-      rawWrite(moveTo(1, 1));
+    init: () => initializeScreen(s),
+    writeOutput: (text: string) => writeOutputToScrollRegion(s, text),
+    writeChunk: (text: string) => writeStreamChunk(s, text),
+    redrawInput: (editor: LineEditor) => drawInputBar(s, editor),
+    setTaint: (level: ClassificationLevel) => {
+      s.currentTaint = level;
     },
-
-    writeOutput(text: string): void {
-      streamCursorRow = 0;
-      streamCursorCol = 1;
-
-      rawWrite(HIDE_CURSOR);
-      rawWrite(moveTo(getScrollBottom(), 1));
-      rawWrite("\n");
-
-      for (const line of text.split("\n")) {
-        rawWrite(`${line}${CLEAR_LINE}\n`);
-      }
-
-      rawWrite(moveTo(knownCursorRow, knownCursorCol));
-      rawWrite(SHOW_CURSOR);
+    getTaint: () => s.currentTaint,
+    setMcpStatus: (connected: number, configured: number) => {
+      s.mcpConnected = connected;
+      s.mcpConfigured = configured;
     },
-
-    writeChunk(text: string): void {
-      if (text.length === 0) return;
-
-      rawWrite(HIDE_CURSOR);
-
-      const scrollBottom = getScrollBottom();
-
-      if (streamCursorRow === 0) {
-        streamCursorRow = scrollBottom;
-        streamCursorCol = 1;
-      }
-
-      rawWrite(moveTo(streamCursorRow, streamCursorCol));
-      rawWrite(text);
-
-      const newPos = advanceStreamCursor(
-        text,
-        streamCursorRow,
-        streamCursorCol,
-        scrollBottom,
-        size.columns,
-      );
-      streamCursorRow = newPos.row;
-      streamCursorCol = newPos.col;
-
-      rawWrite(moveTo(knownCursorRow, knownCursorCol));
-      rawWrite(SHOW_CURSOR);
+    setStatus: (text: string) => {
+      s.statusText = `${DIM}${text}`;
+      drawStatusBar(s);
     },
-
-    redrawInput(editor: LineEditor): void {
-      drawInputBar(editor);
+    clearStatus: () => {
+      s.statusText = "";
+      drawStatusBar(s);
     },
-
-    setTaint(level: ClassificationLevel): void {
-      currentTaint = level;
-    },
-
-    getTaint(): ClassificationLevel {
-      return currentTaint;
-    },
-
-    setMcpStatus(connected: number, configured: number): void {
-      mcpConnected = connected;
-      mcpConfigured = configured;
-    },
-
-    setStatus(text: string): void {
-      statusText = `${DIM}${text}`;
-      drawStatusBar();
-    },
-
-    clearStatus(): void {
-      statusText = "";
-      drawStatusBar();
-    },
-
-    startSpinner(text: string): void {
-      if (spinnerTimer !== null) {
-        clearInterval(spinnerTimer);
-      }
-      spinnerLabel = text;
-      spinnerFrame = 0;
-      spinnerVerbIdx = Math.floor(Math.random() * THINKING_VERBS.length);
-
-      const render = () => {
-        if (spinnerFrame > 0 && spinnerFrame % 30 === 0) {
-          spinnerVerbIdx = (spinnerVerbIdx + 1) % THINKING_VERBS.length;
-        }
-        statusText = renderSpinnerStatusText(
-          spinnerFrame,
-          spinnerVerbIdx,
-          spinnerLabel,
-        );
-        drawStatusBar();
-        spinnerFrame++;
-      };
-
-      render();
-      spinnerTimer = setInterval(render, 80);
-    },
-
-    stopSpinner(): void {
-      if (spinnerTimer !== null) {
-        clearInterval(spinnerTimer);
-        spinnerTimer = null;
-      }
-      statusText = "";
-      drawStatusBar();
-    },
-
-    handleResize(): void {
-      const oldRows = size.rows;
-      size = getTermSize();
-
-      streamCursorRow = 0;
-      streamCursorCol = 1;
-
-      // Clear old input area, clamped to current screen bounds
-      const oldTopSep = oldRows - inputLineCount - 2;
-      for (let r = oldTopSep; r <= oldRows; r++) {
-        if (r >= 1 && r <= size.rows) {
-          rawWrite(moveTo(r, 1));
-          rawWrite(CLEAR_LINE);
-        }
-      }
-
-      // Clear new input area in case terminal shrunk
-      const newTopSep = size.rows - inputLineCount - 2;
-      clearRowRange(newTopSep, size.rows);
-
-      setupScrollRegion();
-      drawStatusBar();
-    },
-
-    startResizePolling(onResize: () => void): void {
-      if (resizePollTimer !== null) return;
-      resizePollTimer = setInterval(() => {
+    startSpinner: (text: string) => startSpinnerTimer(s, text),
+    stopSpinner: () => stopSpinnerTimer(s),
+    handleResize: () => handleTerminalResize(s),
+    startResizePolling: (onResize: () => void) => {
+      if (s.resizePollTimer !== null) return;
+      s.resizePollTimer = setInterval(() => {
         const newSize = getTermSize();
-        if (newSize.columns !== size.columns || newSize.rows !== size.rows) {
+        if (
+          newSize.columns !== s.size.columns ||
+          newSize.rows !== s.size.rows
+        ) {
           onResize();
         }
       }, 300);
     },
-
-    stopResizePolling(): void {
-      if (resizePollTimer !== null) {
-        clearInterval(resizePollTimer);
-        resizePollTimer = null;
+    stopResizePolling: () => {
+      if (s.resizePollTimer !== null) {
+        clearInterval(s.resizePollTimer);
+        s.resizePollTimer = null;
       }
     },
-
-    cleanup(): void {
-      if (spinnerTimer !== null) {
-        clearInterval(spinnerTimer);
-        spinnerTimer = null;
-      }
-      if (resizePollTimer !== null) {
-        clearInterval(resizePollTimer);
-        resizePollTimer = null;
-      }
-      rawWrite(RESET_SCROLL);
-      rawWrite(moveTo(size.rows, 1));
-      rawWrite(SHOW_CURSOR);
-      rawWrite("\n");
-    },
+    cleanup: () => cleanupTtyState(s),
   };
 }
