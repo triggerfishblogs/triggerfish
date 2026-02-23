@@ -43,6 +43,30 @@ const FLATPAK_APP_IDS = [
 
 // ─── Detection helpers ───────────────────────────────────────────────────────
 
+/** Build system-wide Chromium browser paths for Windows. */
+function collectWindowsSystemBrowserPaths(
+  pf: string,
+  pf86: string,
+): string[] {
+  return [
+    `${pf}\\Google\\Chrome\\Application\\chrome.exe`,
+    `${pf86}\\Google\\Chrome\\Application\\chrome.exe`,
+    `${pf}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
+    `${pf86}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
+    `${pf}\\Microsoft\\Edge\\Application\\msedge.exe`,
+    `${pf86}\\Microsoft\\Edge\\Application\\msedge.exe`,
+  ];
+}
+
+/** Build per-user Chromium browser paths for Windows. */
+function collectWindowsUserBrowserPaths(localAppData: string): string[] {
+  return [
+    `${localAppData}\\Google\\Chrome\\Application\\chrome.exe`,
+    `${localAppData}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
+    `${localAppData}\\Chromium\\Application\\chrome.exe`,
+  ];
+}
+
 /**
  * Build the ordered list of well-known Chromium-family executable paths
  * for Windows, resolving standard environment variables at call time.
@@ -52,29 +76,8 @@ function getWindowsBrowserPaths(): string[] {
   const pf86 = Deno.env.get("PROGRAMFILES(X86)") ?? "C:\\Program Files (x86)";
   const local = Deno.env.get("LOCALAPPDATA") ?? "";
 
-  const paths: string[] = [
-    // Chrome — system installs
-    `${pf}\\Google\\Chrome\\Application\\chrome.exe`,
-    `${pf86}\\Google\\Chrome\\Application\\chrome.exe`,
-    // Brave — system installs
-    `${pf}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
-    `${pf86}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
-    // Microsoft Edge (Chromium-based) — system installs
-    `${pf}\\Microsoft\\Edge\\Application\\msedge.exe`,
-    `${pf86}\\Microsoft\\Edge\\Application\\msedge.exe`,
-  ];
-
-  if (local) {
-    paths.push(
-      // Chrome — per-user install
-      `${local}\\Google\\Chrome\\Application\\chrome.exe`,
-      // Brave — per-user install
-      `${local}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
-      // Chromium — per-user install
-      `${local}\\Chromium\\Application\\chrome.exe`,
-    );
-  }
-
+  const paths = collectWindowsSystemBrowserPaths(pf, pf86);
+  if (local) paths.push(...collectWindowsUserBrowserPaths(local));
   return paths;
 }
 
