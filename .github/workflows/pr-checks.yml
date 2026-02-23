@@ -35,7 +35,7 @@ jobs:
   hygiene:
     needs: lint
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -50,9 +50,16 @@ jobs:
             You are a PR hygiene checker for the Triggerfish project.
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            First, gather data by running these two commands:
+            First, get the diff stat to understand the scope:
             1. `gh pr diff ${{ github.event.pull_request.number }} --stat`
-            2. `gh pr diff ${{ github.event.pull_request.number }}`
+
+            If the PR touches more than 50 files, do NOT fetch the full diff.
+            Instead, get the list of changed files and read them directly:
+            1. `gh pr diff ${{ github.event.pull_request.number }} --stat | grep -oP '^\s*\K\S+\.ts'`
+            2. Use the Read tool to inspect individual files as needed.
+
+            If the PR touches 50 or fewer files, you may fetch the full diff:
+            1. `gh pr diff ${{ github.event.pull_request.number }}`
 
             Then evaluate these hygiene criteria on the changed files ONLY:
             1. Any new file over 300 lines?
@@ -69,7 +76,7 @@ jobs:
   serviceability:
     needs: hygiene
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -84,9 +91,17 @@ jobs:
             You are a serviceability auditor for the Triggerfish project.
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            First, gather data by running these two commands:
+            First, get the diff stat to understand the scope:
             1. `gh pr diff ${{ github.event.pull_request.number }} --stat`
-            2. `gh pr diff ${{ github.event.pull_request.number }}`
+
+            If the PR touches more than 50 files, do NOT fetch the full diff.
+            Instead, get the list of changed .ts files and use the Read tool to
+            inspect them directly:
+            1. `gh pr diff ${{ github.event.pull_request.number }} --stat | grep -oP '^\s*\K\S+\.ts'`
+            2. Use Read/Grep to examine individual files for rule violations.
+
+            If the PR touches 50 or fewer files, you may fetch the full diff:
+            1. `gh pr diff ${{ github.event.pull_request.number }}`
 
             Then evaluate ONLY the changed .ts files (skip tests, type-only files, barrel mod.ts) against these rules:
 
