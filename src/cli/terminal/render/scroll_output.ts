@@ -7,15 +7,15 @@
  * @module
  */
 
-import type { CursorPosition } from "./cursor_position.ts";
-import { advanceStreamCursor } from "./cursor_position.ts";
-import { rawWrite } from "./screen.ts";
+import type { CursorPosition } from "../layout/cursor_position.ts";
+import { advanceStreamCursor } from "../layout/cursor_position.ts";
+import { rawWrite } from "../screen.ts";
 import {
   CLEAR_LINE,
   HIDE_CURSOR,
   moveTo,
   SHOW_CURSOR,
-} from "./ansi_escape.ts";
+} from "../layout/ansi_escape.ts";
 
 /** Write complete text lines into the scroll region (auto-scrolls). */
 export function writeLinesToScrollRegion(

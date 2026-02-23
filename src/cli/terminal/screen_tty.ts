@@ -20,22 +20,22 @@ import {
   RESET_SCROLL,
   setScrollRegion,
   SHOW_CURSOR,
-} from "./ansi_escape.ts";
+} from "./layout/ansi_escape.ts";
 import {
   clearRowRange,
   clearStaleSeparatorRows,
   computeVisualRowLayout,
-} from "./visual_row_layout.ts";
-import type { InputBarRenderOptions } from "./input_bar_render.ts";
+} from "./layout/visual_row_layout.ts";
+import type { InputBarRenderOptions } from "./render/input_bar_render.ts";
 import {
   computeInputBarLayout,
   renderInputBarFrame,
-} from "./input_bar_render.ts";
-import { renderSpinnerStatusText } from "./spinner_render.ts";
+} from "./render/input_bar_render.ts";
+import { renderSpinnerStatusText } from "./render/spinner_render.ts";
 import {
   writeLinesToScrollRegion,
   writeStreamingChunk,
-} from "./scroll_output.ts";
+} from "./render/scroll_output.ts";
 
 /** Mutable state for the TTY screen manager. */
 interface TtyState {

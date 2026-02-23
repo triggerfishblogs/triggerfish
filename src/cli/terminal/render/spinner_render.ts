@@ -13,7 +13,7 @@ import {
   RESET,
   SPINNER_FRAMES,
   THINKING_VERBS,
-} from "./screen.ts";
+} from "../screen.ts";
 
 /** Format a spinner status text from the current frame and verb state. */
 export function renderSpinnerStatusText(

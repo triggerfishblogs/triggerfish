@@ -8,11 +8,11 @@
  * @module
  */
 
-import type { LineEditor } from "./terminal.ts";
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type { VisualRowLayout } from "./visual_row_layout.ts";
-import type { CursorPosition } from "./cursor_position.ts";
-import { computeCursorPosition } from "./cursor_position.ts";
+import type { LineEditor } from "../terminal.ts";
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import type { VisualRowLayout } from "../layout/visual_row_layout.ts";
+import type { CursorPosition } from "../layout/cursor_position.ts";
+import { computeCursorPosition } from "../layout/cursor_position.ts";
 import {
   BOLD,
   CYAN,
@@ -23,13 +23,13 @@ import {
   RESET,
   taintColor,
   YELLOW,
-} from "./screen.ts";
+} from "../screen.ts";
 import {
   CLEAR_LINE,
   HIDE_CURSOR,
   moveTo,
   SHOW_CURSOR,
-} from "./ansi_escape.ts";
+} from "../layout/ansi_escape.ts";
 
 // ─── Layout dimensions ──────────────────────────────────────────
 

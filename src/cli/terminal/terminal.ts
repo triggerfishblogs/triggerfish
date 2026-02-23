@@ -7,14 +7,14 @@
  * @module
  */
 
-export type { Keypress } from "./keypress.ts";
-export { parseKeypresses } from "./keypress.ts";
+export type { Keypress } from "./input/keypress.ts";
+export { parseKeypresses } from "./input/keypress.ts";
 
-export type { KeypressReader } from "./keypress_reader.ts";
-export { createKeypressReader } from "./keypress_reader.ts";
+export type { KeypressReader } from "./input/keypress_reader.ts";
+export { createKeypressReader } from "./input/keypress_reader.ts";
 
-export type { LineEditor } from "./line_editor.ts";
-export { createLineEditor } from "./line_editor.ts";
+export type { LineEditor } from "./input/line_editor.ts";
+export { createLineEditor } from "./input/line_editor.ts";
 
-export type { SuggestionEngine } from "./suggestion.ts";
-export { createSuggestionEngine } from "./suggestion.ts";
+export type { SuggestionEngine } from "./input/suggestion.ts";
+export { createSuggestionEngine } from "./input/suggestion.ts";

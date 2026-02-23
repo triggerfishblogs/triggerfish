@@ -8,7 +8,7 @@
  * @module
  */
 
-import { rawWrite } from "./screen.ts";
+import { rawWrite } from "../screen.ts";
 import { CLEAR_LINE, moveTo } from "./ansi_escape.ts";
 
 /** Visual row metadata for a set of logical lines. */
