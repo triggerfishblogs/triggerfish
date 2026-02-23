@@ -5,6 +5,23 @@
  * with MCP servers via different transport mechanisms.
  */
 
+import type { Result } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("mcp");
+
+/**
+ * Validates a URL before a network connection is established.
+ *
+ * Implementations should check the URL against an SSRF denylist via DNS
+ * resolution. Inject `resolveAndCheck` from `src/tools/web/ssrf.ts` at
+ * the gateway wiring layer — mcp/ cannot import from tools/ directly
+ * (dependency layer constraint).
+ *
+ * Returns Ok(void) if the URL is safe, Err(reason) if it should be blocked.
+ */
+export type UrlValidator = (url: string) => Promise<Result<void, string>>;
+
 /** Transport interface for MCP client-server communication. */
 export interface Transport {
   /** Establish connection to the MCP server. */
@@ -73,8 +90,11 @@ export class StdioTransport implements Transport {
             }
           }
         }
-      } catch {
-        // Process closed, stop reading
+      } catch (err) {
+        log.debug("MCP stdio read loop terminated", {
+          command: this.#command,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     };
 
@@ -86,8 +106,11 @@ export class StdioTransport implements Transport {
     if (this.#process) {
       try {
         this.#process.stdin.getWriter().close();
-      } catch {
-        // Already closed
+      } catch (err) {
+        log.debug("MCP stdio stdin already closed on disconnect", {
+          command: this.#command,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
       this.#process.kill();
       this.#process = null;
@@ -113,18 +136,36 @@ export class StdioTransport implements Transport {
  * SSETransport connects to an MCP server via HTTP Server-Sent Events.
  *
  * Requests are sent via HTTP POST and responses arrive as SSE events.
+ *
+ * Pass a `urlValidator` (e.g. wrapping `resolveAndCheck` from tools/web/ssrf.ts)
+ * to enforce SSRF prevention before the connection is established. Without a
+ * validator, no DNS-based IP check is performed — always inject one in production.
  */
 export class SSETransport implements Transport {
   readonly #url: string;
+  readonly #urlValidator: UrlValidator | null;
   #eventSource: EventSource | null = null;
   readonly #handlers: Array<(msg: string) => void> = [];
 
-  constructor(url: string) {
+  constructor(url: string, urlValidator?: UrlValidator) {
     this.#url = url;
+    this.#urlValidator = urlValidator ?? null;
   }
 
-  // deno-lint-ignore require-await
   async connect(): Promise<void> {
+    if (this.#urlValidator) {
+      const result = await this.#urlValidator(this.#url);
+      if (!result.ok) {
+        log.warn("MCP SSE connection blocked by SSRF policy", {
+          url: this.#url,
+          reason: result.error,
+        });
+        throw new Error(`SSE connection blocked by SSRF policy: ${result.error}`);
+      }
+      log.debug("MCP SSE SSRF check passed", { url: this.#url });
+    } else {
+      log.debug("MCP SSE connecting without SSRF validation", { url: this.#url });
+    }
     // SSE connection for receiving messages
     this.#eventSource = new EventSource(this.#url);
     this.#eventSource.onmessage = (event: MessageEvent) => {
@@ -143,6 +184,8 @@ export class SSETransport implements Transport {
   }
 
   async send(msg: string): Promise<void> {
+    // URL was already validated in connect(); no re-check needed since
+    // #url is readonly and the same value is used for both SSE and POST.
     await fetch(this.#url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -12,11 +12,25 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../core/types/classification.ts";
 import type { PluginSdk } from "./sdk.ts";
 import { createLogger } from "../core/logger/logger.ts";
 
 const log = createLogger("security");
+
+/**
+ * SSRF DNS checker for plugin network access.
+ *
+ * Resolves the hostname and checks all returned IPs against the SSRF denylist.
+ * Inject `resolveAndCheck` from `src/tools/web/ssrf.ts` at the gateway wiring
+ * layer — plugin/ cannot import from tools/ directly (dependency layer constraint).
+ */
+export type SandboxDnsChecker = (
+  hostname: string,
+) => Promise<Result<string, string>>;
 
 /** Configuration for a plugin sandbox. */
 export interface SandboxConfig {
@@ -28,6 +42,12 @@ export interface SandboxConfig {
   readonly declaredEndpoints: readonly string[];
   /** Maximum classification level the plugin can handle. */
   readonly maxClassification: ClassificationLevel;
+  /**
+   * Optional SSRF DNS checker. If provided, all plugin fetch calls also
+   * validate resolved IPs against the SSRF denylist, preventing declared
+   * endpoints from bypassing protection via DNS rebinding.
+   */
+  readonly dnsChecker?: SandboxDnsChecker;
 }
 
 /** Sandbox instance for executing plugin code. */
@@ -47,8 +67,11 @@ function parseAllowedHosts(
     try {
       const url = new URL(endpoint);
       hosts.add(url.host);
-    } catch {
-      // Skip invalid URLs
+    } catch (err) {
+      log.warn("Plugin sandbox: ignoring invalid declared endpoint URL", {
+        endpoint,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
   return hosts;
@@ -65,26 +88,47 @@ function extractFetchUrl(input: string | URL | Request): string {
 function buildRestrictedFetch(
   allowedHosts: ReadonlySet<string>,
   pluginName: string,
+  dnsChecker?: SandboxDnsChecker,
 ): (input: string | URL | Request, init?: RequestInit) => Promise<Response> {
-  return (input, init?) => {
+  return async (input, init?) => {
     const urlStr = extractFetchUrl(input);
+    let url: URL;
     try {
-      const url = new URL(urlStr);
-      if (!allowedHosts.has(url.host)) {
-        log.warn("Plugin network access blocked", {
-          plugin: pluginName,
-          host: url.host,
-        });
-        throw new Error(
-          `Network access blocked: ${url.host} not in declared endpoints`,
-        );
-      }
-    } catch (e) {
-      if (e instanceof TypeError) {
-        throw new Error(`Network access blocked: invalid URL`);
-      }
-      throw e;
+      url = new URL(urlStr);
+    } catch (err) {
+      log.warn("Plugin network access blocked: invalid URL", {
+        plugin: pluginName,
+        url: urlStr,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw new Error(
+        `Network access blocked: invalid URL "${urlStr}" in plugin ${pluginName}`,
+      );
     }
+    if (!allowedHosts.has(url.host)) {
+      log.warn("Plugin network access blocked", {
+        plugin: pluginName,
+        host: url.host,
+      });
+      throw new Error(
+        `Network access blocked: ${url.host} not in declared endpoints`,
+      );
+    }
+    if (dnsChecker) {
+      const ssrfResult = await dnsChecker(url.hostname);
+      if (!ssrfResult.ok) {
+        log.warn("Plugin SSRF blocked", {
+          plugin: pluginName,
+          hostname: url.hostname,
+          reason: ssrfResult.error,
+        });
+        throw new Error(`Network access blocked: ${ssrfResult.error}`);
+      }
+    }
+    log.debug("Plugin network access allowed", {
+      plugin: pluginName,
+      host: url.host,
+    });
     return fetch(input, init);
   };
 }
@@ -108,8 +152,13 @@ async function executeSandboxedCode(
   code: string,
   allowedHosts: ReadonlySet<string>,
   pluginName: string,
+  dnsChecker?: SandboxDnsChecker,
 ): Promise<unknown> {
-  const restrictedFetch = buildRestrictedFetch(allowedHosts, pluginName);
+  const restrictedFetch = buildRestrictedFetch(
+    allowedHosts,
+    pluginName,
+    dnsChecker,
+  );
   const restrictedDeno = buildRestrictedDeno();
   const fn = new Function(
     "fetch",
@@ -136,7 +185,12 @@ export async function createSandbox(config: SandboxConfig): Promise<Sandbox> {
     // deno-lint-ignore require-await
     async executePluginCode(code: string): Promise<unknown> {
       if (destroyed) throw new Error("Sandbox has been destroyed");
-      return executeSandboxedCode(code, allowedHosts, config.name);
+      return executeSandboxedCode(
+        code,
+        allowedHosts,
+        config.name,
+        config.dnsChecker,
+      );
     },
 
     // deno-lint-ignore require-await

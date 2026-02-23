@@ -32,4 +32,4 @@ export type {
 
 export { StdioTransport, SSETransport } from "./transport.ts";
 
-export type { Transport } from "./transport.ts";
+export type { Transport, UrlValidator } from "./transport.ts";

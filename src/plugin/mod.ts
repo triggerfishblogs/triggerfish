@@ -17,6 +17,7 @@ export type {
   PythonSandboxConfig,
   Sandbox,
   SandboxConfig,
+  SandboxDnsChecker,
 } from "./sandbox.ts";
 
 export { createPluginSdk } from "./sdk.ts";

@@ -10,7 +10,8 @@
  * @module
  */
 
-export { isPrivateIp, resolveAndCheck } from "./ssrf.ts";
+export { checkIpListForSsrf, isPrivateIp, resolveAndCheck } from "./ssrf.ts";
+export { safeFetch, type SsrfChecker } from "./safe_fetch.ts";
 
 export {
   createDomainPolicy,
