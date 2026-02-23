@@ -149,7 +149,7 @@ Deno.test("FileSecretStore: handles missing file gracefully", async () => {
 // --- Auto-detection: Docker → file store ---
 
 Deno.test("createKeychain returns file store in Docker environment", async () => {
-  const { createKeychain } = await import("../../src/core/secrets/keychain.ts");
+  const { createKeychain } = await import("../../src/core/secrets/keychain/keychain.ts");
 
   withEnv({ TRIGGERFISH_DOCKER: "true" }, async () => {
     const store = createKeychain();
