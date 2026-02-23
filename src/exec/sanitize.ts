@@ -98,9 +98,7 @@ export function buildSafeEnv(options?: SafeEnvOptions): Record<string, string> {
  * PATH is always set to SAFE_EXEC_PATH. CLAUDECODE is always excluded to
  * avoid the nesting guard in the Claude CLI.
  */
-export function buildClaudeEnv(
-  options?: SafeEnvOptions,
-): Record<string, string> {
+export function buildClaudeEnv(options?: SafeEnvOptions): Record<string, string> {
   const parent = Deno.env.toObject();
   const env: Record<string, string> = {};
 

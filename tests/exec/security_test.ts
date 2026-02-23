@@ -8,7 +8,7 @@
  * - Subprocess runtime: PATH equals SAFE_EXEC_PATH, parent secrets not visible
  * - ExecRunner: injection detection is enforced before execution
  */
-import { assertEquals, assert } from "@std/assert";
+import { assertEquals, assertStringIncludes, assert } from "@std/assert";
 import {
   buildSafeEnv,
   buildClaudeEnv,
