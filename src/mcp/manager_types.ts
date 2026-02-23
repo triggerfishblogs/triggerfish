@@ -23,6 +23,26 @@ export interface McpServerConfig {
   readonly url?: string;
   readonly classification?: ClassificationLevel;
   readonly enabled?: boolean;
+  /**
+   * Additional commands permitted beyond the built-in allowlist.
+   * Built-in: npx, node, python3, python, deno, uvx.
+   */
+  readonly allowedCommands?: readonly string[];
+  /**
+   * Tool call timeout in milliseconds. Default: 60000.
+   * Passed to createMcpClient() as the protocol-level request timeout.
+   */
+  readonly toolCallTimeoutMs?: number;
+  /**
+   * Maximum reconnection attempts before marking server permanently FAILED.
+   * Default: 10. Set to 1 to allow a single attempt with no retries.
+   */
+  readonly maxRetries?: number;
+  /**
+   * Classification ceiling — tool results cannot be classified above this level.
+   * Prevents a misconfigured server from escalating session taint.
+   */
+  readonly classificationCeiling?: ClassificationLevel;
 }
 
 /** A connected MCP server with its tools and metadata. */

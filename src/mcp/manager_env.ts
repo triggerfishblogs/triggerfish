@@ -12,6 +12,7 @@ import type {
   ClassificationLevel,
   Result,
 } from "../core/types/classification.ts";
+import { minClassification } from "../core/types/classification.ts";
 import type { SecretStore } from "../core/secrets/keychain/keychain.ts";
 import type { McpClient } from "./client/protocol.ts";
 import type { McpServer, McpServerToolResult } from "./gateway/gateway.ts";
@@ -80,6 +81,7 @@ function filterDefinedValues(
 interface McpToolInvocation {
   readonly client: McpClient;
   readonly classification: ClassificationLevel | undefined;
+  readonly classificationCeiling: ClassificationLevel | undefined;
   readonly name: string;
   readonly args: Record<string, unknown>;
 }
@@ -91,10 +93,11 @@ interface McpToolInvocation {
 export function createMcpServerAdapter(
   client: McpClient,
   classification: ClassificationLevel | undefined,
+  classificationCeiling?: ClassificationLevel,
 ): McpServer {
   return {
     callTool: (name: string, args: Record<string, unknown>) =>
-      invokeMcpTool({ client, classification, name, args }),
+      invokeMcpTool({ client, classification, classificationCeiling, name, args }),
   };
 }
 
@@ -107,12 +110,20 @@ async function invokeMcpTool(
       invocation.name,
       invocation.args,
     );
+    const declaredClassification: ClassificationLevel =
+      invocation.classification ?? ("PUBLIC" as ClassificationLevel);
+    const effectiveClassification = invocation.classificationCeiling
+      ? minClassification(declaredClassification, invocation.classificationCeiling)
+      : declaredClassification;
+    createLogger("mcp").debug(
+      `MCP tool '${invocation.name}': classification decision`,
+      { declaredClassification, classificationCeiling: invocation.classificationCeiling ?? null, effectiveClassification },
+    );
     return {
       ok: true,
       value: {
         content: extractTextContent(result.content),
-        classification: invocation.classification ??
-          ("PUBLIC" as ClassificationLevel),
+        classification: effectiveClassification,
       },
     };
   } catch (err: unknown) {

@@ -25,6 +25,10 @@ import { startAllMcpServers } from "./manager_retry.ts";
 // ─── Barrel re-exports ───────────────────────────────────────────────────────
 
 export { resolveEnvVars, createMcpServerAdapter } from "./manager_env.ts";
+export {
+  enforceCommandAllowlist,
+  DEFAULT_ALLOWED_MCP_COMMANDS,
+} from "./manager_connection.ts";
 
 export type {
   ConnectedMcpServer,

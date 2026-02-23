@@ -7,6 +7,7 @@
  * @module
  */
 
+import { createLogger } from "../core/logger/mod.ts";
 import type {
   ConnectedMcpServer,
   McpServerConfig,
@@ -35,7 +36,11 @@ async function pollMcpServerHealth(
     if (!current || current.state !== "connected") return;
     try {
       await entry.client.listTools();
-    } catch {
+    } catch (err: unknown) {
+      createLogger("mcp").warn(
+        `MCP server '${entry.id}' health check failed — marking unhealthy`,
+        { serverId: entry.id, err },
+      );
       return;
     }
   }
@@ -49,16 +54,25 @@ async function runMcpRetryLoop(
   ctx: McpConnectionContext,
 ): Promise<void> {
   let delay = 2000;
+  let attempts = 0;
+  const maxRetries = cfg.maxRetries ?? 10;
   while (true) {
     setMcpServerConnecting(cfg, ctx.state);
     try {
       delay = await attemptMcpConnection(cfg, ctx);
+      attempts = 0; // reset on successful connection
     } catch (err: unknown) {
-      delay = handleMcpConnectionFailure(cfg, {
-        err,
-        delay,
-        ctx,
-      });
+      attempts++;
+      if (attempts >= maxRetries) {
+        markMcpServerPermanentlyFailed(
+          cfg,
+          ctx,
+          maxRetries,
+          formatMcpConnectionError(err),
+        );
+        return;
+      }
+      delay = handleMcpConnectionFailure(cfg, { err, delay, ctx, attempts, maxRetries });
     }
     await new Promise<void>((resolve) => setTimeout(resolve, delay));
     delay = Math.min(delay * 2, 30000);
@@ -110,6 +124,8 @@ interface McpFailureDetails {
   readonly err: unknown;
   readonly delay: number;
   readonly ctx: McpConnectionContext;
+  readonly attempts: number;
+  readonly maxRetries: number;
 }
 
 /** Handle a connection failure: log, update status, return current delay. */
@@ -119,7 +135,7 @@ function handleMcpConnectionFailure(
 ): number {
   const message = formatMcpConnectionError(details.err);
   details.ctx.mcpLog.warn(
-    `MCP server '${cfg.id}' failed to connect: ${message} — retrying in ${details.delay}ms`,
+    `MCP server '${cfg.id}' failed to connect (attempt ${details.attempts}/${details.maxRetries}): ${message} — retrying in ${details.delay}ms`,
   );
   details.ctx.state.statusMap.set(cfg.id, {
     id: cfg.id,
@@ -131,6 +147,26 @@ function handleMcpConnectionFailure(
   return details.delay;
 }
 
+/** Mark a server as permanently failed after exhausting all retries. */
+function markMcpServerPermanentlyFailed(
+  cfg: McpServerConfig,
+  ctx: McpConnectionContext,
+  maxRetries: number,
+  lastError: string,
+): void {
+  ctx.mcpLog.error(
+    `MCP server '${cfg.id}' permanently failed after ${maxRetries} attempts`,
+    { operation: "mcp-server-retry", serverId: cfg.id, attempts: maxRetries, lastError },
+  );
+  ctx.state.statusMap.set(cfg.id, {
+    id: cfg.id,
+    config: cfg,
+    state: "failed",
+    lastError: `Max retries (${maxRetries}) exceeded. Last error: ${lastError}`,
+  });
+  notifyMcpStatusListeners(ctx.state);
+}
+
 // ─── Start all ───────────────────────────────────────────────────────────────
 
 /** Launch a single MCP server config into a background retry loop. */
@@ -140,9 +176,8 @@ function launchMcpServerRetryLoop(
 ): void {
   runMcpRetryLoop(cfg, ctx).catch((err: unknown) => {
     ctx.mcpLog.error(
-      `MCP retry loop for '${cfg.id}' crashed: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
+      `MCP retry loop for '${cfg.id}' crashed`,
+      { operation: "mcp-retry-loop", serverId: cfg.id, err },
     );
   });
 }

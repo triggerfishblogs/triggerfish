@@ -74,6 +74,17 @@ export function maxClassification(
 }
 
 /**
+ * Return the less restrictive of two classification levels.
+ * Used to enforce classification ceilings.
+ */
+export function minClassification(
+  a: ClassificationLevel,
+  b: ClassificationLevel,
+): ClassificationLevel {
+  return CLASSIFICATION_ORDER[a] <= CLASSIFICATION_ORDER[b] ? a : b;
+}
+
+/**
  * Parse a string into a ClassificationLevel.
  *
  * @returns Result with the parsed level or an error message

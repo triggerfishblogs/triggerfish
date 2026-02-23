@@ -8,6 +8,8 @@ import {
   createMcpServerManager,
   resolveEnvVars,
   createMcpServerAdapter,
+  enforceCommandAllowlist,
+  DEFAULT_ALLOWED_MCP_COMMANDS,
 } from "../../src/mcp/manager.ts";
 import type { McpServerConfig } from "../../src/mcp/manager.ts";
 import { createMemorySecretStore } from "../../src/core/secrets/keychain/keychain.ts";
@@ -263,3 +265,106 @@ Deno.test("McpServerManager: getConnected reflects newly connected servers", asy
   assertEquals(result.length, 0);
   assertEquals(manager.getConnected().length, 0);
 });
+
+// --- enforceCommandAllowlist ---
+
+Deno.test("enforceCommandAllowlist: rejects commands not in allowlist", () => {
+  const result = enforceCommandAllowlist("curl");
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("curl"), true);
+    assertEquals(result.error.includes("allowlist"), true);
+  }
+});
+
+Deno.test("enforceCommandAllowlist: allows all built-in commands", () => {
+  for (const cmd of DEFAULT_ALLOWED_MCP_COMMANDS) {
+    const result = enforceCommandAllowlist(cmd);
+    assertEquals(result.ok, true, `Expected "${cmd}" to be allowed`);
+  }
+});
+
+Deno.test("enforceCommandAllowlist: strips path prefix and validates by basename", () => {
+  assertEquals(enforceCommandAllowlist("/usr/bin/node").ok, true);
+  assertEquals(enforceCommandAllowlist("/usr/local/bin/npx").ok, true);
+  assertEquals(enforceCommandAllowlist("/usr/bin/curl").ok, false);
+  assertEquals(enforceCommandAllowlist("C:\\Windows\\System32\\cmd.exe").ok, false);
+});
+
+Deno.test("enforceCommandAllowlist: extraAllowed extends built-in allowlist", () => {
+  assertEquals(enforceCommandAllowlist("my-mcp-server", ["my-mcp-server"]).ok, true);
+  assertEquals(enforceCommandAllowlist("npx", ["my-mcp-server"]).ok, true);
+  assertEquals(enforceCommandAllowlist("other-tool", ["my-mcp-server"]).ok, false);
+});
+
+Deno.test("McpServerManager: connectAll rejects disallowed command gracefully", async () => {
+  const manager = createMcpServerManager();
+  const configs: McpServerConfig[] = [
+    { id: "bad-cmd", command: "curl", args: ["http://example.com"] },
+  ];
+  // Should not throw — graceful degradation same as connect failure
+  const connected = await manager.connectAll(configs);
+  assertEquals(connected.length, 0);
+});
+
+Deno.test("createMcpServerAdapter: classification ceiling caps result", async () => {
+  const mockClient = {
+    initialize: () => Promise.reject(new Error("not needed")),
+    listTools: () => Promise.reject(new Error("not needed")),
+    listResources: () => Promise.reject(new Error("not needed")),
+    callTool: () =>
+      Promise.resolve({ content: [{ type: "text", text: "sensitive data" }] }),
+  };
+
+  // Server declares RESTRICTED but ceiling caps at INTERNAL
+  const adapter = createMcpServerAdapter(mockClient, "RESTRICTED", "INTERNAL");
+  const result = await adapter.callTool("test_tool", {});
+  assertEquals(result.ok, true);
+  if (result.ok) {
+    assertEquals(result.value.classification, "INTERNAL");
+  }
+});
+
+Deno.test("createMcpServerAdapter: no ceiling passes declared classification unchanged", async () => {
+  const mockClient = {
+    initialize: () => Promise.reject(new Error("not needed")),
+    listTools: () => Promise.reject(new Error("not needed")),
+    listResources: () => Promise.reject(new Error("not needed")),
+    callTool: () =>
+      Promise.resolve({ content: [{ type: "text", text: "data" }] }),
+  };
+
+  const adapter = createMcpServerAdapter(mockClient, "RESTRICTED");
+  const result = await adapter.callTool("test_tool", {});
+  assertEquals(result.ok, true);
+  if (result.ok) {
+    assertEquals(result.value.classification, "RESTRICTED");
+  }
+});
+
+Deno.test(
+  {
+    name: "McpServerManager: retry loop stops after maxRetries and marks server FAILED",
+    sanitizeOps: false,
+    sanitizeResources: false,
+  },
+  async () => {
+    const manager = createMcpServerManager();
+    // "curl" is not in the allowlist — fails validation immediately (no I/O)
+    manager.startAll([{
+      id: "always-fails",
+      command: "curl",
+      args: [],
+      maxRetries: 1,
+    }]);
+
+    // Validation fails synchronously inside the async loop — no sleeps needed
+    await new Promise<void>((resolve) => setTimeout(resolve, 100));
+
+    const statuses = manager.getStatus();
+    assertEquals(statuses.length, 1);
+    assertEquals(statuses[0].id, "always-fails");
+    assertEquals(statuses[0].state, "failed");
+    assertEquals(statuses[0].lastError?.includes("Max retries"), true);
+  },
+);

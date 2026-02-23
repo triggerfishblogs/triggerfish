@@ -8,6 +8,7 @@
  */
 
 import { createLogger } from "../core/logger/mod.ts";
+import type { Result } from "../core/types/classification.ts";
 import type { SecretStore } from "../core/secrets/keychain/keychain.ts";
 import type { Transport } from "./client/transport.ts";
 import { SSETransport, StdioTransport } from "./client/transport.ts";
@@ -49,6 +50,36 @@ export function buildMcpManagerState(): McpManagerState {
   };
 }
 
+// ─── Command allowlist ───────────────────────────────────────────────────────
+
+/** Commands permitted to run as MCP stdio servers by default. */
+export const DEFAULT_ALLOWED_MCP_COMMANDS: ReadonlySet<string> = new Set([
+  "npx", "node", "python3", "python", "deno", "uvx",
+]);
+
+/**
+ * Enforce the MCP stdio command allowlist.
+ *
+ * Strips leading path components so /usr/bin/node passes as "node".
+ * Per-server additional commands can be permitted via extraAllowed.
+ */
+export function enforceCommandAllowlist(
+  command: string,
+  extraAllowed?: readonly string[],
+): Result<string, string> {
+  const baseName = command.replace(/^.*[/\\]/, "");
+  const allowed: ReadonlySet<string> = extraAllowed?.length
+    ? new Set([...DEFAULT_ALLOWED_MCP_COMMANDS, ...extraAllowed])
+    : DEFAULT_ALLOWED_MCP_COMMANDS;
+  if (!allowed.has(baseName)) {
+    return {
+      ok: false,
+      error: `MCP command not in allowlist: "${baseName}". Allowed: ${[...allowed].join(", ")}`,
+    };
+  }
+  return { ok: true, value: command };
+}
+
 // ─── Single-server connection ────────────────────────────────────────────────
 
 /** Create the appropriate transport for an MCP server config. */
@@ -72,7 +103,7 @@ function assembleConnectedServer(
     id: cfg.id,
     classification: cfg.classification,
     tools: [],
-    server: createMcpServerAdapter(client, cfg.classification),
+    server: createMcpServerAdapter(client, cfg.classification, cfg.classificationCeiling),
     client,
     transport,
   };
@@ -83,12 +114,28 @@ export async function connectOneMcpServer(
   cfg: McpServerConfig,
   ctx: McpConnectionContext,
 ): Promise<ConnectedMcpServer> {
+  if (cfg.command) {
+    const validation = enforceCommandAllowlist(cfg.command, cfg.allowedCommands);
+    if (!validation.ok) {
+      const allowlistKind = cfg.allowedCommands?.length ? "per-server" : "default";
+      ctx.mcpLog.warn(
+        `MCP server '${cfg.id}': command rejected by ${allowlistKind} allowlist`,
+        { serverId: cfg.id, command: cfg.command, allowlistKind, reason: validation.error },
+      );
+      throw new Error(`MCP server '${cfg.id}': ${validation.error}`);
+    }
+    ctx.mcpLog.debug(
+      `MCP server '${cfg.id}': command permitted`,
+      { serverId: cfg.id, command: cfg.command },
+    );
+  }
+
   const resolvedEnv = cfg.env
     ? await resolveEnvVars(cfg.env, ctx.secretStore)
     : undefined;
 
   const transport = createTransportForConfig(cfg, resolvedEnv);
-  const client = createMcpClient(transport);
+  const client = createMcpClient(transport, cfg.toolCallTimeoutMs ?? 60_000);
   await client.initialize();
   const tools = await client.listTools();
 
@@ -131,10 +178,16 @@ export async function connectAllMcpServers(
 /** Notify all status listeners and sync the connected array. */
 export function notifyMcpStatusListeners(state: McpManagerState): void {
   const statuses = Array.from(state.statusMap.values());
+  const log = createLogger("mcp");
   for (const cb of state.statusListeners) {
     try {
       cb(statuses);
-    } catch { /* Listeners must not throw */ }
+    } catch (err: unknown) {
+      log.warn(
+        "MCP status listener threw — listener errors must not propagate",
+        { err },
+      );
+    }
   }
   state.connected = statuses
     .filter((s) => s.state === "connected" && s.server !== undefined)
@@ -156,10 +209,16 @@ export function formatMcpConnectionError(err: unknown): string {
 export async function disconnectAllMcpServers(
   state: McpManagerState,
 ): Promise<void> {
+  const log = createLogger("mcp");
   for (const entry of state.connected) {
     try {
       await entry.transport.disconnect();
-    } catch { /* Best-effort */ }
+    } catch (err: unknown) {
+      log.warn(
+        `MCP server '${entry.id}': transport disconnect failed`,
+        { serverId: entry.id, err },
+      );
+    }
   }
   markAllMcpServersDisconnected(state);
 }
