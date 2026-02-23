@@ -10,8 +10,11 @@
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import type { Result } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/logger.ts";
 import type { DomainPolicy } from "./policy.ts";
 import { resolveAndCheck as defaultResolveAndCheck } from "./ssrf.ts";
+
+const log = createLogger("web.fetch");
 
 /** DNS resolution + SSRF check function signature. */
 export type DnsChecker = (hostname: string) => Promise<Result<string, string>>;
@@ -230,7 +233,11 @@ function extractPageContent(
     ) {
       return { title: article.title ?? "", content: article.textContent };
     }
-  } catch { /* Fall through to raw */ }
+  } catch (err) {
+    log.debug("Readability parse failed, falling back to raw content", {
+      error: err,
+    });
+  }
   return { title: extractTitleFromHtml(rawBody), content: rawBody };
 }
 

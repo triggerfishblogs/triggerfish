@@ -145,9 +145,7 @@ export function recordInputHistory(
   rs.inputHistory = rs.inputHistory.resetNavigation();
   saveInputHistory(historyFilePath, rs.inputHistory).catch(
     (err: unknown) => {
-      log.debug("Input history save failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      log.debug("Input history save failed", { error: err });
     },
   );
 }

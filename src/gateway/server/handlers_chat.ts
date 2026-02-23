@@ -24,8 +24,8 @@ function sendSafeWebSocket(socket: WebSocket, data: unknown): void {
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(data));
     }
-  } catch {
-    // Client disconnected
+  } catch (err) {
+    log.debug("Chat WebSocket send failed: client disconnected", { error: err });
   }
 }
 
@@ -96,7 +96,7 @@ function handleControlMessage(
 function handleCompactMessage(chat: ChatSession, socket: WebSocket): void {
   chat.compact(createWebSocketSender(socket)).catch((err: unknown) => {
     log.debug("Compact failed after compact_error event sent", {
-      error: err instanceof Error ? err.message : String(err),
+      error: err,
     });
   });
 }
@@ -168,7 +168,11 @@ function handleChatSocketMessage(
     }
     const msg = JSON.parse(data) as ChatClientMessage;
     routeChatSocketMessage(msg, chat, socket, abortRef);
-  } catch {
+  } catch (err) {
+    log.warn("Chat WebSocket message parse failed", {
+      operation: "handleChatSocketMessage",
+      error: err,
+    });
     sendSafeWebSocket(socket, {
       type: "error",
       message: "Invalid message format",
