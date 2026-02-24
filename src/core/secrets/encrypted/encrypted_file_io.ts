@@ -15,6 +15,9 @@ import type {
   SecretsFileCache,
 } from "./encrypted_file_types.ts";
 import { encryptSecretValue } from "./encrypted_file_crypto.ts";
+import { createLogger } from "../../logger/mod.ts";
+
+const log = createLogger("secrets");
 
 /** Persist an encrypted secrets file to disk with restrictive permissions. */
 export async function persistSecretsFile(
@@ -124,7 +127,7 @@ async function handleLegacyMigration(
   if (!migrated.ok) return migrated;
   cache.file = migrated.value;
   await persistSecretsFile(secretsPath, migrated.value);
-  console.log("Migrating secrets.json to encrypted format");
+  log.info("Migrating secrets to encrypted format", { operation: "migrateSecrets" });
   return { ok: true, value: migrated.value };
 }
 

@@ -16,6 +16,9 @@
 
 import { Confirm, Input, Select } from "@cliffy/prompt";
 import { join } from "@std/path";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("dive");
 
 import type {
   DiveResult,
@@ -130,6 +133,7 @@ async function promptAgentIdentityStep(
 /** Abort if stdin is not an interactive terminal. */
 function enforceTerminalRequirement(): void {
   if (!Deno.stdin.isTerminal()) {
+    log.error("Terminal requirement not met", { operation: "enforceTerminalRequirement", reason: "stdin is not a TTY" });
     console.error("");
     console.error(
       "  Error: the dive wizard requires an interactive terminal.",

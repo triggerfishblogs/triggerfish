@@ -86,6 +86,7 @@ async function ensureJavaAvailable(): Promise<Result<string, string>> {
     return { ok: true, value: javaCheck.value.javaHome ?? "" };
   }
 
+  log.info("Java 21+ not found, downloading portable JRE", { operation: "ensureJavaAvailable" });
   console.log("  Java 21+ not found — downloading portable JRE...");
   const jreResult = await downloadJre();
   if (!jreResult.ok) {
@@ -146,6 +147,7 @@ async function verifySignalCliBinary(
       error: `Installed binary at ${binaryPath} does not run correctly`,
     };
   }
+  log.info("Signal-cli binary verified", { operation: "verifySignalCliBinary", version: verify.value.version, binaryPath });
   console.log(`  Installed: ${verify.value.version}`);
   return { ok: true, value: undefined };
 }
@@ -186,6 +188,7 @@ export async function downloadSignalCli(
 
   const sizeMB = (selected.asset.size / 1024 / 1024).toFixed(1);
   const buildType = selected.isNative ? "native" : "JVM";
+  log.info("Downloading signal-cli", { operation: "downloadSignalCli", version, buildType, sizeMB });
   console.log(
     `  Downloading signal-cli ${version} (${buildType}, ${sizeMB} MB)...`,
   );

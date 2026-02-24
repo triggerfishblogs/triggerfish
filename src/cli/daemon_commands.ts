@@ -21,7 +21,7 @@ import { fetchChangelogRange } from "./daemon/updater/changelog.ts";
 import { formatChangelogPlainText } from "./daemon/updater/changelog_format.ts";
 import { createLogger } from "../core/logger/mod.ts";
 
-const log = createLogger("cli.daemon-commands");
+const log = createLogger("cli.daemon");
 
 // ─── Daemon status ────────────────────────────────────────────────────────────
 
@@ -51,6 +51,7 @@ export async function runDaemonStart(): Promise<void> {
       `  Tidepool: http://127.0.0.1:${TIDEPOOL_PORT} (available once daemon is ready)`,
     );
   } else {
+    log.error("Daemon start failed", { operation: "startDaemon", message: result.message });
     console.log(`✗ ${result.message}`);
     Deno.exit(1);
   }
@@ -62,6 +63,7 @@ export async function runDaemonStop(): Promise<void> {
   if (result.ok) {
     console.log("✓ Daemon stopped");
   } else {
+    log.error("Daemon stop failed", { operation: "stopDaemon", message: result.message });
     console.log(`✗ ${result.message}`);
     Deno.exit(1);
   }
@@ -152,6 +154,7 @@ export async function runUpdate(): Promise<void> {
   if (result.ok) {
     await handleUpdateSuccess(result);
   } else {
+    log.error("Triggerfish self-update failed", { operation: "updateTriggerfish", message: result.message });
     console.log("✗", result.message);
     Deno.exit(1);
   }

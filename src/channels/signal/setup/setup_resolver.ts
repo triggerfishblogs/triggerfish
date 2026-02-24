@@ -58,6 +58,7 @@ export function warnIfOldVersion(versionOutput: string): void {
     const inst = installed[i] ?? 0;
     const know = known[i] ?? 0;
     if (inst < know) {
+      log.warn("Signal CLI version older than known-good", { operation: "resolveSignalCli", installed: match[1], knownGood: SIGNAL_CLI_KNOWN_GOOD_VERSION });
       console.warn(
         `\u26a0 signal-cli ${
           match[1]

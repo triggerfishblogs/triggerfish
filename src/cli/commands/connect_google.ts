@@ -11,6 +11,9 @@ import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
 import type { SecretStore } from "../../core/secrets/keychain/keychain.ts";
 import { createGoogleAuthManager } from "../../integrations/google/mod.ts";
 import type { GoogleAuthConfig } from "../../integrations/google/mod.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("cli.connect");
 
 /** Google OAuth2 scopes for all Workspace services. */
 export const GOOGLE_SCOPES: readonly string[] = [
@@ -168,6 +171,7 @@ export async function performGoogleOAuth(
       );
       return true;
     } else {
+      log.error("Google OAuth token exchange failed", { operation: "connectGoogle", err: result.error });
       console.log(`\nFailed to connect: ${result.error.message}`);
       console.log(
         "Please verify your Client ID and Client Secret, then try again.",

@@ -25,6 +25,9 @@ import type {
 } from "./chat_types.ts";
 import { buildSendEvent } from "./chat_event_sender.ts";
 import { filterToolsForRole } from "./tools/defs/role_filter.ts";
+import { createLogger } from "../core/logger/mod.ts";
+
+const log = createLogger("chat-turn-execution");
 
 // ─── Mutable chat session state ─────────────────────────────────────────────
 
@@ -239,7 +242,13 @@ export async function runNonOwnerAgentTurn(
 
   const release = await acquireTurnMutex(state);
   const userSessionId = userSession.id as string;
-  state.sessionStates.set(userSessionId, userSession);
+  const taintedSession = updateTaint(
+    userSession,
+    userCls,
+    `Non-owner classification: ${userCls}`,
+  );
+  log.warn("Non-owner taint applied", { operation: "updateTaint", sessionId: userSessionId, classification: userCls, resultTaint: taintedSession.taint });
+  state.sessionStates.set(userSessionId, taintedSession);
   state.activeSend = sendEvent;
   state.activeSessionId = userSessionId;
   state.activeNonOwnerCeiling = resolveNonOwnerCeiling(
@@ -249,7 +258,7 @@ export async function runNonOwnerAgentTurn(
 
   try {
     const result = await orchestrator.executeAgentTurn({
-      session: userSession,
+      session: taintedSession,
       message: msg.content,
       targetClassification: userCls,
       signal,

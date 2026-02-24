@@ -10,6 +10,9 @@ import {
   isDaemonRunning, renderQrCode, startDaemon,
   startLinkProcess, waitForDaemon,
 } from "../../../channels/signal/setup/setup.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("cli.signal");
 
 /** Result of resolving the signal-cli binary location. */
 interface SignalCliBinary {
@@ -55,12 +58,14 @@ async function fetchAndInstallSignalCli(): Promise<SignalCliBinary> {
   console.log("\n  Fetching latest release info...");
   const releaseResult = await fetchLatestVersion();
   if (!releaseResult.ok) {
+    log.error("Signal CLI release fetch failed", { operation: "fetchSignalCli", error: releaseResult.error });
     console.error(`  Failed: ${releaseResult.error}`);
     Deno.exit(1);
   }
 
   const installResult = await downloadSignalCli(releaseResult.value);
   if (!installResult.ok) {
+    log.error("Signal CLI installation failed", { operation: "installSignalCli", error: installResult.error });
     console.error(`  Installation failed: ${installResult.error}`);
     Deno.exit(1);
   }
@@ -75,6 +80,7 @@ async function initiateDeviceLink(
   const linkResult = await startLinkProcess("Triggerfish", binary.path, binary.javaHome);
 
   if (!linkResult.ok) {
+    log.error("Signal device link failed", { operation: "linkDevice", error: linkResult.error });
     console.error(`  Link failed: ${linkResult.error}`);
     console.error(`  You can link manually: ${binary.path} link -n Triggerfish`);
     Deno.exit(1);
@@ -94,6 +100,7 @@ async function linkSignalDevice(binary: SignalCliBinary): Promise<void> {
   const link = await initiateDeviceLink(binary);
   const linkStatus = await link.process.status;
   if (!linkStatus.success) {
+    log.error("Signal device linking process failed", { operation: "linkDevice" });
     console.error("  Device linking failed. Check signal-cli output.");
     Deno.exit(1);
   }
@@ -157,6 +164,7 @@ async function spawnSignalDaemon(
 
 /** Print a daemon start failure message with manual command hint. */
 function printDaemonStartError(error: string, account: string, binaryPath: string): void {
+  log.error("Signal daemon start failed", { operation: "startSignalDaemon", error });
   console.error(`  Failed: ${error}`);
   console.error(`  Start manually: ${binaryPath} -a ${account} daemon --tcp localhost:7583`);
 }
@@ -168,6 +176,7 @@ async function reportDaemonStartupFailure(
   binaryPath: string,
 ): Promise<void> {
   const stderr = await daemonHandle.stderrText();
+  log.warn("Signal daemon started but not reachable", { operation: "startSignalDaemon", stderr: stderr || "(empty)" });
   console.error("  Daemon started but not reachable yet. It may still be initializing.");
   if (stderr) {
     console.error(`  signal-cli stderr: ${stderr}`);

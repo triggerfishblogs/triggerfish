@@ -32,8 +32,11 @@ export interface BootstrapResult {
   readonly log: ReturnType<typeof createLogger>;
 }
 
+const bootstrapLog = createLogger("startup");
+
 /** Print Docker-specific help when config is missing. */
 export function printDockerConfigHelp(configPath: string): void {
+  bootstrapLog.error("No configuration found (Docker)", { operation: "bootstrap", configPath });
   console.error(`No configuration found at ${configPath}\n`);
   console.error("Option 1: Mount your config file:");
   console.error(
@@ -53,6 +56,7 @@ export async function verifyConfigExists(configPath: string): Promise<void> {
     if (isDockerEnvironment()) {
       printDockerConfigHelp(configPath);
     } else {
+      bootstrapLog.warn("Configuration not found", { operation: "bootstrap", configPath });
       console.log("Configuration not found.");
       console.log("Run 'triggerfish dive' to set up your agent.\n");
     }
@@ -163,6 +167,7 @@ export function buildToolFloorRegistryFromConfig(
 
 /** Load config, initialize logging, and return bootstrap context. */
 export async function bootstrapConfigAndLogging(): Promise<BootstrapResult> {
+  bootstrapLog.info("Gateway starting", { operation: "bootstrap" });
   console.log("Starting Triggerfish gateway...\n");
   const baseDir = resolveBaseDir();
   const configPath = resolveConfigPath(baseDir);

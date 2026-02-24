@@ -9,6 +9,9 @@ import { backupConfig, resolveConfigPath } from "./paths.ts";
 import { CHANNEL_TYPES, PLUGIN_TYPES } from "./yaml_paths.ts";
 import { promptDaemonRestart } from "./config_crud.ts";
 import { promptChannelConfig, promptPluginConfig } from "./prompts/channel_prompts.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("cli.config");
 
 type ChannelType = typeof CHANNEL_TYPES[number];
 type PluginType = typeof PLUGIN_TYPES[number];
@@ -20,7 +23,8 @@ async function loadConfigYamlFile(
   let rawYaml: string;
   try {
     rawYaml = await Deno.readTextFile(configPath);
-  } catch {
+  } catch (err: unknown) {
+    log.error("Configuration file not found", { operation: "loadChannelConfig", configPath, err });
     console.error(`Config not found at ${configPath}`);
     console.error("Run 'triggerfish dive' to create initial config.");
     Deno.exit(1);

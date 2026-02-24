@@ -25,6 +25,9 @@ import {
   runDaemonStop,
   runUpdate,
 } from "./daemon_commands.ts";
+import { createLogger } from "../core/logger/mod.ts";
+
+const log = createLogger("cli");
 
 // Re-export config types and functions for backward-compatibility (tests and other modules import from here)
 export {
@@ -149,6 +152,7 @@ if (import.meta.main) {
   // Deno.exit(0), the process lingers for minutes after "Daemon restarted" is
   // printed on Windows because the TTY handle is never fully released.
   main().then(() => Deno.exit(0)).catch((err) => {
+    log.error("Fatal startup error", { operation: "main", err });
     console.error("Fatal error:", err);
     Deno.exit(1);
   });

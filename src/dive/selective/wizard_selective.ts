@@ -8,6 +8,9 @@
 import { Checkbox, Confirm } from "@cliffy/prompt";
 import { join } from "@std/path";
 import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("dive");
 
 import { runWizard } from "../wizard/wizard.ts";
 import { reconfigureLlmProvider } from "./selective_llm.ts";
@@ -228,6 +231,7 @@ function buildUnchangedResult(configPath: string, spinePath: string): DiveResult
 /** Enforce that stdin is an interactive terminal. */
 function enforceTerminalRequirement(): void {
   if (!Deno.stdin.isTerminal()) {
+    log.error("Terminal requirement not met", { operation: "enforceTerminalRequirement", reason: "stdin is not a TTY" });
     console.error("");
     console.error("  Error: the dive wizard requires an interactive terminal.");
     console.error("");
