@@ -13,6 +13,9 @@ import { canFlowTo } from "../../core/types/classification.ts";
 import type { SessionState } from "../../core/types/session.ts";
 import { createPlanToolExecutor } from "../plan/plan.ts";
 import type { PlanManager } from "../plan/plan.ts";
+import {
+  SELF_CLASSIFYING_TOOLS,
+} from "../orchestrator/orchestrator_types.ts";
 import type {
   OrchestratorConfig,
   ParsedToolCall,
@@ -81,11 +84,20 @@ function preEscalateOwnerTriggerTaint(
   );
 }
 
-/** Check integration write-down (session taint vs tool classification). */
+/**
+ * Check integration write-down (session taint vs tool classification).
+ *
+ * Self-classifying tools are exempt — they handle classification internally
+ * via session taint and cannot leak data to a lower level.
+ */
 function checkIntegrationWriteDown(
   call: ParsedToolCall,
   config: OrchestratorConfig,
+  selfClassifyingTools: ReadonlySet<string>,
 ): { resultText: string | undefined; blocked: boolean } {
+  if (selfClassifyingTools.has(call.name)) {
+    return { resultText: undefined, blocked: false };
+  }
   if (!config.toolClassifications || !config.getSessionTaint) {
     return { resultText: undefined, blocked: false };
   }
@@ -147,7 +159,7 @@ async function executeAfterPolicyApproval(
   secCtx: SecurityContext,
   toolExecutor: ToolExecutor,
 ): Promise<{ resultText: string; blocked: boolean }> {
-  const writeDown = checkIntegrationWriteDown(call, config);
+  const writeDown = checkIntegrationWriteDown(call, config, SELF_CLASSIFYING_TOOLS);
   if (writeDown.resultText !== undefined) {
     return { resultText: writeDown.resultText, blocked: writeDown.blocked };
   }
@@ -179,6 +191,7 @@ async function executeSecurityEnforcedToolCall(
       call.name,
       config.toolClassifications,
       config.escalateTaint,
+      SELF_CLASSIFYING_TOOLS,
     );
   }
 

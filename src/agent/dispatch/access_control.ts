@@ -69,7 +69,13 @@ export function enforceNonOwnerToolCeiling(
   return null;
 }
 
-/** Escalate session taint when calling a classified tool prefix. */
+/**
+ * Escalate session taint when calling a classified tool prefix.
+ *
+ * Self-classifying tools (those in taintExemptTools) are skipped — they
+ * handle classification internally via session taint and must not
+ * escalate the session to their nominal prefix classification.
+ */
 export function escalateToolPrefixTaint(
   name: string,
   toolClassifications:
@@ -78,8 +84,16 @@ export function escalateToolPrefixTaint(
   escalateTaint:
     | ((level: ClassificationLevel, reason: string) => void)
     | undefined,
+  taintExemptTools?: ReadonlySet<string>,
 ): void {
   if (!toolClassifications || !escalateTaint) return;
+  if (taintExemptTools?.has(name)) {
+    log.debug("Skipping prefix taint escalation for self-classifying tool", {
+      operation: "escalateToolPrefixTaint",
+      toolName: name,
+    });
+    return;
+  }
   for (const [prefix, level] of toolClassifications) {
     if (name.startsWith(prefix)) {
       log.warn("Escalating taint from tool prefix match", {

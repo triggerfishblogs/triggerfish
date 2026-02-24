@@ -161,6 +161,25 @@ export interface ClassificationMapConfig {
 }
 
 /**
+ * Tools that handle classification internally via session taint.
+ *
+ * These tools are classified in BUILTIN_TOOL_CLASSIFICATIONS for access
+ * control (non-owner ceiling checks) but are exempt from:
+ * - Prefix-based taint escalation (they operate at session taint, not a fixed level)
+ * - Integration write-down checks (their executors filter by sessionTaint)
+ *
+ * The memory executor forces classification to ctx.sessionTaint — each tool
+ * operates at whatever classification level the session currently has.
+ */
+export const SELF_CLASSIFYING_TOOLS: ReadonlySet<string> = new Set([
+  "memory_save",
+  "memory_delete",
+  "memory_search",
+  "memory_get",
+  "memory_list",
+]);
+
+/**
  * Hardcoded classification levels for built-in tools.
  *
  * Entries are ordered from most-specific to least-specific so that
