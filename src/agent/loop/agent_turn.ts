@@ -53,6 +53,20 @@ function ensureSessionHistory(
   return histories.get(sessionKey)!;
 }
 
+/**
+ * Update the compactor budget to match the provider selected for the
+ * current session's taint level. This ensures auto-compaction thresholds
+ * are based on the actual model's context window, not a global minimum.
+ */
+function alignCompactorBudgetToSession(state: OrchestratorState): void {
+  const taint = state.config.getSessionTaint?.() ?? "PUBLIC";
+  const provider = state.config.providerRegistry.getForClassification(taint)
+    ?? state.config.providerRegistry.getDefault();
+  if (provider?.contextWindow) {
+    state.compactor.updateBudget(provider.contextWindow);
+  }
+}
+
 /** Auto-compact history if approaching context limits. */
 function autoCompactHistory(
   history: HistoryEntry[],
@@ -85,6 +99,7 @@ async function prepareAgentTurnContext(
   );
   if (visionAddendum) systemPrompt += visionAddendum;
 
+  alignCompactorBudgetToSession(state);
   autoCompactHistory(history, state.compactor, countTokens(systemPrompt));
   return { systemPrompt, history };
 }

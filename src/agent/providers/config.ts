@@ -178,7 +178,8 @@ export function loadProvidersFromConfig(
  * Create a provider instance by name with a specific model override.
  *
  * Dispatches to the appropriate factory function based on provider name,
- * reusing credentials from the provider config block.
+ * reusing credentials from the provider config block. Used for both
+ * classification-level overrides and dedicated vision providers.
  */
 function createProviderByName(
   providerName: string,
@@ -223,47 +224,6 @@ function createProviderByName(
 }
 
 /**
- * Create a provider instance configured for a specific model.
- *
- * Used to create a dedicated vision provider that shares credentials
- * with an existing provider but uses a different model.
- */
-function createProviderForVision(
-  providerName: string,
-  providerConfig: Readonly<Record<string, unknown>>,
-  visionModel: string,
-): LlmProvider | undefined {
-  const apiKey = providerConfig.apiKey as string | undefined;
-  switch (providerName) {
-    case "anthropic":
-      return createAnthropicProvider({ model: visionModel, apiKey });
-    case "openai":
-      return createOpenAiProvider({ model: visionModel, apiKey });
-    case "google":
-      return createGoogleProvider({ model: visionModel, apiKey });
-    case "zai":
-      return createZaiProvider({ model: visionModel, apiKey });
-    case "openrouter":
-      return createOpenRouterProvider({ model: visionModel, apiKey });
-    case "zenmux":
-      return createZenMuxProvider({ model: visionModel, apiKey });
-    case "ollama":
-      return createLocalProvider({
-        model: visionModel,
-        endpoint: providerConfig.endpoint as string | undefined,
-      });
-    case "lmstudio":
-      return createLocalProvider({
-        name: "lmstudio",
-        model: visionModel,
-        endpoint: providerConfig.endpoint as string | undefined ?? "http://localhost:1234",
-      });
-    default:
-      return undefined;
-  }
-}
-
-/**
  * Resolve the vision provider from config.
  *
  * Creates a dedicated LlmProvider configured with the vision model,
@@ -287,5 +247,5 @@ export function resolveVisionProvider(
   ] as Readonly<Record<string, unknown>> | undefined;
   if (!providerConfig) return undefined;
 
-  return createProviderForVision(providerName, providerConfig, visionModel);
+  return createProviderByName(providerName, providerConfig, visionModel);
 }

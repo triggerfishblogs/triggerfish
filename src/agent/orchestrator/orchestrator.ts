@@ -91,11 +91,17 @@ export interface OrchestratorState {
 
 // ─── Orchestrator factory ────────────────────────────────────────────────────
 
-/** Derive effective context budget and create the compactor. */
+/**
+ * Create the compactor with the default provider's context window as the
+ * initial budget. The budget is updated dynamically per-session based on
+ * the provider selected for that session's taint level, so the initial
+ * value here is a reasonable starting point rather than a global minimum.
+ */
 function initializeCompactor(config: OrchestratorConfig): Compactor {
-  const minWindow = config.providerRegistry.getMinContextWindow();
+  const defaultProvider = config.providerRegistry.getDefault();
+  const defaultWindow = defaultProvider?.contextWindow;
   const effectiveBudget = config.compactorConfig?.contextBudget ??
-    minWindow ?? 100_000;
+    defaultWindow ?? 100_000;
   return createCompactor({
     ...config.compactorConfig,
     contextBudget: effectiveBudget,
@@ -154,7 +160,15 @@ export function createOrchestrator(config: OrchestratorConfig): Orchestrator {
     executeAgentTurn: (options) => runAgentTurn(state, options),
     getHistory: (id) => histories.get(id as string) ?? [],
     clearHistory: (id) => histories.delete(id as string),
-    compactHistory: (id) =>
-      compactSessionHistory(id, histories, config.providerRegistry, compactor),
+    compactHistory: (id) => {
+      const taint = config.getSessionTaint?.() ?? "PUBLIC";
+      return compactSessionHistory(
+        id,
+        histories,
+        config.providerRegistry,
+        compactor,
+        taint,
+      );
+    },
   };
 }

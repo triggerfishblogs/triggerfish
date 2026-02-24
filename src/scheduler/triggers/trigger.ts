@@ -88,13 +88,12 @@ export function createTrigger(options: TriggerOptions): Trigger {
       log.info(
         `Trigger started (interval: ${intervalMinutes}m, ceiling: ${options.classificationCeiling})`,
       );
+      // Fire immediately on start, then repeat at interval
       executeTriggerTick(options);
       intervalId = setInterval(
         () => executeTriggerTick(options),
         options.intervalMs,
       );
-      // Fire immediately on start, then repeat at interval
-      executeTriggerTick(options);
     },
     stop(): void {
       if (intervalId === undefined) return;
