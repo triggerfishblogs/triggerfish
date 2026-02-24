@@ -14,6 +14,9 @@ import {
   downloadAndExtractArchive,
   listDirectoryEntries,
 } from "./setup_archive.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("signal.install");
 
 /** Adoptium API response shape for asset metadata (subset). */
 interface AdoptiumAsset {
@@ -105,6 +108,7 @@ async function verifyInstalledJre(): Promise<Result<string, string>> {
     };
   }
 
+  log.info("JRE verified", { operation: "verifyInstalledJre", version: verify.value, javaHome });
   console.log(`  Installed: ${verify.value}`);
   return { ok: true, value: javaHome };
 }
@@ -130,6 +134,7 @@ export async function downloadJre(): Promise<Result<string, string>> {
     };
   }
 
+  log.info("Fetching JRE 21 release info", { operation: "downloadJre", adoptOs, adoptArch });
   console.log("  Fetching JRE 21 release info...");
   const assetsResult = await fetchAdoptiumAssets(adoptOs, adoptArch);
   if (!assetsResult.ok) return assetsResult;
@@ -150,6 +155,7 @@ export async function downloadJre(): Promise<Result<string, string>> {
   }
 
   const sizeMB = (asset.binary.package.size / 1024 / 1024).toFixed(1);
+  log.info("Downloading JRE 21", { operation: "downloadJre", releaseName: asset.release_name, sizeMB });
   console.log(
     `  Downloading JRE 21 (${asset.release_name}, ${sizeMB} MB)...`,
   );

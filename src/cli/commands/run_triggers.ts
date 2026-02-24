@@ -7,6 +7,10 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("cli.triggers");
+
 /** Gateway port (must match server.ts default). */
 const GATEWAY_PORT = 18789;
 
@@ -27,6 +31,7 @@ async function reportTriggerGatewayError(response: Response): Promise<never> {
   } catch {
     // ignore
   }
+  log.error("Trigger gateway request failed", { operation: "runTriggers", status: response.status, body });
   console.log(
     `Error: Gateway returned ${response.status}${body ? ` — ${body}` : ""}`,
   );
@@ -46,6 +51,7 @@ export async function runTriggers(): Promise<void> {
   try {
     response = await postTriggerRequest();
   } catch {
+    log.error("Gateway not reachable", { operation: "runTriggers" });
     console.log("Error: Gateway is not running.");
     console.log("Start it first with: triggerfish start");
     Deno.exit(1);

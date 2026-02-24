@@ -7,6 +7,9 @@ import { join } from "@std/path";
 import { resolveBaseDir } from "../../config/paths.ts";
 import { sha256File } from "./binary.ts";
 import { resolveAssetName, type ReleaseMetadata } from "./release.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("cli.updater");
 
 /** Report download progress to stderr. */
 function reportDownloadProgress(
@@ -91,6 +94,7 @@ async function fetchExpectedHash(
 ): Promise<string | null> {
   const resp = await fetch(checksumsUrl);
   if (!resp.ok) {
+    log.warn("Checksum file download failed", { operation: "downloadUpdate", status: resp.status, checksumsUrl });
     console.log(
       "  Warning: could not download checksums, skipping verification.",
     );
@@ -99,6 +103,7 @@ async function fetchExpectedHash(
   const text = await resp.text();
   const hash = parseExpectedHash(text);
   if (!hash) {
+    log.warn("Asset not found in SHA256SUMS.txt", { operation: "downloadUpdate", checksumsUrl });
     console.log(
       "  Warning: asset not found in SHA256SUMS.txt, skipping verification.",
     );
@@ -129,6 +134,7 @@ async function verifyBinaryChecksum(
   tmpPath: string,
 ): Promise<string | null> {
   if (!checksumsUrl) {
+    log.warn("No SHA256SUMS.txt in release", { operation: "downloadUpdate" });
     console.log(
       "  Warning: no SHA256SUMS.txt in release, skipping checksum verification.",
     );
@@ -140,6 +146,7 @@ async function verifyBinaryChecksum(
     if (!expectedHash) return null;
     return compareFileHash(tmpPath, expectedHash);
   } catch {
+    log.warn("Checksum verification exception", { operation: "downloadUpdate" });
     console.log("  Warning: checksum verification failed, skipping.");
     return null;
   }

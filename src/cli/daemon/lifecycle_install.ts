@@ -18,6 +18,9 @@ import {
   WINDOWS_SERVICE_NAME,
 } from "./daemon.ts";
 import type { DaemonResult } from "./daemon.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("cli.daemon");
 
 /** Install and start via launchd (macOS). */
 async function installLaunchdDaemon(
@@ -53,6 +56,7 @@ async function installSystemdDaemon(
     Deno.env.get("USER") ?? "",
   ]);
   if (!lingerResult.success) {
+    log.warn("Linger enable failed", { operation: "installDaemon", stderr: lingerResult.stderr });
     console.log(
       "  \u26a0 Could not enable linger (daemon will stop on logout):",
       lingerResult.stderr,

@@ -89,9 +89,7 @@ function checkPermissions(path: string): void {
     if (stat.mode !== null && stat.mode !== undefined) {
       const perms = stat.mode & 0o777;
       if (perms !== 0o600) {
-        console.error(
-          `Warning: ${path} has permissions ${perms.toString(8)}, expected 600`,
-        );
+        log.warn("Secret file permissions too open", { operation: "checkPermissions", path, perms: perms.toString(8) });
       }
     }
   } catch {

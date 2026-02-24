@@ -7,6 +7,9 @@
 
 import { Input } from "@cliffy/prompt";
 import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("cli.connect");
 
 /** Print GitHub PAT setup instructions. */
 function printGithubSetupInstructions(): void {
@@ -44,6 +47,7 @@ async function reportGithubTokenFailure(resp: Response): Promise<null> {
   const body = await resp.json().catch(
     () => ({}) as Record<string, unknown>,
   );
+  log.warn("GitHub token verification failed", { operation: "connectGithub", status: resp.status });
   console.log(
     `\nToken verification failed (${resp.status}): ${
       (body as Record<string, string>).message ?? "Unknown error"
@@ -63,6 +67,7 @@ async function verifyGithubToken(token: string): Promise<string | null> {
     const user = await resp.json();
     return (user as Record<string, string>).login;
   } catch (err: unknown) {
+    log.error("GitHub API request failed", { operation: "connectGithub", err });
     console.log(
       `\nCould not reach GitHub API: ${
         err instanceof Error ? err.message : String(err)
@@ -82,6 +87,7 @@ async function promptGithubToken(): Promise<string | null> {
   }
   const trimmed = token.trim();
   if (!trimmed.startsWith("ghp_") && !trimmed.startsWith("github_pat_")) {
+    log.warn("GitHub token format unexpected", { operation: "connectGithub" });
     console.log(
       "Warning: token doesn't look like a GitHub PAT (expected ghp_... or github_pat_...)",
     );
@@ -95,6 +101,7 @@ async function storeGithubToken(token: string): Promise<boolean> {
   const secretStore = createKeychain();
   const result = await secretStore.setSecret("github-pat", token);
   if (!result.ok) {
+    log.error("GitHub token keychain store failed", { operation: "connectGithub", error: result.error });
     console.log(`\nFailed to store token: ${result.error}`);
     return false;
   }
