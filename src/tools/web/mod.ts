@@ -49,7 +49,7 @@ export {
 } from "./fetch.ts";
 
 export {
-  enforceSkillDomainRestriction,
+  checkSkillDomainRestriction,
   createWebToolExecutor,
   getWebToolDefinitions,
   WEB_TOOLS_SYSTEM_PROMPT,
