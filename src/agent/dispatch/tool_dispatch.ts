@@ -70,7 +70,7 @@ function preEscalateOwnerTriggerTaint(
     });
     return;
   }
-  log.debug("Resource-based taint escalation firing", {
+  log.warn("Resource-based taint escalation firing", {
     operation: "preEscalateOwnerTriggerTaint",
     toolName: call.name,
     resourceClassification: secCtx.resourceClassification,

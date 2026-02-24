@@ -82,7 +82,7 @@ export function escalateToolPrefixTaint(
   if (!toolClassifications || !escalateTaint) return;
   for (const [prefix, level] of toolClassifications) {
     if (name.startsWith(prefix)) {
-      log.debug("Escalating taint from tool prefix match", {
+      log.warn("Escalating taint from tool prefix match", {
         operation: "escalateToolPrefixTaint",
         toolName: name,
         classificationLevel: level,
