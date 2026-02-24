@@ -24,6 +24,7 @@ import { getObsidianToolDefinitions } from "../../../tools/obsidian/mod.ts";
 import {
   getHealthcheckToolDefinitions,
   getLlmTaskToolDefinitions,
+  getReleaseNotesToolDefinitions,
   getSummarizeToolDefinitions,
 } from "../../../tools/mod.ts";
 import { getTriggerToolDefinitions } from "../trigger/trigger_tools.ts";
@@ -56,6 +57,7 @@ export const TOOL_GROUPS = {
   trigger: getTriggerToolDefinitions,
   claude: getClaudeToolDefinitions,
   skills: getSkillToolDefinitions,
+  releaseNotes: getReleaseNotesToolDefinitions,
   logReader: getLogReaderToolDefinitions,
   agents: getAgentInlineDefinitions,
   cron: getCronInlineDefinitions,

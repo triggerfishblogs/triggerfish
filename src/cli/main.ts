@@ -64,6 +64,10 @@ function buildCommandDispatchMap(
   ctx: CommandContext,
 ): Record<string, () => Promise<void>> {
   return {
+    changelog: async () => {
+      const { runChangelog } = await import("./commands/changelog.ts");
+      await runChangelog(ctx.subcommand, ctx.flags);
+    },
     chat: async () => {
       const { runChat } = await import("../channels/cli/chat.ts");
       await runChat();

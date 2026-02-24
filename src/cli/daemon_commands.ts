@@ -17,6 +17,8 @@ import {
   updateTriggerfish,
 } from "./daemon/daemon.ts";
 import { TIDEPOOL_PORT } from "./constants.ts";
+import { fetchChangelogRange } from "./daemon/updater/changelog.ts";
+import { formatChangelogPlainText } from "./daemon/updater/changelog_format.ts";
 
 // ─── Daemon status ────────────────────────────────────────────────────────────
 
@@ -98,6 +100,23 @@ async function promptDaemonStartAfterUpdate(): Promise<void> {
   console.log(startResult.ok ? "✓ Daemon started" : `✗ ${startResult.message}`);
 }
 
+/** Display release notes between old and new version after update. */
+async function displayPostUpdateChangelog(
+  previousVersion: string,
+  newVersion: string,
+): Promise<void> {
+  try {
+    const changelog = await fetchChangelogRange(previousVersion, newVersion);
+    if (changelog.ok && changelog.value.releases.length > 0) {
+      console.log("\nWhat's new:\n");
+      console.log(formatChangelogPlainText(changelog.value));
+    }
+  } catch (err) {
+    // Non-critical: log but don't disrupt update flow
+    console.log("  (Could not fetch release notes:", err instanceof Error ? err.message : String(err), ")");
+  }
+}
+
 /** Handle a successful update result (new version or already up to date). */
 async function handleUpdateSuccess(result: {
   readonly previousVersion?: string;
@@ -110,6 +129,12 @@ async function handleUpdateSuccess(result: {
     return;
   }
   console.log("✓", result.message);
+  if (
+    result.previousVersion && result.newVersion &&
+    result.previousVersion !== result.newVersion
+  ) {
+    await displayPostUpdateChangelog(result.previousVersion, result.newVersion);
+  }
   if (result.wasRunning) {
     console.log("\nRun 'triggerfish status' to verify the daemon restarted.");
   } else {

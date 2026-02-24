@@ -18,8 +18,11 @@ import type { createTodoManager } from "../../../tools/mod.ts";
 import {
   createHealthcheckToolExecutor,
   createLlmTaskToolExecutor,
+  createReleaseNotesToolExecutor,
   createSummarizeToolExecutor,
 } from "../../../tools/mod.ts";
+import { fetchChangelogRange } from "../../../cli/daemon/updater/changelog.ts";
+import { VERSION } from "../../../cli/version.ts";
 import type { createAutoLaunchBrowserExecutor } from "../../../tools/browser/mod.ts";
 import type { createTidepoolToolExecutor } from "../../../tools/tidepool/mod.ts";
 import { TIDEPOOL_SYSTEM_PROMPT } from "../../../tools/tidepool/mod.ts";
@@ -47,7 +50,7 @@ export interface MainSessionState {
   activeSecretPrompt: SecretPromptCallback;
 }
 
-/** Build LLM-powered auxiliary executors (task, summarize, healthcheck). */
+/** Build LLM-powered auxiliary executors (task, summarize, healthcheck, release notes). */
 export function buildAuxiliaryExecutors(
   registry: ReturnType<typeof createProviderRegistry>,
   storage: ReturnType<typeof createSqliteStorage>,
@@ -63,6 +66,10 @@ export function buildAuxiliaryExecutors(
       storageProvider: storage,
       skillLoader,
     }),
+    releaseNotesExecutor: createReleaseNotesToolExecutor(
+      fetchChangelogRange,
+      VERSION,
+    ),
   };
 }
 

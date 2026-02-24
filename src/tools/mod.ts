@@ -52,3 +52,15 @@ export {
   getLogReaderToolDefinitions,
   LOG_READER_SYSTEM_PROMPT,
 } from "./log_reader_tool.ts";
+
+export {
+  createReleaseNotesToolExecutor,
+  getReleaseNotesToolDefinitions,
+  RELEASE_NOTES_SYSTEM_PROMPT,
+} from "./release_notes.ts";
+
+export type {
+  ReleaseNotesFetcher,
+  ReleaseNoteRange,
+  ReleaseNoteSummary,
+} from "./release_notes.ts";
