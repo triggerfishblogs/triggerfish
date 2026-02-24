@@ -400,9 +400,13 @@ Deno.test({
     });
 
     // Find the Chat API call (not the PubSub pull or ack calls)
-    const chatCalls = calls.filter((c) =>
-      c.url.includes("chat.googleapis.com")
-    );
+    const chatCalls = calls.filter((c) => {
+      try {
+        return new URL(c.url).hostname === "chat.googleapis.com";
+      } catch {
+        return false;
+      }
+    });
     assertEquals(chatCalls.length, 1);
     assertEquals(
       chatCalls[0].url,
@@ -433,9 +437,13 @@ Deno.test({
       sessionId: "googlechat-group-spaces_SPACE_BBBB",
     });
 
-    const chatCalls = calls.filter((c) =>
-      c.url.includes("chat.googleapis.com")
-    );
+    const chatCalls = calls.filter((c) => {
+      try {
+        return new URL(c.url).hostname === "chat.googleapis.com";
+      } catch {
+        return false;
+      }
+    });
     assertEquals(chatCalls.length, 1);
     assertEquals(
       chatCalls[0].url,

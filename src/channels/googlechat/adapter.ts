@@ -80,7 +80,10 @@ function spaceNameFromSessionId(sessionId: string): string | undefined {
     .replace("googlechat-group-", "")
     .replace("googlechat-", "");
   if (!stripped) return undefined;
-  return stripped.replace(/_/g, "/");
+  // Only replace the first underscore — it corresponds to the single slash
+  // in "spaces/{spaceId}". Space IDs themselves contain underscores that
+  // must be preserved (e.g. "spaces/DM_AAAA" → "spaces_DM_AAAA" → "spaces/DM_AAAA").
+  return stripped.replace("_", "/");
 }
 
 // ─── Mention / group filtering ──────────────────────────────────────────────
@@ -263,13 +266,14 @@ export function createGoogleChatChannel(
       });
     },
 
-    async disconnect(): Promise<void> {
+    disconnect(): Promise<void> {
       if (state.pollTimer) {
         clearInterval(state.pollTimer);
         state.pollTimer = null;
       }
       state.connected = false;
       log.info("Google Chat adapter disconnected");
+      return Promise.resolve();
     },
 
     async send(message: ChannelMessage): Promise<void> {
@@ -287,11 +291,12 @@ export function createGoogleChatChannel(
       return { connected: state.connected, channelType: "googlechat" };
     },
 
-    async sendTyping(sessionId: string): Promise<void> {
-      if (!sessionId) return;
+    sendTyping(sessionId: string): Promise<void> {
+      if (!sessionId) return Promise.resolve();
       const spaceName = spaceNameFromSessionId(sessionId);
-      if (!spaceName) return;
+      if (!spaceName) return Promise.resolve();
       sendGoogleChatTyping(spaceName);
+      return Promise.resolve();
     },
   };
 }
