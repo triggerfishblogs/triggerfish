@@ -65,6 +65,8 @@ function preEscalateOwnerTriggerTaint(
       operation: "preEscalateOwnerTriggerTaint",
       toolName: call.name,
       resourceClassification: secCtx.resourceClassification,
+      isOwner: secCtx.isOwner,
+      isTrigger: secCtx.isTrigger,
     });
     return;
   }

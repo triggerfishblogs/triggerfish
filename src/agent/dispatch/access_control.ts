@@ -15,6 +15,9 @@ import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { canFlowTo } from "../../core/types/classification.ts";
 import { resolveSecretRefs } from "../../core/secrets/resolver.ts";
 import type { OrchestratorConfig, ToolExecutor } from "../orchestrator/orchestrator_types.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("access-control");
 
 // ─── Access control checks ──────────────────────────────────────────────────
 
@@ -79,6 +82,11 @@ export function escalateToolPrefixTaint(
   if (!toolClassifications || !escalateTaint) return;
   for (const [prefix, level] of toolClassifications) {
     if (name.startsWith(prefix)) {
+      log.debug("Escalating taint from tool prefix match", {
+        operation: "escalateToolPrefixTaint",
+        toolName: name,
+        classificationLevel: level,
+      });
       escalateTaint(level, `Tool call: ${name}`);
       break;
     }
