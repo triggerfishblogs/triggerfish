@@ -17,6 +17,7 @@ export type {
 } from "../core/types/llm.ts";
 
 import type { LlmProvider, LlmProviderRegistry } from "../core/types/llm.ts";
+import type { ClassificationLevel } from "../core/types/classification.ts";
 
 /**
  * Create a new LLM provider registry.
@@ -25,6 +26,7 @@ import type { LlmProvider, LlmProviderRegistry } from "../core/types/llm.ts";
  */
 export function createProviderRegistry(): LlmProviderRegistry {
   const providers = new Map<string, LlmProvider>();
+  const classificationOverrides = new Map<string, LlmProvider>();
   let defaultName: string | undefined;
 
   return {
@@ -43,6 +45,17 @@ export function createProviderRegistry(): LlmProviderRegistry {
     getDefault(): LlmProvider | undefined {
       if (defaultName === undefined) return undefined;
       return providers.get(defaultName);
+    },
+
+    registerClassificationOverride(
+      level: ClassificationLevel,
+      provider: LlmProvider,
+    ): void {
+      classificationOverrides.set(level, provider);
+    },
+
+    getForClassification(level: ClassificationLevel): LlmProvider | undefined {
+      return classificationOverrides.get(level) ?? this.getDefault();
     },
   };
 }

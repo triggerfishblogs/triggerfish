@@ -11,6 +11,8 @@
  * @module
  */
 
+import type { ClassificationLevel } from "./classification.ts";
+
 /** A single message in a conversation. */
 export interface LlmMessage {
   readonly role: string;
@@ -74,6 +76,7 @@ export interface LlmProvider {
  *
  * Supports registering providers by name, retrieving them, and setting
  * a default provider for use when no specific provider is requested.
+ * Optionally supports per-classification-level provider overrides.
  */
 export interface LlmProviderRegistry {
   /** Register a provider. Replaces any existing provider with the same name. */
@@ -84,4 +87,14 @@ export interface LlmProviderRegistry {
   setDefault(name: string): void;
   /** Get the default provider, or undefined if none set. */
   getDefault(): LlmProvider | undefined;
+  /** Register a provider override for a specific classification level. */
+  registerClassificationOverride(
+    level: ClassificationLevel,
+    provider: LlmProvider,
+  ): void;
+  /**
+   * Get the provider for a given classification level.
+   * Falls back to getDefault() if no override is registered for this level.
+   */
+  getForClassification(level: ClassificationLevel): LlmProvider | undefined;
 }

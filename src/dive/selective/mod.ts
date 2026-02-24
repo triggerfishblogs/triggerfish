@@ -16,4 +16,6 @@ export { reconfigurePlugins } from "./selective_plugins.ts";
 
 export { reconfigureSearchProvider } from "./selective_search.ts";
 
+export { reconfigureClassificationModels } from "./selective_classification_models.ts";
+
 export { runWizardSelective } from "./wizard_selective.ts";

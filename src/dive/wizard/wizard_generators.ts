@@ -9,7 +9,7 @@
 import { join } from "@std/path";
 import { stringify as stringifyYaml } from "@std/yaml";
 
-import type { ToneChoice, WizardAnswers } from "./wizard_types.ts";
+import type { ClassificationModelEntry, ToneChoice, WizardAnswers } from "./wizard_types.ts";
 
 // ─── Config section builders ─────────────────────────────────────────────────
 
@@ -23,13 +23,31 @@ function buildProviderConfigSection(
       model: answers.providerModel,
       endpoint: answers.localEndpoint,
     };
-    return providers;
+  } else {
+    const cfg: Record<string, string> = { model: answers.providerModel };
+    if (answers.apiKey.length > 0) {
+      cfg["apiKey"] = `secret:provider:${answers.provider}:apiKey`;
+    }
+    providers[answers.provider] = cfg;
   }
-  const cfg: Record<string, string> = { model: answers.providerModel };
-  if (answers.apiKey.length > 0) {
-    cfg["apiKey"] = `secret:provider:${answers.provider}:apiKey`;
+
+  // Add provider entries for classification model overrides
+  if (answers.classificationModels) {
+    for (const entry of Object.values(answers.classificationModels)) {
+      if (!entry || providers[entry.provider]) continue;
+      if (entry.provider === "ollama" || entry.provider === "lmstudio") {
+        providers[entry.provider] = {
+          model: entry.model,
+          endpoint: entry.provider === "lmstudio"
+            ? "http://localhost:1234"
+            : "http://localhost:11434",
+        };
+      } else {
+        providers[entry.provider] = { model: entry.model };
+      }
+    }
   }
-  providers[answers.provider] = cfg;
+
   return providers;
 }
 
@@ -89,6 +107,21 @@ function buildWebSearchConfigSection(
   return {};
 }
 
+/** Build per-classification model overrides for the config. */
+function buildClassificationModelsSection(
+  answers: WizardAnswers,
+): Record<string, { provider: string; model: string }> | undefined {
+  if (!answers.classificationModels) return undefined;
+  const entries = Object.entries(answers.classificationModels) as
+    [string, ClassificationModelEntry | undefined][];
+  const result: Record<string, { provider: string; model: string }> = {};
+  for (const [level, entry] of entries) {
+    if (!entry) continue;
+    result[level] = { provider: entry.provider, model: entry.model };
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 /** Append plugins config to the config object if applicable. */
 function appendPluginsConfig(
   config: Record<string, unknown>,
@@ -123,14 +156,20 @@ export function generateConfig(answers: WizardAnswers): string {
   const channels = buildChannelConfigSection(answers);
   const web = buildWebSearchConfigSection(answers);
 
-  const config: Record<string, unknown> = {
-    models: {
-      primary: {
-        provider: answers.provider,
-        model: answers.providerModel,
-      },
-      providers,
+  const classificationModels = buildClassificationModelsSection(answers);
+  const modelsSection: Record<string, unknown> = {
+    primary: {
+      provider: answers.provider,
+      model: answers.providerModel,
     },
+    providers,
+  };
+  if (classificationModels) {
+    modelsSection["classification_models"] = classificationModels;
+  }
+
+  const config: Record<string, unknown> = {
+    models: modelsSection,
     channels: Object.keys(channels).length > 0 ? channels : {},
     classification: { mode: "personal", levels: "standard" },
   };

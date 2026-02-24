@@ -8,6 +8,7 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/mod.ts";
 import type { SessionState } from "../../core/types/session.ts";
 import type { MessageContent } from "../../core/image/content.ts";
 import { extractText } from "../../core/image/content.ts";
@@ -22,6 +23,8 @@ import type {
   ProcessMessageResult,
 } from "../orchestrator/orchestrator_types.ts";
 import type { OrchestratorState } from "../orchestrator/orchestrator.ts";
+
+const log = createLogger("agent-turn");
 
 /** Fire PRE_CONTEXT_INJECTION hook. */
 async function firePreContextHook(
@@ -51,6 +54,27 @@ function ensureSessionHistory(
     histories.set(sessionKey, []);
   }
   return histories.get(sessionKey)!;
+}
+
+/**
+ * Update the compactor budget to match the provider selected for the
+ * current session's taint level. This ensures auto-compaction thresholds
+ * are based on the actual model's context window, not a global minimum.
+ */
+function alignCompactorBudgetToSession(state: OrchestratorState): void {
+  const taint = state.config.getSessionTaint?.() ?? "PUBLIC";
+  const override = state.config.providerRegistry.getForClassification(taint);
+  const provider = override ?? state.config.providerRegistry.getDefault();
+  log.debug("Compactor budget alignment for session taint", {
+    operation: "alignCompactorBudgetToSession",
+    taint,
+    overrideFound: override !== undefined,
+    providerName: provider?.name,
+    contextWindow: provider?.contextWindow,
+  });
+  if (provider?.contextWindow) {
+    state.compactor.updateBudget(provider.contextWindow);
+  }
 }
 
 /** Auto-compact history if approaching context limits. */
@@ -85,6 +109,7 @@ async function prepareAgentTurnContext(
   );
   if (visionAddendum) systemPrompt += visionAddendum;
 
+  alignCompactorBudgetToSession(state);
   autoCompactHistory(history, state.compactor, countTokens(systemPrompt));
   return { systemPrompt, history };
 }

@@ -26,6 +26,9 @@ import type {
 import type { LlmProviderResult } from "./wizard_llm.ts";
 import { promptLlmProviderStep } from "./wizard_llm.ts";
 
+import type { ClassificationModelsResult } from "./wizard_classification_models.ts";
+import { promptClassificationModelsStep } from "./wizard_classification_models.ts";
+
 import type { ChannelSelectionResult } from "./wizard_channels.ts";
 import { promptChannelSelectionStep } from "./wizard_channels.ts";
 
@@ -189,6 +192,7 @@ function mapPluginsToAnswerFields(
 /** Assemble all step results into a single WizardAnswers object. */
 function assembleWizardAnswers(options: {
   llm: LlmProviderResult;
+  classificationModels: ClassificationModelsResult;
   identity: AgentIdentityResult;
   channelSelection: ChannelSelectionResult;
   plugins: PluginResult;
@@ -197,6 +201,7 @@ function assembleWizardAnswers(options: {
 }): WizardAnswers {
   return {
     ...mapLlmToAnswerFields(options.llm),
+    ...options.classificationModels,
     ...mapIdentityToAnswerFields(options.identity),
     ...options.channelSelection,
     ...mapPluginsToAnswerFields(options.plugins),
@@ -226,6 +231,8 @@ async function collectAllWizardSteps(
   const llm = await promptLlmProviderStep();
   console.log("");
 
+  const classificationModels = await promptClassificationModelsStep();
+
   const spinePath = join(baseDir, "SPINE.md");
   const identity = await promptAgentIdentityStep(spinePath);
   const channelSelection = await promptChannelSelectionStep();
@@ -239,6 +246,7 @@ async function collectAllWizardSteps(
 
   return assembleWizardAnswers({
     llm,
+    classificationModels,
     identity,
     channelSelection,
     plugins,

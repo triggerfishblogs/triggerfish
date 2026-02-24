@@ -17,6 +17,19 @@ models:
     provider: anthropic
     model: claude-sonnet-4-5-20250929
   # vision: glm-4.5v  # Optional: separate vision model for image description
+  #
+  # Per-classification model overrides (optional).
+  # Route specific classification levels to different providers/models.
+  # Unlisted levels fall back to the primary model above.
+  # Each referenced provider must be configured in the providers block.
+  #
+  # classification_models:
+  #   CONFIDENTIAL:
+  #     provider: ollama
+  #     model: llama3
+  #   RESTRICTED:
+  #     provider: ollama
+  #     model: llama3
   providers:
     anthropic:
       model: claude-sonnet-4-5-20250929

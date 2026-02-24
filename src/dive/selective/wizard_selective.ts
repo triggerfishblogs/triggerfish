@@ -15,6 +15,7 @@ import { reconfigureAgentIdentity } from "./selective_identity.ts";
 import { reconfigureChannels } from "./selective_channels.ts";
 import { reconfigurePlugins } from "./selective_plugins.ts";
 import { reconfigureSearchProvider } from "./selective_search.ts";
+import { reconfigureClassificationModels } from "./selective_classification_models.ts";
 
 import type { DiveResult, WizardSection } from "../wizard/wizard_types.ts";
 
@@ -88,6 +89,7 @@ async function promptSectionSelection(): Promise<WizardSection[]> {
     message: "Which sections do you want to update?",
     options: [
       { name: "LLM Provider (model, API key)", value: "llm" },
+      { name: "Per-Classification Models", value: "classification_models" },
       { name: "Agent Name & Personality (SPINE.md)", value: "agent" },
       { name: "Channels (Telegram, Discord, Signal, WebChat)", value: "channels" },
       { name: "Plugins (Obsidian)", value: "plugins" },
@@ -105,6 +107,19 @@ async function promptSectionSelection(): Promise<WizardSection[]> {
 async function applyLlmSection(state: SelectiveWizardState): Promise<void> {
   if (!state.sections.includes("llm")) return;
   state.config["models"] = await reconfigureLlmProvider(state.existingConfig);
+}
+
+/** Apply the classification models reconfiguration if selected. */
+async function applyClassificationModelsSection(state: SelectiveWizardState): Promise<void> {
+  if (!state.sections.includes("classification_models")) return;
+  const models = state.config["models"] as Record<string, unknown> | undefined;
+  if (!models) return;
+  const result = await reconfigureClassificationModels(state.existingConfig);
+  if (result) {
+    models["classification_models"] = result;
+  } else {
+    delete models["classification_models"];
+  }
 }
 
 /** Apply the agent identity reconfiguration if selected. */
@@ -181,6 +196,7 @@ async function applyDaemonSection(state: SelectiveWizardState): Promise<void> {
 /** Apply all user-selected section reconfigurations sequentially. */
 async function applyAllSections(state: SelectiveWizardState): Promise<void> {
   await applyLlmSection(state);
+  await applyClassificationModelsSection(state);
   await applyAgentSection(state);
   await applyChannelsSection(state);
   await applyPluginsSection(state);

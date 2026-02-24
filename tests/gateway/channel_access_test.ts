@@ -631,7 +631,7 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
   // Tool should have been blocked — at minimum a final response should be sent
   assert(sent.length >= 1, "Non-owner session should receive at least a final response");
 
-  // Verify the block notification was sent
+  // Verify the write-down block notification was sent
   const blockMsg = sent.find(
     (m) => m.content.includes("cannot flow to") && m.content.includes("gmail_send"),
   );

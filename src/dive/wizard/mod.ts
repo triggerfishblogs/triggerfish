@@ -42,6 +42,11 @@ export {
   type SearchProviderResult,
 } from "./wizard_integrations.ts";
 
+export {
+  type ClassificationModelsResult,
+  promptClassificationModelsStep,
+} from "./wizard_classification_models.ts";
+
 export { writeWizardOutputFiles } from "./wizard_output.ts";
 
 export { runWizard } from "./wizard.ts";

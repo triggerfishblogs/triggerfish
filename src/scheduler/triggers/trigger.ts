@@ -67,7 +67,9 @@ function executeTriggerTick(options: TriggerOptions): void {
     return;
   }
   log.info("Trigger firing");
-  options.callback().catch((err) => log.warn("Trigger callback failed", { err }));
+  options.callback().catch((err: unknown) =>
+    log.error("Trigger callback failed", { operation: "executeTriggerTick", err })
+  );
 }
 
 /**
@@ -86,6 +88,7 @@ export function createTrigger(options: TriggerOptions): Trigger {
       log.info(
         `Trigger started (interval: ${intervalMinutes}m, ceiling: ${options.classificationCeiling})`,
       );
+      // Fire immediately on start, then repeat at interval
       executeTriggerTick(options);
       intervalId = setInterval(
         () => executeTriggerTick(options),

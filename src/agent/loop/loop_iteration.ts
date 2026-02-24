@@ -106,7 +106,21 @@ async function runLlmProviderCall(
   ctx: AgentLoopContext,
   iterations: number,
 ) {
-  const provider = ctx.state.config.providerRegistry.getDefault()!;
+  const taint = ctx.state.config.getSessionTaint?.() ?? "PUBLIC";
+  const classificationProvider = ctx.state.config.providerRegistry.getForClassification(taint);
+  const provider = classificationProvider
+    ?? ctx.state.config.providerRegistry.getDefault()!;
+  ctx.state.orchLog.debug("Provider selected for LLM call", {
+    operation: "runLlmProviderCall",
+    iteration: iterations,
+    taint,
+    provider: provider.name,
+    usedClassificationOverride: classificationProvider !== undefined,
+  });
+  traceLog(
+    ctx.state, `iter${iterations} provider`,
+    `taint=${taint} provider=${provider.name}`,
+  );
   const messages = buildLlmMessages(ctx.systemPrompt, ctx.history);
   traceLog(
     ctx.state, `iter${iterations} sending`,
