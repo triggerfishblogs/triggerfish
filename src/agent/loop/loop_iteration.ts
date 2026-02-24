@@ -109,6 +109,10 @@ async function runLlmProviderCall(
   const taint = ctx.state.config.getSessionTaint?.() ?? "PUBLIC";
   const provider = ctx.state.config.providerRegistry.getForClassification(taint)
     ?? ctx.state.config.providerRegistry.getDefault()!;
+  traceLog(
+    ctx.state, `iter${iterations} provider`,
+    `taint=${taint} provider=${provider.name}`,
+  );
   const messages = buildLlmMessages(ctx.systemPrompt, ctx.history);
   traceLog(
     ctx.state, `iter${iterations} sending`,

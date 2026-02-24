@@ -9,7 +9,6 @@ import { assertEquals, assertExists, assert } from "@std/assert";
 import {
   createProviderRegistry,
   type LlmProvider,
-  type LlmProviderRegistry,
 } from "../../src/agent/llm.ts";
 import { loadProvidersFromConfig } from "../../src/agent/providers/config.ts";
 import { validateConfig } from "../../src/core/config.ts";
