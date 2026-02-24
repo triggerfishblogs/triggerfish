@@ -61,15 +61,15 @@ function preEscalateOwnerTriggerTaint(
     (!secCtx.isOwner && !secCtx.isTrigger) ||
     !config.escalateTaint
   ) {
-    log.debug("Prefix taint escalation skipped", {
-      operation: "escalateToolPrefixTaint",
+    log.debug("Resource-based taint escalation skipped", {
+      operation: "preEscalateOwnerTriggerTaint",
       toolName: call.name,
       resourceClassification: secCtx.resourceClassification,
     });
     return;
   }
-  log.debug("Prefix taint escalation firing", {
-    operation: "escalateToolPrefixTaint",
+  log.debug("Resource-based taint escalation firing", {
+    operation: "preEscalateOwnerTriggerTaint",
     toolName: call.name,
     resourceClassification: secCtx.resourceClassification,
   });
@@ -169,6 +169,10 @@ async function executeSecurityEnforcedToolCall(
   );
   preEscalateOwnerTriggerTaint(secCtx, config, call);
   if (secCtx.resourceClassification === null) {
+    log.debug("Falling back to prefix-based taint escalation — resource classification is null", {
+      operation: "escalateToolPrefixTaint",
+      toolName: call.name,
+    });
     escalateToolPrefixTaint(
       call.name,
       config.toolClassifications,
