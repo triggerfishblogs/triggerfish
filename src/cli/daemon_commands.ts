@@ -19,6 +19,9 @@ import {
 import { TIDEPOOL_PORT } from "./constants.ts";
 import { fetchChangelogRange } from "./daemon/updater/changelog.ts";
 import { formatChangelogPlainText } from "./daemon/updater/changelog_format.ts";
+import { createLogger } from "../core/logger/mod.ts";
+
+const log = createLogger("cli.daemon-commands");
 
 // ─── Daemon status ────────────────────────────────────────────────────────────
 
@@ -113,7 +116,7 @@ async function displayPostUpdateChangelog(
     }
   } catch (err) {
     // Non-critical: log but don't disrupt update flow
-    console.log("  (Could not fetch release notes:", err instanceof Error ? err.message : String(err), ")");
+    log.warn("Changelog fetch failed after update", { operation: "displayPostUpdateChangelog", err });
   }
 }
 

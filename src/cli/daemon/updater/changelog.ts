@@ -8,6 +8,9 @@
  */
 
 import type { Result } from "../../../core/types/classification.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("cli.updater.changelog");
 
 const GITHUB_REPO = "greghavens/triggerfish";
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}`;
@@ -130,6 +133,7 @@ export async function fetchAllReleases(): Promise<
 
       if (items.length < 30) break;
     } catch (err) {
+      log.warn("GitHub releases fetch failed", { operation: "fetchAllReleases", page, err });
       return {
         ok: false,
         error: `Failed to fetch releases: ${
