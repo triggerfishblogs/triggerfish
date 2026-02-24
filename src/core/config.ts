@@ -65,6 +65,14 @@ export interface TriggerFishConfig {
     readonly classification?: string;
     readonly classification_overrides?: Readonly<Record<string, string>>;
   };
+  readonly caldav?: {
+    readonly enabled?: boolean;
+    readonly server_url?: string;
+    readonly username?: string;
+    readonly credential_ref?: string;
+    readonly default_calendar?: string;
+    readonly classification?: string;
+  };
   readonly scheduler?: {
     readonly trigger?: {
       readonly enabled?: boolean;

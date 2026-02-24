@@ -34,6 +34,7 @@ export interface ToolExecutorOptions {
   readonly exploreExecutor?: SubsystemExecutor;
   readonly googleExecutor?: SubsystemExecutor;
   readonly githubExecutor?: SubsystemExecutor;
+  readonly caldavExecutor?: SubsystemExecutor;
   readonly obsidianExecutor?: SubsystemExecutor;
   readonly llmTaskExecutor?: SubsystemExecutor;
   readonly summarizeExecutor?: SubsystemExecutor;

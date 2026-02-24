@@ -20,6 +20,7 @@ import { getImageToolDefinitions } from "../../../tools/image/mod.ts";
 import { getExploreToolDefinitions } from "../../../tools/explore/mod.ts";
 import { getGoogleToolDefinitions } from "../../../integrations/google/mod.ts";
 import { getGitHubToolDefinitions } from "../../../integrations/github/mod.ts";
+import { getCalDavToolDefinitions } from "../../../integrations/caldav/mod.ts";
 import { getObsidianToolDefinitions } from "../../../tools/obsidian/mod.ts";
 import {
   getHealthcheckToolDefinitions,
@@ -50,6 +51,7 @@ export const TOOL_GROUPS = {
   explore: getExploreToolDefinitions,
   google: getGoogleToolDefinitions,
   github: getGitHubToolDefinitions,
+  caldav: getCalDavToolDefinitions,
   obsidian: getObsidianToolDefinitions,
   llmTask: getLlmTaskToolDefinitions,
   summarize: getSummarizeToolDefinitions,

@@ -42,7 +42,7 @@ function buildCoreSubsystems(
     todoExecutor, opts.memoryExecutor, opts.planExecutor,
     opts.browserExecutor, opts.tidepoolExecutor, opts.sessionExecutor,
     opts.imageExecutor, opts.exploreExecutor, opts.googleExecutor,
-    opts.githubExecutor, opts.obsidianExecutor,
+    opts.githubExecutor, opts.caldavExecutor, opts.obsidianExecutor,
   ];
 }
 

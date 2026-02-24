@@ -47,6 +47,8 @@ import {
   buildExploreExecutor,
   initializeMcpServers,
 } from "./browser_init.ts";
+import { buildCalDavExecutor } from "../factory/caldav_executor.ts";
+import type { CalDavConfig } from "../../../integrations/caldav/mod.ts";
 
 /** Initialize MCP servers and create broadcast refs. */
 export function initializeMcpInfrastructure(
@@ -83,6 +85,11 @@ export async function buildExternalServiceExecutors(
     config,
     state.session,
   );
+  const caldavExecutor = await buildCalDavExecutor(
+    config.caldav as CalDavConfig | undefined,
+    () => state.session.taint,
+    state.session.id,
+  );
   const obsidianExecutor = config.plugins?.obsidian
     ? await buildObsidianExecutor(
       config.plugins.obsidian as ObsidianPluginConfig,
@@ -97,7 +104,7 @@ export async function buildExternalServiceExecutors(
     toolClassifications,
     keychain,
   );
-  return { githubExecutor, keychain, obsidianExecutor, ...mcp };
+  return { githubExecutor, caldavExecutor, keychain, obsidianExecutor, ...mcp };
 }
 
 /** Build trigger executor with session taint escalation. */

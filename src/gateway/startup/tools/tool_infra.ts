@@ -267,6 +267,7 @@ export function buildCompositeToolExecutor(
     exploreExecutor: integrations.exploreExecutor,
     state: baseDeps.state,
     githubExecutor: integrations.githubExecutor,
+    caldavExecutor: integrations.caldavExecutor,
     obsidianExecutor: integrations.obsidianExecutor,
     registry: baseDeps.registry,
     storage: coreInfra.storage,
