@@ -22,6 +22,7 @@ import type { LlmProvider } from "../../src/agent/llm.ts";
 import { createProviderRegistry } from "../../src/agent/llm.ts";
 import type { PathClassifier } from "../../src/core/security/path_classification.ts";
 import type { DomainClassifier } from "../../src/tools/web/domains.ts";
+import { mapToolPrefixClassifications } from "../../src/agent/orchestrator/orchestrator_types.ts";
 
 // --- Test helpers ---
 
@@ -148,10 +149,14 @@ function createTwoToolProvider(
 
 const TOOL_DEFS = [
   { name: "read_file", description: "Read", parameters: { path: { type: "string", description: "p", required: true } } },
+  { name: "edit_file", description: "Edit", parameters: { path: { type: "string", description: "p", required: true }, content: { type: "string", description: "c", required: true } } },
   { name: "write_file", description: "Write", parameters: { path: { type: "string", description: "p", required: true }, content: { type: "string", description: "c", required: true } } },
+  { name: "list_directory", description: "List", parameters: { path: { type: "string", description: "p", required: true } } },
+  { name: "search_files", description: "Search", parameters: { search_path: { type: "string", description: "p", required: true }, pattern: { type: "string", description: "pat", required: true } } },
   { name: "web_fetch", description: "Fetch", parameters: { url: { type: "string", description: "u", required: true } } },
   { name: "browser_navigate", description: "Navigate", parameters: { url: { type: "string", description: "u", required: true } } },
   { name: "browser_type", description: "Type", parameters: { url: { type: "string", description: "u", required: true }, text: { type: "string", description: "t", required: true } } },
+  { name: "memory_save", description: "Save memory", parameters: { key: { type: "string", description: "k", required: true }, value: { type: "string", description: "v", required: true } } },
 ];
 
 // --- Test 1: Filesystem read escalates taint (Bug 2 fix) ---
@@ -547,4 +552,231 @@ Deno.test("resource-classification: filesystem classification takes precedence o
   // Should escalate to RESTRICTED (from path classifier), not PUBLIC (from domain classifier)
   assert(escalations.length >= 1, "Should have escalation from path classifier");
   assertEquals(escalations[0].level, "RESTRICTED");
+});
+
+// --- Test: read_file on PUBLIC path does NOT escalate (Issue #119 fix) ---
+
+Deno.test("resource-classification: read_file on PUBLIC path does not escalate taint", async () => {
+  const hookRunner = makeHookRunner();
+  const pathClassifier = createMockPathClassifier({ "public-area": "PUBLIC" }, "INTERNAL");
+  const toolClassifications = mapToolPrefixClassifications({});
+
+  let sessionTaint: ClassificationLevel = "PUBLIC";
+  const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
+
+  const registry = createProviderRegistry();
+  registry.register(createToolCallingProvider("read_file", { path: "/workspace/public-area/readme.txt" }));
+  registry.setDefault("mock-tool-caller");
+
+  const orchestrator = createOrchestrator({
+    hookRunner,
+    providerRegistry: registry,
+    tools: TOOL_DEFS,
+    // deno-lint-ignore require-await
+    toolExecutor: async (_name, _input) => "file contents",
+    pathClassifier,
+    toolClassifications,
+    getSessionTaint: () => sessionTaint,
+    escalateTaint: (level: ClassificationLevel, reason: string) => {
+      escalations.push({ level, reason });
+      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      if (order[level] > order[sessionTaint]) {
+        sessionTaint = level;
+      }
+    },
+    isOwnerSession: () => true,
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const result = await orchestrator.executeAgentTurn({
+    session,
+    message: "Read the readme",
+    targetClassification: "PUBLIC",
+  });
+
+  assertEquals(result.ok, true);
+  // Session should remain PUBLIC — read_file prefix classification (INTERNAL)
+  // must NOT override the resource classification (PUBLIC)
+  assertEquals(sessionTaint, "PUBLIC", "Session taint should remain PUBLIC after reading a PUBLIC-classified file");
+});
+
+// --- Test: edit_file on PUBLIC path does NOT escalate (Issue #119 fix) ---
+
+Deno.test("resource-classification: edit_file on PUBLIC path does not escalate taint", async () => {
+  const hookRunner = makeHookRunner();
+  const pathClassifier = createMockPathClassifier({ "public-area": "PUBLIC" }, "INTERNAL");
+  const toolClassifications = mapToolPrefixClassifications({});
+
+  let sessionTaint: ClassificationLevel = "PUBLIC";
+  const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
+
+  const registry = createProviderRegistry();
+  registry.register(createToolCallingProvider("edit_file", { path: "/workspace/public-area/readme.txt", content: "updated" }));
+  registry.setDefault("mock-tool-caller");
+
+  const orchestrator = createOrchestrator({
+    hookRunner,
+    providerRegistry: registry,
+    tools: TOOL_DEFS,
+    // deno-lint-ignore require-await
+    toolExecutor: async (_name, _input) => "ok",
+    pathClassifier,
+    toolClassifications,
+    getSessionTaint: () => sessionTaint,
+    escalateTaint: (level: ClassificationLevel, reason: string) => {
+      escalations.push({ level, reason });
+      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      if (order[level] > order[sessionTaint]) {
+        sessionTaint = level;
+      }
+    },
+    isOwnerSession: () => true,
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const result = await orchestrator.executeAgentTurn({
+    session,
+    message: "Edit the readme",
+    targetClassification: "PUBLIC",
+  });
+
+  assertEquals(result.ok, true);
+  // Session should remain PUBLIC — edit_file prefix classification (RESTRICTED)
+  // must NOT override the resource classification (PUBLIC)
+  assertEquals(sessionTaint, "PUBLIC", "Session taint should remain PUBLIC after editing a PUBLIC-classified file");
+});
+
+// --- Test: read_file on INTERNAL path escalates to INTERNAL from resource, not prefix ---
+
+Deno.test("resource-classification: read_file on INTERNAL path escalates via resource classification", async () => {
+  const hookRunner = makeHookRunner();
+  const pathClassifier = createMockPathClassifier({}, "INTERNAL");
+  const toolClassifications = mapToolPrefixClassifications({});
+
+  let sessionTaint: ClassificationLevel = "PUBLIC";
+  const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
+
+  const registry = createProviderRegistry();
+  registry.register(createToolCallingProvider("read_file", { path: "/workspace/docs/notes.txt" }));
+  registry.setDefault("mock-tool-caller");
+
+  const orchestrator = createOrchestrator({
+    hookRunner,
+    providerRegistry: registry,
+    tools: TOOL_DEFS,
+    // deno-lint-ignore require-await
+    toolExecutor: async (_name, _input) => "file contents",
+    pathClassifier,
+    toolClassifications,
+    getSessionTaint: () => sessionTaint,
+    escalateTaint: (level: ClassificationLevel, reason: string) => {
+      escalations.push({ level, reason });
+      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      if (order[level] > order[sessionTaint]) {
+        sessionTaint = level;
+      }
+    },
+    isOwnerSession: () => true,
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const result = await orchestrator.executeAgentTurn({
+    session,
+    message: "Read the notes",
+    targetClassification: "INTERNAL",
+  });
+
+  assertEquals(result.ok, true);
+  assertEquals(sessionTaint, "INTERNAL", "Session taint should escalate to INTERNAL from resource classification");
+  // Escalation reason should reference the tool and path, not just "Tool call:"
+  assert(escalations.length >= 1, "Should have at least one escalation");
+  assert(escalations[0].reason.includes("read_file"), "Escalation reason should mention read_file");
+});
+
+// --- Test: non-resource tool (memory_save) still escalates via prefix ---
+
+Deno.test("resource-classification: non-resource tool escalates via prefix classification", async () => {
+  const hookRunner = makeHookRunner();
+  const toolClassifications = mapToolPrefixClassifications({});
+
+  let sessionTaint: ClassificationLevel = "PUBLIC";
+  const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
+
+  const registry = createProviderRegistry();
+  registry.register(createToolCallingProvider("memory_save", { key: "test", value: "data" }));
+  registry.setDefault("mock-tool-caller");
+
+  const orchestrator = createOrchestrator({
+    hookRunner,
+    providerRegistry: registry,
+    tools: TOOL_DEFS,
+    // deno-lint-ignore require-await
+    toolExecutor: async (_name, _input) => "saved",
+    toolClassifications,
+    getSessionTaint: () => sessionTaint,
+    escalateTaint: (level: ClassificationLevel, reason: string) => {
+      escalations.push({ level, reason });
+      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      if (order[level] > order[sessionTaint]) {
+        sessionTaint = level;
+      }
+    },
+    isOwnerSession: () => true,
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const result = await orchestrator.executeAgentTurn({
+    session,
+    message: "Save to memory",
+    targetClassification: "RESTRICTED",
+  });
+
+  assertEquals(result.ok, true);
+  // memory_save has RESTRICTED prefix classification — should escalate via prefix
+  assertEquals(sessionTaint, "RESTRICTED", "Session taint should escalate to RESTRICTED from memory_save prefix classification");
+  assert(escalations.length >= 1, "Should have at least one escalation");
+});
+
+// --- Test: list_directory and search_files on PUBLIC path do NOT escalate ---
+
+Deno.test("resource-classification: list_directory on PUBLIC path does not escalate taint", async () => {
+  const hookRunner = makeHookRunner();
+  const pathClassifier = createMockPathClassifier({ "public-area": "PUBLIC" }, "INTERNAL");
+  const toolClassifications = mapToolPrefixClassifications({});
+
+  let sessionTaint: ClassificationLevel = "PUBLIC";
+  const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
+
+  const registry = createProviderRegistry();
+  registry.register(createToolCallingProvider("list_directory", { path: "/workspace/public-area" }));
+  registry.setDefault("mock-tool-caller");
+
+  const orchestrator = createOrchestrator({
+    hookRunner,
+    providerRegistry: registry,
+    tools: TOOL_DEFS,
+    // deno-lint-ignore require-await
+    toolExecutor: async (_name, _input) => "file1.txt\nfile2.txt",
+    pathClassifier,
+    toolClassifications,
+    getSessionTaint: () => sessionTaint,
+    escalateTaint: (level: ClassificationLevel, reason: string) => {
+      escalations.push({ level, reason });
+      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      if (order[level] > order[sessionTaint]) {
+        sessionTaint = level;
+      }
+    },
+    isOwnerSession: () => true,
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const result = await orchestrator.executeAgentTurn({
+    session,
+    message: "List the directory",
+    targetClassification: "PUBLIC",
+  });
+
+  assertEquals(result.ok, true);
+  assertEquals(sessionTaint, "PUBLIC", "Session taint should remain PUBLIC after listing a PUBLIC-classified directory");
 });

@@ -1,9 +1,12 @@
 /**
  * Tool access control and enforcement wrapper.
  *
- * Enforces trigger/non-owner tool ceilings, escalates taint from tool
- * prefixes and response classifications, resolves secret references,
- * and wraps the raw tool executor with the full enforcement pipeline.
+ * Enforces trigger/non-owner tool ceilings, escalates taint from
+ * response classifications, resolves secret references, and wraps
+ * the raw tool executor with the enforcement pipeline.
+ *
+ * Tool prefix taint escalation is handled conditionally in tool_dispatch.ts
+ * to avoid double-escalation with resource-classified tools.
  *
  * @module
  */
@@ -158,12 +161,6 @@ export function wrapToolExecutorWithEnforcement(
   ): Promise<string> => {
     const accessErr = enforceAccessControl(name, config);
     if (accessErr) return accessErr;
-
-    escalateToolPrefixTaint(
-      name,
-      config.toolClassifications,
-      config.escalateTaint,
-    );
 
     const { resolved, error } = await resolveToolSecrets(input, config);
     if (error) return error;

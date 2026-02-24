@@ -24,6 +24,7 @@ import {
   renderPolicyBlockExplanation,
 } from "./security_context.ts";
 import type { SecurityContext } from "./security_context.ts";
+import { escalateToolPrefixTaint } from "./access_control.ts";
 
 /** Check plan mode blocking and execute plan tools. */
 async function executePlanModeToolCall(
@@ -152,6 +153,13 @@ async function executeSecurityEnforcedToolCall(
     config,
   );
   preEscalateOwnerTriggerTaint(secCtx, config, call);
+  if (secCtx.resourceClassification === null) {
+    escalateToolPrefixTaint(
+      call.name,
+      config.toolClassifications,
+      config.escalateTaint,
+    );
+  }
 
   const { result: preToolResult, currentTaint } = await evaluatePreToolCallHook(
     config,
