@@ -298,7 +298,7 @@ export function createGatewayServer(
             );
           }
 
-          // Default HTTP response
+          // Return 404 for unrecognized paths to suppress server fingerprinting
           return new Response("", { status: 404 });
         },
       );

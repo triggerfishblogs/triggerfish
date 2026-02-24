@@ -123,7 +123,7 @@ function attachSocketEventHandlers(
  * Handle an incoming HTTP request to the WebChat server.
  *
  * WebSocket upgrade requests are validated for header size and origin before
- * upgrade. All other requests receive a 404 to suppress fingerprinting.
+ * upgrade. All other requests receive a 404 to suppress server fingerprinting.
  */
 function routeWebChatRequest(
   req: Request,
