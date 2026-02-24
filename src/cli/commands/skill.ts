@@ -1,16 +1,31 @@
 /**
- * CLI skill command — manage skills from The Reef marketplace.
+ * CLI skill command -- manage skills from The Reef marketplace.
  *
  * Provides search, install, update, publish, and list subcommands
  * for interacting with The Reef skill registry.
+ *
+ * Dependencies (ReefRegistry, SkillLoader factory) are injected from
+ * the CLI wiring layer (main.ts) to avoid importing gateway/ from a
+ * non-startup CLI command file.
  *
  * @module
  */
 
 import { join } from "@std/path";
 import { resolveBaseDir } from "../config/paths.ts";
-import { createReefRegistry, createSkillLoader } from "../../gateway/skills.ts";
-import type { ReefSkillListing } from "../../gateway/skills.ts";
+import type {
+  ReefRegistry,
+  ReefSkillListing,
+  SkillLoader,
+} from "../../core/types/skills.ts";
+
+/** Dependencies injected by the CLI wiring layer. */
+export interface SkillCommandDeps {
+  /** Factory to create a Reef registry client. */
+  readonly createRegistry: () => ReefRegistry;
+  /** Factory to create a skill loader for a managed directory. */
+  readonly createLoader: (managedDir: string) => SkillLoader;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -35,16 +50,17 @@ function formatSkillListing(skill: ReefSkillListing): string {
 /** Search The Reef for skills matching a query. */
 async function handleSkillSearch(
   flags: Readonly<Record<string, boolean | string>>,
+  deps: SkillCommandDeps,
 ): Promise<void> {
   const query = flags.query as string | undefined;
   if (!query) {
-    console.log("Usage: triggerfish skill search <query>");
+    console.error("Usage: triggerfish skill search <query>");
     Deno.exit(1);
   }
-  const registry = createReefRegistry();
+  const registry = deps.createRegistry();
   const result = await registry.search({ query });
   if (!result.ok) {
-    console.log(`Error: ${result.error}`);
+    console.error(`Error: ${result.error}`);
     Deno.exit(1);
   }
   if (result.value.length === 0) {
@@ -61,18 +77,19 @@ async function handleSkillSearch(
 /** Install a skill from The Reef. */
 async function handleSkillInstall(
   flags: Readonly<Record<string, boolean | string>>,
+  deps: SkillCommandDeps,
 ): Promise<void> {
   const name = flags.skill_name as string | undefined;
   if (!name) {
-    console.log("Usage: triggerfish skill install <name>");
+    console.error("Usage: triggerfish skill install <name>");
     Deno.exit(1);
   }
   const managedDir = resolveManagedSkillsDir();
   await Deno.mkdir(managedDir, { recursive: true });
-  const registry = createReefRegistry();
+  const registry = deps.createRegistry();
   const result = await registry.install(name, managedDir);
   if (!result.ok) {
-    console.log(`Error: ${result.error}`);
+    console.error(`Error: ${result.error}`);
     Deno.exit(1);
   }
   console.log(result.value);
@@ -81,14 +98,12 @@ async function handleSkillInstall(
 /** Check for and optionally install skill updates. */
 async function handleSkillUpdate(
   flags: Readonly<Record<string, boolean | string>>,
+  deps: SkillCommandDeps,
 ): Promise<void> {
   const specificName = flags.skill_name as string | undefined;
   const managedDir = resolveManagedSkillsDir();
 
-  const loader = createSkillLoader({
-    directories: [managedDir],
-    dirTypes: { [managedDir]: "managed" },
-  });
+  const loader = deps.createLoader(managedDir);
   const installedSkills = await loader.discover();
 
   const skillsToCheck = specificName
@@ -103,12 +118,12 @@ async function handleSkillUpdate(
     return;
   }
 
-  const registry = createReefRegistry();
+  const registry = deps.createRegistry();
   const result = await registry.checkUpdates(
     skillsToCheck.map((s) => ({ name: s.name, version: s.version })),
   );
   if (!result.ok) {
-    console.log(`Error: ${result.error}`);
+    console.error(`Error: ${result.error}`);
     Deno.exit(1);
   }
   if (result.value.length === 0) {
@@ -124,16 +139,17 @@ async function handleSkillUpdate(
 /** Validate and prepare a skill for publishing to The Reef. */
 async function handleSkillPublish(
   flags: Readonly<Record<string, boolean | string>>,
+  deps: SkillCommandDeps,
 ): Promise<void> {
   const skillPath = flags.skill_path as string | undefined;
   if (!skillPath) {
-    console.log("Usage: triggerfish skill publish <path-to-SKILL.md>");
+    console.error("Usage: triggerfish skill publish <path-to-SKILL.md>");
     Deno.exit(1);
   }
-  const registry = createReefRegistry();
+  const registry = deps.createRegistry();
   const result = await registry.publish(skillPath);
   if (!result.ok) {
-    console.log(`Error: ${result.error}`);
+    console.error(`Error: ${result.error}`);
     Deno.exit(1);
   }
   console.log(`\nSkill validated and prepared for publishing.`);
@@ -177,12 +193,9 @@ function printManualPublishInstructions(tempDir: string): void {
 }
 
 /** List locally installed managed skills. */
-async function handleSkillList(): Promise<void> {
+async function handleSkillList(deps: SkillCommandDeps): Promise<void> {
   const managedDir = resolveManagedSkillsDir();
-  const loader = createSkillLoader({
-    directories: [managedDir],
-    dirTypes: { [managedDir]: "managed" },
-  });
+  const loader = deps.createLoader(managedDir);
   const skills = await loader.discover();
   if (skills.length === 0) {
     console.log("No managed skills installed.");
@@ -221,27 +234,29 @@ function printSkillUsage(): void {
  * Dispatch skill subcommands from the CLI.
  *
  * Routes to search, install, update, publish, or list handlers
- * based on the parsed subcommand.
+ * based on the parsed subcommand. Dependencies are injected by
+ * the CLI wiring layer.
  */
 export async function runSkill(
   subcommand: string | undefined,
   flags: Readonly<Record<string, boolean | string>>,
+  deps: SkillCommandDeps,
 ): Promise<void> {
   switch (subcommand) {
     case "search":
-      await handleSkillSearch(flags);
+      await handleSkillSearch(flags, deps);
       break;
     case "install":
-      await handleSkillInstall(flags);
+      await handleSkillInstall(flags, deps);
       break;
     case "update":
-      await handleSkillUpdate(flags);
+      await handleSkillUpdate(flags, deps);
       break;
     case "publish":
-      await handleSkillPublish(flags);
+      await handleSkillPublish(flags, deps);
       break;
     case "list":
-      await handleSkillList();
+      await handleSkillList(deps);
       break;
     default:
       printSkillUsage();

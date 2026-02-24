@@ -99,7 +99,17 @@ function buildCommandDispatchMap(
     },
     skill: async () => {
       const { runSkill } = await import("./commands/skill.ts");
-      await runSkill(ctx.subcommand, ctx.flags);
+      const { createReefRegistry, createSkillLoader } = await import(
+        "../gateway/skills.ts"
+      );
+      await runSkill(ctx.subcommand, ctx.flags, {
+        createRegistry: () => createReefRegistry(),
+        createLoader: (managedDir: string) =>
+          createSkillLoader({
+            directories: [managedDir],
+            dirTypes: { [managedDir]: "managed" },
+          }),
+      });
     },
     "run-triggers": async () => {
       const { runTriggers } = await import("./commands/run_triggers.ts");

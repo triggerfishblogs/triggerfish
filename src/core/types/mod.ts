@@ -74,3 +74,12 @@ export type {
   ChatClientMessage,
   ChatEventSender,
 } from "./chat_event.ts";
+
+export type {
+  DiscoveredSkill,
+  ReefRegistry,
+  ReefSearchOptions,
+  ReefSkillListing,
+  SkillLoader,
+  SkillSource,
+} from "./skills.ts";

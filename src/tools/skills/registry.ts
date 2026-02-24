@@ -13,6 +13,11 @@ import type {
   Result,
 } from "../../core/types/classification.ts";
 import { parseClassification } from "../../core/types/classification.ts";
+import type {
+  ReefRegistry,
+  ReefSearchOptions,
+  ReefSkillListing,
+} from "../../core/types/skills.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 import { createSkillScanner } from "./scanner.ts";
 import { computeSkillHash, recordSkillHash } from "./integrity.ts";
@@ -27,58 +32,8 @@ const DEFAULT_BASE_URL = "https://greghavens.github.io/reef-registry";
 /** Default catalog cache TTL in milliseconds (1 hour). */
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
 
-// ─── Public types ────────────────────────────────────────────────────────────
-
-/** Skill listing from The Reef registry. */
-export interface ReefSkillListing {
-  /** Skill name. */
-  readonly name: string;
-  /** Skill description. */
-  readonly description: string;
-  /** Skill version (semver). */
-  readonly version: string;
-  /** Author identifier. */
-  readonly author: string;
-  /** Tags for categorization. */
-  readonly tags: readonly string[];
-  /** Category. */
-  readonly category: string;
-  /** Download count (always 0 for static registry). */
-  readonly downloads: number;
-  /** Maximum classification level this skill can access. */
-  readonly classificationCeiling: ClassificationLevel;
-  /** SHA-256 hex digest of SKILL.md content. */
-  readonly checksum: string;
-  /** ISO 8601 publish timestamp. */
-  readonly publishedAt: string;
-}
-
-/** Options for searching The Reef. */
-export interface ReefSearchOptions {
-  /** Search query (matches name, tag, category, or description). */
-  readonly query: string;
-  /** Maximum results to return (default: 20). */
-  readonly limit?: number;
-}
-
-/** The Reef registry client interface. */
-export interface ReefRegistry {
-  /** Search skills by name, tag, category, or description. */
-  search(
-    options: ReefSearchOptions,
-  ): Promise<Result<readonly ReefSkillListing[], string>>;
-  /** Download and install a skill to the managed directory. */
-  install(name: string, targetDir: string): Promise<Result<string, string>>;
-  /** Check for available updates against the catalog. */
-  checkUpdates(
-    installedSkills: readonly {
-      readonly name: string;
-      readonly version?: string;
-    }[],
-  ): Promise<Result<readonly string[], string>>;
-  /** Validate a skill locally and generate publish directory structure. */
-  publish(skillPath: string): Promise<Result<string, string>>;
-}
+// Re-export shared types from core so existing importers continue to work.
+export type { ReefRegistry, ReefSearchOptions, ReefSkillListing } from "../../core/types/skills.ts";
 
 /** Options for creating a Reef registry client. */
 export interface ReefRegistryOptions {
@@ -175,6 +130,41 @@ export function compareSemver(a: string, b: string): -1 | 0 | 1 {
 
 // ─── Catalog fetching ────────────────────────────────────────────────────────
 
+/**
+ * Validate that a registry URL uses HTTPS and matches the expected host.
+ *
+ * SSRF note: The baseUrl is hardcoded to DEFAULT_BASE_URL by default and only
+ * overridable via ReefRegistryOptions (code-level, not user input). The fetchFn
+ * is also injected at construction time. This validation adds defense-in-depth
+ * to ensure that even if baseUrl is misconfigured, only HTTPS requests to known
+ * hosts are permitted.
+ */
+function validateRegistryUrl(
+  url: string,
+  baseUrl: string,
+): Result<URL, string> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, error: `Registry URL parse failed: ${url}` };
+  }
+  if (parsed.protocol !== "https:") {
+    return {
+      ok: false,
+      error: `Registry URL must use HTTPS, got ${parsed.protocol} for ${url}`,
+    };
+  }
+  const expectedHost = new URL(baseUrl).hostname;
+  if (parsed.hostname !== expectedHost) {
+    return {
+      ok: false,
+      error: `Registry URL hostname mismatch: expected ${expectedHost}, got ${parsed.hostname}`,
+    };
+  }
+  return { ok: true, value: parsed };
+}
+
 /** Check whether the catalog cache is still valid. */
 function isCacheValid(cache: CatalogCache, cacheTtlMs: number): boolean {
   return cache.catalog !== null && (Date.now() - cache.fetchedAt) < cacheTtlMs;
@@ -185,7 +175,11 @@ async function fetchCatalogFromNetwork(
   baseUrl: string,
   fetchFn: typeof fetch,
 ): Promise<Result<ReefCatalog, string>> {
-  const response = await fetchFn(`${baseUrl}/index/catalog.json`);
+  const catalogUrl = `${baseUrl}/index/catalog.json`;
+  const urlCheck = validateRegistryUrl(catalogUrl, baseUrl);
+  if (!urlCheck.ok) return urlCheck;
+
+  const response = await fetchFn(catalogUrl);
   if (!response.ok) {
     return {
       ok: false,
@@ -303,6 +297,9 @@ async function fetchSkillContent(options: {
 }): Promise<Result<string, string>> {
   const url =
     `${options.baseUrl}/skills/${options.name}/${options.version}/SKILL.md`;
+  const urlCheck = validateRegistryUrl(url, options.baseUrl);
+  if (!urlCheck.ok) return urlCheck;
+
   try {
     const response = await options.fetchFn(url);
     if (!response.ok) {
@@ -505,10 +502,10 @@ function validatePublishFrontmatter(
       tags,
       category: String(raw.category),
       classificationCeiling: String(raw.classification_ceiling),
-      requiresTools: raw.requires_tools
+      requiresTools: Array.isArray(raw.requires_tools)
         ? (raw.requires_tools as string[])
         : null,
-      networkDomains: raw.network_domains
+      networkDomains: Array.isArray(raw.network_domains)
         ? (raw.network_domains as string[])
         : null,
     },
@@ -667,6 +664,11 @@ async function executePublish(
   const scanner = createSkillScanner();
   const scanResult = await scanner.scan(content);
   if (!scanResult.ok) {
+    log.warn("Skill publish rejected by security scanner", {
+      operation: "executePublish",
+      skillPath,
+      warnings: scanResult.warnings,
+    });
     return {
       ok: false,
       error: `Skill failed security scan: ${scanResult.warnings.join("; ")}`,
