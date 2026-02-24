@@ -166,6 +166,10 @@ export async function createWorkspace(
       operation: "read" | "write",
     ): Result<ClassifiedPathResult, string> {
       if (sessionTaint === "PUBLIC") {
+        log.warn("Workspace access denied for PUBLIC session", {
+          operation,
+          relativePath,
+        });
         return {
           ok: false,
           error: "PUBLIC sessions cannot access workspace files",

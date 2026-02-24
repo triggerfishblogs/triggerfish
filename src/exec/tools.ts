@@ -13,6 +13,9 @@ import type { Workspace } from "./workspace.ts";
 import { join, resolve } from "@std/path";
 import { isWithinJail } from "../core/security/path_jail.ts";
 import { buildSafeEnv } from "./sanitize.ts";
+import { createLogger } from "../core/logger/logger.ts";
+
+const log = createLogger("exec");
 
 /** Result of writing a file. */
 export interface WriteResult {
@@ -196,8 +199,8 @@ async function listDirectory(
       try {
         const stat = await Deno.stat(join(targetPath, entry.name));
         size = stat.size ?? 0;
-      } catch {
-        // Skip stat errors, report size 0
+      } catch (err) {
+        log.debug("Workspace file stat failed, reporting size 0", { file: entry.name, err });
       }
       entries.push({ name: entry.name, size, isDirectory: entry.isDirectory });
     }

@@ -162,7 +162,9 @@ export function searchReadableLevelsForFile(
         ok: true,
         value: { absolutePath: absPath, classification: level },
       };
-    } catch { /* File not found at this level, try next */ }
+    } catch (err) {
+      log.debug("Classified path stat failed, trying next level", { level, absPath, err });
+    }
   }
   const fallbackPath = resolve(
     join(levelToDirPath[sessionTaint], relativePath),
