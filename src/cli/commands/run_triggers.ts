@@ -50,8 +50,8 @@ export async function runTriggers(): Promise<void> {
   let response: Response;
   try {
     response = await postTriggerRequest();
-  } catch {
-    log.error("Gateway not reachable", { operation: "runTriggers" });
+  } catch (err: unknown) {
+    log.error("Gateway not reachable", { operation: "runTriggers", err });
     console.log("Error: Gateway is not running.");
     console.log("Start it first with: triggerfish start");
     Deno.exit(1);

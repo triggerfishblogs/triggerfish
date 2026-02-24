@@ -154,7 +154,7 @@ export async function runUpdate(): Promise<void> {
   if (result.ok) {
     await handleUpdateSuccess(result);
   } else {
-    log.error("Update failed", { operation: "updateTriggerfish", message: result.message });
+    log.error("Triggerfish self-update failed", { operation: "updateTriggerfish", message: result.message });
     console.log("✗", result.message);
     Deno.exit(1);
   }

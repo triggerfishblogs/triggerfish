@@ -145,8 +145,8 @@ async function verifyBinaryChecksum(
     const expectedHash = await fetchExpectedHash(checksumsUrl);
     if (!expectedHash) return null;
     return compareFileHash(tmpPath, expectedHash);
-  } catch {
-    log.warn("Checksum verification exception", { operation: "downloadUpdate" });
+  } catch (err: unknown) {
+    log.warn("Checksum verification exception", { operation: "downloadUpdate", err });
     console.log("  Warning: checksum verification failed, skipping.");
     return null;
   }

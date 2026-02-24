@@ -85,8 +85,8 @@ function readConfigYaml(configPath: string): Record<string, unknown> {
   let rawYaml: string;
   try {
     rawYaml = Deno.readTextFileSync(configPath);
-  } catch {
-    log.error("Configuration file not found", { operation: "readConfigYaml", configPath });
+  } catch (err: unknown) {
+    log.error("Configuration file not found", { operation: "readConfigYaml", configPath, err });
     console.error(`Config not found at ${configPath}`);
     console.error("Run 'triggerfish dive' to create initial config.");
     Deno.exit(1);

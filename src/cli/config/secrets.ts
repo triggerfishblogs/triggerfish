@@ -79,8 +79,8 @@ function loadConfigYaml(): ParsedConfigResult {
   let raw: string;
   try {
     raw = Deno.readTextFileSync(configPath);
-  } catch {
-    log.error("Configuration file read failed", { operation: "loadConfigYaml", configPath });
+  } catch (err: unknown) {
+    log.error("Configuration file read failed", { operation: "loadConfigYaml", configPath, err });
     console.error(`Cannot read config: ${configPath}`);
     Deno.exit(1);
   }

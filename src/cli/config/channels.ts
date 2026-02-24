@@ -23,8 +23,8 @@ async function loadConfigYamlFile(
   let rawYaml: string;
   try {
     rawYaml = await Deno.readTextFile(configPath);
-  } catch {
-    log.error("Configuration file not found", { operation: "loadChannelConfig", configPath });
+  } catch (err: unknown) {
+    log.error("Configuration file not found", { operation: "loadChannelConfig", configPath, err });
     console.error(`Config not found at ${configPath}`);
     console.error("Run 'triggerfish dive' to create initial config.");
     Deno.exit(1);
