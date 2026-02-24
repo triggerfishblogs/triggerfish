@@ -80,7 +80,12 @@ export async function loadSkillHashRecord(
   try {
     const content = await Deno.readTextFile(hashPath);
     return JSON.parse(content) as SkillHashRecord;
-  } catch {
+  } catch (err: unknown) {
+    log.debug("Skill hash record not loadable", {
+      operation: "loadSkillHashRecord",
+      hashPath,
+      err,
+    });
     return null;
   }
 }

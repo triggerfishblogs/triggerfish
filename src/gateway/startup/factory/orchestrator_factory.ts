@@ -54,6 +54,9 @@ import {
   buildSchedulerSkillLoader,
 } from "../tools/scheduler_tool_assembly.ts";
 import { createSkillContextTracker } from "../../../tools/skills/mod.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+
+const log = createLogger("orchestrator-factory");
 
 /** Symlink SPINE.md into a workspace directory. */
 async function symlinkSpineToWorkspace(
@@ -64,10 +67,21 @@ async function symlinkSpineToWorkspace(
     const workspaceSpine = join(workspacePath, "SPINE.md");
     try {
       await Deno.remove(workspaceSpine);
-    } catch { /* doesn't exist yet */ }
+    } catch (err: unknown) {
+      log.debug("Workspace SPINE.md symlink not present for removal", {
+        operation: "symlinkSpineToWorkspace",
+        workspacePath,
+        err,
+      });
+    }
     await Deno.symlink(spinePath, workspaceSpine);
-  } catch {
-    // SPINE.md may not exist yet — not fatal
+  } catch (err: unknown) {
+    log.debug("SPINE.md symlink to workspace skipped", {
+      operation: "symlinkSpineToWorkspace",
+      spinePath,
+      workspacePath,
+      err,
+    });
   }
 }
 
@@ -81,8 +95,11 @@ async function discoverSkillsOnce(
   try {
     const skills = await loader.discover();
     state.prompt = buildSkillsSystemPrompt(skills);
-  } catch {
-    // Non-fatal
+  } catch (err: unknown) {
+    log.warn("Skill discovery failed during orchestrator creation", {
+      operation: "discoverSkillsOnce",
+      err,
+    });
   }
 }
 
