@@ -102,7 +102,7 @@ jobs:
           allowed_bots: 'claude'
           settings: |
             {
-              "model": "claude-opus-4-6"
+              "model": "claude-sonnet-4-6"
             }
           claude_args: "--max-turns 25 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Read,Glob,Grep,Write'"
 
@@ -210,7 +210,7 @@ jobs:
           allowed_bots: 'claude'
           settings: |
             {
-              "model": "claude-opus-4-6"
+              "model": "claude-sonnet-4-6"
             }
           claude_args: "--max-turns 25 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep,Write'"
 
@@ -262,6 +262,6 @@ jobs:
           allowed_bots: 'claude'
           settings: |
             {
-              "model": "claude-opus-4-6"
+              "model": "claude-sonnet-4-6"
             }
           claude_args: "--max-turns 40 --allowedTools 'Skill,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(git diff:*),Bash(git log:*),Bash(git fetch:*),Read,Glob,Grep'"
