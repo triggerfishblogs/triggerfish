@@ -1,9 +1,12 @@
 /**
  * Tool access control and enforcement wrapper.
  *
- * Enforces trigger/non-owner tool ceilings, escalates taint from tool
- * prefixes and response classifications, resolves secret references,
- * and wraps the raw tool executor with the full enforcement pipeline.
+ * Enforces trigger/non-owner tool ceilings, escalates taint from
+ * response classifications, resolves secret references, and wraps
+ * the raw tool executor with the enforcement pipeline.
+ *
+ * Tool prefix taint escalation is handled conditionally in tool_dispatch.ts
+ * to avoid double-escalation with resource-classified tools.
  *
  * @module
  */
@@ -12,6 +15,9 @@ import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { canFlowTo } from "../../core/types/classification.ts";
 import { resolveSecretRefs } from "../../core/secrets/resolver.ts";
 import type { OrchestratorConfig, ToolExecutor } from "../orchestrator/orchestrator_types.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("access-control");
 
 // ─── Access control checks ──────────────────────────────────────────────────
 
@@ -76,6 +82,11 @@ export function escalateToolPrefixTaint(
   if (!toolClassifications || !escalateTaint) return;
   for (const [prefix, level] of toolClassifications) {
     if (name.startsWith(prefix)) {
+      log.warn("Escalating taint from tool prefix match", {
+        operation: "escalateToolPrefixTaint",
+        toolName: name,
+        classificationLevel: level,
+      });
       escalateTaint(level, `Tool call: ${name}`);
       break;
     }
@@ -158,12 +169,6 @@ export function wrapToolExecutorWithEnforcement(
   ): Promise<string> => {
     const accessErr = enforceAccessControl(name, config);
     if (accessErr) return accessErr;
-
-    escalateToolPrefixTaint(
-      name,
-      config.toolClassifications,
-      config.escalateTaint,
-    );
 
     const { resolved, error } = await resolveToolSecrets(input, config);
     if (error) return error;

@@ -24,6 +24,10 @@ import {
   renderPolicyBlockExplanation,
 } from "./security_context.ts";
 import type { SecurityContext } from "./security_context.ts";
+import { escalateToolPrefixTaint } from "./access_control.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("tool-dispatch");
 
 /** Check plan mode blocking and execute plan tools. */
 async function executePlanModeToolCall(
@@ -56,7 +60,21 @@ function preEscalateOwnerTriggerTaint(
     secCtx.resourceClassification === null ||
     (!secCtx.isOwner && !secCtx.isTrigger) ||
     !config.escalateTaint
-  ) return;
+  ) {
+    log.debug("Resource-based taint escalation skipped", {
+      operation: "preEscalateOwnerTriggerTaint",
+      toolName: call.name,
+      resourceClassification: secCtx.resourceClassification,
+      isOwner: secCtx.isOwner,
+      isTrigger: secCtx.isTrigger,
+    });
+    return;
+  }
+  log.warn("Resource-based taint escalation firing", {
+    operation: "preEscalateOwnerTriggerTaint",
+    toolName: call.name,
+    resourceClassification: secCtx.resourceClassification,
+  });
   config.escalateTaint(
     secCtx.resourceClassification,
     `${call.name}: ${secCtx.resourceParam}`,
@@ -152,6 +170,17 @@ async function executeSecurityEnforcedToolCall(
     config,
   );
   preEscalateOwnerTriggerTaint(secCtx, config, call);
+  if (secCtx.resourceClassification === null) {
+    log.debug("Falling back to prefix-based taint escalation — resource classification is null", {
+      operation: "escalateToolPrefixTaint",
+      toolName: call.name,
+    });
+    escalateToolPrefixTaint(
+      call.name,
+      config.toolClassifications,
+      config.escalateTaint,
+    );
+  }
 
   const { result: preToolResult, currentTaint } = await evaluatePreToolCallHook(
     config,

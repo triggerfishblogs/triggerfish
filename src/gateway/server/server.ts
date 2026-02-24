@@ -299,7 +299,7 @@ export function createGatewayServer(
           }
 
           // Default HTTP response
-          return new Response(null, { status: 404 });
+          return new Response("", { status: 404 });
         },
       );
 
