@@ -9,6 +9,8 @@
  * @module
  */
 
+import type { Result } from "../types/classification.ts";
+
 /** A text content block. */
 export interface TextContentBlock {
   readonly type: "text";
@@ -30,6 +32,9 @@ export type ContentBlock = TextContentBlock | ImageContentBlock;
 
 /** Message content: either a plain string or an array of content blocks. */
 export type MessageContent = string | readonly ContentBlock[];
+
+/** Maximum image size accepted by imageBlock (10 MB). */
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 /**
  * Normalize message content to an array of content blocks.
@@ -84,14 +89,22 @@ export function hasImages(content: MessageContent): boolean {
 /**
  * Create an image content block from raw binary data.
  *
+ * Returns an error if the data exceeds MAX_IMAGE_BYTES.
+ *
  * @param data - Raw image bytes
  * @param mimeType - MIME type (e.g. "image/png", "image/jpeg")
- * @returns An ImageContentBlock with base64-encoded data
+ * @returns Result containing an ImageContentBlock with base64-encoded data, or an error string
  */
 export function imageBlock(
   data: Uint8Array,
   mimeType: string,
-): ImageContentBlock {
+): Result<ImageContentBlock, string> {
+  if (data.length > MAX_IMAGE_BYTES) {
+    return {
+      ok: false,
+      error: `Image too large: ${data.length} bytes exceeds ${MAX_IMAGE_BYTES} byte limit`,
+    };
+  }
   // Encode in chunks to avoid call stack overflow on large images
   const CHUNK_SIZE = 8192;
   let base64 = "";
@@ -102,11 +115,14 @@ export function imageBlock(
   base64 = btoa(base64);
 
   return {
-    type: "image",
-    source: {
-      type: "base64",
-      media_type: mimeType,
-      data: base64,
+    ok: true,
+    value: {
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: mimeType,
+        data: base64,
+      },
     },
   };
 }

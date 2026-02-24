@@ -13,6 +13,9 @@ import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("gateway");
 
+/** Maximum size of an incoming chat WebSocket message (256 KB). */
+const MAX_CHAT_MESSAGE_BYTES = 256 * 1024;
+
 // ─── WebSocket send helpers ──────────────────────────────────────────────────
 
 /** Send JSON data to a WebSocket if open, swallowing errors on disconnect. */
@@ -21,8 +24,8 @@ function sendSafeWebSocket(socket: WebSocket, data: unknown): void {
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(data));
     }
-  } catch {
-    // Client disconnected
+  } catch (err) {
+    log.debug("Chat WebSocket send failed: client disconnected", { error: err });
   }
 }
 
@@ -93,7 +96,7 @@ function handleControlMessage(
 function handleCompactMessage(chat: ChatSession, socket: WebSocket): void {
   chat.compact(createWebSocketSender(socket)).catch((err: unknown) => {
     log.debug("Compact failed after compact_error event sent", {
-      error: err instanceof Error ? err.message : String(err),
+      error: err,
     });
   });
 }
@@ -151,9 +154,25 @@ function handleChatSocketMessage(
 ): void {
   try {
     const data = parseSocketEventData(event);
+    if (data.length > MAX_CHAT_MESSAGE_BYTES) {
+      log.warn("Chat WebSocket message rejected: exceeds size limit", {
+        operation: "handleChatSocketMessage",
+        byteLength: data.length,
+        limitBytes: MAX_CHAT_MESSAGE_BYTES,
+      });
+      sendSafeWebSocket(socket, {
+        type: "error",
+        message: "Message too large: exceeds 256KB limit",
+      });
+      return;
+    }
     const msg = JSON.parse(data) as ChatClientMessage;
     routeChatSocketMessage(msg, chat, socket, abortRef);
-  } catch {
+  } catch (err) {
+    log.warn("Chat WebSocket message parse failed", {
+      operation: "handleChatSocketMessage",
+      error: err,
+    });
     sendSafeWebSocket(socket, {
       type: "error",
       message: "Invalid message format",

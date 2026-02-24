@@ -4,7 +4,7 @@
  * Tests content extraction (Readability + raw), SSRF prevention,
  * domain policy enforcement, content truncation, and timeout.
  */
-import { assertEquals } from "@std/assert";
+import { assertEquals, assert } from "@std/assert";
 import { createWebFetcher } from "../../../src/tools/web/fetch.ts";
 import type { DnsChecker } from "../../../src/tools/web/fetch.ts";
 import { createDomainPolicy } from "../../../src/tools/web/domains.ts";
@@ -250,6 +250,86 @@ Deno.test("WebFetcher: falls back to raw when Readability extracts too little", 
     assertEquals(result.ok, true);
     if (result.ok) {
       assertEquals(result.value.content.includes("<html>"), true);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+// ─── Streaming OOM Protection ────────────────────────────────────────────────
+
+Deno.test("WebFetcher: streaming read enforces byte budget before full allocation", async () => {
+  let bytesProduced = 0;
+  const CHUNK = new Uint8Array(1024).fill(65); // 1KB of 'A'
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (bytesProduced >= 1_000_000) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(new Uint8Array(CHUNK));
+      bytesProduced += CHUNK.length;
+    },
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (() =>
+    Promise.resolve(
+      new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    )) as unknown as typeof fetch;
+
+  try {
+    const fetcher = createWebFetcher({
+      domainPolicy: openPolicy(),
+      dnsChecker: allowAllDns,
+    });
+    const result = await fetcher.fetch("https://example.com/huge", {
+      mode: "raw",
+      maxContentLength: 5 * 1024,
+    });
+    assertEquals(result.ok, true);
+    // Stream should have been cancelled well before producing 1MB
+    assert(
+      bytesProduced <= 6 * 1024,
+      `Expected ≤6KB read, got ${bytesProduced}`,
+    );
+    if (result.ok) {
+      assertEquals(result.value.content.endsWith("[truncated]"), true);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("WebFetcher: byteLength in result reflects bytes read up to limit", async () => {
+  const LIMIT = 100;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (() =>
+    Promise.resolve(
+      new Response("x".repeat(10_000), {
+        status: 200,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    )) as unknown as typeof fetch;
+
+  try {
+    const fetcher = createWebFetcher({
+      domainPolicy: openPolicy(),
+      dnsChecker: allowAllDns,
+    });
+    const result = await fetcher.fetch("https://example.com/page", {
+      mode: "raw",
+      maxContentLength: LIMIT,
+    });
+    assertEquals(result.ok, true);
+    if (result.ok) {
+      assert(
+        result.value.byteLength <= LIMIT,
+        `byteLength ${result.value.byteLength} should be ≤ ${LIMIT}`,
+      );
     }
   } finally {
     globalThis.fetch = originalFetch;

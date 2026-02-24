@@ -14,7 +14,7 @@ import { formatError } from "../../cli/chat/chat_ui.ts";
 import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
 import { taintColor } from "../../cli/terminal/screen.ts";
-import { imageBlock } from "../../core/image/content.ts";
+import { imageBlock, MAX_IMAGE_BYTES } from "../../core/image/content.ts";
 import type {
   ContentBlock,
   ImageContentBlock,
@@ -57,6 +57,10 @@ export function submitChatMessage(
     ws.send(
       JSON.stringify({ type: "message", content: messageContent }),
     );
+    log.debug("Chat message sent to daemon", {
+      operation: "submitChatMessage",
+      hasImages: pendingImages.length > 0,
+    });
   } catch (err: unknown) {
     log.debug("WebSocket send failed: connection closed", { error: err });
     screen.writeOutput(formatError("Lost connection to daemon"));
@@ -91,20 +95,35 @@ function buildMessageContent(
 export async function handleClipboardPaste(
   pendingImages: ImageContentBlock[],
   screen: ScreenManager,
+  log: Logger,
 ): Promise<ImageContentBlock[]> {
   const clipResult = await readClipboardImage();
   if (clipResult.ok) {
-    const img = imageBlock(
+    const imgResult = imageBlock(
       clipResult.value.data,
       clipResult.value.mimeType,
     );
+    if (!imgResult.ok) {
+      log.warn("Clipboard image rejected: exceeds size limit", {
+        operation: "handleClipboardPaste",
+        byteLength: clipResult.value.data.length,
+        limitBytes: MAX_IMAGE_BYTES,
+      });
+      screen.setStatus(imgResult.error);
+      setTimeout(() => screen.clearStatus(), 3000);
+      return pendingImages;
+    }
     const sizeKb = (clipResult.value.data.length / 1024).toFixed(1);
     screen.setStatus(
       "Image pasted (" + clipResult.value.mimeType + ", " + sizeKb + "KB) \u2014 will send with next message",
     );
     setTimeout(() => screen.clearStatus(), 3000);
-    return [...pendingImages, img];
+    return [...pendingImages, imgResult.value];
   }
+  log.warn("Clipboard image read failed", {
+    operation: "handleClipboardPaste",
+    error: clipResult.error,
+  });
   screen.setStatus(clipResult.error);
   setTimeout(() => screen.clearStatus(), 3000);
   return pendingImages;
@@ -135,9 +154,7 @@ export function recordInputHistory(
   rs.inputHistory = rs.inputHistory.resetNavigation();
   saveInputHistory(historyFilePath, rs.inputHistory).catch(
     (err: unknown) => {
-      log.debug("Input history save failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      log.debug("Input history save failed", { error: err });
     },
   );
 }

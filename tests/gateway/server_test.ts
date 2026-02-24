@@ -148,3 +148,110 @@ Deno.test("NotificationService: acknowledge removes notification", async () => {
   const after = await svc.getPending("u" as UserId);
   assertEquals(after.length, 0);
 });
+
+// --- Size limit enforcement ---
+
+Deno.test("GatewayServer: JSON-RPC WebSocket rejects messages exceeding 1MB", async () => {
+  const server = createGatewayServer({ port: 0 });
+  const addr = await server.start();
+  try {
+    const ws = new WebSocket(`ws://127.0.0.1:${addr.port}`);
+    await new Promise<void>((resolve) => ws.addEventListener("open", () => resolve()));
+
+    ws.send(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "sessions.list",
+        params: { data: "A".repeat(1_100_000) },
+      }),
+    );
+
+    const responseText = await new Promise<string>((resolve) =>
+      ws.addEventListener("message", (e) => resolve(e.data as string))
+    );
+    ws.close();
+    const parsed = JSON.parse(responseText);
+    assertEquals(parsed.error?.code, -32600);
+    assert((parsed.error?.message as string).includes("too large"));
+  } finally {
+    await server.stop();
+  }
+});
+
+Deno.test("GatewayServer: webhook rejects body exceeding 1MB", async () => {
+  const mockScheduler = {
+    start() {},
+    stop() {},
+    cronManager: {
+      list: () => [],
+      create: () => ({ ok: true as const, value: {} as never }),
+      delete: () => ({ ok: true as const, value: undefined }),
+      history: () => [],
+      recordExecution: () => {},
+    },
+    webhookHandler: { on: () => {}, handle: async () => {} },
+    // deno-lint-ignore require-await
+    async handleWebhookRequest() {
+      return { ok: false as const, error: "unused" };
+    },
+    async runTrigger() {},
+  };
+
+  // deno-lint-ignore no-explicit-any
+  const server = createGatewayServer({ port: 0, schedulerService: mockScheduler as any });
+  const addr = await server.start();
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${addr.port}/webhooks/test-source`,
+      { method: "POST", body: "X".repeat(1_100_000) },
+    );
+    assertEquals(response.status, 413);
+    const body = await response.json();
+    assert((body.error as string).includes("too large"));
+  } finally {
+    await server.stop();
+  }
+});
+
+Deno.test("GatewayServer: chat WebSocket rejects messages exceeding 256KB", async () => {
+  const mockChat = {
+    providerName: "test",
+    modelName: "test-model",
+    get sessionTaint() {
+      return "PUBLIC" as const;
+    },
+    getMcpStatus: () => null,
+    clear() {},
+    async compact() {},
+    handleSecretPromptResponse(_nonce: string, _value: string | null) {},
+    createTidepoolSecretPrompt: () =>
+      (_name: string) => Promise.resolve(null as string | null),
+    async executeAgentTurn() {},
+    async registerChannel() {},
+    async handleChannelMessage() {},
+  };
+
+  // deno-lint-ignore no-explicit-any
+  const server = createGatewayServer({ port: 0, chatSession: mockChat as any });
+  const addr = await server.start();
+  try {
+    const ws = new WebSocket(`ws://127.0.0.1:${addr.port}/chat`);
+    // Wait for 'connected' event
+    await new Promise<void>((resolve) =>
+      ws.addEventListener("message", () => resolve())
+    );
+
+    ws.send(JSON.stringify({ type: "message", content: "A".repeat(300_000) }));
+
+    const responseText = await new Promise<string>((resolve) =>
+      ws.addEventListener("message", (e) => resolve(e.data as string))
+    );
+    ws.close();
+    const parsed = JSON.parse(responseText);
+    assertEquals(parsed.type, "error");
+    assert((parsed.message as string).includes("too large"));
+  } finally {
+    await server.stop();
+  }
+});

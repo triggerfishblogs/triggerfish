@@ -32,6 +32,9 @@ import type { JsonRpcRequest } from "./handlers.ts";
 /** Maximum total bytes across all HTTP headers on WS upgrade. */
 const MAX_GATEWAY_HEADER_BYTES = 8192;
 
+/** Maximum size of an incoming JSON-RPC WebSocket message (1 MB). */
+const MAX_JSONRPC_MESSAGE_BYTES = 1 * 1024 * 1024;
+
 /**
  * Validate WebSocket upgrade request headers against size limits.
  *
@@ -43,6 +46,11 @@ function validateGatewayUpgradeHeaders(request: Request): Response | null {
     total += k.length + v.length;
   }
   if (total > MAX_GATEWAY_HEADER_BYTES) {
+    log.warn("WebSocket upgrade rejected: headers too large", {
+      operation: "validateGatewayUpgradeHeaders",
+      totalHeaderBytes: total,
+      limitBytes: MAX_GATEWAY_HEADER_BYTES,
+    });
     return new Response("Request Header Fields Too Large", { status: 431 });
   }
   return null;
@@ -170,12 +178,9 @@ export function createGatewayServer(
               allowedOrigins: options?.allowedOrigins,
             });
             if (rejection) {
-              const reason = rejection.status === 401
-                ? "invalid_token"
-                : "origin_mismatch";
               log.warn("WebSocket upgrade rejected", {
                 status: rejection.status,
-                reason,
+                reason: rejection.status === 401 ? "invalid_token" : "origin_mismatch",
                 origin: request.headers.get("origin") ?? "(none)",
               });
               return rejection;
@@ -202,6 +207,21 @@ export function createGatewayServer(
                 const data = typeof event.data === "string"
                   ? event.data
                   : new TextDecoder().decode(event.data as ArrayBuffer);
+
+                if (data.length > MAX_JSONRPC_MESSAGE_BYTES) {
+                  log.warn("JSON-RPC WebSocket message rejected: exceeds size limit", {
+                    operation: "handleJsonRpcSocketMessage",
+                    byteLength: data.length,
+                    limitBytes: MAX_JSONRPC_MESSAGE_BYTES,
+                  });
+                  socket.send(JSON.stringify({
+                    jsonrpc: "2.0",
+                    id: null,
+                    error: { code: -32600, message: "Message too large: exceeds 1MB limit" },
+                  }));
+                  return;
+                }
+
                 const rpcRequest = JSON.parse(data) as JsonRpcRequest;
 
                 if (rpcRequest.jsonrpc !== "2.0" || !rpcRequest.method) {
@@ -220,7 +240,7 @@ export function createGatewayServer(
                 );
                 socket.send(JSON.stringify(rpcResponse));
               } catch (err) {
-                log.warn("JSON-RPC message processing failed", { err });
+                log.warn("JSON-RPC dispatch or JSON parse failed on WebSocket message", { err });
                 socket.send(JSON.stringify({
                   jsonrpc: "2.0",
                   id: null,
@@ -270,7 +290,7 @@ export function createGatewayServer(
               );
             }
             schedulerService.runTrigger().catch((err: unknown) => {
-              log.warn("Trigger execution failed", { err });
+              log.warn("Scheduled trigger execution failed via debug endpoint", { err });
             });
             return new Response(
               JSON.stringify({ ok: true, message: "Trigger fired" }),

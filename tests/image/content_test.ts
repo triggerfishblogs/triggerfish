@@ -3,12 +3,13 @@
  * @module
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assert } from "@std/assert";
 import {
   normalizeContent,
   extractText,
   hasImages,
   imageBlock,
+  MAX_IMAGE_BYTES,
 } from "../../src/core/image/content.ts";
 import type {
   ContentBlock,
@@ -89,14 +90,17 @@ Deno.test("imageBlock — creates correct structure with base64", () => {
   const data = new Uint8Array([0x89, 0x50, 0x4E, 0x47]);
   const result = imageBlock(data, "image/png");
 
-  assertEquals(result.type, "image");
-  assertEquals(result.source.type, "base64");
-  assertEquals(result.source.media_type, "image/png");
-  // Verify it's valid base64 by decoding
-  const decoded = atob(result.source.data);
-  assertEquals(decoded.length, 4);
-  assertEquals(decoded.charCodeAt(0), 0x89);
-  assertEquals(decoded.charCodeAt(1), 0x50);
+  assertEquals(result.ok, true);
+  if (result.ok) {
+    assertEquals(result.value.type, "image");
+    assertEquals(result.value.source.type, "base64");
+    assertEquals(result.value.source.media_type, "image/png");
+    // Verify it's valid base64 by decoding
+    const decoded = atob(result.value.source.data);
+    assertEquals(decoded.length, 4);
+    assertEquals(decoded.charCodeAt(0), 0x89);
+    assertEquals(decoded.charCodeAt(1), 0x50);
+  }
 });
 
 Deno.test("imageBlock — handles larger data (multi-chunk)", () => {
@@ -107,9 +111,27 @@ Deno.test("imageBlock — handles larger data (multi-chunk)", () => {
   }
   const result = imageBlock(data, "image/jpeg");
 
-  assertEquals(result.type, "image");
-  assertEquals(result.source.media_type, "image/jpeg");
-  // Verify round-trip
-  const decoded = atob(result.source.data);
-  assertEquals(decoded.length, 10000);
+  assertEquals(result.ok, true);
+  if (result.ok) {
+    assertEquals(result.value.type, "image");
+    assertEquals(result.value.source.media_type, "image/jpeg");
+    // Verify round-trip
+    const decoded = atob(result.value.source.data);
+    assertEquals(decoded.length, 10000);
+  }
+});
+
+Deno.test("imageBlock — rejects images exceeding MAX_IMAGE_BYTES", () => {
+  const data = new Uint8Array(MAX_IMAGE_BYTES + 1);
+  const result = imageBlock(data, "image/png");
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assert(result.error.includes("too large"));
+  }
+});
+
+Deno.test("imageBlock — accepts images within MAX_IMAGE_BYTES limit", () => {
+  const data = new Uint8Array([0x89, 0x50, 0x4E, 0x47]);
+  const result = imageBlock(data, "image/png");
+  assertEquals(result.ok, true);
 });
