@@ -10,7 +10,6 @@
 import type {
   CalDavClientInterface,
   CalDavClientResult,
-  CalDavError,
   PropfindResource,
   PropfindResponse,
   PutResponse,

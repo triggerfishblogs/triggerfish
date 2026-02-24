@@ -30,7 +30,7 @@ Deno.test("client: PROPFIND sends correct headers and parses response", async ()
   let capturedHeaders: Record<string, string> = {};
   let capturedMethod = "";
 
-  const mockFetch = createMockFetch((url, init) => {
+  const mockFetch = createMockFetch((_url, init) => {
     capturedMethod = init.method ?? "";
     capturedHeaders = Object.fromEntries(
       Object.entries(init.headers ?? {}),

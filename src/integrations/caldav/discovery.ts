@@ -208,12 +208,24 @@ function extractCalendarName(url: string): string {
   return decodeURIComponent(parts[parts.length - 1] || "Calendar");
 }
 
+/** Check if a URL's hostname matches a given domain (exact or subdomain). */
+function hostnameMatchesDomain(serverUrl: string, domain: string): boolean {
+  try {
+    const hostname = new URL(serverUrl).hostname.toLowerCase();
+    return hostname === domain || hostname.endsWith(`.${domain}`);
+  } catch {
+    return false;
+  }
+}
+
 /** Detect the CalDAV server type from URL patterns. */
 function detectServerType(serverUrl: string): string | undefined {
+  if (hostnameMatchesDomain(serverUrl, "icloud.com")) return "iCloud";
+  if (hostnameMatchesDomain(serverUrl, "google.com") || hostnameMatchesDomain(serverUrl, "googleapis.com")) {
+    return "Google";
+  }
+  if (hostnameMatchesDomain(serverUrl, "fastmail.com")) return "Fastmail";
   const lower = serverUrl.toLowerCase();
-  if (lower.includes("icloud.com")) return "iCloud";
-  if (lower.includes("google") || lower.includes("googleapis")) return "Google";
-  if (lower.includes("fastmail.com")) return "Fastmail";
   if (lower.includes("nextcloud") || lower.includes("remote.php/dav")) {
     return "Nextcloud";
   }
