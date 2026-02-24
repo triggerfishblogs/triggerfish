@@ -51,6 +51,7 @@ async function selectProviderForLevel(
 /** Prompt to configure per-classification models (optional wizard step). */
 export async function promptClassificationModelsStep(): Promise<ClassificationModelsResult> {
   log.info("Starting per-classification model configuration step", { operation: "promptClassificationModelsStep" });
+  log.debug("Displaying per-classification model banner to user", { operation: "promptClassificationModelsStep" });
   console.log("");
   console.log("  Per-Classification Model Configuration (optional)");
   console.log("");
