@@ -1,4 +1,6 @@
+# ============================================================
 # Stage 1: Build — compile Triggerfish binary
+# ============================================================
 FROM docker.io/denoland/deno:2.6.8 AS builder
 
 WORKDIR /build
@@ -21,18 +23,12 @@ RUN deno compile --allow-all \
     --output=/build/triggerfish \
     src/cli/main.ts
 
+# ============================================================
+# Stage 2: Runtime (production — no shell, near-zero CVEs)
+# ============================================================
+FROM gcr.io/distroless/cc-debian12 AS production
 
-# Stage 2: Runtime — minimal Debian matching builder glibc
-FROM docker.io/debian:trixie-slim
-
-# Install tini from Debian repos + create nonroot user
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends tini \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd -r nonroot && useradd -r -g nonroot -d /data -s /sbin/nologin nonroot \
-    && mkdir -p /data && chown nonroot:nonroot /data
-
-# Copy compiled binary
+# Copy compiled binary from builder
 COPY --from=builder /build/triggerfish /usr/local/bin/triggerfish
 
 # Environment
@@ -45,7 +41,25 @@ EXPOSE 18789 18790
 # Data volume mount point
 VOLUME /data
 
-USER nonroot
+# Distroless runs as nonroot (UID 65534) by default — no USER directive needed
+# No tini — use `docker run --init` or `init: true` in compose
+# No shell — binary is the entrypoint directly
+ENTRYPOINT ["/usr/local/bin/triggerfish"]
+CMD ["run"]
 
-ENTRYPOINT ["tini", "--", "/usr/local/bin/triggerfish"]
+# ============================================================
+# Stage 3: Debug variant (has BusyBox shell for troubleshooting)
+# ============================================================
+FROM gcr.io/distroless/cc-debian12:debug AS debug
+
+COPY --from=builder /build/triggerfish /usr/local/bin/triggerfish
+
+ENV TRIGGERFISH_DATA_DIR=/data
+ENV TRIGGERFISH_DOCKER=true
+
+EXPOSE 18789 18790
+VOLUME /data
+
+# Debug variant includes busybox shell at /busybox/sh
+ENTRYPOINT ["/usr/local/bin/triggerfish"]
 CMD ["run"]

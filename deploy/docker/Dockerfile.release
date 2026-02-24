@@ -6,21 +6,20 @@
 #   triggerfish-linux-arm64   (for linux/arm64)
 #
 # buildx sets TARGETARCH automatically per platform.
+#
+# Binary must have executable permissions set before Docker build.
+# The CI pipeline sets chmod +x in the "Stage binaries" step.
 
-FROM docker.io/debian:trixie-slim
+# ============================================================
+# Stage 1: Production (no shell, near-zero CVEs)
+# ============================================================
+FROM gcr.io/distroless/cc-debian12 AS production
 
 ARG TARGETARCH
 
-# Install tini + create nonroot user
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends tini \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd -r nonroot && useradd -r -g nonroot -d /data -s /sbin/nologin nonroot \
-    && mkdir -p /data && chown nonroot:nonroot /data
-
 # Copy pre-built binary (selected by target platform)
-COPY triggerfish-linux-${TARGETARCH} /usr/local/bin/triggerfish
-RUN chmod +x /usr/local/bin/triggerfish
+# --chmod requires BuildKit (used by default with docker/build-push-action)
+COPY --chmod=755 triggerfish-linux-${TARGETARCH} /usr/local/bin/triggerfish
 
 # Environment
 ENV TRIGGERFISH_DATA_DIR=/data
@@ -32,7 +31,26 @@ EXPOSE 18789 18790
 # Data volume mount point
 VOLUME /data
 
-USER nonroot
+# Distroless runs as nonroot (UID 65534) by default — no USER directive needed
+# No tini — use `docker run --init` or `init: true` in compose
+ENTRYPOINT ["/usr/local/bin/triggerfish"]
+CMD ["run"]
 
-ENTRYPOINT ["tini", "--", "/usr/local/bin/triggerfish"]
+# ============================================================
+# Stage 2: Debug variant (has BusyBox shell for troubleshooting)
+# ============================================================
+FROM gcr.io/distroless/cc-debian12:debug AS debug
+
+ARG TARGETARCH
+
+COPY --chmod=755 triggerfish-linux-${TARGETARCH} /usr/local/bin/triggerfish
+
+ENV TRIGGERFISH_DATA_DIR=/data
+ENV TRIGGERFISH_DOCKER=true
+
+EXPOSE 18789 18790
+VOLUME /data
+
+# Debug variant includes busybox shell at /busybox/sh
+ENTRYPOINT ["/usr/local/bin/triggerfish"]
 CMD ["run"]
