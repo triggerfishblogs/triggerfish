@@ -107,14 +107,32 @@ export async function launchDirect(
   profilePath: string,
   timeoutMs: number,
 ): Promise<Result<{ browser: Browser; page: Page }, string>> {
+  // Pipe mode uses inherited FDs 3 & 4 for CDP communication, which is
+  // unreliable on Windows + Deno — Chrome launches but the window never
+  // appears. WebSocket mode (pipe: false) uses --remote-debugging-port
+  // over standard TCP and works cross-platform.
+  const usePipe = Deno.build.os !== "windows";
+  const headless = config.headless !== false;
+  const vp = config.viewport ?? DEFAULT_VIEWPORT;
+  const windowArgs = headless
+    ? []
+    : [`--window-size=${vp.width},${vp.height}`];
+
+  log.debug("direct Chrome launch config", {
+    execPath,
+    usePipe,
+    headless,
+    windowArgs,
+  });
+
   try {
     const browser = await withTimeout(
       puppeteer.launch({
         executablePath: execPath,
-        pipe: true,
-        headless: config.headless !== false,
+        pipe: usePipe,
+        headless,
         userDataDir: profilePath,
-        args: baseChromeArgs(config),
+        args: [...baseChromeArgs(config), ...windowArgs],
       }),
       timeoutMs,
       `Chrome launch timed out after ${timeoutMs}ms`,
@@ -124,7 +142,10 @@ export async function launchDirect(
     const page = pages[0] ?? await browser.newPage();
     return { ok: true, value: { browser, page } };
   } catch (err) {
-    log.error("Direct Chrome process launch failed", (err as Error).message);
+    log.error("Direct Chrome process launch failed", {
+      operation: "launchDirect",
+      err,
+    });
     return {
       ok: false,
       error: `Browser launch failed: ${(err as Error).message}`,
@@ -158,10 +179,10 @@ export async function launchFlatpak(
     await Deno.writeTextFile(wrapperPath, wrapperScript);
     await Deno.chmod(wrapperPath, 0o755);
   } catch (err) {
-    log.error(
-      "Flatpak wrapper script file write failed",
-      (err as Error).message,
-    );
+    log.error("Flatpak wrapper script file write failed", {
+      operation: "launchFlatpak",
+      err,
+    });
     return {
       ok: false,
       error: `Failed to write Flatpak wrapper script: ${
@@ -193,7 +214,10 @@ export async function launchFlatpak(
     const page = pages[0] ?? await browser.newPage();
     return { ok: true, value: { browser, page } };
   } catch (err) {
-    log.error("flatpak chrome launch failed", (err as Error).message);
+    log.error("Flatpak Chrome process launch failed", {
+      operation: "launchFlatpak",
+      err,
+    });
     return {
       ok: false,
       error: `Flatpak Chrome launch failed: ${(err as Error).message}`,
