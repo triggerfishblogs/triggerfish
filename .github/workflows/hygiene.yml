@@ -47,4 +47,4 @@ jobs:
             `gh issue create --title "Hygiene Audit — $(date +%Y-%m-%d)" --body "<your markdown report>"`
 
             Skip sections where everything is clean.
-          claude_args: "--model sonnet --max-turns 10 --allowedTools 'Bash(find:*),Bash(wc:*),Bash(grep:*),Bash(cat:*),Bash(head:*),Bash(gh issue create:*),Read,Glob,Grep'"
+          claude_args: "--model sonnet --max-turns 25 --allowedTools 'Bash(find:*),Bash(wc:*),Bash(grep:*),Bash(cat:*),Bash(head:*),Bash(gh issue create:*),Read,Glob,Grep'"

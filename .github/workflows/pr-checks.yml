@@ -75,7 +75,7 @@ jobs:
             {
               "model": "claude-opus-4-6"
             }
-          claude_args: "--max-turns 10 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Read,Glob,Grep'"
+          claude_args: "--max-turns 25 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Read,Glob,Grep'"
 
   serviceability:
     needs: hygiene
@@ -136,7 +136,7 @@ jobs:
             {
               "model": "claude-opus-4-6"
             }
-          claude_args: "--max-turns 12 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep'"
+          claude_args: "--max-turns 25 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep'"
 
   code-review:
     needs: serviceability
