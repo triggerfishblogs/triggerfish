@@ -34,6 +34,7 @@ configure it.
 | `triggerfish logs` | Show last 50 log lines |
 | `triggerfish patrol` | Run health diagnostics |
 | `triggerfish dive` | First-run setup wizard (creates triggerfish.yaml) |
+| `triggerfish changelog` | Show release notes between versions |
 | `triggerfish update` | Download latest release, verify SHA256, replace binary, restart daemon |
 | `triggerfish version` / `--version` | Show version string |
 | `triggerfish help` | Show help |
@@ -559,6 +560,18 @@ triggerfish connect google
 ```
 triggerfish update
 ```
+
+**View release notes between versions:**
+```
+triggerfish changelog                       # Latest releases
+triggerfish changelog v0.2.16 v0.3.3       # Between two versions
+triggerfish changelog v0.2.16              # From version to current
+triggerfish changelog --latest 10          # Last 10 releases
+```
+
+In chat, use the `release_notes` tool to fetch and summarize changes between
+versions. Example: ask "What changed between v0.2.16 and v0.3.3?" and the
+agent will fetch and summarize the release notes.
 
 **Migrate plaintext secrets to keychain:**
 ```

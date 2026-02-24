@@ -515,6 +515,8 @@ Deno.test("buildSendEvent: write-down blocked tool sends direct notification to 
 Deno.test("buildSendEvent: non-owner write-down block also notifies channel", async () => {
   let callCount = 0;
 
+  // LLM first reads a file (escalating taint to INTERNAL), then attempts
+  // gmail_send (classified PUBLIC), which must be blocked by write-down.
   const mockLlm: LlmProvider = {
     name: "mock-nonowner-llm",
     supportsStreaming: false,
@@ -522,6 +524,20 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
     async complete(_messages, _tools, _options) {
       callCount++;
       if (callCount === 1) {
+        return {
+          content: "",
+          toolCalls: [
+            {
+              function: {
+                name: "read_file",
+                arguments: JSON.stringify({ path: "/data/internal.txt" }),
+              },
+            },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5 },
+        };
+      }
+      if (callCount === 2) {
         return {
           content: "",
           toolCalls: [
@@ -550,28 +566,39 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
   const engine = createPolicyEngine();
   const hookRunner = createHookRunner(engine);
 
-  // Non-owner session starts at PUBLIC but we simulate taint escalation to INTERNAL
   const nonOwnerSession = createSession({
     userId: "user-456" as UserId,
     channelId: "telegram" as ChannelId,
   });
 
-  let simulatedTaint: ClassificationLevel = "INTERNAL" as ClassificationLevel;
-
   const toolClassifications = new Map<string, ClassificationLevel>([
     ["gmail_", "PUBLIC" as ClassificationLevel],
   ]);
+
+  // pathClassifier returns INTERNAL for all paths — reading any file
+  // escalates the non-owner session taint to INTERNAL.
+  const pathClassifier = {
+    classify(_p: string) {
+      return { classification: "INTERNAL" as ClassificationLevel };
+    },
+  };
 
   const chatSession = createChatSession({
     hookRunner,
     providerRegistry: registry,
     session: nonOwnerSession,
     toolClassifications,
-    getSessionTaint: () => simulatedTaint,
-    escalateTaint: (level, _reason) => {
-      simulatedTaint = level;
-    },
+    getSessionTaint: () => "PUBLIC" as ClassificationLevel,
+    escalateTaint: () => {},
+    pathClassifier,
     tools: [
+      {
+        name: "read_file",
+        description: "Read a file",
+        parameters: {
+          path: { type: "string", description: "File path" },
+        },
+      },
       {
         name: "gmail_send",
         description: "Send an email",
@@ -582,7 +609,7 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
         },
       },
     ],
-    toolExecutor: (name: string, _input: unknown) => `Sent via ${name}`,
+    toolExecutor: (name: string, _input: unknown) => `Result from ${name}`,
   });
 
   const { adapter, sent } = createMockAdapter("INTERNAL" as ClassificationLevel);
@@ -595,7 +622,7 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
   });
 
   await chatSession.handleChannelMessage({
-    content: "Send an email to a@b.com",
+    content: "Read /data/internal.txt then send an email to a@b.com",
     sessionId: "telegram-user-456",
     senderId: "user-456",
     isOwner: false,

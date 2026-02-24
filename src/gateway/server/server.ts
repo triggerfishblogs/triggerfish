@@ -299,7 +299,7 @@ export function createGatewayServer(
           }
 
           // Default HTTP response
-          return new Response("Triggerfish Gateway", { status: 200 });
+          return new Response(null, { status: 404 });
         },
       );
 

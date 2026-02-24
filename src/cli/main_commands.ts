@@ -15,6 +15,7 @@ import { VERSION } from "./version.ts";
 
 /** Known CLI commands. */
 const KNOWN_COMMANDS = new Set([
+  "changelog",
   "chat",
   "connect",
   "cron",
@@ -143,6 +144,13 @@ export function parseCommand(
     const sub = positional[1];
     return { command, subcommand: sub, flags };
   }
+  if (command === "changelog" && positional.length > 1) {
+    const sub = positional[1];
+    if (positional.length > 2) {
+      flags["changelog_to"] = positional[2];
+    }
+    return { command, subcommand: sub, flags };
+  }
 
   return { command, flags };
 }
@@ -157,6 +165,7 @@ USAGE:
 
 const HELP_COMMANDS = `
 COMMANDS:
+  changelog   Show release notes between versions
   chat        Start an interactive chat session
   config      Manage configuration (add channels, etc.)
   connect     Connect an external service (e.g. Google)

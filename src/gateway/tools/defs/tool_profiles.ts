@@ -18,6 +18,7 @@ import { IMAGE_TOOLS_SYSTEM_PROMPT } from "../../../tools/image/mod.ts";
 import { EXPLORE_SYSTEM_PROMPT } from "../../../tools/explore/mod.ts";
 import {
   LLM_TASK_SYSTEM_PROMPT,
+  RELEASE_NOTES_SYSTEM_PROMPT,
   SUMMARIZE_SYSTEM_PROMPT,
 } from "../../../tools/mod.ts";
 import { TRIGGER_TOOLS_SYSTEM_PROMPT } from "../trigger/trigger_tools.ts";
@@ -38,14 +39,14 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "exec", "todo", "memory", "secrets", "web", "plan", "browser",
     "tidepool", "sessions", "image", "explore", "google", "github",
     "obsidian", "llmTask", "summarize", "healthcheck", "trigger",
-    "claude", "skills", "logReader", "agents", "cron",
+    "claude", "skills", "releaseNotes", "logReader", "agents", "cron",
   ],
   /** CLI chat — everything except tidepool canvas tools. */
   cli: [
     "exec", "todo", "memory", "secrets", "web", "plan", "browser",
     "sessions", "image", "explore", "google", "github", "obsidian",
     "llmTask", "summarize", "healthcheck", "trigger", "claude",
-    "skills", "logReader", "agents", "cron",
+    "skills", "releaseNotes", "logReader", "agents", "cron",
   ],
   /** Trigger sessions — tools with wired executors, no interactive tools. */
   triggerSession: [
@@ -107,6 +108,7 @@ export const TOOL_GROUP_PROMPTS: Partial<
   claude: CLAUDE_SESSION_SYSTEM_PROMPT,
   secrets: SECRET_TOOLS_SYSTEM_PROMPT,
   trigger: TRIGGER_TOOLS_SYSTEM_PROMPT,
+  releaseNotes: RELEASE_NOTES_SYSTEM_PROMPT,
   logReader: LOG_READER_SYSTEM_PROMPT,
 };
 

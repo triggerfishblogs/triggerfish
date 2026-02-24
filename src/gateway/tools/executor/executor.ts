@@ -55,7 +55,7 @@ function buildExtendedSubsystems(
     opts.llmTaskExecutor, opts.summarizeExecutor, opts.healthcheckExecutor,
     opts.claudeExecutor, opts.mcpExecutor, opts.secretExecutor,
     opts.triggerExecutor, opts.triggerClassificationExecutor,
-    opts.skillExecutor, webExecutor,
+    opts.skillExecutor, opts.releaseNotesExecutor, webExecutor,
   ];
 }
 

@@ -688,14 +688,20 @@ Deno.test("SchedulerService: token usage from executeAgentTurn is logged without
 
 Deno.test("SchedulerService: runTrigger() fires trigger callback immediately", async () => {
   const { factory, calls, options } = createMockFactory();
-  const svc = createSchedulerService(createTestConfig(factory));
+  const triggerPath = await Deno.makeTempFile({ suffix: ".md" });
+  await Deno.writeTextFile(triggerPath, "# Test Trigger\nCheck all systems.");
+  try {
+    const svc = createSchedulerService(createTestConfig(factory, { triggerMdPath: triggerPath }));
 
-  await svc.runTrigger();
+    await svc.runTrigger();
 
-  // The trigger callback should have created exactly one orchestrator session
-  assertEquals(calls.length, 1);
-  assertEquals(calls[0], "trigger");
-  assertEquals(options[0]?.isTrigger, true);
+    // The trigger callback should have created exactly one orchestrator session
+    assertEquals(calls.length, 1);
+    assertEquals(calls[0], "trigger");
+    assertEquals(options[0]?.isTrigger, true);
+  } finally {
+    await Deno.remove(triggerPath);
+  }
 });
 
 // ── Replay prevention ────────────────────────────────────────────────
@@ -787,27 +793,33 @@ Deno.test("SchedulerService: webhook rate limiter blocks requests beyond burst l
 
 Deno.test("SchedulerService: trigger callback passes isTrigger=true and ceiling to factory", async () => {
   const { factory, options } = createMockFactory();
-  const config: SchedulerServiceConfig = {
-    orchestratorFactory: factory,
-    triggerMdPath: "/tmp/nonexistent-trigger.md",
-    trigger: {
-      enabled: true,
-      intervalMinutes: 1,
-      classificationCeiling: "CONFIDENTIAL",
-    },
-    webhooks: { enabled: false, sources: {} },
-  };
+  const triggerPath = await Deno.makeTempFile({ suffix: ".md" });
+  await Deno.writeTextFile(triggerPath, "# Test Trigger\nCheck all systems.");
+  try {
+    const config: SchedulerServiceConfig = {
+      orchestratorFactory: factory,
+      triggerMdPath: triggerPath,
+      trigger: {
+        enabled: true,
+        intervalMinutes: 1,
+        classificationCeiling: "CONFIDENTIAL",
+      },
+      webhooks: { enabled: false, sources: {} },
+    };
 
-  const svc = createSchedulerService(config);
-  // Manually invoke the trigger by starting and stopping immediately.
-  // The trigger fires once immediately on start.
-  svc.start();
-  // Wait briefly for the async trigger callback
-  await new Promise((r) => setTimeout(r, 50));
-  svc.stop();
+    const svc = createSchedulerService(config);
+    // Manually invoke the trigger by starting and stopping immediately.
+    // The trigger fires once immediately on start.
+    svc.start();
+    // Wait briefly for the async trigger callback
+    await new Promise((r) => setTimeout(r, 50));
+    svc.stop();
 
-  // Verify the factory was called with trigger options
-  const triggerCall = options.find((o) => o?.isTrigger === true);
-  assert(triggerCall !== undefined, "Expected trigger to call factory with isTrigger=true");
-  assertEquals(triggerCall?.ceiling, "CONFIDENTIAL");
+    // Verify the factory was called with trigger options
+    const triggerCall = options.find((o) => o?.isTrigger === true);
+    assert(triggerCall !== undefined, "Expected trigger to call factory with isTrigger=true");
+    assertEquals(triggerCall?.ceiling, "CONFIDENTIAL");
+  } finally {
+    await Deno.remove(triggerPath);
+  }
 });

@@ -50,6 +50,7 @@ export interface ToolExecutorOptions {
    */
   readonly triggerClassificationExecutor?: SubsystemExecutor;
   readonly skillExecutor?: SubsystemExecutor;
+  readonly releaseNotesExecutor?: SubsystemExecutor;
   /**
    * Skill context tracker for the session. When provided, web_fetch domain
    * restrictions are enforced per the active skill's networkDomains declaration.
