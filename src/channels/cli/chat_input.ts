@@ -105,6 +105,7 @@ export async function handleClipboardPaste(
     );
     if (!imgResult.ok) {
       log.warn("Clipboard image rejected: exceeds size limit", {
+        operation: "handleClipboardPaste",
         byteLength: clipResult.value.data.length,
         limitBytes: MAX_IMAGE_BYTES,
       });

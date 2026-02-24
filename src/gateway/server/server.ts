@@ -178,12 +178,9 @@ export function createGatewayServer(
               allowedOrigins: options?.allowedOrigins,
             });
             if (rejection) {
-              const reason = rejection.status === 401
-                ? "invalid_token"
-                : "origin_mismatch";
               log.warn("WebSocket upgrade rejected", {
                 status: rejection.status,
-                reason,
+                reason: rejection.status === 401 ? "invalid_token" : "origin_mismatch",
                 origin: request.headers.get("origin") ?? "(none)",
               });
               return rejection;
@@ -243,7 +240,7 @@ export function createGatewayServer(
                 );
                 socket.send(JSON.stringify(rpcResponse));
               } catch (err) {
-                log.warn("JSON-RPC message processing failed", { err });
+                log.warn("JSON-RPC dispatch or JSON parse failed on WebSocket message", { err });
                 socket.send(JSON.stringify({
                   jsonrpc: "2.0",
                   id: null,
@@ -293,7 +290,7 @@ export function createGatewayServer(
               );
             }
             schedulerService.runTrigger().catch((err: unknown) => {
-              log.warn("Trigger execution failed", { err });
+              log.warn("Scheduled trigger execution failed via debug endpoint", { err });
             });
             return new Response(
               JSON.stringify({ ok: true, message: "Trigger fired" }),

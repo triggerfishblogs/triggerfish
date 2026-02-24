@@ -109,12 +109,15 @@ async function forwardWebhookToScheduler(
   );
 
   if (result.ok) {
+    log.debug("Webhook request accepted", { sourceId });
     return jsonResponse({ ok: true }, 200);
   }
   const status = mapWebhookErrorStatus(result.error);
-  log.warn(
-    `Webhook request rejected: sourceId=${sourceId} status=${status} error=${result.error}`,
-  );
+  log.warn("Webhook request rejected by scheduler", {
+    sourceId,
+    status,
+    error: result.error,
+  });
   return jsonResponse({ error: result.error }, status);
 }
 

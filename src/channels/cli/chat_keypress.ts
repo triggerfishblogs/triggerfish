@@ -27,8 +27,8 @@ import {
 export function sendCancelMessage(ws: WebSocket, log: Logger): void {
   try {
     ws.send(JSON.stringify({ type: "cancel" }));
-  } catch (_err: unknown) {
-    log.debug("WebSocket send failed: connection closed");
+  } catch (err: unknown) {
+    log.debug("WebSocket cancel message send failed", { err });
   }
 }
 
