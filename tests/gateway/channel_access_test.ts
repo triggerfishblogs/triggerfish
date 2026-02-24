@@ -524,22 +524,6 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
     async complete(_messages, _tools, _options) {
       callCount++;
       if (callCount === 1) {
-        // First call: access an INTERNAL tool to escalate taint
-        return {
-          content: "",
-          toolCalls: [
-            {
-              function: {
-                name: "internal_read",
-                arguments: JSON.stringify({ key: "secret-data" }),
-              },
-            },
-          ],
-          usage: { inputTokens: 10, outputTokens: 5 },
-        };
-      }
-      if (callCount === 2) {
-        // Second call: try to use a PUBLIC tool (write-down: INTERNAL -> PUBLIC)
         return {
           content: "",
           toolCalls: [
@@ -589,7 +573,6 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
 
   const toolClassifications = new Map<string, ClassificationLevel>([
     ["gmail_", "PUBLIC" as ClassificationLevel],
-    ["internal_", "INTERNAL" as ClassificationLevel],
   ]);
 
   // pathClassifier returns INTERNAL for all paths — reading any file
