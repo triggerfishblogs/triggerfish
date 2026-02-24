@@ -91,6 +91,8 @@ export function createTrigger(options: TriggerOptions): Trigger {
         () => executeTriggerTick(options),
         options.intervalMs,
       );
+      // Fire immediately on start, then repeat at interval
+      executeTriggerTick(options);
     },
     stop(): void {
       if (intervalId === undefined) return;
