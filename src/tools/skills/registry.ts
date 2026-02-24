@@ -103,10 +103,58 @@ export interface ReefSkillMetadata {
 
 // ─── Internal types ──────────────────────────────────────────────────────────
 
-/** In-memory catalog cache with TTL tracking. */
+/**
+ * In-memory catalog cache with TTL tracking.
+ *
+ * Mutable: intentionally shared state for cache invalidation across
+ * registry operations. The cache object is passed by reference as a
+ * deliberate shared-state optimization so that search, install, and
+ * checkUpdates calls within the same registry instance share one
+ * cached catalog without redundant network fetches.
+ */
 interface CatalogCache {
   catalog: ReefCatalog | null;
   fetchedAt: number;
+}
+
+// ─── Input validation ─────────────────────────────────────────────────────────
+
+/** Pattern for valid skill names: lowercase alphanumeric, may contain hyphens, must start with alphanum. */
+const SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+
+/** Pattern for valid semver versions: major.minor.patch with optional pre-release suffix. */
+const SEMVER_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/;
+
+/**
+ * Validate a skill name is safe for use in filesystem paths and URLs.
+ *
+ * Rejects names containing path traversal sequences, slashes, dots,
+ * or other characters that could escape the intended directory.
+ */
+function validateSkillName(name: string): Result<string, string> {
+  if (!SKILL_NAME_PATTERN.test(name)) {
+    return {
+      ok: false,
+      error: `Skill name contains invalid characters: "${name}" (must match ${SKILL_NAME_PATTERN})`,
+    };
+  }
+  return { ok: true, value: name };
+}
+
+/**
+ * Validate a version string is safe for use in filesystem paths and URLs.
+ *
+ * Rejects versions containing path traversal sequences or characters
+ * outside of the semver specification.
+ */
+function validateSkillVersion(version: string): Result<string, string> {
+  if (!SEMVER_VERSION_PATTERN.test(version)) {
+    return {
+      ok: false,
+      error: `Skill version contains invalid characters: "${version}" (must match ${SEMVER_VERSION_PATTERN})`,
+    };
+  }
+  return { ok: true, value: version };
 }
 
 // ─── Semver comparison ───────────────────────────────────────────────────────
@@ -156,7 +204,15 @@ function validateRegistryUrl(
       error: `Registry URL must use HTTPS, got ${parsed.protocol} for ${url}`,
     };
   }
-  const expectedHost = new URL(baseUrl).hostname;
+  let expectedHost: string;
+  try {
+    expectedHost = new URL(baseUrl).hostname;
+  } catch {
+    return {
+      ok: false,
+      error: `Registry base URL parse failed: ${baseUrl}`,
+    };
+  }
   if (parsed.hostname !== expectedHost) {
     return {
       ok: false,
@@ -187,18 +243,26 @@ async function fetchCatalogFromNetwork(
       error: `Catalog fetch returned status ${response.status}`,
     };
   }
-  return { ok: true, value: await response.json() as ReefCatalog };
+  const body = await response.json();
+  if (!body || !Array.isArray(body.entries)) {
+    return {
+      ok: false,
+      error: "Catalog response missing entries array",
+    };
+  }
+  return { ok: true, value: body as ReefCatalog };
 }
 
 /** Return stale cached catalog or an error if no cache exists. */
 function serveStaleCacheOrError(
   cache: CatalogCache,
   errorMessage: string,
+  originalError?: unknown,
 ): Result<ReefCatalog, string> {
   if (cache.catalog) {
     log.warn("Catalog fetch failed, serving stale cache", {
       operation: "fetchCatalog",
-      err: errorMessage,
+      err: originalError ?? errorMessage,
     });
     return { ok: true, value: cache.catalog };
   }
@@ -231,6 +295,7 @@ async function fetchCatalog(options: {
     return serveStaleCacheOrError(
       options.cache,
       `Catalog fetch failed: ${message}`,
+      err,
     );
   }
 }
@@ -296,6 +361,11 @@ async function fetchSkillContent(options: {
   readonly version: string;
   readonly fetchFn: typeof fetch;
 }): Promise<Result<string, string>> {
+  const nameCheck = validateSkillName(options.name);
+  if (!nameCheck.ok) return nameCheck;
+  const versionCheck = validateSkillVersion(options.version);
+  if (!versionCheck.ok) return versionCheck;
+
   const url =
     `${options.baseUrl}/skills/${options.name}/${options.version}/SKILL.md`;
   const urlCheck = validateRegistryUrl(url, options.baseUrl);
@@ -338,6 +408,9 @@ async function writeInstalledSkill(
   name: string,
   content: string,
 ): Promise<Result<void, string>> {
+  const nameCheck = validateSkillName(name);
+  if (!nameCheck.ok) return nameCheck;
+
   const skillDir = join(targetDir, name);
   try {
     await Deno.mkdir(skillDir, { recursive: true });
