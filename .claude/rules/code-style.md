@@ -27,14 +27,14 @@
 - One level of abstraction per function. A function either orchestrates calls to other functions OR does leaf-level computation, never both. If you see high-level calls (`initSession`, `routeMessage`) mixed with low-level details (`buffer.slice(0, 4)`) in the same function, split it.
 - No boolean parameters. Use an options object with named fields, or split into separate functions. `createSession(config, true, false)` is unreadable — use `createSession(config, { streaming: true })`.
 - Max 3 positional parameters. Beyond that, use a single options/config object.
-- No dead code. No commented-out blocks, no unexported functions that aren't called, no TODO stubs older than the current phase. Dead code wastes context tokens every time Claude reads the file.
+- No dead code. No commented-out blocks, no unexported functions that aren't called, no stale TODO stubs. Dead code wastes context tokens every time Claude reads the file.
 - Error messages start with the domain noun and describe what failed: `Session not found: ${id}`, `Policy evaluation timed out after ${ms}ms`, `Classification flow blocked: ${source} → ${target}`. Never just `"error"` or `"failed"` or `"invalid input"`.
 
 ## Commit Messages
 
-Format: `[Phase N] <type>: <description>` (use `[Phase A1]`, `[Phase A2]`, `[Phase A3]` for Phase A work)
+Format: `<type>: <description>`
 Types: feat, fix, test, refactor, docs
-Example: `[Phase A1] feat: implement Brave SearchProvider`
+Example: `feat: implement Brave SearchProvider`
 
 ## Git Rules
 
