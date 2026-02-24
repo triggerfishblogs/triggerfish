@@ -174,12 +174,6 @@ export function getSecretToolDefinitions(): readonly ToolDefinition[] {
   ];
 }
 
-/** Options for creating a secret tool executor. */
-export interface SecretToolExecutorOptions {
-  readonly store: SecretStore;
-  readonly prompt: SecretPromptCallback;
-  readonly credentialPrompt?: CredentialPromptCallback;
-}
 
 /**
  * Create a tool executor for secret management tools.
