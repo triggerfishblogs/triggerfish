@@ -1,16 +1,22 @@
+# Volume permissions: container runs as UID 65534 (nonroot)
+# If using bind mounts: chown -R 65534:65534 ./data
 services:
   triggerfish:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile
+    image: ghcr.io/greghavens/triggerfish:latest
+    init: true                    # PID 1 signal handling (replaces tini)
+    container_name: triggerfish
+    restart: unless-stopped
     ports:
       - "18789:18789"
       - "18790:18790"
     volumes:
       - triggerfish-data:/data
-      # Mount your config file with secrets included
       - ./triggerfish.yaml:/data/triggerfish.yaml:ro
-    restart: unless-stopped
+    environment:
+      - TRIGGERFISH_DATA_DIR=/data
+      - TRIGGERFISH_CONFIG=/data/triggerfish.yaml
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - BRAVE_API_KEY=${BRAVE_API_KEY}
 
 volumes:
   triggerfish-data:

@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   packages: write
+  security-events: write
 
 jobs:
   build-binaries:
@@ -117,11 +118,39 @@ jobs:
         id: meta
         run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/build-push-action@v6
+      - name: Build and push production image
+        uses: docker/build-push-action@v6
         with:
           context: docker-context
           platforms: linux/amd64,linux/arm64
           push: true
+          target: production
           tags: |
             ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
             ghcr.io/${{ github.repository }}:latest
+
+      - name: Build and push debug image
+        uses: docker/build-push-action@v6
+        with:
+          context: docker-context
+          platforms: linux/amd64,linux/arm64
+          push: true
+          target: debug
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}-debug
+            ghcr.io/${{ github.repository }}:debug
+
+      - name: Scan container image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload Trivy SARIF results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
