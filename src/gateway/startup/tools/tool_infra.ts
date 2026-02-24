@@ -232,7 +232,7 @@ export async function initializeBaseToolDeps(
     storage: coreInfra.storage,
     agentId: "main-session",
   });
-  const { state, cliSecretPrompt } = initializeMainSessionState();
+  const { state, cliSecretPrompt, cliCredentialPrompt } = initializeMainSessionState();
   return {
     ...foundation,
     execTools,
@@ -240,6 +240,7 @@ export async function initializeBaseToolDeps(
     ...buildWebToolsFn(bootstrap.config),
     state,
     cliSecretPrompt,
+    cliCredentialPrompt,
     toolClassifications: mapToolPrefixClassifications(bootstrap.config),
   };
 }

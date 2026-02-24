@@ -200,16 +200,16 @@ export function createSecretToolExecutor(
   ): Promise<string | null> => {
     switch (name) {
       case "secret_save":
-        return executeSecretSave(store, prompt, input);
+        return await executeSecretSave(store, prompt, input);
 
       case "secret_save_credential":
-        return executeSecretSaveCredential(store, credentialPrompt, input);
+        return await executeSecretSaveCredential(store, credentialPrompt, input);
 
       case "secret_list":
-        return executeSecretList(store);
+        return await executeSecretList(store);
 
       case "secret_delete":
-        return executeSecretDelete(store, input);
+        return await executeSecretDelete(store, input);
 
       default:
         return null;
