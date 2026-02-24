@@ -262,6 +262,11 @@ async function executeSecretSaveCredential(
   log.warn("Credential save requested via LLM tool", { name: trimmedName });
 
   if (!credentialPrompt) {
+    log.warn("Credential save rejected: prompt unavailable", {
+      operation: "executeSecretSaveCredential",
+      reason: "credentialPrompt unavailable",
+      name: trimmedName,
+    });
     return "Error: Credential prompting is not available in this environment.";
   }
 
