@@ -53,10 +53,7 @@ import {
   buildSchedulerPathClassifier,
   buildSchedulerSkillLoader,
 } from "../tools/scheduler_tool_assembly.ts";
-import {
-  createSkillContextTracker,
-  createSkillScanner,
-} from "../../../tools/skills/mod.ts";
+import { createSkillContextTracker } from "../../../tools/skills/mod.ts";
 
 /** Symlink SPINE.md into a workspace directory. */
 async function symlinkSpineToWorkspace(
