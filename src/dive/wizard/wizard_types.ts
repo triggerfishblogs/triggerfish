@@ -32,6 +32,12 @@ export type ChannelChoice = "cli" | "webchat" | "telegram" | "discord" | "signal
 /** Search provider choice. */
 export type SearchProviderChoice = "brave" | "searxng" | "skip";
 
+/** Per-classification model override entry from the wizard. */
+export interface ClassificationModelEntry {
+  readonly provider: ProviderChoice;
+  readonly model: string;
+}
+
 /** All answers collected from the wizard steps. */
 export interface WizardAnswers {
   readonly provider: ProviderChoice;
@@ -57,6 +63,13 @@ export interface WizardAnswers {
   readonly searxngUrl: string;
   readonly localEndpoint: string;
   readonly installDaemon: boolean;
+  /**
+   * Optional per-classification model overrides.
+   * When non-empty, specific classification levels use different providers/models.
+   */
+  readonly classificationModels?: Readonly<
+    Partial<Record<string, ClassificationModelEntry>>
+  >;
 }
 
 /** Default models per provider. */
@@ -86,6 +99,7 @@ export const PROVIDER_LABELS: Readonly<Record<ProviderChoice, string>> = {
 /** Section identifiers for selective reconfiguration. */
 export type WizardSection =
   | "llm"
+  | "classification_models"
   | "agent"
   | "channels"
   | "plugins"

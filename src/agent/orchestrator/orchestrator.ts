@@ -93,9 +93,9 @@ export interface OrchestratorState {
 
 /** Derive effective context budget and create the compactor. */
 function initializeCompactor(config: OrchestratorConfig): Compactor {
-  const provider0 = config.providerRegistry.getDefault();
+  const minWindow = config.providerRegistry.getMinContextWindow();
   const effectiveBudget = config.compactorConfig?.contextBudget ??
-    provider0?.contextWindow ?? 100_000;
+    minWindow ?? 100_000;
   return createCompactor({
     ...config.compactorConfig,
     contextBudget: effectiveBudget,

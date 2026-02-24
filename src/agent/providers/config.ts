@@ -35,6 +35,12 @@ export interface PrimaryModelRef {
   readonly model: string;
 }
 
+/** Per-classification provider+model reference. */
+export interface ClassificationModelRef {
+  readonly provider: string;
+  readonly model: string;
+}
+
 /** Full models section from triggerfish.yaml. */
 export interface ModelsConfig {
   readonly primary: PrimaryModelRef;
@@ -43,6 +49,13 @@ export interface ModelsConfig {
   /** Enable streaming responses from the LLM provider. Default: true. */
   readonly streaming?: boolean;
   readonly providers: ProvidersConfig;
+  /**
+   * Optional per-classification-level model overrides.
+   * Unlisted levels fall back to `primary`.
+   */
+  readonly classification_models?: Readonly<
+    Partial<Record<string, ClassificationModelRef>>
+  >;
 }
 
 /**
@@ -125,6 +138,80 @@ export function loadProvidersFromConfig(
     log.info("Primary provider set", { provider: defaultProvider, model: modelsConfig.primary.model });
   } else {
     log.warn("Primary provider not found in registry", { provider: defaultProvider });
+  }
+
+  // Register per-classification provider overrides
+  if (modelsConfig.classification_models) {
+    for (const [level, ref] of Object.entries(modelsConfig.classification_models)) {
+      if (!ref) continue;
+      const providerConfig = providers[ref.provider as keyof ProvidersConfig] as
+        Readonly<Record<string, unknown>> | undefined;
+      if (!providerConfig) {
+        log.warn("Classification model provider not configured", {
+          operation: "loadClassificationOverride",
+          level,
+          provider: ref.provider,
+        });
+        continue;
+      }
+      const overrideProvider = createProviderByName(ref.provider, providerConfig, ref.model);
+      if (overrideProvider) {
+        registry.registerClassificationOverride(level, overrideProvider);
+        log.info("Classification model override registered", {
+          operation: "loadClassificationOverride",
+          level,
+          provider: ref.provider,
+          model: ref.model,
+        });
+      } else {
+        log.warn("Classification model provider creation failed", {
+          operation: "loadClassificationOverride",
+          level,
+          provider: ref.provider,
+        });
+      }
+    }
+  }
+}
+
+/**
+ * Create a provider instance by name with a specific model override.
+ *
+ * Dispatches to the appropriate factory function based on provider name,
+ * reusing credentials from the provider config block.
+ */
+function createProviderByName(
+  providerName: string,
+  providerConfig: Readonly<Record<string, unknown>>,
+  model: string,
+): LlmProvider | undefined {
+  const apiKey = providerConfig.apiKey as string | undefined;
+  switch (providerName) {
+    case "anthropic":
+      return createAnthropicProvider({ model, apiKey });
+    case "openai":
+      return createOpenAiProvider({ model, apiKey });
+    case "google":
+      return createGoogleProvider({ model, apiKey });
+    case "zai":
+      return createZaiProvider({ model, apiKey });
+    case "openrouter":
+      return createOpenRouterProvider({ model, apiKey });
+    case "zenmux":
+      return createZenMuxProvider({ model, apiKey });
+    case "ollama":
+      return createLocalProvider({
+        model,
+        endpoint: providerConfig.endpoint as string | undefined,
+      });
+    case "lmstudio":
+      return createLocalProvider({
+        name: "lmstudio",
+        model,
+        endpoint: providerConfig.endpoint as string | undefined ?? "http://localhost:1234",
+      });
+    default:
+      return undefined;
   }
 }
 

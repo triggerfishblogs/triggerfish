@@ -18,6 +18,16 @@ export interface TriggerFishConfig {
     readonly providers: Readonly<
       Record<string, { readonly model: string; readonly apiKey?: string }>
     >;
+    /**
+     * Optional per-classification-level model overrides.
+     * When present, LLM calls at the specified taint level use the
+     * referenced provider+model instead of `primary`. Unlisted levels
+     * fall back to `primary`. Each referenced provider must exist in
+     * the `providers` block.
+     */
+    readonly classification_models?: Readonly<
+      Partial<Record<string, { readonly provider: string; readonly model: string }>>
+    >;
   };
   readonly channels: Readonly<Record<string, unknown>>;
   readonly classification: {
@@ -202,6 +212,30 @@ export function validateConfig(
       error:
         "models.primary must be a string or object with provider and model",
     };
+  }
+
+  // Validate classification_models if present
+  if (models.classification_models !== undefined && models.classification_models !== null) {
+    if (typeof models.classification_models !== "object") {
+      return { ok: false, error: "models.classification_models must be an object" };
+    }
+    const validLevels = new Set(["RESTRICTED", "CONFIDENTIAL", "INTERNAL", "PUBLIC"]);
+    const classModels = models.classification_models as Record<string, unknown>;
+    for (const [level, ref] of Object.entries(classModels)) {
+      if (!validLevels.has(level)) {
+        return { ok: false, error: `models.classification_models: invalid classification level "${level}"` };
+      }
+      if (typeof ref !== "object" || ref === null) {
+        return { ok: false, error: `models.classification_models.${level} must be an object with provider and model` };
+      }
+      const entry = ref as Record<string, unknown>;
+      if (typeof entry.provider !== "string" || entry.provider.length === 0) {
+        return { ok: false, error: `models.classification_models.${level}: missing required field "provider"` };
+      }
+      if (typeof entry.model !== "string" || entry.model.length === 0) {
+        return { ok: false, error: `models.classification_models.${level}: missing required field "model"` };
+      }
+    }
   }
 
   return { ok: true, value: undefined };

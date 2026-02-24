@@ -106,7 +106,9 @@ async function runLlmProviderCall(
   ctx: AgentLoopContext,
   iterations: number,
 ) {
-  const provider = ctx.state.config.providerRegistry.getDefault()!;
+  const taint = ctx.state.config.getSessionTaint?.() ?? "PUBLIC";
+  const provider = ctx.state.config.providerRegistry.getForClassification(taint)
+    ?? ctx.state.config.providerRegistry.getDefault()!;
   const messages = buildLlmMessages(ctx.systemPrompt, ctx.history);
   traceLog(
     ctx.state, `iter${iterations} sending`,
