@@ -687,10 +687,10 @@ Deno.test("SchedulerService: token usage from executeAgentTurn is logged without
 });
 
 Deno.test("SchedulerService: runTrigger() fires trigger callback immediately", async () => {
-  const { factory, calls, options } = createMockFactory();
-  const triggerPath = await Deno.makeTempFile({ suffix: ".md" });
-  await Deno.writeTextFile(triggerPath, "# Test Trigger\nCheck all systems.");
+  const triggerPath = "/tmp/test-trigger-runTrigger.md";
+  await Deno.writeTextFile(triggerPath, "# Test Trigger\nCheck for updates.");
   try {
+    const { factory, calls, options } = createMockFactory();
     const svc = createSchedulerService(createTestConfig(factory, { triggerMdPath: triggerPath }));
 
     await svc.runTrigger();
@@ -700,7 +700,7 @@ Deno.test("SchedulerService: runTrigger() fires trigger callback immediately", a
     assertEquals(calls[0], "trigger");
     assertEquals(options[0]?.isTrigger, true);
   } finally {
-    await Deno.remove(triggerPath);
+    await Deno.remove(triggerPath).catch(() => {});
   }
 });
 
@@ -792,10 +792,10 @@ Deno.test("SchedulerService: webhook rate limiter blocks requests beyond burst l
 });
 
 Deno.test("SchedulerService: trigger callback passes isTrigger=true and ceiling to factory", async () => {
-  const { factory, options } = createMockFactory();
-  const triggerPath = await Deno.makeTempFile({ suffix: ".md" });
-  await Deno.writeTextFile(triggerPath, "# Test Trigger\nCheck all systems.");
+  const triggerPath = "/tmp/test-trigger-isTrigger.md";
+  await Deno.writeTextFile(triggerPath, "# Test Trigger\nCheck for updates.");
   try {
+    const { factory, options } = createMockFactory();
     const config: SchedulerServiceConfig = {
       orchestratorFactory: factory,
       triggerMdPath: triggerPath,
@@ -808,18 +808,15 @@ Deno.test("SchedulerService: trigger callback passes isTrigger=true and ceiling 
     };
 
     const svc = createSchedulerService(config);
-    // Manually invoke the trigger by starting and stopping immediately.
-    // The trigger fires once immediately on start.
-    svc.start();
-    // Wait briefly for the async trigger callback
-    await new Promise((r) => setTimeout(r, 50));
-    svc.stop();
+    // Use runTrigger() to fire the trigger callback synchronously
+    // (start() only sets up an interval timer without an immediate fire)
+    await svc.runTrigger();
 
     // Verify the factory was called with trigger options
     const triggerCall = options.find((o) => o?.isTrigger === true);
     assert(triggerCall !== undefined, "Expected trigger to call factory with isTrigger=true");
     assertEquals(triggerCall?.ceiling, "CONFIDENTIAL");
   } finally {
-    await Deno.remove(triggerPath);
+    await Deno.remove(triggerPath).catch(() => {});
   }
 });
