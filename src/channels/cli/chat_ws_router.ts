@@ -20,7 +20,7 @@ import type { ChatEvent } from "../../core/types/chat_event.ts";
 import type { WsRouterDeps, WsRouterState } from "./chat_ws_types.ts";
 import { sendNextQueuedMessage } from "./chat_ws_types.ts";
 
-export type { PasswordModeState, WsRouterState, WsRouterDeps } from "./chat_ws_types.ts";
+export type { PasswordModeState, CredentialModeState, WsRouterState, WsRouterDeps } from "./chat_ws_types.ts";
 export { sendNextQueuedMessage } from "./chat_ws_types.ts";
 
 const log = createLogger("cli");
@@ -86,6 +86,7 @@ function routeSecretPromptEvent(
   ctx: RouterContext,
 ): void {
   if (!ctx.isTty) return;
+  log.info("Secret prompt received", { operation: "routeSecretPromptEvent", secretName: evt.name, nonce: evt.nonce });
   ctx.state.passwordMode = {
     nonce: evt.nonce,
     name: evt.name,
@@ -99,6 +100,31 @@ function routeSecretPromptEvent(
   );
   ctx.screen.setStatus(
     "\u{1f512} Type secret, Enter to submit, Esc to cancel",
+  );
+  ctx.screen.redrawInput(ctx.editor);
+}
+
+function routeCredentialPromptEvent(
+  evt: Extract<ChatEvent, { type: "credential_prompt" }>,
+  ctx: RouterContext,
+): void {
+  if (!ctx.isTty) return;
+  log.info("Credential prompt received", { operation: "routeCredentialPromptEvent", credentialName: evt.name, nonce: evt.nonce });
+  ctx.state.credentialMode = {
+    nonce: evt.nonce,
+    name: evt.name,
+    hint: evt.hint,
+    phase: "username",
+    username: [],
+    password: [],
+  };
+  ctx.screen.stopSpinner();
+  const hintStr = evt.hint ? ` (${evt.hint})` : "";
+  ctx.screen.writeOutput(
+    `  \x1b[33m\u{1f512} Enter credentials for '${evt.name}'${hintStr}\x1b[0m`,
+  );
+  ctx.screen.setStatus(
+    "\u{1f512} Type username, Enter to continue, Esc to cancel",
   );
   ctx.screen.redrawInput(ctx.editor);
 }
@@ -243,6 +269,11 @@ function dispatchChatEvent(
       return routeNotificationEvent(evt, ctx);
     case "secret_prompt":
       return routeSecretPromptEvent(evt, ctx);
+    case "credential_prompt":
+      return routeCredentialPromptEvent(
+        evt as Extract<ChatEvent, { type: "credential_prompt" }>,
+        ctx,
+      );
     case "cancelled":
       return routeCancelledEvent(ctx);
     case "error":

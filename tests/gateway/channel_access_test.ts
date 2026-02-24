@@ -515,8 +515,9 @@ Deno.test("buildSendEvent: write-down blocked tool sends direct notification to 
 Deno.test("buildSendEvent: non-owner write-down block also notifies channel", async () => {
   let callCount = 0;
 
-  // LLM first reads a file (escalating taint to INTERNAL), then attempts
-  // gmail_send (classified PUBLIC), which must be blocked by write-down.
+  // Mock LLM: first call reads an INTERNAL file (escalating taint),
+  // second call tries gmail_send (blocked by write-down),
+  // third call returns the final response.
   const mockLlm: LlmProvider = {
     name: "mock-nonowner-llm",
     supportsStreaming: false,
@@ -575,12 +576,10 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
     ["gmail_", "PUBLIC" as ClassificationLevel],
   ]);
 
-  // pathClassifier returns INTERNAL for all paths — reading any file
-  // escalates the non-owner session taint to INTERNAL.
+  // Path classifier that classifies all paths as INTERNAL —
+  // reading /data/internal.txt escalates non-owner taint to INTERNAL.
   const pathClassifier = {
-    classify(_p: string) {
-      return { classification: "INTERNAL" as ClassificationLevel };
-    },
+    classify: (_path: string) => ({ classification: "INTERNAL" as ClassificationLevel }),
   };
 
   const chatSession = createChatSession({
@@ -588,8 +587,6 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
     providerRegistry: registry,
     session: nonOwnerSession,
     toolClassifications,
-    getSessionTaint: () => "PUBLIC" as ClassificationLevel,
-    escalateTaint: () => {},
     pathClassifier,
     tools: [
       {
@@ -622,7 +619,7 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
   });
 
   await chatSession.handleChannelMessage({
-    content: "Read /data/internal.txt then send an email to a@b.com",
+    content: "Read the file then send an email to a@b.com",
     sessionId: "telegram-user-456",
     senderId: "user-456",
     isOwner: false,
@@ -631,7 +628,7 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
   // Tool should have been blocked — at minimum a final response should be sent
   assert(sent.length >= 1, "Non-owner session should receive at least a final response");
 
-  // Verify the write-down block notification was sent
+  // Verify the block notification was sent (taint escalated to INTERNAL, gmail_ is PUBLIC)
   const blockMsg = sent.find(
     (m) => m.content.includes("cannot flow to") && m.content.includes("gmail_send"),
   );

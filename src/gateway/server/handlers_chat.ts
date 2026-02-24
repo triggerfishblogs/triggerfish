@@ -86,7 +86,17 @@ function handleControlMessage(
     return true;
   }
   if (msg.type === "secret_prompt_response") {
+    log.debug("Routing secret prompt response", { operation: "handleControlMessage", nonce: msg.nonce });
     chat.handleSecretPromptResponse(msg.nonce, msg.value);
+    return true;
+  }
+  if (msg.type === "credential_prompt_response") {
+    log.debug("Routing credential prompt response", { operation: "handleControlMessage", nonce: msg.nonce });
+    chat.handleCredentialPromptResponse(
+      msg.nonce,
+      msg.username,
+      msg.password,
+    );
     return true;
   }
   return false;

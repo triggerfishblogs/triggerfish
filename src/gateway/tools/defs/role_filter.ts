@@ -41,6 +41,7 @@ export const OWNER_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "memory_delete",
   // Secret management
   "secret_save",
+  "secret_save_credential",
   "secret_list",
   "secret_delete",
   // Scheduling

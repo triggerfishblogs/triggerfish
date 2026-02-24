@@ -11,6 +11,9 @@
 import type { ChatClientMessage, ChatSession } from "../../../gateway/chat.ts";
 import type { MessageContent } from "../../../core/image/content.ts";
 import { trySendSocketPayload } from "./host_broadcast.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+
+const log = createLogger("tidepool-chat");
 
 /** Mutable holder so event-listener closures can read/write the current AbortController. */
 export interface AbortControllerRef {
@@ -43,7 +46,17 @@ export function dispatchClientChatMessage(
     return;
   }
   if (msg.type === "secret_prompt_response") {
+    log.debug("Dispatching secret prompt response", { operation: "dispatchClientChatMessage", nonce: msg.nonce });
     ctx.chatSession.handleSecretPromptResponse(msg.nonce, msg.value);
+    return;
+  }
+  if (msg.type === "credential_prompt_response") {
+    log.debug("Dispatching credential prompt response", { operation: "dispatchClientChatMessage", nonce: msg.nonce });
+    ctx.chatSession.handleCredentialPromptResponse(
+      msg.nonce,
+      msg.username,
+      msg.password,
+    );
     return;
   }
   if (msg.type === "message" && isNonEmptyContent(msg.content)) {

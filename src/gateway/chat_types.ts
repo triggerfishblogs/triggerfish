@@ -182,6 +182,15 @@ export interface ChatSession {
    */
   handleSecretPromptResponse(nonce: string, value: string | null): void;
   /**
+   * Route a `credential_prompt_response` from the Tidepool browser client to the
+   * waiting `secret_save_credential` tool executor.
+   *
+   * @param nonce - The nonce from the originating `credential_prompt` event.
+   * @param username - The entered username, or null if the user cancelled.
+   * @param password - The entered password, or null if the user cancelled.
+   */
+  handleCredentialPromptResponse(nonce: string, username: string | null, password: string | null): void;
+  /**
    * Create a `SecretPromptCallback` suitable for use with `createSecretToolExecutor`
    * in Tidepool mode.
    *
@@ -193,6 +202,17 @@ export interface ChatSession {
    * @returns A SecretPromptCallback that resolves when the browser responds.
    */
   createTidepoolSecretPrompt(sendEvent: ChatEventSender): (name: string, hint?: string) => Promise<string | null>;
+  /**
+   * Create a `CredentialPromptCallback` suitable for use with `createSecretToolExecutor`
+   * in Tidepool mode.
+   *
+   * When called, the callback sends a `credential_prompt` WebSocket event and awaits
+   * the corresponding `credential_prompt_response` from the browser.
+   *
+   * @param sendEvent - The function that sends events to the active WebSocket client.
+   * @returns A CredentialPromptCallback that resolves when the browser responds.
+   */
+  createTidepoolCredentialPrompt(sendEvent: ChatEventSender): (name: string, hint?: string) => Promise<{ readonly username: string; readonly password: string } | null>;
   /**
    * Get the last known MCP server connection status for sending to new clients.
    * Returns null if MCP status has not been set yet (no MCP servers configured).

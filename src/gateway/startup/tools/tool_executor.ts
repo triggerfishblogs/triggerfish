@@ -11,7 +11,10 @@
 import type { createSession } from "../../../core/types/session.ts";
 import type { createProviderRegistry } from "../../../agent/llm.ts";
 import type { createSqliteStorage } from "../../../core/storage/sqlite.ts";
-import type { SecretPromptCallback } from "../../../tools/secrets.ts";
+import type {
+  SecretPromptCallback,
+  CredentialPromptCallback,
+} from "../../../tools/secrets.ts";
 import type { createExecTools } from "../../../exec/tools.ts";
 import type { createPersistentCronManager } from "../../../scheduler/cron/cron.ts";
 import type { createTodoManager } from "../../../tools/mod.ts";
@@ -48,6 +51,7 @@ import type { wireMcpServers } from "../infra/mcp.ts";
 export interface MainSessionState {
   session: ReturnType<typeof createSession>;
   activeSecretPrompt: SecretPromptCallback;
+  activeCredentialPrompt: CredentialPromptCallback;
 }
 
 /** Build LLM-powered auxiliary executors (task, summarize, healthcheck, release notes). */

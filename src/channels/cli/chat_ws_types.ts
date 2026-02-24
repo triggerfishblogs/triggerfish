@@ -25,10 +25,21 @@ export interface PasswordModeState {
   readonly chars: string[];
 }
 
+/** Credential-mode state — active when the daemon sends a credential_prompt event. */
+export interface CredentialModeState {
+  readonly nonce: string;
+  readonly name: string;
+  readonly hint?: string;
+  readonly phase: "username" | "password";
+  readonly username: string[];
+  readonly password: string[];
+}
+
 /** Mutable refs shared between the WS router and the keypress loop. */
 export interface WsRouterState {
   isProcessing: boolean;
   passwordMode: PasswordModeState | null;
+  credentialMode: CredentialModeState | null;
   providerName: string;
 }
 

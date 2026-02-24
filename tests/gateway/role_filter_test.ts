@@ -176,7 +176,7 @@ Deno.test("filterToolsForRole: all owner-only tools are in the OWNER_ONLY_TOOLS 
     "write_file", "edit_file", "run_command",
     "browser_navigate", "browser_click", "browser_type",
     "memory_save", "memory_delete",
-    "secret_save", "secret_delete",
+    "secret_save", "secret_save_credential", "secret_delete",
     "cron_create", "cron_delete",
     "subagent", "agents_list",
     "claude_start", "claude_send",

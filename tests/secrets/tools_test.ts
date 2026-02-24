@@ -14,12 +14,13 @@ function makePrompt(value: string | null) {
     Promise.resolve(value);
 }
 
-Deno.test("getSecretToolDefinitions — returns 3 tool definitions", () => {
+Deno.test("getSecretToolDefinitions — returns 4 tool definitions", () => {
   const defs = getSecretToolDefinitions();
-  assertEquals(defs.length, 3);
+  assertEquals(defs.length, 4);
   assertEquals(defs[0].name, "secret_save");
-  assertEquals(defs[1].name, "secret_list");
-  assertEquals(defs[2].name, "secret_delete");
+  assertEquals(defs[1].name, "secret_save_credential");
+  assertEquals(defs[2].name, "secret_list");
+  assertEquals(defs[3].name, "secret_delete");
 });
 
 Deno.test("SECRET_TOOLS_SYSTEM_PROMPT — contains reference syntax", () => {

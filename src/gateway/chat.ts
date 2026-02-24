@@ -217,7 +217,10 @@ function resolveSecretPrompt(
   const resolve = pendingSecretPrompts.get(nonce);
   if (resolve) {
     pendingSecretPrompts.delete(nonce);
+    chatLog.debug("Secret prompt resolved", { operation: "resolveSecretPrompt", nonce, hasValue: value !== null });
     resolve(value);
+  } else {
+    chatLog.debug("Secret prompt nonce not found, dropping", { operation: "resolveSecretPrompt", nonce });
   }
 }
 
@@ -234,6 +237,54 @@ function buildTidepoolSecretPrompt(
         hint !== undefined
           ? { type: "secret_prompt", nonce, name, hint }
           : { type: "secret_prompt", nonce, name },
+      );
+    });
+  };
+}
+
+// ─── Credential prompt helpers ───────────────────────────────────────────────
+
+/** Credential prompt resolution value. */
+interface CredentialResult {
+  readonly username: string;
+  readonly password: string;
+}
+
+/** Resolve a pending credential prompt by nonce. */
+function resolveCredentialPrompt(
+  pendingCredentialPrompts: Map<string, (value: CredentialResult | null) => void>,
+  nonce: string,
+  username: string | null,
+  password: string | null,
+): void {
+  const resolve = pendingCredentialPrompts.get(nonce);
+  if (resolve) {
+    pendingCredentialPrompts.delete(nonce);
+    if (username !== null && password !== null) {
+      chatLog.debug("Credential prompt resolved", { operation: "resolveCredentialPrompt", nonce });
+      resolve({ username, password });
+    } else {
+      chatLog.debug("Credential prompt cancelled by client", { operation: "resolveCredentialPrompt", nonce });
+      resolve(null);
+    }
+  } else {
+    chatLog.debug("Credential prompt nonce not found, dropping", { operation: "resolveCredentialPrompt", nonce });
+  }
+}
+
+/** Create a credential prompt callback for Tidepool mode. */
+function buildTidepoolCredentialPrompt(
+  pendingCredentialPrompts: Map<string, (value: CredentialResult | null) => void>,
+  sendEvent: ChatEventSender,
+): (name: string, hint?: string) => Promise<CredentialResult | null> {
+  return (name, hint) => {
+    const nonce = crypto.randomUUID();
+    return new Promise<CredentialResult | null>((resolve) => {
+      pendingCredentialPrompts.set(nonce, resolve);
+      sendEvent(
+        hint !== undefined
+          ? { type: "credential_prompt", nonce, name, hint }
+          : { type: "credential_prompt", nonce, name },
       );
     });
   };
@@ -303,6 +354,10 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     string,
     (value: string | null) => void
   >();
+  const pendingCredentialPrompts = new Map<
+    string,
+    (value: CredentialResult | null) => void
+  >();
 
   let mcpStatusConnected = -1;
   let mcpStatusConfigured = 0;
@@ -345,8 +400,12 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
       compactChatHistory(orchestrator, getSession, sendEvent),
     handleSecretPromptResponse: (nonce, value) =>
       resolveSecretPrompt(pendingSecretPrompts, nonce, value),
+    handleCredentialPromptResponse: (nonce, username, password) =>
+      resolveCredentialPrompt(pendingCredentialPrompts, nonce, username, password),
     createTidepoolSecretPrompt: (sendEvent) =>
       buildTidepoolSecretPrompt(pendingSecretPrompts, sendEvent),
+    createTidepoolCredentialPrompt: (sendEvent) =>
+      buildTidepoolCredentialPrompt(pendingCredentialPrompts, sendEvent),
     getMcpStatus() {
       if (mcpStatusConnected < 0 || mcpStatusConfigured === 0) return null;
       return { connected: mcpStatusConnected, configured: mcpStatusConfigured };

@@ -20,7 +20,10 @@ import type { ModelsConfig } from "../../../agent/providers/config.ts";
 import type { createHookRunner } from "../../../core/policy/hooks/hooks.ts";
 import { createExecTools } from "../../../exec/tools.ts";
 import type { createSqliteStorage } from "../../../core/storage/sqlite.ts";
-import type { SecretPromptCallback } from "../../../tools/secrets.ts";
+import type {
+  SecretPromptCallback,
+  CredentialPromptCallback,
+} from "../../../tools/secrets.ts";
 import { createTodoManager } from "../../../tools/mod.ts";
 import { createImageToolExecutor } from "../../../tools/image/mod.ts";
 import { createTidepoolToolExecutor } from "../../../tools/tidepool/mod.ts";
@@ -37,6 +40,7 @@ import type { buildWebTools } from "../factory/web_tools.ts";
 import { buildWebTools as buildWebToolsFn } from "../factory/web_tools.ts";
 import {
   createCliSecretPrompt,
+  createCliCredentialPrompt,
 } from "../infra/subsystems.ts";
 import type { BootstrapResult } from "../bootstrap.ts";
 import type { CoreInfraResult } from "../infra/core_infra.ts";
@@ -73,6 +77,7 @@ export interface ToolInfraResult {
   readonly visionProvider: ReturnType<typeof resolveVisionProvider>;
   readonly state: MainSessionState;
   readonly cliSecretPrompt: SecretPromptCallback;
+  readonly cliCredentialPrompt: CredentialPromptCallback;
   readonly memoryDb: Awaited<
     ReturnType<typeof initializeMemorySystem>
   >["memoryDb"];
@@ -99,6 +104,7 @@ export interface ToolInfraResult {
 export function initializeMainSessionState(): {
   state: MainSessionState;
   cliSecretPrompt: SecretPromptCallback;
+  cliCredentialPrompt: CredentialPromptCallback;
 } {
   const state: MainSessionState = {
     session: createSession({
@@ -106,8 +112,13 @@ export function initializeMainSessionState(): {
       channelId: "daemon" as ChannelId,
     }),
     activeSecretPrompt: createCliSecretPrompt(),
+    activeCredentialPrompt: createCliCredentialPrompt(),
   };
-  return { state, cliSecretPrompt: state.activeSecretPrompt };
+  return {
+    state,
+    cliSecretPrompt: state.activeSecretPrompt,
+    cliCredentialPrompt: state.activeCredentialPrompt,
+  };
 }
 
 /** Build media-related executors (vision, browser, tidepool, image). */
@@ -221,7 +232,7 @@ export async function initializeBaseToolDeps(
     storage: coreInfra.storage,
     agentId: "main-session",
   });
-  const { state, cliSecretPrompt } = initializeMainSessionState();
+  const { state, cliSecretPrompt, cliCredentialPrompt } = initializeMainSessionState();
   return {
     ...foundation,
     execTools,
@@ -229,6 +240,7 @@ export async function initializeBaseToolDeps(
     ...buildWebToolsFn(bootstrap.config),
     state,
     cliSecretPrompt,
+    cliCredentialPrompt,
     toolClassifications: mapToolPrefixClassifications(bootstrap.config),
   };
 }
@@ -286,6 +298,7 @@ export function assembleToolInfraResult(
     visionProvider: sessionExecs.visionProvider,
     state: baseDeps.state,
     cliSecretPrompt: baseDeps.cliSecretPrompt,
+    cliCredentialPrompt: baseDeps.cliCredentialPrompt,
     memoryDb: sessionExecs.memoryDb,
     browserHandle: sessionExecs.browserHandle,
     channelAdapters: sessionExecs.channelAdapters,
