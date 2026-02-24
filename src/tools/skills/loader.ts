@@ -9,9 +9,13 @@
 
 import { join } from "@std/path";
 import { resolveWithinJail } from "../../core/security/path_jail.ts";
+import { sanitizePathForPrompt } from "../../core/security/path_sanitization.ts";
+import { createLogger } from "../../core/logger/logger.ts";
 import { parse as parseYaml } from "@std/yaml";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { parseClassification } from "../../core/types/classification.ts";
+
+const log = createLogger("skills");
 
 /** Source type indicating where a skill was discovered. */
 export type SkillSource = "bundled" | "managed" | "workspace";
@@ -69,7 +73,8 @@ function parseFrontmatter(content: string): SkillFrontmatter | null {
   if (!match) return null;
   try {
     return parseYaml(match[1]) as SkillFrontmatter;
-  } catch {
+  } catch (err) {
+    log.debug("SKILL.md frontmatter YAML parse failed", { err });
     return null;
   }
 }
@@ -127,13 +132,23 @@ async function scanSkillDirectory(
   try {
     for await (const entry of Deno.readDir(dir)) {
       if (!entry.isDirectory || entry.isSymlink) continue;
-      const jailResult = resolveWithinJail(dir, entry.name);
+      const sanitizedName = sanitizePathForPrompt(entry.name);
+      if (sanitizedName.length === 0) {
+        log.warn("Skill directory name rejected: empty after sanitization", {
+          dir,
+          originalName: entry.name,
+          source,
+        });
+        continue;
+      }
+      const jailResult = resolveWithinJail(dir, sanitizedName);
       if (!jailResult.ok) continue;
       const skillDir = jailResult.value;
       let content: string;
       try {
         content = await Deno.readTextFile(join(skillDir, "SKILL.md"));
-      } catch {
+      } catch (err) {
+        log.debug("Skill SKILL.md read failed, skipping directory", { skillDir, err });
         continue;
       }
       const skill = buildSkillFromFrontmatter(
@@ -148,8 +163,8 @@ async function scanSkillDirectory(
           computeSkillPriority(existing.source, priority);
       if (shouldReplace) skillsByName.set(skill.name, skill);
     }
-  } catch {
-    // Directory doesn't exist or isn't readable — skip
+  } catch (err) {
+    log.debug("Skill directory not readable, skipping", { dir, source, err });
   }
 }
 

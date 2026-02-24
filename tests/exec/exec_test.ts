@@ -4,7 +4,7 @@
  * Tests write/run/read cycle, isolation, denied commands.
  * Extended with classification-partitioned workspace tests.
  */
-import { assertEquals, assertExists, assert, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertExists, assert, assertStringIncludes, assertRejects } from "@std/assert";
 import { createWorkspace } from "../../src/exec/workspace.ts";
 import { createExecTools } from "../../src/exec/tools.ts";
 import { createExecRunner } from "../../src/exec/runner.ts";
@@ -325,4 +325,67 @@ Deno.test("ExecTools: cwdOverride sets command working directory", async () => {
   } finally {
     await ws.destroy();
   }
+});
+
+// --- agentId sanitization tests ---
+
+Deno.test("Workspace: agentId with newline is sanitized for path construction", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "agent\ninjected", basePath: tmpDir });
+  try {
+    assert(!ws.path.includes("\n"), "workspace path must not contain newline");
+    assertEquals(ws.agentId, "agentinjected");
+    const stat = await Deno.stat(ws.path);
+    assert(stat.isDirectory);
+  } finally {
+    await ws.destroy();
+  }
+});
+
+Deno.test("Workspace: agentId with bidi override (U+202E) is sanitized", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "agent\u202Eid", basePath: tmpDir });
+  try {
+    assert(!ws.path.includes("\u202E"), "workspace path must not contain bidi override");
+    assertEquals(ws.agentId, "agentid");
+    const stat = await Deno.stat(ws.path);
+    assert(stat.isDirectory);
+  } finally {
+    await ws.destroy();
+  }
+});
+
+Deno.test("Workspace: agentId with zero-width space (U+200B) is sanitized", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "agent\u200Bid", basePath: tmpDir });
+  try {
+    assert(!ws.path.includes("\u200B"), "workspace path must not contain zero-width space");
+    assertEquals(ws.agentId, "agentid");
+    const stat = await Deno.stat(ws.path);
+    assert(stat.isDirectory);
+  } finally {
+    await ws.destroy();
+  }
+});
+
+Deno.test("Workspace: normal ASCII agentId is unchanged after sanitization", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "my-agent-123", basePath: tmpDir });
+  try {
+    assertEquals(ws.agentId, "my-agent-123");
+    assert(ws.path.endsWith("my-agent-123"));
+    const stat = await Deno.stat(ws.path);
+    assert(stat.isDirectory);
+  } finally {
+    await ws.destroy();
+  }
+});
+
+Deno.test("Workspace: all-control-char agentId throws after sanitization", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  await assertRejects(
+    () => createWorkspace({ agentId: "\n\r\x00", basePath: tmpDir }),
+    Error,
+    "empty after sanitization",
+  );
 });

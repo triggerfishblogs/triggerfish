@@ -8,6 +8,7 @@
 
 import { join } from "@std/path";
 import type { Skill } from "./loader.ts";
+import { sanitizePathForPrompt } from "../../core/security/path_sanitization.ts";
 
 /** Format the skill table rows for the system prompt. */
 function formatSkillTableRows(skills: readonly Skill[]): string {
@@ -47,9 +48,10 @@ ${buildSkillPriorityNote()}`;
 
 /** Build a system prompt section about TRIGGER.md awareness. */
 export function buildTriggersSystemPrompt(baseDir: string): string {
+  const safeBaseDir = sanitizePathForPrompt(baseDir);
   return `## Triggers (Proactive Monitoring)
 
 Your TRIGGER.md file is at ${
-    join(baseDir, "TRIGGER.md")
+    join(safeBaseDir, "TRIGGER.md")
   }. It defines what you proactively monitor and act on during periodic trigger wakeups. Use read_file to see current triggers, and edit_file/write_file to modify them. For full documentation on the TRIGGER.md format, use read_skill to load the "triggers" skill.`;
 }

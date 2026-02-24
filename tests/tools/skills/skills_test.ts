@@ -146,3 +146,45 @@ Deno.test("SkillScanner: clean content passes", async () => {
   `);
   assertEquals(result.ok, true);
 });
+
+// --- entry.name sanitization tests ---
+
+Deno.test("SkillLoader: normal skill directory name is unchanged after discovery", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  await Deno.mkdir(`${tmpDir}/weather`);
+  await Deno.writeTextFile(`${tmpDir}/weather/SKILL.md`, `---
+name: weather
+description: Weather skill
+classification_ceiling: PUBLIC
+---`);
+  const loader = createSkillLoader({ directories: [tmpDir] });
+  const skills = await loader.discover();
+  const skill = skills.find((s) => s.name === "weather");
+  assertExists(skill);
+  assert(skill!.path.endsWith("/weather"), "path must end with /weather for normal name");
+  assert(!skill!.path.includes("\n"), "path must not contain control chars");
+  await Deno.remove(tmpDir, { recursive: true });
+});
+
+Deno.test("SkillLoader: skill dir with newline in name is sanitized (Linux only)", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const maliciousName = "evil\nskill";
+  try {
+    await Deno.mkdir(`${tmpDir}/${maliciousName}`);
+    await Deno.writeTextFile(`${tmpDir}/${maliciousName}/SKILL.md`, `---
+name: evil-skill
+description: test
+classification_ceiling: PUBLIC
+---`);
+  } catch {
+    // OS rejected the directory name — sanitization not needed at this layer
+    await Deno.remove(tmpDir, { recursive: true });
+    return;
+  }
+  const loader = createSkillLoader({ directories: [tmpDir] });
+  const skills = await loader.discover();
+  for (const skill of skills) {
+    assert(!skill.path.includes("\n"), `skill.path must not contain newline: ${skill.path}`);
+  }
+  await Deno.remove(tmpDir, { recursive: true });
+});

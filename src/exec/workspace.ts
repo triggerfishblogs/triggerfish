@@ -14,6 +14,8 @@
 
 import { join, resolve } from "@std/path";
 import { isWithinJail } from "../core/security/path_jail.ts";
+import { sanitizePathForPrompt } from "../core/security/path_sanitization.ts";
+import { createLogger } from "../core/logger/logger.ts";
 import type {
   ClassificationLevel,
   Result,
@@ -28,11 +30,14 @@ import type {
   WorkspaceOptions,
 } from "./workspace_types.ts";
 import {
+  containsPathTraversal,
   extractClassificationPrefix,
   resolveExplicitClassifiedPath,
   searchReadableLevelsForFile,
   validatePathInWorkspace,
 } from "./workspace_paths.ts";
+
+const log = createLogger("security");
 
 export type { ClassifiedPathResult, Workspace, WorkspaceOptions };
 
@@ -119,7 +124,22 @@ function resolveBareWritePath(
 export async function createWorkspace(
   options: WorkspaceOptions,
 ): Promise<Workspace> {
-  const workspacePath = resolve(join(options.basePath, options.agentId));
+  const sanitizedAgentId = sanitizePathForPrompt(options.agentId);
+  if (sanitizedAgentId.length === 0) {
+    log.warn("Workspace agentId rejected: empty after sanitization", {
+      originalAgentId: options.agentId,
+    });
+    throw new Error(
+      `Workspace agentId "${options.agentId}" is empty after sanitization`,
+    );
+  }
+  if (sanitizedAgentId !== options.agentId) {
+    log.warn("Workspace agentId sanitized: control characters stripped", {
+      originalAgentId: options.agentId,
+      sanitizedAgentId,
+    });
+  }
+  const workspacePath = resolve(join(options.basePath, sanitizedAgentId));
   const paths = computeWorkspacePaths(workspacePath);
   const levelToDirPath = buildLevelToDirPath(paths);
 
@@ -133,7 +153,7 @@ export async function createWorkspace(
   return {
     path: workspacePath,
     ...paths,
-    agentId: options.agentId,
+    agentId: sanitizedAgentId,
     async destroy(): Promise<void> {
       await Deno.remove(workspacePath, { recursive: true });
     },
@@ -146,9 +166,24 @@ export async function createWorkspace(
       operation: "read" | "write",
     ): Result<ClassifiedPathResult, string> {
       if (sessionTaint === "PUBLIC") {
+        log.warn("Workspace access denied for PUBLIC session", {
+          operation,
+          relativePath,
+        });
         return {
           ok: false,
           error: "PUBLIC sessions cannot access workspace files",
+        };
+      }
+      if (containsPathTraversal(relativePath)) {
+        log.warn("Workspace path traversal attempt blocked", {
+          operation,
+          relativePath,
+          sessionTaint,
+        });
+        return {
+          ok: false,
+          error: `Workspace path "${relativePath}" contains traversal or absolute components`,
         };
       }
       const prefix = extractClassificationPrefix(relativePath);
@@ -163,6 +198,7 @@ export async function createWorkspace(
         });
       }
       if (operation === "write") {
+        log.debug("Workspace write routed to session taint directory", { relativePath, sessionTaint });
         return resolveBareWritePath(
           relativePath,
           sessionTaint,
