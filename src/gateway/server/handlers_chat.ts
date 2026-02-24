@@ -89,6 +89,14 @@ function handleControlMessage(
     chat.handleSecretPromptResponse(msg.nonce, msg.value);
     return true;
   }
+  if (msg.type === "credential_prompt_response") {
+    chat.handleCredentialPromptResponse(
+      msg.nonce,
+      msg.username,
+      msg.password,
+    );
+    return true;
+  }
   return false;
 }
 

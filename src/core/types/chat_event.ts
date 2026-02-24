@@ -69,6 +69,20 @@ export type ChatEvent =
     /** Optional human-readable hint for the user. */
     readonly hint?: string;
   }
+  | {
+    /**
+     * Server → browser: request the user to securely enter a username and
+     * password credential pair. The browser must show a two-field form and
+     * respond with `credential_prompt_response`.
+     */
+    readonly type: "credential_prompt";
+    /** Unique nonce correlating this request with the response. */
+    readonly nonce: string;
+    /** The credential group name (e.g. "email_smtp"). */
+    readonly name: string;
+    /** Optional human-readable hint for the user. */
+    readonly hint?: string;
+  }
   /** Server → client: a trigger/scheduler notification delivered to the owner. */
   | { readonly type: "notification"; readonly message: string }
   /** Server → client: cancel acknowledged — the in-flight request was aborted. */
@@ -90,6 +104,19 @@ export type ChatClientMessage =
     readonly nonce: string;
     /** The secret value entered by the user, or null if cancelled. */
     readonly value: string | null;
+  }
+  | {
+    /**
+     * Browser → server: the user has entered a username+password credential
+     * in the two-field form triggered by a `credential_prompt` event.
+     */
+    readonly type: "credential_prompt_response";
+    /** The nonce from the originating `credential_prompt` event. */
+    readonly nonce: string;
+    /** The username entered by the user, or null if cancelled. */
+    readonly username: string | null;
+    /** The password entered by the user, or null if cancelled. */
+    readonly password: string | null;
   };
 
 /** Callback to send a chat event to a specific client. */

@@ -46,6 +46,14 @@ export function dispatchClientChatMessage(
     ctx.chatSession.handleSecretPromptResponse(msg.nonce, msg.value);
     return;
   }
+  if (msg.type === "credential_prompt_response") {
+    ctx.chatSession.handleCredentialPromptResponse(
+      msg.nonce,
+      msg.username,
+      msg.password,
+    );
+    return;
+  }
   if (msg.type === "message" && isNonEmptyContent(msg.content)) {
     executeAgentTurnFromSocket(msg.content, ctx);
   }

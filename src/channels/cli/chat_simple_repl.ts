@@ -42,6 +42,60 @@ async function handleSecretPromptEvent(
   }
 }
 
+/** Read a credential (username + password) from stdin and send the response over WebSocket. */
+async function handleCredentialPromptEvent(
+  evt: ChatEvent & { type: "credential_prompt" },
+  ws: WebSocket,
+  log: ReturnType<typeof createLogger>,
+): Promise<void> {
+  const hintStr = evt.hint ? ` (${evt.hint})` : "";
+  const enc = new TextEncoder();
+  const lineBuf = new Uint8Array(4096);
+
+  // Read username
+  Deno.stderr.writeSync(
+    enc.encode(`  Enter username for '${evt.name}'${hintStr}: `),
+  );
+  const nUsername = await Deno.stdin.read(lineBuf);
+  const username = nUsername !== null
+    ? new TextDecoder().decode(lineBuf.subarray(0, nUsername)).trimEnd()
+    : null;
+
+  if (!username || username.length === 0) {
+    try {
+      ws.send(JSON.stringify({
+        type: "credential_prompt_response",
+        nonce: evt.nonce,
+        username: null,
+        password: null,
+      }));
+    } catch (_err: unknown) {
+      log.debug("WebSocket send failed: connection closed");
+    }
+    return;
+  }
+
+  // Read password
+  Deno.stderr.writeSync(
+    enc.encode(`  Enter password for '${evt.name}': `),
+  );
+  const nPassword = await Deno.stdin.read(lineBuf);
+  const password = nPassword !== null
+    ? new TextDecoder().decode(lineBuf.subarray(0, nPassword)).trimEnd()
+    : null;
+
+  try {
+    ws.send(JSON.stringify({
+      type: "credential_prompt_response",
+      nonce: evt.nonce,
+      username,
+      password: password && password.length > 0 ? password : null,
+    }));
+  } catch (_err: unknown) {
+    log.debug("WebSocket send failed: connection closed");
+  }
+}
+
 /** Dispatch a REPL slash command, returning true if the input was a quit command. */
 function dispatchSlashCommand(
   line: string,
@@ -81,6 +135,14 @@ function createResponseHandler(
       const evt = JSON.parse(data) as ChatEvent;
       if (evt.type === "secret_prompt") {
         await handleSecretPromptEvent(evt, ws, log);
+        return;
+      }
+      if (evt.type === "credential_prompt") {
+        await handleCredentialPromptEvent(
+          evt as ChatEvent & { type: "credential_prompt" },
+          ws,
+          log,
+        );
         return;
       }
       if (evt.type === "response" || evt.type === "error") {

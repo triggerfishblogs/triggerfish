@@ -140,6 +140,7 @@ export function buildAgentToolExecutors(
   const secretExecutor = createSecretToolExecutor(
     mainKeychain,
     (name, hint) => state.activeSecretPrompt(name, hint),
+    (name, hint) => state.activeCredentialPrompt(name, hint),
   );
   const skillContextTracker = createSkillContextTracker();
   return {

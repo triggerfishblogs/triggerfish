@@ -177,6 +177,9 @@
       case "secret_prompt":
         handleSecretPrompt(evt.nonce, evt.name, evt.hint);
         break;
+      case "credential_prompt":
+        handleCredentialPrompt(evt.nonce, evt.name, evt.hint);
+        break;
     }
   }
 
@@ -227,6 +230,76 @@
     submitBtn.addEventListener("click", onSubmit);
     cancelBtn.addEventListener("click", onCancel);
     valueInput.addEventListener("keydown", onKeydown);
+  }
+
+  function handleCredentialPrompt(nonce, name, hint) {
+    var overlay = document.getElementById("credential-prompt-overlay");
+    var title = document.getElementById("credential-prompt-title");
+    var desc = document.getElementById("credential-prompt-hint");
+    var usernameInput = document.getElementById("credential-prompt-username");
+    var passwordInput = document.getElementById("credential-prompt-password");
+    var submitBtn = document.getElementById("credential-prompt-submit");
+    var cancelBtn = document.getElementById("credential-prompt-cancel");
+
+    if (!overlay || !title || !usernameInput || !passwordInput || !submitBtn || !cancelBtn) return;
+
+    title.textContent = "Enter credentials: " + name;
+    if (desc) desc.textContent = hint || "";
+    usernameInput.value = "";
+    passwordInput.value = "";
+    overlay.style.display = "flex";
+    setTimeout(function() { usernameInput.focus(); }, 50);
+
+    function cleanup() {
+      overlay.style.display = "none";
+      usernameInput.value = "";
+      passwordInput.value = "";
+      submitBtn.removeEventListener("click", onSubmit);
+      cancelBtn.removeEventListener("click", onCancel);
+      passwordInput.removeEventListener("keydown", onKeydown);
+      usernameInput.removeEventListener("keydown", onTabToPassword);
+    }
+
+    function onSubmit() {
+      var user = usernameInput.value;
+      var pass = passwordInput.value;
+      cleanup();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: "credential_prompt_response",
+          nonce: nonce,
+          username: user || null,
+          password: pass || null
+        }));
+      }
+    }
+
+    function onCancel() {
+      cleanup();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: "credential_prompt_response",
+          nonce: nonce,
+          username: null,
+          password: null
+        }));
+      }
+    }
+
+    function onKeydown(e) {
+      if (e.key === "Enter") { e.preventDefault(); onSubmit(); }
+      if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+    }
+
+    function onTabToPassword(e) {
+      if (e.key === "Enter") { e.preventDefault(); passwordInput.focus(); }
+      if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+    }
+
+    submitBtn.addEventListener("click", onSubmit);
+    cancelBtn.addEventListener("click", onCancel);
+    passwordInput.addEventListener("keydown", onKeydown);
+    usernameInput.addEventListener("keydown", onTabToPassword);
   }
 
   function addRenderLabel(evt) {

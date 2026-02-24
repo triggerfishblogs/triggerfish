@@ -11,7 +11,10 @@
 import { join } from "@std/path";
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import type { SessionId } from "../../../core/types/session.ts";
-import type { SecretPromptCallback } from "../../../tools/secrets.ts";
+import type {
+  SecretPromptCallback,
+  CredentialPromptCallback,
+} from "../../../tools/secrets.ts";
 import {
   createDailyNoteManager,
   createLinkResolver,
@@ -199,6 +202,84 @@ export function createCliSecretPrompt(): SecretPromptCallback {
         return null;
       }
       return new TextDecoder().decode(new Uint8Array(chars));
+    } finally {
+      setStdinRawMode(false);
+      writeStderr("\n");
+    }
+  };
+}
+
+// ─── CLI credential prompt ──────────────────────────────────────────────────
+
+/** Build the prompt text for a credential username input. */
+function buildUsernamePromptText(name: string, hint?: string): string {
+  return hint
+    ? `Enter username for '${name}' (${hint}): `
+    : `Enter username for '${name}': `;
+}
+
+/** Build the prompt text for a credential password input. */
+function buildPasswordPromptText(name: string): string {
+  return `Enter password for '${name}': `;
+}
+
+/** Read a line from stdin with echo (no raw mode). Returns null on Ctrl-C. */
+async function readVisibleLine(): Promise<string | null> {
+  setStdinRawMode(true);
+  try {
+    const chars: number[] = [];
+    const buf = new Uint8Array(1);
+    while (true) {
+      const n = await Deno.stdin.read(buf);
+      if (n === null) break;
+      const byte = buf[0];
+      if (byte === 13 || byte === 10) break;
+      if (byte === 3) return null;
+      if (byte === 127 || byte === 8) {
+        if (chars.length > 0) {
+          chars.pop();
+          writeStderr("\b \b");
+        }
+      } else {
+        chars.push(byte);
+        writeStderr(String.fromCharCode(byte));
+      }
+    }
+    return new TextDecoder().decode(new Uint8Array(chars));
+  } finally {
+    setStdinRawMode(false);
+    writeStderr("\n");
+  }
+}
+
+/**
+ * Create the CLI credential prompt callback.
+ *
+ * Prompts for username (echoed) then password (hidden) from the terminal.
+ * Both prompts write to stderr so they show even when stdout is piped.
+ * The entered values never appear in logs or LLM context.
+ */
+export function createCliCredentialPrompt(): CredentialPromptCallback {
+  return async (
+    name: string,
+    hint?: string,
+  ): Promise<{ readonly username: string; readonly password: string } | null> => {
+    // Phase 1: username (echoed)
+    writeStderr(buildUsernamePromptText(name, hint));
+    const username = await readVisibleLine();
+    if (username === null) return null;
+
+    // Phase 2: password (hidden, same as secret prompt)
+    writeStderr(buildPasswordPromptText(name));
+    setStdinRawMode(true);
+    try {
+      const chars = await readSecretBytes();
+      if (chars === null) {
+        writeStderr("\n");
+        return null;
+      }
+      const password = new TextDecoder().decode(new Uint8Array(chars));
+      return { username, password };
     } finally {
       setStdinRawMode(false);
       writeStderr("\n");

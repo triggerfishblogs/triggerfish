@@ -19,7 +19,10 @@ import type { createHookRunner } from "../../../core/policy/hooks/hooks.ts";
 import type { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
 import type { createPathClassifier } from "../../../core/security/path_classification.ts";
 import type { createToolFloorRegistry } from "../../../core/security/tool_floors.ts";
-import type { SecretPromptCallback } from "../../../tools/secrets.ts";
+import type {
+  SecretPromptCallback,
+  CredentialPromptCallback,
+} from "../../../tools/secrets.ts";
 import type { createAutoLaunchBrowserExecutor } from "../../../tools/browser/mod.ts";
 import { createA2UIHost } from "../../../tools/tidepool/host/mod.ts";
 import { createChatSession } from "../../chat.ts";
@@ -169,6 +172,7 @@ export function wrapChatSessionForTidepool(
   isTidepoolCallRef: { value: boolean },
   state: MainSessionState,
   cliSecretPrompt: SecretPromptCallback,
+  cliCredentialPrompt: CredentialPromptCallback,
 ) {
   return {
     ...chatSession,
@@ -181,10 +185,14 @@ export function wrapChatSessionForTidepool(
       state.activeSecretPrompt = chatSession.createTidepoolSecretPrompt(
         sendEvent,
       );
+      state.activeCredentialPrompt = chatSession.createTidepoolCredentialPrompt(
+        sendEvent,
+      );
       return chatSession.executeAgentTurn(content, sendEvent, signal).finally(
         () => {
           isTidepoolCallRef.value = false;
           state.activeSecretPrompt = cliSecretPrompt;
+          state.activeCredentialPrompt = cliCredentialPrompt;
         },
       );
     },
@@ -216,6 +224,7 @@ export function wrapChatSessionForGateway(
   chatSession: ReturnType<typeof createChatSession>,
   state: MainSessionState,
   cliSecretPrompt: SecretPromptCallback,
+  cliCredentialPrompt: CredentialPromptCallback,
 ) {
   return {
     ...chatSession,
@@ -227,9 +236,13 @@ export function wrapChatSessionForGateway(
       state.activeSecretPrompt = chatSession.createTidepoolSecretPrompt(
         sendEvent,
       );
+      state.activeCredentialPrompt = chatSession.createTidepoolCredentialPrompt(
+        sendEvent,
+      );
       return chatSession.executeAgentTurn(content, sendEvent, signal).finally(
         () => {
           state.activeSecretPrompt = cliSecretPrompt;
+          state.activeCredentialPrompt = cliCredentialPrompt;
         },
       );
     },
