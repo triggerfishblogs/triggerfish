@@ -35,7 +35,7 @@ jobs:
   hygiene:
     needs: lint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - uses: actions/checkout@v4
@@ -75,12 +75,12 @@ jobs:
             {
               "model": "claude-opus-4-6"
             }
-          claude_args: "--max-turns 25 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Read,Glob,Grep'"
+          claude_args: "--max-turns 40 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Read,Glob,Grep'"
 
   serviceability:
     needs: hygiene
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - uses: actions/checkout@v4
@@ -136,12 +136,12 @@ jobs:
             {
               "model": "claude-opus-4-6"
             }
-          claude_args: "--max-turns 25 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep'"
+          claude_args: "--max-turns 40 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep'"
 
   code-review:
     needs: serviceability
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
@@ -168,4 +168,4 @@ jobs:
             {
               "model": "claude-opus-4-6"
             }
-          claude_args: "--max-turns 15"
+          claude_args: "--max-turns 30"
