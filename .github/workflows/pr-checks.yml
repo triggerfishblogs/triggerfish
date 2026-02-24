@@ -71,7 +71,11 @@ jobs:
             Post a single PR comment with your findings as a markdown table.
             If everything is clean, comment "Hygiene check passed."
           allowed_bots: 'claude'
-          claude_args: "--model sonnet --max-turns 10 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Read,Glob,Grep'"
+          settings: |
+            {
+              "model": "claude-opus-4-6"
+            }
+          claude_args: "--max-turns 10 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Read,Glob,Grep'"
 
   serviceability:
     needs: hygiene
@@ -128,7 +132,11 @@ jobs:
             Include file path, line number, rule ID, and the offending code snippet for each finding.
             If everything is clean, comment "Serviceability check passed ✅"
           allowed_bots: 'claude'
-          claude_args: "--model sonnet --max-turns 12 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep'"
+          settings: |
+            {
+              "model": "claude-opus-4-6"
+            }
+          claude_args: "--max-turns 12 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep'"
 
   code-review:
     needs: serviceability
@@ -156,4 +164,8 @@ jobs:
 
             Run /code-review on this pull request.
           allowed_bots: 'claude'
-          claude_args: "--model sonnet --max-turns 15"
+          settings: |
+            {
+              "model": "claude-opus-4-6"
+            }
+          claude_args: "--max-turns 15"
