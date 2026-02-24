@@ -86,6 +86,7 @@ function routeSecretPromptEvent(
   ctx: RouterContext,
 ): void {
   if (!ctx.isTty) return;
+  log.info("Secret prompt received", { operation: "routeSecretPromptEvent", secretName: evt.name, nonce: evt.nonce });
   ctx.state.passwordMode = {
     nonce: evt.nonce,
     name: evt.name,
@@ -108,6 +109,7 @@ function routeCredentialPromptEvent(
   ctx: RouterContext,
 ): void {
   if (!ctx.isTty) return;
+  log.info("Credential prompt received", { operation: "routeCredentialPromptEvent", credentialName: evt.name, nonce: evt.nonce });
   ctx.state.credentialMode = {
     nonce: evt.nonce,
     name: evt.name,

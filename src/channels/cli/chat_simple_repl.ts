@@ -37,8 +37,8 @@ async function handleSecretPromptEvent(
       nonce: evt.nonce,
       value: value && value.length > 0 ? value : null,
     }));
-  } catch (_err: unknown) {
-    log.debug("WebSocket send failed: connection closed");
+  } catch (err: unknown) {
+    log.debug("WebSocket secret send failed", { operation: "handleSecretPromptEvent", err });
   }
 }
 
@@ -69,8 +69,8 @@ async function handleCredentialPromptEvent(
         username: null,
         password: null,
       }));
-    } catch (_err: unknown) {
-      log.debug("WebSocket send failed: connection closed");
+    } catch (err: unknown) {
+      log.debug("WebSocket credential cancel send failed", { operation: "handleCredentialPromptEvent", err });
     }
     return;
   }
@@ -91,8 +91,8 @@ async function handleCredentialPromptEvent(
       username,
       password: password && password.length > 0 ? password : null,
     }));
-  } catch (_err: unknown) {
-    log.debug("WebSocket send failed: connection closed");
+  } catch (err: unknown) {
+    log.debug("WebSocket credential send failed", { operation: "handleCredentialPromptEvent", err });
   }
 }
 
