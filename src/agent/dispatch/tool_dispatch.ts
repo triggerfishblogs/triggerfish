@@ -25,6 +25,9 @@ import {
 } from "./security_context.ts";
 import type { SecurityContext } from "./security_context.ts";
 import { escalateToolPrefixTaint } from "./access_control.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("tool-dispatch");
 
 /** Check plan mode blocking and execute plan tools. */
 async function executePlanModeToolCall(
@@ -57,7 +60,19 @@ function preEscalateOwnerTriggerTaint(
     secCtx.resourceClassification === null ||
     (!secCtx.isOwner && !secCtx.isTrigger) ||
     !config.escalateTaint
-  ) return;
+  ) {
+    log.debug("Prefix taint escalation skipped", {
+      operation: "escalateToolPrefixTaint",
+      toolName: call.name,
+      resourceClassification: secCtx.resourceClassification,
+    });
+    return;
+  }
+  log.debug("Prefix taint escalation firing", {
+    operation: "escalateToolPrefixTaint",
+    toolName: call.name,
+    resourceClassification: secCtx.resourceClassification,
+  });
   config.escalateTaint(
     secCtx.resourceClassification,
     `${call.name}: ${secCtx.resourceParam}`,
