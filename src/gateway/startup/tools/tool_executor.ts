@@ -33,6 +33,7 @@ import type { createImageToolExecutor } from "../../../tools/image/mod.ts";
 import type { createExploreToolExecutor } from "../../../tools/explore/mod.ts";
 import type { createSessionToolExecutor } from "../../tools/session/session_tools.ts";
 import type { createGitHubToolExecutor } from "../../../integrations/github/mod.ts";
+import type { createCalDavToolExecutor } from "../../../integrations/caldav/mod.ts";
 import type { createClaudeToolExecutor } from "../../../exec/claude.ts";
 import type { createSecretToolExecutor } from "../../../tools/secrets.ts";
 import type { createTriggerToolExecutor } from "../../tools/trigger/trigger_tools.ts";
@@ -98,6 +99,7 @@ export function assembleMainToolExecutor(
     readonly exploreExecutor: ReturnType<typeof createExploreToolExecutor>;
     readonly state: MainSessionState;
     readonly githubExecutor: ReturnType<typeof createGitHubToolExecutor>;
+    readonly caldavExecutor?: ReturnType<typeof createCalDavToolExecutor>;
     readonly obsidianExecutor:
       | Awaited<ReturnType<typeof buildObsidianExecutor>>
       | undefined;
