@@ -7,7 +7,7 @@
  * @module
  */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assertStringIncludes } from "@std/assert";
 
 const RELEASE_WORKFLOW_PATH = ".github/workflows/release.yml";
 const CVE_SCAN_WORKFLOW_PATH = ".github/workflows/cve-scan.yml";

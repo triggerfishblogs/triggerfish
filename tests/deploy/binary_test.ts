@@ -19,7 +19,7 @@ const DENO_JSON_PATH = "deno.json";
 Deno.test("build.sh includes config and skills in compile", async () => {
   const content = await Deno.readTextFile(BUILD_SH_PATH);
   assertStringIncludes(content, "--include config/");
-  assertStringIncludes(content, "--include skills/");
+  assertStringIncludes(content, "--include src/skills/");
 });
 
 Deno.test("build.sh compiles all 5 targets", async () => {
@@ -77,5 +77,5 @@ Deno.test("deno.json compile task includes config and skills", async () => {
   const parsed = JSON.parse(content) as Record<string, unknown>;
   const tasks = parsed.tasks as Record<string, string>;
   assertStringIncludes(tasks.compile, "--include config/");
-  assertStringIncludes(tasks.compile, "--include skills/");
+  assertStringIncludes(tasks.compile, "--include src/skills/");
 });

@@ -42,7 +42,7 @@ EXPOSE 18789 18790
 VOLUME /data
 
 # Distroless runs as nonroot (UID 65534) by default — no USER directive needed
-# No tini — use `docker run --init` or `init: true` in compose
+# Use `docker run --init` or `init: true` in compose for PID 1 signal handling
 # No shell — binary is the entrypoint directly
 ENTRYPOINT ["/usr/local/bin/triggerfish"]
 CMD ["run"]
