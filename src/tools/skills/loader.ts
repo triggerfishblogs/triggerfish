@@ -73,7 +73,8 @@ function parseFrontmatter(content: string): SkillFrontmatter | null {
   if (!match) return null;
   try {
     return parseYaml(match[1]) as SkillFrontmatter;
-  } catch {
+  } catch (err) {
+    log.debug("SKILL.md frontmatter YAML parse failed", { err });
     return null;
   }
 }

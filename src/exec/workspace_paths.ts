@@ -62,7 +62,9 @@ export function getReadableLevels(
     "CONFIDENTIAL",
     "INTERNAL",
   ];
-  return allLevels.filter((level) => canFlowTo(level, sessionTaint));
+  const readableLevels = allLevels.filter((level) => canFlowTo(level, sessionTaint));
+  log.debug("Computed readable classification levels", { sessionTaint, readableLevels });
+  return readableLevels;
 }
 
 /** Check if a relative path contains traversal (..) or absolute (/) components. */
@@ -79,6 +81,7 @@ export function validatePathInWorkspace(
   relativePath: string,
 ): Result<true, string> {
   if (!isWithinJail(absPath, workspacePath)) {
+    log.warn("Workspace path escape detected", { absPath, workspacePath, relativePath });
     return {
       ok: false,
       error: `Path "${relativePath}" escapes the workspace directory`,
@@ -136,6 +139,7 @@ export function resolveExplicitClassifiedPath(
         `Write-down: ${sessionTaint} session cannot write to ${level} directory`,
     };
   }
+  log.debug("Workspace classified path resolved", { path: relativePath, level, sessionTaint, operation });
   return { ok: true, value: { absolutePath: absPath, classification: level } };
 }
 

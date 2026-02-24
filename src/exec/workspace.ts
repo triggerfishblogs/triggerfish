@@ -198,6 +198,7 @@ export async function createWorkspace(
         });
       }
       if (operation === "write") {
+        log.debug("Workspace write routed to session taint directory", { relativePath, sessionTaint });
         return resolveBareWritePath(
           relativePath,
           sessionTaint,
