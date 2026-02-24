@@ -87,6 +87,17 @@ function buildChannelConfigSection(
         classification: "INTERNAL",
         ownerPhone: answers.signalPhoneNumber,
       };
+    } else if (ch === "googlechat" && answers.googlechatCredentialsRef.length > 0) {
+      const cfg: Record<string, unknown> = {
+        enabled: true,
+        credentials_ref: `secret:googlechat:credentials`,
+        pubsub_subscription: answers.googlechatPubsubSubscription,
+        classification: "INTERNAL",
+      };
+      if (answers.googlechatOwnerEmail.length > 0) {
+        cfg["owner_email"] = answers.googlechatOwnerEmail;
+      }
+      channels["googlechat"] = cfg;
     }
   }
   return channels;

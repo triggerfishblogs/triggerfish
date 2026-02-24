@@ -40,6 +40,9 @@ function makeAnswers(
     webchatPort: 8765,
     signalPhoneNumber: "",
     signalEndpoint: "tcp://127.0.0.1:7583",
+    googlechatCredentialsRef: "",
+    googlechatPubsubSubscription: "",
+    googlechatOwnerEmail: "",
     selectedPlugins: [],
     obsidianVaultPath: "",
     obsidianClassification: "INTERNAL",
@@ -184,6 +187,47 @@ Deno.test("Wizard: generateConfig includes signal channel config", () => {
   assertEquals(channels.signal.endpoint, "tcp://127.0.0.1:7583");
   assertEquals(channels.signal.classification, "INTERNAL");
   assertEquals(channels.signal.ownerPhone, "+15551234567");
+});
+
+Deno.test("Wizard: generateConfig includes googlechat channel config with secret ref", () => {
+  const answers = makeAnswers({
+    channels: ["cli", "googlechat"],
+    googlechatCredentialsRef: "service-account-key-json",
+    googlechatPubsubSubscription: "projects/myproj/subscriptions/chat-sub",
+    googlechatOwnerEmail: "admin@company.com",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const channels = parsed.channels as Record<string, Record<string, unknown>>;
+  assertEquals(channels.googlechat.enabled, true);
+  assertEquals(channels.googlechat.credentials_ref, "secret:googlechat:credentials");
+  assertEquals(channels.googlechat.pubsub_subscription, "projects/myproj/subscriptions/chat-sub");
+  assertEquals(channels.googlechat.owner_email, "admin@company.com");
+  assertEquals(channels.googlechat.classification, "INTERNAL");
+});
+
+Deno.test("Wizard: generateConfig omits googlechat channel when credentials_ref is empty", () => {
+  const answers = makeAnswers({
+    channels: ["cli", "googlechat"],
+    googlechatCredentialsRef: "",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const channels = parsed.channels as Record<string, unknown>;
+  assertEquals(channels.googlechat, undefined);
+});
+
+Deno.test("Wizard: generateConfig omits googlechat owner_email when empty", () => {
+  const answers = makeAnswers({
+    channels: ["cli", "googlechat"],
+    googlechatCredentialsRef: "sa-key-json",
+    googlechatPubsubSubscription: "projects/p/subscriptions/s",
+    googlechatOwnerEmail: "",
+  });
+  const yaml = generateConfig(answers);
+  const parsed = parseYaml(yaml) as Record<string, unknown>;
+  const channels = parsed.channels as Record<string, Record<string, unknown>>;
+  assertEquals(channels.googlechat.owner_email, undefined);
 });
 
 Deno.test("Wizard: generateConfig omits signal channel when phone number is empty", () => {

@@ -7,7 +7,7 @@
  * @module
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import {
   createPubSubAcknowledger,
   createPubSubPuller,
@@ -63,7 +63,7 @@ function createTestConfig(
   overrides: Partial<GoogleChatConfig> = {},
 ): GoogleChatConfig {
   return {
-    accessToken: "test-access-token",
+    getAccessToken: () => Promise.resolve("test-access-token"),
     pubsubSubscription: "projects/test-proj/subscriptions/test-sub",
     ...overrides,
   };
@@ -121,17 +121,11 @@ Deno.test("pubsub puller: throws on non-200 response", async () => {
   const config = createTestConfig({ _fetchFn: fetchFn as typeof fetch });
   const pull = createPubSubPuller(config);
 
-  let threw = false;
-  try {
-    await pull("projects/test-proj/subscriptions/test-sub", 5);
-  } catch (err: unknown) {
-    threw = true;
-    assertEquals(
-      (err as Error).message.includes("PubSub pull failed (403)"),
-      true,
-    );
-  }
-  assertEquals(threw, true);
+  const err = await assertRejects(
+    () => pull("projects/test-proj/subscriptions/test-sub", 5),
+    Error,
+  );
+  assertEquals(err.message.includes("PubSub pull failed (403)"), true);
 });
 
 // ─── PubSub acknowledge tests ───────────────────────────────────────────────
@@ -171,17 +165,11 @@ Deno.test("pubsub acknowledger: throws on non-200 response", async () => {
   const config = createTestConfig({ _fetchFn: fetchFn as typeof fetch });
   const ack = createPubSubAcknowledger(config);
 
-  let threw = false;
-  try {
-    await ack("projects/test-proj/subscriptions/test-sub", ["ack-1"]);
-  } catch (err: unknown) {
-    threw = true;
-    assertEquals(
-      (err as Error).message.includes("PubSub acknowledge failed (500)"),
-      true,
-    );
-  }
-  assertEquals(threw, true);
+  const err = await assertRejects(
+    () => ack("projects/test-proj/subscriptions/test-sub", ["ack-1"]),
+    Error,
+  );
+  assertEquals(err.message.includes("PubSub acknowledge failed (500)"), true);
 });
 
 // ─── Chat API send tests ────────────────────────────────────────────────────
@@ -211,17 +199,11 @@ Deno.test("sendGoogleChatMessage: throws on non-200 response", async () => {
   const fetchFn = createErrorFetch(404, "Space not found");
   const config = createTestConfig({ _fetchFn: fetchFn as typeof fetch });
 
-  let threw = false;
-  try {
-    await sendGoogleChatMessage(config, "spaces/INVALID", "test");
-  } catch (err: unknown) {
-    threw = true;
-    assertEquals(
-      (err as Error).message.includes("Google Chat send failed (404)"),
-      true,
-    );
-  }
-  assertEquals(threw, true);
+  const err = await assertRejects(
+    () => sendGoogleChatMessage(config, "spaces/INVALID", "test"),
+    Error,
+  );
+  assertEquals(err.message.includes("Google Chat send failed (404)"), true);
 });
 
 // ─── Message parsing tests ──────────────────────────────────────────────────

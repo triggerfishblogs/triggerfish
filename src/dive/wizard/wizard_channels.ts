@@ -10,8 +10,11 @@
 import { Checkbox, Input } from "@cliffy/prompt";
 
 import { promptChannelConfig } from "../../cli/config/config.ts";
+import { createLogger } from "../../core/logger/mod.ts";
 
 import type { ChannelChoice } from "./wizard_types.ts";
+
+const log = createLogger("dive-channels");
 
 // ── Result type ───────────────────────────────────────────────────────────────
 
@@ -96,7 +99,7 @@ async function collectTelegramConfig(): Promise<{
       "Your Telegram user ID (numeric, message @getmyid_bot for your ID number)",
   });
   if (telegramBotToken.length > 0) {
-    console.log("  \u2713 Telegram bot token saved to config");
+    log.info("Telegram bot token collected for config");
   }
   return { telegramBotToken, telegramOwnerId };
 }
@@ -110,7 +113,7 @@ async function collectDiscordConfig(): Promise<{
   const discordBotToken = (discordConfig.botToken as string) ?? "";
   const discordOwnerId = (discordConfig.ownerId as string) ?? "";
   if (discordBotToken.length > 0) {
-    console.log("  \u2713 Discord bot token saved to config");
+    log.info("Discord bot token collected for config");
   }
   return { discordBotToken, discordOwnerId };
 }
@@ -129,10 +132,7 @@ async function collectSignalConfig(): Promise<{
   signalPhoneNumber: string;
   signalEndpoint: string;
 }> {
-  console.log("");
-  console.log("  Signal requires signal-cli to be installed and linked.");
-  console.log("  Run: triggerfish connect signal   (after setup)");
-  console.log("");
+  log.info("Signal channel requires signal-cli to be installed and linked");
   const signalPhoneNumber = await Input.prompt({
     message: "Your Signal phone number (E.164 format, e.g. +15551234567)",
   });
@@ -141,7 +141,7 @@ async function collectSignalConfig(): Promise<{
     default: "tcp://127.0.0.1:7583",
   });
   if (signalPhoneNumber.length > 0) {
-    console.log("  \u2713 Signal account saved to config");
+    log.info("Signal account collected for config");
   }
   return { signalPhoneNumber, signalEndpoint };
 }
@@ -152,10 +152,7 @@ async function collectGoogleChatConfig(): Promise<{
   googlechatPubsubSubscription: string;
   googlechatOwnerEmail: string;
 }> {
-  console.log("");
-  console.log("  Google Chat requires a service account and PubSub subscription.");
-  console.log("  See: https://developers.google.com/chat/api/guides/auth/service-accounts");
-  console.log("");
+  log.info("Google Chat channel requires a service account and PubSub subscription");
   const googlechatCredentialsRef = await Input.prompt({
     message: "Service account credentials secret ref",
   });
@@ -166,7 +163,7 @@ async function collectGoogleChatConfig(): Promise<{
     message: "Owner email address (for isOwner checks)",
   });
   if (googlechatCredentialsRef.length > 0) {
-    console.log("  \u2713 Google Chat configuration saved to config");
+    log.info("Google Chat credentials collected for config");
   }
   return { googlechatCredentialsRef, googlechatPubsubSubscription, googlechatOwnerEmail };
 }

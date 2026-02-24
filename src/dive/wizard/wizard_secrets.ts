@@ -50,6 +50,13 @@ export async function storeWizardSecrets(
     stored.push(key);
   }
 
+  // Google Chat credentials
+  if (answers.googlechatCredentialsRef.length > 0) {
+    const key = "googlechat:credentials";
+    await s.setSecret(key, answers.googlechatCredentialsRef);
+    stored.push(key);
+  }
+
   // Brave Search API key
   if (answers.searchProvider === "brave" && answers.searchApiKey.length > 0) {
     const key = "web:search:apiKey";

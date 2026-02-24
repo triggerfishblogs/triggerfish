@@ -7,7 +7,7 @@
  * @module
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { createGoogleChatChannel } from "../../../src/channels/googlechat/adapter.ts";
 import type { GoogleChatConfig, GoogleChatEvent, PubSubPullResponse } from "../../../src/channels/googlechat/types.ts";
 import type { ChannelMessage } from "../../../src/channels/types.ts";
@@ -62,7 +62,7 @@ function createTestConfig(
   overrides: Partial<GoogleChatConfig> = {},
 ): GoogleChatConfig {
   return {
-    accessToken: "test-token",
+    getAccessToken: () => Promise.resolve("test-token"),
     pubsubSubscription: "projects/test/subscriptions/test-sub",
     ownerEmail: "owner@company.com",
     ...overrides,
@@ -202,7 +202,7 @@ Deno.test({
     await new Promise((r) => setTimeout(r, 100));
 
     assertEquals(received.length, 1);
-    assertEquals(received[0].sessionId, "googlechat-spaces_DM_AAAA");
+    assertEquals(received[0].sessionId, "googlechat-spaces%2FDM_AAAA");
     assertEquals(received[0].content, "Hello bot");
     assertEquals(received[0].isGroup, false);
 
@@ -295,7 +295,7 @@ Deno.test({
     await new Promise((r) => setTimeout(r, 100));
 
     assertEquals(received.length, 1);
-    assertEquals(received[0].sessionId, "googlechat-group-spaces_SPACE_BBBB");
+    assertEquals(received[0].sessionId, "googlechat-group-spaces%2FSPACE_BBBB");
     assertEquals(received[0].isGroup, true);
     assertEquals(received[0].groupId, "spaces/SPACE_BBBB");
 
@@ -398,7 +398,7 @@ Deno.test({
     await adapter.connect();
     await adapter.send({
       content: "Hello from Triggerfish",
-      sessionId: "googlechat-spaces_DM_AAAA",
+      sessionId: "googlechat-spaces%2FDM_AAAA",
     });
 
     // Find the Chat API call (not the PubSub pull or ack calls)
@@ -436,7 +436,7 @@ Deno.test({
     await adapter.connect();
     await adapter.send({
       content: "Reply to group",
-      sessionId: "googlechat-group-spaces_SPACE_BBBB",
+      sessionId: "googlechat-group-spaces%2FSPACE_BBBB",
     });
 
     const chatCalls = calls.filter((c) => {
@@ -470,7 +470,7 @@ Deno.test({
 
     await adapter.connect();
     // sendTyping is a no-op for Google Chat but should not throw
-    await adapter.sendTyping("googlechat-spaces_DM_AAAA");
+    await adapter.sendTyping("googlechat-spaces%2FDM_AAAA");
     await adapter.disconnect();
   },
 });
@@ -497,6 +497,86 @@ Deno.test({
     // Should not throw — errors are caught and logged
     await adapter.connect();
     await new Promise((r) => setTimeout(r, 100));
+    await adapter.disconnect();
+  },
+});
+
+// ─── Owner-only group mode test (#16) ────────────────────────────────────────
+
+Deno.test({
+  name: "googlechat adapter: owner-only mode filters all group messages",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const mentionedEvent = createGroupEvent(
+      "user@company.com",
+      "Hey @bot check this",
+      { mentioned: true },
+    );
+
+    const config = createTestConfig({
+      defaultGroupMode: "owner-only",
+      _pullFn: createMockPullFn([{
+        receivedMessages: [{
+          ackId: "ack-1",
+          message: {
+            data: encodeEvent(mentionedEvent),
+            messageId: "msg-1",
+            publishTime: "2026-01-01T00:00:00Z",
+          },
+        }],
+      }]),
+      _fetchFn: createMockFetch().fetchFn,
+    });
+
+    const received: ChannelMessage[] = [];
+    const adapter = createGoogleChatChannel(config);
+    adapter.onMessage((msg) => received.push(msg));
+
+    await adapter.connect();
+    await new Promise((r) => setTimeout(r, 100));
+
+    // owner-only mode should filter ALL group messages (even @mentions)
+    assertEquals(received.length, 0);
+
+    await adapter.disconnect();
+  },
+});
+
+// ─── Send failure propagation test (#17) ────────────────────────────────────
+
+Deno.test({
+  name: "googlechat adapter: send failure propagates after logging",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const errorFetchFn = (
+      _input: string | URL | Request,
+      _init?: RequestInit,
+    ): Promise<Response> => {
+      return Promise.resolve(
+        new Response("Service unavailable", { status: 503 }),
+      );
+    };
+
+    const config = createTestConfig({
+      _pullFn: createMockPullFn([{ receivedMessages: [] }]),
+      _fetchFn: errorFetchFn as typeof fetch,
+    });
+    const adapter = createGoogleChatChannel(config);
+
+    await adapter.connect();
+
+    const err = await assertRejects(
+      () =>
+        adapter.send({
+          content: "test message",
+          sessionId: "googlechat-spaces%2FDM_AAAA",
+        }),
+      Error,
+    );
+    assertEquals(err.message.includes("Google Chat send failed (503)"), true);
+
     await adapter.disconnect();
   },
 });

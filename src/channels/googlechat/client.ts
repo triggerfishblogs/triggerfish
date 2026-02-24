@@ -10,6 +10,7 @@
 
 import { createLogger } from "../../core/logger/logger.ts";
 import type {
+  AccessTokenProvider,
   GoogleChatConfig,
   GoogleChatEvent,
   PubSubAckFn,
@@ -19,6 +20,23 @@ import type {
 
 const log = createLogger("googlechat-client");
 
+// ── SSRF note ─────────────────────────────────────────────────────────────────
+// All outbound HTTP in this module targets hardcoded Google API hostnames
+// (pubsub.googleapis.com, chat.googleapis.com). These are trusted first-party
+// endpoints — no user-controlled hostnames are used. SSRF/DNS checks are
+// therefore not required here. If this module is ever extended to accept
+// user-provided URLs, SSRF prevention (DNS resolution + IP denylist) MUST be
+// added per src/tools/web/domains.ts.
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** Build an Authorization header value from the token provider. */
+async function resolveAuthHeader(
+  getAccessToken: AccessTokenProvider,
+): Promise<string> {
+  const token = await getAccessToken();
+  return `Bearer ${token}`;
+}
+
 // ─── PubSub pull ────────────────────────────────────────────────────────────
 
 /**
@@ -26,6 +44,7 @@ const log = createLogger("googlechat-client");
  *
  * Returns a function that pulls messages from the configured subscription.
  * Uses the provided fetch function (or global fetch) for HTTP requests.
+ * Calls `getAccessToken()` on every request to support token refresh.
  *
  * @param config - Google Chat adapter configuration.
  * @returns A PubSubPullFn that pulls messages from the subscription.
@@ -39,11 +58,12 @@ export function createPubSubPuller(config: GoogleChatConfig): PubSubPullFn {
   ): Promise<PubSubPullResponse> => {
     const url =
       `https://pubsub.googleapis.com/v1/${subscription}:pull`;
+    const authorization = await resolveAuthHeader(config.getAccessToken);
     const response = await fetchFn(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${config.accessToken}`,
+        "Authorization": authorization,
       },
       body: JSON.stringify({ maxMessages }),
     });
@@ -63,6 +83,7 @@ export function createPubSubPuller(config: GoogleChatConfig): PubSubPullFn {
  * Create a PubSub acknowledge function that confirms message receipt.
  *
  * Acknowledging messages prevents them from being re-delivered.
+ * Calls `getAccessToken()` on every request to support token refresh.
  *
  * @param config - Google Chat adapter configuration.
  * @returns A PubSubAckFn that acknowledges processed messages.
@@ -80,11 +101,12 @@ export function createPubSubAcknowledger(
 
     const url =
       `https://pubsub.googleapis.com/v1/${subscription}:acknowledge`;
+    const authorization = await resolveAuthHeader(config.getAccessToken);
     const response = await fetchFn(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${config.accessToken}`,
+        "Authorization": authorization,
       },
       body: JSON.stringify({ ackIds }),
     });
@@ -103,6 +125,8 @@ export function createPubSubAcknowledger(
 /**
  * Send a text message to a Google Chat space via the Chat API.
  *
+ * Calls `getAccessToken()` on every request to support token refresh.
+ *
  * @param config - Google Chat adapter configuration.
  * @param spaceName - The space resource name (e.g. "spaces/AAAA").
  * @param text - The message text to send.
@@ -114,12 +138,13 @@ export async function sendGoogleChatMessage(
 ): Promise<void> {
   const fetchFn = config._fetchFn ?? fetch;
   const url = `https://chat.googleapis.com/v1/${spaceName}/messages`;
+  const authorization = await resolveAuthHeader(config.getAccessToken);
 
   const response = await fetchFn(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${config.accessToken}`,
+      "Authorization": authorization,
     },
     body: JSON.stringify({ text }),
   });

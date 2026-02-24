@@ -10,10 +10,13 @@
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import type { GroupMode } from "../groups.ts";
 
+/** Async token provider that returns a fresh or cached access token. */
+export type AccessTokenProvider = () => Promise<string>;
+
 /** Configuration for the Google Chat channel adapter. */
 export interface GoogleChatConfig {
-  /** Pre-resolved OAuth2 access token for Google API calls. */
-  readonly accessToken: string;
+  /** Async provider for OAuth2 access tokens (supports refresh/caching). */
+  readonly getAccessToken: AccessTokenProvider;
   /** Full PubSub subscription path (projects/PROJECT/subscriptions/SUB). */
   readonly pubsubSubscription: string;
   /** Owner's email address for isOwner checks. */
@@ -30,6 +33,8 @@ export interface GoogleChatConfig {
   readonly _fetchFn?: typeof fetch;
   /** Injectable PubSub pull function for testing. */
   readonly _pullFn?: PubSubPullFn;
+  /** Injectable PubSub ack function for testing. */
+  readonly _ackFn?: PubSubAckFn;
 }
 
 /** A single message from a PubSub pull response. */
@@ -143,8 +148,3 @@ export interface GoogleChatEvent {
   readonly user?: GoogleChatSender;
 }
 
-/** Send function signature for Chat API messages. */
-export type GoogleChatSendFn = (
-  spaceName: string,
-  text: string,
-) => Promise<void>;

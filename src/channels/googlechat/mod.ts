@@ -13,6 +13,7 @@ export type {
 export { createGoogleChatChannel } from "./adapter.ts";
 
 export type {
+  AccessTokenProvider,
   GoogleChatAnnotation,
   GoogleChatConfig,
   GoogleChatEvent,

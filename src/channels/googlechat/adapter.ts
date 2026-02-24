@@ -64,14 +64,24 @@ function isDirectMessage(event: GoogleChatEvent): boolean {
   return space.type === "DM";
 }
 
+/** Encode a space resource name for use in a session ID (URL-encode slashes). */
+function encodeSpaceName(spaceName: string): string {
+  return spaceName.replace(/\//g, "%2F");
+}
+
+/** Decode a space resource name from a session ID (restore slashes). */
+function decodeSpaceName(encoded: string): string {
+  return encoded.replace(/%2F/g, "/");
+}
+
 /** Build a session ID from a Google Chat event. */
 function buildSessionId(event: GoogleChatEvent): string | undefined {
   const space = event.message?.space ?? event.space;
   if (!space?.name) return undefined;
-  const spaceName = space.name.replace(/\//g, "_");
+  const encoded = encodeSpaceName(space.name);
   return isDirectMessage(event)
-    ? `googlechat-${spaceName}`
-    : `googlechat-group-${spaceName}`;
+    ? `googlechat-${encoded}`
+    : `googlechat-group-${encoded}`;
 }
 
 /** Extract the space resource name from a session ID. */
@@ -80,10 +90,7 @@ function spaceNameFromSessionId(sessionId: string): string | undefined {
     .replace("googlechat-group-", "")
     .replace("googlechat-", "");
   if (!stripped) return undefined;
-  // Only replace the first underscore — it corresponds to the single slash
-  // in "spaces/{spaceId}". Space IDs themselves contain underscores that
-  // must be preserved (e.g. "spaces/DM_AAAA" → "spaces_DM_AAAA" → "spaces/DM_AAAA").
-  return stripped.replace("_", "/");
+  return decodeSpaceName(stripped);
 }
 
 // ─── Mention / group filtering ──────────────────────────────────────────────
@@ -246,7 +253,7 @@ export function createGoogleChatChannel(
   const state: GoogleChatAdapterState = {
     connected: false, handler: null, pollTimer: null,
     pullFn: config._pullFn ?? createPubSubPuller(config),
-    ackFn: createPubSubAcknowledger(config),
+    ackFn: config._ackFn ?? createPubSubAcknowledger(config),
   };
   return {
     classification,
@@ -277,7 +284,22 @@ export function createGoogleChatChannel(
       if (!message.sessionId) return;
       const spaceName = spaceNameFromSessionId(message.sessionId);
       if (!spaceName) return;
-      await sendGoogleChatMessage(config, spaceName, message.content);
+      try {
+        await sendGoogleChatMessage(config, spaceName, message.content);
+        log.info("Google Chat message delivered", {
+          operation: "send",
+          sessionId: message.sessionId,
+          spaceId: spaceName,
+        });
+      } catch (err: unknown) {
+        log.error("Google Chat message delivery failed", {
+          operation: "send",
+          err,
+          sessionId: message.sessionId,
+          spaceId: spaceName,
+        });
+        throw err;
+      }
     },
 
     onMessage(handler: MessageHandler): void {

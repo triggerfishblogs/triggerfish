@@ -75,7 +75,7 @@ export async function wireChannels(
   const googlechatConfig = config.channels?.googlechat as
     | GoogleChatChannelConfig
     | undefined;
-  if (googlechatConfig?.enabled) {
+  if (googlechatConfig?.enabled && googlechatConfig?.credentials_ref) {
     await wireGoogleChatChannel(googlechatConfig, channelDeps);
   }
 
