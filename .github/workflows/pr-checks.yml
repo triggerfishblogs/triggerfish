@@ -258,9 +258,32 @@ jobs:
             Post your review findings as a PR comment. Include specific file paths,
             line numbers, and code snippets for each finding. If the code looks good,
             comment "Code review passed — no issues found."
+
+            CRITICAL — VERDICT FILE:
+            As your FINAL action, you MUST write a verdict file using the Write tool:
+            - Path: audit-verdict.txt
+            - If you found ANY issues: write exactly "FAIL"
+            - If the code looks good with no issues: write exactly "PASS"
+            You must ALWAYS write this file. The workflow will fail if the file is missing.
           allowed_bots: 'claude'
           settings: |
             {
               "model": "claude-sonnet-4-6"
             }
-          claude_args: "--max-turns 40 --allowedTools 'Skill,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(git diff:*),Bash(git log:*),Bash(git fetch:*),Read,Glob,Grep'"
+          claude_args: "--max-turns 40 --allowedTools 'Skill,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(git diff:*),Bash(git log:*),Bash(git fetch:*),Read,Glob,Grep,Write'"
+
+      - name: Enforce code review verdict
+        run: |
+          if [ ! -f audit-verdict.txt ]; then
+            echo "::error::Code review did not produce a verdict file"
+            exit 1
+          fi
+          verdict=$(cat audit-verdict.txt | tr -d '[:space:]')
+          if [ "$verdict" = "FAIL" ]; then
+            echo "::error::Code review found issues — see PR comment"
+            exit 1
+          elif [ "$verdict" != "PASS" ]; then
+            echo "::error::Code review produced unexpected verdict: $verdict"
+            exit 1
+          fi
+          echo "Code review passed"
