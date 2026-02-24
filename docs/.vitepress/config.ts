@@ -15,16 +15,16 @@ export default defineConfig({
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:url', content: 'https://trigger.fish' }],
     ['meta', { property: 'og:site_name', content: 'Triggerfish' }],
-    ['meta', { property: 'og:image', content: 'https://trigger.fish/triggerfish.png' }],
+    ['meta', { property: 'og:image', content: 'https://trigger.fish/og-image.png' }],
     ['meta', { property: 'og:image:alt', content: 'Triggerfish — secure AI agent platform' }],
-    ['meta', { property: 'og:image:width', content: '1024' }],
-    ['meta', { property: 'og:image:height', content: '1024' }],
+    ['meta', { property: 'og:image:width', content: '1200' }],
+    ['meta', { property: 'og:image:height', content: '630' }],
 
     // Twitter Card
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['meta', { name: 'twitter:title', content: 'Triggerfish — Secure AI Agents' }],
     ['meta', { name: 'twitter:description', content: 'A secure, multi-channel AI agent platform with deterministic policy enforcement below the LLM layer. Every channel. No exceptions.' }],
-    ['meta', { name: 'twitter:image', content: 'https://trigger.fish/triggerfish.png' }],
+    ['meta', { name: 'twitter:image', content: 'https://trigger.fish/og-image.png' }],
     ['meta', { name: 'twitter:image:alt', content: 'Triggerfish — secure AI agent platform' }],
   ],
 
