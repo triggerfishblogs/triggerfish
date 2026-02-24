@@ -18,10 +18,12 @@ const log = createLogger("startup-channels-googlechat");
 export interface GoogleChatChannelConfig {
   readonly enabled?: boolean;
   readonly classification?: string;
-  readonly credentials_ref?: string;
+  readonly access_token?: string;
   readonly pubsub_subscription?: string;
   readonly owner_email?: string;
+  readonly owner_space_id?: string;
   readonly pairing?: boolean;
+  readonly pairing_classification?: string;
   readonly default_group_mode?: string;
   readonly groups?: Record<string, { readonly mode: string }>;
   readonly user_classifications?: Record<string, string>;
@@ -54,14 +56,15 @@ function handleGoogleChatMessage(
 function registerGoogleChatNotifications(
   notificationService: NotificationService,
   adapter: ReturnType<typeof createGoogleChatChannel>,
-  ownerEmail: string | undefined,
+  ownerSpaceId: string | undefined,
 ): void {
-  if (!ownerEmail) return;
+  if (!ownerSpaceId) return;
 
+  const sessionId = `googlechat-${ownerSpaceId.replace(/\//g, "_")}`;
   notificationService.registerChannel({
     name: "googlechat",
     send: (msg) =>
-      adapter.send({ content: msg, sessionId: `googlechat-spaces_owner` }),
+      adapter.send({ content: msg, sessionId }),
   });
 }
 
@@ -70,9 +73,9 @@ export async function wireGoogleChatChannel(
   googlechatConfig: GoogleChatChannelConfig,
   deps: ChannelWiringDeps,
 ): Promise<void> {
-  if (!googlechatConfig.credentials_ref || !googlechatConfig.pubsub_subscription) {
+  if (!googlechatConfig.access_token || !googlechatConfig.pubsub_subscription) {
     log.warn(
-      "Google Chat channel configured but credentials_ref or pubsub_subscription is missing",
+      "Google Chat channel configured but access_token or pubsub_subscription is missing",
     );
     return;
   }
@@ -82,7 +85,7 @@ export async function wireGoogleChatChannel(
     (googlechatConfig.classification ?? "INTERNAL") as ClassificationLevel;
 
   const googlechatAdapter = createGoogleChatChannel({
-    credentialsRef: googlechatConfig.credentials_ref,
+    accessToken: googlechatConfig.access_token,
     pubsubSubscription: googlechatConfig.pubsub_subscription,
     ownerEmail: googlechatConfig.owner_email,
     classification,
@@ -101,6 +104,9 @@ export async function wireGoogleChatChannel(
     classification,
     userClassifications: googlechatConfig.user_classifications,
     respondToUnclassified: googlechatConfig.respond_to_unclassified,
+    pairing: googlechatConfig.pairing,
+    pairingClassification: (googlechatConfig.pairing_classification ??
+      "INTERNAL") as ClassificationLevel,
   });
 
   googlechatAdapter.onMessage((msg) =>
@@ -110,7 +116,7 @@ export async function wireGoogleChatChannel(
   registerGoogleChatNotifications(
     deps.notificationService,
     googlechatAdapter,
-    googlechatConfig.owner_email,
+    googlechatConfig.owner_space_id,
   );
 
   await googlechatAdapter.connect();

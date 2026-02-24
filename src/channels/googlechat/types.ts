@@ -12,8 +12,8 @@ import type { GroupMode } from "../groups.ts";
 
 /** Configuration for the Google Chat channel adapter. */
 export interface GoogleChatConfig {
-  /** Secret reference for the service account credentials JSON. */
-  readonly credentialsRef: string;
+  /** Pre-resolved OAuth2 access token for Google API calls. */
+  readonly accessToken: string;
   /** Full PubSub subscription path (projects/PROJECT/subscriptions/SUB). */
   readonly pubsubSubscription: string;
   /** Owner's email address for isOwner checks. */

@@ -63,7 +63,7 @@ function createTestConfig(
   overrides: Partial<GoogleChatConfig> = {},
 ): GoogleChatConfig {
   return {
-    credentialsRef: "test-access-token",
+    accessToken: "test-access-token",
     pubsubSubscription: "projects/test-proj/subscriptions/test-sub",
     ...overrides,
   };

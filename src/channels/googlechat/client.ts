@@ -43,7 +43,7 @@ export function createPubSubPuller(config: GoogleChatConfig): PubSubPullFn {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${config.credentialsRef}`,
+        "Authorization": `Bearer ${config.accessToken}`,
       },
       body: JSON.stringify({ maxMessages }),
     });
@@ -84,7 +84,7 @@ export function createPubSubAcknowledger(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${config.credentialsRef}`,
+        "Authorization": `Bearer ${config.accessToken}`,
       },
       body: JSON.stringify({ ackIds }),
     });
@@ -119,7 +119,7 @@ export async function sendGoogleChatMessage(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${config.credentialsRef}`,
+      "Authorization": `Bearer ${config.accessToken}`,
     },
     body: JSON.stringify({ text }),
   });

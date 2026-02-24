@@ -253,10 +253,10 @@ export function createGoogleChatChannel(
     isOwner: true,
 
     async connect(): Promise<void> {
+      await pollGoogleChatMessages(state, config);
       state.pollTimer = setInterval(async () => {
         await pollGoogleChatMessages(state, config);
       }, DEFAULT_POLL_INTERVAL);
-      await pollGoogleChatMessages(state, config);
       state.connected = true;
       log.info("Google Chat adapter connected", {
         subscription: config.pubsubSubscription,
