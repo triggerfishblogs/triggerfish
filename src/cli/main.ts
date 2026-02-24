@@ -97,6 +97,10 @@ function buildCommandDispatchMap(
       const { runStart } = await import("../gateway/startup/startup.ts");
       await runStart();
     },
+    skill: async () => {
+      const { runSkill } = await import("./commands/skill.ts");
+      await runSkill(ctx.subcommand, ctx.flags);
+    },
     "run-triggers": async () => {
       const { runTriggers } = await import("./commands/run_triggers.ts");
       await runTriggers();

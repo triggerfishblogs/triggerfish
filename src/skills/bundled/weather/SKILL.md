@@ -1,5 +1,6 @@
 ---
 name: weather
+version: 1.0.0
 description: >
   Fetch current weather and forecasts using web_fetch.
   Uses wttr.in (no API key) or OpenWeatherMap (with API key).

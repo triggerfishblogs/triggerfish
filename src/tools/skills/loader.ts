@@ -25,6 +25,8 @@ export type SkillSource = "bundled" | "managed" | "workspace";
 export interface Skill {
   /** Skill name from frontmatter. */
   readonly name: string;
+  /** Skill version (semver, defaults to "0.0.0" if not specified). */
+  readonly version: string;
   /** Skill description. */
   readonly description: string;
   /** Maximum classification level this skill can access. */
@@ -66,6 +68,7 @@ export interface SkillLoader {
 /** Raw frontmatter shape parsed from SKILL.md. */
 interface SkillFrontmatter {
   readonly name?: string;
+  readonly version?: string;
   readonly description?: string;
   readonly classification_ceiling?: string;
   readonly requires_tools?: readonly string[];
@@ -123,6 +126,7 @@ function buildSkillFromFrontmatter(
 
   return {
     name: frontmatter.name,
+    version: frontmatter.version ?? "0.0.0",
     description: frontmatter.description ?? "",
     classificationCeiling: ceiling,
     requiresTools: frontmatter.requires_tools ?? null,

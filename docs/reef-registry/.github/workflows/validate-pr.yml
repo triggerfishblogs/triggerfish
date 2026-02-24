@@ -1,0 +1,74 @@
+name: Validate Skill PR
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'skills/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Find changed skill directories
+        id: changed
+        run: |
+          CHANGED=$(git diff --name-only origin/main...HEAD -- 'skills/' \
+            | grep 'SKILL.md$' \
+            | xargs -I {} dirname {} \
+            | sort -u)
+          echo "dirs<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Validate each changed skill
+        id: validate
+        run: |
+          RESULTS=""
+          FAILED=false
+          while IFS= read -r dir; do
+            [ -z "$dir" ] && continue
+            echo "Validating: $dir"
+            if deno run --allow-read --allow-write scripts/validate-skill.ts "$dir"; then
+              RESULTS="${RESULTS}✓ ${dir}\n"
+            else
+              RESULTS="${RESULTS}✗ ${dir} — FAILED\n"
+              FAILED=true
+            fi
+          done <<< "${{ steps.changed.outputs.dirs }}"
+
+          echo "results<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$RESULTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          if [ "$FAILED" = "true" ]; then
+            exit 1
+          fi
+
+      - name: Post validation results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const results = `${{ steps.validate.outputs.results }}`;
+            const body = `### Reef Skill Validation\n\n\`\`\`\n${results}\n\`\`\``;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });

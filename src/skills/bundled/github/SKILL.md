@@ -1,5 +1,6 @@
 ---
 name: github
+version: 1.0.0
 description: >
   GitHub integration for managing repositories, pull requests, issues,
   Actions workflows, and code search via the GitHub REST API. Authenticates

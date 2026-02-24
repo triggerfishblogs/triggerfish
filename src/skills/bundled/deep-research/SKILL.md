@@ -1,5 +1,6 @@
 ---
 name: deep-research
+version: 1.0.0
 description: >
   Multi-step autonomous research. Decomposes topics into search queries,
   fetches and analyzes sources, identifies gaps, refines queries, and

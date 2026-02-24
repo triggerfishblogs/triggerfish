@@ -1,5 +1,6 @@
 ---
 name: obsidian
+version: 1.0.0
 description: >
   Obsidian vault integration for reading, writing, searching, and navigating
   markdown notes with wikilinks. Filesystem-based — no network access needed.

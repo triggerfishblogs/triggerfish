@@ -1,5 +1,6 @@
 ---
 name: mastering-python
+version: 1.0.0
 description: >
   Python development patterns for Triggerfish plugins running in the
   Pyodide WASM sandbox. Covers what works in WASM, SDK usage, data

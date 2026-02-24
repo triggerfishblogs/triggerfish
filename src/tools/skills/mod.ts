@@ -13,12 +13,15 @@ export type { Skill, SkillLoader, SkillLoaderOptions, SkillSource } from "./load
 export { createSkillScanner } from "./scanner.ts";
 export type { ScanResult, SkillScanner } from "./scanner.ts";
 
-export { createReefRegistry } from "./registry.ts";
+export { compareSemver, createReefRegistry } from "./registry.ts";
 export type {
+  ReefCatalog,
+  ReefCatalogEntry,
   ReefRegistry,
   ReefRegistryOptions,
   ReefSearchOptions,
   ReefSkillListing,
+  ReefSkillMetadata,
 } from "./registry.ts";
 
 export { createSkillAuthor } from "./author.ts";

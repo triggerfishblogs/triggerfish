@@ -1,5 +1,6 @@
 ---
 name: integration-builder
+version: 1.0.0
 description: >
   How to build Triggerfish integrations. Covers the six integration patterns:
   channel adapters, LLM providers, MCP servers, storage providers, exec

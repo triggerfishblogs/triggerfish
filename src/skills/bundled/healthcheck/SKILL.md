@@ -1,5 +1,6 @@
 ---
 name: healthcheck
+version: 1.0.0
 description: >
   Inspect Triggerfish runtime health. Reports status of LLM providers, storage,
   skills, and configuration. Use when diagnosing issues or confirming the

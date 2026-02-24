@@ -1,5 +1,6 @@
 ---
 name: skill-builder
+version: 1.0.0
 description: >
   How to author Triggerfish skills. Covers SKILL.md format, frontmatter
   fields, security metadata, the three-tier hierarchy, approval workflow,

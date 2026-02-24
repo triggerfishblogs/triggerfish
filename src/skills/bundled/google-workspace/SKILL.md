@@ -1,5 +1,6 @@
 ---
 name: google-workspace
+version: 1.0.0
 description: >
   Google Workspace integration — Gmail, Calendar, Tasks, Drive, and Sheets.
   Provides 14 tools for reading emails, managing calendar events, tracking
