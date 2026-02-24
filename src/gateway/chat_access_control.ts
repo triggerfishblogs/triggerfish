@@ -33,8 +33,8 @@ async function attemptPairingVerification(
   channelState: AccessControlChannelState,
   pairingService: ChatSessionConfig["pairingService"],
 ): Promise<void> {
-  const isGroupMsg = msg.sessionId?.startsWith(`${channelType}-group-`) ??
-    false;
+  const isGroupMsg = msg.isGroup ??
+    (msg.sessionId?.startsWith(`${channelType}-group-`) ?? false);
   if (isGroupMsg) return;
 
   const codeMatch = (msg.content ?? "").trim().match(/^\d{6}$/);
@@ -54,9 +54,10 @@ async function attemptPairingVerification(
       content: "Paired successfully. You can now chat with me.",
       sessionId: msg.sessionId,
     }).catch((err: unknown) => {
-      chatLog.debug("Pairing confirmation send failed", {
+      chatLog.warn("Pairing confirmation delivery failed", {
+        operation: "attemptPairingVerification",
         channel: channelType,
-        error: err instanceof Error ? err.message : String(err),
+        err,
       });
     });
   }
@@ -90,9 +91,12 @@ export async function checkNonOwnerAccess(
   }
 
   if (!channelState.respondToUnclassified) {
-    chatLog.warn(
-      `[${channelType}] Dropping unclassified sender ${senderId} (respondToUnclassified=false)`,
-    );
+    chatLog.warn("Dropping message from unclassified sender", {
+      operation: "checkNonOwnerAccess",
+      channelType,
+      senderId,
+      respondToUnclassified: false,
+    });
     return false;
   }
 
@@ -110,5 +114,11 @@ export async function preloadPairedUsers(
   try {
     const linkedUsers = await pairingService.getLinkedUsers(channelType);
     for (const userId of linkedUsers) mgr.addClassification(userId, pairingCls);
-  } catch { /* ignore if prefix listing not supported */ }
+  } catch (err) {
+    chatLog.warn("Paired user preload failed", {
+      operation: "preloadPairedUsers",
+      channelType,
+      err,
+    });
+  }
 }

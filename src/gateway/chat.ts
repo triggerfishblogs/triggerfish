@@ -29,6 +29,8 @@ import {
   parseUserOverrides,
 } from "../channels/user_sessions.ts";
 import type { UserSessionManager } from "../channels/user_sessions.ts";
+import { createUserRateLimiter } from "../channels/rate_limiter.ts";
+import type { UserRateLimiter } from "../channels/rate_limiter.ts";
 
 import type {
   ChannelRegistrationConfig,
@@ -74,6 +76,7 @@ interface ChannelState {
   readonly respondToUnclassified: boolean;
   readonly pairing: boolean;
   readonly pairingClassification: ClassificationLevel;
+  readonly rateLimiter?: UserRateLimiter;
 }
 
 // ─── Channel registration ───────────────────────────────────────────────────
@@ -94,6 +97,9 @@ async function registerChannelState(
   if (channelConfig.pairing) {
     await preloadPairedUsers(pairingService, channelType, mgr, pairingCls);
   }
+  const rateLimiter = channelConfig.nonOwnerRateLimit
+    ? createUserRateLimiter(channelConfig.nonOwnerRateLimit)
+    : undefined;
   channelStates.set(channelType, {
     userSessions: mgr,
     adapter: channelConfig.adapter,
@@ -101,6 +107,7 @@ async function registerChannelState(
     respondToUnclassified: channelConfig.respondToUnclassified ?? true,
     pairing: channelConfig.pairing ?? false,
     pairingClassification: pairingCls,
+    rateLimiter,
   });
 }
 
@@ -120,7 +127,10 @@ async function routeChannelMessage(
 ): Promise<void> {
   const channelState = channelStates.get(channelType);
   if (!channelState) {
-    chatLog.error(`No channel config registered for ${channelType}`);
+    chatLog.error("Channel config not registered for routing", {
+      operation: "routeChannelMessage",
+      channelType,
+    });
     return;
   }
 
@@ -137,6 +147,18 @@ async function routeChannelMessage(
   }
 
   const senderId = msg.senderId ?? "";
+
+  // Per-user rate limiting for non-owner senders
+  const effectiveSenderId = senderId || "unknown";
+  if (channelState.rateLimiter && !channelState.rateLimiter.isAllowed(effectiveSenderId)) {
+    chatLog.warn("Rate limit exceeded for non-owner sender", {
+      operation: "routeChannelMessage",
+      channelType,
+      senderId: effectiveSenderId,
+    });
+    return;
+  }
+
   const allowed = await checkNonOwnerAccess(
     msg,
     channelType,
