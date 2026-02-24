@@ -42,6 +42,21 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Check for existing audit comment
+        id: check-comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Find the sticky comment left by the hygiene audit (claude[bot])
+          comment=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --jq '[.[] | select(.user.login == "claude[bot]" or .user.login == "github-actions[bot]") | select(.body | test("Hygiene (Check|Audit|check)")) | .body] | last // empty')
+          if [ -n "$comment" ]; then
+            echo "has_previous=true" >> "$GITHUB_OUTPUT"
+            echo "$comment" > previous-hygiene-comment.txt
+          else
+            echo "has_previous=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -49,40 +64,47 @@ jobs:
           prompt: |
             You are a PR hygiene checker for the Triggerfish project.
             PR NUMBER: ${{ github.event.pull_request.number }}
+            HAS PREVIOUS AUDIT: ${{ steps.check-comment.outputs.has_previous }}
 
-            First, get the diff stat to understand the scope:
-            1. `gh pr diff ${{ github.event.pull_request.number }} --stat`
+            ## MODE SELECTION
 
-            If the PR touches more than 50 files, do NOT fetch the full diff.
-            Instead, get the list of changed files and read them directly:
-            1. `gh pr diff ${{ github.event.pull_request.number }} --stat | grep -oP '^\s*\K\S+\.ts'`
-            2. Use the Read tool to inspect individual files as needed.
+            If HAS PREVIOUS AUDIT is "true":
+              1. Read the file `previous-hygiene-comment.txt` to see the prior audit results.
+              2. Get the current diff: `gh pr diff ${{ github.event.pull_request.number }}`
+              3. For each finding in the previous audit, check if it was addressed in the current code.
+              4. Post an UPDATED comment showing each original finding with ✅ FIXED or ❌ STILL OPEN.
+              5. Do NOT look for new issues. Only verify the previously reported ones.
+              6. Write verdict: "FAIL" if any findings are still open, "PASS" if all were fixed or if
+                 the previous audit was already clean.
 
-            If the PR touches 50 or fewer files, you may fetch the full diff:
-            1. `gh pr diff ${{ github.event.pull_request.number }}`
+            If HAS PREVIOUS AUDIT is "false":
+              1. This is the FIRST audit run. Do a full audit.
+              2. Get the diff: `gh pr diff ${{ github.event.pull_request.number }}`
+              3. If the PR touches more than 50 files, get the file list and read them individually.
+              4. Evaluate these hygiene criteria on changed files ONLY:
+                 - Any new file over 300 lines?
+                 - Any new exported function with a vague name (process, handle, run, execute, check, validate, do, perform, manage)?
+                 - Any new file missing a JSDoc @module comment?
+                 - Any new file not re-exported by its directory's mod.ts?
+                 - Any .claude/rules/ paths frontmatter that should be updated?
+              5. Post a single comment with findings. If clean, comment "Hygiene check passed."
+              6. Write verdict: "FAIL" if any findings require changes, "PASS" if clean.
 
-            Then evaluate these hygiene criteria on the changed files ONLY:
-            1. Any new file over 300 lines?
-            2. Any new exported function with a vague name (process, handle, run, execute, check, validate, do, perform, manage)?
-            3. Any new file missing a JSDoc @module comment?
-            4. Any new file not re-exported by its directory's mod.ts?
-            5. Any .claude/rules/ paths frontmatter that should be updated?
+            ## DETERMINISM RULES
+            - You MUST report the SAME findings given the same code. Do not invent subjective findings.
+            - Only report issues that are objectively verifiable (file line count, function name match, missing export).
+            - If you are unsure whether something is an issue, it is NOT an issue. Err on the side of passing.
 
-            Post a single PR comment with your findings as a markdown table.
-            If everything is clean, comment "Hygiene check passed."
-
-            CRITICAL — VERDICT FILE:
-            As your FINAL action, you MUST write a verdict file using the Write tool:
+            ## VERDICT FILE
+            As your FINAL action, write a verdict file using the Write tool:
             - Path: audit-verdict.txt
-            - If you found ANY issues that require changes: write exactly "FAIL"
-            - If everything is clean: write exactly "PASS"
-            You must ALWAYS write this file. The workflow will fail if the file is missing.
+            - Content: exactly "FAIL" or "PASS" (nothing else)
           allowed_bots: 'claude'
           settings: |
             {
               "model": "claude-opus-4-6"
             }
-          claude_args: "--max-turns 40 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Read,Glob,Grep,Write'"
+          claude_args: "--max-turns 25 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Read,Glob,Grep,Write'"
 
       - name: Enforce hygiene verdict
         run: |
@@ -110,6 +132,21 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Check for existing audit comment
+        id: check-comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Find the sticky comment left by the serviceability audit (claude[bot])
+          comment=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --jq '[.[] | select(.user.login == "claude[bot]" or .user.login == "github-actions[bot]") | select(.body | test("Serviceability (Audit|audit|check)")) | .body] | last // empty')
+          if [ -n "$comment" ]; then
+            echo "has_previous=true" >> "$GITHUB_OUTPUT"
+            echo "$comment" > previous-serviceability-comment.txt
+          else
+            echo "has_previous=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -117,56 +154,65 @@ jobs:
           prompt: |
             You are a serviceability auditor for the Triggerfish project.
             PR NUMBER: ${{ github.event.pull_request.number }}
+            HAS PREVIOUS AUDIT: ${{ steps.check-comment.outputs.has_previous }}
 
-            First, get the diff stat to understand the scope:
-            1. `gh pr diff ${{ github.event.pull_request.number }} --stat`
+            ## MODE SELECTION
 
-            If the PR touches more than 50 files, do NOT fetch the full diff.
-            Instead, get the list of changed .ts files and use the Read tool to
-            inspect them directly:
-            1. `gh pr diff ${{ github.event.pull_request.number }} --stat | grep -oP '^\s*\K\S+\.ts'`
-            2. Use Read/Grep to examine individual files for rule violations.
+            If HAS PREVIOUS AUDIT is "true":
+              1. Read the file `previous-serviceability-comment.txt` to see the prior audit results.
+              2. Get the current diff: `gh pr diff ${{ github.event.pull_request.number }}`
+              3. For each ❌ BLOCKING finding in the previous audit, check if it was fixed.
+              4. For each ⚠️ WARNING in the previous audit, check if it was addressed (optional — warnings don't block).
+              5. Post an UPDATED comment showing each original finding with its current status:
+                 - ✅ FIXED — the issue was addressed
+                 - ❌ STILL OPEN — the blocking issue remains
+                 - ⚠️ NOTED — warning was not addressed (informational, non-blocking)
+              6. Do NOT look for new issues. Only verify the previously reported ones.
+              7. Write verdict: "FAIL" only if any ❌ BLOCKING issues are STILL OPEN. "PASS" otherwise.
 
-            If the PR touches 50 or fewer files, you may fetch the full diff:
-            1. `gh pr diff ${{ github.event.pull_request.number }}`
+            If HAS PREVIOUS AUDIT is "false":
+              1. This is the FIRST audit run. Do a full audit.
+              2. Get the diff: `gh pr diff ${{ github.event.pull_request.number }}`
+              3. If the PR touches more than 50 files, get the file list and read them individually.
+              4. Evaluate ONLY the changed .ts files (skip tests, type-only files, barrel mod.ts):
 
-            Then evaluate ONLY the changed .ts files (skip tests, type-only files, barrel mod.ts) against these rules:
+              BLOCKING (report as ❌) — these are objective, mechanically verifiable:
+              - R001: catch/catch() blocks that don't log, rethrow, or return a typed Result/error.
+              - R010: empty .catch() handlers — .catch(() => {}), .catch(() => undefined), .catch((_) => null).
+              - R013: log.error/log.warn calls where the message string is ONLY a generic phrase with
+                no domain noun. Blocking examples: "failed", "error occurred", "something went wrong".
+                NOT blocking: any message that names the operation ("Provider request failed", "HMAC check failed").
 
-            BLOCKING (report as ❌):
-            - R001: catch blocks that don't log, rethrow, or return a typed Result/error. Silent error swallowing is a defect.
-            - R010: empty .catch() handlers — .catch(() => {}), .catch(() => undefined), .catch((_) => null). Invisible promise failures.
-            - R013: log messages that don't identify the specific operation. Defects include:
-              - Generic: "error occurred", "something went wrong", "failed", "there was an error", "processing failed", "request failed", "operation failed", "unexpected error"
-              - Meaningless: "here", "debug", "test", "TODO", "???"
-              - Boolean-only: "success", "done", "ok", "complete" with no indication of WHAT
-              The message string alone must tell someone with zero codebase knowledge what happened. Good: "LLM provider request failed", "Webhook HMAC verification failed", "Slack message delivery timed out". Bad: "there was an error", "failed".
+              WARNINGS (report as ⚠️) — informational only, never block:
+              - R002: logger.error() with only a string message and no structured context.
+              - R004: raw console.log/warn/error usage instead of the structured logger.
+              - R005: security operations without logging within ±5 lines.
+              - R007: logging err.message instead of the full error object.
+              - R011: channel adapter files missing message lifecycle logging.
+              - R012: security events logged at DEBUG/TRACE instead of WARN+.
+              - R014: branching logic where only one path logs.
 
-            WARNINGS (report as ⚠️):
-            - R002: logger.error() with only a string message and no structured context object { operation, ids, err }.
-            - R004: raw console.log/warn/error usage instead of the structured logger.
-            - R005: security operations (escalateTaint, classify, canFlowTo, hookRunner.run, verifyHmac, authenticate, authorize) without logging within ±5 lines.
-            - R007: logging err.message instead of the full error object. Stack traces matter.
-            - R011: channel adapter files (src/channels/) missing message lifecycle logging (connect, receive, deliver, errors).
-            - R012: security events (denied, blocked, violation, taint change) logged at DEBUG/TRACE instead of WARN+.
-            - R014: branching logic in security, routing, provider selection, or tool dispatch where only one path logs or where the log doesn't capture decision inputs (which rule matched, session taint, target classification, which provider failed and which was selected next). The log must reconstruct the decision chain without a debugger.
+              5. Post a comment with findings (blocking first, then warnings).
+              6. Write verdict: "FAIL" only if there are ❌ BLOCKING issues. "PASS" otherwise.
 
-            Post a single PR comment with your findings as a markdown table.
-            Group by severity (blocking first, then warnings).
-            Include file path, line number, rule ID, and the offending code snippet for each finding.
-            If everything is clean, comment "Serviceability check passed ✅"
+            ## DETERMINISM RULES
+            - You MUST report the SAME findings given the same code. Do not vary between runs.
+            - BLOCKING findings must be mechanically verifiable: empty catch, empty .catch(), or a log
+              message that is literally just "failed"/"error"/"done" with no other words.
+            - If a log message contains ANY domain noun (provider, session, webhook, taint, etc.),
+              it is NOT a violation of R013 regardless of how you feel about the phrasing.
+            - When in doubt, do NOT report it. False positives are worse than missed findings.
 
-            CRITICAL — VERDICT FILE:
-            As your FINAL action, you MUST write a verdict file using the Write tool:
+            ## VERDICT FILE
+            As your FINAL action, write a verdict file using the Write tool:
             - Path: audit-verdict.txt
-            - If you found ANY ❌ BLOCKING issues: write exactly "FAIL"
-            - If you found only ⚠️ warnings or nothing: write exactly "PASS"
-            You must ALWAYS write this file. The workflow will fail if the file is missing.
+            - Content: exactly "FAIL" or "PASS" (nothing else)
           allowed_bots: 'claude'
           settings: |
             {
               "model": "claude-opus-4-6"
             }
-          claude_args: "--max-turns 40 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep,Write'"
+          claude_args: "--max-turns 25 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep,Write'"
 
       - name: Enforce serviceability verdict
         run: |
