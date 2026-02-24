@@ -21,6 +21,8 @@ import type {
   SignalChannelConfig,
   SignalDaemonState,
 } from "./channels_signal.ts";
+import { wireGoogleChatChannel } from "./channels_googlechat.ts";
+import type { GoogleChatChannelConfig } from "./channels_googlechat.ts";
 
 // ─── Re-exports ──────────────────────────────────────────────────────────────
 
@@ -34,11 +36,13 @@ export type {
   SignalDaemonState,
 } from "./channels_signal.ts";
 export { wireSignalChannel } from "./channels_signal.ts";
+export type { GoogleChatChannelConfig } from "./channels_googlechat.ts";
+export { wireGoogleChatChannel } from "./channels_googlechat.ts";
 
 // ─── Orchestrator ────────────────────────────────────────────────────────────
 
 /**
- * Wire all configured messaging channels (Telegram, Discord, Signal).
+ * Wire all configured messaging channels (Telegram, Discord, Signal, Google Chat).
  *
  * Returns Signal daemon state for shutdown cleanup.
  */
@@ -66,6 +70,13 @@ export async function wireChannels(
     | undefined;
   if (discordConfig) {
     await wireDiscordChannel(discordConfig, channelDeps);
+  }
+
+  const googlechatConfig = config.channels?.googlechat as
+    | GoogleChatChannelConfig
+    | undefined;
+  if (googlechatConfig?.enabled) {
+    await wireGoogleChatChannel(googlechatConfig, channelDeps);
   }
 
   const signalConfig = config.channels?.signal as

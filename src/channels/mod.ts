@@ -47,5 +47,8 @@ export { createEmailChannel } from "./email/adapter.ts";
 export type { SignalConfig, SignalChannelAdapter } from "./signal/mod.ts";
 export { createSignalChannel } from "./signal/mod.ts";
 
+export type { GoogleChatConfig, GoogleChatChannelAdapter } from "./googlechat/mod.ts";
+export { createGoogleChatChannel } from "./googlechat/mod.ts";
+
 export type { UserClassificationConfig, UserSessionManager } from "./user_sessions.ts";
 export { createUserSessionManager, parseUserOverrides } from "./user_sessions.ts";

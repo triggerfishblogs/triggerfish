@@ -15,3 +15,5 @@ export type {
   SignalDaemonState,
 } from "./channels_signal.ts";
 export { wireSignalChannel } from "./channels_signal.ts";
+export type { GoogleChatChannelConfig } from "./channels_googlechat.ts";
+export { wireGoogleChatChannel } from "./channels_googlechat.ts";

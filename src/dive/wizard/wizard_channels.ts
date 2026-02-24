@@ -25,6 +25,9 @@ export interface ChannelSelectionResult {
   readonly webchatPort: number;
   readonly signalPhoneNumber: string;
   readonly signalEndpoint: string;
+  readonly googlechatCredentialsRef: string;
+  readonly googlechatPubsubSubscription: string;
+  readonly googlechatOwnerEmail: string;
 }
 
 // ── Per-channel config accumulator ────────────────────────────────────────────
@@ -37,6 +40,9 @@ interface ChannelConfigAccumulator {
   webchatPort: number;
   signalPhoneNumber: string;
   signalEndpoint: string;
+  googlechatCredentialsRef: string;
+  googlechatPubsubSubscription: string;
+  googlechatOwnerEmail: string;
 }
 
 /** Create a blank channel config accumulator with sensible defaults. */
@@ -49,6 +55,9 @@ function createDefaultChannelConfig(): ChannelConfigAccumulator {
     webchatPort: 8765,
     signalPhoneNumber: "",
     signalEndpoint: "tcp://127.0.0.1:7583",
+    googlechatCredentialsRef: "",
+    googlechatPubsubSubscription: "",
+    googlechatOwnerEmail: "",
   };
 }
 
@@ -67,6 +76,7 @@ async function collectChannelChoices(): Promise<ChannelChoice[]> {
       { name: "Telegram (requires bot token)", value: "telegram" },
       { name: "Discord (requires bot token)", value: "discord" },
       { name: "Signal (requires signal-cli)", value: "signal" },
+      { name: "Google Chat (requires service account + PubSub)", value: "googlechat" },
     ],
   })) as ChannelChoice[];
 
@@ -136,6 +146,31 @@ async function collectSignalConfig(): Promise<{
   return { signalPhoneNumber, signalEndpoint };
 }
 
+/** Collect Google Chat service account and PubSub configuration. */
+async function collectGoogleChatConfig(): Promise<{
+  googlechatCredentialsRef: string;
+  googlechatPubsubSubscription: string;
+  googlechatOwnerEmail: string;
+}> {
+  console.log("");
+  console.log("  Google Chat requires a service account and PubSub subscription.");
+  console.log("  See: https://developers.google.com/chat/api/guides/auth/service-accounts");
+  console.log("");
+  const googlechatCredentialsRef = await Input.prompt({
+    message: "Service account credentials secret ref",
+  });
+  const googlechatPubsubSubscription = await Input.prompt({
+    message: "PubSub subscription path (projects/PROJECT/subscriptions/SUB)",
+  });
+  const googlechatOwnerEmail = await Input.prompt({
+    message: "Owner email address (for isOwner checks)",
+  });
+  if (googlechatCredentialsRef.length > 0) {
+    console.log("  \u2713 Google Chat configuration saved to config");
+  }
+  return { googlechatCredentialsRef, googlechatPubsubSubscription, googlechatOwnerEmail };
+}
+
 // ── Collect configs for selected channels ─────────────────────────────────────
 
 /** Walk through selected channels and collect per-channel configuration. */
@@ -160,6 +195,12 @@ async function collectSelectedChannelConfigs(
     const s = await collectSignalConfig();
     config.signalPhoneNumber = s.signalPhoneNumber;
     config.signalEndpoint = s.signalEndpoint;
+  }
+  if (channels.includes("googlechat")) {
+    const g = await collectGoogleChatConfig();
+    config.googlechatCredentialsRef = g.googlechatCredentialsRef;
+    config.googlechatPubsubSubscription = g.googlechatPubsubSubscription;
+    config.googlechatOwnerEmail = g.googlechatOwnerEmail;
   }
   return config;
 }
