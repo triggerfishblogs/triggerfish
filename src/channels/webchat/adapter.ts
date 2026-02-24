@@ -153,7 +153,7 @@ function routeWebChatRequest(
     return response;
   }
 
-  return new Response("WebChat OK", { status: 200 });
+  return new Response(null, { status: 404 });
 }
 
 /**

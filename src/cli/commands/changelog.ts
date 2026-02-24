@@ -106,7 +106,7 @@ export async function runChangelog(
       console.log("Use: triggerfish changelog --latest 5");
       return;
     }
-    const from = normalizeVersionTag(VERSION);
+    const _from = normalizeVersionTag(VERSION);
     await showLatestReleases(10);
     return;
   }

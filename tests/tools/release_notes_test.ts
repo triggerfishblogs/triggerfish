@@ -76,7 +76,7 @@ Deno.test("release_notes executor: returns formatted markdown for valid request"
 
 Deno.test("release_notes executor: uses current version as default to_version", async () => {
   let capturedTo = "";
-  const fetcher = (from: string, to: string) => {
+  const fetcher = (_from: string, to: string) => {
     capturedTo = to;
     return Promise.resolve({ ok: true, value: MOCK_RANGE } as ReleaseNotesResult);
   };
@@ -87,7 +87,7 @@ Deno.test("release_notes executor: uses current version as default to_version", 
 
 Deno.test("release_notes executor: uses explicit to_version when provided", async () => {
   let capturedTo = "";
-  const fetcher = (from: string, to: string) => {
+  const fetcher = (_from: string, to: string) => {
     capturedTo = to;
     return Promise.resolve({ ok: true, value: MOCK_RANGE } as ReleaseNotesResult);
   };

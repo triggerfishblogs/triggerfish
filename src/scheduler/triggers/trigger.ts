@@ -86,6 +86,7 @@ export function createTrigger(options: TriggerOptions): Trigger {
       log.info(
         `Trigger started (interval: ${intervalMinutes}m, ceiling: ${options.classificationCeiling})`,
       );
+      executeTriggerTick(options);
       intervalId = setInterval(
         () => executeTriggerTick(options),
         options.intervalMs,
