@@ -9,9 +9,8 @@
 
 import { join } from "@std/path";
 import { resolveBaseDir } from "../config/paths.ts";
-import { createReefRegistry } from "../../tools/skills/registry.ts";
-import { createSkillLoader } from "../../tools/skills/loader.ts";
-import type { ReefSkillListing } from "../../tools/skills/registry.ts";
+import { createReefRegistry, createSkillLoader } from "../../gateway/skills.ts";
+import type { ReefSkillListing } from "../../gateway/skills.ts";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

@@ -63,3 +63,6 @@ export {
   TRIGGER_TOOLS_SYSTEM_PROMPT,
 } from "./tools/trigger/trigger_tools.ts";
 export type { TriggerToolContext } from "./tools/trigger/trigger_tools.ts";
+
+export { createReefRegistry, createSkillLoader } from "./skills.ts";
+export type { ReefSkillListing, SkillLoaderOptions } from "./skills.ts";
