@@ -247,7 +247,7 @@ export async function runNonOwnerAgentTurn(
     userCls,
     `Non-owner classification: ${userCls}`,
   );
-  log.info("Non-owner taint applied", { operation: "updateTaint", sessionId: userSessionId, classification: userCls, resultTaint: taintedSession.taint });
+  log.warn("Non-owner taint applied", { operation: "updateTaint", sessionId: userSessionId, classification: userCls, resultTaint: taintedSession.taint });
   state.sessionStates.set(userSessionId, taintedSession);
   state.activeSend = sendEvent;
   state.activeSessionId = userSessionId;
