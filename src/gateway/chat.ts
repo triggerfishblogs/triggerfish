@@ -217,7 +217,10 @@ function resolveSecretPrompt(
   const resolve = pendingSecretPrompts.get(nonce);
   if (resolve) {
     pendingSecretPrompts.delete(nonce);
+    chatLog.debug("Secret prompt resolved", { operation: "resolveSecretPrompt", nonce, hasValue: value !== null });
     resolve(value);
+  } else {
+    chatLog.debug("Secret prompt nonce not found, dropping", { operation: "resolveSecretPrompt", nonce });
   }
 }
 
@@ -258,10 +261,14 @@ function resolveCredentialPrompt(
   if (resolve) {
     pendingCredentialPrompts.delete(nonce);
     if (username !== null && password !== null) {
+      chatLog.debug("Credential prompt resolved", { operation: "resolveCredentialPrompt", nonce });
       resolve({ username, password });
     } else {
+      chatLog.debug("Credential prompt cancelled by client", { operation: "resolveCredentialPrompt", nonce });
       resolve(null);
     }
+  } else {
+    chatLog.debug("Credential prompt nonce not found, dropping", { operation: "resolveCredentialPrompt", nonce });
   }
 }
 

@@ -66,6 +66,7 @@ function submitPasswordValue(
       nonce: pm.nonce,
       value,
     }));
+    log.debug("Secret prompt value submitted", { operation: "submitPasswordValue", nonce: pm.nonce });
   } catch (err: unknown) {
     log.debug("WebSocket secret send failed", { operation: "submitPasswordValue", err });
   }
@@ -90,6 +91,7 @@ function cancelPasswordEntry(
       nonce: pm.nonce,
       value: null,
     }));
+    log.debug("Secret prompt entry cancelled", { operation: "cancelPasswordEntry", nonce: pm.nonce });
   } catch (err: unknown) {
     log.debug("WebSocket secret cancel send failed", { operation: "cancelPasswordEntry", err });
   }
@@ -243,6 +245,7 @@ function submitCredentialValue(
       username,
       password,
     }));
+    log.debug("Credential prompt value submitted", { operation: "submitCredentialValue", nonce: cm.nonce });
   } catch (err: unknown) {
     log.debug("WebSocket credential send failed", { operation: "submitCredentialValue", err });
   }
@@ -268,6 +271,7 @@ function cancelCredentialEntry(
       username: null,
       password: null,
     }));
+    log.debug("Credential prompt entry cancelled", { operation: "cancelCredentialEntry", nonce: cm.nonce });
   } catch (err: unknown) {
     log.debug("WebSocket credential cancel send failed", { operation: "cancelCredentialEntry", err });
   }

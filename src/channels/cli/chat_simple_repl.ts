@@ -37,6 +37,7 @@ async function handleSecretPromptEvent(
       nonce: evt.nonce,
       value: value && value.length > 0 ? value : null,
     }));
+    log.debug("Secret prompt response sent", { operation: "handleSecretPromptEvent", nonce: evt.nonce, hasValue: value !== null && value.length > 0 });
   } catch (err: unknown) {
     log.debug("WebSocket secret send failed", { operation: "handleSecretPromptEvent", err });
   }
@@ -69,6 +70,7 @@ async function handleCredentialPromptEvent(
         username: null,
         password: null,
       }));
+      log.debug("Credential prompt cancelled (empty username)", { operation: "handleCredentialPromptEvent", nonce: evt.nonce });
     } catch (err: unknown) {
       log.debug("WebSocket credential cancel send failed", { operation: "handleCredentialPromptEvent", err });
     }
@@ -91,6 +93,7 @@ async function handleCredentialPromptEvent(
       username,
       password: password && password.length > 0 ? password : null,
     }));
+    log.debug("Credential prompt response sent", { operation: "handleCredentialPromptEvent", nonce: evt.nonce });
   } catch (err: unknown) {
     log.debug("WebSocket credential send failed", { operation: "handleCredentialPromptEvent", err });
   }
