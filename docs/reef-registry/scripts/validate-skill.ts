@@ -12,8 +12,8 @@
  *   1 — Validation failed (details printed to stderr)
  */
 
-import { parse as parseYaml } from "https://deno.land/std/yaml/mod.ts";
-import { join } from "https://deno.land/std/path/mod.ts";
+import { parse as parseYaml } from "@std/yaml";
+import { join } from "@std/path";
 
 /** Required frontmatter fields for a valid skill submission. */
 const REQUIRED_FIELDS = [

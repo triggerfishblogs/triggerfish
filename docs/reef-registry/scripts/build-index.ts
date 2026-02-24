@@ -13,8 +13,8 @@
  * Usage: deno run --allow-read --allow-write scripts/build-index.ts
  */
 
-import { parse as parseYaml } from "https://deno.land/std/yaml/mod.ts";
-import { join } from "https://deno.land/std/path/mod.ts";
+import { parse as parseYaml } from "@std/yaml";
+import { join } from "@std/path";
 
 interface CatalogEntry {
   readonly name: string;
