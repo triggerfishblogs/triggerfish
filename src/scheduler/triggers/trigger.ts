@@ -67,7 +67,9 @@ function executeTriggerTick(options: TriggerOptions): void {
     return;
   }
   log.info("Trigger firing");
-  options.callback().catch((err) => log.warn("Trigger callback failed", { err }));
+  options.callback().catch((err: unknown) =>
+    log.error("Trigger callback failed", { operation: "executeTriggerTick", err })
+  );
 }
 
 /**

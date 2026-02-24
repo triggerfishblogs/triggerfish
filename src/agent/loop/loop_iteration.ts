@@ -107,8 +107,16 @@ async function runLlmProviderCall(
   iterations: number,
 ) {
   const taint = ctx.state.config.getSessionTaint?.() ?? "PUBLIC";
-  const provider = ctx.state.config.providerRegistry.getForClassification(taint)
+  const classificationProvider = ctx.state.config.providerRegistry.getForClassification(taint);
+  const provider = classificationProvider
     ?? ctx.state.config.providerRegistry.getDefault()!;
+  ctx.state.orchLog.debug("Provider selected for LLM call", {
+    operation: "runLlmProviderCall",
+    iteration: iterations,
+    taint,
+    provider: provider.name,
+    usedClassificationOverride: classificationProvider !== undefined,
+  });
   traceLog(
     ctx.state, `iter${iterations} provider`,
     `taint=${taint} provider=${provider.name}`,

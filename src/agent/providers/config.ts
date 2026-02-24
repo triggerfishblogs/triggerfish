@@ -210,8 +210,15 @@ function createProviderByName(
         model,
         endpoint: providerConfig.endpoint as string | undefined ?? "http://localhost:1234",
       });
-    default:
+    default: {
+      const log = createLogger("providers");
+      log.warn("Unknown provider name in createProviderByName", {
+        operation: "createProviderByName",
+        providerName,
+        model,
+      });
       return undefined;
+    }
   }
 }
 
