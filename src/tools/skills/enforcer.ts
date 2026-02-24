@@ -40,14 +40,14 @@ export function filterToolsForActiveSkill(
 }
 
 /**
- * Enforce that a URL's hostname is allowed by the active skill's networkDomains.
+ * Check whether a URL's hostname is allowed by the active skill's networkDomains.
  *
  * Returns null if allowed. Returns an error string if blocked.
  * - Returns null if activeSkill is null or networkDomains is null (unrestricted).
  * - Blocks ALL fetches if networkDomains is [] (declared empty = no network).
  * - Domain matching: exact hostname or subdomain suffix (*.declared.com).
  */
-export function enforceSkillNetworkDomain(
+export function checkSkillNetworkDomain(
   url: string,
   activeSkill: Skill | null,
 ): string | null {
@@ -62,7 +62,7 @@ export function enforceSkillNetworkDomain(
   try {
     hostname = new URL(url).hostname;
   } catch {
-    return `Skill network domain enforcement failed: invalid URL "${url}".`;
+    return `Skill network domain check failed: invalid URL "${url}".`;
   }
 
   const allowed = activeSkill.networkDomains.some(
@@ -80,7 +80,7 @@ export function enforceSkillNetworkDomain(
 }
 
 /**
- * Enforce that session taint allows activating a skill with the given ceiling.
+ * Check if session taint allows activating a skill with the given ceiling.
  *
  * Rule: canFlowTo(sessionTaint, skill.classificationCeiling) must be true.
  * A CONFIDENTIAL-tainted session cannot activate a PUBLIC-ceiling skill
@@ -88,7 +88,7 @@ export function enforceSkillNetworkDomain(
  *
  * Returns null if allowed. Returns an error string if blocked.
  */
-export function enforceSkillClassificationCeiling(
+export function checkSkillClassificationCeiling(
   sessionTaint: ClassificationLevel,
   skill: Skill,
 ): string | null {

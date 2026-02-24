@@ -18,7 +18,7 @@ import type { ClassificationLevel } from "../../core/types/classification.ts";
 import type { SkillLoader } from "./loader.ts";
 import type { SkillContextTracker } from "./context.ts";
 import type { SkillScanner } from "./scanner.ts";
-import { enforceSkillClassificationCeiling } from "./enforcer.ts";
+import { checkSkillClassificationCeiling } from "./enforcer.ts";
 import { computeSkillHash, verifySkillIntegrity } from "./integrity.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
@@ -137,7 +137,7 @@ export function createSkillToolExecutor(
     // 1. Classification ceiling check
     if (ctx.getSessionTaint) {
       const taint = ctx.getSessionTaint();
-      const ceilingError = enforceSkillClassificationCeiling(taint, skill);
+      const ceilingError = checkSkillClassificationCeiling(taint, skill);
       if (ceilingError) {
         log.warn("Skill activation blocked by classification ceiling", {
           operation: "readSkillCeilingCheck",

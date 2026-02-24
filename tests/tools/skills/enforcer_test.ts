@@ -7,8 +7,8 @@
 import { assertEquals } from "@std/assert";
 import {
   filterToolsForActiveSkill,
-  enforceSkillNetworkDomain,
-  enforceSkillClassificationCeiling,
+  checkSkillNetworkDomain,
+  checkSkillClassificationCeiling,
 } from "../../../src/tools/skills/enforcer.ts";
 import type { Skill } from "../../../src/tools/skills/loader.ts";
 import type { ToolDefinition } from "../../../src/core/types/tool.ts";
@@ -67,77 +67,77 @@ Deno.test("filterToolsForActiveSkill: returns only read_skill when requiresTools
   assertEquals(result[0].name, "read_skill");
 });
 
-// ─── enforceSkillNetworkDomain ─────────────────────────────────────────────────
+// ─── checkSkillNetworkDomain ─────────────────────────────────────────────────
 
-Deno.test("enforceSkillNetworkDomain: returns null when no active skill", () => {
-  const result = enforceSkillNetworkDomain("https://example.com/page", null);
+Deno.test("checkSkillNetworkDomain: returns null when no active skill", () => {
+  const result = checkSkillNetworkDomain("https://example.com/page", null);
   assertEquals(result, null);
 });
 
-Deno.test("enforceSkillNetworkDomain: returns null when networkDomains is null (not declared)", () => {
+Deno.test("checkSkillNetworkDomain: returns null when networkDomains is null (not declared)", () => {
   const skill = makeTestSkill({ networkDomains: null });
-  const result = enforceSkillNetworkDomain("https://anything.com/page", skill);
+  const result = checkSkillNetworkDomain("https://anything.com/page", skill);
   assertEquals(result, null);
 });
 
-Deno.test("enforceSkillNetworkDomain: blocks all fetches when networkDomains is [] (declared empty)", () => {
+Deno.test("checkSkillNetworkDomain: blocks all fetches when networkDomains is [] (declared empty)", () => {
   const skill = makeTestSkill({ networkDomains: [] });
-  const result = enforceSkillNetworkDomain("https://example.com/page", skill);
+  const result = checkSkillNetworkDomain("https://example.com/page", skill);
   assertEquals(typeof result, "string");
   assertEquals(result!.includes("no network access"), true);
 });
 
-Deno.test("enforceSkillNetworkDomain: allows declared domain (exact hostname match)", () => {
+Deno.test("checkSkillNetworkDomain: allows declared domain (exact hostname match)", () => {
   const skill = makeTestSkill({ networkDomains: ["example.com"] });
-  const result = enforceSkillNetworkDomain("https://example.com/page", skill);
+  const result = checkSkillNetworkDomain("https://example.com/page", skill);
   assertEquals(result, null);
 });
 
-Deno.test("enforceSkillNetworkDomain: allows declared domain (subdomain match)", () => {
+Deno.test("checkSkillNetworkDomain: allows declared domain (subdomain match)", () => {
   const skill = makeTestSkill({ networkDomains: ["example.com"] });
-  const result = enforceSkillNetworkDomain("https://api.example.com/data", skill);
+  const result = checkSkillNetworkDomain("https://api.example.com/data", skill);
   assertEquals(result, null);
 });
 
-Deno.test("enforceSkillNetworkDomain: blocks undeclared domain", () => {
+Deno.test("checkSkillNetworkDomain: blocks undeclared domain", () => {
   const skill = makeTestSkill({ networkDomains: ["example.com"] });
-  const result = enforceSkillNetworkDomain("https://evil.com/exfil", skill);
+  const result = checkSkillNetworkDomain("https://evil.com/exfil", skill);
   assertEquals(typeof result, "string");
   assertEquals(result!.includes("evil.com"), true);
 });
 
-Deno.test("enforceSkillNetworkDomain: blocks undeclared subdomain", () => {
+Deno.test("checkSkillNetworkDomain: blocks undeclared subdomain", () => {
   const skill = makeTestSkill({ networkDomains: ["api.example.com"] });
   // example.com is NOT a subdomain of api.example.com
-  const result = enforceSkillNetworkDomain("https://example.com/page", skill);
+  const result = checkSkillNetworkDomain("https://example.com/page", skill);
   assertEquals(typeof result, "string");
 });
 
-// ─── enforceSkillClassificationCeiling ─────────────────────────────────────────
+// ─── checkSkillClassificationCeiling ─────────────────────────────────────────
 
-Deno.test("enforceSkillClassificationCeiling: allows equal taint (PUBLIC session -> PUBLIC ceiling)", () => {
+Deno.test("checkSkillClassificationCeiling: allows equal taint (PUBLIC session -> PUBLIC ceiling)", () => {
   const skill = makeTestSkill({ classificationCeiling: "PUBLIC" });
-  const result = enforceSkillClassificationCeiling("PUBLIC" as ClassificationLevel, skill);
+  const result = checkSkillClassificationCeiling("PUBLIC" as ClassificationLevel, skill);
   assertEquals(result, null);
 });
 
-Deno.test("enforceSkillClassificationCeiling: allows lower taint (PUBLIC session -> INTERNAL ceiling)", () => {
+Deno.test("checkSkillClassificationCeiling: allows lower taint (PUBLIC session -> INTERNAL ceiling)", () => {
   const skill = makeTestSkill({ classificationCeiling: "INTERNAL" });
-  const result = enforceSkillClassificationCeiling("PUBLIC" as ClassificationLevel, skill);
+  const result = checkSkillClassificationCeiling("PUBLIC" as ClassificationLevel, skill);
   assertEquals(result, null);
 });
 
-Deno.test("enforceSkillClassificationCeiling: blocks higher taint (CONFIDENTIAL session -> PUBLIC ceiling)", () => {
+Deno.test("checkSkillClassificationCeiling: blocks higher taint (CONFIDENTIAL session -> PUBLIC ceiling)", () => {
   const skill = makeTestSkill({ classificationCeiling: "PUBLIC" });
-  const result = enforceSkillClassificationCeiling("CONFIDENTIAL" as ClassificationLevel, skill);
+  const result = checkSkillClassificationCeiling("CONFIDENTIAL" as ClassificationLevel, skill);
   assertEquals(typeof result, "string");
   assertEquals(result!.includes("CONFIDENTIAL"), true);
   assertEquals(result!.includes("PUBLIC"), true);
 });
 
-Deno.test("enforceSkillClassificationCeiling: blocks RESTRICTED session -> INTERNAL ceiling", () => {
+Deno.test("checkSkillClassificationCeiling: blocks RESTRICTED session -> INTERNAL ceiling", () => {
   const skill = makeTestSkill({ classificationCeiling: "INTERNAL" });
-  const result = enforceSkillClassificationCeiling("RESTRICTED" as ClassificationLevel, skill);
+  const result = checkSkillClassificationCeiling("RESTRICTED" as ClassificationLevel, skill);
   assertEquals(typeof result, "string");
   assertEquals(result!.includes("write-down"), true);
 });

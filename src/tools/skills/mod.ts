@@ -37,8 +37,8 @@ export type { SkillContextTracker } from "./context.ts";
 
 export {
   filterToolsForActiveSkill,
-  enforceSkillNetworkDomain,
-  enforceSkillClassificationCeiling,
+  checkSkillNetworkDomain,
+  checkSkillClassificationCeiling,
 } from "./enforcer.ts";
 
 export {
