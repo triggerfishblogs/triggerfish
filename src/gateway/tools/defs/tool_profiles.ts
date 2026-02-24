@@ -38,29 +38,29 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
   tidepool: [
     "exec", "todo", "memory", "secrets", "web", "plan", "browser",
     "tidepool", "sessions", "image", "explore", "google", "github",
-    "caldav", "obsidian", "llmTask", "summarize", "healthcheck", "trigger",
+    "caldav", "notion", "obsidian", "llmTask", "summarize", "healthcheck", "trigger",
     "claude", "skills", "releaseNotes", "logReader", "agents", "cron",
   ],
   /** CLI chat — everything except tidepool canvas tools. */
   cli: [
     "exec", "todo", "memory", "secrets", "web", "plan", "browser",
-    "sessions", "image", "explore", "google", "github", "caldav",
+    "sessions", "image", "explore", "google", "github", "caldav", "notion",
     "obsidian", "llmTask", "summarize", "healthcheck", "trigger",
     "claude", "skills", "releaseNotes", "logReader", "agents", "cron",
   ],
   /** Trigger sessions — tools with wired executors, no interactive tools. */
   triggerSession: [
-    "exec", "todo", "memory", "web", "google", "github", "caldav",
+    "exec", "todo", "memory", "web", "google", "github", "caldav", "notion",
     "llmTask", "summarize", "healthcheck", "trigger", "skills", "cron",
   ],
   /** Cron jobs — same scope as trigger minus trigger-specific tools. */
   cronJob: [
-    "exec", "todo", "memory", "web", "google", "github", "caldav",
+    "exec", "todo", "memory", "web", "google", "github", "caldav", "notion",
     "llmTask", "summarize", "healthcheck", "skills", "cron",
   ],
   /** Subagents — lightweight, focused. */
   subagent: [
-    "exec", "todo", "memory", "web", "google", "github", "caldav",
+    "exec", "todo", "memory", "web", "google", "github", "caldav", "notion",
     "llmTask", "summarize", "healthcheck", "skills",
   ],
 };

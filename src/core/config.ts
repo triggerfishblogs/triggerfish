@@ -73,6 +73,17 @@ export interface TriggerFishConfig {
     readonly default_calendar?: string;
     readonly classification?: string;
   };
+  readonly notion?: {
+    readonly enabled?: boolean;
+    readonly auth_type?: "token" | "oauth2";
+    readonly rate_limit?: number;
+    readonly classification_floor?: string;
+    readonly oauth2?: {
+      readonly client_id?: string;
+      readonly client_secret?: string;
+      readonly redirect_uri?: string;
+    };
+  };
   readonly scheduler?: {
     readonly trigger?: {
       readonly enabled?: boolean;
