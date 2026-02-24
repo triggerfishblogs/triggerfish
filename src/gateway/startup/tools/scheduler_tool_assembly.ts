@@ -43,7 +43,11 @@ import type { EnhancedSessionManager } from "../../sessions.ts";
 import type { CronManager } from "../../../scheduler/cron/parser.ts";
 import type { StorageProvider } from "../../../core/storage/provider.ts";
 import { createSkillLoader } from "../../../tools/skills/loader.ts";
-import { createSkillToolExecutor } from "../../../tools/skills/mod.ts";
+import {
+  createSkillToolExecutor,
+  createSkillScanner,
+} from "../../../tools/skills/mod.ts";
+import type { SkillContextTracker } from "../../../tools/skills/mod.ts";
 import { createToolExecutor } from "../../tools/agent_tools.ts";
 import type { buildWebTools } from "../factory/web_tools.ts";
 import { buildGoogleExecutor } from "../factory/google_executor.ts";
@@ -157,6 +161,8 @@ export function assembleSchedulerToolExecutor(opts: {
   readonly enhancedSessionManager?: EnhancedSessionManager;
   readonly agentId: string;
   readonly githubExecutor: ReturnType<typeof createGitHubToolExecutor>;
+  /** Per-session skill context tracker for tool/domain enforcement. */
+  readonly skillContextTracker?: SkillContextTracker;
 }) {
   const { infra, session, workspace, agentId, storage } = opts;
 
@@ -202,7 +208,11 @@ export function assembleSchedulerToolExecutor(opts: {
     }),
     skillExecutor: createSkillToolExecutor({
       skillLoader: infra.skillLoader,
+      skillContextTracker: opts.skillContextTracker,
+      getSessionTaint: () => session.taint,
+      skillScanner: createSkillScanner(),
     }),
+    skillContextTracker: opts.skillContextTracker,
     providerRegistry: infra.registry,
     triggerClassificationExecutor:
       createTriggerClassificationToolExecutor(infra.toolClassifications),

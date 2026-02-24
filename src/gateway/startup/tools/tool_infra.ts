@@ -56,6 +56,7 @@ import { assembleMainToolExecutor } from "./tool_executor.ts";
 import {
   buildIntegrationExecutors,
 } from "../services/integration_init.ts";
+import type { SkillContextTracker } from "../../../tools/skills/mod.ts";
 
 /** Mutable ref to tidepool tools, set after host starts. */
 export type TidepoolToolsRef = {
@@ -90,6 +91,8 @@ export interface ToolInfraResult {
   >["domainClassifier"];
   readonly toolFloorRegistry: CoreInfraResult["toolFloorRegistry"];
   readonly tidepoolToolsRef: TidepoolToolsRef;
+  /** Per-session skill context tracker for tool/domain enforcement. */
+  readonly skillContextTracker?: SkillContextTracker;
 }
 
 /** Create the main session state and core session-level executors. */
@@ -262,6 +265,7 @@ export function buildCompositeToolExecutor(
     secretExecutor: integrations.secretExecutor,
     triggerExecutor: integrations.triggerExecutor,
     skillExecutor: integrations.skillExecutor,
+    skillContextTracker: integrations.skillContextTracker,
   });
 }
 
@@ -296,6 +300,7 @@ export function assembleToolInfraResult(
     domainClassifier: baseDeps.domainClassifier,
     toolFloorRegistry: coreInfra.toolFloorRegistry,
     tidepoolToolsRef: sessionExecs.tidepoolToolsRef,
+    skillContextTracker: integrations.skillContextTracker,
   };
 }
 

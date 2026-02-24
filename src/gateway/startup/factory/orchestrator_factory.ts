@@ -53,6 +53,10 @@ import {
   buildSchedulerPathClassifier,
   buildSchedulerSkillLoader,
 } from "../tools/scheduler_tool_assembly.ts";
+import {
+  createSkillContextTracker,
+  createSkillScanner,
+} from "../../../tools/skills/mod.ts";
 
 /** Symlink SPINE.md into a workspace directory. */
 async function symlinkSpineToWorkspace(
@@ -168,6 +172,8 @@ export function createOrchestratorFactory(
         sourceSessionId: session.id,
       });
 
+      const skillContextTracker = createSkillContextTracker();
+
       const toolExecutor = assembleSchedulerToolExecutor({
         infra,
         session,
@@ -177,6 +183,7 @@ export function createOrchestratorFactory(
         enhancedSessionManager,
         agentId,
         githubExecutor,
+        skillContextTracker,
       });
 
       const toolProfile = isTrigger ? "triggerSession" : "cronJob";
@@ -205,6 +212,7 @@ export function createOrchestratorFactory(
         ),
         domainClassifier: infra.domainClassifier,
         toolFloorRegistry: schedulerToolFloorRegistry,
+        getActiveSkillContext: () => skillContextTracker.getActive(),
         ...(isTrigger
           ? {
             isTriggerSession: () => true,

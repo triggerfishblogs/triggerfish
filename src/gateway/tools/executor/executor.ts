@@ -194,10 +194,17 @@ export function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
   const todoExecutor = opts.todoManager
     ? createTodoToolExecutor(opts.todoManager)
     : null;
-  const webExecutor = createWebToolExecutor(
-    opts.searchProvider,
-    opts.webFetcher,
-  );
+  const webExecutor = createWebToolExecutor({
+    searchProvider: opts.searchProvider,
+    webFetcher: opts.webFetcher,
+    getActiveSkillDomains: opts.skillContextTracker
+      ? () => {
+        const active = opts.skillContextTracker!.getActive();
+        if (!active) return null;
+        return active.networkDomains;
+      }
+      : undefined,
+  });
   const chain = [
     ...buildCoreSubsystems(opts, todoExecutor),
     ...buildExtendedSubsystems(opts, webExecutor),

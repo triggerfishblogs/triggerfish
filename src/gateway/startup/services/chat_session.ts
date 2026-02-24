@@ -105,6 +105,8 @@ export interface ChatSessionDeps {
     typeof buildWebTools
   >["domainClassifier"];
   readonly toolFloorRegistry: ReturnType<typeof createToolFloorRegistry>;
+  /** Active skill context getter for tool filtering (optional). */
+  readonly getActiveSkillContext?: () => import("../../../agent/orchestrator/orchestrator_types.ts").ActiveSkillContext | null;
 }
 
 /** Build the dynamic getter and prompt options for the chat session. */
@@ -157,6 +159,7 @@ export function assembleChatSession(deps: ChatSessionDeps) {
     domainClassifier: deps.domainClassifier,
     toolFloorRegistry: deps.toolFloorRegistry,
     primaryModelName: deps.config.models.primary.model,
+    getActiveSkillContext: deps.getActiveSkillContext,
   });
 }
 

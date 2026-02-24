@@ -40,6 +40,27 @@ export const LEAKED_INTENT_PATTERN =
 
 export type { ToolDefinition, ToolExecutor } from "../../core/types/tool.ts";
 
+/**
+ * Structural snapshot of an active skill's capability declarations.
+ *
+ * Defined here (not in tools/) to avoid layer violations per dependency-layers.md.
+ * Satisfied by Skill from src/tools/skills/loader.ts at the gateway wiring layer.
+ */
+export interface ActiveSkillContext {
+  readonly name: string;
+  /**
+   * Tools the skill declared it needs.
+   * null = not declared (unrestricted). [] = declared empty (no tool access).
+   */
+  readonly requiresTools: readonly string[] | null;
+  /**
+   * Network domains the skill declared it needs.
+   * null = not declared (unrestricted). [] = declared empty (no network access).
+   */
+  readonly networkDomains: readonly string[] | null;
+  readonly classificationCeiling: ClassificationLevel;
+}
+
 /** Configuration for creating an orchestrator. */
 export interface OrchestratorConfig {
   readonly hookRunner: HookRunner;
@@ -110,6 +131,12 @@ export interface OrchestratorConfig {
    * before dispatch. The resolved values are never logged or returned to the LLM.
    */
   readonly secretStore?: SecretStore;
+  /**
+   * Returns the currently active skill context, or null if none.
+   * When non-null and requiresTools is non-null, the tool list shown to
+   * the LLM is filtered to the declared set (always preserving read_skill).
+   */
+  readonly getActiveSkillContext?: () => ActiveSkillContext | null;
 }
 
 /** Config shape for building integration/plugin/channel classification map. */

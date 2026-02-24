@@ -19,6 +19,7 @@ import type { PathClassifier } from "../core/security/path_classification.ts";
 import type { DomainClassifier } from "../core/types/domain.ts";
 import type { ToolFloorRegistry } from "../core/security/tool_floors.ts";
 import type { CompactorConfig } from "../agent/compactor/compactor.ts";
+import type { ActiveSkillContext } from "../agent/orchestrator/orchestrator_types.ts";
 import type { MessageContent } from "../core/image/content.ts";
 import type { ChannelAdapter, ChannelMessage } from "../channels/types.ts";
 import type { PairingService } from "../channels/pairing.ts";
@@ -116,6 +117,11 @@ export interface ChatSessionConfig {
    * waiting `secret_save` tool executor.
    */
   readonly onSecretPromptResponse?: (nonce: string, value: string | null) => void;
+  /**
+   * Returns the currently active skill context for tool filtering.
+   * When non-null, the LLM tool list is filtered to the skill's requiresTools.
+   */
+  readonly getActiveSkillContext?: () => ActiveSkillContext | null;
 }
 
 /** Shared chat session that serializes access to the orchestrator. */
