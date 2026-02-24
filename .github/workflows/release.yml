@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-binaries:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            output: triggerfish-linux-x64
+            runner: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            output: triggerfish-linux-arm64
+            runner: ubuntu-latest
+          - target: x86_64-apple-darwin
+            output: triggerfish-macos-x64
+            runner: macos-latest
+          - target: aarch64-apple-darwin
+            output: triggerfish-macos-arm64
+            runner: macos-latest
+          - target: x86_64-pc-windows-msvc
+            output: triggerfish-windows-x64.exe
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Stamp version
+        shell: bash
+        run: |
+          echo 'export const VERSION: string = "${{ github.ref_name }}";' > src/cli/version.ts
+
+      - name: Compile binary
+        run: >
+          deno compile --allow-all
+          --target ${{ matrix.target }}
+          --include config/
+          --include src/skills/
+          --include src/tidepool/tmpl_base.html
+          --include src/tidepool/tmpl_styles.html
+          --include src/tidepool/tmpl_chat.html
+          --include src/tidepool/tmpl_canvas.html
+          --include src/tidepool/tmpl_chat_script.html
+          --include src/tidepool/tmpl_canvas_script.html
+          --output=${{ matrix.output }}
+          src/cli/main.ts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.output }}
+          path: ${{ matrix.output }}
+
+  create-release:
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p dist
+          find artifacts -type f -exec mv {} dist/ \;
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum triggerfish-* > SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+
+  build-docker:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Stage binaries for Docker build
+        run: |
+          mkdir -p docker-context
+          cp artifacts/triggerfish-linux-x64/triggerfish-linux-x64 docker-context/triggerfish-linux-amd64
+          cp artifacts/triggerfish-linux-arm64/triggerfish-linux-arm64 docker-context/triggerfish-linux-arm64
+          cp deploy/docker/Dockerfile.release docker-context/Dockerfile
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version tag
+        id: meta
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: docker-context
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest
