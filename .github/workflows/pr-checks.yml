@@ -162,13 +162,12 @@ jobs:
               1. Read the file `previous-serviceability-comment.txt` to see the prior audit results.
               2. Get the current diff: `gh pr diff ${{ github.event.pull_request.number }}`
               3. For each ❌ BLOCKING finding in the previous audit, check if it was fixed.
-              4. For each ⚠️ WARNING in the previous audit, check if it was addressed (optional — warnings don't block).
+              4. For each ⚠️ WARNING in the previous audit, check if it was addressed.
               5. Post an UPDATED comment showing each original finding with its current status:
                  - ✅ FIXED — the issue was addressed
-                 - ❌ STILL OPEN — the blocking issue remains
-                 - ⚠️ NOTED — warning was not addressed (informational, non-blocking)
+                 - ❌ STILL OPEN — the issue remains
               6. Do NOT look for new issues. Only verify the previously reported ones.
-              7. Write verdict: "FAIL" only if any ❌ BLOCKING issues are STILL OPEN. "PASS" otherwise.
+              7. Write verdict: "FAIL" if any ❌ or ⚠️ issues are STILL OPEN. "PASS" if all were fixed.
 
             If HAS PREVIOUS AUDIT is "false":
               1. This is the FIRST audit run. Do a full audit.
@@ -183,7 +182,7 @@ jobs:
                 no domain noun. Blocking examples: "failed", "error occurred", "something went wrong".
                 NOT blocking: any message that names the operation ("Provider request failed", "HMAC check failed").
 
-              WARNINGS (report as ⚠️) — informational only, never block:
+              WARNINGS (report as ⚠️) — these also block the PR:
               - R002: logger.error() with only a string message and no structured context.
               - R004: raw console.log/warn/error usage instead of the structured logger.
               - R005: security operations without logging within ±5 lines.
@@ -193,7 +192,7 @@ jobs:
               - R014: branching logic where only one path logs.
 
               5. Post a comment with findings (blocking first, then warnings).
-              6. Write verdict: "FAIL" only if there are ❌ BLOCKING issues. "PASS" otherwise.
+              6. Write verdict: "FAIL" if there are ANY ❌ or ⚠️ findings. "PASS" only if clean.
 
             ## DETERMINISM RULES
             - You MUST report the SAME findings given the same code. Do not vary between runs.
