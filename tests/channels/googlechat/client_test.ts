@@ -3,6 +3,8 @@
  *
  * Tests PubSub pull/acknowledge, Chat API send, and message parsing
  * using injectable fetch functions.
+ *
+ * @module
  */
 
 import { assertEquals } from "@std/assert";

@@ -3,6 +3,8 @@
  *
  * Uses injectable PubSub pull functions and fetch mocks to test
  * the adapter without real Google API calls.
+ *
+ * @module
  */
 
 import { assertEquals } from "@std/assert";

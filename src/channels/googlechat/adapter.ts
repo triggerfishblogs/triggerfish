@@ -244,13 +244,10 @@ export function createGoogleChatChannel(
     "INTERNAL") as ClassificationLevel;
 
   const state: GoogleChatAdapterState = {
-    connected: false,
-    handler: null,
-    pollTimer: null,
+    connected: false, handler: null, pollTimer: null,
     pullFn: config._pullFn ?? createPubSubPuller(config),
     ackFn: createPubSubAcknowledger(config),
   };
-
   return {
     classification,
     isOwner: true,
