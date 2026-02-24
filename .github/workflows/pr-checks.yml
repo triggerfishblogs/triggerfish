@@ -209,9 +209,13 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
 
             Run /code-review on this pull request.
+
+            Post your review findings as a PR comment. Include specific file paths,
+            line numbers, and code snippets for each finding. If the code looks good,
+            comment "Code review passed — no issues found."
           allowed_bots: 'claude'
           settings: |
             {
               "model": "claude-opus-4-6"
             }
-          claude_args: "--max-turns 30"
+          claude_args: "--max-turns 40 --allowedTools 'Skill,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(git diff:*),Bash(git log:*),Bash(git fetch:*),Read,Glob,Grep'"
