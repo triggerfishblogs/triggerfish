@@ -15,6 +15,7 @@ export type {
 } from "./workspace_types.ts";
 
 export {
+  containsPathTraversal,
   extractClassificationPrefix,
   getReadableLevels,
   resolveExplicitClassifiedPath,
