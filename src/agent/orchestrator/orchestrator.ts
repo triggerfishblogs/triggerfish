@@ -29,6 +29,7 @@ import { wrapToolExecutorWithEnforcement } from "../dispatch/access_control.ts";
 import { runAgentTurn } from "../loop/agent_turn.ts";
 import { compactSessionHistory } from "../compactor/history_compaction.ts";
 import type {
+  ActiveSkillContext,
   HistoryEntry,
   Orchestrator,
   OrchestratorConfig,
@@ -39,6 +40,7 @@ import type {
 
 // Re-export full public API from types module for backward compatibility
 export type {
+  ActiveSkillContext,
   ClassificationMapConfig,
   HistoryEntry,
   Orchestrator,
@@ -83,6 +85,8 @@ export interface OrchestratorState {
   readonly compactor: Compactor;
   readonly histories: Map<string, HistoryEntry[]>;
   readonly toolExecutor: ToolExecutor | undefined;
+  /** Returns the currently active skill context for tool filtering. */
+  readonly getActiveSkillContext: (() => ActiveSkillContext | null) | undefined;
 }
 
 // ─── Orchestrator factory ────────────────────────────────────────────────────
@@ -120,6 +124,7 @@ function buildOrchestratorState(
     toolExecutor: config.toolExecutor
       ? wrapToolExecutorWithEnforcement(config.toolExecutor, config)
       : undefined,
+    getActiveSkillContext: config.getActiveSkillContext,
   };
 }
 

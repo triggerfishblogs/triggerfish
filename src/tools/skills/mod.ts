@@ -31,3 +31,20 @@ export type {
 
 export { createSkillToolExecutor, getSkillToolDefinitions } from "./tools.ts";
 export type { SkillToolContext, SkillType } from "./tools.ts";
+
+export { createSkillContextTracker } from "./context.ts";
+export type { SkillContextTracker } from "./context.ts";
+
+export {
+  filterToolsForActiveSkill,
+  checkSkillNetworkDomain,
+  checkSkillClassificationCeiling,
+} from "./enforcer.ts";
+
+export {
+  computeSkillHash,
+  recordSkillHash,
+  loadSkillHashRecord,
+  verifySkillIntegrity,
+} from "./integrity.ts";
+export type { SkillHashRecord } from "./integrity.ts";

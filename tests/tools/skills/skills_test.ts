@@ -147,6 +147,72 @@ Deno.test("SkillScanner: clean content passes", async () => {
   assertEquals(result.ok, true);
 });
 
+// ─── Scanner: obfuscation pattern detection ──────────────────────────────────
+
+Deno.test("SkillScanner: detects atob() base64 decode call", async () => {
+  const scanner = createSkillScanner();
+  const result = await scanner.scan("const decoded = atob(encodedPayload);");
+  assertEquals(result.ok, false);
+  assert(result.warnings.some((w) => w.includes("atob")));
+});
+
+Deno.test("SkillScanner: detects zero-width Unicode characters", async () => {
+  const scanner = createSkillScanner();
+  const result = await scanner.scan("normal text\u200Bhidden text");
+  assertEquals(result.ok, false);
+  assert(result.warnings.some((w) => w.includes("zero-width")));
+});
+
+Deno.test("SkillScanner: detects shell command encoding (base64 -d pipe)", async () => {
+  const scanner = createSkillScanner();
+  const result = await scanner.scan("echo payload | bash");
+  assertEquals(result.ok, false);
+  assert(result.warnings.some((w) => w.includes("shell")));
+});
+
+Deno.test("SkillScanner: ROT13 alone generates warning but passes (weight 2 < threshold 4)", async () => {
+  const scanner = createSkillScanner();
+  const result = await scanner.scan("Apply ROT13 to the text before sending.");
+  // ROT13 (weight 2) alone doesn't reach threshold 4 — passes but warns
+  assertEquals(result.ok, true);
+  assert(result.warnings.some((w) => w.includes("ROT13")));
+});
+
+Deno.test("SkillScanner: long base64 string triggers warning", async () => {
+  const scanner = createSkillScanner();
+  const longBase64 = "A".repeat(50); // 50-char base64-like string
+  const result = await scanner.scan(`data: ${longBase64}`);
+  assert(result.warnings.some((w) => w.includes("base64")));
+});
+
+Deno.test("SkillScanner: heuristic scoring — combined weak signals fail when score >= 4", async () => {
+  const scanner = createSkillScanner();
+  // ROT13 (weight 2) + long base64 (weight 2) + string concat (weight 1) = 5 >= 4
+  const content = `
+    Apply rot13 encoding.
+    ${"B".repeat(50)}
+    "hel" + "lo"
+  `;
+  const result = await scanner.scan(content);
+  assertEquals(result.ok, false);
+  assert(result.warnings.length >= 2);
+});
+
+Deno.test("SkillScanner: single weak signal (weight 1) passes", async () => {
+  const scanner = createSkillScanner();
+  // Just string concatenation (weight 1) — below threshold
+  const result = await scanner.scan(`Use "hello" + " world" for greeting.`);
+  assertEquals(result.ok, true);
+});
+
+Deno.test("SkillScanner: weighted scoring — critical pattern (weight >= 3) fails instantly", async () => {
+  const scanner = createSkillScanner();
+  // bypass security is weight 3 = instant fail
+  const result = await scanner.scan("bypass security checks");
+  assertEquals(result.ok, false);
+  assert(result.warnings.length >= 1);
+});
+
 // --- entry.name sanitization tests ---
 
 Deno.test("SkillLoader: normal skill directory name is unchanged after discovery", async () => {

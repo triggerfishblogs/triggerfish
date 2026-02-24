@@ -67,13 +67,24 @@ export function buildLlmMessages(
   return [{ role: "system", content: systemPrompt }, ...history];
 }
 
-/** Resolve the live tool list for this iteration. */
+/** Resolve the live tool list for this iteration, applying skill-based filtering. */
 export function resolveActiveToolList(
   state: OrchestratorState,
 ): readonly ToolDefinition[] {
-  return state.getExtraTools
+  const allTools = state.getExtraTools
     ? [...state.baseTools, ...state.getExtraTools()]
     : state.baseTools;
+
+  const activeSkill = state.getActiveSkillContext?.() ?? null;
+  if (!activeSkill || activeSkill.requiresTools === null) return allTools;
+
+  if (activeSkill.requiresTools.length === 0) {
+    // Declared empty: only allow read_skill (so agent can switch skills)
+    return allTools.filter((t) => t.name === "read_skill");
+  }
+
+  const allowed = new Set(activeSkill.requiresTools);
+  return allTools.filter((t) => t.name === "read_skill" || allowed.has(t.name));
 }
 
 // ─── Agent loop types ────────────────────────────────────────────────────────

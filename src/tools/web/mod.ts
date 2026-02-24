@@ -49,7 +49,9 @@ export {
 } from "./fetch.ts";
 
 export {
+  checkSkillDomainRestriction,
   createWebToolExecutor,
   getWebToolDefinitions,
   WEB_TOOLS_SYSTEM_PROMPT,
+  type WebToolExecutorOptions,
 } from "./tools.ts";

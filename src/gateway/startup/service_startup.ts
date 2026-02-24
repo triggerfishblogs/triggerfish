@@ -58,6 +58,9 @@ export function buildMainChatSession(
     pathClassifier: toolInfra.pathClassifier,
     domainClassifier: toolInfra.domainClassifier,
     toolFloorRegistry: toolInfra.toolFloorRegistry,
+    getActiveSkillContext: toolInfra.skillContextTracker
+      ? () => toolInfra.skillContextTracker!.getActive()
+      : undefined,
   });
 }
 

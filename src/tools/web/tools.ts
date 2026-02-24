@@ -117,9 +117,48 @@ async function executeWebSearch(
   return `Search results for "${query}":\n\n${lines.join("\n\n")}`;
 }
 
+/**
+ * Check whether a URL is allowed by the active skill's network domain restrictions.
+ *
+ * Returns null if allowed, or an error message string if blocked.
+ * Exported for testing.
+ */
+export function checkSkillDomainRestriction(
+  url: string,
+  getActiveSkillDomains: (() => readonly string[] | null) | undefined,
+): string | null {
+  const skillDomains = getActiveSkillDomains?.() ?? null;
+  if (skillDomains === null) return null;
+
+  if (skillDomains.length === 0) {
+    return "Error: The active skill has declared no network access (network_domains: []).";
+  }
+
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    return `Error: Invalid URL "${url}".`;
+  }
+
+  const allowed = skillDomains.some(
+    (d) => hostname === d || hostname.endsWith(`.${d}`),
+  );
+
+  if (!allowed) {
+    return (
+      `Error: Domain "${hostname}" is not in the active skill's declared ` +
+      `network_domains (${skillDomains.join(", ")}).`
+    );
+  }
+
+  return null;
+}
+
 async function executeWebFetch(
   webFetcher: WebFetcher | undefined,
   input: Record<string, unknown>,
+  getActiveSkillDomains?: () => readonly string[] | null,
 ): Promise<string> {
   if (!webFetcher) {
     return "Web fetch is not available.";
@@ -129,6 +168,10 @@ async function executeWebFetch(
   if (typeof url !== "string" || url.trim().length === 0) {
     return "Error: web_fetch requires a non-empty 'url' argument.";
   }
+
+  // Check skill domain restriction before fetching
+  const domainError = checkSkillDomainRestriction(url, getActiveSkillDomains);
+  if (domainError) return domainError;
 
   const mode = input.mode === "raw" ? "raw" as const : "readability" as const;
   const result = await webFetcher.fetch(url, { mode });
@@ -147,19 +190,50 @@ async function executeWebFetch(
 
 // ─── Executor ───────────────────────────────────────────────────────────────
 
+/** Options for creating a web tool executor. */
+export interface WebToolExecutorOptions {
+  readonly searchProvider?: SearchProvider;
+  readonly webFetcher?: WebFetcher;
+  /**
+   * Returns active skill's declared networkDomains, or null if unrestricted.
+   * null = no active skill or skill has no domain restriction.
+   * [] = skill declared empty (no network access).
+   * ["foo.com"] = skill is restricted to declared domains.
+   */
+  readonly getActiveSkillDomains?: () => readonly string[] | null;
+}
+
 /**
  * Create a tool executor for web tools.
  *
  * Returns null for unknown tool names (allowing chaining with other executors).
  *
- * @param searchProvider - The search provider to use for web_search
- * @param webFetcher - The web fetcher to use for web_fetch
+ * Accepts either an options object or positional args (backward-compatible).
+ *
  * @returns An executor function: (name, input) => Promise<string | null>
  */
 export function createWebToolExecutor(
-  searchProvider: SearchProvider | undefined,
-  webFetcher: WebFetcher | undefined,
+  optsOrSearch: WebToolExecutorOptions | SearchProvider | undefined,
+  webFetcherArg?: WebFetcher | undefined,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
+  // Support both options object and positional args for backward compatibility
+  const isOptions = optsOrSearch !== null &&
+    optsOrSearch !== undefined &&
+    typeof optsOrSearch === "object" &&
+    !("search" in optsOrSearch) &&
+    ("searchProvider" in optsOrSearch || "webFetcher" in optsOrSearch ||
+      "getActiveSkillDomains" in optsOrSearch);
+
+  const searchProvider = isOptions
+    ? (optsOrSearch as WebToolExecutorOptions).searchProvider
+    : optsOrSearch as SearchProvider | undefined;
+  const webFetcher = isOptions
+    ? (optsOrSearch as WebToolExecutorOptions).webFetcher
+    : webFetcherArg;
+  const getActiveSkillDomains = isOptions
+    ? (optsOrSearch as WebToolExecutorOptions).getActiveSkillDomains
+    : undefined;
+
   // deno-lint-ignore require-await
   return async (
     name: string,
@@ -169,7 +243,7 @@ export function createWebToolExecutor(
       case "web_search":
         return executeWebSearch(searchProvider, input);
       case "web_fetch":
-        return executeWebFetch(webFetcher, input);
+        return executeWebFetch(webFetcher, input, getActiveSkillDomains);
       default:
         return null;
     }

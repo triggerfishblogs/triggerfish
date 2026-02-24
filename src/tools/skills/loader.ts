@@ -14,6 +14,7 @@ import { createLogger } from "../../core/logger/logger.ts";
 import { parse as parseYaml } from "@std/yaml";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { parseClassification } from "../../core/types/classification.ts";
+import { computeSkillHash } from "./integrity.ts";
 
 const log = createLogger("skills");
 
@@ -28,14 +29,22 @@ export interface Skill {
   readonly description: string;
   /** Maximum classification level this skill can access. */
   readonly classificationCeiling: ClassificationLevel;
-  /** Tools required by this skill. */
-  readonly requiresTools: readonly string[];
-  /** Network domains this skill needs access to. */
-  readonly networkDomains: readonly string[];
+  /**
+   * Tools required by this skill.
+   * null = not declared (unrestricted). [] = declared empty (no tool access).
+   */
+  readonly requiresTools: readonly string[] | null;
+  /**
+   * Network domains this skill needs access to.
+   * null = not declared (unrestricted). [] = declared empty (no network access).
+   */
+  readonly networkDomains: readonly string[] | null;
   /** Filesystem path to the skill directory. */
   readonly path: string;
   /** Source type (bundled, managed, workspace). */
   readonly source: SkillSource;
+  /** SHA-256 hex digest of SKILL.md content computed at discovery time. */
+  readonly contentHash: string;
 }
 
 /** Options for creating a skill loader. */
@@ -101,6 +110,7 @@ function buildSkillFromFrontmatter(
   frontmatter: SkillFrontmatter | null,
   skillDir: string,
   source: SkillSource,
+  contentHash: string,
 ): Skill | null {
   if (!frontmatter || !frontmatter.name) return null;
 
@@ -115,10 +125,11 @@ function buildSkillFromFrontmatter(
     name: frontmatter.name,
     description: frontmatter.description ?? "",
     classificationCeiling: ceiling,
-    requiresTools: frontmatter.requires_tools ?? [],
-    networkDomains: frontmatter.network_domains ?? [],
+    requiresTools: frontmatter.requires_tools ?? null,
+    networkDomains: frontmatter.network_domains ?? null,
     path: skillDir,
     source,
+    contentHash,
   };
 }
 
@@ -151,10 +162,12 @@ async function scanSkillDirectory(
         log.debug("Skill SKILL.md read failed, skipping directory", { skillDir, err });
         continue;
       }
+      const contentHash = await computeSkillHash(content);
       const skill = buildSkillFromFrontmatter(
         parseFrontmatter(content),
         skillDir,
         source,
+        contentHash,
       );
       if (!skill) continue;
       const existing = skillsByName.get(skill.name);
