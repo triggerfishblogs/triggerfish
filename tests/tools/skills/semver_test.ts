@@ -29,3 +29,10 @@ Deno.test("compareSemver: handles missing parts", () => {
   assertEquals(compareSemver("1.0", "1.0.0"), 0);
   assertEquals(compareSemver("1", "1.0.0"), 0);
 });
+
+Deno.test("compareSemver: strips pre-release suffixes", () => {
+  assertEquals(compareSemver("1.0.0-beta", "1.0.0"), 0);
+  assertEquals(compareSemver("1.0.0", "1.0.0-beta"), 0);
+  assertEquals(compareSemver("1.0.1-rc.1", "1.0.0"), 1);
+  assertEquals(compareSemver("1.0.0-beta", "1.0.1"), -1);
+});

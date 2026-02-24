@@ -117,8 +117,9 @@ interface CatalogCache {
  * @returns 1 if a > b, -1 if a < b, 0 if equal
  */
 export function compareSemver(a: string, b: string): -1 | 0 | 1 {
-  const partsA = a.split(".").map(Number);
-  const partsB = b.split(".").map(Number);
+  const stripPre = (v: string) => v.replace(/-.*$/, "");
+  const partsA = stripPre(a).split(".").map(Number);
+  const partsB = stripPre(b).split(".").map(Number);
   for (let i = 0; i < 3; i++) {
     const va = partsA[i] ?? 0;
     const vb = partsB[i] ?? 0;
@@ -244,8 +245,8 @@ function matchesCatalogQuery(
   const lower = query.toLowerCase();
   return (
     entry.name.toLowerCase().includes(lower) ||
-    entry.tags.some((t) => t.toLowerCase() === lower) ||
-    entry.category.toLowerCase() === lower ||
+    entry.tags.some((t) => t.toLowerCase().includes(lower)) ||
+    entry.category.toLowerCase().includes(lower) ||
     entry.description.toLowerCase().includes(lower)
   );
 }
