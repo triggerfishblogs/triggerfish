@@ -13,6 +13,9 @@ import type { LlmProvider, LlmProviderRegistry } from "../llm.ts";
 import type { Compactor, CompactResult } from "./compactor.ts";
 import { estimateHistoryTokens } from "./compactor.ts";
 import type { HistoryEntry } from "../orchestrator/orchestrator_types.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("agent.compactor.history-compaction");
 
 /** Compact history using sliding-window strategy (no LLM). */
 function compactHistoryWithSlidingWindow(
@@ -92,6 +95,12 @@ export async function compactSessionHistory(
   const provider = providerRegistry.getForClassification(taint);
 
   if (!provider) {
+    log.debug("No classification-specific provider found, falling back to sliding-window compaction", {
+      operation: "compactSessionHistory",
+      sessionId,
+      taint,
+      usedClassificationOverride: false,
+    });
     return compactHistoryWithSlidingWindow(
       history,
       compactor,
@@ -99,6 +108,13 @@ export async function compactSessionHistory(
       tokensBefore,
     );
   }
+  log.debug("Provider selected for summarization compaction", {
+    operation: "compactSessionHistory",
+    sessionId,
+    taint,
+    provider: provider.name,
+    usedClassificationOverride: true,
+  });
   alignCompactorBudgetToProvider(compactor, provider, 100_000);
   return await compactHistoryWithSummarization(
     history,

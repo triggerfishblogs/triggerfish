@@ -51,13 +51,7 @@ async function selectProviderForLevel(
 /** Prompt to configure per-classification models (optional wizard step). */
 export async function promptClassificationModelsStep(): Promise<ClassificationModelsResult> {
   log.info("Starting per-classification model configuration step", { operation: "promptClassificationModelsStep" });
-  log.debug("Displaying per-classification model banner to user", { operation: "promptClassificationModelsStep" });
-  console.log("");
-  console.log("  Per-Classification Model Configuration (optional)");
-  console.log("");
-  console.log("  You can route different classification levels to different models.");
-  console.log("  For example, use a local model for CONFIDENTIAL/RESTRICTED data.");
-  console.log("");
+  log.info("Per-Classification Model Configuration (optional) — route different classification levels to different models", { operation: "promptClassificationModelsStep" });
 
   const wantPerLevel = await Confirm.prompt({
     message: "Use different models for different classification levels?",
