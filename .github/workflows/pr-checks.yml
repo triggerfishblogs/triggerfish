@@ -70,12 +70,35 @@ jobs:
 
             Post a single PR comment with your findings as a markdown table.
             If everything is clean, comment "Hygiene check passed."
+
+            CRITICAL — VERDICT FILE:
+            As your FINAL action, you MUST write a verdict file using the Write tool:
+            - Path: audit-verdict.txt
+            - If you found ANY issues that require changes: write exactly "FAIL"
+            - If everything is clean: write exactly "PASS"
+            You must ALWAYS write this file. The workflow will fail if the file is missing.
           allowed_bots: 'claude'
           settings: |
             {
               "model": "claude-opus-4-6"
             }
-          claude_args: "--max-turns 40 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Read,Glob,Grep'"
+          claude_args: "--max-turns 40 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Read,Glob,Grep,Write'"
+
+      - name: Enforce hygiene verdict
+        run: |
+          if [ ! -f audit-verdict.txt ]; then
+            echo "::error::Hygiene audit did not produce a verdict file"
+            exit 1
+          fi
+          verdict=$(cat audit-verdict.txt | tr -d '[:space:]')
+          if [ "$verdict" = "FAIL" ]; then
+            echo "::error::Hygiene audit found issues that require changes — see PR comment"
+            exit 1
+          elif [ "$verdict" != "PASS" ]; then
+            echo "::error::Hygiene audit produced unexpected verdict: $verdict"
+            exit 1
+          fi
+          echo "Hygiene audit passed"
 
   serviceability:
     needs: hygiene
@@ -131,12 +154,35 @@ jobs:
             Group by severity (blocking first, then warnings).
             Include file path, line number, rule ID, and the offending code snippet for each finding.
             If everything is clean, comment "Serviceability check passed ✅"
+
+            CRITICAL — VERDICT FILE:
+            As your FINAL action, you MUST write a verdict file using the Write tool:
+            - Path: audit-verdict.txt
+            - If you found ANY ❌ BLOCKING issues: write exactly "FAIL"
+            - If you found only ⚠️ warnings or nothing: write exactly "PASS"
+            You must ALWAYS write this file. The workflow will fail if the file is missing.
           allowed_bots: 'claude'
           settings: |
             {
               "model": "claude-opus-4-6"
             }
-          claude_args: "--max-turns 40 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep'"
+          claude_args: "--max-turns 40 --allowedTools 'Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(grep:*),Bash(cat:*),Read,Glob,Grep,Write'"
+
+      - name: Enforce serviceability verdict
+        run: |
+          if [ ! -f audit-verdict.txt ]; then
+            echo "::error::Serviceability audit did not produce a verdict file"
+            exit 1
+          fi
+          verdict=$(cat audit-verdict.txt | tr -d '[:space:]')
+          if [ "$verdict" = "FAIL" ]; then
+            echo "::error::Serviceability audit found blocking issues — see PR comment"
+            exit 1
+          elif [ "$verdict" != "PASS" ]; then
+            echo "::error::Serviceability audit produced unexpected verdict: $verdict"
+            exit 1
+          fi
+          echo "Serviceability audit passed"
 
   code-review:
     needs: serviceability
