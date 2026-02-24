@@ -239,7 +239,12 @@ export async function runNonOwnerAgentTurn(
 
   const release = await acquireTurnMutex(state);
   const userSessionId = userSession.id as string;
-  state.sessionStates.set(userSessionId, userSession);
+  const taintedSession = updateTaint(
+    userSession,
+    userCls,
+    `Non-owner classification: ${userCls}`,
+  );
+  state.sessionStates.set(userSessionId, taintedSession);
   state.activeSend = sendEvent;
   state.activeSessionId = userSessionId;
   state.activeNonOwnerCeiling = resolveNonOwnerCeiling(
@@ -249,7 +254,7 @@ export async function runNonOwnerAgentTurn(
 
   try {
     const result = await orchestrator.executeAgentTurn({
-      session: userSession,
+      session: taintedSession,
       message: msg.content,
       targetClassification: userCls,
       signal,
