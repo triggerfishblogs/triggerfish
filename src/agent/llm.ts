@@ -17,6 +17,7 @@ export type {
 } from "../core/types/llm.ts";
 
 import type { LlmProvider, LlmProviderRegistry } from "../core/types/llm.ts";
+import type { ClassificationLevel } from "../core/types/classification.ts";
 
 /**
  * Create a new LLM provider registry.
@@ -46,27 +47,15 @@ export function createProviderRegistry(): LlmProviderRegistry {
       return providers.get(defaultName);
     },
 
-    registerClassificationOverride(level: string, provider: LlmProvider): void {
+    registerClassificationOverride(
+      level: ClassificationLevel,
+      provider: LlmProvider,
+    ): void {
       classificationOverrides.set(level, provider);
     },
 
-    getForClassification(level: string): LlmProvider | undefined {
+    getForClassification(level: ClassificationLevel): LlmProvider | undefined {
       return classificationOverrides.get(level) ?? this.getDefault();
-    },
-
-    getMinContextWindow(): number | undefined {
-      const candidates: LlmProvider[] = [];
-      const defaultProvider = this.getDefault();
-      if (defaultProvider) candidates.push(defaultProvider);
-      for (const p of classificationOverrides.values()) {
-        candidates.push(p);
-      }
-      if (candidates.length === 0) return undefined;
-      const windows = candidates
-        .map((p) => p.contextWindow)
-        .filter((w): w is number => w !== undefined);
-      if (windows.length === 0) return undefined;
-      return Math.min(...windows);
     },
   };
 }

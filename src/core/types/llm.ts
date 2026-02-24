@@ -11,6 +11,8 @@
  * @module
  */
 
+import type { ClassificationLevel } from "./classification.ts";
+
 /** A single message in a conversation. */
 export interface LlmMessage {
   readonly role: string;
@@ -86,15 +88,13 @@ export interface LlmProviderRegistry {
   /** Get the default provider, or undefined if none set. */
   getDefault(): LlmProvider | undefined;
   /** Register a provider override for a specific classification level. */
-  registerClassificationOverride(level: string, provider: LlmProvider): void;
+  registerClassificationOverride(
+    level: ClassificationLevel,
+    provider: LlmProvider,
+  ): void;
   /**
    * Get the provider for a given classification level.
    * Falls back to getDefault() if no override is registered for this level.
    */
-  getForClassification(level: string): LlmProvider | undefined;
-  /**
-   * Get the minimum context window across the default provider and all
-   * classification overrides. Returns undefined if no providers are registered.
-   */
-  getMinContextWindow(): number | undefined;
+  getForClassification(level: ClassificationLevel): LlmProvider | undefined;
 }

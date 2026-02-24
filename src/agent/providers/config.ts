@@ -8,6 +8,7 @@
  */
 
 import type { LlmProviderRegistry, LlmProvider } from "../llm.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 import { createAnthropicProvider } from "./anthropic.ts";
 import { createOpenAiProvider } from "./openai.ts";
@@ -156,7 +157,7 @@ export function loadProvidersFromConfig(
       }
       const overrideProvider = createProviderByName(ref.provider, providerConfig, ref.model);
       if (overrideProvider) {
-        registry.registerClassificationOverride(level, overrideProvider);
+        registry.registerClassificationOverride(level as ClassificationLevel, overrideProvider);
         log.info("Classification model override registered", {
           operation: "loadClassificationOverride",
           level,

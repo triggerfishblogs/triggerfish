@@ -78,43 +78,6 @@ Deno.test("Registry: getForClassification returns undefined when no providers re
   assertEquals(result, undefined);
 });
 
-// ── Registry: getMinContextWindow ─────────────────────────────────────────────
-
-Deno.test("Registry: getMinContextWindow returns minimum across default and overrides", () => {
-  const registry = createProviderRegistry();
-  registry.register(createMockProvider("anthropic", 200_000));
-  registry.setDefault("anthropic");
-
-  const ollamaProvider = createMockProvider("ollama", 8_000);
-  registry.registerClassificationOverride("RESTRICTED", ollamaProvider);
-
-  assertEquals(registry.getMinContextWindow(), 8_000);
-});
-
-Deno.test("Registry: getMinContextWindow returns default window when no overrides", () => {
-  const registry = createProviderRegistry();
-  registry.register(createMockProvider("anthropic", 200_000));
-  registry.setDefault("anthropic");
-
-  assertEquals(registry.getMinContextWindow(), 200_000);
-});
-
-Deno.test("Registry: getMinContextWindow returns undefined when no providers", () => {
-  const registry = createProviderRegistry();
-  assertEquals(registry.getMinContextWindow(), undefined);
-});
-
-Deno.test("Registry: getMinContextWindow skips providers without contextWindow", () => {
-  const registry = createProviderRegistry();
-  registry.register(createMockProvider("anthropic", 200_000));
-  registry.setDefault("anthropic");
-
-  // Override has no contextWindow defined
-  registry.registerClassificationOverride("RESTRICTED", createMockProvider("ollama"));
-
-  assertEquals(registry.getMinContextWindow(), 200_000);
-});
-
 // ── Config validation: classification_models ──────────────────────────────────
 
 Deno.test("validateConfig: accepts config without classification_models", () => {
