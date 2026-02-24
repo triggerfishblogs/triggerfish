@@ -133,6 +133,12 @@ export async function createWorkspace(
       `Workspace agentId "${options.agentId}" is empty after sanitization`,
     );
   }
+  if (sanitizedAgentId !== options.agentId) {
+    log.warn("Workspace agentId sanitized: control characters stripped", {
+      originalAgentId: options.agentId,
+      sanitizedAgentId,
+    });
+  }
   const workspacePath = resolve(join(options.basePath, sanitizedAgentId));
   const paths = computeWorkspacePaths(workspacePath);
   const levelToDirPath = buildLevelToDirPath(paths);

@@ -4,6 +4,8 @@
  * Covers all character categories stripped by sanitizePathForPrompt:
  * C0/C1 control chars, bidi overrides, zero-width chars, line/paragraph
  * separators, BOM, and multi-character injection sequences.
+ *
+ * @module
  */
 import { assertEquals } from "@std/assert";
 import { sanitizePathForPrompt } from "../../../src/core/security/path_sanitization.ts";

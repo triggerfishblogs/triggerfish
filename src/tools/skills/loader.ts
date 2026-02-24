@@ -132,7 +132,14 @@ async function scanSkillDirectory(
     for await (const entry of Deno.readDir(dir)) {
       if (!entry.isDirectory || entry.isSymlink) continue;
       const sanitizedName = sanitizePathForPrompt(entry.name);
-      if (sanitizedName.length === 0) continue;
+      if (sanitizedName.length === 0) {
+        log.warn("Skill directory name rejected: empty after sanitization", {
+          dir,
+          originalName: entry.name,
+          source,
+        });
+        continue;
+      }
       const jailResult = resolveWithinJail(dir, sanitizedName);
       if (!jailResult.ok) continue;
       const skillDir = jailResult.value;
