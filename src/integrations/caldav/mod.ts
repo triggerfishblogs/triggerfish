@@ -55,3 +55,16 @@ export {
   createCalDavToolExecutor,
   CALDAV_SYSTEM_PROMPT,
 } from "./tools.ts";
+
+export {
+  buildCalendarQueryReport,
+  buildMultigetReport,
+  buildFreeBusyReport,
+  formatEventSummary,
+  formatEventDetail,
+} from "./tool_reports.ts";
+
+export {
+  parsePropfindXml,
+  parseReportXml,
+} from "./client_xml.ts";

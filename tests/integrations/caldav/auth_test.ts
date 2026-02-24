@@ -1,4 +1,6 @@
 /**
+ * @module
+ *
  * CalDAV authentication tests.
  *
  * Tests credential resolution from keychain and Authorization header building.

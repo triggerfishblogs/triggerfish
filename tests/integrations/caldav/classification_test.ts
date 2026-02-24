@@ -1,4 +1,6 @@
 /**
+ * @module
+ *
  * CalDAV security boundary tests.
  *
  * Tests classification gating, taint tracking, and lineage origin

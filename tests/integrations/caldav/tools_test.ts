@@ -1,4 +1,6 @@
 /**
+ * @module
+ *
  * CalDAV tools tests.
  *
  * Tests all 7 tool definitions, parameter validation,
