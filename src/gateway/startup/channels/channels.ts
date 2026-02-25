@@ -11,6 +11,9 @@ import type { TriggerFishConfig } from "../../../core/config.ts";
 import type { createChatSession } from "../../chat.ts";
 import type { RegisteredChannel } from "../../tools/session/session_tools.ts";
 import type { createNotificationService } from "../../notifications/notifications.ts";
+import { createKeychain } from "../../../core/secrets/mod.ts";
+import { resolveSecretRef } from "../../../core/secrets/mod.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
 import type { ChannelWiringDeps } from "./channels_shared.ts";
 import { wireTelegramChannel } from "./channels_telegram.ts";
 import type { TelegramChannelConfig } from "./channels_telegram.ts";
@@ -23,6 +26,8 @@ import type {
 } from "./channels_signal.ts";
 import { wireGoogleChatChannel } from "./channels_googlechat.ts";
 import type { GoogleChatChannelConfig } from "./channels_googlechat.ts";
+
+const log = createLogger("startup-channels");
 
 // ─── Re-exports ──────────────────────────────────────────────────────────────
 
@@ -76,7 +81,20 @@ export async function wireChannels(
     | GoogleChatChannelConfig
     | undefined;
   if (googlechatConfig?.enabled && googlechatConfig?.credentials_ref) {
-    await wireGoogleChatChannel(googlechatConfig, channelDeps);
+    const credRef = googlechatConfig.credentials_ref;
+    const keychain = createKeychain();
+    const resolveToken = async () => {
+      const result = await resolveSecretRef(credRef, keychain);
+      if (!result.ok) {
+        log.error("Google Chat credentials_ref resolution failed", {
+          operation: "wireChannels",
+          error: result.error,
+        });
+        throw new Error(`Google Chat credential resolution failed: ${result.error}`);
+      }
+      return result.value as string;
+    };
+    await wireGoogleChatChannel(googlechatConfig, channelDeps, resolveToken);
   }
 
   const signalConfig = config.channels?.signal as

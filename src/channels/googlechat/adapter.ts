@@ -76,15 +76,22 @@ async function pollGoogleChatMessages(
     const ackIds: string[] = [];
 
     for (const received of messages) {
-      ackIds.push(received.ackId);
-
       const event = parseGoogleChatEventData(received.message.data);
-      if (!event) continue;
+      if (!event) {
+        log.warn("Google Chat PubSub message parse failed, not acknowledging", {
+          operation: "pollGoogleChatMessages",
+          ackId: received.ackId,
+        });
+        continue;
+      }
 
+      ackIds.push(received.ackId);
       dispatchGoogleChatEvent(event, state.handler, config);
     }
 
-    await state.ackFn(config.pubsubSubscription, ackIds);
+    if (ackIds.length > 0) {
+      await state.ackFn(config.pubsubSubscription, ackIds);
+    }
   } catch (err: unknown) {
     log.warn("Google Chat PubSub poll failed", {
       operation: "pollGoogleChatMessages",
