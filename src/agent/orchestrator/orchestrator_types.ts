@@ -193,8 +193,8 @@ const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<readonly [string, Classificati
   // Scheduling — owner-only
   ["cron_", "RESTRICTED"],
   ["trigger_", "RESTRICTED"],
-  // Skills — INTERNAL (read_skill is read-only)
-  ["read_skill", "INTERNAL"],
+  // Skills — read_skill is read-only, works at all classification levels
+  ["read_skill", "PUBLIC"],
   // Subagent / agents — owner-only
   ["subagent", "RESTRICTED"],
   ["agents_", "RESTRICTED"],
