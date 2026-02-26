@@ -266,6 +266,10 @@ function serveStaleCacheOrError(
     });
     return { ok: true, value: cache.catalog };
   }
+  log.warn("Catalog fetch failed with no stale cache available", {
+    operation: "fetchCatalog",
+    err: originalError ?? errorMessage,
+  });
   return { ok: false, error: errorMessage };
 }
 
@@ -556,6 +560,10 @@ function validatePublishFrontmatter(
       error: `Missing required frontmatter fields: ${missing.join(", ")}`,
     };
   }
+  const nameCheck = validateSkillName(String(raw.name));
+  if (!nameCheck.ok) return nameCheck;
+  const versionCheck = validateSkillVersion(String(raw.version));
+  if (!versionCheck.ok) return versionCheck;
   const classResult = parseClassification(
     String(raw.classification_ceiling),
   );

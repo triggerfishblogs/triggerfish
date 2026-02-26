@@ -14,12 +14,13 @@ import { createLogger } from "../../core/logger/logger.ts";
 import { parse as parseYaml } from "@std/yaml";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { parseClassification } from "../../core/types/classification.ts";
+import type { SkillSource } from "../../core/types/skills.ts";
 import { computeSkillHash } from "./integrity.ts";
 
 const log = createLogger("skills");
 
-/** Source type indicating where a skill was discovered. */
-export type SkillSource = "bundled" | "managed" | "workspace";
+// Re-export SkillSource from core so existing importers via this module continue to work.
+export type { SkillSource } from "../../core/types/skills.ts";
 
 /** Parsed skill definition from SKILL.md frontmatter. */
 export interface Skill {
