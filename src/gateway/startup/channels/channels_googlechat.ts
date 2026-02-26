@@ -9,6 +9,7 @@ import type { UserId } from "../../../core/types/session.ts";
 import type { ChannelMessage } from "../../../channels/types.ts";
 import type { GroupMode } from "../../../channels/groups.ts";
 import { createGoogleChatChannel } from "../../../channels/googlechat/adapter.ts";
+import { encodeSpaceName } from "../../../channels/googlechat/dispatch.ts";
 import { buildSendEvent } from "../../chat.ts";
 import type { ChannelWiringDeps } from "./channels_shared.ts";
 import type { NotificationService } from "../../notifications/notifications.ts";
@@ -120,7 +121,7 @@ function registerGoogleChatNotifications(
 ): void {
   if (!ownerSpaceId) return;
 
-  const sessionId = `googlechat-${ownerSpaceId.replace(/\//g, "%2F")}`;
+  const sessionId = `googlechat-${encodeSpaceName(ownerSpaceId)}`;
   notificationService.registerChannel({
     name: "googlechat",
     send: (msg) =>

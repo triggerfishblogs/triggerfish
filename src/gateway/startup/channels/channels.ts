@@ -11,8 +11,7 @@ import type { TriggerFishConfig } from "../../../core/config.ts";
 import type { createChatSession } from "../../chat.ts";
 import type { RegisteredChannel } from "../../tools/session/session_tools.ts";
 import type { createNotificationService } from "../../notifications/notifications.ts";
-import { createKeychain } from "../../../core/secrets/mod.ts";
-import { resolveSecretRef } from "../../../core/secrets/mod.ts";
+import { createKeychain, resolveSecretRef } from "../../../core/secrets/mod.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
 import type { ChannelWiringDeps } from "./channels_shared.ts";
 import { wireTelegramChannel } from "./channels_telegram.ts";
@@ -83,12 +82,15 @@ export async function wireChannels(
   if (googlechatConfig?.enabled && googlechatConfig?.credentials_ref) {
     const credRef = googlechatConfig.credentials_ref;
     const keychain = createKeychain();
+    // Resolves the secret ref to a bearer token. For service accounts using
+    // OAuth2, callers should store the pre-exchanged access token in the
+    // keychain. A future enhancement may add JWT signing / token exchange here.
     const resolveToken = async () => {
       const result = await resolveSecretRef(credRef, keychain);
       if (!result.ok) {
         log.error("Google Chat credentials_ref resolution failed", {
           operation: "wireChannels",
-          error: result.error,
+          err: result.error,
         });
         throw new Error(`Google Chat credential resolution failed: ${result.error}`);
       }

@@ -25,7 +25,7 @@ function isDirectMessage(event: GoogleChatEvent): boolean {
 }
 
 /** Encode a space resource name for use in a session ID (URL-encode slashes). */
-function encodeSpaceName(spaceName: string): string {
+export function encodeSpaceName(spaceName: string): string {
   return spaceName.replace(/\//g, "%2F");
 }
 
