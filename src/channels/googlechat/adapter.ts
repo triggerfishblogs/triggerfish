@@ -50,7 +50,7 @@ export interface GoogleChatChannelAdapter extends ChannelAdapter {
 interface GoogleChatAdapterState {
   connected: boolean;
   handler: MessageHandler | null;
-  pollTimer: ReturnType<typeof setInterval> | null;
+  pollTimer: ReturnType<typeof setTimeout> | null;
   readonly pullFn: PubSubPullFn;
   readonly ackFn: PubSubAckFn;
 }
@@ -100,6 +100,18 @@ async function pollGoogleChatMessages(
   }
 }
 
+/** Schedule the next poll after the current one completes (prevents overlap). */
+function schedulePollLoop(
+  state: GoogleChatAdapterState,
+  config: GoogleChatConfig,
+): void {
+  if (!state.connected) return;
+  state.pollTimer = setTimeout(async () => {
+    await pollGoogleChatMessages(state, config);
+    schedulePollLoop(state, config);
+  }, DEFAULT_POLL_INTERVAL);
+}
+
 // ─── Factory ────────────────────────────────────────────────────────────────
 
 /**
@@ -127,11 +139,9 @@ export function createGoogleChatChannel(
     isOwner: true,
 
     async connect(): Promise<void> {
-      await pollGoogleChatMessages(state, config);
-      state.pollTimer = setInterval(async () => {
-        await pollGoogleChatMessages(state, config);
-      }, DEFAULT_POLL_INTERVAL);
       state.connected = true;
+      await pollGoogleChatMessages(state, config);
+      schedulePollLoop(state, config);
       log.info("Google Chat adapter connected", {
         subscription: config.pubsubSubscription,
       });
@@ -139,7 +149,7 @@ export function createGoogleChatChannel(
 
     disconnect(): Promise<void> {
       if (state.pollTimer) {
-        clearInterval(state.pollTimer);
+        clearTimeout(state.pollTimer);
         state.pollTimer = null;
       }
       state.connected = false;

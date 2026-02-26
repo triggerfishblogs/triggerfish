@@ -132,7 +132,7 @@ async function collectSignalConfig(): Promise<{
   signalPhoneNumber: string;
   signalEndpoint: string;
 }> {
-  log.info("Signal channel requires signal-cli to be installed and linked");
+  console.log("  Signal channel requires signal-cli to be installed and linked");
   const signalPhoneNumber = await Input.prompt({
     message: "Your Signal phone number (E.164 format, e.g. +15551234567)",
   });
@@ -152,7 +152,7 @@ async function collectGoogleChatConfig(): Promise<{
   googlechatPubsubSubscription: string;
   googlechatOwnerEmail: string;
 }> {
-  log.info("Google Chat channel requires a service account and PubSub subscription");
+  console.log("  Google Chat channel requires a service account and PubSub subscription");
   const googlechatCredentialsRef = await Input.prompt({
     message: "Service account credentials secret ref",
   });

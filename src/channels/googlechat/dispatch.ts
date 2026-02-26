@@ -97,7 +97,12 @@ function resolveOwnership(
   event: GoogleChatEvent,
   ownerEmail: string | undefined,
 ): boolean {
-  if (!ownerEmail) return true;
+  if (!ownerEmail) {
+    log.warn("Google Chat ownerEmail not configured, defaulting to non-owner", {
+      operation: "resolveOwnership",
+    });
+    return false;
+  }
   const senderEmail = event.message?.sender?.email ?? event.user?.email;
   return senderEmail === ownerEmail;
 }

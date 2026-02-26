@@ -5,6 +5,7 @@
  */
 
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import type { UserId } from "../../../core/types/session.ts";
 import type { ChannelMessage } from "../../../channels/types.ts";
 import type { GroupMode } from "../../../channels/groups.ts";
 import { createGoogleChatChannel } from "../../../channels/googlechat/adapter.ts";
@@ -50,6 +51,32 @@ function validateGroupMode(mode: string | undefined): GroupMode {
   return "mentioned-only";
 }
 
+/** Reset session and notify owner on /clear command. */
+function handleGoogleChatClearCommand(
+  adapter: ReturnType<typeof createGoogleChatChannel>,
+  deps: ChannelWiringDeps,
+  sessionId: string | undefined,
+): void {
+  const { chatSession, notificationService } = deps;
+  log.warn("Google Chat /clear: session reset by owner", {
+    operation: "handleGoogleChatClearCommand",
+    sessionId,
+  });
+  chatSession.clear();
+  adapter.send({
+    content:
+      "Session cleared. Your context and taint level have been reset to PUBLIC.\n\nWhat would you like to do?",
+    sessionId,
+  }).then(() => notificationService.flushPending("owner" as UserId))
+    .catch((err) =>
+      log.error("Google Chat /clear session reset send failed", {
+        operation: "handleGoogleChatClearCommand",
+        err,
+        sessionId,
+      })
+    );
+}
+
 /** Handle incoming Google Chat messages, dispatching to owner or external. */
 function handleGoogleChatMessage(
   msg: ChannelMessage,
@@ -57,6 +84,11 @@ function handleGoogleChatMessage(
   deps: ChannelWiringDeps,
 ): void {
   const { chatSession } = deps;
+
+  if (msg.content === "/clear" && msg.isOwner !== false) {
+    handleGoogleChatClearCommand(adapter, deps, msg.sessionId);
+    return;
+  }
 
   if (msg.isOwner !== false) {
     const sendEvent = buildSendEvent(adapter, "Google Chat", msg);
