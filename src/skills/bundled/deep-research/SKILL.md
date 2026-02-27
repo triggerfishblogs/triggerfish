@@ -10,7 +10,7 @@ requires_tools:
   - web_search
   - web_fetch
   - llm_task
-network_domains: []
+network_domains:
 ---
 
 # Deep Research Methodology
