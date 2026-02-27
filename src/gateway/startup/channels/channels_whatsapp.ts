@@ -178,32 +178,26 @@ async function ssrfSafeFetchWrapper(
   return result.value;
 }
 
-/** Parse and validate the classification level from config, defaulting to PUBLIC. */
+/** Parse and validate the classification level from config — throws if invalid. */
 function resolveClassification(raw: string | undefined): ClassificationLevel {
   const input = raw ?? "PUBLIC";
   const result = parseClassification(input);
   if (result.ok) return result.value;
-  log.warn("WhatsApp channel classification invalid, defaulting to PUBLIC", {
-    operation: "resolveClassification",
-    input,
-    error: result.error,
-  });
-  return "PUBLIC";
+  throw new Error(
+    `WhatsApp channel classification invalid — startup rejected: ${input}`,
+  );
 }
 
-/** Parse and validate the pairing classification level, defaulting to INTERNAL. */
+/** Parse and validate the pairing classification level — throws if invalid. */
 function resolvePairingClassification(
   raw: string | undefined,
 ): ClassificationLevel {
   const input = raw ?? "INTERNAL";
   const result = parseClassification(input);
   if (result.ok) return result.value;
-  log.warn("WhatsApp pairing_classification invalid, defaulting to INTERNAL", {
-    operation: "resolvePairingClassification",
-    input,
-    error: result.error,
-  });
-  return "INTERNAL";
+  throw new Error(
+    `WhatsApp pairing_classification invalid — startup rejected: ${input}`,
+  );
 }
 
 /** Create the WhatsApp channel adapter with SSRF-safe fetch. */
