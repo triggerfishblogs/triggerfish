@@ -50,7 +50,10 @@ async function extractPageLinks(
         if (results.length >= limit) break;
         const text = (a.textContent ?? "").trim();
         const href = a.href as string;
-        if (text.length > 0 && href.length > 0) {
+        if (
+          text.length > 0 &&
+          (href.startsWith("http://") || href.startsWith("https://"))
+        ) {
           results.push({ text, href });
         }
       }
