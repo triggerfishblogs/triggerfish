@@ -153,6 +153,11 @@ async function ssrfSafeFetchWrapper(
     : (init ?? {});
   const result = await safeFetch(url, mergedInit);
   if (!result.ok) {
+    log.warn("WhatsApp SSRF-safe fetch blocked outbound request", {
+      operation: "ssrfSafeFetchWrapper",
+      url,
+      error: result.error,
+    });
     throw new Error(`SSRF-safe fetch blocked: ${result.error}`);
   }
   return result.value;
