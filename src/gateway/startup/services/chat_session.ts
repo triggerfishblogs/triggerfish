@@ -307,14 +307,7 @@ export async function wireMessageChannels(
     | WhatsAppChannelConfig
     | undefined;
   if (whatsappConfig && isValidatedWhatsAppConfig(whatsappConfig)) {
-    try {
-      await wireWhatsAppChannel(whatsappConfig, channelDeps);
-    } catch (err: unknown) {
-      channelLog.warn(
-        "WhatsApp channel skipped due to connect failure",
-        { operation: "wireMessageChannels", err },
-      );
-    }
+    await wireWhatsAppChannel(whatsappConfig, channelDeps);
   } else if (whatsappConfig) {
     channelLog.warn(
       "WhatsApp config present but credentials missing or invalid — skipping channel",
