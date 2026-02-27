@@ -173,9 +173,13 @@ export interface ClassificationMapConfig {
  * RESTRICTED — owner-only operations, never reachable by non-owners
  */
 const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<readonly [string, ClassificationLevel]> = [
-  // Memory — specific names before group prefix
-  ["memory_save", "RESTRICTED"],
-  ["memory_delete", "RESTRICTED"],
+  // Memory — read tools are PUBLIC; save/delete are intentionally absent.
+  // memory_save and memory_delete operate at the current session taint level
+  // (the memory executor forces classification to sessionTaint). They must
+  // not appear here because: (1) prefix-based taint escalation would
+  // incorrectly escalate the session, and (2) the write-down check would
+  // block higher-tainted sessions from saving. Non-owner blocking is
+  // handled by enforceNonOwnerToolCeiling (unmatched tools → denied).
   ["memory_search", "PUBLIC"],
   ["memory_get", "PUBLIC"],
   ["memory_list", "PUBLIC"],

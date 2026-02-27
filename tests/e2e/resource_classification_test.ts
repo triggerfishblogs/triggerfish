@@ -693,9 +693,9 @@ Deno.test("resource-classification: read_file on INTERNAL path escalates via res
   assert(escalations[0].reason.includes("read_file"), "Escalation reason should mention read_file");
 });
 
-// --- Test: non-resource tool (memory_save) still escalates via prefix ---
+// --- Test: memory_save does NOT escalate taint (operates at session taint) ---
 
-Deno.test("resource-classification: non-resource tool escalates via prefix classification", async () => {
+Deno.test("resource-classification: memory_save does not escalate session taint", async () => {
   const hookRunner = makeHookRunner();
   const toolClassifications = mapToolPrefixClassifications({});
 
@@ -732,9 +732,10 @@ Deno.test("resource-classification: non-resource tool escalates via prefix class
   });
 
   assertEquals(result.ok, true);
-  // memory_save has RESTRICTED prefix classification — should escalate via prefix
-  assertEquals(sessionTaint, "RESTRICTED", "Session taint should escalate to RESTRICTED from memory_save prefix classification");
-  assert(escalations.length >= 1, "Should have at least one escalation");
+  // memory_save is intentionally absent from BUILTIN_TOOL_CLASSIFICATIONS —
+  // it operates at the current session taint level and must not escalate.
+  assertEquals(sessionTaint, "PUBLIC", "Session taint must remain PUBLIC — memory_save does not escalate");
+  assertEquals(escalations.length, 0, "No taint escalations should occur for memory_save");
 });
 
 // --- Test: list_directory and search_files on PUBLIC path do NOT escalate ---
