@@ -14,19 +14,29 @@ RUN deno cache src/cli/main.ts
 
 # Copy bundled assets
 COPY config/ config/
-COPY skills/ skills/
 
-# Compile with bundled config and skills
+# Compile with bundled config, skills, and templates
 RUN deno compile --allow-all \
     --include config/ \
-    --include skills/ \
+    --include src/skills/ \
+    --include src/tools/tidepool/tmpl_base.html \
+    --include src/tools/tidepool/tmpl_styles.html \
+    --include src/tools/tidepool/tmpl_chat.html \
+    --include src/tools/tidepool/tmpl_canvas.html \
+    --include src/tools/tidepool/tmpl_chat_script.html \
+    --include src/tools/tidepool/tmpl_canvas_script.html \
     --output=/build/triggerfish \
     src/cli/main.ts
 
 # ============================================================
-# Stage 2: Runtime (production — no shell, near-zero CVEs)
+# Stage 2: Runtime — Debian Trixie for GLIBC 2.40+
+# (SQLite FFI requires GLIBC >= 2.38, Bookworm only has 2.36)
 # ============================================================
-FROM gcr.io/distroless/cc-debian12 AS production
+FROM docker.io/debian:trixie-slim AS production
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates tini \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy compiled binary from builder
 COPY --from=builder /build/triggerfish /usr/local/bin/triggerfish
@@ -34,32 +44,25 @@ COPY --from=builder /build/triggerfish /usr/local/bin/triggerfish
 # Environment
 ENV TRIGGERFISH_DATA_DIR=/data
 ENV TRIGGERFISH_DOCKER=true
+# Deno FFI plugin cache needs a writable home; point it inside /data
+ENV DENO_DIR=/data/.deno
+ENV HOME=/data
 
 # Ports: gateway HTTP + WebSocket
 EXPOSE 18789 18790
 
-# Data volume mount point
+# Data volume mount point — owned by nonroot user
+RUN mkdir -p /data && chown 65534:65534 /data
 VOLUME /data
 
-# Distroless runs as nonroot (UID 65534) by default — no USER directive needed
-# Use `docker run --init` or `init: true` in compose for PID 1 signal handling
-# No shell — binary is the entrypoint directly
-ENTRYPOINT ["/usr/local/bin/triggerfish"]
+# Run as nonroot (UID 65534 = nobody in Debian, matches distroless convention)
+USER 65534:65534
+
+# Use tini for PID 1 signal handling (-s registers as subreaper)
+ENTRYPOINT ["tini", "-s", "--", "/usr/local/bin/triggerfish"]
 CMD ["run"]
 
 # ============================================================
-# Stage 3: Debug variant (has BusyBox shell for troubleshooting)
+# Stage 3: Debug variant (identical base, kept for CI compat)
 # ============================================================
-FROM gcr.io/distroless/cc-debian12:debug AS debug
-
-COPY --from=builder /build/triggerfish /usr/local/bin/triggerfish
-
-ENV TRIGGERFISH_DATA_DIR=/data
-ENV TRIGGERFISH_DOCKER=true
-
-EXPOSE 18789 18790
-VOLUME /data
-
-# Debug variant includes busybox shell at /busybox/sh
-ENTRYPOINT ["/usr/local/bin/triggerfish"]
-CMD ["run"]
+FROM production AS debug

@@ -1,0 +1,153 @@
+#!/bin/sh
+# Triggerfish Docker CLI wrapper
+#
+# Transparent pass-through to the triggerfish binary inside the container.
+# Container lifecycle commands (start/stop/run/update) are handled here;
+# everything else is exec'd directly into the running container.
+set -e
+
+IMAGE="${TRIGGERFISH_IMAGE:-ghcr.io/greghavens/triggerfish:latest}"
+CONTAINER="triggerfish"
+ENV_FILE="${HOME}/.triggerfish/docker/.env"
+
+# --- Detect container runtime ---
+
+if [ -n "${TRIGGERFISH_CONTAINER_RUNTIME}" ]; then
+  RT="${TRIGGERFISH_CONTAINER_RUNTIME}"
+elif command -v podman >/dev/null 2>&1; then
+  RT="podman"
+elif command -v docker >/dev/null 2>&1; then
+  RT="docker"
+else
+  echo "[error] Neither podman nor docker found." >&2
+  exit 1
+fi
+
+# --- Compose file resolution ---
+
+if [ -n "${TRIGGERFISH_COMPOSE_FILE}" ]; then
+  COMPOSE_FILE="${TRIGGERFISH_COMPOSE_FILE}"
+elif [ -f "${HOME}/.triggerfish/docker/docker-compose.yml" ]; then
+  COMPOSE_FILE="${HOME}/.triggerfish/docker/docker-compose.yml"
+else
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  if [ -f "${SCRIPT_DIR}/docker-compose.yml" ]; then
+    COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yml"
+  else
+    COMPOSE_FILE=""
+  fi
+fi
+
+# --- Helpers ---
+
+compose_cmd() {
+  if [ -z "${COMPOSE_FILE}" ]; then
+    echo "[error] No compose file found. Run the installer or set TRIGGERFISH_COMPOSE_FILE." >&2
+    exit 1
+  fi
+  if [ "${RT}" = "podman" ] && command -v podman-compose >/dev/null 2>&1; then
+    podman-compose -f "${COMPOSE_FILE}" "$@"
+  elif [ "${RT}" = "podman" ]; then
+    podman compose -f "${COMPOSE_FILE}" "$@"
+  else
+    docker compose -f "${COMPOSE_FILE}" "$@"
+  fi
+}
+
+is_running() {
+  ${RT} inspect -f '{{.State.Running}}' "${CONTAINER}" 2>/dev/null | grep -q 'true'
+}
+
+# exec into the running container — TTY check is inline (not in a subshell)
+container_exec() {
+  if ! is_running; then
+    echo "[error] triggerfish is not running. Start it first: triggerfish start" >&2
+    exit 1
+  fi
+  if [ -t 0 ]; then
+    exec ${RT} exec -it "${CONTAINER}" /usr/local/bin/triggerfish "$@"
+  else
+    exec ${RT} exec "${CONTAINER}" /usr/local/bin/triggerfish "$@"
+  fi
+}
+
+# one-shot container for commands that work without the gateway
+container_run() {
+  # Build env-file flag if .env exists
+  ENV_FLAG=""
+  if [ -f "${ENV_FILE}" ]; then
+    ENV_FLAG="--env-file ${ENV_FILE}"
+  fi
+
+  if [ -t 0 ]; then
+    exec ${RT} run --rm -it --network=host ${ENV_FLAG} -v triggerfish-data:/data "${IMAGE}" "$@"
+  else
+    exec ${RT} run --rm --network=host ${ENV_FLAG} -v triggerfish-data:/data "${IMAGE}" "$@"
+  fi
+}
+
+# --- Command routing ---
+
+CMD="${1:-help}"
+
+case "${CMD}" in
+
+  start)
+    shift
+    compose_cmd up -d "$@"
+    # Wait briefly for the gateway to start, then show recent logs
+    sleep 2
+    compose_cmd logs --tail=20
+    ;;
+
+  stop)
+    shift
+    compose_cmd down "$@"
+    ;;
+
+  run)
+    shift
+    compose_cmd up "$@"
+    ;;
+
+  status)
+    if is_running; then
+      echo "triggerfish is running."
+      ${RT} inspect -f 'Container: {{.Name}}  Image: {{.Config.Image}}  Up since: {{.State.StartedAt}}' "${CONTAINER}"
+    else
+      echo "triggerfish is not running."
+    fi
+    ;;
+
+  logs)
+    shift
+    compose_cmd logs "$@"
+    ;;
+
+  update)
+    shift
+    ${RT} pull "${IMAGE}"
+    if is_running; then
+      compose_cmd down
+      compose_cmd up -d "$@"
+    fi
+    ;;
+
+  dive)
+    shift
+    if is_running; then
+      # Exec into running container, then restart to pick up config changes
+      container_exec dive "$@"
+      compose_cmd restart
+    else
+      # One-shot container — no gateway needed for first-time setup
+      container_run dive "$@"
+    fi
+    ;;
+
+  *)
+    shift
+    container_exec "${CMD}" "$@"
+    ;;
+
+esac

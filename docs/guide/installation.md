@@ -15,9 +15,7 @@ irm https://raw.githubusercontent.com/greghavens/triggerfish/master/scripts/inst
 ```
 
 ```bash [Docker]
-docker run -v ./triggerfish.yaml:/data/triggerfish.yaml \
-  -p 18789:18789 -p 18790:18790 \
-  ghcr.io/greghavens/triggerfish:latest
+curl -sSL https://raw.githubusercontent.com/greghavens/triggerfish/master/deploy/docker/install.sh | sh
 ```
 
 :::
@@ -57,63 +55,90 @@ No Docker, no containers, no cloud accounts required. Triggerfish is a single bi
 
 ## Docker
 
+The Docker deployment provides a `triggerfish` CLI wrapper that gives you the same command experience as the native binary. All data lives in a named Docker volume.
+
 ### Quick Start
 
-Mount your config file and expose the gateway ports:
+The installer pulls the image, installs the CLI wrapper, and runs the setup wizard:
 
 ```bash
-docker run -v ./triggerfish.yaml:/data/triggerfish.yaml \
-  -p 18789:18789 -p 18790:18790 \
-  ghcr.io/greghavens/triggerfish:latest
+curl -sSL https://raw.githubusercontent.com/greghavens/triggerfish/master/deploy/docker/install.sh | sh
 ```
 
-### Interactive Setup
-
-If you don't have a config file yet, run the wizard interactively:
+Or run the installer from a local checkout:
 
 ```bash
-docker run -it -v triggerfish-data:/data \
-  ghcr.io/greghavens/triggerfish:latest dive
+./deploy/docker/install.sh
 ```
 
-This creates `triggerfish.yaml` inside the `triggerfish-data` volume. Subsequent runs use it automatically:
+The installer:
+1. Detects your container runtime (podman or docker)
+2. Installs the `triggerfish` CLI wrapper to `~/.local/bin` (or `/usr/local/bin`)
+3. Copies the compose file to `~/.triggerfish/docker/`
+4. Pulls the latest image
+5. Runs the setup wizard (`triggerfish dive`) in a one-shot container
+6. Starts the service
+
+### Day-to-Day Usage
+
+After installation, the `triggerfish` command works the same as the native binary:
 
 ```bash
-docker run -v triggerfish-data:/data \
-  -p 18789:18789 -p 18790:18790 \
-  ghcr.io/greghavens/triggerfish:latest
+triggerfish chat              # Interactive chat session
+triggerfish config set-secret provider:anthropic:apiKey sk-ant-...
+triggerfish patrol            # Health diagnostics
+triggerfish logs              # View container logs
+triggerfish status            # Check if the container is running
+triggerfish stop              # Stop the container
+triggerfish start             # Start the container
+triggerfish update            # Pull latest image and restart
+triggerfish dive              # Re-run setup wizard
 ```
+
+### How the Wrapper Works
+
+The wrapper script (`deploy/docker/triggerfish`) routes commands:
+
+| Command | Behavior |
+|---------|----------|
+| `start` | Start container via compose |
+| `stop` | Stop container via compose |
+| `run` | Run in foreground (Ctrl+C to stop) |
+| `status` | Show container running state |
+| `logs` | Stream container logs |
+| `update` | Pull latest image, restart |
+| `dive` | One-shot container if not running; exec + restart if running |
+| Everything else | `exec` into the running container |
+
+The wrapper auto-detects `podman` vs `docker`. Override with `TRIGGERFISH_CONTAINER_RUNTIME=docker`.
 
 ### Docker Compose
 
+The compose file lives at `~/.triggerfish/docker/docker-compose.yml` after installation. You can also use it directly:
+
 ```bash
 cd deploy/docker
-cp ../../config/triggerfish.example.yaml triggerfish.yaml
-# Edit triggerfish.yaml with your settings and API keys
 docker compose up -d
 ```
 
-### Secrets in Docker
+### Environment Variables
 
-Triggerfish stores all secrets in the OS keychain (or a file-backed secret store in Docker at `/data/secrets.json`). Secrets never appear in `triggerfish.yaml`.
-
-For additional secrets (OS keychain is unavailable in containers), Triggerfish uses a file-backed secret store at `/data/secrets.json`. You can pre-populate it:
-
-```json
-{
-  "anthropic_api_key": "sk-ant-...",
-  "brave_api_key": "BSA..."
-}
-```
-
-Mount it alongside your config:
+Copy `.env.example` to `.env` alongside the compose file to set API keys via environment variables:
 
 ```bash
-docker run \
-  -v ./triggerfish.yaml:/data/triggerfish.yaml \
-  -v ./secrets.json:/data/secrets.json \
-  -p 18789:18789 \
-  ghcr.io/greghavens/triggerfish:latest
+cp deploy/docker/.env.example ~/.triggerfish/docker/.env
+# Edit ~/.triggerfish/docker/.env
+```
+
+API keys are typically stored via `triggerfish config set-secret` (persisted in the data volume), but environment variables work as an alternative.
+
+### Secrets in Docker
+
+Since the OS keychain is unavailable in containers, Triggerfish uses a file-backed secret store at `/data/secrets.json` inside the volume. Use the CLI wrapper to manage secrets:
+
+```bash
+triggerfish config set-secret provider:anthropic:apiKey sk-ant-...
+triggerfish config set-secret provider:brave:apiKey BSA...
 ```
 
 ### Data Persistence

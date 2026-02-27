@@ -1,6 +1,7 @@
 # Compiled binary
 triggerfish
 !src/skills/bundled/triggerfish/
+!deploy/docker/triggerfish
 
 # Lock file (generated, not committed)
 deno.lock
