@@ -1,5 +1,6 @@
 ---
 name: mastering-typescript
+version: 1.0.0
 description: >
   TypeScript development patterns for Deno 2.x and Triggerfish.
   Covers strict mode, Result types, branded types, factory functions,

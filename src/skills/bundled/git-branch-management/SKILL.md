@@ -1,5 +1,6 @@
 ---
 name: git-branch-management
+version: 1.0.0
 description: >
   Git branch management for development work. Teaches the agent to create
   feature branches, commit atomically, open PRs via gh CLI, track PR state,

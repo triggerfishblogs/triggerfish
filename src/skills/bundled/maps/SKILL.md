@@ -1,5 +1,6 @@
 ---
 name: maps
+version: 1.0.0
 description: >
   Geocode addresses and get turn-by-turn directions or driving/walking distances
   between any two locations (addresses, cities, ZIP codes, coordinates).

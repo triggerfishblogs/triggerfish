@@ -1,5 +1,6 @@
 ---
 name: triggers
+version: 1.0.0
 description: >
   Manage TRIGGER.md for proactive agent monitoring. Covers the trigger
   file format, scheduling options, quiet hours, classification ceilings,

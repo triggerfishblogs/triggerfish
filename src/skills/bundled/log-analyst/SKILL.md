@@ -1,5 +1,6 @@
 ---
 name: log-analyst
+version: 1.0.0
 description: Analyze Triggerfish daemon logs to diagnose issues, extract errors, and prepare reports
 classification_ceiling: INTERNAL
 required_tools:

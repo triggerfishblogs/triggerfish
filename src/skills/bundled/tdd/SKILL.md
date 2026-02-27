@@ -1,5 +1,6 @@
 ---
 name: tdd
+version: 1.0.0
 description: >
   Test-Driven Development methodology for Deno 2.x projects.
   Teaches the red-green-refactor cycle using Deno's built-in test runner

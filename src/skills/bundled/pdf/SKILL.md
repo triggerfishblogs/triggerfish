@@ -1,5 +1,6 @@
 ---
 name: pdf
+version: 1.0.0
 description: >
   Extract text and metadata from PDF files using the exec environment.
 classification_ceiling: CONFIDENTIAL

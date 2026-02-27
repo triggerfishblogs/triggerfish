@@ -1,5 +1,6 @@
 ---
 name: browser-automation
+version: 1.0.0
 description: >
   Browser automation via Chromium CDP. Navigate websites, take screenshots,
   click elements, fill forms, and extract page content. Supports Flatpak

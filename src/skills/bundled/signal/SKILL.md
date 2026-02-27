@@ -1,5 +1,6 @@
 ---
 name: signal
+version: 1.0.0
 description: >
   Signal messaging integration. Send and receive messages as the owner's phone
   number, list groups and contacts, manage pairing authorization. Requires

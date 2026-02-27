@@ -22,6 +22,7 @@ const KNOWN_COMMANDS = new Set([
   "disconnect",
   "run",
   "run-triggers",
+  "skill",
   "start",
   "stop",
   "status",
@@ -144,6 +145,19 @@ export function parseCommand(
     const sub = positional[1];
     return { command, subcommand: sub, flags };
   }
+  if (command === "skill" && positional.length > 1) {
+    const sub = positional[1];
+    if (sub === "search" && positional.length > 2) {
+      flags["query"] = positional.slice(2).join(" ");
+    } else if (sub === "install" && positional.length > 2) {
+      flags["skill_name"] = positional[2];
+    } else if (sub === "update" && positional.length > 2) {
+      flags["skill_name"] = positional[2];
+    } else if (sub === "publish" && positional.length > 2) {
+      flags["skill_path"] = positional[2];
+    }
+    return { command, subcommand: sub, flags };
+  }
   if (command === "changelog" && positional.length > 1) {
     const sub = positional[1];
     if (positional.length > 2) {
@@ -173,6 +187,7 @@ COMMANDS:
   disconnect  Disconnect an external service
   dive        First-run setup wizard (creates triggerfish.yaml)
   run         Run the gateway server in foreground
+  skill       Manage skills from The Reef marketplace
   start       Install and start the daemon
   stop        Stop the daemon
   status      Show daemon status
@@ -195,6 +210,13 @@ CONFIG SUBCOMMANDS:
   config migrate-secrets                   Migrate plaintext secrets to keychain`;
 
 const HELP_OTHER_SUBCOMMANDS = `
+SKILL SUBCOMMANDS:
+  skill search <query>                   Search The Reef for skills
+  skill install <name>                   Install a skill from The Reef
+  skill update [name]                    Check for available updates
+  skill publish <path>                   Validate and prepare for publishing
+  skill list                             List installed managed skills
+
 LOGS SUBCOMMANDS:
   logs view                              View daemon logs (default, --tail to follow)
   logs bundle                            Bundle all log files into a temporary directory

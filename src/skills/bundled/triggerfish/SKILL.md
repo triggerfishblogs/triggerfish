@@ -1,5 +1,6 @@
 ---
 name: triggerfish
+version: 1.0.0
 description: >
   How to operate and configure Triggerfish itself. Covers all CLI commands and
   flags, triggerfish.yaml parameters, secrets management, daemon management,
