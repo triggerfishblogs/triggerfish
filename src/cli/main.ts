@@ -149,10 +149,12 @@ async function detectConfigExists(): Promise<boolean> {
 
 /** Main CLI entry point. */
 async function main(): Promise<void> {
-  // Guard preserves any test-configured logger (e.g. console: false) already
-  // set before main() is invoked. In production this is always the first call.
+  // Suppress structured JSON log output during interactive CLI commands (dive,
+  // patrol, config, etc.). The gateway run/start path overrides this via
+  // initializeStartupLogger(), which sets up the file writer and console: true.
+  // Guard preserves any test-configured logger already set before main() runs.
   if (!isLoggerInitialized()) {
-    initLogger({ level: "INFO", console: true });
+    initLogger({ level: "INFO", console: false });
   }
   enableWindowsAnsi();
   await cleanupOldBinary();
