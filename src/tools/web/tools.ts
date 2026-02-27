@@ -10,6 +10,9 @@
 import type { ToolDefinition } from "../../core/types/tool.ts";
 import type { SearchProvider } from "./search.ts";
 import type { WebFetcher } from "./fetch.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("web-tools");
 
 // ─── Tool Definitions ───────────────────────────────────────────────────────
 
@@ -102,13 +105,21 @@ async function executeWebSearch(
   const result = await searchProvider.search(query, { maxResults });
 
   if (!result.ok) {
+    log.warn("Web search failed", { operation: "executeWebSearch", query, error: result.error });
     return `Search error: ${result.error}`;
   }
 
   const sr = result.value;
   if (sr.results.length === 0) {
+    log.info("Web search returned zero results", { operation: "executeWebSearch", query });
     return `No results found for "${query}".`;
   }
+
+  log.debug("Web search returned results", {
+    operation: "executeWebSearch",
+    query,
+    resultCount: sr.results.length,
+  });
 
   const lines = sr.results.map(
     (r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`,

@@ -159,6 +159,12 @@ async function fetchBraveResults(
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
+    log.warn("Brave Search API error", {
+      operation: "fetchBraveResults",
+      status: response.status,
+      body: body.slice(0, 200),
+      query: params.get("q"),
+    });
     return {
       ok: false,
       error: `Brave Search API error ${response.status}: ${body}`,
