@@ -174,7 +174,6 @@ export async function bootstrapConfigAndLogging(): Promise<BootstrapResult> {
 
   const fileWriter = await initializeStartupLogger();
   bootstrapLog.info("Gateway starting", { operation: "bootstrap" });
-  console.log("Starting Triggerfish gateway...\n");
   const log = createLogger("main");
   const config = await loadAndValidateConfig(configPath, log);
   const finalLog = reinitializeLoggerFromConfig(config, fileWriter);
