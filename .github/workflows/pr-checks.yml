@@ -259,6 +259,23 @@ jobs:
             line numbers, and code snippets for each finding. If the code looks good,
             comment "Code review passed — no issues found."
 
+            ## SCOPE — ABSOLUTE CONSTRAINT
+
+            You MUST review ONLY the files and lines that were changed in this PR.
+            Run `gh pr diff ${{ github.event.pull_request.number }}` and restrict ALL
+            findings to code that appears in that diff.
+
+            NEVER:
+            - Flag issues in files not modified by this PR
+            - Suggest refactoring code that was not changed in this PR
+            - Recommend changes to surrounding/adjacent code that the PR did not touch
+            - Propose architectural improvements outside the scope of what was changed
+            - Flag pre-existing patterns, naming, or style in unchanged code
+
+            If a changed file imports from or calls into other files, you may READ those
+            files for context, but you MUST NOT report findings against them. Your review
+            covers the diff and ONLY the diff.
+
             ## ARCHITECTURE CONTEXT — READ BEFORE REVIEWING
 
             Triggerfish enforces security policy CENTRALLY below the LLM layer.
