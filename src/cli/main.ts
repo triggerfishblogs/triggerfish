@@ -149,10 +149,9 @@ async function detectConfigExists(): Promise<boolean> {
 
 /** Main CLI entry point. */
 async function main(): Promise<void> {
-  // Initialize logger for interactive CLI commands (dive, patrol, config, etc.)
-  // so WARN/ERROR are not silently dropped before the gateway path calls
-  // initializeStartupLogger() with the file writer. Guard preserves any
-  // test-configured logger already set before main() runs.
+  // Initialize logger for interactive CLI commands (dive, patrol, config, etc.).
+  // Guard preserves any test-configured logger already set before main() runs —
+  // without it, test loggers would be overridden here at process startup.
   if (!isLoggerInitialized()) {
     initLogger({ level: "INFO" });
   }
