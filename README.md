@@ -36,12 +36,10 @@ irm https://raw.githubusercontent.com/greghavens/triggerfish/master/scripts/inst
 
 **Docker:**
 ```bash
-docker run -v ./triggerfish.yaml:/data/triggerfish.yaml \
-  -p 18789:18789 -p 18790:18790 \
-  ghcr.io/greghavens/triggerfish:latest
+curl -sSL https://raw.githubusercontent.com/greghavens/triggerfish/master/deploy/docker/install.sh | sh
 ```
 
-The binary installers download a pre-built release, verify its checksum, and run the setup wizard. See the [Installation & Deployment guide](https://greghavens.github.io/triggerfish/guide/installation) for Docker setup, building from source, and the release process.
+The binary installers download a pre-built release, verify its checksum, and run the setup wizard. The Docker installer pulls the container image, installs a `triggerfish` CLI wrapper, and runs the setup wizard. See the [Installation & Deployment guide](https://greghavens.github.io/triggerfish/guide/installation) for Docker setup, building from source, and the release process.
 
 ---
 

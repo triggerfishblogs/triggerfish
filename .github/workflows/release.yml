@@ -49,12 +49,12 @@ jobs:
           --target ${{ matrix.target }}
           --include config/
           --include src/skills/
-          --include src/tidepool/tmpl_base.html
-          --include src/tidepool/tmpl_styles.html
-          --include src/tidepool/tmpl_chat.html
-          --include src/tidepool/tmpl_canvas.html
-          --include src/tidepool/tmpl_chat_script.html
-          --include src/tidepool/tmpl_canvas_script.html
+          --include src/tools/tidepool/tmpl_base.html
+          --include src/tools/tidepool/tmpl_styles.html
+          --include src/tools/tidepool/tmpl_chat.html
+          --include src/tools/tidepool/tmpl_canvas.html
+          --include src/tools/tidepool/tmpl_chat_script.html
+          --include src/tools/tidepool/tmpl_canvas_script.html
           --output=${{ matrix.output }}
           src/cli/main.ts
 

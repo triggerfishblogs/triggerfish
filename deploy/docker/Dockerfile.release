@@ -11,11 +11,16 @@
 # The CI pipeline sets chmod +x in the "Stage binaries" step.
 
 # ============================================================
-# Stage 1: Production (no shell, near-zero CVEs)
+# Stage 1: Production — Debian Trixie for GLIBC 2.40+
+# (SQLite FFI requires GLIBC >= 2.38, Bookworm only has 2.36)
 # ============================================================
-FROM gcr.io/distroless/cc-debian12 AS production
+FROM docker.io/debian:trixie-slim AS production
 
 ARG TARGETARCH
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates tini \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy pre-built binary (selected by target platform)
 # --chmod requires BuildKit (used by default with docker/build-push-action)
@@ -31,26 +36,12 @@ EXPOSE 18789 18790
 # Data volume mount point
 VOLUME /data
 
-# Distroless runs as nonroot (UID 65534) by default — no USER directive needed
-# Use `docker run --init` or `init: true` in compose for PID 1 signal handling
-ENTRYPOINT ["/usr/local/bin/triggerfish"]
+ENTRYPOINT ["tini", "--", "/usr/local/bin/triggerfish"]
 CMD ["run"]
 
 # ============================================================
-# Stage 2: Debug variant (has BusyBox shell for troubleshooting)
+# Stage 2: Debug variant (kept for CI compatibility)
 # ============================================================
-FROM gcr.io/distroless/cc-debian12:debug AS debug
+FROM production AS debug
 
 ARG TARGETARCH
-
-COPY --chmod=755 triggerfish-linux-${TARGETARCH} /usr/local/bin/triggerfish
-
-ENV TRIGGERFISH_DATA_DIR=/data
-ENV TRIGGERFISH_DOCKER=true
-
-EXPOSE 18789 18790
-VOLUME /data
-
-# Debug variant includes busybox shell at /busybox/sh
-ENTRYPOINT ["/usr/local/bin/triggerfish"]
-CMD ["run"]
