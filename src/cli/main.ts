@@ -25,7 +25,7 @@ import {
   runDaemonStop,
   runUpdate,
 } from "./daemon_commands.ts";
-import { createLogger } from "../core/logger/mod.ts";
+import { createLogger, initLogger, isLoggerInitialized } from "../core/logger/mod.ts";
 
 const log = createLogger("cli");
 
@@ -149,6 +149,12 @@ async function detectConfigExists(): Promise<boolean> {
 
 /** Main CLI entry point. */
 async function main(): Promise<void> {
+  // Initialize logger for interactive CLI commands (dive, patrol, config, etc.).
+  // Guard preserves any test-configured logger already set before main() runs —
+  // without it, test loggers would be overridden here at process startup.
+  if (!isLoggerInitialized()) {
+    initLogger({ level: "INFO" });
+  }
   enableWindowsAnsi();
   await cleanupOldBinary();
 
