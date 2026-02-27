@@ -167,14 +167,14 @@ export function buildToolFloorRegistryFromConfig(
 
 /** Load config, initialize logging, and return bootstrap context. */
 export async function bootstrapConfigAndLogging(): Promise<BootstrapResult> {
-  bootstrapLog.info("Gateway starting", { operation: "bootstrap" });
-  console.log("Starting Triggerfish gateway...\n");
   const baseDir = resolveBaseDir();
   const configPath = resolveConfigPath(baseDir);
   await verifyConfigExists(configPath);
   await ensureBaseDirs(baseDir);
 
   const fileWriter = await initializeStartupLogger();
+  bootstrapLog.info("Gateway starting", { operation: "bootstrap" });
+  console.log("Starting Triggerfish gateway...\n");
   const log = createLogger("main");
   const config = await loadAndValidateConfig(configPath, log);
   const finalLog = reinitializeLoggerFromConfig(config, fileWriter);

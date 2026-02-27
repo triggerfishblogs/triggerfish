@@ -150,7 +150,7 @@ async function detectConfigExists(): Promise<boolean> {
 /** Main CLI entry point. */
 async function main(): Promise<void> {
   if (!isLoggerInitialized()) {
-    initLogger({ level: "INFO", console: false });
+    initLogger({ level: "INFO", console: true });
   }
   enableWindowsAnsi();
   await cleanupOldBinary();
