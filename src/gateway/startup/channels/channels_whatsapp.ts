@@ -143,7 +143,15 @@ async function ssrfSafeFetchWrapper(
   init?: RequestInit,
 ): Promise<Response> {
   const url = input instanceof Request ? input.url : String(input);
-  const result = await safeFetch(url, init);
+  const mergedInit: RequestInit = input instanceof Request
+    ? {
+      method: input.method,
+      headers: input.headers,
+      body: input.body,
+      ...init,
+    }
+    : (init ?? {});
+  const result = await safeFetch(url, mergedInit);
   if (!result.ok) {
     throw new Error(`SSRF-safe fetch blocked: ${result.error}`);
   }

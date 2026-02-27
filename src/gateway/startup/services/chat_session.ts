@@ -49,17 +49,15 @@ import {
   wireTelegramChannel,
   wireDiscordChannel,
   wireSignalChannel,
+  wireWhatsAppChannel,
+  isValidatedWhatsAppConfig,
 } from "../channels/channels.ts";
 import type {
   TelegramChannelConfig,
   DiscordChannelConfig,
   SignalChannelConfig,
+  WhatsAppChannelConfig,
 } from "../channels/channels.ts";
-import {
-  wireWhatsAppChannel,
-  isValidatedWhatsAppConfig,
-} from "../channels/channels_whatsapp.ts";
-import type { WhatsAppChannelConfig } from "../channels/channels_whatsapp.ts";
 
 /** Build session lifecycle callbacks (escalate, reset). */
 export function buildSessionLifecycleCallbacks(

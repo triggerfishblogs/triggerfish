@@ -221,3 +221,23 @@ Deno.test("WhatsApp: send with missing sessionId returns early", async () => {
   // Should not throw — returns early when sessionId is missing
   await adapter.send({ content: "test" });
 });
+
+Deno.test("WhatsApp: send calls injected fetchFn with correct API endpoint", async () => {
+  const calls: { url: string; init: RequestInit }[] = [];
+  const mockFetch: typeof fetch = async (input, init) => {
+    calls.push({ url: String(input), init: init ?? {} });
+    return new Response("{}", { status: 200 });
+  };
+  const adapter = createWhatsAppChannel({
+    ...buildTestConfig(0),
+    phoneNumberId: "MY_PHONE_ID",
+    fetchFn: mockFetch,
+  });
+  await adapter.send({ content: "Hello", sessionId: "whatsapp-15551234567" });
+  assertEquals(calls.length, 1);
+  assertEquals(
+    calls[0].url,
+    "https://graph.facebook.com/v18.0/MY_PHONE_ID/messages",
+  );
+  assertEquals(calls[0].init.method, "POST");
+});
