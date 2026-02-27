@@ -9,11 +9,8 @@
 
 import { Confirm, Input, Select } from "@cliffy/prompt";
 
-import { createLogger } from "../../core/logger/mod.ts";
 import type { ClassificationModelEntry, ProviderChoice } from "./wizard_types.ts";
 import { DEFAULT_MODELS, PROVIDER_LABELS } from "./wizard_types.ts";
-
-const log = createLogger("dive.wizard.classification-models");
 
 /** Result of the classification models wizard step. */
 export interface ClassificationModelsResult {
@@ -50,9 +47,6 @@ async function selectProviderForLevel(
 
 /** Prompt to configure per-classification models (optional wizard step). */
 export async function promptClassificationModelsStep(): Promise<ClassificationModelsResult> {
-  log.info("Starting per-classification model configuration step", { operation: "promptClassificationModelsStep" });
-  log.info("Per-Classification Model Configuration (optional) — route different classification levels to different models", { operation: "promptClassificationModelsStep" });
-
   const wantPerLevel = await Confirm.prompt({
     message: "Use different models for different classification levels?",
     default: false,
