@@ -117,6 +117,7 @@ export async function discoverSkills(
     import.meta.dirname ?? ".",
     "..",
     "..",
+    "..",
     "skills",
     "bundled",
   );
