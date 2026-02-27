@@ -8,6 +8,7 @@ set -e
 
 IMAGE="${TRIGGERFISH_IMAGE:-ghcr.io/greghavens/triggerfish:latest}"
 CONTAINER="triggerfish"
+ENV_FILE="${HOME}/.triggerfish/docker/.env"
 
 # --- Detect container runtime ---
 
@@ -72,10 +73,16 @@ container_exec() {
 
 # one-shot container for commands that work without the gateway
 container_run() {
+  # Build env-file flag if .env exists
+  ENV_FLAG=""
+  if [ -f "${ENV_FILE}" ]; then
+    ENV_FLAG="--env-file ${ENV_FILE}"
+  fi
+
   if [ -t 0 ]; then
-    exec ${RT} run --rm -it --network=host -v triggerfish-data:/data "${IMAGE}" "$@"
+    exec ${RT} run --rm -it --network=host ${ENV_FLAG} -v triggerfish-data:/data "${IMAGE}" "$@"
   else
-    exec ${RT} run --rm --network=host -v triggerfish-data:/data "${IMAGE}" "$@"
+    exec ${RT} run --rm --network=host ${ENV_FLAG} -v triggerfish-data:/data "${IMAGE}" "$@"
   fi
 }
 

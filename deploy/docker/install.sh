@@ -75,7 +75,15 @@ echo "[ok] Compose file installed to ${CONFIG_DIR}/docker-compose.yml"
 
 # --- Step 5: Pull image (skip if already available locally) ---
 
-if ${RT} image exists "${IMAGE}" 2>/dev/null; then
+image_exists() {
+  if [ "${RT}" = "podman" ]; then
+    ${RT} image exists "$1" 2>/dev/null
+  else
+    ${RT} image inspect "$1" >/dev/null 2>&1
+  fi
+}
+
+if image_exists "${IMAGE}"; then
   echo "[ok] Image already available: ${IMAGE}"
 else
   echo "Pulling image (this may take a minute)..."
@@ -85,9 +93,10 @@ fi
 
 # --- Step 6: Check PATH ---
 
-export PATH="${INSTALL_DIR}:${PATH}"
+# Save the user's original PATH before modifying it
+ORIGINAL_PATH="${PATH}"
 
-case ":${PATH}:" in
+case ":${ORIGINAL_PATH}:" in
   *":${INSTALL_DIR}:"*) ;;
   *)
     echo ""
@@ -97,6 +106,8 @@ case ":${PATH}:" in
     echo ""
     ;;
 esac
+
+export PATH="${INSTALL_DIR}:${PATH}"
 
 # --- Step 7: First-time setup ---
 

@@ -1,7 +1,6 @@
 services:
   triggerfish:
     image: ${TRIGGERFISH_IMAGE:-ghcr.io/greghavens/triggerfish:latest}
-    init: true
     container_name: triggerfish
     restart: unless-stopped
     network_mode: host
