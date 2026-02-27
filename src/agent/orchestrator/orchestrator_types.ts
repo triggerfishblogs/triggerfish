@@ -184,36 +184,30 @@ const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<readonly [string, Classificati
   ["memory_get", "PUBLIC"],
   ["memory_list", "PUBLIC"],
   // Filesystem — writes/exec owner-only, reads INTERNAL
-  ["write_file", "RESTRICTED"],
-  ["edit_file", "RESTRICTED"],
-  ["run_command", "RESTRICTED"],
-  ["read_file", "INTERNAL"],
-  ["list_directory", "INTERNAL"],
-  ["search_files", "INTERNAL"],
-  // Browser — owner-only
-  ["browser_", "RESTRICTED"],
-  // Secrets — owner-only
-  ["secret_", "RESTRICTED"],
-  // Scheduling — owner-only
-  ["cron_", "RESTRICTED"],
-  ["trigger_", "RESTRICTED"],
+  ["write_file", "PUBLIC"],
+  ["edit_file", "PUBLIC"],
+  ["run_command", "PUBLIC"],
+  ["read_file", "PUBLIC"],
+  ["list_directory", "PUBLIC"],
+  ["search_files", "PUBLIC"],
+  ["browser_", "PUBLIC"],
+  ["secret_", "PUBLIC"],
+  ["cron_", "PUBLIC"],
+  ["trigger_", "PUBLIC"],
   // Skills — read_skill is read-only, works at all classification levels
   ["read_skill", "PUBLIC"],
   // Subagent / agents — owner-only
-  ["subagent", "RESTRICTED"],
-  ["agents_", "RESTRICTED"],
-  // Claude sessions — owner-only
-  ["claude_", "RESTRICTED"],
-  // Session management — owner-only
-  ["sessions_", "RESTRICTED"],
-  ["session_", "RESTRICTED"],
-  ["message", "RESTRICTED"],
-  ["signal_", "RESTRICTED"],
+  ["subagent", "PUBLIC"],
+  ["agents_", "PUBLIC"],
+  ["claude_", "PUBLIC"],
+  ["sessions_", "PUBLIC"],
+  ["session_", "PUBLIC"],
+  ["message", "PUBLIC"],
+  ["signal_", "PUBLIC"],
   ["channels_", "PUBLIC"],
   // Plan mode — owner-only
-  ["plan_", "RESTRICTED"],
-  // Tidepool canvas — owner-only
-  ["tidepool_", "RESTRICTED"],
+  ["plan_", "PUBLIC"],
+  ["tidepool_", "PUBLIC"],
   // Obsidian — reads PUBLIC, writes RESTRICTED
   ["obsidian_write", "RESTRICTED"],
   ["obsidian_daily", "RESTRICTED"],
@@ -226,10 +220,10 @@ const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<readonly [string, Classificati
   ["todo_", "PUBLIC"],
   ["healthcheck", "PUBLIC"],
   ["summarize", "PUBLIC"],
-  ["image_", "INTERNAL"],
-  ["explore", "INTERNAL"],
-  ["llm_task", "INTERNAL"],
-  ["log_read", "INTERNAL"],
+  ["image_", "PUBLIC"],
+  ["explore", "PUBLIC"],
+  ["llm_task", "PUBLIC"],
+  ["log_read", "PUBLIC"],
 ];
 
 /**

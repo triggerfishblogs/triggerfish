@@ -141,9 +141,9 @@ Deno.test("mapToolPrefixClassifications: memory_delete absent (operates at sessi
   assertEquals(map.has("memory_delete"), false, "memory_delete must not be in classification map");
 });
 
-Deno.test("mapToolPrefixClassifications: browser_ classified RESTRICTED", () => {
+Deno.test("mapToolPrefixClassifications: browser_ classified PUBLIC", () => {
   const map = mapToolPrefixClassifications({});
-  assertEquals(map.get("browser_"), "RESTRICTED");
+  assertEquals(map.get("browser_"), "PUBLIC");
 });
 
 Deno.test("mapToolPrefixClassifications: web_ classified PUBLIC", () => {
@@ -151,14 +151,14 @@ Deno.test("mapToolPrefixClassifications: web_ classified PUBLIC", () => {
   assertEquals(map.get("web_"), "PUBLIC");
 });
 
-Deno.test("mapToolPrefixClassifications: write_file classified RESTRICTED", () => {
+Deno.test("mapToolPrefixClassifications: write_file classified PUBLIC", () => {
   const map = mapToolPrefixClassifications({});
-  assertEquals(map.get("write_file"), "RESTRICTED");
+  assertEquals(map.get("write_file"), "PUBLIC");
 });
 
-Deno.test("mapToolPrefixClassifications: read_file classified INTERNAL", () => {
+Deno.test("mapToolPrefixClassifications: read_file classified PUBLIC", () => {
   const map = mapToolPrefixClassifications({});
-  assertEquals(map.get("read_file"), "INTERNAL");
+  assertEquals(map.get("read_file"), "PUBLIC");
 });
 
 Deno.test("mapToolPrefixClassifications: integration overrides take precedence", () => {
@@ -182,15 +182,14 @@ Deno.test("enforceNonOwnerToolCeiling: non-owner with PUBLIC ceiling can use mem
   assertEquals(err, null, "memory_search (PUBLIC) should be allowed for PUBLIC ceiling");
 });
 
-Deno.test("enforceNonOwnerToolCeiling: non-owner with PUBLIC ceiling blocks run_command", () => {
+Deno.test("enforceNonOwnerToolCeiling: non-owner with PUBLIC ceiling can use run_command", () => {
   const map = mapToolPrefixClassifications({});
   const err = enforceNonOwnerToolCeiling(
     "run_command",
     "PUBLIC" as ClassificationLevel,
     map,
   );
-  assert(err !== null, "run_command (RESTRICTED) should be blocked for PUBLIC ceiling");
-  assert(err!.includes("RESTRICTED"), "Error should mention RESTRICTED classification");
+  assertEquals(err, null, "run_command (PUBLIC) should be allowed for PUBLIC ceiling");
 });
 
 Deno.test("enforceNonOwnerToolCeiling: non-owner with PUBLIC ceiling can use web_search", () => {
@@ -283,11 +282,11 @@ Deno.test("escalateToolPrefixTaint: memory read tools do not escalate", () => {
   }
 });
 
-Deno.test("escalateToolPrefixTaint: write_file still escalates to RESTRICTED", () => {
+Deno.test("escalateToolPrefixTaint: write_file escalates to PUBLIC (no-op)", () => {
   const map = mapToolPrefixClassifications({});
   let escalatedLevel: ClassificationLevel | null = null;
   escalateToolPrefixTaint("write_file", map, (level: ClassificationLevel, _reason: string) => {
     escalatedLevel = level;
   });
-  assertEquals(escalatedLevel, "RESTRICTED", "write_file must still escalate to RESTRICTED");
+  assertEquals(escalatedLevel, "PUBLIC", "write_file should escalate to PUBLIC — taint comes from resource");
 });
