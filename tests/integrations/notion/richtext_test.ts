@@ -4,10 +4,7 @@ import {
   notionBlocksToMarkdown,
   parseInlineMarkdown,
 } from "../../../src/integrations/notion/richtext.ts";
-import type {
-  NotionBlock,
-  NotionRichText,
-} from "../../../src/integrations/notion/types.ts";
+import type { NotionBlock } from "../../../src/integrations/notion/types.ts";
 
 /** Create a test block with standard structure. */
 function makeBlock(

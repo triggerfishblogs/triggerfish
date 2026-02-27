@@ -51,10 +51,8 @@ export {
   parseInlineMarkdown,
 } from "./richtext.ts";
 
-export type { NotionToolContext } from "./tools.ts";
+export type { NotionToolContext } from "./tool_context.ts";
 
-export {
-  getNotionToolDefinitions,
-  createNotionToolExecutor,
-  NOTION_TOOLS_SYSTEM_PROMPT,
-} from "./tools.ts";
+export { getNotionToolDefinitions, NOTION_TOOLS_SYSTEM_PROMPT } from "./tool_defs.ts";
+
+export { createNotionToolExecutor } from "./tools.ts";
