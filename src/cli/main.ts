@@ -149,12 +149,12 @@ async function detectConfigExists(): Promise<boolean> {
 
 /** Main CLI entry point. */
 async function main(): Promise<void> {
-  // Initialize logger for interactive CLI commands (dive, patrol, config, etc.).
-  // console: true ensures WARN/ERROR are not silently dropped before the gateway
-  // path calls initializeStartupLogger() with the file writer.
-  // Guard preserves any test-configured logger already set before main() runs.
+  // Initialize logger for interactive CLI commands (dive, patrol, config, etc.)
+  // so WARN/ERROR are not silently dropped before the gateway path calls
+  // initializeStartupLogger() with the file writer. Guard preserves any
+  // test-configured logger already set before main() runs.
   if (!isLoggerInitialized()) {
-    initLogger({ level: "INFO", console: true });
+    initLogger({ level: "INFO" });
   }
   enableWindowsAnsi();
   await cleanupOldBinary();
