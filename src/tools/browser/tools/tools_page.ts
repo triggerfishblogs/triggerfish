@@ -41,27 +41,31 @@ async function extractPageLinks(
   page: Page,
 ): Promise<readonly PageLink[]> {
   const cap = MAX_SNAPSHOT_LINKS;
-  const raw: Array<{ text: string; href: string }> = await page.evaluate(
-    (limit: number) => {
-      // deno-lint-ignore no-explicit-any
-      const anchors = (globalThis as any).document?.querySelectorAll("a[href]") ?? [];
-      const results: Array<{ text: string; href: string }> = [];
-      for (const a of anchors) {
-        if (results.length >= limit) break;
-        const text = (a.textContent ?? "").trim();
-        const href = a.href as string;
-        if (
-          text.length > 0 &&
-          (href.startsWith("http://") || href.startsWith("https://"))
-        ) {
-          results.push({ text, href });
+  try {
+    const raw: Array<{ text: string; href: string }> = await page.evaluate(
+      (limit: number) => {
+        // deno-lint-ignore no-explicit-any
+        const anchors = (globalThis as any).document?.querySelectorAll("a[href]") ?? [];
+        const results: Array<{ text: string; href: string }> = [];
+        for (const a of anchors) {
+          if (results.length >= limit) break;
+          const text = ((a.textContent ?? "").trim()).slice(0, 100);
+          const href = a.href as string;
+          if (
+            text.length > 0 &&
+            (href.startsWith("http://") || href.startsWith("https://"))
+          ) {
+            results.push({ text, href });
+          }
         }
-      }
-      return results;
-    },
-    cap,
-  );
-  return raw;
+        return results;
+      },
+      cap,
+    );
+    return raw;
+  } catch {
+    return [];
+  }
 }
 
 /** Capture screenshot and extract visible text from the page. */
