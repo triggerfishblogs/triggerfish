@@ -9,6 +9,7 @@
 
 import { Input, Select } from "@cliffy/prompt";
 
+import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
 import { verifyProvider } from "../verify.ts";
 import { readNestedConfigValue } from "./selective_config.ts";
 
@@ -52,11 +53,13 @@ function resolveApiKeyEnvVar(provider: ProviderChoice): string {
   return mapping[provider] ?? "OPENROUTER_API_KEY";
 }
 
-/** Prompt for Anthropic API key specifically. */
-async function promptAnthropicApiKey(): Promise<string> {
-  return await Input.prompt({
-    message: "Anthropic API key (or press Enter to keep existing)",
-  });
+/** Prompt for Anthropic API key, preserving existing secret ref on empty input. */
+async function promptAnthropicApiKey(existingApiKey: string): Promise<string> {
+  const message = existingApiKey.length > 0
+    ? "Anthropic API key (press Enter to keep existing)"
+    : "Anthropic API key (or press Enter to configure later)";
+  const entered = await Input.prompt({ message });
+  return entered.length > 0 ? entered : existingApiKey;
 }
 
 /** Prompt for local provider endpoint (Ollama or LM Studio). */
@@ -75,33 +78,39 @@ async function promptLocalEndpoint(
   });
 }
 
-/** Prompt for a cloud provider API key, detecting environment variables. */
-async function promptCloudApiKey(provider: ProviderChoice): Promise<string> {
+/** Prompt for a cloud provider API key, preserving existing secret ref on empty input. */
+async function promptCloudApiKey(
+  provider: ProviderChoice,
+  existingApiKey: string,
+): Promise<string> {
   const envVarName = resolveApiKeyEnvVar(provider);
-  const existingKey = Deno.env.get(envVarName) ?? "";
-  if (existingKey.length > 0) {
+  const envKey = Deno.env.get(envVarName) ?? "";
+  if (envKey.length > 0) {
     console.log(`  \u2713 Detected ${envVarName} in environment`);
-    return existingKey;
+    return envKey;
   }
-  return await Input.prompt({
-    message: `API key (or press Enter to set ${envVarName} later)`,
-  });
+  const message = existingApiKey.length > 0
+    ? "API key (press Enter to keep existing)"
+    : `API key (or press Enter to set ${envVarName} later)`;
+  const entered = await Input.prompt({ message });
+  return entered.length > 0 ? entered : existingApiKey;
 }
 
 /** Prompt for API key and local endpoint based on the chosen provider. */
 async function promptLlmCredentials(
   provider: ProviderChoice,
   currentEndpoint: string,
+  existingApiKey: string,
 ): Promise<{ apiKey: string; localEndpoint: string }> {
   let apiKey = "";
   let localEndpoint = currentEndpoint || "http://localhost:11434";
 
   if (provider === "anthropic") {
-    apiKey = await promptAnthropicApiKey();
+    apiKey = await promptAnthropicApiKey(existingApiKey);
   } else if (provider === "ollama" || provider === "lmstudio") {
     localEndpoint = await promptLocalEndpoint(provider, localEndpoint);
   } else {
-    apiKey = await promptCloudApiKey(provider);
+    apiKey = await promptCloudApiKey(provider, existingApiKey);
   }
 
   return { apiKey, localEndpoint };
@@ -154,6 +163,15 @@ async function applyLlmRetryAction(
   }
 }
 
+/** Resolve a secret ref to the actual plaintext key for verification. */
+async function resolveApiKeyForVerification(apiKey: string): Promise<string> {
+  if (!apiKey.startsWith("secret:")) return apiKey;
+  const keychainKey = apiKey.slice("secret:".length);
+  const store = createKeychain();
+  const result = await store.getSecret(keychainKey);
+  return result.ok ? result.value : "";
+}
+
 /** Verify LLM connection in a retry loop, updating state on each attempt. */
 async function verifyLlmConnection(
   provider: ProviderChoice,
@@ -168,9 +186,10 @@ async function verifyLlmConnection(
     console.log("");
     console.log("  Verifying connection...");
     const endpoint = isLocal ? state.localEndpoint : undefined;
+    const verifyKey = isLocal ? "" : await resolveApiKeyForVerification(state.apiKey);
     const result = await verifyProvider(
       provider,
-      state.apiKey,
+      verifyKey,
       state.providerModel,
       endpoint,
     );
@@ -195,11 +214,29 @@ async function verifyLlmConnection(
 
 // ── Config building ───────────────────────────────────────────────────────────
 
+/**
+ * Store a new plaintext API key in the keychain and return its secret ref.
+ *
+ * If the key is already a `secret:` ref (preserved from existing config),
+ * returns it unchanged.
+ */
+async function resolveApiKeyForConfig(
+  provider: ProviderChoice,
+  apiKey: string,
+): Promise<string> {
+  if (apiKey.length === 0) return "";
+  if (apiKey.startsWith("secret:")) return apiKey;
+  const keychainKey = `provider:${provider}:apiKey`;
+  const store = createKeychain();
+  await store.setSecret(keychainKey, apiKey);
+  return `secret:${keychainKey}`;
+}
+
 /** Build the final models config section from collected LLM settings. */
-function buildLlmModelsConfig(
+async function buildLlmModelsConfig(
   provider: ProviderChoice,
   state: LlmVerifyState,
-): Record<string, unknown> {
+): Promise<Record<string, unknown>> {
   const providers: Record<string, Record<string, string>> = {};
   if (provider === "ollama" || provider === "lmstudio") {
     providers[provider] = {
@@ -208,7 +245,8 @@ function buildLlmModelsConfig(
     };
   } else {
     const pc: Record<string, string> = { model: state.providerModel };
-    if (state.apiKey.length > 0) pc["apiKey"] = state.apiKey;
+    const ref = await resolveApiKeyForConfig(provider, state.apiKey);
+    if (ref.length > 0) pc["apiKey"] = ref;
     providers[provider] = pc;
   }
 
@@ -248,8 +286,14 @@ export async function reconfigureLlmProvider(
     existingConfig,
     `models.providers.${provider}.endpoint`,
   ) as string | undefined) ?? "";
+  const currentApiKey = (readNestedConfigValue(
+    existingConfig,
+    `models.providers.${provider}.apiKey`,
+  ) as string | undefined) ?? "";
 
-  const credentials = await promptLlmCredentials(provider, currentEndpoint);
+  const credentials = await promptLlmCredentials(
+    provider, currentEndpoint, currentApiKey,
+  );
   const state: LlmVerifyState = {
     apiKey: credentials.apiKey,
     providerModel,
@@ -257,5 +301,5 @@ export async function reconfigureLlmProvider(
   };
 
   await verifyLlmConnection(provider, state);
-  return buildLlmModelsConfig(provider, state);
+  return await buildLlmModelsConfig(provider, state);
 }

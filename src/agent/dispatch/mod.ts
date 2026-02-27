@@ -28,6 +28,7 @@ export {
 export {
   classifyResponseQuality,
   buildRecoveryNudge,
+  detectRepetition,
   FALLBACK_RESPONSE,
   evaluatePreOutputHook,
   handleFinalResponse,

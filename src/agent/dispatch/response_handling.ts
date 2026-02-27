@@ -26,6 +26,70 @@ import type { OrchestratorState, TokenAccumulator } from "../orchestrator/orches
 const ECHOED_TOOL_PLACEHOLDER =
   /^\[Used tools:.*\]$|^\(\d+ tool call\(s\) executed/;
 
+/** Minimum phrase length to consider for repetition detection. */
+const MIN_REPEAT_PHRASE_LEN = 60;
+/** Number of repetitions that trigger detection. */
+const REPEAT_THRESHOLD = 3;
+
+/**
+ * Count non-overlapping occurrences of `phrase` in `text` starting from `startPos`.
+ * Returns early once `target` is reached.
+ */
+function countOccurrences(
+  text: string,
+  phrase: string,
+  startPos: number,
+  target: number,
+): number {
+  let count = 0;
+  let pos = startPos;
+  while (pos <= text.length - phrase.length) {
+    if (text.startsWith(phrase, pos)) {
+      count++;
+      if (count >= target) return count;
+      pos += phrase.length;
+    } else {
+      pos++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Detect a repeated phrase that dominates the response.
+ *
+ * Some models get stuck in a generation loop, outputting the same sentence
+ * hundreds of times. Returns the first clean occurrence if repetition is
+ * detected, or null if the text is normal.
+ */
+export function detectRepetition(text: string): string | null {
+  if (text.length < MIN_REPEAT_PHRASE_LEN * REPEAT_THRESHOLD) return null;
+
+  // Try starting offsets (repetition may begin after a unique intro)
+  const maxStartOffset = Math.min(500, text.length / 3);
+  const maxPhraseLen = Math.min(text.length / 3, 2000);
+
+  for (let offset = 0; offset <= maxStartOffset; offset += 20) {
+    for (
+      let phraseLen = MIN_REPEAT_PHRASE_LEN;
+      phraseLen <= maxPhraseLen;
+      phraseLen += 20
+    ) {
+      if (offset + phraseLen > text.length) break;
+      const phrase = text.slice(offset, offset + phraseLen);
+      const count = countOccurrences(text, phrase, offset, REPEAT_THRESHOLD);
+      if (count >= REPEAT_THRESHOLD) {
+        // Found repetition — return text up to the second occurrence
+        const firstEnd = offset + phraseLen;
+        const secondStart = text.indexOf(phrase, firstEnd);
+        if (secondStart > 0) return text.slice(0, secondStart).trimEnd();
+        return text.slice(0, firstEnd).trimEnd();
+      }
+    }
+  }
+  return null;
+}
+
 /** Detect whether the final text is empty, bare JSON junk, or leaked intent. */
 export function classifyResponseQuality(
   finalText: string,
@@ -57,7 +121,7 @@ export function buildRecoveryNudge(
 /** The fallback response when the model returns empty/junk after all nudges. */
 export const FALLBACK_RESPONSE =
   "I'm sorry, I wasn't able to generate a response. The language model returned empty or malformed output. " +
-  "This may be a temporary issue — please try again, or consider switching to a more capable model (e.g. google/gemini-2.0-flash-001).";
+  "This may be a temporary issue — please try again, or consider switching to a more capable model.";
 
 // ─── PRE_OUTPUT hook ─────────────────────────────────────────────────────────
 
@@ -108,9 +172,12 @@ export async function handleFinalResponse(
     hasTools,
   );
   const isJunkFinal = finalText.length === 0 || isEmptyOrJunk || isLeakedIntent;
+
+  // Detect repetition loops (model stuck outputting the same sentence)
+  const deduped = detectRepetition(finalText);
   const responseText = isJunkFinal && emptyNudgeCount >= 2
     ? FALLBACK_RESPONSE
-    : finalText;
+    : deduped ?? finalText;
 
   const hookResult = await evaluatePreOutputHook(
     state.config,

@@ -282,6 +282,73 @@ Deno.test("Verify: local provider sends no auth headers", async () => {
   assertEquals(captured.headers["x-api-key"], undefined);
 });
 
+// ─── Fireworks ──────────────────────────────────────────────────────────────
+
+/** Fireworks native API model list body. */
+function fireworksModelList(names: ReadonlyArray<string>): string {
+  return JSON.stringify({ models: names.map((n) => ({ name: n })) });
+}
+
+/** Mock fetcher returning 200 with a Fireworks model list. */
+function fireworksFetcher(names: ReadonlyArray<string>): typeof fetch {
+  return mockFetcher(200, fireworksModelList(names));
+}
+
+Deno.test("Verify: Fireworks full API format matches", async () => {
+  const result = await verifyProvider(
+    "fireworks", "fw-key", "accounts/fireworks/models/kimi-k2p5", undefined,
+    fireworksFetcher(["accounts/fireworks/models/kimi-k2p5", "accounts/fireworks/models/deepseek-v3p1"]),
+  );
+  assertEquals(result.ok, true);
+});
+
+Deno.test("Verify: Fireworks bare model name matches full API format", async () => {
+  const result = await verifyProvider(
+    "fireworks", "fw-key", "kimi-k2p5", undefined,
+    fireworksFetcher(["accounts/fireworks/models/kimi-k2p5", "accounts/fireworks/models/deepseek-v3p1"]),
+  );
+  assertEquals(result.ok, true);
+});
+
+Deno.test("Verify: Fireworks fireworks/ prefix matches full API format", async () => {
+  const result = await verifyProvider(
+    "fireworks", "fw-key", "fireworks/kimi-k2p5", undefined,
+    fireworksFetcher(["accounts/fireworks/models/kimi-k2p5", "accounts/fireworks/models/deepseek-v3p1"]),
+  );
+  assertEquals(result.ok, true);
+});
+
+Deno.test("Verify: Fireworks model not found returns error with full API names", async () => {
+  const result = await verifyProvider(
+    "fireworks", "fw-key", "nonexistent-model", undefined,
+    fireworksFetcher(["accounts/fireworks/models/kimi-k2p5", "accounts/fireworks/models/deepseek-v3p1"]),
+  );
+  assertEquals(result.ok, false);
+  assertStringIncludes(result.error!, "nonexistent-model");
+  assertStringIncludes(result.error!, "was not found");
+  assertStringIncludes(result.error!, "accounts/fireworks/models/");
+});
+
+Deno.test("Verify: Fireworks sends Bearer auth and correct URL", async () => {
+  const { fetcher, captured } = capturingFetcher();
+  // capturingFetcher returns OpenAI format, but Fireworks parsing expects { models: [] }.
+  // Use a custom fetcher instead.
+  const fw: typeof fetch = (url, init) => {
+    captured.url = typeof url === "string" ? url : url instanceof URL ? url.toString() : (url as Request).url;
+    if (init?.headers) {
+      Object.assign(captured.headers, init.headers);
+    }
+    return Promise.resolve(
+      new Response(fireworksModelList(["accounts/fireworks/models/kimi-k2p5"]), { status: 200 }),
+    );
+  };
+  // Suppress unused variable — capturingFetcher's fetcher not used here
+  void fetcher;
+  await verifyProvider("fireworks", "fw-key", "accounts/fireworks/models/kimi-k2p5", undefined, fw);
+  assertStringIncludes(captured.url, "api.fireworks.ai/v1/accounts/fireworks/models");
+  assertEquals(captured.headers["Authorization"], "Bearer fw-key");
+});
+
 // ─── LM Studio ──────────────────────────────────────────────────────────────
 
 Deno.test("Verify: LM Studio exact model match works", async () => {

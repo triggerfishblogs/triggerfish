@@ -81,7 +81,7 @@ export const DEFAULT_MODELS: Readonly<Record<ProviderChoice, string>> = {
   anthropic: "claude-sonnet-4-5",
   openai: "gpt-4o",
   google: "gemini-2.0-flash",
-  fireworks: "fireworks/llama-v3p3-70b-instruct",
+  fireworks: "accounts/fireworks/models/llama-v3p3-70b-instruct",
   ollama: "llama3",
   lmstudio: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
   openrouter: "anthropic/claude-sonnet-4-5",

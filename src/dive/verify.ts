@@ -77,7 +77,7 @@ const PROVIDER_ENDPOINTS: Readonly<Record<ProviderChoice, ProviderEndpoint>> = {
  *
  * Most providers use OpenAI-compatible format: `{ data: [{ id }] }`.
  * Google uses: `{ models: [{ name: "models/..." }] }`.
- * Fireworks native API uses: `{ models: [{ name: "accounts/fireworks/models/..." }] }`.
+ * Fireworks native API uses: `{ models: [{ name: "accounts/fireworks/models/..." }] }` (kept as-is).
  */
 function extractModelIds(
   provider: ProviderChoice,
@@ -94,16 +94,12 @@ function extractModelIds(
   }
 
   // Fireworks native API: { models: [{ name: "accounts/fireworks/models/foo" }] }
-  // Normalize to the short website format "fireworks/foo".
+  // Keep the full API format — this is what the chat completions endpoint requires.
   if (provider === "fireworks") {
     const fw = body as { models?: ReadonlyArray<{ name?: string }> };
     if (!Array.isArray(fw.models)) return [];
     return fw.models
-      .map((m) =>
-        typeof m.name === "string"
-          ? m.name.replace(/^accounts\/fireworks\/models\//, "fireworks/")
-          : ""
-      )
+      .map((m) => typeof m.name === "string" ? m.name : "")
       .filter((id) => id.length > 0);
   }
 
@@ -133,11 +129,16 @@ function modelInList(
     return ids.some((id) => id === `${model}:latest`);
   }
 
-  // Fireworks: user may enter "fireworks/foo" or bare "foo". IDs are
-  // already normalized to "fireworks/foo" by extractModelIds.
+  // Fireworks: user may enter "accounts/fireworks/models/foo",
+  // "fireworks/foo", or bare "foo". IDs are in full API format
+  // "accounts/fireworks/models/foo". Normalize both sides to bare name.
   if (provider === "fireworks") {
-    const bare = model.replace(/^fireworks\//, "");
-    return ids.some((id) => id === `fireworks/${bare}`);
+    const bare = model
+      .replace(/^accounts\/fireworks\/models\//, "")
+      .replace(/^fireworks\//, "");
+    return ids.some((id) =>
+      id.replace(/^accounts\/fireworks\/models\//, "") === bare
+    );
   }
 
   return false;
