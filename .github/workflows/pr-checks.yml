@@ -259,6 +259,37 @@ jobs:
             line numbers, and code snippets for each finding. If the code looks good,
             comment "Code review passed — no issues found."
 
+            ## ARCHITECTURE CONTEXT — READ BEFORE REVIEWING
+
+            Triggerfish enforces security policy CENTRALLY below the LLM layer.
+            The following concerns are handled by the orchestrator/gateway wiring
+            layer and MUST NOT be flagged as missing from individual integrations,
+            plugins, or tool handlers:
+
+            1. **Session taint escalation** — Taint is escalated in the centralized
+               orchestrator tool executor wrapper (gateway layer), NOT in individual
+               tool handlers or integrations. If you see that an integration reads
+               classified data but does not call `escalateTaint`, that is BY DESIGN.
+               The orchestrator's POST_TOOL_RESPONSE hook handles this. Do NOT flag
+               "taint not escalated" in integration code.
+
+            2. **Classification enforcement / canFlowTo** — Write-down prevention
+               is enforced by policy hooks in the orchestrator, not by tools or
+               integrations. Do NOT flag missing canFlowTo checks in tool code.
+
+            3. **Hook execution** — PRE_TOOL_CALL, POST_TOOL_RESPONSE, and PRE_OUTPUT
+               hooks run in the orchestrator around every tool call. Individual tools
+               do not need to invoke hooks themselves.
+
+            From .claude/rules/security.md:
+            > "Never put session management (taint escalation, classification enforcement)
+            >  inside plugins — enforcement belongs in the centralized orchestrator tool
+            >  executor wrapper, not in individual tool handlers."
+
+            If you are unsure whether something is centrally handled, err on the side
+            of NOT flagging it. False positives about architectural patterns the reviewer
+            doesn't understand are worse than missed findings.
+
             CRITICAL — VERDICT FILE:
             As your FINAL action, you MUST write a verdict file using the Write tool:
             - Path: audit-verdict.txt
