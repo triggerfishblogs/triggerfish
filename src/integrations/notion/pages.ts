@@ -200,8 +200,9 @@ async function createPage(
 ): Promise<Result<NotionPage, NotionError>> {
   const body: Record<string, unknown> = {
     parent: { [opts.parentType]: opts.parentId },
-    properties: opts.properties ?? {
+    properties: {
       title: { title: [{ text: { content: opts.title } }] },
+      ...opts.properties,
     },
   };
   if (opts.children) {

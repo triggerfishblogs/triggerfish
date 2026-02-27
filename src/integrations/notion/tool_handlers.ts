@@ -33,7 +33,7 @@ export async function executeSearch(
     : undefined;
   const result = await ctx.pages.search(query, { type, pageSize });
   if (!result.ok) return formatNotionError(result.error);
-  const classification = resolveClassification(ctx);
+  const classification = resolveNotionClassification(ctx);
   return JSON.stringify({
     results: result.value.results.map((r) => ({
       type: r.type,
@@ -57,7 +57,7 @@ export async function executePagesRead(
     return "Error: notion.pages.read requires a 'page_id' argument.";
   }
   log.info("Notion pages.read", { operation: "executePagesRead", pageId });
-  const classification = resolveClassification(ctx);
+  const classification = resolveNotionClassification(ctx);
   const result = await ctx.pages.read(pageId, classification);
   if (!result.ok) return formatNotionError(result.error);
   const markdown = notionBlocksToMarkdown(result.value.content);
@@ -95,7 +95,7 @@ export async function executePagesCreate(
   const properties = typeof input.properties === "object" && input.properties !== null
     ? input.properties as Readonly<Record<string, unknown>>
     : undefined;
-  const classification = resolveClassification(ctx);
+  const classification = resolveNotionClassification(ctx);
   const result = await ctx.pages.create(
     { parentId, parentType, title, properties, children },
     classification,
@@ -126,7 +126,7 @@ export async function executePagesUpdate(
     return "Error: notion.pages.update requires at least one of 'properties' or 'archived'.";
   }
   log.info("Notion pages.update", { operation: "executePagesUpdate", pageId });
-  const classification = resolveClassification(ctx);
+  const classification = resolveNotionClassification(ctx);
   const result = await ctx.pages.update(pageId, { properties, archived }, classification);
   if (!result.ok) return formatNotionError(result.error);
   return JSON.stringify({
@@ -158,7 +158,7 @@ export async function executeDatabasesQuery(
   const startCursor = typeof input.start_cursor === "string"
     ? input.start_cursor
     : undefined;
-  const classification = resolveClassification(ctx);
+  const classification = resolveNotionClassification(ctx);
   const result = await ctx.databases.query(
     databaseId,
     { filter, sorts, pageSize, startCursor },
@@ -195,7 +195,7 @@ export async function executeDatabasesCreate(
     return "Error: notion.databases.create requires a 'properties' argument with database schema.";
   }
   log.info("Notion databases.create", { operation: "executeDatabasesCreate" });
-  const classification = resolveClassification(ctx);
+  const classification = resolveNotionClassification(ctx);
   const result = await ctx.databases.create(
     parentPageId,
     {
@@ -229,7 +229,7 @@ export async function executeBlocksRead(
     : undefined;
   const result = await ctx.blocks.readChildren(blockId, { pageSize, startCursor });
   if (!result.ok) return formatNotionError(result.error);
-  const classification = resolveClassification(ctx);
+  const classification = resolveNotionClassification(ctx);
   const markdown = notionBlocksToMarkdown(result.value.results);
   return JSON.stringify({
     content: markdown,
@@ -256,7 +256,7 @@ export async function executeBlocksAppend(
   const notionBlocks = markdownToNotionBlocks(content);
   const result = await ctx.blocks.append(blockId, notionBlocks);
   if (!result.ok) return formatNotionError(result.error);
-  const classification = resolveClassification(ctx);
+  const classification = resolveNotionClassification(ctx);
   return JSON.stringify({
     appended_blocks: result.value.length,
     _classification: classification,
@@ -264,7 +264,7 @@ export async function executeBlocksAppend(
 }
 
 /** Resolve the effective classification from context, honouring floor. */
-export function resolveClassification(ctx: NotionToolContext): ClassificationLevel {
+export function resolveNotionClassification(ctx: NotionToolContext): ClassificationLevel {
   const taint = ctx.sessionTaint();
   if (!ctx.classificationFloor) return taint;
   const order: Record<string, number> = {
