@@ -207,7 +207,7 @@ export function createNotionClient(config: NotionClientConfig): NotionClient {
       }
 
       if (attempt < MAX_RETRIES) {
-        const retryAfterMs = (result.error as Record<string, unknown>)
+        const retryAfterMs = (result.error as unknown as Record<string, unknown>)
           .retryAfterMs as number | undefined;
         const backoff = calculateBackoffMs(attempt, retryAfterMs);
         await sleep(backoff);

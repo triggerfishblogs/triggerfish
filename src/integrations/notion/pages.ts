@@ -68,6 +68,7 @@ interface RawSearchItem {
 interface RawProperty {
   readonly type: string;
   readonly title?: readonly { readonly plain_text: string }[];
+  readonly [key: string]: unknown;
 }
 
 interface RawPageResponse {
