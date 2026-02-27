@@ -224,9 +224,9 @@ Deno.test("WhatsApp: send with missing sessionId returns early", async () => {
 
 Deno.test("WhatsApp: send calls injected fetchFn with correct API endpoint", async () => {
   const calls: { url: string; init: RequestInit }[] = [];
-  const mockFetch: typeof fetch = async (input, init) => {
+  const mockFetch: typeof fetch = (input, init) => {
     calls.push({ url: String(input), init: init ?? {} });
-    return new Response("{}", { status: 200 });
+    return Promise.resolve(new Response("{}", { status: 200 }));
   };
   const adapter = createWhatsAppChannel({
     ...buildTestConfig(0),
