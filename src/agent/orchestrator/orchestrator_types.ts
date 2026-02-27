@@ -163,73 +163,71 @@ export interface ClassificationMapConfig {
 /**
  * Hardcoded classification levels for built-in tools.
  *
- * Entries are ordered from most-specific to least-specific so that
- * the prefix-matching loop in enforceNonOwnerToolCeiling hits the
- * right entry first. More-specific names (e.g. "memory_save") must
- * appear before group prefixes (e.g. "memory_").
+ * Built-in tools are all PUBLIC. Taint escalation comes from the
+ * RESOURCE being accessed (file path classification, URL domain
+ * classification), never from the tool itself.
  *
- * PUBLIC    — safe for any non-owner with a PUBLIC ceiling
- * INTERNAL  — read-only local operations, trusted non-owners
- * RESTRICTED — owner-only operations, never reachable by non-owners
+ * Integration tools (obsidian, google, github, plugins) get their
+ * classification from triggerfish.yaml config and are injected by
+ * mapToolPrefixClassifications before these defaults.
+ *
+ * This table also gates non-owner access — non-owner sessions are
+ * denied tools not listed here via enforceNonOwnerToolCeiling.
  */
 const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<readonly [string, ClassificationLevel]> = [
-  // Memory — read tools are PUBLIC; save/delete are intentionally absent.
-  // memory_save and memory_delete operate at the current session taint level
-  // (the memory executor forces classification to sessionTaint). They must
-  // not appear here because: (1) prefix-based taint escalation would
-  // incorrectly escalate the session, and (2) the write-down check would
-  // block higher-tainted sessions from saving. Non-owner blocking is
-  // handled by enforceNonOwnerToolCeiling (unmatched tools → denied).
+  // Memory
   ["memory_search", "PUBLIC"],
   ["memory_get", "PUBLIC"],
   ["memory_list", "PUBLIC"],
-  // Filesystem — writes/exec owner-only, reads INTERNAL
-  ["write_file", "RESTRICTED"],
-  ["edit_file", "RESTRICTED"],
-  ["run_command", "RESTRICTED"],
-  ["read_file", "INTERNAL"],
-  ["list_directory", "INTERNAL"],
-  ["search_files", "INTERNAL"],
-  // Browser — owner-only
-  ["browser_", "RESTRICTED"],
-  // Secrets — owner-only
-  ["secret_", "RESTRICTED"],
-  // Scheduling — owner-only
-  ["cron_", "RESTRICTED"],
-  ["trigger_", "RESTRICTED"],
-  // Skills — read_skill is read-only, works at all classification levels
+  ["memory_save", "PUBLIC"],
+  ["memory_delete", "PUBLIC"],
+  // Filesystem — taint comes from path classifier, not the tool
+  ["write_file", "PUBLIC"],
+  ["edit_file", "PUBLIC"],
+  ["run_command", "PUBLIC"],
+  ["read_file", "PUBLIC"],
+  ["list_directory", "PUBLIC"],
+  ["search_files", "PUBLIC"],
+  // Browser — taint comes from URL domain classifier
+  ["browser_", "PUBLIC"],
+  // Secrets
+  ["secret_", "PUBLIC"],
+  // Scheduling
+  ["cron_", "PUBLIC"],
+  ["trigger_", "PUBLIC"],
+  // Skills
   ["read_skill", "PUBLIC"],
-  // Subagent / agents — owner-only
-  ["subagent", "RESTRICTED"],
-  ["agents_", "RESTRICTED"],
-  // Claude sessions — owner-only
-  ["claude_", "RESTRICTED"],
-  // Session management — owner-only
-  ["sessions_", "RESTRICTED"],
-  ["session_", "RESTRICTED"],
-  ["message", "RESTRICTED"],
-  ["signal_", "RESTRICTED"],
+  // Subagent / agents
+  ["subagent", "PUBLIC"],
+  ["agents_", "PUBLIC"],
+  // Claude sessions
+  ["claude_", "PUBLIC"],
+  // Session management
+  ["sessions_", "PUBLIC"],
+  ["session_", "PUBLIC"],
+  ["message", "PUBLIC"],
+  ["signal_", "PUBLIC"],
   ["channels_", "PUBLIC"],
-  // Plan mode — owner-only
-  ["plan_", "RESTRICTED"],
-  // Tidepool canvas — owner-only
-  ["tidepool_", "RESTRICTED"],
-  // Obsidian — reads PUBLIC, writes RESTRICTED
+  // Plan mode
+  ["plan_", "PUBLIC"],
+  // Tidepool canvas
+  ["tidepool_", "PUBLIC"],
+  // Obsidian — integration, defaults here; overridden by plugin config
   ["obsidian_write", "RESTRICTED"],
   ["obsidian_daily", "RESTRICTED"],
   ["obsidian_read", "INTERNAL"],
   ["obsidian_search", "INTERNAL"],
   ["obsidian_list", "INTERNAL"],
   ["obsidian_links", "INTERNAL"],
-  // Safe for non-owners
+  // Web, todo, misc
   ["web_", "PUBLIC"],
   ["todo_", "PUBLIC"],
   ["healthcheck", "PUBLIC"],
   ["summarize", "PUBLIC"],
-  ["image_", "INTERNAL"],
-  ["explore", "INTERNAL"],
-  ["llm_task", "INTERNAL"],
-  ["log_read", "INTERNAL"],
+  ["image_", "PUBLIC"],
+  ["explore", "PUBLIC"],
+  ["llm_task", "PUBLIC"],
+  ["log_read", "PUBLIC"],
 ];
 
 /**

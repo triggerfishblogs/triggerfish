@@ -3,8 +3,8 @@
  *
  * Verifies that resolveActiveToolList applies the filterTools callback,
  * that enforceNonOwnerToolCeiling works correctly with built-in
- * tool classifications, and that memory_save/memory_delete do not
- * trigger taint escalation (they operate at session taint level).
+ * tool classifications, and that built-in tools never escalate taint
+ * (taint comes from resources, not tools).
  */
 import { assertEquals, assert } from "@std/assert";
 import { resolveActiveToolList } from "../../src/agent/loop/loop_types.ts";
@@ -117,48 +117,31 @@ Deno.test("resolveActiveToolList: filterTools applies to extra tools too", () =>
 
 Deno.test("mapToolPrefixClassifications: includes built-in tool classifications", () => {
   const map = mapToolPrefixClassifications({});
-  // Should have built-in entries for memory read tools, browser, web, etc.
   assert(map.has("memory_search"), "Should have memory_search entry");
+  assert(map.has("memory_save"), "Should have memory_save entry");
+  assert(map.has("memory_delete"), "Should have memory_delete entry");
   assert(map.has("browser_"), "Should have browser_ prefix entry");
   assert(map.has("web_"), "Should have web_ prefix entry");
-  // memory_save and memory_delete are intentionally absent
-  assert(!map.has("memory_save"), "memory_save must not be in classification map");
-  assert(!map.has("memory_delete"), "memory_delete must not be in classification map");
 });
 
-Deno.test("mapToolPrefixClassifications: memory_search classified PUBLIC", () => {
+Deno.test("mapToolPrefixClassifications: all built-in tools are PUBLIC", () => {
   const map = mapToolPrefixClassifications({});
-  assertEquals(map.get("memory_search"), "PUBLIC");
-});
-
-Deno.test("mapToolPrefixClassifications: memory_save absent (operates at session taint)", () => {
-  const map = mapToolPrefixClassifications({});
-  assertEquals(map.has("memory_save"), false, "memory_save must not be in classification map");
-});
-
-Deno.test("mapToolPrefixClassifications: memory_delete absent (operates at session taint)", () => {
-  const map = mapToolPrefixClassifications({});
-  assertEquals(map.has("memory_delete"), false, "memory_delete must not be in classification map");
-});
-
-Deno.test("mapToolPrefixClassifications: browser_ classified RESTRICTED", () => {
-  const map = mapToolPrefixClassifications({});
-  assertEquals(map.get("browser_"), "RESTRICTED");
-});
-
-Deno.test("mapToolPrefixClassifications: web_ classified PUBLIC", () => {
-  const map = mapToolPrefixClassifications({});
-  assertEquals(map.get("web_"), "PUBLIC");
-});
-
-Deno.test("mapToolPrefixClassifications: write_file classified RESTRICTED", () => {
-  const map = mapToolPrefixClassifications({});
-  assertEquals(map.get("write_file"), "RESTRICTED");
-});
-
-Deno.test("mapToolPrefixClassifications: read_file classified INTERNAL", () => {
-  const map = mapToolPrefixClassifications({});
-  assertEquals(map.get("read_file"), "INTERNAL");
+  const builtInPrefixes = [
+    "memory_search", "memory_get", "memory_list", "memory_save", "memory_delete",
+    "write_file", "edit_file", "run_command", "read_file", "list_directory", "search_files",
+    "browser_", "secret_", "cron_", "trigger_", "read_skill",
+    "subagent", "agents_", "claude_", "sessions_", "session_",
+    "message", "signal_", "channels_", "plan_", "tidepool_",
+    "web_", "todo_", "healthcheck", "summarize",
+    "image_", "explore", "llm_task", "log_read",
+  ];
+  for (const prefix of builtInPrefixes) {
+    assertEquals(
+      map.get(prefix),
+      "PUBLIC",
+      `${prefix} should be PUBLIC — taint comes from resources, not tools`,
+    );
+  }
 });
 
 Deno.test("mapToolPrefixClassifications: integration overrides take precedence", () => {
@@ -166,7 +149,6 @@ Deno.test("mapToolPrefixClassifications: integration overrides take precedence",
     google: { classification: "CONFIDENTIAL" },
   });
   assertEquals(map.get("gmail_"), "CONFIDENTIAL", "Google override should take precedence");
-  // Built-in tools should still be present
   assert(map.has("web_"), "Built-in web_ should still be present");
 });
 
@@ -182,15 +164,14 @@ Deno.test("enforceNonOwnerToolCeiling: non-owner with PUBLIC ceiling can use mem
   assertEquals(err, null, "memory_search (PUBLIC) should be allowed for PUBLIC ceiling");
 });
 
-Deno.test("enforceNonOwnerToolCeiling: non-owner with PUBLIC ceiling blocks run_command", () => {
+Deno.test("enforceNonOwnerToolCeiling: non-owner with PUBLIC ceiling can use run_command", () => {
   const map = mapToolPrefixClassifications({});
   const err = enforceNonOwnerToolCeiling(
     "run_command",
     "PUBLIC" as ClassificationLevel,
     map,
   );
-  assert(err !== null, "run_command (RESTRICTED) should be blocked for PUBLIC ceiling");
-  assert(err!.includes("RESTRICTED"), "Error should mention RESTRICTED classification");
+  assertEquals(err, null, "run_command (PUBLIC) should be allowed — tools are PUBLIC");
 });
 
 Deno.test("enforceNonOwnerToolCeiling: non-owner with PUBLIC ceiling can use web_search", () => {
@@ -203,15 +184,14 @@ Deno.test("enforceNonOwnerToolCeiling: non-owner with PUBLIC ceiling can use web
   assertEquals(err, null, "web_search (PUBLIC) should be allowed for PUBLIC ceiling");
 });
 
-Deno.test("enforceNonOwnerToolCeiling: non-owner with PUBLIC ceiling blocks memory_save (unmatched)", () => {
+Deno.test("enforceNonOwnerToolCeiling: non-owner with PUBLIC ceiling can use memory_save", () => {
   const map = mapToolPrefixClassifications({});
   const err = enforceNonOwnerToolCeiling(
     "memory_save",
     "PUBLIC" as ClassificationLevel,
     map,
   );
-  assert(err !== null, "memory_save (unmatched) should be blocked for non-owners");
-  assert(err!.includes("not available"), "Unmatched tool should report 'not available'");
+  assertEquals(err, null, "memory_save (PUBLIC) should be allowed — it is in the map now");
 });
 
 Deno.test("enforceNonOwnerToolCeiling: non-owner with null ceiling blocks all tools", () => {
@@ -225,69 +205,37 @@ Deno.test("enforceNonOwnerToolCeiling: non-owner with null ceiling blocks all to
   assert(err!.includes("not available"), "Error should state tools not available");
 });
 
-// ─── memory_save / memory_delete do NOT escalate taint ─────────────────────
+// ─── escalateToolPrefixTaint: built-in tools never escalate above PUBLIC ───
 
-Deno.test("escalateToolPrefixTaint: memory_save does not escalate at PUBLIC", () => {
+Deno.test("escalateToolPrefixTaint: built-in tools only escalate to PUBLIC (no-op)", () => {
   const map = mapToolPrefixClassifications({});
-  let escalated = false;
-  escalateToolPrefixTaint("memory_save", map, (_level: ClassificationLevel, _reason: string) => {
-    escalated = true;
-  });
-  assertEquals(escalated, false, "memory_save must not trigger taint escalation");
-});
-
-Deno.test("escalateToolPrefixTaint: memory_save does not escalate at INTERNAL", () => {
-  const map = mapToolPrefixClassifications({});
-  let escalated = false;
-  escalateToolPrefixTaint("memory_save", map, (_level: ClassificationLevel, _reason: string) => {
-    escalated = true;
-  });
-  assertEquals(escalated, false, "memory_save must not trigger taint escalation");
-});
-
-Deno.test("escalateToolPrefixTaint: memory_save does not escalate at CONFIDENTIAL", () => {
-  const map = mapToolPrefixClassifications({});
-  let escalated = false;
-  escalateToolPrefixTaint("memory_save", map, (_level: ClassificationLevel, _reason: string) => {
-    escalated = true;
-  });
-  assertEquals(escalated, false, "memory_save must not trigger taint escalation");
-});
-
-Deno.test("escalateToolPrefixTaint: memory_save does not escalate at RESTRICTED", () => {
-  const map = mapToolPrefixClassifications({});
-  let escalated = false;
-  escalateToolPrefixTaint("memory_save", map, (_level: ClassificationLevel, _reason: string) => {
-    escalated = true;
-  });
-  assertEquals(escalated, false, "memory_save must not trigger taint escalation");
-});
-
-Deno.test("escalateToolPrefixTaint: memory_delete does not escalate", () => {
-  const map = mapToolPrefixClassifications({});
-  let escalated = false;
-  escalateToolPrefixTaint("memory_delete", map, (_level: ClassificationLevel, _reason: string) => {
-    escalated = true;
-  });
-  assertEquals(escalated, false, "memory_delete must not trigger taint escalation");
-});
-
-Deno.test("escalateToolPrefixTaint: memory read tools do not escalate", () => {
-  const map = mapToolPrefixClassifications({});
-  for (const tool of ["memory_get", "memory_search", "memory_list"]) {
+  const builtInTools = [
+    "memory_save", "memory_delete", "memory_search", "memory_get",
+    "write_file", "read_file", "run_command", "browser_navigate",
+    "llm_task", "explore", "image_generate", "log_read",
+  ];
+  for (const tool of builtInTools) {
     let escalatedLevel: ClassificationLevel | null = null;
-    escalateToolPrefixTaint(tool, map, (level: ClassificationLevel, _reason: string) => {
+    escalateToolPrefixTaint(tool, map, (level: ClassificationLevel) => {
       escalatedLevel = level;
     });
-    assertEquals(escalatedLevel, "PUBLIC", `${tool} should escalate to PUBLIC (its classification)`);
+    if (escalatedLevel !== null) {
+      assertEquals(
+        escalatedLevel,
+        "PUBLIC",
+        `${tool} should only escalate to PUBLIC (no-op) — taint comes from resources`,
+      );
+    }
   }
 });
 
-Deno.test("escalateToolPrefixTaint: write_file still escalates to RESTRICTED", () => {
-  const map = mapToolPrefixClassifications({});
+Deno.test("escalateToolPrefixTaint: integration tools escalate to their configured level", () => {
+  const map = mapToolPrefixClassifications({
+    google: { classification: "CONFIDENTIAL" },
+  });
   let escalatedLevel: ClassificationLevel | null = null;
-  escalateToolPrefixTaint("write_file", map, (level: ClassificationLevel, _reason: string) => {
+  escalateToolPrefixTaint("gmail_send", map, (level: ClassificationLevel) => {
     escalatedLevel = level;
   });
-  assertEquals(escalatedLevel, "RESTRICTED", "write_file must still escalate to RESTRICTED");
+  assertEquals(escalatedLevel, "CONFIDENTIAL", "Integration tools escalate to their config level");
 });
