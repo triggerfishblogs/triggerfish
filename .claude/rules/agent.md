@@ -45,9 +45,9 @@ src/agent/
 ## LLM Provider Auth
 
 - All providers use API key auth only (no OAuth)
-- API keys stored in `triggerfish.yaml` under `models.providers.<name>.apiKey`
-- Env var fallback: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`
-- YAML config is the primary source; env vars are fallback only
+- API keys stored in `triggerfish.yaml` under `models.providers.<name>.apiKey` or OS keychain via `secret:` refs
+- **NEVER use `Deno.env.get()` for API keys in any provider** — no env var fallbacks, ever. This is an absolute platform rule. Config comes from triggerfish.yaml only.
+- The empty-string default (`config.apiKey ?? ""`) is correct — the provider throws a clear error at creation time if no key is configured
 
 ## Exec (`src/exec/`)
 
