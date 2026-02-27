@@ -135,18 +135,19 @@ export function dispatchGoogleChatEvent(
     event.user?.email ?? "unknown";
 
   if (!isDm && !isGroupMessageAllowed(event, config)) {
-    log.debug("Google Chat group message filtered by group mode", {
-      space: event.message?.space?.name,
+    log.warn("Google Chat group message denied by group mode", {
+      operation: "dispatchGoogleChatEvent",
+      space: event.message?.space?.name ?? "unknown",
       sender: senderEmail,
     });
     return;
   }
 
-  log.debug("Google Chat message received", {
-    sessionId,
+  log.ext("DEBUG", "Google Chat message received", {
+    sessionId: sessionId ?? "",
     sender: senderEmail,
-    isDm,
-    isOwner,
+    isDm: String(isDm),
+    isOwner: String(isOwner),
   });
 
   handler({

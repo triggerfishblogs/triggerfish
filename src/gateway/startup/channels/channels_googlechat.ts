@@ -86,12 +86,12 @@ function handleGoogleChatMessage(
 ): void {
   const { chatSession } = deps;
 
-  if (msg.content === "/clear" && msg.isOwner === true) {
+  if (msg.content === "/clear" && msg.isOwner !== false) {
     handleGoogleChatClearCommand(adapter, deps, msg.sessionId);
     return;
   }
 
-  if (msg.isOwner === true) {
+  if (msg.isOwner !== false) {
     const sendEvent = buildSendEvent(adapter, "Google Chat", msg);
     chatSession.executeAgentTurn(msg.content, sendEvent)
       .catch((err) =>
