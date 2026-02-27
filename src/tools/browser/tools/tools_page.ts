@@ -41,7 +41,6 @@ async function extractPageLinks(
   page: Page,
 ): Promise<readonly PageLink[]> {
   const cap = MAX_SNAPSHOT_LINKS;
-  // deno-lint-ignore no-explicit-any
   const raw: Array<{ text: string; href: string }> = await page.evaluate(
     (limit: number) => {
       // deno-lint-ignore no-explicit-any
