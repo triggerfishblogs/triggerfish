@@ -9,7 +9,10 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/mod.ts";
 import type { NotionError } from "./types.ts";
+
+const log = createLogger("notion:client");
 
 /** Configuration for the Notion HTTP client. */
 export interface NotionClientConfig {
@@ -71,7 +74,12 @@ async function parseNotionErrorResponse(
       code: body.code ?? `http_${response.status}`,
       message: body.message ?? `HTTP ${response.status}`,
     };
-  } catch {
+  } catch (err) {
+    log.warn("Notion API error response JSON parse failed", {
+      operation: "parseNotionErrorResponse",
+      status: response.status,
+      err,
+    });
     return {
       status: response.status,
       code: `http_${response.status}`,
@@ -144,6 +152,7 @@ export function createNotionClient(config: NotionClientConfig): NotionClient {
         body: body ? JSON.stringify(body) : undefined,
       });
     } catch (err) {
+      log.error("Notion API network request failed", { operation: "sendRequest", url, err });
       return {
         ok: false,
         error: {
@@ -157,13 +166,14 @@ export function createNotionClient(config: NotionClientConfig): NotionClient {
     }
 
     if (response.status === 429) {
+      log.warn("Notion API rate limited", { operation: "sendRequest", url, status: 429 });
       return {
         ok: false,
         error: {
           status: 429,
           code: "rate_limited",
           message: "Rate limited by Notion API",
-          ...({ retryAfterMs: extractRetryAfterMs(response) }),
+          retryAfterMs: extractRetryAfterMs(response),
         },
       };
     }
@@ -207,9 +217,13 @@ export function createNotionClient(config: NotionClientConfig): NotionClient {
       }
 
       if (attempt < MAX_RETRIES) {
-        const retryAfterMs = (result.error as unknown as Record<string, unknown>)
-          .retryAfterMs as number | undefined;
+        const retryAfterMs = result.error.retryAfterMs;
         const backoff = calculateBackoffMs(attempt, retryAfterMs);
+        log.warn("Notion API rate limited, retrying", {
+          operation: "requestWithRetry",
+          attempt,
+          backoffMs: backoff,
+        });
         await sleep(backoff);
       }
     }

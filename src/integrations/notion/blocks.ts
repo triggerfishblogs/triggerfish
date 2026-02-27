@@ -8,9 +8,12 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/mod.ts";
 import type { NotionClient } from "./client.ts";
 import type { NotionBlock, NotionError } from "./types.ts";
 import { transformRawBlock } from "./transform.ts";
+
+const log = createLogger("notion:blocks");
 
 /** Blocks service interface. */
 export interface NotionBlocksService {
@@ -66,7 +69,14 @@ async function readBlockChildren(
     "GET",
     `/blocks/${blockId}/children${query}`,
   );
-  if (!result.ok) return result;
+  if (!result.ok) {
+    log.warn("Notion read block children failed", {
+      operation: "readBlockChildren",
+      blockId,
+      error: result.error,
+    });
+    return result;
+  }
 
   return {
     ok: true,
@@ -92,7 +102,14 @@ async function appendBlocks(
     `/blocks/${blockId}/children`,
     body,
   );
-  if (!result.ok) return result;
+  if (!result.ok) {
+    log.warn("Notion append blocks failed", {
+      operation: "appendBlocks",
+      blockId,
+      error: result.error,
+    });
+    return result;
+  }
 
   return {
     ok: true,

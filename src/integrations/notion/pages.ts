@@ -9,6 +9,7 @@
  */
 
 import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/mod.ts";
 import type { NotionClient } from "./client.ts";
 import type {
   NotionBlock,
@@ -23,6 +24,8 @@ import {
   transformRawPage,
   transformRawSearchResult,
 } from "./transform.ts";
+
+const log = createLogger("notion:pages");
 
 /** Maximum recursion depth for fetching nested blocks. */
 const MAX_BLOCK_DEPTH = 3;
@@ -117,7 +120,10 @@ async function searchPages(
   if (opts?.startCursor) body.start_cursor = opts.startCursor;
 
   const result = await client.request<RawSearchResponse>("POST", "/search", body);
-  if (!result.ok) return result;
+  if (!result.ok) {
+    log.warn("Notion search pages failed", { operation: "searchPages", error: result.error });
+    return result;
+  }
 
   return {
     ok: true,
@@ -135,10 +141,20 @@ async function readPage(
   classification: ClassificationLevel,
 ): Promise<Result<{ page: NotionPage; content: readonly NotionBlock[] }, NotionError>> {
   const pageResult = await client.request<RawPageResponse>("GET", `/pages/${pageId}`);
-  if (!pageResult.ok) return pageResult;
+  if (!pageResult.ok) {
+    log.warn("Notion read page failed", { operation: "readPage", pageId, error: pageResult.error });
+    return pageResult;
+  }
 
   const blocksResult = await fetchBlockChildren(client, pageId, 0);
-  if (!blocksResult.ok) return blocksResult;
+  if (!blocksResult.ok) {
+    log.warn("Notion fetch page blocks failed", {
+      operation: "readPage",
+      pageId,
+      error: blocksResult.error,
+    });
+    return blocksResult;
+  }
 
   return {
     ok: true,
@@ -193,7 +209,10 @@ async function createPage(
   }
 
   const result = await client.request<RawPageResponse>("POST", "/pages", body);
-  if (!result.ok) return result;
+  if (!result.ok) {
+    log.warn("Notion create page failed", { operation: "createPage", error: result.error });
+    return result;
+  }
 
   return { ok: true, value: transformRawPage(result.value, classification) };
 }
@@ -210,7 +229,10 @@ async function updatePage(
   if (opts.archived !== undefined) body.archived = opts.archived;
 
   const result = await client.request<RawPageResponse>("PATCH", `/pages/${pageId}`, body);
-  if (!result.ok) return result;
+  if (!result.ok) {
+    log.warn("Notion update page failed", { operation: "updatePage", pageId, error: result.error });
+    return result;
+  }
 
   return { ok: true, value: transformRawPage(result.value, classification) };
 }

@@ -139,7 +139,8 @@ export async function runConnectNotion(): Promise<void> {
   if (name === null) return;
   console.log(`\nAuthenticated as: ${name}`);
 
-  await storeNotionToken(trimmed);
+  const stored = await storeNotionToken(trimmed);
+  if (!stored) return;
 }
 
 /** Remove the Notion token from the OS keychain. */

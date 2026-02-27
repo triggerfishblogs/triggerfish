@@ -8,9 +8,12 @@
  */
 
 import type { ClassificationLevel } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/mod.ts";
 import { formatNotionError } from "./client.ts";
 import { markdownToNotionBlocks, notionBlocksToMarkdown } from "./richtext.ts";
 import type { NotionToolContext } from "./tool_context.ts";
+
+const log = createLogger("notion:handlers");
 
 /** Handle notion.search tool invocation. */
 export async function executeSearch(
@@ -21,6 +24,7 @@ export async function executeSearch(
   if (typeof query !== "string" || query.length === 0) {
     return "Error: notion.search requires a non-empty 'query' argument.";
   }
+  log.info("Notion search", { operation: "executeSearch", query: String(input.query).slice(0, 100) });
   const type = typeof input.type === "string"
     ? input.type as "page" | "database"
     : undefined;
@@ -52,6 +56,7 @@ export async function executePagesRead(
   if (typeof pageId !== "string" || pageId.length === 0) {
     return "Error: notion.pages.read requires a 'page_id' argument.";
   }
+  log.info("Notion pages.read", { operation: "executePagesRead", pageId });
   const classification = resolveClassification(ctx);
   const result = await ctx.pages.read(pageId, classification);
   if (!result.ok) return formatNotionError(result.error);
@@ -83,6 +88,7 @@ export async function executePagesCreate(
   if (typeof title !== "string" || title.length === 0) {
     return "Error: notion.pages.create requires a 'title' argument.";
   }
+  log.info("Notion pages.create", { operation: "executePagesCreate" });
   const children = typeof input.content === "string"
     ? markdownToNotionBlocks(input.content)
     : undefined;
@@ -119,6 +125,7 @@ export async function executePagesUpdate(
   if (!properties && archived === undefined) {
     return "Error: notion.pages.update requires at least one of 'properties' or 'archived'.";
   }
+  log.info("Notion pages.update", { operation: "executePagesUpdate", pageId });
   const classification = resolveClassification(ctx);
   const result = await ctx.pages.update(pageId, { properties, archived }, classification);
   if (!result.ok) return formatNotionError(result.error);
@@ -140,6 +147,7 @@ export async function executeDatabasesQuery(
   if (typeof databaseId !== "string" || databaseId.length === 0) {
     return "Error: notion.databases.query requires a 'database_id' argument.";
   }
+  log.info("Notion databases.query", { operation: "executeDatabasesQuery", databaseId });
   const filter = typeof input.filter === "object" && input.filter !== null
     ? input.filter as Readonly<Record<string, unknown>>
     : undefined;
@@ -186,6 +194,7 @@ export async function executeDatabasesCreate(
   if (typeof properties !== "object" || properties === null) {
     return "Error: notion.databases.create requires a 'properties' argument with database schema.";
   }
+  log.info("Notion databases.create", { operation: "executeDatabasesCreate" });
   const classification = resolveClassification(ctx);
   const result = await ctx.databases.create(
     parentPageId,
@@ -213,6 +222,7 @@ export async function executeBlocksRead(
   if (typeof blockId !== "string" || blockId.length === 0) {
     return "Error: notion.blocks.read requires a 'block_id' argument.";
   }
+  log.info("Notion blocks.read", { operation: "executeBlocksRead", blockId });
   const pageSize = typeof input.page_size === "number" ? input.page_size : undefined;
   const startCursor = typeof input.start_cursor === "string"
     ? input.start_cursor
@@ -242,6 +252,7 @@ export async function executeBlocksAppend(
   if (typeof content !== "string" || content.length === 0) {
     return "Error: notion.blocks.append requires a non-empty 'content' argument.";
   }
+  log.info("Notion blocks.append", { operation: "executeBlocksAppend", blockId });
   const notionBlocks = markdownToNotionBlocks(content);
   const result = await ctx.blocks.append(blockId, notionBlocks);
   if (!result.ok) return formatNotionError(result.error);

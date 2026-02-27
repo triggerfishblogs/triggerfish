@@ -35,7 +35,7 @@ export async function buildNotionExecutor(
 ): Promise<
   ((name: string, input: Record<string, unknown>) => Promise<string | null>) | undefined
 > {
-  if (config.notion?.enabled === false) {
+  if (config.notion?.enabled !== true) {
     return undefined;
   }
 

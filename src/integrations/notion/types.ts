@@ -14,6 +14,8 @@ export interface NotionError {
   readonly status: number;
   readonly code: string;
   readonly message: string;
+  /** Milliseconds to wait before retrying, from Retry-After header (429 only). */
+  readonly retryAfterMs?: number;
 }
 
 /** A Notion rich text element. */

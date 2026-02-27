@@ -9,6 +9,7 @@
  */
 
 import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import { createLogger } from "../../core/logger/mod.ts";
 import type { NotionClient } from "./client.ts";
 import type {
   NotionDatabase,
@@ -18,6 +19,8 @@ import type {
   QueryDatabaseOptions,
 } from "./types.ts";
 import { transformRawDatabase, transformRawPage } from "./transform.ts";
+
+const log = createLogger("notion:databases");
 
 /** Databases service interface. */
 export interface NotionDatabasesService {
@@ -92,7 +95,14 @@ async function queryDatabase(
     `/databases/${databaseId}/query`,
     body,
   );
-  if (!result.ok) return result;
+  if (!result.ok) {
+    log.warn("Notion query database failed", {
+      operation: "queryDatabase",
+      databaseId,
+      error: result.error,
+    });
+    return result;
+  }
 
   return {
     ok: true,
@@ -121,7 +131,14 @@ async function createDatabase(
     "/databases",
     body,
   );
-  if (!result.ok) return result;
+  if (!result.ok) {
+    log.warn("Notion create database failed", {
+      operation: "createDatabase",
+      parentPageId,
+      error: result.error,
+    });
+    return result;
+  }
 
   return { ok: true, value: transformRawDatabase(result.value, classification) };
 }
