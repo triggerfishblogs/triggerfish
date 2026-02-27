@@ -73,6 +73,38 @@ function handleWhatsAppClearCommand(
     );
 }
 
+/** Route an owner message through the main agent turn. */
+function routeOwnerWhatsAppMessage(
+  msg: ChannelMessage,
+  adapter: ReturnType<typeof createWhatsAppChannel>,
+  chatSession: ChannelWiringDeps["chatSession"],
+): void {
+  const sendEvent = buildSendEvent(adapter, "WhatsApp", msg);
+  chatSession.executeAgentTurn(msg.content, sendEvent)
+    .catch((err) =>
+      log.error("WhatsApp owner executeAgentTurn failed", {
+        operation: "executeAgentTurn",
+        err,
+        sessionId: msg.sessionId,
+      })
+    );
+}
+
+/** Route an external message through the channel message handler. */
+function routeExternalWhatsAppMessage(
+  msg: ChannelMessage,
+  chatSession: ChannelWiringDeps["chatSession"],
+): void {
+  chatSession.handleChannelMessage(msg, "whatsapp")
+    .catch((err) =>
+      log.error("WhatsApp external handleChannelMessage failed", {
+        operation: "handleChannelMessage",
+        err,
+        sessionId: msg.sessionId,
+      })
+    );
+}
+
 /** Handle incoming WhatsApp messages, dispatching commands and chat. */
 function handleWhatsAppMessage(
   msg: ChannelMessage,
@@ -80,36 +112,14 @@ function handleWhatsAppMessage(
   deps: ChannelWiringDeps,
 ): void {
   const { chatSession, notificationService } = deps;
-
   if (msg.content === "/clear" && msg.isOwner === true) {
-    handleWhatsAppClearCommand(
-      adapter,
-      chatSession,
-      notificationService,
-      msg.sessionId,
-    );
+    handleWhatsAppClearCommand(adapter, chatSession, notificationService, msg.sessionId);
     return;
   }
-
   if (msg.isOwner === true) {
-    const sendEvent = buildSendEvent(adapter, "WhatsApp", msg);
-    chatSession.executeAgentTurn(msg.content, sendEvent)
-      .catch((err) =>
-        log.error("WhatsApp owner executeAgentTurn failed", {
-          operation: "executeAgentTurn",
-          err,
-          sessionId: msg.sessionId,
-        })
-      );
+    routeOwnerWhatsAppMessage(msg, adapter, chatSession);
   } else {
-    chatSession.handleChannelMessage(msg, "whatsapp")
-      .catch((err) =>
-        log.error("WhatsApp external handleChannelMessage failed", {
-          operation: "handleChannelMessage",
-          err,
-          sessionId: msg.sessionId,
-        })
-      );
+    routeExternalWhatsAppMessage(msg, chatSession);
   }
 }
 
@@ -120,7 +130,6 @@ function registerWhatsAppNotifications(
   ownerPhone: string | undefined,
 ): void {
   if (!ownerPhone) return;
-
   notificationService.registerChannel({
     name: "whatsapp",
     send: (msg) =>
@@ -141,10 +150,8 @@ async function ssrfSafeFetchWrapper(
   return result.value;
 }
 
-/** Parse and validate the classification level from config. */
-function resolveClassification(
-  raw: string | undefined,
-): ClassificationLevel {
+/** Parse and validate the classification level from config, defaulting to PUBLIC. */
+function resolveClassification(raw: string | undefined): ClassificationLevel {
   const input = raw ?? "PUBLIC";
   const result = parseClassification(input);
   if (result.ok) return result.value;
@@ -156,17 +163,27 @@ function resolveClassification(
   return "PUBLIC";
 }
 
-/** Wire and connect WhatsApp channel adapter. Caller must validate credentials. */
-export async function wireWhatsAppChannel(
-  whatsappConfig: ValidatedWhatsAppConfig,
-  deps: ChannelWiringDeps,
-): Promise<void> {
-  const { chatSession, channelAdapters } = deps;
-  const classification = resolveClassification(whatsappConfig.classification);
-  const webhookPort = whatsappConfig.webhookPort ?? 8443;
+/** Parse and validate the pairing classification level, defaulting to INTERNAL. */
+function resolvePairingClassification(
+  raw: string | undefined,
+): ClassificationLevel {
+  const input = raw ?? "INTERNAL";
+  const result = parseClassification(input);
+  if (result.ok) return result.value;
+  log.warn("WhatsApp pairing_classification invalid, defaulting to INTERNAL", {
+    operation: "resolvePairingClassification",
+    input,
+    error: result.error,
+  });
+  return "INTERNAL";
+}
 
-  log.info("WhatsApp channel configured, connecting...", { webhookPort });
-  const whatsappAdapter = createWhatsAppChannel({
+/** Create the WhatsApp channel adapter with SSRF-safe fetch. */
+function buildWhatsAppAdapter(
+  whatsappConfig: ValidatedWhatsAppConfig,
+  classification: ClassificationLevel,
+): ReturnType<typeof createWhatsAppChannel> {
+  return createWhatsAppChannel({
     accessToken: whatsappConfig.accessToken,
     phoneNumberId: whatsappConfig.phoneNumberId,
     verifyToken: whatsappConfig.verifyToken,
@@ -175,30 +192,43 @@ export async function wireWhatsAppChannel(
     classification,
     fetchFn: ssrfSafeFetchWrapper,
   });
+}
 
-  // Register channel and handler before connect so that incoming webhook
-  // messages can be routed immediately when the HTTP server starts accepting.
-  await chatSession.registerChannel("whatsapp", {
+/** Register channel session, message handler, and notifications. */
+async function registerWhatsAppSessionAndHandlers(
+  whatsappAdapter: ReturnType<typeof createWhatsAppChannel>,
+  whatsappConfig: ValidatedWhatsAppConfig,
+  classification: ClassificationLevel,
+  deps: ChannelWiringDeps,
+): Promise<void> {
+  await deps.chatSession.registerChannel("whatsapp", {
     adapter: whatsappAdapter,
     channelName: "WhatsApp",
     classification,
     userClassifications: whatsappConfig.user_classifications,
     respondToUnclassified: whatsappConfig.respond_to_unclassified,
     pairing: whatsappConfig.pairing,
-    pairingClassification: (whatsappConfig.pairing_classification ??
-      "INTERNAL") as ClassificationLevel,
+    pairingClassification: resolvePairingClassification(
+      whatsappConfig.pairing_classification,
+    ),
   });
-
   whatsappAdapter.onMessage((msg) =>
     handleWhatsAppMessage(msg, whatsappAdapter, deps)
   );
-
   registerWhatsAppNotifications(
     deps.notificationService,
     whatsappAdapter,
     whatsappConfig.ownerPhone,
   );
+}
 
+/** Connect adapter and register in the channel adapter map. */
+async function connectAndRegisterWhatsApp(
+  whatsappAdapter: ReturnType<typeof createWhatsAppChannel>,
+  channelAdapters: ChannelWiringDeps["channelAdapters"],
+  classification: ClassificationLevel,
+  webhookPort: number,
+): Promise<void> {
   try {
     await whatsappAdapter.connect();
   } catch (err: unknown) {
@@ -209,11 +239,33 @@ export async function wireWhatsAppChannel(
     });
     throw err;
   }
-
   channelAdapters.set("whatsapp", {
     adapter: whatsappAdapter,
     classification,
     name: "WhatsApp",
   });
+}
+
+/** Wire and connect WhatsApp channel adapter. Caller must validate credentials. */
+export async function wireWhatsAppChannel(
+  whatsappConfig: ValidatedWhatsAppConfig,
+  deps: ChannelWiringDeps,
+): Promise<void> {
+  const classification = resolveClassification(whatsappConfig.classification);
+  const webhookPort = whatsappConfig.webhookPort ?? 8443;
+  log.info("WhatsApp channel configured, connecting...", { webhookPort });
+  const whatsappAdapter = buildWhatsAppAdapter(whatsappConfig, classification);
+  await registerWhatsAppSessionAndHandlers(
+    whatsappAdapter,
+    whatsappConfig,
+    classification,
+    deps,
+  );
+  await connectAndRegisterWhatsApp(
+    whatsappAdapter,
+    deps.channelAdapters,
+    classification,
+    webhookPort,
+  );
   log.info("WhatsApp channel connected", { webhookPort });
 }

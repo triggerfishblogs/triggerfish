@@ -68,8 +68,6 @@ Deno.test({
       });
       assertEquals(resp.status, 200);
       await resp.body?.cancel();
-      // Give the async handler a tick to process
-      await new Promise((r) => setTimeout(r, 50));
       assertEquals(received.length, 1);
       assertEquals(received[0].content, "Hello agent");
       assertEquals(received[0].sessionId, "whatsapp-15559876543");
@@ -102,7 +100,6 @@ Deno.test({
         body: JSON.stringify(buildWebhookPayload("15559876543", "Owner msg")),
       });
       await resp.body?.cancel();
-      await new Promise((r) => setTimeout(r, 50));
       assertEquals(received.length, 1);
       assertEquals(received[0].isOwner, true);
       assertEquals(received[0].sessionTaint, undefined);
@@ -133,7 +130,6 @@ Deno.test({
         body: JSON.stringify(buildWebhookPayload("15559999999", "Stranger msg")),
       });
       await resp.body?.cancel();
-      await new Promise((r) => setTimeout(r, 50));
       assertEquals(received.length, 1);
       assertEquals(received[0].isOwner, false);
       assertEquals(received[0].sessionTaint, "PUBLIC");
@@ -163,7 +159,6 @@ Deno.test({
         body: JSON.stringify(buildWebhookPayload("15550009999", "Anyone msg")),
       });
       await resp.body?.cancel();
-      await new Promise((r) => setTimeout(r, 50));
       assertEquals(received.length, 1);
       assertEquals(received[0].isOwner, true);
     } finally {
@@ -189,7 +184,6 @@ Deno.test({
         body: JSON.stringify(buildWebhookPayload("15551111111", "", "image")),
       });
       await resp.body?.cancel();
-      await new Promise((r) => setTimeout(r, 50));
       assertEquals(received.length, 0);
     } finally {
       await adapter.disconnect();
@@ -215,7 +209,6 @@ Deno.test({
         body: JSON.stringify(payload),
       });
       await resp.body?.cancel();
-      await new Promise((r) => setTimeout(r, 50));
       assertEquals(received.length, 0);
     } finally {
       await adapter.disconnect();
