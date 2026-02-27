@@ -117,7 +117,7 @@ async function storeNotionToken(token: string): Promise<boolean> {
   if (!result.ok) {
     log.error("Notion token keychain store failed", {
       operation: "connectNotion",
-      error: result.error,
+      err: result.error,
     });
     console.log(`\nFailed to store token: ${result.error}`);
     return false;

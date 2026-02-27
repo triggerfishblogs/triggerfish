@@ -8,9 +8,6 @@
  * @module
  */
 
-export type { NotionToolContext } from "./tool_context.ts";
-export { getNotionToolDefinitions, NOTION_TOOLS_SYSTEM_PROMPT } from "./tool_defs.ts";
-
 import type { NotionToolContext } from "./tool_context.ts";
 import {
   executeSearch,

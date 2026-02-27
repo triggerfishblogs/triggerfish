@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
+import { compareClassification, type ClassificationLevel } from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 import { formatNotionError } from "./client.ts";
 import { markdownToNotionBlocks, notionBlocksToMarkdown } from "./richtext.ts";
@@ -267,13 +267,7 @@ export async function executeBlocksAppend(
 export function resolveNotionClassification(ctx: NotionToolContext): ClassificationLevel {
   const taint = ctx.sessionTaint();
   if (!ctx.classificationFloor) return taint;
-  const order: Record<string, number> = {
-    RESTRICTED: 4,
-    CONFIDENTIAL: 3,
-    INTERNAL: 2,
-    PUBLIC: 1,
-  };
-  return (order[ctx.classificationFloor] ?? 0) > (order[taint] ?? 0)
+  return compareClassification(ctx.classificationFloor, taint) > 0
     ? ctx.classificationFloor
     : taint;
 }

@@ -11,7 +11,7 @@ import type { Result } from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 import type { NotionClient } from "./client.ts";
 import type { NotionBlock, NotionError } from "./types.ts";
-import { transformRawBlock } from "./transform.ts";
+import { blockToRawBlock, transformRawBlock } from "./transform.ts";
 
 const log = createLogger("notion:blocks");
 
@@ -62,7 +62,7 @@ async function readBlockChildren(
 ): Promise<Result<{ results: readonly NotionBlock[]; nextCursor: string | null }, NotionError>> {
   const params: string[] = [];
   if (opts?.pageSize) params.push(`page_size=${opts.pageSize}`);
-  if (opts?.startCursor) params.push(`start_cursor=${opts.startCursor}`);
+  if (opts?.startCursor) params.push(`start_cursor=${encodeURIComponent(opts.startCursor)}`);
   const query = params.length > 0 ? `?${params.join("&")}` : "";
 
   const result = await client.request<RawBlocksResponse>(
@@ -117,25 +117,3 @@ async function appendBlocks(
   };
 }
 
-/** Convert a NotionBlock to Notion API raw block format. */
-function blockToRawBlock(block: NotionBlock): Record<string, unknown> {
-  const raw: Record<string, unknown> = { type: block.type };
-  const content: Record<string, unknown> = {};
-
-  if (block.content.richText) {
-    content.rich_text = block.content.richText.map((rt) => ({
-      type: "text",
-      text: { content: rt.text, link: rt.href ? { url: rt.href } : null },
-      annotations: rt.annotations,
-    }));
-  }
-  if (block.content.checked !== undefined) {
-    content.checked = block.content.checked;
-  }
-  if (block.content.language) {
-    content.language = block.content.language;
-  }
-
-  raw[block.type] = content;
-  return raw;
-}

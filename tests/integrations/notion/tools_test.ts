@@ -1,10 +1,10 @@
 import { assertEquals } from "@std/assert";
+import { createNotionToolExecutor } from "../../../src/integrations/notion/tools.ts";
 import {
-  createNotionToolExecutor,
   getNotionToolDefinitions,
   NOTION_TOOLS_SYSTEM_PROMPT,
-} from "../../../src/integrations/notion/tools.ts";
-import type { NotionToolContext } from "../../../src/integrations/notion/tools.ts";
+} from "../../../src/integrations/notion/tool_defs.ts";
+import type { NotionToolContext } from "../../../src/integrations/notion/tool_context.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 
 /** Create a mock NotionToolContext with sensible defaults. */

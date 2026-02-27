@@ -289,3 +289,26 @@ function transformPropertySchemas(
   }
   return result;
 }
+
+/** Convert a NotionBlock to Notion API raw block format for write operations. */
+export function blockToRawBlock(block: NotionBlock): Record<string, unknown> {
+  const raw: Record<string, unknown> = { type: block.type };
+  const content: Record<string, unknown> = {};
+
+  if (block.content.richText) {
+    content.rich_text = block.content.richText.map((rt) => ({
+      type: "text",
+      text: { content: rt.text, link: rt.href ? { url: rt.href } : null },
+      annotations: rt.annotations,
+    }));
+  }
+  if (block.content.checked !== undefined) {
+    content.checked = block.content.checked;
+  }
+  if (block.content.language) {
+    content.language = block.content.language;
+  }
+
+  raw[block.type] = content;
+  return raw;
+}
