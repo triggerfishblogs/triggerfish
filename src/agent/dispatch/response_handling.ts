@@ -19,6 +19,13 @@ import type { OrchestratorState, TokenAccumulator } from "../orchestrator/orches
 
 // ─── Response quality ────────────────────────────────────────────────────────
 
+/**
+ * Pattern matching echoed tool-call placeholder text.
+ * Some models parrot back the assistant history entry instead of continuing work.
+ */
+const ECHOED_TOOL_PLACEHOLDER =
+  /^\[Used tools:.*\]$|^\(\d+ tool call\(s\) executed/;
+
 /** Detect whether the final text is empty, bare JSON junk, or leaked intent. */
 export function classifyResponseQuality(
   finalText: string,
@@ -26,7 +33,8 @@ export function classifyResponseQuality(
 ): { isEmptyOrJunk: boolean; isLeakedIntent: boolean } {
   const isEmptyOrJunk = finalText.length === 0 ||
     (finalText.length < 200 && finalText.startsWith("{") &&
-      finalText.endsWith("}"));
+      finalText.endsWith("}")) ||
+    (finalText.length < 200 && ECHOED_TOOL_PLACEHOLDER.test(finalText));
   const isLeakedIntent = hasTools && finalText.length < 300 &&
     LEAKED_INTENT_PATTERN.test(finalText);
   return { isEmptyOrJunk, isLeakedIntent };

@@ -208,7 +208,7 @@ async function handleToolCallsIteration(
 ): Promise<Result<void, string>> {
   const assistantContent = iter.completion.content.trim().length > 0
     ? iter.completion.content
-    : `[Used tools: ${iter.parsedCalls.map((c) => c.name).join(", ")}]`;
+    : `(${iter.parsedCalls.length} tool call(s) executed — see results below)`;
   ctx.history.push({ role: "assistant", content: assistantContent });
   injectSoftLimitWarning(ctx.history, iter.iteration);
 
