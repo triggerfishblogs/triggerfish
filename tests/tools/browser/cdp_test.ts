@@ -408,8 +408,8 @@ Deno.test("executor: browser_snapshot includes links in output", async () => {
   const result = await executor("browser_snapshot", {});
   assertEquals(typeof result, "string");
   assertEquals(result!.includes("Links on page"), true);
-  assertEquals(result!.includes("[Example Link](https://example.com/page)"), true);
-  assertEquals(result!.includes("[Another Link](https://example.com/other)"), true);
+  assertEquals(result!.includes("[Example Link](<https://example.com/page>)"), true);
+  assertEquals(result!.includes("[Another Link](<https://example.com/other>)"), true);
 });
 
 Deno.test("executor: browser_close closes browser and returns success", async () => {

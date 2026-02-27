@@ -79,7 +79,7 @@ function formatSnapshotLinks(
   links: ReadonlyArray<{ readonly text: string; readonly href: string }>,
 ): string {
   if (links.length === 0) return "";
-  const lines = links.map((l) => `- [${l.text.replace(/[[\]]/g, "")}](${l.href})`);
+  const lines = links.map((l) => `- [${l.text.replace(/[[\]]/g, "")}](<${l.href}>)`);
   return `\n\n## Links on page\n${lines.join("\n")}`;
 }
 

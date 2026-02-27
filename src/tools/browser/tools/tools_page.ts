@@ -9,12 +9,15 @@
 
 import type { Page } from "puppeteer-core";
 import type { Result } from "../../../core/types/classification.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
 import {
   MAX_SNAPSHOT_LINKS,
   type PageLink,
   type ScrollDirection,
   type SnapshotResult,
 } from "./tools_types.ts";
+
+const log = createLogger("browser-tools-page");
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -63,7 +66,8 @@ async function extractPageLinks(
       cap,
     );
     return raw;
-  } catch {
+  } catch (err) {
+    log.warn("extractPageLinks failed — returning empty link list", { operation: "extractPageLinks", err });
     return [];
   }
 }
