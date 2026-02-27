@@ -49,6 +49,11 @@ const PROVIDER_ENDPOINTS: Readonly<Record<ProviderChoice, ProviderEndpoint>> = {
     url: (_apiKey, endpoint) => `${endpoint}/v1/models`,
     headers: () => ({}),
   },
+  fireworks: {
+    url: () =>
+      "https://api.fireworks.ai/v1/accounts/fireworks/models?filter=supports_serverless%3Dtrue&page_size=200",
+    headers: (apiKey) => ({ "Authorization": `Bearer ${apiKey}` }),
+  },
   openrouter: {
     url: () => "https://openrouter.ai/api/v1/models",
     headers: (apiKey) => ({ "Authorization": `Bearer ${apiKey}` }),
@@ -72,6 +77,7 @@ const PROVIDER_ENDPOINTS: Readonly<Record<ProviderChoice, ProviderEndpoint>> = {
  *
  * Most providers use OpenAI-compatible format: `{ data: [{ id }] }`.
  * Google uses: `{ models: [{ name: "models/..." }] }`.
+ * Fireworks native API uses: `{ models: [{ name: "accounts/fireworks/models/..." }] }`.
  */
 function extractModelIds(
   provider: ProviderChoice,
@@ -84,6 +90,20 @@ function extractModelIds(
     if (!Array.isArray(g.models)) return [];
     return g.models
       .map((m) => typeof m.name === "string" ? m.name.replace(/^models\//, "") : "")
+      .filter((id) => id.length > 0);
+  }
+
+  // Fireworks native API: { models: [{ name: "accounts/fireworks/models/foo" }] }
+  // Normalize to the short website format "fireworks/foo".
+  if (provider === "fireworks") {
+    const fw = body as { models?: ReadonlyArray<{ name?: string }> };
+    if (!Array.isArray(fw.models)) return [];
+    return fw.models
+      .map((m) =>
+        typeof m.name === "string"
+          ? m.name.replace(/^accounts\/fireworks\/models\//, "fireworks/")
+          : ""
+      )
       .filter((id) => id.length > 0);
   }
 
@@ -111,6 +131,13 @@ function modelInList(
   // Ollama lists models with a tag suffix (e.g. "llama3:latest")
   if (provider === "ollama" && !model.includes(":")) {
     return ids.some((id) => id === `${model}:latest`);
+  }
+
+  // Fireworks: user may enter "fireworks/foo" or bare "foo". IDs are
+  // already normalized to "fireworks/foo" by extractModelIds.
+  if (provider === "fireworks") {
+    const bare = model.replace(/^fireworks\//, "");
+    return ids.some((id) => id === `fireworks/${bare}`);
   }
 
   return false;

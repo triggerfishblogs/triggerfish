@@ -30,6 +30,7 @@ async function selectProviderForLevel(
     message: `Provider for ${level}`,
     options: [
       { name: PROVIDER_LABELS.anthropic, value: "anthropic" },
+      { name: PROVIDER_LABELS.fireworks, value: "fireworks" },
       { name: PROVIDER_LABELS.google, value: "google" },
       { name: PROVIDER_LABELS.ollama, value: "ollama" },
       { name: PROVIDER_LABELS.lmstudio, value: "lmstudio" },

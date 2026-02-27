@@ -17,6 +17,7 @@ export type ProviderChoice =
   | "anthropic"
   | "openai"
   | "google"
+  | "fireworks"
   | "ollama"
   | "lmstudio"
   | "openrouter"
@@ -80,6 +81,7 @@ export const DEFAULT_MODELS: Readonly<Record<ProviderChoice, string>> = {
   anthropic: "claude-sonnet-4-5",
   openai: "gpt-4o",
   google: "gemini-2.0-flash",
+  fireworks: "fireworks/llama-v3p3-70b-instruct",
   ollama: "llama3",
   lmstudio: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
   openrouter: "anthropic/claude-sonnet-4-5",
@@ -92,6 +94,7 @@ export const PROVIDER_LABELS: Readonly<Record<ProviderChoice, string>> = {
   anthropic: "Anthropic (Claude) — recommended",
   openai: "OpenAI (GPT-4o)",
   google: "Google (Gemini)",
+  fireworks: "Fireworks AI (Llama, Mixtral, etc.)",
   ollama: "Ollama",
   lmstudio: "LM Studio",
   openrouter: "OpenRouter",

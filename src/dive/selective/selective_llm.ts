@@ -26,6 +26,7 @@ async function promptLlmProviderChoice(
     default: currentProvider || undefined,
     options: [
       { name: PROVIDER_LABELS.anthropic, value: "anthropic" },
+      { name: PROVIDER_LABELS.fireworks, value: "fireworks" },
       { name: PROVIDER_LABELS.google, value: "google" },
       { name: PROVIDER_LABELS.lmstudio, value: "lmstudio" },
       { name: PROVIDER_LABELS.ollama, value: "ollama" },
@@ -44,6 +45,7 @@ function resolveApiKeyEnvVar(provider: ProviderChoice): string {
   const mapping: Partial<Record<ProviderChoice, string>> = {
     openai: "OPENAI_API_KEY",
     google: "GOOGLE_API_KEY",
+    fireworks: "FIREWORKS_API_KEY",
     zenmux: "ZENMUX_API_KEY",
     zai: "ZAI_API_KEY",
   };

@@ -43,6 +43,7 @@ async function selectLlmProvider(): Promise<{
     message: "LLM provider",
     options: [
       { name: PROVIDER_LABELS.anthropic, value: "anthropic" },
+      { name: PROVIDER_LABELS.fireworks, value: "fireworks" },
       { name: PROVIDER_LABELS.google, value: "google" },
       { name: PROVIDER_LABELS.lmstudio, value: "lmstudio" },
       { name: PROVIDER_LABELS.ollama, value: "ollama" },
@@ -67,6 +68,7 @@ async function selectLlmProvider(): Promise<{
 function resolveEnvVarName(provider: ProviderChoice): string {
   if (provider === "openai") return "OPENAI_API_KEY";
   if (provider === "google") return "GOOGLE_API_KEY";
+  if (provider === "fireworks") return "FIREWORKS_API_KEY";
   if (provider === "zenmux") return "ZENMUX_API_KEY";
   if (provider === "zai") return "ZAI_API_KEY";
   return "OPENROUTER_API_KEY";
