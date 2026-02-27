@@ -42,6 +42,11 @@ export type {
 export { wireSignalChannel } from "./channels_signal.ts";
 export type { GoogleChatChannelConfig } from "./channels_googlechat.ts";
 export { wireGoogleChatChannel } from "./channels_googlechat.ts";
+export type {
+  WhatsAppChannelConfig,
+  ValidatedWhatsAppConfig,
+} from "./channels_whatsapp.ts";
+export { wireWhatsAppChannel, isValidatedWhatsAppConfig } from "./channels_whatsapp.ts";
 
 // ─── Orchestrator ────────────────────────────────────────────────────────────
 
