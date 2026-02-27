@@ -86,12 +86,12 @@ function handleGoogleChatMessage(
 ): void {
   const { chatSession } = deps;
 
-  if (msg.content === "/clear" && msg.isOwner !== false) {
+  if (msg.content === "/clear" && msg.isOwner === true) {
     handleGoogleChatClearCommand(adapter, deps, msg.sessionId);
     return;
   }
 
-  if (msg.isOwner !== false) {
+  if (msg.isOwner === true) {
     const sendEvent = buildSendEvent(adapter, "Google Chat", msg);
     chatSession.executeAgentTurn(msg.content, sendEvent)
       .catch((err) =>
@@ -138,12 +138,12 @@ function registerGoogleChatNotifications(
  *
  * @param googlechatConfig - Google Chat config from triggerfish.yaml.
  * @param deps - Shared channel wiring dependencies.
- * @param resolveToken - Optional token provider; defaults to returning the resolved credentials_ref.
+ * @param resolveToken - Token provider callback that resolves the credentials_ref to a bearer token.
  */
 export async function wireGoogleChatChannel(
   googlechatConfig: GoogleChatChannelConfig,
   deps: ChannelWiringDeps,
-  resolveToken?: () => Promise<string>,
+  resolveToken: () => Promise<string>,
 ): Promise<void> {
   if (!googlechatConfig.credentials_ref || !googlechatConfig.pubsub_subscription) {
     log.warn(
@@ -161,9 +161,7 @@ export async function wireGoogleChatChannel(
   const classification =
     (googlechatConfig.classification ?? "INTERNAL") as ClassificationLevel;
 
-  const credentialsRef = googlechatConfig.credentials_ref;
-  const getAccessToken = resolveToken ??
-    (() => Promise.resolve(credentialsRef));
+  const getAccessToken = resolveToken;
 
   const defaultGroupMode = validateGroupMode(
     googlechatConfig.default_group_mode,
