@@ -135,6 +135,7 @@ async function runLlmProviderCall(
     : [];
   const completion = await provider.complete(messages, nativeTools, {
     ...(ctx.signal ? { signal: ctx.signal } : {}),
+    sessionId: ctx.sessionKey,
   });
   return { completion, tools };
 }
