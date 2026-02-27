@@ -11,6 +11,8 @@ import type { TriggerFishConfig } from "../../../core/config.ts";
 import type { createChatSession } from "../../chat.ts";
 import type { RegisteredChannel } from "../../tools/session/session_tools.ts";
 import type { createNotificationService } from "../../notifications/notifications.ts";
+import { createKeychain, resolveSecretRef } from "../../../core/secrets/mod.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
 import type { ChannelWiringDeps } from "./channels_shared.ts";
 import { wireTelegramChannel } from "./channels_telegram.ts";
 import type { TelegramChannelConfig } from "./channels_telegram.ts";
@@ -21,6 +23,10 @@ import type {
   SignalChannelConfig,
   SignalDaemonState,
 } from "./channels_signal.ts";
+import { wireGoogleChatChannel } from "./channels_googlechat.ts";
+import type { GoogleChatChannelConfig } from "./channels_googlechat.ts";
+
+const log = createLogger("startup-channels");
 
 // ─── Re-exports ──────────────────────────────────────────────────────────────
 
@@ -34,11 +40,13 @@ export type {
   SignalDaemonState,
 } from "./channels_signal.ts";
 export { wireSignalChannel } from "./channels_signal.ts";
+export type { GoogleChatChannelConfig } from "./channels_googlechat.ts";
+export { wireGoogleChatChannel } from "./channels_googlechat.ts";
 
 // ─── Orchestrator ────────────────────────────────────────────────────────────
 
 /**
- * Wire all configured messaging channels (Telegram, Discord, Signal).
+ * Wire all configured messaging channels (Telegram, Discord, Signal, Google Chat).
  *
  * Returns Signal daemon state for shutdown cleanup.
  */
@@ -66,6 +74,29 @@ export async function wireChannels(
     | undefined;
   if (discordConfig) {
     await wireDiscordChannel(discordConfig, channelDeps);
+  }
+
+  const googlechatConfig = config.channels?.googlechat as
+    | GoogleChatChannelConfig
+    | undefined;
+  if (googlechatConfig?.enabled && googlechatConfig?.credentials_ref) {
+    const credRef = googlechatConfig.credentials_ref;
+    const keychain = createKeychain();
+    // Resolves the secret ref to a bearer token. For service accounts using
+    // OAuth2, callers should store the pre-exchanged access token in the
+    // keychain. A future enhancement may add JWT signing / token exchange here.
+    const resolveToken = async () => {
+      const result = await resolveSecretRef(credRef, keychain);
+      if (!result.ok) {
+        log.error("Google Chat credentials_ref resolution failed", {
+          operation: "wireChannels",
+          err: result.error,
+        });
+        throw new Error(`Google Chat credential resolution failed: ${result.error}`);
+      }
+      return result.value as string;
+    };
+    await wireGoogleChatChannel(googlechatConfig, channelDeps, resolveToken);
   }
 
   const signalConfig = config.channels?.signal as

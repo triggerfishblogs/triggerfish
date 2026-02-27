@@ -10,7 +10,6 @@
 import { Checkbox, Input } from "@cliffy/prompt";
 
 import { promptChannelConfig } from "../../cli/config/config.ts";
-
 import type { ChannelChoice } from "./wizard_types.ts";
 
 // ── Result type ───────────────────────────────────────────────────────────────
@@ -25,6 +24,9 @@ export interface ChannelSelectionResult {
   readonly webchatPort: number;
   readonly signalPhoneNumber: string;
   readonly signalEndpoint: string;
+  readonly googlechatCredentialsRef: string;
+  readonly googlechatPubsubSubscription: string;
+  readonly googlechatOwnerEmail: string;
 }
 
 // ── Per-channel config accumulator ────────────────────────────────────────────
@@ -37,6 +39,9 @@ interface ChannelConfigAccumulator {
   webchatPort: number;
   signalPhoneNumber: string;
   signalEndpoint: string;
+  googlechatCredentialsRef: string;
+  googlechatPubsubSubscription: string;
+  googlechatOwnerEmail: string;
 }
 
 /** Create a blank channel config accumulator with sensible defaults. */
@@ -49,6 +54,9 @@ function createDefaultChannelConfig(): ChannelConfigAccumulator {
     webchatPort: 8765,
     signalPhoneNumber: "",
     signalEndpoint: "tcp://127.0.0.1:7583",
+    googlechatCredentialsRef: "",
+    googlechatPubsubSubscription: "",
+    googlechatOwnerEmail: "",
   };
 }
 
@@ -67,6 +75,7 @@ async function collectChannelChoices(): Promise<ChannelChoice[]> {
       { name: "Telegram (requires bot token)", value: "telegram" },
       { name: "Discord (requires bot token)", value: "discord" },
       { name: "Signal (requires signal-cli)", value: "signal" },
+      { name: "Google Chat (requires service account + PubSub)", value: "googlechat" },
     ],
   })) as ChannelChoice[];
 
@@ -86,7 +95,7 @@ async function collectTelegramConfig(): Promise<{
       "Your Telegram user ID (numeric, message @getmyid_bot for your ID number)",
   });
   if (telegramBotToken.length > 0) {
-    console.log("  \u2713 Telegram bot token saved to config");
+    console.log("  Telegram bot token collected for config");
   }
   return { telegramBotToken, telegramOwnerId };
 }
@@ -100,7 +109,7 @@ async function collectDiscordConfig(): Promise<{
   const discordBotToken = (discordConfig.botToken as string) ?? "";
   const discordOwnerId = (discordConfig.ownerId as string) ?? "";
   if (discordBotToken.length > 0) {
-    console.log("  \u2713 Discord bot token saved to config");
+    console.log("  Discord bot token collected for config");
   }
   return { discordBotToken, discordOwnerId };
 }
@@ -119,10 +128,7 @@ async function collectSignalConfig(): Promise<{
   signalPhoneNumber: string;
   signalEndpoint: string;
 }> {
-  console.log("");
-  console.log("  Signal requires signal-cli to be installed and linked.");
-  console.log("  Run: triggerfish connect signal   (after setup)");
-  console.log("");
+  console.log("  Signal channel requires signal-cli to be installed and linked");
   const signalPhoneNumber = await Input.prompt({
     message: "Your Signal phone number (E.164 format, e.g. +15551234567)",
   });
@@ -131,9 +137,31 @@ async function collectSignalConfig(): Promise<{
     default: "tcp://127.0.0.1:7583",
   });
   if (signalPhoneNumber.length > 0) {
-    console.log("  \u2713 Signal account saved to config");
+    console.log("  Signal account collected for config");
   }
   return { signalPhoneNumber, signalEndpoint };
+}
+
+/** Collect Google Chat service account and PubSub configuration. */
+async function collectGoogleChatConfig(): Promise<{
+  googlechatCredentialsRef: string;
+  googlechatPubsubSubscription: string;
+  googlechatOwnerEmail: string;
+}> {
+  console.log("  Google Chat channel requires a service account and PubSub subscription");
+  const googlechatCredentialsRef = await Input.prompt({
+    message: "Service account credentials secret ref",
+  });
+  const googlechatPubsubSubscription = await Input.prompt({
+    message: "PubSub subscription path (projects/PROJECT/subscriptions/SUB)",
+  });
+  const googlechatOwnerEmail = await Input.prompt({
+    message: "Owner email address (for isOwner checks)",
+  });
+  if (googlechatCredentialsRef.length > 0) {
+    console.log("  Google Chat credentials collected for config");
+  }
+  return { googlechatCredentialsRef, googlechatPubsubSubscription, googlechatOwnerEmail };
 }
 
 // ── Collect configs for selected channels ─────────────────────────────────────
@@ -160,6 +188,12 @@ async function collectSelectedChannelConfigs(
     const s = await collectSignalConfig();
     config.signalPhoneNumber = s.signalPhoneNumber;
     config.signalEndpoint = s.signalEndpoint;
+  }
+  if (channels.includes("googlechat")) {
+    const g = await collectGoogleChatConfig();
+    config.googlechatCredentialsRef = g.googlechatCredentialsRef;
+    config.googlechatPubsubSubscription = g.googlechatPubsubSubscription;
+    config.googlechatOwnerEmail = g.googlechatOwnerEmail;
   }
   return config;
 }

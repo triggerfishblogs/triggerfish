@@ -27,7 +27,7 @@ export type ProviderChoice =
 export type ToneChoice = "professional" | "casual" | "terse" | "custom";
 
 /** Channel choice for setup. */
-export type ChannelChoice = "cli" | "webchat" | "telegram" | "discord" | "signal" | "skip";
+export type ChannelChoice = "cli" | "webchat" | "telegram" | "discord" | "signal" | "googlechat" | "skip";
 
 /** Search provider choice. */
 export type SearchProviderChoice = "brave" | "searxng" | "skip";
@@ -55,6 +55,9 @@ export interface WizardAnswers {
   readonly webchatPort: number;
   readonly signalPhoneNumber: string;
   readonly signalEndpoint: string;
+  readonly googlechatCredentialsRef: string;
+  readonly googlechatPubsubSubscription: string;
+  readonly googlechatOwnerEmail: string;
   readonly selectedPlugins: ReadonlyArray<string>;
   readonly obsidianVaultPath: string;
   readonly obsidianClassification: string;
