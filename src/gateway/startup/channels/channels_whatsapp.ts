@@ -113,12 +113,27 @@ function handleWhatsAppMessage(
 ): void {
   const { chatSession, notificationService } = deps;
   if (msg.content === "/clear" && msg.isOwner === true) {
+    log.info("WhatsApp routing: /clear command from owner", {
+      operation: "handleWhatsAppMessage",
+      sessionId: msg.sessionId,
+      isOwner: msg.isOwner,
+    });
     handleWhatsAppClearCommand(adapter, chatSession, notificationService, msg.sessionId);
     return;
   }
   if (msg.isOwner === true) {
+    log.info("WhatsApp routing: owner message to agent", {
+      operation: "handleWhatsAppMessage",
+      sessionId: msg.sessionId,
+      isOwner: true,
+    });
     routeOwnerWhatsAppMessage(msg, adapter, chatSession);
   } else {
+    log.info("WhatsApp routing: external message to channel handler", {
+      operation: "handleWhatsAppMessage",
+      sessionId: msg.sessionId,
+      isOwner: false,
+    });
     routeExternalWhatsAppMessage(msg, chatSession);
   }
 }

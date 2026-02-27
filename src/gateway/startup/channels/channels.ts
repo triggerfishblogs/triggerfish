@@ -25,8 +25,6 @@ import type {
 } from "./channels_signal.ts";
 import { wireGoogleChatChannel } from "./channels_googlechat.ts";
 import type { GoogleChatChannelConfig } from "./channels_googlechat.ts";
-import { wireWhatsAppChannel, isValidatedWhatsAppConfig } from "./channels_whatsapp.ts";
-import type { WhatsAppChannelConfig } from "./channels_whatsapp.ts";
 
 const log = createLogger("startup-channels");
 
@@ -104,23 +102,6 @@ export async function wireChannels(
       return result.value as string;
     };
     await wireGoogleChatChannel(googlechatConfig, channelDeps, resolveToken);
-  }
-
-  const whatsappConfig = config.channels?.whatsapp as
-    | WhatsAppChannelConfig
-    | undefined;
-  if (whatsappConfig && isValidatedWhatsAppConfig(whatsappConfig)) {
-    await wireWhatsAppChannel(whatsappConfig, channelDeps);
-  } else if (whatsappConfig) {
-    log.warn(
-      "WhatsApp config present but credentials missing or invalid — skipping channel",
-      {
-        operation: "wireChannels",
-        hasAccessToken: Boolean(whatsappConfig.accessToken),
-        hasPhoneNumberId: Boolean(whatsappConfig.phoneNumberId),
-        hasVerifyToken: Boolean(whatsappConfig.verifyToken),
-      },
-    );
   }
 
   const signalConfig = config.channels?.signal as
