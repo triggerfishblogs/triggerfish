@@ -17,6 +17,7 @@ import { createLocalProvider } from "./local.ts";
 import { createOpenRouterProvider } from "./openrouter/mod.ts";
 import { createZenMuxProvider } from "./zenmux.ts";
 import { createZaiProvider } from "./zai.ts";
+import { createFireworksProvider } from "./fireworks.ts";
 
 /** Provider block from triggerfish.yaml. */
 export interface ProvidersConfig {
@@ -28,6 +29,7 @@ export interface ProvidersConfig {
   readonly openrouter?: { readonly model: string; readonly apiKey?: string };
   readonly zenmux?: { readonly model: string; readonly apiKey?: string };
   readonly zai?: { readonly model: string; readonly apiKey?: string };
+  readonly fireworks?: { readonly model: string; readonly apiKey?: string };
 }
 
 /** Explicit provider + model pair for the primary model. */
@@ -132,6 +134,13 @@ export function loadProvidersFromConfig(
     }));
   }
 
+  if (providers.fireworks) {
+    registry.register(createFireworksProvider({
+      model: providers.fireworks.model,
+      apiKey: providers.fireworks.apiKey,
+    }));
+  }
+
   // Set default provider directly from models.primary.provider
   const defaultProvider = modelsConfig.primary.provider;
   if (defaultProvider && registry.get(defaultProvider)) {
@@ -212,6 +221,8 @@ function createProviderByName(
         model,
         endpoint: providerConfig.endpoint as string | undefined ?? "http://localhost:1234",
       });
+    case "fireworks":
+      return createFireworksProvider({ model, apiKey });
     default: {
       const log = createLogger("providers");
       log.warn("Unknown provider name in createProviderByName", {

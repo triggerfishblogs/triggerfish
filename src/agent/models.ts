@@ -63,17 +63,27 @@ const MODEL_REGISTRY: readonly (readonly [RegExp, ModelInfo])[] = [
   [/mistral-large/i, { contextWindow: 128_000, outputLimit: 4_096 }],
   [/mistral-medium/i, { contextWindow: 32_000, outputLimit: 4_096 }],
   [/mistral-small/i, { contextWindow: 32_000, outputLimit: 4_096 }],
+  [/mixtral-8x22b/i, { contextWindow: 65_536, outputLimit: 4_096 }],
+  [/mixtral-8x7b/i, { contextWindow: 32_768, outputLimit: 4_096 }],
   [/mixtral/i, { contextWindow: 32_000, outputLimit: 4_096 }],
   [/mistral/i, { contextWindow: 32_000, outputLimit: 4_096 }],
 
   // --- DeepSeek ---
+  [/deepseek-v3-0324/i, { contextWindow: 128_000, outputLimit: 8_192 }],
   [/deepseek-v3/i, { contextWindow: 128_000, outputLimit: 8_192 }],
   [/deepseek-r1/i, { contextWindow: 128_000, outputLimit: 8_192 }],
   [/deepseek/i, { contextWindow: 64_000, outputLimit: 4_096 }],
 
   // --- Qwen ---
   [/qwen-2\.5/i, { contextWindow: 128_000, outputLimit: 8_192 }],
+  [/qwen2p5-72b/i, { contextWindow: 128_000, outputLimit: 8_192 }],
   [/qwen/i, { contextWindow: 32_000, outputLimit: 4_096 }],
+
+  // --- Fireworks (model names prefixed with accounts/fireworks/models/) ---
+  [/llama-v3p1-405b/i, { contextWindow: 128_000, outputLimit: 4_096 }],
+  [/llama-v3p1-70b/i, { contextWindow: 128_000, outputLimit: 4_096 }],
+  [/llama-v3p1-8b/i, { contextWindow: 128_000, outputLimit: 4_096 }],
+  [/llama-v3p3-70b/i, { contextWindow: 128_000, outputLimit: 4_096 }],
 ];
 
 /** Default model info when no pattern matches. */
