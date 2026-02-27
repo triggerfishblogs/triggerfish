@@ -3,7 +3,7 @@
  *
  * Exports factory functions and config types for all supported providers:
  * Anthropic, OpenAI, Google (Gemini), Local (Ollama/LM Studio), OpenRouter,
- * ZenMux, Zai.
+ * ZenMux, Zai, Fireworks.
  *
  * @module
  */
@@ -28,6 +28,9 @@ export type { ZenMuxConfig } from "./zenmux.ts";
 
 export { createZaiProvider } from "./zai.ts";
 export type { ZaiConfig } from "./zai.ts";
+
+export { createFireworksProvider } from "./fireworks.ts";
+export type { FireworksConfig } from "./fireworks.ts";
 
 export { getOpenAiLimits } from "./openai_limits.ts";
 export type { OpenAiModelLimits, OpenAiTier } from "./openai_limits.ts";

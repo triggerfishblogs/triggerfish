@@ -74,6 +74,16 @@ const MODEL_REGISTRY: readonly (readonly [RegExp, ModelInfo])[] = [
   // --- Qwen ---
   [/qwen-2\.5/i, { contextWindow: 128_000, outputLimit: 8_192 }],
   [/qwen/i, { contextWindow: 32_000, outputLimit: 4_096 }],
+
+  // --- Fireworks (model names prefixed with accounts/fireworks/models/) ---
+  [/llama-v3p1-405b/i, { contextWindow: 128_000, outputLimit: 4_096 }],
+  [/llama-v3p1-70b/i, { contextWindow: 128_000, outputLimit: 4_096 }],
+  [/llama-v3p1-8b/i, { contextWindow: 128_000, outputLimit: 4_096 }],
+  [/llama-v3p3-70b/i, { contextWindow: 128_000, outputLimit: 4_096 }],
+  [/mixtral-8x22b/i, { contextWindow: 65_536, outputLimit: 4_096 }],
+  [/mixtral-8x7b/i, { contextWindow: 32_768, outputLimit: 4_096 }],
+  [/qwen2p5-72b/i, { contextWindow: 128_000, outputLimit: 8_192 }],
+  [/deepseek-v3-0324/i, { contextWindow: 128_000, outputLimit: 8_192 }],
 ];
 
 /** Default model info when no pattern matches. */

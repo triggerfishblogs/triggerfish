@@ -16,6 +16,7 @@ import { createLocalProvider } from "../../src/agent/providers/local.ts";
 import { createOpenRouterProvider } from "../../src/agent/providers/openrouter/openrouter.ts";
 import { createZenMuxProvider } from "../../src/agent/providers/zenmux.ts";
 import { createZaiProvider } from "../../src/agent/providers/zai.ts";
+import { createFireworksProvider } from "../../src/agent/providers/fireworks.ts";
 import { loadProvidersFromConfig } from "../../src/agent/providers/config.ts";
 
 // --- Factory function tests (no API calls) ---
@@ -74,6 +75,15 @@ Deno.test("ZaiProvider: factory creates provider with correct name", () => {
     model: "glm-4.7",
   });
   assertEquals(provider.name, "zai");
+  assertEquals(provider.supportsStreaming, true);
+});
+
+Deno.test("FireworksProvider: factory creates provider with correct name", () => {
+  const provider = createFireworksProvider({
+    apiKey: "test-key",
+    model: "accounts/fireworks/models/llama-v3p1-70b-instruct",
+  });
+  assertEquals(provider.name, "fireworks");
   assertEquals(provider.supportsStreaming, true);
 });
 
@@ -249,6 +259,24 @@ Deno.test("loadProvidersFromConfig: registers zenmux provider", () => {
   assertEquals(defaultProvider!.name, "zenmux");
 });
 
+Deno.test("loadProvidersFromConfig: registers fireworks provider and sets default", () => {
+  const registry = createProviderRegistry();
+  loadProvidersFromConfig({
+    primary: { provider: "fireworks", model: "accounts/fireworks/models/llama-v3p1-70b-instruct" },
+    providers: {
+      fireworks: { model: "accounts/fireworks/models/llama-v3p1-70b-instruct", apiKey: "fw-test-key" },
+    },
+  }, registry);
+
+  const provider = registry.get("fireworks");
+  assertExists(provider);
+  assertEquals(provider!.name, "fireworks");
+
+  const defaultProvider = registry.getDefault();
+  assertExists(defaultProvider);
+  assertEquals(defaultProvider!.name, "fireworks");
+});
+
 // --- LocalProvider: HTTP error handling ---
 
 Deno.test("LocalProvider: throws on non-200 response", async () => {
@@ -359,6 +387,25 @@ Deno.test({
 });
 
 Deno.test({
+  name: "FireworksProvider: real API call (integration)",
+  ignore: !Deno.env.get("FIREWORKS_API_KEY"),
+  async fn() {
+    const provider = createFireworksProvider({
+      model: "accounts/fireworks/models/llama-v3p1-70b-instruct",
+    });
+    const result = await provider.complete(
+      [{ role: "user", content: "Say just the word 'hello'" }],
+      [],
+      {},
+    );
+
+    assert(result.content.length > 0, "Should get non-empty response");
+    assert(result.usage.inputTokens > 0, "Should report input tokens");
+    assert(result.usage.outputTokens > 0, "Should report output tokens");
+  },
+});
+
+Deno.test({
   name: "Providers: all conform to LlmProvider interface",
   fn() {
     // Verify all providers satisfy the interface at compile time
@@ -371,9 +418,10 @@ Deno.test({
       createOpenRouterProvider({ apiKey: "test", model: "test" }),
       createZenMuxProvider({ apiKey: "test", model: "test" }),
       createZaiProvider({ apiKey: "test", model: "test" }),
+      createFireworksProvider({ apiKey: "test", model: "test" }),
     ];
 
-    assertEquals(providers.length, 8);
+    assertEquals(providers.length, 9);
     for (const p of providers) {
       assertExists(p.name);
       assertExists(p.complete);
