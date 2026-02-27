@@ -12,7 +12,7 @@ import type { ClassificationLevel } from "../../../core/types/classification.ts"
 import { createSession, updateTaint } from "../../../core/types/session.ts";
 import type { ChannelId, UserId } from "../../../core/types/session.ts";
 import type { TriggerFishConfig } from "../../../core/config.ts";
-import type { createLogger } from "../../../core/logger/mod.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
 import type { createProviderRegistry } from "../../../agent/llm.ts";
 import { resolveVisionProvider } from "../../../agent/providers/config.ts";
 import type { createHookRunner } from "../../../core/policy/hooks/hooks.ts";
@@ -55,6 +55,11 @@ import type {
   DiscordChannelConfig,
   SignalChannelConfig,
 } from "../channels/channels.ts";
+import {
+  wireWhatsAppChannel,
+  isValidatedWhatsAppConfig,
+} from "../channels/channels_whatsapp.ts";
+import type { WhatsAppChannelConfig } from "../channels/channels_whatsapp.ts";
 
 /** Build session lifecycle callbacks (escalate, reset). */
 export function buildSessionLifecycleCallbacks(
@@ -276,7 +281,9 @@ export async function startGatewayServer(
   return server;
 }
 
-/** Wire configured messaging channels (Telegram, Discord, Signal). */
+const channelLog = createLogger("startup-channels");
+
+/** Wire configured messaging channels (Telegram, Discord, WhatsApp, Signal). */
 export async function wireMessageChannels(
   config: TriggerFishConfig,
   chatSession: ReturnType<typeof createChatSession>,
@@ -295,6 +302,29 @@ export async function wireMessageChannels(
     | undefined;
   if (discordConfig) {
     await wireDiscordChannel(discordConfig, channelDeps);
+  }
+  const whatsappConfig = config.channels?.whatsapp as
+    | WhatsAppChannelConfig
+    | undefined;
+  if (whatsappConfig && isValidatedWhatsAppConfig(whatsappConfig)) {
+    try {
+      await wireWhatsAppChannel(whatsappConfig, channelDeps);
+    } catch (err: unknown) {
+      channelLog.warn(
+        "WhatsApp channel skipped due to connect failure",
+        { operation: "wireMessageChannels", err },
+      );
+    }
+  } else if (whatsappConfig) {
+    channelLog.warn(
+      "WhatsApp config present but credentials missing or invalid — skipping channel",
+      {
+        operation: "wireMessageChannels",
+        hasAccessToken: Boolean(whatsappConfig.accessToken),
+        hasPhoneNumberId: Boolean(whatsappConfig.phoneNumberId),
+        hasVerifyToken: Boolean(whatsappConfig.verifyToken),
+      },
+    );
   }
   const signalConfig = config.channels?.signal as
     | SignalChannelConfig

@@ -35,6 +35,14 @@ export interface WhatsAppConfig {
   readonly classification?: ClassificationLevel;
   /** Owner's phone number (e.g. "15551234567"). */
   readonly ownerPhone?: string;
+  /**
+   * Optional fetch function for outbound HTTP requests.
+   *
+   * The wiring layer (gateway/startup) should inject a SSRF-safe fetch here
+   * to prevent server-side request forgery. Defaults to the global `fetch`
+   * if not provided.
+   */
+  readonly fetchFn?: typeof fetch;
 }
 
 /** WhatsApp Cloud API base URL. */
@@ -84,7 +92,8 @@ function forwardWhatsAppTextMessage(
   ownerPhone: string | undefined,
 ): void {
   if (msg.type !== "text") return;
-  const from = msg.from as string;
+  const from = typeof msg.from === "string" ? msg.from : undefined;
+  if (!from) return;
   const textObj = msg.text as { body: string } | undefined;
   if (!textObj?.body) return;
   const isOwner = ownerPhone !== undefined ? from === ownerPhone : true;
@@ -124,26 +133,32 @@ function dispatchWhatsAppWebhookMessages(
   }
 }
 
+/** Options for sending a WhatsApp text message. */
+interface SendWhatsAppMessageOptions {
+  readonly phone: string;
+  readonly text: string;
+  readonly phoneNumberId: string;
+  readonly accessToken: string;
+  readonly doFetch: typeof fetch;
+}
+
 /** Send a text message via WhatsApp Cloud API. */
 async function sendWhatsAppTextMessage(
-  phone: string,
-  text: string,
-  phoneNumberId: string,
-  accessToken: string,
+  opts: SendWhatsAppMessageOptions,
 ): Promise<void> {
-  const response = await fetch(
-    `${WA_API_BASE}/${phoneNumberId}/messages`,
+  const response = await opts.doFetch(
+    `${WA_API_BASE}/${opts.phoneNumberId}/messages`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${accessToken}`,
+        "Authorization": `Bearer ${opts.accessToken}`,
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
-        to: phone,
+        to: opts.phone,
         type: "text",
-        text: { body: text },
+        text: { body: opts.text },
       }),
     },
   );
@@ -168,12 +183,17 @@ async function sendWhatsAppChannelMessage(
   if (!message.sessionId) return;
   const phone = message.sessionId.replace("whatsapp-", "");
   const text = truncateWhatsAppContent(message.content);
-  await sendWhatsAppTextMessage(
+  await sendWhatsAppTextMessage({
     phone,
     text,
-    config.phoneNumberId,
-    config.accessToken,
-  );
+    phoneNumberId: config.phoneNumberId,
+    accessToken: config.accessToken,
+    doFetch: config.fetchFn ?? fetch,
+  });
+  log.info("WhatsApp message delivered", {
+    operation: "send",
+    sessionId: message.sessionId,
+  });
 }
 
 /** Start the webhook HTTP server and mark the adapter as connected. */
@@ -182,6 +202,11 @@ function connectWhatsAppWebhook(
   webhookPort: number,
   state: WhatsAppAdapterState,
 ): void {
+  if (!config.ownerPhone) {
+    log.warn("WhatsApp adapter started without ownerPhone — all senders treated as owner", {
+      operation: "connectWhatsAppWebhook",
+    });
+  }
   state.server = Deno.serve(
     { port: webhookPort },
     (req) =>
@@ -225,7 +250,14 @@ function assembleWhatsAppAdapter(
     connect: async () => connectWhatsAppWebhook(config, webhookPort, state),
     disconnect: () => disconnectWhatsAppWebhook(state),
     send: (message: ChannelMessage) =>
-      sendWhatsAppChannelMessage(message, config),
+      sendWhatsAppChannelMessage(message, config).catch((err: unknown) => {
+        log.error("WhatsApp message delivery failed", {
+          operation: "send",
+          err,
+          sessionId: message.sessionId,
+        });
+        throw err;
+      }),
     onMessage(msgHandler: MessageHandler): void {
       state.handlerRef.current = msgHandler;
     },
