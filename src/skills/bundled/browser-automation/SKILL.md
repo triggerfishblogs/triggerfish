@@ -28,7 +28,7 @@ You have access to a Chromium browser for web interaction. The browser launches 
 | Tool | Purpose |
 |------|---------|
 | `browser_navigate` | Go to a URL (http/https only) |
-| `browser_snapshot` | Screenshot + extract visible text |
+| `browser_snapshot` | Screenshot + extract visible text + page links |
 | `browser_describe` | Send the screenshot to a vision model for a visual description |
 | `browser_click` | Click an element by CSS selector |
 | `browser_type` | Type text into an input field |
@@ -79,4 +79,7 @@ When a page loads content asynchronously:
 - The browser profile is classification-aware — visiting classified domains escalates the watermark.
 - Always use `browser_snapshot` after navigation to see what loaded.
 - Use `browser_describe` when you need to understand visual elements that text extraction misses.
-- CSS selectors: use `#id`, `.class`, `button[type="submit"]`, etc.
+- `browser_snapshot` returns visible text AND a list of page links with their target URLs. Use these URLs with `browser_navigate` to follow links.
+- CSS selectors: use `#id`, `.class`, `button[type="submit"]`, `a[href="/path"]`, etc.
+- To click by visible text, use Puppeteer text selectors: `a::-p-text(Link Text)` or `::-p-text(Button Text)`.
+- NEVER use `:contains()` — it is a jQuery extension, NOT a valid CSS selector, and will always fail.

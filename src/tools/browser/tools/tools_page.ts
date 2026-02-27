@@ -9,7 +9,12 @@
 
 import type { Page } from "puppeteer-core";
 import type { Result } from "../../../core/types/classification.ts";
-import type { ScrollDirection, SnapshotResult } from "./tools_types.ts";
+import {
+  MAX_SNAPSHOT_LINKS,
+  type PageLink,
+  type ScrollDirection,
+  type SnapshotResult,
+} from "./tools_types.ts";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -31,6 +36,32 @@ export function encodeBufferToBase64(buffer: Uint8Array): string {
 
 // ─── Snapshot ────────────────────────────────────────────────────────────────
 
+/** Extract links (text + href) from the page, capped at MAX_SNAPSHOT_LINKS. */
+async function extractPageLinks(
+  page: Page,
+): Promise<readonly PageLink[]> {
+  const cap = MAX_SNAPSHOT_LINKS;
+  // deno-lint-ignore no-explicit-any
+  const raw: Array<{ text: string; href: string }> = await page.evaluate(
+    (limit: number) => {
+      // deno-lint-ignore no-explicit-any
+      const anchors = (globalThis as any).document?.querySelectorAll("a[href]") ?? [];
+      const results: Array<{ text: string; href: string }> = [];
+      for (const a of anchors) {
+        if (results.length >= limit) break;
+        const text = (a.textContent ?? "").trim();
+        const href = a.href as string;
+        if (text.length > 0 && href.length > 0) {
+          results.push({ text, href });
+        }
+      }
+      return results;
+    },
+    cap,
+  );
+  return raw;
+}
+
 /** Capture screenshot and extract visible text from the page. */
 export async function captureBrowserSnapshot(
   page: Page,
@@ -48,7 +79,9 @@ export async function captureBrowserSnapshot(
       () => (globalThis as any).document?.body?.innerText ?? "",
     );
 
-    return { ok: true, value: { screenshot, textContent } };
+    const links = await extractPageLinks(page);
+
+    return { ok: true, value: { screenshot, textContent, links } };
   } catch (err) {
     return {
       ok: false,

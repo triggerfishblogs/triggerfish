@@ -30,7 +30,8 @@ function buildSnapshotDef(): ToolDefinition {
   return {
     name: "browser_snapshot",
     description:
-      "Take a screenshot of the current page and extract visible text content.",
+      "Take a screenshot of the current page, extract visible text content, " +
+      "and return a list of links (text + href) found on the page.",
     parameters: {},
   };
 }
@@ -38,11 +39,17 @@ function buildSnapshotDef(): ToolDefinition {
 function buildClickDef(): ToolDefinition {
   return {
     name: "browser_click",
-    description: "Click an element on the page by CSS selector.",
+    description:
+      "Click an element on the page. Accepts standard CSS selectors (#id, .class, a[href]) " +
+      "and Puppeteer text selectors. To click by visible text use: a::-p-text(Deepgram). " +
+      "NEVER use :contains() — it is not a valid CSS selector.",
     parameters: {
       selector: {
         type: "string",
-        description: "CSS selector of the element to click",
+        description:
+          "Selector for the element. Use CSS (#id, .class, tag[attr]) or " +
+          "Puppeteer text selector (::-p-text(visible text)) to match by content. " +
+          "Do NOT use :contains() — it is invalid.",
         required: true,
       },
     },
@@ -169,8 +176,18 @@ export const BROWSER_TOOLS_SYSTEM_PROMPT = `## Browser Automation
 
 You have browser automation tools (browser_navigate, browser_snapshot, browser_click, browser_type, browser_select, browser_scroll, browser_wait, browser_describe, browser_close). The browser auto-launches on first use — just call the tools directly.
 
-When the user asks to open or go to a website, call browser_navigate immediately. Use browser_snapshot after navigating to see the page. Use browser_describe if you need a visual description of the screenshot. Read the browser-automation skill for detailed usage patterns.
+When the user asks to open or go to a website, call browser_navigate immediately. Use browser_snapshot after navigating to see the page. browser_snapshot returns visible text AND a list of page links (text + href). Use this link list to navigate to linked pages — call browser_navigate with the href directly instead of trying to click link text. Use browser_describe if you need a visual description of the screenshot. Read the browser-automation skill for detailed usage patterns.
 
 When the user says "open Brave", "open Chrome", or "open a browser tab", use browser_navigate with an http/https URL — never use browser-scheme URLs like brave:// or chrome://. Only http and https are supported.
+
+### Clicking Elements
+
+Use CSS selectors: \`#id\`, \`.class\`, \`button[type="submit"]\`, \`a[href="/path"]\`.
+
+To click by visible text, use Puppeteer text selectors:
+- \`a::-p-text(Deepgram)\` — click a link containing "Deepgram"
+- \`::-p-text(Sign In)\` — click any element containing "Sign In"
+
+NEVER use \`:contains()\` — it is not a valid CSS selector and will fail.
 
 When the user asks you to close the browser, close a tab, or is done with browser tasks, call browser_close.`;
