@@ -149,6 +149,8 @@ async function detectConfigExists(): Promise<boolean> {
 
 /** Main CLI entry point. */
 async function main(): Promise<void> {
+  // Guard preserves any test-configured logger (e.g. console: false) already
+  // set before main() is invoked. In production this is always the first call.
   if (!isLoggerInitialized()) {
     initLogger({ level: "INFO", console: true });
   }
