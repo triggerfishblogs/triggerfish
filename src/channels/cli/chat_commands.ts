@@ -13,7 +13,14 @@ import { formatBanner } from "../../cli/chat/chat_ui.ts";
 import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import { createSuggestionEngine } from "../../cli/terminal/terminal.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
+import type { ChatReplDeps } from "./chat_ws_types.ts";
 import type { ChatReplState } from "./chat_input.ts";
+
+/** Options for dispatching a slash command. */
+export interface SlashCommandOpts {
+  readonly config: TriggerFishConfig;
+  readonly displayMode: ToolDisplayMode;
+}
 
 /** Result of dispatching a slash command. */
 export interface SlashCommandResult {
@@ -33,37 +40,32 @@ export interface SlashCommandResult {
  */
 export function dispatchSlashCommand(
   text: string,
-  ws: WebSocket,
-  screen: ScreenManager,
-  editor: LineEditor,
-  config: TriggerFishConfig,
-  providerName: string,
-  displayMode: ToolDisplayMode,
-  workspace: string,
+  deps: ChatReplDeps,
+  opts: SlashCommandOpts,
 ): SlashCommandResult {
   if (text === "/quit" || text === "/exit" || text === "/q") {
     return { handled: true, shouldExit: true };
   }
 
   if (text === "/clear") {
-    return handleClearCommand(ws, screen, editor, config, providerName, workspace);
+    return handleClearCommand(deps, opts.config);
   }
 
   if (text === "/help") {
-    return handleHelpCommand(screen);
+    return handleHelpCommand(deps.screen);
   }
 
   if (text === "/verbose") {
-    const newMode: ToolDisplayMode = displayMode === "compact"
+    const newMode: ToolDisplayMode = opts.displayMode === "compact"
       ? "expanded"
       : "compact";
-    screen.writeOutput("  Tool display: " + newMode);
+    deps.screen.writeOutput("  Tool display: " + newMode);
     return { handled: true, shouldExit: false, newDisplayMode: newMode };
   }
 
   if (text === "/compact") {
-    screen.writeOutput("  Compacting conversation history...");
-    ws.send(JSON.stringify({ type: "compact" }));
+    deps.screen.writeOutput("  Compacting conversation history...");
+    deps.ws.send(JSON.stringify({ type: "compact" }));
     return { handled: true, shouldExit: false };
   }
 
@@ -72,21 +74,18 @@ export function dispatchSlashCommand(
 
 /** Handle the /clear slash command. */
 function handleClearCommand(
-  ws: WebSocket,
-  screen: ScreenManager,
-  editor: LineEditor,
+  deps: ChatReplDeps,
   config: TriggerFishConfig,
-  providerName: string,
-  workspace: string,
 ): SlashCommandResult {
+  const { ws, screen, state } = deps;
   ws.send(JSON.stringify({ type: "clear" }));
   screen.setTaint("PUBLIC");
   screen.cleanup();
   screen.init();
   screen.writeOutput(
-    formatBanner(providerName, config.models.primary.model, workspace),
+    formatBanner(state.providerName, config.models.primary.model, state.workspacePath),
   );
-  screen.redrawInput(editor);
+  screen.redrawInput(deps.getEditor());
   return { handled: true, shouldExit: false };
 }
 

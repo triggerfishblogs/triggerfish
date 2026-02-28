@@ -10,6 +10,7 @@
 
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/logger.ts";
+import type { Logger } from "../../core/logger/logger.ts";
 import { formatError } from "../../cli/chat/chat_ui.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
 import { taintColor } from "../../cli/terminal/screen.ts";
@@ -51,6 +52,21 @@ export interface WsRouterState {
   pendingTriggerPrompt: TriggerPromptModeState | null;
   providerName: string;
   workspacePath: string;
+}
+
+/**
+ * Shared dependencies for TTY-mode keypress handlers.
+ *
+ * Bundles the recurring (ws, screen, state, log) parameters that nearly
+ * every function in the CLI chat modules needs. Constructed once in
+ * `runChat()` and threaded through the call tree.
+ */
+export interface ChatReplDeps {
+  readonly ws: WebSocket;
+  readonly screen: ScreenManager;
+  readonly state: WsRouterState;
+  readonly getEditor: () => LineEditor;
+  readonly log: Logger;
 }
 
 /** Dependencies injected into the WebSocket message router. */

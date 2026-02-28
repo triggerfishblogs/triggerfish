@@ -8,9 +8,15 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import type { WsRouterState, TriggerPromptModeState } from "../../../src/channels/cli/chat_ws_types.ts";
+import type {
+  ChatReplDeps,
+  TriggerPromptModeState,
+  WsRouterState,
+} from "../../../src/channels/cli/chat_ws_types.ts";
 import { routeTriggerPromptKeypress } from "../../../src/channels/cli/chat_trigger_prompt.ts";
 import { createLogger } from "../../../src/core/logger/logger.ts";
+import type { ScreenManager } from "../../../src/cli/terminal/screen.ts";
+import type { LineEditor } from "../../../src/cli/terminal/terminal.ts";
 
 const log = createLogger("test");
 
@@ -95,6 +101,7 @@ function createState(): WsRouterState {
     triggerPromptMode: null,
     pendingTriggerPrompt: null,
     providerName: "test",
+    workspacePath: "",
   };
 }
 
@@ -104,8 +111,23 @@ function createPrompt(
   return {
     source: "trigger",
     classification: "PUBLIC",
-    preview: "Test trigger output",
     ...overrides,
+  };
+}
+
+/** Build a ChatReplDeps from test stubs. */
+function createDeps(
+  ws: FakeWs,
+  screen: ReturnType<typeof createFakeScreen>,
+  state: WsRouterState,
+  editor: ReturnType<typeof createFakeEditor>,
+): ChatReplDeps {
+  return {
+    ws: ws as unknown as WebSocket,
+    screen: screen as unknown as ScreenManager,
+    state,
+    getEditor: () => editor as unknown as LineEditor,
+    log,
   };
 }
 
@@ -118,16 +140,9 @@ Deno.test("trigger prompt: Y key sends accepted response", () => {
   const state = createState();
   const prompt = createPrompt();
   state.triggerPromptMode = prompt;
+  const deps = createDeps(ws, screen, state, editor);
 
-  routeTriggerPromptKeypress(
-    { key: "y", char: "y" },
-    prompt,
-    state,
-    ws as unknown as WebSocket,
-    screen as unknown as import("../../../src/cli/terminal/screen.ts").ScreenManager,
-    editor as unknown as import("../../../src/cli/terminal/terminal.ts").LineEditor,
-    log,
-  );
+  routeTriggerPromptKeypress({ key: "y", char: "y" }, prompt, deps);
 
   assertEquals(ws.sent.length, 1);
   const msg = JSON.parse(ws.sent[0]);
@@ -146,16 +161,9 @@ Deno.test("trigger prompt: Enter key sends accepted response", () => {
   const editor = createFakeEditor();
   const state = createState();
   const prompt = createPrompt();
+  const deps = createDeps(ws, screen, state, editor);
 
-  routeTriggerPromptKeypress(
-    { key: "enter", char: null },
-    prompt,
-    state,
-    ws as unknown as WebSocket,
-    screen as unknown as import("../../../src/cli/terminal/screen.ts").ScreenManager,
-    editor as unknown as import("../../../src/cli/terminal/terminal.ts").LineEditor,
-    log,
-  );
+  routeTriggerPromptKeypress({ key: "enter", char: null }, prompt, deps);
 
   assertEquals(ws.sent.length, 1);
   const msg = JSON.parse(ws.sent[0]);
@@ -171,16 +179,9 @@ Deno.test("trigger prompt: N key sends declined response", () => {
   const editor = createFakeEditor();
   const state = createState();
   const prompt = createPrompt();
+  const deps = createDeps(ws, screen, state, editor);
 
-  routeTriggerPromptKeypress(
-    { key: "n", char: "n" },
-    prompt,
-    state,
-    ws as unknown as WebSocket,
-    screen as unknown as import("../../../src/cli/terminal/screen.ts").ScreenManager,
-    editor as unknown as import("../../../src/cli/terminal/terminal.ts").LineEditor,
-    log,
-  );
+  routeTriggerPromptKeypress({ key: "n", char: "n" }, prompt, deps);
 
   assertEquals(ws.sent.length, 1);
   const msg = JSON.parse(ws.sent[0]);
@@ -199,16 +200,9 @@ Deno.test("trigger prompt: Esc key dismisses", () => {
   const editor = createFakeEditor();
   const state = createState();
   const prompt = createPrompt();
+  const deps = createDeps(ws, screen, state, editor);
 
-  routeTriggerPromptKeypress(
-    { key: "esc", char: null },
-    prompt,
-    state,
-    ws as unknown as WebSocket,
-    screen as unknown as import("../../../src/cli/terminal/screen.ts").ScreenManager,
-    editor as unknown as import("../../../src/cli/terminal/terminal.ts").LineEditor,
-    log,
-  );
+  routeTriggerPromptKeypress({ key: "esc", char: null }, prompt, deps);
 
   assertEquals(ws.sent.length, 1);
   const msg = JSON.parse(ws.sent[0]);
@@ -225,16 +219,9 @@ Deno.test("trigger prompt: other keys are ignored", () => {
   const state = createState();
   const prompt = createPrompt();
   state.triggerPromptMode = prompt;
+  const deps = createDeps(ws, screen, state, editor);
 
-  routeTriggerPromptKeypress(
-    { key: "a", char: "a" },
-    prompt,
-    state,
-    ws as unknown as WebSocket,
-    screen as unknown as import("../../../src/cli/terminal/screen.ts").ScreenManager,
-    editor as unknown as import("../../../src/cli/terminal/terminal.ts").LineEditor,
-    log,
-  );
+  routeTriggerPromptKeypress({ key: "a", char: "a" }, prompt, deps);
 
   assertEquals(ws.sent.length, 0);
   assertEquals(state.triggerPromptMode, prompt); // unchanged
@@ -248,16 +235,9 @@ Deno.test("trigger prompt: accept starts spinner", () => {
   const editor = createFakeEditor();
   const state = createState();
   const prompt = createPrompt();
+  const deps = createDeps(ws, screen, state, editor);
 
-  routeTriggerPromptKeypress(
-    { key: "y", char: "y" },
-    prompt,
-    state,
-    ws as unknown as WebSocket,
-    screen as unknown as import("../../../src/cli/terminal/screen.ts").ScreenManager,
-    editor as unknown as import("../../../src/cli/terminal/terminal.ts").LineEditor,
-    log,
-  );
+  routeTriggerPromptKeypress({ key: "y", char: "y" }, prompt, deps);
 
   assertStringIncludes(screen.getSpinnerText(), "Loading trigger output");
 });
