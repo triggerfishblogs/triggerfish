@@ -30,7 +30,7 @@ import type {
 import type { TriggerStore } from "../scheduler/triggers/store.ts";
 
 export type { ChatEvent, ChatClientMessage, ChatEventSender } from "../core/types/chat_event.ts";
-import type { ChatEventSender } from "../core/types/chat_event.ts";
+import type { ChatEvent, ChatEventSender } from "../core/types/chat_event.ts";
 
 /**
  * Per-channel classification config for non-owner user sessions.
@@ -142,7 +142,7 @@ export interface ChatSessionConfig {
    * Broadcast a chat event to all connected sockets (CLI, Tidepool).
    * Used to push trigger prompt responses to all clients.
    */
-  readonly broadcastChatEvent?: (event: Record<string, unknown>) => void;
+  readonly broadcastChatEvent?: (event: ChatEvent) => void;
 }
 
 /** Shared chat session that serializes access to the orchestrator. */
@@ -239,7 +239,7 @@ export interface ChatSession {
    * @param accepted - Whether the user accepted (true) or dismissed (false)
    * @param sendEvent - Event sender for the accepting client's socket
    */
-  handleTriggerPromptResponse(source: string, accepted: boolean, sendEvent: ChatEventSender): void;
+  handleTriggerPromptResponse(source: string, accepted: boolean, sendEvent: ChatEventSender): Promise<void>;
   /**
    * Get the last known MCP server connection status for sending to new clients.
    * Returns null if MCP status has not been set yet (no MCP servers configured).

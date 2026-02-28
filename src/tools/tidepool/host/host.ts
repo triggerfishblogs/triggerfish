@@ -123,7 +123,7 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
       );
     },
 
-    broadcastChatEvent(event: Record<string, unknown>): void {
+    broadcastChatEvent(event: import("../../../core/types/chat_event.ts").ChatEvent): void {
       broadcastJsonToClients(state.clients, JSON.stringify(event));
     },
 

@@ -309,22 +309,27 @@ function formatTriggerOutput(result: TriggerResult): string {
   );
 }
 
+/** Options for accepting a trigger result into the chat session. */
+interface AcceptTriggerOptions {
+  readonly source: string;
+  readonly config: ChatSessionConfig;
+  readonly state: ChatSessionMutableState;
+  readonly orchestrator: Orchestrator;
+  readonly getSession: () => SessionState;
+  readonly ownerTargetClassification: ClassificationLevel;
+  readonly sendEvent: ChatEventSender;
+}
+
 /** Fetch, classify, and inject a trigger result into the chat session. */
-function acceptTriggerResult(
-  source: string,
-  config: ChatSessionConfig,
-  state: ChatSessionMutableState,
-  orchestrator: Orchestrator,
-  getSession: () => SessionState,
-  ownerTargetClassification: ClassificationLevel,
-  sendEvent: ChatEventSender,
-): void {
+async function acceptTriggerResult(opts: AcceptTriggerOptions): Promise<void> {
+  const { source, config, state, orchestrator, getSession, sendEvent } = opts;
   if (!config.triggerStore) {
     sendEvent({ type: "error", message: "Trigger store not available" });
     return;
   }
 
-  config.triggerStore.getLast(source).then(async (result) => {
+  try {
+    const result = await config.triggerStore.getLast(source);
     if (!result) {
       sendEvent({
         type: "error",
@@ -348,7 +353,7 @@ function acceptTriggerResult(
       if (config.resetSession) config.resetSession();
       // Broadcast taint change after reset
       if (config.broadcastChatEvent) {
-        config.broadcastChatEvent({ type: "taint_changed", level: "PUBLIC" });
+        config.broadcastChatEvent({ type: "taint_changed", level: "PUBLIC" as ClassificationLevel });
       }
     } else if (!canFlowTo(result.classification, currentTaint)) {
       // Write-up: escalate taint
@@ -367,10 +372,10 @@ function acceptTriggerResult(
       orchestrator,
       getSession,
       formatted,
-      ownerTargetClassification,
+      opts.ownerTargetClassification,
       sendEvent,
     );
-  }).catch((err: unknown) => {
+  } catch (err: unknown) {
     chatLog.error("Trigger prompt accept failed", {
       operation: "acceptTriggerResult",
       source,
@@ -380,7 +385,7 @@ function acceptTriggerResult(
       type: "error",
       message: `Trigger load failed: ${err instanceof Error ? err.message : String(err)}`,
     });
-  });
+  }
 }
 
 // ─── createChatSession ──────────────────────────────────────────────────────
@@ -497,9 +502,9 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
           operation: "handleTriggerPromptResponse",
           source,
         });
-        return;
+        return Promise.resolve();
       }
-      acceptTriggerResult(
+      return acceptTriggerResult({
         source,
         config,
         state,
@@ -507,7 +512,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
         getSession,
         ownerTargetClassification,
         sendEvent,
-      );
+      });
     },
     handleSecretPromptResponse: (nonce, value) =>
       resolveSecretPrompt(pendingSecretPrompts, nonce, value),

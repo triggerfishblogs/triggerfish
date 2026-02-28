@@ -119,7 +119,7 @@ export interface ChatSessionDeps {
   /** Trigger store for retrieving trigger results on prompt acceptance. */
   readonly triggerStore?: TriggerStore;
   /** Broadcast a chat event to all connected sockets. */
-  readonly broadcastChatEvent?: (event: Record<string, unknown>) => void;
+  readonly broadcastChatEvent?: (event: import("../../../core/types/chat_event.ts").ChatEvent) => void;
   /** Classification-partitioned workspace paths for dynamic prompt injection. */
   readonly workspacePaths: WorkspacePaths;
 }

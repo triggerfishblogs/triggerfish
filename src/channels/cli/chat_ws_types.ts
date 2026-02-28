@@ -30,7 +30,6 @@ export interface PasswordModeState {
 export interface TriggerPromptModeState {
   readonly source: string;
   readonly classification: ClassificationLevel;
-  readonly preview: string;
 }
 
 /** Credential-mode state — active when the daemon sends a credential_prompt event. */

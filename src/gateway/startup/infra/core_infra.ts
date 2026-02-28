@@ -127,7 +127,7 @@ export function buildSchedulerInfrastructure(
     triggerStore: coreInfra.triggerStore,
     onTriggerOutput: (source, classification, preview, firedAt) => {
       const event = {
-        type: "trigger_prompt",
+        type: "trigger_prompt" as const,
         source,
         classification,
         preview,

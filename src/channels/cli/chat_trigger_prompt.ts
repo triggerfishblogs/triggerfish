@@ -29,10 +29,10 @@ export function routeTriggerPromptKeypress(
   editor: LineEditor,
   log: Logger,
 ): void {
-  const lower = keypress.key === "y" ||
+  const isYKey = keypress.key === "y" ||
     (keypress.char !== null && keypress.char.toLowerCase() === "y");
 
-  if (lower || keypress.key === "enter") {
+  if (isYKey || keypress.key === "enter") {
     acceptTriggerPrompt(pm, state, ws, screen, editor, log);
     return;
   }

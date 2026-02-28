@@ -135,12 +135,12 @@ function createTestConfig(overrides: {
 
 // ─── Decline → no action ────────────────────────────────────────────
 
-Deno.test("trigger prompt: decline does not execute agent turn", () => {
+Deno.test("trigger prompt: decline does not execute agent turn", async () => {
   const { config } = createTestConfig();
   const chat = createChatSession(config);
   const collector = createEventCollector();
 
-  chat.handleTriggerPromptResponse("trigger", false, collector.sender);
+  await chat.handleTriggerPromptResponse("trigger", false, collector.sender);
 
   // No events emitted — decline is silent
   assertEquals(collector.events.length, 0);
@@ -168,10 +168,7 @@ Deno.test("trigger prompt: accept with write-up escalates taint and injects", as
   const chat = createChatSession(config);
   const collector = createEventCollector();
 
-  chat.handleTriggerPromptResponse("trigger", true, collector.sender);
-
-  // Wait for async processing
-  await new Promise((r) => setTimeout(r, 500));
+  await chat.handleTriggerPromptResponse("trigger", true, collector.sender);
 
   // Taint should be escalated
   assertEquals(sessionState.taint, "INTERNAL");
@@ -203,10 +200,7 @@ Deno.test("trigger prompt: accept with write-down resets session", async () => {
   const chat = createChatSession(config);
   const collector = createEventCollector();
 
-  chat.handleTriggerPromptResponse("trigger", true, collector.sender);
-
-  // Wait for async processing
-  await new Promise((r) => setTimeout(r, 500));
+  await chat.handleTriggerPromptResponse("trigger", true, collector.sender);
 
   // Session should have been reset
   assertEquals(sessionState.resetCount, 1);
@@ -236,9 +230,7 @@ Deno.test("trigger prompt: accept at same level injects without reset or escalat
   const chat = createChatSession(config);
   const collector = createEventCollector();
 
-  chat.handleTriggerPromptResponse("trigger", true, collector.sender);
-
-  await new Promise((r) => setTimeout(r, 500));
+  await chat.handleTriggerPromptResponse("trigger", true, collector.sender);
 
   assertEquals(sessionState.resetCount, 0);
   assertEquals(sessionState.escalations.length, 0);
@@ -252,9 +244,7 @@ Deno.test("trigger prompt: accept with empty store sends error event", async () 
   const chat = createChatSession(config);
   const collector = createEventCollector();
 
-  chat.handleTriggerPromptResponse("trigger", true, collector.sender);
-
-  await new Promise((r) => setTimeout(r, 500));
+  await chat.handleTriggerPromptResponse("trigger", true, collector.sender);
 
   const errorEvents = collector.events.filter((e) => e.type === "error");
   assertEquals(errorEvents.length >= 1, true);
@@ -277,9 +267,7 @@ Deno.test("trigger prompt: accept with valid result attempts agent turn", async 
   const chat = createChatSession(config);
   const collector = createEventCollector();
 
-  chat.handleTriggerPromptResponse("cron:daily-check", true, collector.sender);
-
-  await new Promise((r) => setTimeout(r, 500));
+  await chat.handleTriggerPromptResponse("cron:daily-check", true, collector.sender);
 
   // The agent turn was attempted — we expect at least one event
   // (response, response_chunk, error, or llm_start depending on hook policy)
