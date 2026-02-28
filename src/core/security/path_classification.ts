@@ -38,6 +38,7 @@ export interface FilesystemSecurityConfig {
 /** Workspace paths for classification directory detection. */
 export interface WorkspacePaths {
   readonly basePath: string;
+  readonly publicPath: string;
   readonly internalPath: string;
   readonly confidentialPath: string;
   readonly restrictedPath: string;
@@ -119,7 +120,7 @@ function classifyWorkspacePath(
 ): PathClassificationResult | null {
   if (!workspacePaths) return null;
 
-  // Check each classification directory
+  // Check each classification directory (most restrictive first)
   const checks: readonly {
     readonly path: string;
     readonly level: ClassificationLevel;
@@ -127,6 +128,7 @@ function classifyWorkspacePath(
     { path: workspacePaths.restrictedPath, level: "RESTRICTED" },
     { path: workspacePaths.confidentialPath, level: "CONFIDENTIAL" },
     { path: workspacePaths.internalPath, level: "INTERNAL" },
+    { path: workspacePaths.publicPath, level: "PUBLIC" },
   ];
 
   for (const check of checks) {

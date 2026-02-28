@@ -48,6 +48,7 @@ export function buildMainPathClassifier(
     { paths: fsPathMap, defaultClassification: fsDefault },
     {
       basePath: mainWorkspace.path,
+      publicPath: mainWorkspace.publicPath,
       internalPath: mainWorkspace.internalPath,
       confidentialPath: mainWorkspace.confidentialPath,
       restrictedPath: mainWorkspace.restrictedPath,

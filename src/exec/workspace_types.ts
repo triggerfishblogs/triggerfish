@@ -36,6 +36,8 @@ export interface Workspace {
   readonly integrationsPath: string;
   /** Absolute path to the skills subdirectory. */
   readonly skillsPath: string;
+  /** Absolute path to the public classification directory. */
+  readonly publicPath: string;
   /** Absolute path to the internal classification directory. */
   readonly internalPath: string;
   /** Absolute path to the confidential classification directory. */

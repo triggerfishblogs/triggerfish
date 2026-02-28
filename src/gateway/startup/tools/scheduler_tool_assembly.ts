@@ -145,6 +145,7 @@ export function buildSchedulerPathClassifier(
     },
     {
       basePath: workspace.path,
+      publicPath: workspace.publicPath,
       internalPath: workspace.internalPath,
       confidentialPath: workspace.confidentialPath,
       restrictedPath: workspace.restrictedPath,

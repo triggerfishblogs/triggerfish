@@ -52,6 +52,12 @@ async function createWorkspaceDirectories(
   await Deno.mkdir(scratchPath, { recursive: true });
   await Deno.mkdir(integrationsPath, { recursive: true });
   await Deno.mkdir(skillsPath, { recursive: true });
+  // Create public/ with standard subdirs (not in CLASSIFICATION_DIRS which excludes PUBLIC)
+  for (const subDir of WORKSPACE_SUBDIRS) {
+    await Deno.mkdir(join(workspacePath, "public", subDir), {
+      recursive: true,
+    });
+  }
   for (const classDir of Object.values(CLASSIFICATION_DIRS)) {
     for (const subDir of WORKSPACE_SUBDIRS) {
       await Deno.mkdir(join(workspacePath, classDir, subDir), {
@@ -66,6 +72,7 @@ function computeWorkspacePaths(workspacePath: string): {
   readonly scratchPath: string;
   readonly integrationsPath: string;
   readonly skillsPath: string;
+  readonly publicPath: string;
   readonly internalPath: string;
   readonly confidentialPath: string;
   readonly restrictedPath: string;
@@ -74,6 +81,7 @@ function computeWorkspacePaths(workspacePath: string): {
     scratchPath: join(workspacePath, "scratch"),
     integrationsPath: join(workspacePath, "integrations"),
     skillsPath: join(workspacePath, "skills"),
+    publicPath: join(workspacePath, "public"),
     internalPath: join(workspacePath, CLASSIFICATION_DIRS.INTERNAL),
     confidentialPath: join(workspacePath, CLASSIFICATION_DIRS.CONFIDENTIAL),
     restrictedPath: join(workspacePath, CLASSIFICATION_DIRS.RESTRICTED),
