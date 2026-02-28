@@ -42,6 +42,7 @@ import { createWsMessageRouter } from "./chat_ws_router.ts";
 import type { WsRouterState } from "./chat_ws_router.ts";
 import { runSimpleWsRepl } from "./chat_simple_repl.ts";
 import { routePasswordKeypress, routeCredentialKeypress } from "./chat_password.ts";
+import { routeTriggerPromptKeypress } from "./chat_trigger_prompt.ts";
 import { handleCtrlCKeypress, handleEscInterrupt } from "./chat_keypress.ts";
 import { installChatSignalHandlers, routeInputKeypress } from "./chat_keypress.ts";
 import type { ChatReplState } from "./chat_input.ts";
@@ -164,6 +165,8 @@ export async function runChat(): Promise<void> {
     isProcessing: false,
     passwordMode: null,
     credentialMode: null,
+    triggerPromptMode: null,
+    pendingTriggerPrompt: null,
     providerName: "unknown",
   };
   const messageQueue: string[] = [];
@@ -317,6 +320,18 @@ function routeTopLevelKeypress(
     routeCredentialKeypress(
       keypress,
       state.credentialMode,
+      state,
+      ws,
+      screen,
+      rs.editor,
+      log,
+    );
+    return "continue";
+  }
+  if (state.triggerPromptMode !== null) {
+    routeTriggerPromptKeypress(
+      keypress,
+      state.triggerPromptMode,
       state,
       ws,
       screen,

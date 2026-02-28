@@ -62,6 +62,16 @@ export function buildMainChatSession(
     getActiveSkillContext: toolInfra.skillContextTracker
       ? () => toolInfra.skillContextTracker!.getActive()
       : undefined,
+    triggerStore: coreInfra.triggerStore,
+    broadcastChatEvent: (event) => {
+      coreInfra.gatewayServerRef.value?.broadcastChatEvent(event);
+    },
+    workspacePaths: {
+      publicPath: toolInfra.mainWorkspace.publicPath,
+      internalPath: toolInfra.mainWorkspace.internalPath,
+      confidentialPath: toolInfra.mainWorkspace.confidentialPath,
+      restrictedPath: toolInfra.mainWorkspace.restrictedPath,
+    },
   });
 }
 
@@ -135,6 +145,8 @@ export async function startNetworkServices(
     coreInfra,
     bootstrap.log,
   );
+  // Populate the deferred ref so onTriggerOutput can broadcast to chat sockets
+  coreInfra.gatewayServerRef.value = server;
   return { tidepoolHost, server };
 }
 

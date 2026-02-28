@@ -32,6 +32,7 @@ import type { createNotificationService } from "../../notifications/notification
 import type { createSchedulerService } from "../../../scheduler/service.ts";
 import type { createPairingService } from "../../../channels/pairing.ts";
 import type { RegisteredChannel } from "../../tools/session/session_tools.ts";
+import type { TriggerStore } from "../../../scheduler/triggers/store.ts";
 import { TIDEPOOL_PORT } from "../../../cli/constants.ts";
 import {
   resolvePromptsForProfile,
@@ -41,6 +42,7 @@ import type { createToolExecutor } from "../../tools/agent_tools.ts";
 import type { wireMcpServers } from "../infra/mcp.ts";
 import type { buildWebTools } from "../factory/web_tools.ts";
 import type { MainSessionState } from "../tools/tool_executor.ts";
+import type { WorkspacePaths } from "../tools/tool_executor.ts";
 import {
   buildExtraToolsGetter,
   buildExtraSystemPromptGetter,
@@ -114,6 +116,12 @@ export interface ChatSessionDeps {
   readonly toolFloorRegistry: ReturnType<typeof createToolFloorRegistry>;
   /** Active skill context getter for tool filtering (optional). */
   readonly getActiveSkillContext?: () => import("../../../agent/orchestrator/orchestrator_types.ts").ActiveSkillContext | null;
+  /** Trigger store for retrieving trigger results on prompt acceptance. */
+  readonly triggerStore?: TriggerStore;
+  /** Broadcast a chat event to all connected sockets. */
+  readonly broadcastChatEvent?: (event: Record<string, unknown>) => void;
+  /** Classification-partitioned workspace paths for dynamic prompt injection. */
+  readonly workspacePaths: WorkspacePaths;
 }
 
 /** Build the dynamic getter and prompt options for the chat session. */
@@ -127,6 +135,8 @@ export function buildChatSessionDynamicOptions(deps: ChatSessionDeps) {
     getExtraSystemPromptSections: buildExtraSystemPromptGetter(
       deps.mcpWiring,
       deps.isTidepoolCallRef,
+      () => deps.state.session.taint,
+      deps.workspacePaths,
     ),
     systemPromptSections: [
       ...resolvePromptsForProfile("cli"),
@@ -168,6 +178,8 @@ export function assembleChatSession(deps: ChatSessionDeps) {
     toolFloorRegistry: deps.toolFloorRegistry,
     primaryModelName: deps.config.models.primary.model,
     getActiveSkillContext: deps.getActiveSkillContext,
+    triggerStore: deps.triggerStore,
+    broadcastChatEvent: deps.broadcastChatEvent,
   });
 }
 

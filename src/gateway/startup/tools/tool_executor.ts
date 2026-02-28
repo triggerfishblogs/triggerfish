@@ -8,6 +8,7 @@
  * @module
  */
 
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import type { createSession } from "../../../core/types/session.ts";
 import type { createProviderRegistry } from "../../../agent/llm.ts";
 import type { createSqliteStorage } from "../../../core/storage/sqlite.ts";
@@ -53,6 +54,43 @@ export interface MainSessionState {
   session: ReturnType<typeof createSession>;
   activeSecretPrompt: SecretPromptCallback;
   activeCredentialPrompt: CredentialPromptCallback;
+}
+
+/** Classification-partitioned workspace directory paths. */
+export interface WorkspacePaths {
+  readonly publicPath: string;
+  readonly internalPath: string;
+  readonly confidentialPath: string;
+  readonly restrictedPath: string;
+}
+
+const TAINT_TO_PATH_KEY: Record<ClassificationLevel, keyof WorkspacePaths> = {
+  PUBLIC: "publicPath",
+  INTERNAL: "internalPath",
+  CONFIDENTIAL: "confidentialPath",
+  RESTRICTED: "restrictedPath",
+};
+
+/** Map a session taint level to the corresponding workspace directory. */
+export function resolveWorkspacePathForTaint(
+  taint: ClassificationLevel,
+  paths: WorkspacePaths,
+): string {
+  return paths[TAINT_TO_PATH_KEY[taint]];
+}
+
+/** Build a dynamic system prompt section describing the agent's workspace. */
+export function buildWorkspacePrompt(
+  taint: ClassificationLevel,
+  paths: WorkspacePaths,
+): string {
+  const dir = resolveWorkspacePathForTaint(taint, paths);
+  return [
+    "## Workspace",
+    `Your working directory is ${dir}.`,
+    "Use this directory for all file operations. Accessing paths outside your",
+    "working directory may escalate your session classification.",
+  ].join("\n");
 }
 
 /** Build LLM-powered auxiliary executors (task, summarize, healthcheck, release notes). */
@@ -156,6 +194,8 @@ export function buildExtraToolsGetter(
 export function buildExtraSystemPromptGetter(
   mcpWiring: ReturnType<typeof wireMcpServers> | null,
   isTidepoolCallRef: { value: boolean },
+  getSessionTaint: () => ClassificationLevel,
+  workspacePaths: WorkspacePaths,
 ) {
   return () => {
     const sections: string[] = [];
@@ -164,6 +204,7 @@ export function buildExtraSystemPromptGetter(
       if (mcpPrompt) sections.push(mcpPrompt);
     }
     if (isTidepoolCallRef.value) sections.push(TIDEPOOL_SYSTEM_PROMPT);
+    sections.push(buildWorkspacePrompt(getSessionTaint(), workspacePaths));
     return sections;
   };
 }

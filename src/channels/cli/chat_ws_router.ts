@@ -16,11 +16,13 @@ import type { ScreenManager } from "../../cli/terminal/screen.ts";
 import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
 import type { ChatEvent } from "../../core/types/chat_event.ts";
+import { canFlowTo } from "../../core/types/classification.ts";
 
 import type { WsRouterDeps, WsRouterState } from "./chat_ws_types.ts";
+import type { TriggerPromptModeState } from "./chat_ws_types.ts";
 import { sendNextQueuedMessage } from "./chat_ws_types.ts";
 
-export type { PasswordModeState, CredentialModeState, WsRouterState, WsRouterDeps } from "./chat_ws_types.ts";
+export type { PasswordModeState, CredentialModeState, TriggerPromptModeState, WsRouterState, WsRouterDeps } from "./chat_ws_types.ts";
 export { sendNextQueuedMessage } from "./chat_ws_types.ts";
 
 const log = createLogger("cli");
@@ -129,6 +131,79 @@ function routeCredentialPromptEvent(
   ctx.screen.redrawInput(ctx.editor);
 }
 
+/** Build the consequence clause for the trigger prompt question. */
+function describeTriggerConsequence(
+  sessionTaint: string,
+  triggerClassification: string,
+  isWriteDown: boolean,
+): string {
+  if (isWriteDown) {
+    return "Your context will be reset to incorporate this result.";
+  }
+  const addedMsg = "This result will be added to your current conversation context.";
+  if (sessionTaint === triggerClassification) {
+    return addedMsg;
+  }
+  return `Your session will escalate from ${sessionTaint} to ${triggerClassification}. ${addedMsg}`;
+}
+
+/** Activate a trigger prompt — show the question and enter prompt mode. */
+function activateTriggerPrompt(
+  prompt: TriggerPromptModeState,
+  ctx: RouterContext,
+): void {
+  const sessionTaint = ctx.screen.getTaint();
+  const isWriteDown = !canFlowTo(sessionTaint, prompt.classification);
+  const consequence = describeTriggerConsequence(
+    sessionTaint,
+    prompt.classification,
+    isWriteDown,
+  );
+
+  ctx.screen.stopSpinner();
+  ctx.screen.writeOutput(
+    `  \x1b[33m\u26a1\x1b[0m \x1b[1mWould you like to allow this trigger result into context? ${consequence}\x1b[0m`,
+  );
+  ctx.screen.setStatus(
+    isWriteDown
+      ? "\u26a0 Session will reset. [Y] Accept  [N/Esc] Dismiss"
+      : "\u26a1 Add to context? [Y] Accept  [N/Esc] Dismiss",
+  );
+  ctx.state.triggerPromptMode = prompt;
+  ctx.screen.redrawInput(ctx.editor);
+}
+
+function routeTriggerPromptEvent(
+  evt: Extract<ChatEvent, { type: "trigger_prompt" }>,
+  ctx: RouterContext,
+): void {
+  if (!ctx.isTty) return;
+  const prompt: TriggerPromptModeState = {
+    source: evt.source,
+    classification: evt.classification,
+    preview: evt.preview,
+  };
+  if (ctx.state.isProcessing) {
+    ctx.state.pendingTriggerPrompt = prompt;
+    log.debug("Trigger prompt queued (agent is processing)", {
+      operation: "routeTriggerPromptEvent",
+      source: evt.source,
+    });
+    return;
+  }
+  activateTriggerPrompt(prompt, ctx);
+}
+
+/** Show a pending trigger prompt if one was queued while processing. */
+function drainPendingTriggerPrompt(ctx: RouterContext): void {
+  if (!ctx.isTty) return;
+  const pending = ctx.state.pendingTriggerPrompt;
+  if (pending && !ctx.state.isProcessing) {
+    ctx.state.pendingTriggerPrompt = null;
+    activateTriggerPrompt(pending, ctx);
+  }
+}
+
 function routeCancelledEvent(ctx: RouterContext): void {
   if (ctx.isTty) {
     ctx.screen.stopSpinner();
@@ -136,6 +211,7 @@ function routeCancelledEvent(ctx: RouterContext): void {
   }
   ctx.state.isProcessing = false;
   sendNextQueuedMessage(ctx.deps);
+  drainPendingTriggerPrompt(ctx);
 }
 
 function routeErrorEvent(
@@ -153,6 +229,7 @@ function routeErrorEvent(
   }
   ctx.state.isProcessing = false;
   sendNextQueuedMessage(ctx.deps);
+  drainPendingTriggerPrompt(ctx);
 }
 
 function routeCompactStartEvent(ctx: RouterContext): void {
@@ -201,6 +278,7 @@ function routeResponseCompleteEvent(
     renderPrompt();
   }
   sendNextQueuedMessage(ctx.deps);
+  drainPendingTriggerPrompt(ctx);
 }
 
 function forwardOrchestratorEvent(
@@ -267,6 +345,8 @@ function dispatchChatEvent(
       return routeMcpStatusEvent(evt, ctx);
     case "notification":
       return routeNotificationEvent(evt, ctx);
+    case "trigger_prompt":
+      return routeTriggerPromptEvent(evt, ctx);
     case "secret_prompt":
       return routeSecretPromptEvent(evt, ctx);
     case "credential_prompt":

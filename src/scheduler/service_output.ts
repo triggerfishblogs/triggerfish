@@ -49,6 +49,14 @@ async function persistTriggerResult(options: SourcedOutputOptions): Promise<void
   }
 }
 
+/** Emit a trigger_prompt event to connected chat clients. */
+function emitTriggerPrompt(options: SourcedOutputOptions): void {
+  const { config, source, text, classification } = options;
+  if (!config.onTriggerOutput) return;
+  const preview = text.length > 200 ? text.slice(0, 200) + "..." : text;
+  config.onTriggerOutput(source, classification, preview, new Date().toISOString());
+}
+
 /** Deliver a notification to the owner via NotificationService. */
 async function deliverSchedulerNotification(options: SourcedOutputOptions): Promise<void> {
   const { config, source, text, classification } = options;
@@ -92,4 +100,5 @@ export async function deliverSchedulerOutput(options: DeliverOutputOptions): Pro
   }
   await persistTriggerResult(outputOpts);
   await deliverSchedulerNotification(outputOpts);
+  emitTriggerPrompt(outputOpts);
 }

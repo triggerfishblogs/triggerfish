@@ -99,6 +99,19 @@ function handleControlMessage(
     );
     return true;
   }
+  if (msg.type === "trigger_prompt_response") {
+    log.debug("Routing trigger prompt response", {
+      operation: "handleControlMessage",
+      source: msg.source,
+      accepted: msg.accepted,
+    });
+    chat.handleTriggerPromptResponse(
+      msg.source,
+      msg.accepted,
+      createWebSocketSender(socket),
+    );
+    return true;
+  }
   return false;
 }
 

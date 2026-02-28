@@ -8,6 +8,7 @@
  * @module
  */
 
+import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 import { formatError } from "../../cli/chat/chat_ui.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
@@ -25,6 +26,13 @@ export interface PasswordModeState {
   readonly chars: string[];
 }
 
+/** Trigger-prompt-mode state — active when the daemon sends a trigger_prompt event. */
+export interface TriggerPromptModeState {
+  readonly source: string;
+  readonly classification: ClassificationLevel;
+  readonly preview: string;
+}
+
 /** Credential-mode state — active when the daemon sends a credential_prompt event. */
 export interface CredentialModeState {
   readonly nonce: string;
@@ -40,6 +48,8 @@ export interface WsRouterState {
   isProcessing: boolean;
   passwordMode: PasswordModeState | null;
   credentialMode: CredentialModeState | null;
+  triggerPromptMode: TriggerPromptModeState | null;
+  pendingTriggerPrompt: TriggerPromptModeState | null;
   providerName: string;
 }
 

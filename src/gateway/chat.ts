@@ -23,6 +23,8 @@ import { createOrchestrator } from "../agent/orchestrator/orchestrator.ts";
 import type { Orchestrator } from "../agent/orchestrator/orchestrator.ts";
 import type { SessionState } from "../core/types/session.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
+import { canFlowTo } from "../core/types/classification.ts";
+import type { TriggerResult } from "../scheduler/triggers/store.ts";
 import type { ChannelAdapter, ChannelMessage } from "../channels/types.ts";
 import {
   createUserSessionManager,
@@ -290,6 +292,97 @@ function buildTidepoolCredentialPrompt(
   };
 }
 
+// ─── Trigger prompt helpers ──────────────────────────────────────────────────
+
+/** Format a trigger result for injection into conversation context. */
+function formatTriggerOutput(result: TriggerResult): string {
+  const firedAt = result.firedAt
+    ? new Date(result.firedAt).toLocaleString()
+    : "unknown time";
+
+  return (
+    `[Trigger output loaded into context]\n` +
+    `Source: ${result.source}\n` +
+    `Classification: ${result.classification}\n` +
+    `Fired at: ${firedAt}\n\n` +
+    result.message
+  );
+}
+
+/** Fetch, classify, and inject a trigger result into the chat session. */
+function acceptTriggerResult(
+  source: string,
+  config: ChatSessionConfig,
+  state: ChatSessionMutableState,
+  orchestrator: Orchestrator,
+  getSession: () => SessionState,
+  ownerTargetClassification: ClassificationLevel,
+  sendEvent: ChatEventSender,
+): void {
+  if (!config.triggerStore) {
+    sendEvent({ type: "error", message: "Trigger store not available" });
+    return;
+  }
+
+  config.triggerStore.getLast(source).then(async (result) => {
+    if (!result) {
+      sendEvent({
+        type: "error",
+        message: `Trigger result not found for source: ${source}`,
+      });
+      return;
+    }
+
+    const currentTaint = config.getSessionTaint?.() ?? "PUBLIC" as ClassificationLevel;
+
+    if (!canFlowTo(currentTaint, result.classification)) {
+      // Write-down: reset session first, then inject
+      chatLog.info("Trigger prompt accepted with session reset (write-down)", {
+        operation: "acceptTriggerResult",
+        source,
+        sessionTaint: currentTaint,
+        triggerClassification: result.classification,
+      });
+      // Reset clears history and resets taint to PUBLIC
+      orchestrator.clearHistory(getSession().id);
+      if (config.resetSession) config.resetSession();
+      // Broadcast taint change after reset
+      if (config.broadcastChatEvent) {
+        config.broadcastChatEvent({ type: "taint_changed", level: "PUBLIC" });
+      }
+    } else if (!canFlowTo(result.classification, currentTaint)) {
+      // Write-up: escalate taint
+      chatLog.info("Trigger prompt escalating session taint", {
+        operation: "acceptTriggerResult",
+        source,
+        from: currentTaint,
+        to: result.classification,
+      });
+      config.escalateTaint?.(result.classification, `trigger prompt: ${source}`);
+    }
+
+    const formatted = formatTriggerOutput(result);
+    await runOwnerAgentTurn(
+      state,
+      orchestrator,
+      getSession,
+      formatted,
+      ownerTargetClassification,
+      sendEvent,
+    );
+  }).catch((err: unknown) => {
+    chatLog.error("Trigger prompt accept failed", {
+      operation: "acceptTriggerResult",
+      source,
+      err,
+    });
+    sendEvent({
+      type: "error",
+      message: `Trigger load failed: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  });
+}
+
 // ─── createChatSession ──────────────────────────────────────────────────────
 
 /**
@@ -398,6 +491,24 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     },
     compact: (sendEvent) =>
       compactChatHistory(orchestrator, getSession, sendEvent),
+    handleTriggerPromptResponse(source, accepted, sendEvent) {
+      if (!accepted) {
+        chatLog.debug("Trigger prompt declined", {
+          operation: "handleTriggerPromptResponse",
+          source,
+        });
+        return;
+      }
+      acceptTriggerResult(
+        source,
+        config,
+        state,
+        orchestrator,
+        getSession,
+        ownerTargetClassification,
+        sendEvent,
+      );
+    },
     handleSecretPromptResponse: (nonce, value) =>
       resolveSecretPrompt(pendingSecretPrompts, nonce, value),
     handleCredentialPromptResponse: (nonce, username, password) =>
