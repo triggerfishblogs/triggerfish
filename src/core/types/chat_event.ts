@@ -12,7 +12,7 @@ import type { MessageContent } from "../image/content.ts";
 
 /** Events sent over the chat wire protocol. */
 export type ChatEvent =
-  | { readonly type: "connected"; readonly provider: string; readonly model: string; readonly taint?: ClassificationLevel }
+  | { readonly type: "connected"; readonly provider: string; readonly model: string; readonly taint?: ClassificationLevel; readonly workspace?: string }
   | { readonly type: "llm_start"; readonly iteration: number; readonly maxIterations: number }
   | {
     readonly type: "llm_complete";

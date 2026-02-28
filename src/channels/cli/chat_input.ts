@@ -221,6 +221,7 @@ export function dispatchEnterIdleMode(
     config,
     state.providerName,
     rs.displayMode,
+    state.workspacePath,
   );
   if (cmd.shouldExit) {
     screen.writeOutput("  Goodbye.");

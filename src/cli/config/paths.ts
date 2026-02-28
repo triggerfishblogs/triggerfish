@@ -9,6 +9,31 @@
 
 import { join } from "@std/path";
 import { isDockerEnvironment } from "../../core/env.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("paths");
+
+/**
+ * Resolve the canonical (symlink-free) home directory.
+ *
+ * On systems where `$HOME` is a symlink (e.g. Fedora Atomic:
+ * `/home` → `/var/home`), paths derived from $HOME won't match
+ * the real filesystem paths. Resolving symlinks here ensures all
+ * derived paths use the physical location.
+ */
+function resolveCanonicalHome(): string {
+  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".";
+  try {
+    return Deno.realPathSync(home);
+  } catch (err: unknown) {
+    log.debug("Home directory symlink resolution failed, using raw path", {
+      operation: "resolveCanonicalHome",
+      home,
+      err,
+    });
+    return home;
+  }
+}
 
 /**
  * Expand a leading `~` to the user's home directory.
@@ -20,7 +45,7 @@ import { isDockerEnvironment } from "../../core/env.ts";
  */
 export function expandTilde(inputPath: string): string {
   if (!inputPath.startsWith("~")) return inputPath;
-  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? "";
+  const home = resolveCanonicalHome();
   return join(home, inputPath.slice(1).replace(/^[/\\]/, ""));
 }
 
@@ -44,7 +69,7 @@ export function resolveBaseDir(): string {
     return "/data";
   }
 
-  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".";
+  const home = resolveCanonicalHome();
   return join(home, ".triggerfish");
 }
 

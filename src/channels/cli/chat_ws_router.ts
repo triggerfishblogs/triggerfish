@@ -46,6 +46,7 @@ function routeConnectedEvent(
   resolveConnected: () => void,
 ): void {
   ctx.state.providerName = evt.provider;
+  ctx.state.workspacePath = evt.workspace ?? "";
   if (evt.taint) {
     ctx.screen.setTaint(evt.taint);
   }

@@ -143,6 +143,8 @@ export interface ChatSessionConfig {
    * Used to push trigger prompt responses to all clients.
    */
   readonly broadcastChatEvent?: (event: ChatEvent) => void;
+  /** Workspace directory path for display in client banners. */
+  readonly workspacePath?: string;
 }
 
 /** Shared chat session that serializes access to the orchestrator. */
@@ -184,6 +186,8 @@ export interface ChatSession {
   readonly providerName: string;
   /** The primary model identifier from config. */
   readonly modelName: string;
+  /** Workspace directory path for display in client banners. */
+  readonly workspacePath: string;
   /** Read the current owner session taint. */
   readonly sessionTaint: ClassificationLevel;
   /**

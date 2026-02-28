@@ -168,6 +168,7 @@ export async function runChat(): Promise<void> {
     triggerPromptMode: null,
     pendingTriggerPrompt: null,
     providerName: "unknown",
+    workspacePath: "",
   };
   const messageQueue: string[] = [];
 
@@ -195,8 +196,8 @@ export async function runChat(): Promise<void> {
   );
 
   if (!isTty) {
-    printBanner(state.providerName, config.models.primary.model, "");
-    await runSimpleWsRepl(ws, state.providerName, config);
+    printBanner(state.providerName, config.models.primary.model, state.workspacePath);
+    await runSimpleWsRepl(ws, state.providerName, config, state.workspacePath);
     return;
   }
 
@@ -229,7 +230,7 @@ async function runTtyKeypressLoop(
 
   screen.init();
   screen.writeOutput(
-    formatBanner(state.providerName, config.models.primary.model, ""),
+    formatBanner(state.providerName, config.models.primary.model, state.workspacePath),
   );
 
   const cleanup = () =>

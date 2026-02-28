@@ -180,6 +180,7 @@ export function assembleChatSession(deps: ChatSessionDeps) {
     getActiveSkillContext: deps.getActiveSkillContext,
     triggerStore: deps.triggerStore,
     broadcastChatEvent: deps.broadcastChatEvent,
+    workspacePath: deps.workspacePaths.publicPath,
   });
 }
 

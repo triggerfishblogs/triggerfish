@@ -39,13 +39,14 @@ export function dispatchSlashCommand(
   config: TriggerFishConfig,
   providerName: string,
   displayMode: ToolDisplayMode,
+  workspace: string,
 ): SlashCommandResult {
   if (text === "/quit" || text === "/exit" || text === "/q") {
     return { handled: true, shouldExit: true };
   }
 
   if (text === "/clear") {
-    return handleClearCommand(ws, screen, editor, config, providerName);
+    return handleClearCommand(ws, screen, editor, config, providerName, workspace);
   }
 
   if (text === "/help") {
@@ -76,13 +77,14 @@ function handleClearCommand(
   editor: LineEditor,
   config: TriggerFishConfig,
   providerName: string,
+  workspace: string,
 ): SlashCommandResult {
   ws.send(JSON.stringify({ type: "clear" }));
   screen.setTaint("PUBLIC");
   screen.cleanup();
   screen.init();
   screen.writeOutput(
-    formatBanner(providerName, config.models.primary.model, ""),
+    formatBanner(providerName, config.models.primary.model, workspace),
   );
   screen.redrawInput(editor);
   return { handled: true, shouldExit: false };

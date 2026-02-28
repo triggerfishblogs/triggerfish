@@ -105,6 +105,7 @@ function dispatchSlashCommand(
   ws: WebSocket,
   providerName: string,
   config: TriggerFishConfig,
+  workspace: string,
 ): "quit" | "handled" | "not_command" {
   if (line === "/quit" || line === "/exit" || line === "/q") {
     console.log("\n  Goodbye.\n");
@@ -113,7 +114,7 @@ function dispatchSlashCommand(
   if (line === "/clear") {
     ws.send(JSON.stringify({ type: "clear" }));
     console.log("\x1b[2J\x1b[H");
-    printBanner(providerName, config.models.primary.model, "");
+    printBanner(providerName, config.models.primary.model, workspace);
     return "handled";
   }
   if (line === "/compact") {
@@ -180,9 +181,10 @@ async function processReplLine(
   ws: WebSocket,
   providerName: string,
   config: TriggerFishConfig,
+  workspace: string,
   log: ReturnType<typeof createLogger>,
 ): Promise<boolean> {
-  const result = dispatchSlashCommand(line, ws, providerName, config);
+  const result = dispatchSlashCommand(line, ws, providerName, config, workspace);
   if (result === "quit") {
     ws.close();
     return true;
@@ -207,13 +209,14 @@ async function drainCompleteLines(
   ws: WebSocket,
   providerName: string,
   config: TriggerFishConfig,
+  workspace: string,
   log: ReturnType<typeof createLogger>,
 ): Promise<boolean> {
   let newlineIdx: number;
   while ((newlineIdx = state.partial.indexOf("\n")) !== -1) {
     const line = state.partial.slice(0, newlineIdx).trimEnd();
     state.partial = state.partial.slice(newlineIdx + 1);
-    if (await processReplLine(line, ws, providerName, config, log)) return true;
+    if (await processReplLine(line, ws, providerName, config, workspace, log)) return true;
   }
   return false;
 }
@@ -228,6 +231,7 @@ export async function runSimpleWsRepl(
   ws: WebSocket,
   providerName: string,
   config: TriggerFishConfig,
+  workspace: string,
 ): Promise<void> {
   const log = createLogger("cli");
   const decoder = new TextDecoder();
@@ -239,7 +243,7 @@ export async function runSimpleWsRepl(
     const n = await Deno.stdin.read(buf);
     if (n === null) break;
     state.partial += decoder.decode(buf.subarray(0, n));
-    if (await drainCompleteLines(state, ws, providerName, config, log)) return;
+    if (await drainCompleteLines(state, ws, providerName, config, workspace, log)) return;
   }
   ws.close();
 }

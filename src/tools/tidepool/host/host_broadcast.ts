@@ -64,6 +64,7 @@ function sendChatConnectedStatus(
         type: "connected",
         provider: chatSession.providerName,
         model: chatSession.modelName,
+        workspace: chatSession.workspacePath,
       }),
     );
   }

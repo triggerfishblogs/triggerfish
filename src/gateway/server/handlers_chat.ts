@@ -43,6 +43,7 @@ function sendConnectionInfo(socket: WebSocket, chat: ChatSession): void {
     provider: chat.providerName,
     model: chat.modelName,
     taint: chat.sessionTaint,
+    workspace: chat.workspacePath,
   });
 }
 

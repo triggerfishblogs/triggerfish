@@ -15,6 +15,9 @@
 import { basename, join, resolve } from "@std/path";
 import type { ClassificationLevel } from "../types/classification.ts";
 import { PROTECTED_BASENAMES, PROTECTED_DIR_PATTERNS } from "./constants.ts";
+import { createLogger } from "../logger/mod.ts";
+
+const log = createLogger("path-classification");
 
 /** Result of classifying a filesystem path. */
 export interface PathClassificationResult {
@@ -49,7 +52,18 @@ export interface WorkspacePaths {
  * Prefers HOME (Linux/macOS), falls back to USERPROFILE (Windows).
  */
 export function resolveHome(): string {
-  return Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? "";
+  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? "";
+  if (!home) return home;
+  try {
+    return Deno.realPathSync(home);
+  } catch (err: unknown) {
+    log.debug("Home directory symlink resolution failed, using raw path", {
+      operation: "resolveHome",
+      home,
+      err,
+    });
+    return home;
+  }
 }
 
 /**

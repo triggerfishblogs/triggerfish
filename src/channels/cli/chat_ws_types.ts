@@ -50,6 +50,7 @@ export interface WsRouterState {
   triggerPromptMode: TriggerPromptModeState | null;
   pendingTriggerPrompt: TriggerPromptModeState | null;
   providerName: string;
+  workspacePath: string;
 }
 
 /** Dependencies injected into the WebSocket message router. */
