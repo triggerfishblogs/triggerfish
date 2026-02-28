@@ -12,15 +12,20 @@ import type {
   ClassificationLevel,
 } from "../../core/types/classification.ts";
 import type {
+  GitHubBranch,
   GitHubClassificationConfig,
   GitHubCodeSearchItem,
+  GitHubComment,
   GitHubCommit,
   GitHubError,
   GitHubFileContent,
   GitHubIssue,
   GitHubIssueSearchItem,
   GitHubPull,
+  GitHubPullDetail,
+  GitHubPullFile,
   GitHubRepo,
+  GitHubRepoDetail,
   GitHubWorkflowRun,
   RepoVisibility,
 } from "./types.ts";
@@ -28,20 +33,35 @@ import type { Result } from "../../core/types/classification.ts";
 import type { ApiRequestFn, ClassifyRepoFn } from "./client_http.ts";
 import { sendGitHubApiRequest } from "./client_http.ts";
 import type { GitHubApiContext } from "./client_http.ts";
-import { fetchUserRepos, fetchRepoFile, fetchRepoCommits } from "./repos/mod.ts";
+import {
+  fetchRepo,
+  fetchUserRepos,
+  fetchRepoFile,
+  fetchRepoCommits,
+  fetchRepoBranches,
+  createRepoBranch,
+  deleteRepoBranch,
+} from "./repos/mod.ts";
 import {
   fetchRepoPulls,
+  fetchRepoPull,
+  updateRepoPull,
+  fetchPullFiles,
   submitRepoPullRequest,
   submitPullRequestReview,
   mergeRepoPullRequest,
 } from "./pulls/mod.ts";
 import {
   fetchRepoIssues,
+  fetchRepoIssue,
+  updateRepoIssue,
+  fetchIssueComments,
   submitRepoIssue,
   submitIssueComment,
 } from "./issues/mod.ts";
 import {
   fetchRepoWorkflowRuns,
+  cancelRepoWorkflowRun,
   dispatchRepoWorkflow,
   searchGitHubCode,
   searchGitHubIssues,
@@ -60,6 +80,10 @@ export interface GitHubClient {
   readonly listRepos: (
     opts?: { readonly page?: number; readonly perPage?: number },
   ) => Promise<Result<readonly GitHubRepo[], GitHubError>>;
+  readonly getRepo: (
+    owner: string,
+    repo: string,
+  ) => Promise<Result<GitHubRepoDetail, GitHubError>>;
   readonly readFile: (
     owner: string,
     repo: string,
@@ -71,6 +95,39 @@ export interface GitHubClient {
     repo: string,
     opts?: { readonly sha?: string; readonly perPage?: number },
   ) => Promise<Result<readonly GitHubCommit[], GitHubError>>;
+  readonly listBranches: (
+    owner: string,
+    repo: string,
+    opts?: { readonly perPage?: number },
+  ) => Promise<Result<readonly GitHubBranch[], GitHubError>>;
+  readonly createBranch: (
+    owner: string,
+    repo: string,
+    branchName: string,
+    sha: string,
+  ) => Promise<
+    Result<
+      {
+        readonly ref: string;
+        readonly sha: string;
+        readonly classification: ClassificationLevel;
+      },
+      GitHubError
+    >
+  >;
+  readonly deleteBranch: (
+    owner: string,
+    repo: string,
+    branchName: string,
+  ) => Promise<
+    Result<
+      {
+        readonly deleted: boolean;
+        readonly classification: ClassificationLevel;
+      },
+      GitHubError
+    >
+  >;
   readonly listPulls: (
     owner: string,
     repo: string,
@@ -115,6 +172,28 @@ export interface GitHubClient {
       GitHubError
     >
   >;
+  readonly getPull: (
+    owner: string,
+    repo: string,
+    prNumber: number,
+  ) => Promise<Result<GitHubPullDetail, GitHubError>>;
+  readonly updatePull: (
+    owner: string,
+    repo: string,
+    prNumber: number,
+    fields: {
+      readonly title?: string;
+      readonly body?: string;
+      readonly base?: string;
+      readonly state?: string;
+    },
+  ) => Promise<Result<GitHubPullDetail, GitHubError>>;
+  readonly listPullFiles: (
+    owner: string,
+    repo: string,
+    prNumber: number,
+    opts?: { readonly perPage?: number },
+  ) => Promise<Result<readonly GitHubPullFile[], GitHubError>>;
   readonly listIssues: (
     owner: string,
     repo: string,
@@ -146,6 +225,29 @@ export interface GitHubClient {
       GitHubError
     >
   >;
+  readonly getIssue: (
+    owner: string,
+    repo: string,
+    issueNumber: number,
+  ) => Promise<Result<GitHubIssue, GitHubError>>;
+  readonly updateIssue: (
+    owner: string,
+    repo: string,
+    issueNumber: number,
+    fields: {
+      readonly title?: string;
+      readonly body?: string;
+      readonly state?: string;
+      readonly labels?: readonly string[];
+      readonly assignees?: readonly string[];
+    },
+  ) => Promise<Result<GitHubIssue, GitHubError>>;
+  readonly listComments: (
+    owner: string,
+    repo: string,
+    issueNumber: number,
+    opts?: { readonly perPage?: number },
+  ) => Promise<Result<readonly GitHubComment[], GitHubError>>;
   readonly listWorkflowRuns: (
     owner: string,
     repo: string,
@@ -155,6 +257,19 @@ export interface GitHubClient {
       readonly perPage?: number;
     },
   ) => Promise<Result<readonly GitHubWorkflowRun[], GitHubError>>;
+  readonly cancelRun: (
+    owner: string,
+    repo: string,
+    runId: number,
+  ) => Promise<
+    Result<
+      {
+        readonly cancelled: boolean;
+        readonly classification: ClassificationLevel;
+      },
+      GitHubError
+    >
+  >;
   readonly triggerWorkflow: (
     owner: string,
     repo: string,
@@ -239,10 +354,18 @@ export function createGitHubClient(config: GitHubClientConfig): GitHubClient {
 
   return {
     listRepos: (opts) => fetchUserRepos(apiRequest, classifyRepo, opts),
+    getRepo: (owner, repo) =>
+      fetchRepo(apiRequest, classifyRepo, owner, repo),
     readFile: (owner, repo, path, ref) =>
       fetchRepoFile(apiRequest, classifyRepo, owner, repo, path, ref),
     listCommits: (owner, repo, opts) =>
       fetchRepoCommits(apiRequest, classifyRepo, owner, repo, opts),
+    listBranches: (owner, repo, opts) =>
+      fetchRepoBranches(apiRequest, classifyRepo, owner, repo, opts),
+    createBranch: (owner, repo, branchName, sha) =>
+      createRepoBranch(apiRequest, classifyRepo, owner, repo, branchName, sha),
+    deleteBranch: (owner, repo, branchName) =>
+      deleteRepoBranch(apiRequest, classifyRepo, owner, repo, branchName),
     listPulls: (owner, repo, opts) =>
       fetchRepoPulls(apiRequest, classifyRepo, owner, repo, opts),
     createPull: (owner, repo, title, head, base, body) =>
@@ -275,6 +398,12 @@ export function createGitHubClient(config: GitHubClientConfig): GitHubClient {
         prNumber,
         opts,
       ),
+    getPull: (owner, repo, prNumber) =>
+      fetchRepoPull(apiRequest, classifyRepo, owner, repo, prNumber),
+    updatePull: (owner, repo, prNumber, fields) =>
+      updateRepoPull(apiRequest, classifyRepo, owner, repo, prNumber, fields),
+    listPullFiles: (owner, repo, prNumber, opts) =>
+      fetchPullFiles(apiRequest, classifyRepo, owner, repo, prNumber, opts),
     listIssues: (owner, repo, opts) =>
       fetchRepoIssues(apiRequest, classifyRepo, owner, repo, opts),
     createIssue: (owner, repo, title, body, labels) =>
@@ -296,8 +425,30 @@ export function createGitHubClient(config: GitHubClientConfig): GitHubClient {
         issueNumber,
         body,
       ),
+    getIssue: (owner, repo, issueNumber) =>
+      fetchRepoIssue(apiRequest, classifyRepo, owner, repo, issueNumber),
+    updateIssue: (owner, repo, issueNumber, fields) =>
+      updateRepoIssue(
+        apiRequest,
+        classifyRepo,
+        owner,
+        repo,
+        issueNumber,
+        fields,
+      ),
+    listComments: (owner, repo, issueNumber, opts) =>
+      fetchIssueComments(
+        apiRequest,
+        classifyRepo,
+        owner,
+        repo,
+        issueNumber,
+        opts,
+      ),
     listWorkflowRuns: (owner, repo, opts) =>
       fetchRepoWorkflowRuns(apiRequest, classifyRepo, owner, repo, opts),
+    cancelRun: (owner, repo, runId) =>
+      cancelRepoWorkflowRun(apiRequest, classifyRepo, owner, repo, runId),
     triggerWorkflow: (owner, repo, workflow, ref, inputs) =>
       dispatchRepoWorkflow(
         apiRequest,

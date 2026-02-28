@@ -6,14 +6,16 @@
 
 export {
   fetchRepoWorkflowRuns,
+  cancelRepoWorkflowRun,
   dispatchRepoWorkflow,
   searchGitHubCode,
   searchGitHubIssues,
 } from "./client_workflows.ts";
 
 export {
-  executeActionsRuns,
-  executeActionsTrigger,
+  executeListRuns,
+  executeTriggerWorkflow,
+  executeCancelRun,
 } from "./tools_actions.ts";
 
 export {
@@ -22,8 +24,9 @@ export {
 } from "./tools_search.ts";
 
 export {
-  buildActionsRunsDef,
-  buildActionsTriggerDef,
+  buildListRunsDef,
+  buildCancelRunDef,
+  buildTriggerWorkflowDef,
   buildSearchCodeDef,
   buildSearchIssuesDef,
 } from "./tools_defs_actions.ts";

@@ -1,5 +1,5 @@
 /**
- * GitHub issues tool handlers — list, create, comment.
+ * GitHub issues tool handlers — list, get, create, update, comment, list_comments.
  *
  * Each handler validates inputs, calls the GitHubClient, and
  * formats the response as a JSON string for the agent.
@@ -12,12 +12,12 @@ import { validateRepoInput, formatGitHubError } from "../tools_shared.ts";
 
 // ─── List Issues ─────────────────────────────────────────────────────────────
 
-/** Handle the github_issues_list tool invocation. */
-export async function executeIssuesList(
+/** Handle the github_list_issues tool invocation. */
+export async function executeListIssues(
   client: GitHubClient,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const repoResult = validateRepoInput(input, "github_issues_list");
+  const repoResult = validateRepoInput(input, "github_list_issues");
   if (typeof repoResult === "string") return repoResult;
 
   const state = typeof input.state === "string" ? input.state : undefined;
@@ -38,19 +38,49 @@ export async function executeIssuesList(
   });
 }
 
-// ─── Create Issue ────────────────────────────────────────────────────────────
+// ─── Get Issue ──────────────────────────────────────────────────────────────
 
-/** Handle the github_issues_create tool invocation. */
-export async function executeIssuesCreate(
+/** Handle the github_get_issue tool invocation. */
+export async function executeGetIssue(
   client: GitHubClient,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const repoResult = validateRepoInput(input, "github_issues_create");
+  const repoResult = validateRepoInput(input, "github_get_issue");
+  if (typeof repoResult === "string") return repoResult;
+
+  const number = input.number;
+  if (typeof number !== "number") {
+    return "Error: github_get_issue requires a 'number' argument (number).";
+  }
+
+  const result = await client.getIssue(repoResult.owner, repoResult.name, number);
+  if (!result.ok) return formatGitHubError(result.error);
+  return JSON.stringify({
+    number: result.value.number,
+    title: result.value.title,
+    state: result.value.state,
+    author: result.value.author,
+    body: result.value.body,
+    labels: result.value.labels,
+    created_at: result.value.createdAt,
+    url: result.value.htmlUrl,
+    _classification: result.value.classification,
+  });
+}
+
+// ─── Create Issue ────────────────────────────────────────────────────────────
+
+/** Handle the github_create_issue tool invocation. */
+export async function executeCreateIssue(
+  client: GitHubClient,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const repoResult = validateRepoInput(input, "github_create_issue");
   if (typeof repoResult === "string") return repoResult;
 
   const title = input.title;
   if (typeof title !== "string" || title.length === 0) {
-    return "Error: github_issues_create requires a 'title' argument.";
+    return "Error: github_create_issue requires a 'title' argument.";
   }
   const body = typeof input.body === "string" ? input.body : undefined;
   const labels = typeof input.labels === "string"
@@ -67,23 +97,95 @@ export async function executeIssuesCreate(
   });
 }
 
-// ─── Comment on Issue ────────────────────────────────────────────────────────
+// ─── Update Issue ───────────────────────────────────────────────────────────
 
-/** Handle the github_issues_comment tool invocation. */
-export async function executeIssuesComment(
+/** Build the update fields from the input. */
+function buildIssueUpdateFields(input: Record<string, unknown>): Record<string, unknown> {
+  const fields: Record<string, unknown> = {};
+  if (typeof input.title === "string") fields.title = input.title;
+  if (typeof input.body === "string") fields.body = input.body;
+  if (typeof input.state === "string") fields.state = input.state;
+  if (typeof input.labels === "string") {
+    fields.labels = (input.labels as string).split(",").map((l) => l.trim());
+  }
+  if (typeof input.assignees === "string") {
+    fields.assignees = (input.assignees as string).split(",").map((a) => a.trim());
+  }
+  return fields;
+}
+
+/** Handle the github_update_issue tool invocation. */
+export async function executeUpdateIssue(
   client: GitHubClient,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const repoResult = validateRepoInput(input, "github_issues_comment");
+  const repoResult = validateRepoInput(input, "github_update_issue");
   if (typeof repoResult === "string") return repoResult;
 
   const number = input.number;
   if (typeof number !== "number") {
-    return "Error: github_issues_comment requires a 'number' argument (number).";
+    return "Error: github_update_issue requires a 'number' argument (number).";
+  }
+
+  const fields = buildIssueUpdateFields(input);
+  const result = await client.updateIssue(repoResult.owner, repoResult.name, number, fields);
+  if (!result.ok) return formatGitHubError(result.error);
+  return JSON.stringify({
+    number: result.value.number,
+    title: result.value.title,
+    state: result.value.state,
+    url: result.value.htmlUrl,
+    _classification: result.value.classification,
+  });
+}
+
+// ─── List Comments ──────────────────────────────────────────────────────────
+
+/** Handle the github_list_comments tool invocation. */
+export async function executeListComments(
+  client: GitHubClient,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const repoResult = validateRepoInput(input, "github_list_comments");
+  if (typeof repoResult === "string") return repoResult;
+
+  const number = input.number;
+  if (typeof number !== "number") {
+    return "Error: github_list_comments requires a 'number' argument (number).";
+  }
+  const perPage = typeof input.per_page === "number" ? input.per_page : undefined;
+
+  const result = await client.listComments(repoResult.owner, repoResult.name, number, { perPage });
+  if (!result.ok) return formatGitHubError(result.error);
+  return JSON.stringify({
+    comments: result.value.map((c) => ({
+      id: c.id,
+      author: c.author,
+      body: c.body,
+      created_at: c.createdAt,
+      url: c.htmlUrl,
+      _classification: c.classification,
+    })),
+  });
+}
+
+// ─── Comment on Issue ────────────────────────────────────────────────────────
+
+/** Handle the github_add_comment tool invocation. */
+export async function executeAddComment(
+  client: GitHubClient,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const repoResult = validateRepoInput(input, "github_add_comment");
+  if (typeof repoResult === "string") return repoResult;
+
+  const number = input.number;
+  if (typeof number !== "number") {
+    return "Error: github_add_comment requires a 'number' argument (number).";
   }
   const body = input.body;
   if (typeof body !== "string" || body.length === 0) {
-    return "Error: github_issues_comment requires a 'body' argument.";
+    return "Error: github_add_comment requires a 'body' argument.";
   }
 
   const result = await client.createComment(repoResult.owner, repoResult.name, number, body);

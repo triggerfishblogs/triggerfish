@@ -43,6 +43,30 @@ export interface GitHubCommit {
   readonly classification: ClassificationLevel;
 }
 
+/** Detailed GitHub repository info (from GET /repos/{o}/{r}). */
+export interface GitHubRepoDetail {
+  readonly id: number;
+  readonly fullName: string;
+  readonly description: string | null;
+  readonly visibility: RepoVisibility;
+  readonly defaultBranch: string;
+  readonly htmlUrl: string;
+  readonly cloneUrl: string;
+  readonly sshUrl: string;
+  readonly language: string | null;
+  readonly stargazersCount: number;
+  readonly forksCount: number;
+  readonly topics: readonly string[];
+  readonly classification: ClassificationLevel;
+}
+
+/** A GitHub branch. */
+export interface GitHubBranch {
+  readonly name: string;
+  readonly protected: boolean;
+  readonly classification: ClassificationLevel;
+}
+
 /** A GitHub pull request. */
 export interface GitHubPull {
   readonly number: number;
@@ -56,6 +80,34 @@ export interface GitHubPull {
   readonly classification: ClassificationLevel;
 }
 
+/** Detailed GitHub pull request (from GET /repos/{o}/{r}/pulls/{n}). */
+export interface GitHubPullDetail {
+  readonly number: number;
+  readonly title: string;
+  readonly state: string;
+  readonly author: string;
+  readonly body: string | null;
+  readonly headRef: string;
+  readonly baseRef: string;
+  readonly htmlUrl: string;
+  readonly createdAt: string;
+  readonly additions: number;
+  readonly deletions: number;
+  readonly changedFiles: number;
+  readonly mergeable: boolean | null;
+  readonly classification: ClassificationLevel;
+}
+
+/** A file changed in a pull request. */
+export interface GitHubPullFile {
+  readonly filename: string;
+  readonly status: string;
+  readonly additions: number;
+  readonly deletions: number;
+  readonly changes: number;
+  readonly classification: ClassificationLevel;
+}
+
 /** A GitHub issue. */
 export interface GitHubIssue {
   readonly number: number;
@@ -66,6 +118,16 @@ export interface GitHubIssue {
   readonly htmlUrl: string;
   readonly createdAt: string;
   readonly labels: readonly string[];
+  readonly classification: ClassificationLevel;
+}
+
+/** A comment on a GitHub issue or pull request. */
+export interface GitHubComment {
+  readonly id: number;
+  readonly author: string;
+  readonly body: string;
+  readonly createdAt: string;
+  readonly htmlUrl: string;
   readonly classification: ClassificationLevel;
 }
 

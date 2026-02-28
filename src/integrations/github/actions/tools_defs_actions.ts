@@ -9,10 +9,10 @@
 
 import type { ToolDefinition } from "../../../core/types/tool.ts";
 
-/** Build the github_actions_runs tool definition. */
-export function buildActionsRunsDef(): ToolDefinition {
+/** Build the github_list_runs tool definition. */
+export function buildListRunsDef(): ToolDefinition {
   return {
-    name: "github_actions_runs",
+    name: "github_list_runs",
     description: "List recent GitHub Actions workflow runs for a repository.",
     parameters: {
       repo: {
@@ -58,13 +58,34 @@ function buildActionsTriggerParams(): ToolDefinition["parameters"] {
   };
 }
 
-/** Build the github_actions_trigger tool definition. */
-export function buildActionsTriggerDef(): ToolDefinition {
+/** Build the github_trigger_workflow tool definition. */
+export function buildTriggerWorkflowDef(): ToolDefinition {
   return {
-    name: "github_actions_trigger",
+    name: "github_trigger_workflow",
     description:
       "Trigger a GitHub Actions workflow via workflow_dispatch event.",
     parameters: buildActionsTriggerParams(),
+  };
+}
+
+/** Build the github_cancel_run tool definition. */
+export function buildCancelRunDef(): ToolDefinition {
+  return {
+    name: "github_cancel_run",
+    description:
+      "Cancel a GitHub Actions workflow run. Returns whether the cancellation was accepted.",
+    parameters: {
+      repo: {
+        type: "string",
+        description: 'Repository in "owner/name" format',
+        required: true,
+      },
+      run_id: {
+        type: "number",
+        description: "The workflow run ID to cancel",
+        required: true,
+      },
+    },
   };
 }
 

@@ -86,6 +86,35 @@ export async function fetchRepoWorkflowRuns(
   return { ok: true, value: runs };
 }
 
+/** Cancel a workflow run on a GitHub repo. */
+export async function cancelRepoWorkflowRun(
+  apiRequest: ApiRequestFn,
+  classifyRepo: ClassifyRepoFn,
+  owner: string,
+  repo: string,
+  runId: number,
+): Promise<
+  Result<
+    {
+      readonly cancelled: boolean;
+      readonly classification: ClassificationLevel;
+    },
+    GitHubError
+  >
+> {
+  const path = `${buildRepoPath(owner, repo)}/actions/runs/${runId}/cancel`;
+  const result = await apiRequest<undefined>(path, { method: "POST" });
+  if (!result.ok) return result;
+
+  const classification = await fetchRepoClassification(
+    apiRequest,
+    classifyRepo,
+    owner,
+    repo,
+  );
+  return { ok: true, value: { cancelled: true, classification } };
+}
+
 /** Trigger a workflow dispatch on a GitHub repo. */
 export async function dispatchRepoWorkflow(
   apiRequest: ApiRequestFn,

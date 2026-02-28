@@ -9,10 +9,15 @@
  */
 
 export type {
+  GitHubBranch,
+  GitHubComment,
   GitHubRepo,
+  GitHubRepoDetail,
   GitHubFileContent,
   GitHubCommit,
   GitHubPull,
+  GitHubPullDetail,
+  GitHubPullFile,
   GitHubIssue,
   GitHubWorkflowRun,
   GitHubCodeSearchItem,
