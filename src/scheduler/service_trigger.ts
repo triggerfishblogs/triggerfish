@@ -47,17 +47,13 @@ async function executeTriggerSession(
   });
 }
 
-/** Default message when TRIGGER.md is absent. */
-const DEFAULT_TRIGGER_MESSAGE =
-  "This is a scheduled trigger wakeup. Check for any pending tasks, " +
-  "notifications, or proactive actions you should take.";
-
 /**
  * Run the trigger callback: load TRIGGER.md and send it to an
  * isolated orchestrator session.
  *
- * When TRIGGER.md is absent, a default trigger message is used so that
- * the agent still performs its proactive check-in.
+ * When TRIGGER.md is absent, the trigger is skipped entirely — there are
+ * no instructions for the agent to follow, so running it would just cause
+ * the LLM to hallucinate tasks.
  *
  * Safe to call directly for forced trigger runs.
  */
@@ -65,17 +61,19 @@ export async function runTriggerCallback(
   config: SchedulerServiceConfig,
 ): Promise<void> {
   const triggerContent = await loadTriggerMd(config.triggerMdPath);
-  const message = triggerContent ?? DEFAULT_TRIGGER_MESSAGE;
   if (!triggerContent) {
-    log.debug("No TRIGGER.md found — using default trigger message");
+    log.debug("Trigger skipped — no TRIGGER.md found", {
+      operation: "runTriggerCallback",
+      path: config.triggerMdPath,
+    });
+    return;
   }
   try {
-    await executeTriggerSession(config, message);
+    await executeTriggerSession(config, triggerContent);
   } catch (err) {
-    log.error(
-      `Trigger callback failed: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
+    log.error("Trigger callback failed", {
+      operation: "runTriggerCallback",
+      err,
+    });
   }
 }
