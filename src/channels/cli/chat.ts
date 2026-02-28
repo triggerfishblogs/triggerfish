@@ -6,6 +6,7 @@
  * and a simple line-buffered fallback for piped/non-TTY input.
  *
  * Sub-modules:
+ * - chat_connection.ts: Config loading and daemon WebSocket setup
  * - chat_ws_router.ts: WebSocket message routing
  * - chat_simple_repl.ts: Non-TTY fallback REPL
  * - chat_password.ts: Password/secret prompt handling
@@ -18,10 +19,7 @@
 
 import { join } from "@std/path";
 import { createLogger } from "../../core/logger/logger.ts";
-import type { Logger } from "../../core/logger/logger.ts";
-import { loadConfig } from "../../core/config.ts";
 import type { TriggerFishConfig } from "../../core/config.ts";
-import { resolveBaseDir, resolveConfigPath } from "../../cli/config/paths.ts";
 import {
   createEventHandler,
   createScreenEventHandler,
@@ -33,13 +31,11 @@ import {
   createLineEditor,
   createSuggestionEngine,
 } from "../../cli/terminal/terminal.ts";
-import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import { loadInputHistory, saveInputHistory } from "../../cli/chat/history.ts";
 import { createScreenManager } from "../../cli/terminal/screen.ts";
-import type { ScreenManager } from "../../cli/terminal/screen.ts";
 import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
-import { createWsMessageRouter } from "./chat_ws_router.ts";
-import type { WsRouterState } from "./chat_ws_router.ts";
+import type { ChatReplDeps, WsRouterState } from "./chat_ws_types.ts";
+import { loadChatConfig, openChatWebSocket, awaitDaemonConnection } from "./chat_connection.ts";
 import { runSimpleWsRepl } from "./chat_simple_repl.ts";
 import { routePasswordKeypress, routeCredentialKeypress } from "./chat_password.ts";
 import { routeTriggerPromptKeypress } from "./chat_trigger_prompt.ts";
@@ -49,102 +45,6 @@ import type { ChatReplState } from "./chat_input.ts";
 
 // Re-export for external importers
 export { runSimpleWsRepl } from "./chat_simple_repl.ts";
-
-/** Load config and prepare the data directory. Returns config and dataDir. */
-async function loadChatConfig(): Promise<{
-  readonly config: TriggerFishConfig;
-  readonly dataDir: string;
-}> {
-  const configPath = resolveConfigPath();
-  const configResult = loadConfig(configPath);
-  if (!configResult.ok) {
-    console.log(`Configuration error: ${configResult.error}`);
-    console.log("Run 'triggerfish dive' to fix your configuration.\n");
-    Deno.exit(1);
-  }
-  const baseDir = resolveBaseDir();
-  const dataDir = join(baseDir, "data");
-  await Deno.mkdir(dataDir, { recursive: true });
-  return { config: configResult.value, dataDir };
-}
-
-/** Open a WebSocket to the gateway chat endpoint. */
-function openChatWebSocket(log: Logger): WebSocket {
-  const gatewayUrl = "ws://127.0.0.1:18789/chat";
-  try {
-    return new WebSocket(gatewayUrl);
-  } catch {
-    log.debug("WebSocket construction failed for gateway chat");
-    console.log("Cannot connect to daemon. Is it running?");
-    console.log("Run 'triggerfish start' or 'triggerfish run' first.\n");
-    Deno.exit(1);
-    // Unreachable, but satisfies return type
-    throw new Error("WebSocket connection failed");
-  }
-}
-
-/** Install WS event listeners and wait for the "connected" event. */
-async function awaitDaemonConnection(
-  ws: WebSocket,
-  screen: ScreenManager,
-  isTty: boolean,
-  state: WsRouterState,
-  messageQueue: string[],
-  getEditor: () => LineEditor,
-  eventHandler: (evt: OrchestratorEvent) => void,
-): Promise<void> {
-  const connected = Promise.withResolvers<void>();
-
-  ws.addEventListener("error", () => {
-    console.log("Cannot connect to daemon. Is it running?");
-    console.log("Run 'triggerfish start' or 'triggerfish run' first.\n");
-    Deno.exit(1);
-  });
-  ws.addEventListener("open", () => {});
-
-  const wsRouter = createWsMessageRouter({
-    screen,
-    isTty,
-    getEditor,
-    eventHandler,
-    state,
-    messageQueue,
-    ws,
-    resolveConnected: () => connected.resolve(),
-  });
-  ws.addEventListener("message", wsRouter);
-
-  installWsCloseHandler(ws, isTty, screen, getEditor, state);
-
-  const timeout = setTimeout(() => {
-    console.log("Timed out waiting for daemon. Is it running?");
-    console.log("Run 'triggerfish start' or 'triggerfish run' first.\n");
-    ws.close();
-    Deno.exit(1);
-  }, 5000);
-  await connected.promise;
-  clearTimeout(timeout);
-}
-
-/** Handle WebSocket close by showing a disconnect message. */
-function installWsCloseHandler(
-  ws: WebSocket,
-  isTty: boolean,
-  screen: ScreenManager,
-  getEditor: () => LineEditor,
-  state: WsRouterState,
-): void {
-  ws.addEventListener("close", () => {
-    if (isTty) {
-      screen.writeOutput("  \x1b[31mDisconnected from daemon.\x1b[0m");
-      screen.writeOutput("");
-      screen.redrawInput(getEditor());
-    } else {
-      console.log("\n  Disconnected from daemon.\n");
-    }
-    state.isProcessing = false;
-  });
-}
 
 /**
  * Run an interactive chat REPL.
@@ -185,103 +85,85 @@ export async function runChat(): Promise<void> {
     ? createScreenEventHandler(screen, () => rs.displayMode)
     : createEventHandler();
 
-  await awaitDaemonConnection(
-    ws,
+  await awaitDaemonConnection({
     screen,
     isTty,
+    getEditor: () => rs.editor,
+    eventHandler: eventHandler as (evt: OrchestratorEvent) => void,
     state,
     messageQueue,
-    () => rs.editor,
-    eventHandler as (evt: OrchestratorEvent) => void,
-  );
+    ws,
+  });
 
   if (!isTty) {
     printBanner(state.providerName, config.models.primary.model, state.workspacePath);
-    await runSimpleWsRepl(ws, state.providerName, config, state.workspacePath);
+    await runSimpleWsRepl(ws, {
+      providerName: state.providerName,
+      config,
+      workspace: state.workspacePath,
+    });
     return;
   }
 
-  await runTtyKeypressLoop(
-    rs,
-    state,
+  const deps: ChatReplDeps = {
     ws,
     screen,
+    state,
+    getEditor: () => rs.editor,
+    log,
+  };
+
+  await runTtyKeypressLoop(rs, deps, {
     config,
     messageQueue,
     dataDir,
-    log,
-  );
+  });
+}
+
+/** Options for the TTY keypress loop. */
+interface TtyLoopOpts {
+  readonly config: TriggerFishConfig;
+  readonly messageQueue: string[];
+  readonly dataDir: string;
 }
 
 /** Run the TTY keypress loop until the user exits or EOF. */
 async function runTtyKeypressLoop(
   rs: ChatReplState,
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  config: TriggerFishConfig,
-  messageQueue: string[],
-  dataDir: string,
-  log: Logger,
+  deps: ChatReplDeps,
+  opts: TtyLoopOpts,
 ): Promise<void> {
-  const historyFilePath = join(dataDir, "input_history.json");
+  const historyFilePath = join(opts.dataDir, "input_history.json");
   const suggestionEngine = createSuggestionEngine();
   const keypressReader = createKeypressReader();
 
-  screen.init();
-  screen.writeOutput(
-    formatBanner(state.providerName, config.models.primary.model, state.workspacePath),
+  deps.screen.init();
+  deps.screen.writeOutput(
+    formatBanner(deps.state.providerName, opts.config.models.primary.model, deps.state.workspacePath),
   );
 
   const cleanup = () =>
-    cleanupChatRepl(
-      keypressReader,
-      screen,
-      historyFilePath,
-      rs.inputHistory,
-      ws,
-      log,
-    );
+    cleanupChatRepl(keypressReader, deps, historyFilePath, rs.inputHistory);
 
-  installChatSignalHandlers(
-    state,
-    ws,
-    screen,
-    () => rs.editor,
-    cleanup,
-    log,
-  );
+  installChatSignalHandlers(deps, cleanup);
 
-  screen.redrawInput(rs.editor);
+  deps.screen.redrawInput(rs.editor);
   keypressReader.start();
 
+  const loopOpts = {
+    config: opts.config,
+    messageQueue: opts.messageQueue,
+    historyFilePath,
+    suggestionEngine,
+    cleanup,
+  };
+
   for await (const keypress of keypressReader) {
-    const action = routeTopLevelKeypress(
-      keypress,
-      rs,
-      state,
-      ws,
-      screen,
-      log,
-      cleanup,
-    );
+    const action = routeTopLevelKeypress(keypress, rs, deps, cleanup);
     if (action === "exit") return;
     if (action === "continue") continue;
 
-    const result = await routeInputKeypress(
-      keypress.key,
-      keypress.char,
-      rs,
-      state,
-      ws,
-      screen,
-      config,
-      messageQueue,
-      historyFilePath,
-      log,
-      suggestionEngine,
-      cleanup,
-    );
+    const result = await routeInputKeypress(keypress, rs, deps, loopOpts);
     if (result === "exit") return;
   }
 
@@ -292,53 +174,26 @@ async function runTtyKeypressLoop(
 function routeTopLevelKeypress(
   keypress: { readonly key: string; readonly char: string | null },
   rs: ChatReplState,
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  log: Logger,
+  deps: ChatReplDeps,
   cleanup: () => void,
 ): "exit" | "continue" | "dispatch" {
-  if (keypress.key === "esc" && state.isProcessing) {
-    handleEscInterrupt(ws, screen, log);
+  if (keypress.key === "esc" && deps.state.isProcessing) {
+    handleEscInterrupt(deps.ws, deps.screen, deps.log);
     return "continue";
   }
   if (keypress.key === "ctrl+c") {
-    return handleCtrlCKeypress(rs, state, ws, screen, log, cleanup);
+    return handleCtrlCKeypress(rs, deps, cleanup);
   }
-  if (state.passwordMode !== null) {
-    routePasswordKeypress(
-      keypress,
-      state.passwordMode,
-      state,
-      ws,
-      screen,
-      rs.editor,
-      log,
-    );
+  if (deps.state.passwordMode !== null) {
+    routePasswordKeypress(keypress, deps.state.passwordMode, deps);
     return "continue";
   }
-  if (state.credentialMode !== null) {
-    routeCredentialKeypress(
-      keypress,
-      state.credentialMode,
-      state,
-      ws,
-      screen,
-      rs.editor,
-      log,
-    );
+  if (deps.state.credentialMode !== null) {
+    routeCredentialKeypress(keypress, deps.state.credentialMode, deps);
     return "continue";
   }
-  if (state.triggerPromptMode !== null) {
-    routeTriggerPromptKeypress(
-      keypress,
-      state.triggerPromptMode,
-      state,
-      ws,
-      screen,
-      rs.editor,
-      log,
-    );
+  if (deps.state.triggerPromptMode !== null) {
+    routeTriggerPromptKeypress(keypress, deps.state.triggerPromptMode, deps);
     return "continue";
   }
   return "dispatch";
@@ -347,22 +202,18 @@ function routeTopLevelKeypress(
 /** Clean up resources on REPL exit: stop reader, persist history, close WS. */
 function cleanupChatRepl(
   keypressReader: ReturnType<typeof createKeypressReader>,
-  screen: ScreenManager,
+  deps: ChatReplDeps,
   historyFilePath: string,
   inputHistory: import("../../cli/chat/history.ts").InputHistory,
-  ws: WebSocket,
-  log: Logger,
 ): void {
   keypressReader.stop();
-  screen.cleanup();
+  deps.screen.cleanup();
   saveInputHistory(historyFilePath, inputHistory).catch((err: unknown) => {
-    log.debug("Input history save failed during cleanup", {
-      error: err instanceof Error ? err.message : String(err),
-    });
+    deps.log.debug("Input history save failed during cleanup", { error: err });
   });
   try {
-    ws.close();
+    deps.ws.close();
   } catch (_err: unknown) {
-    log.debug("WebSocket send failed: connection closed");
+    deps.log.debug("WebSocket send failed: connection closed");
   }
 }

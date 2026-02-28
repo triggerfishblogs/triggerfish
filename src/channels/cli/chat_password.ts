@@ -8,14 +8,13 @@
  * @module
  */
 
-import type { Logger } from "../../core/logger/logger.ts";
-import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
 import type {
-  PasswordModeState,
+  ChatReplDeps,
   CredentialModeState,
+  PasswordModeState,
   WsRouterState,
-} from "./chat_ws_router.ts";
+} from "./chat_ws_types.ts";
 
 /**
  * Route a keypress while password mode (secret_prompt) is active.
@@ -27,38 +26,31 @@ import type {
 export function routePasswordKeypress(
   keypress: { readonly key: string; readonly char: string | null },
   pm: PasswordModeState,
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  editor: LineEditor,
-  log: Logger,
+  deps: ChatReplDeps,
 ): void {
   if (keypress.key === "enter") {
-    submitPasswordValue(pm, state, ws, screen, editor, log);
+    submitPasswordValue(pm, deps);
     return;
   }
   if (keypress.key === "esc" || keypress.key === "ctrl+c") {
-    cancelPasswordEntry(pm, state, ws, screen, editor, log);
+    cancelPasswordEntry(pm, deps);
     return;
   }
   if (keypress.key === "backspace") {
-    deletePasswordChar(pm, screen);
+    deletePasswordChar(pm, deps.screen);
     return;
   }
   if (keypress.char !== null) {
-    appendPasswordChar(pm, keypress.char, screen);
+    appendPasswordChar(pm, keypress.char, deps.screen);
   }
 }
 
 /** Submit the accumulated password value via WebSocket. */
 function submitPasswordValue(
   pm: PasswordModeState,
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  editor: LineEditor,
-  log: Logger,
+  deps: ChatReplDeps,
 ): void {
+  const { ws, screen, state, log } = deps;
   const value = pm.chars.join("");
   try {
     ws.send(JSON.stringify({
@@ -73,18 +65,15 @@ function submitPasswordValue(
   screen.writeOutput("  \x1b[32m\u2713 Secret submitted\x1b[0m");
   screen.clearStatus();
   state.passwordMode = null;
-  screen.redrawInput(editor);
+  screen.redrawInput(deps.getEditor());
 }
 
 /** Cancel the password entry and notify the daemon. */
 function cancelPasswordEntry(
   pm: PasswordModeState,
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  editor: LineEditor,
-  log: Logger,
+  deps: ChatReplDeps,
 ): void {
+  const { ws, screen, state, log } = deps;
   try {
     ws.send(JSON.stringify({
       type: "secret_prompt_response",
@@ -98,7 +87,7 @@ function cancelPasswordEntry(
   screen.writeOutput("  \x1b[33m\u2717 Secret entry cancelled\x1b[0m");
   screen.clearStatus();
   state.passwordMode = null;
-  screen.redrawInput(editor);
+  screen.redrawInput(deps.getEditor());
 }
 
 /** Delete the last character from the password buffer. */
@@ -137,21 +126,17 @@ function appendPasswordChar(
 export function routeCredentialKeypress(
   keypress: { readonly key: string; readonly char: string | null },
   cm: CredentialModeState,
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  editor: LineEditor,
-  log: Logger,
+  deps: ChatReplDeps,
 ): void {
   if (keypress.key === "esc" || keypress.key === "ctrl+c") {
-    cancelCredentialEntry(cm, state, ws, screen, editor, log);
+    cancelCredentialEntry(cm, deps);
     return;
   }
 
   if (cm.phase === "username") {
-    routeCredentialUsernameKeypress(keypress, cm, state, screen);
+    routeCredentialUsernameKeypress(keypress, cm, deps);
   } else {
-    routeCredentialPasswordKeypress(keypress, cm, state, ws, screen, editor, log);
+    routeCredentialPasswordKeypress(keypress, cm, deps);
   }
 }
 
@@ -159,17 +144,16 @@ export function routeCredentialKeypress(
 function routeCredentialUsernameKeypress(
   keypress: { readonly key: string; readonly char: string | null },
   cm: CredentialModeState,
-  state: WsRouterState,
-  screen: ScreenManager,
+  deps: ChatReplDeps,
 ): void {
   if (keypress.key === "enter") {
-    advanceToPasswordPhase(cm, state, screen);
+    advanceToPasswordPhase(cm, deps.state, deps.screen);
     return;
   }
   if (keypress.key === "backspace") {
     if (cm.username.length > 0) {
       cm.username.pop();
-      screen.setStatus(
+      deps.screen.setStatus(
         "\u{1f512} " + cm.name + " username: " + cm.username.join(""),
       );
     }
@@ -177,7 +161,7 @@ function routeCredentialUsernameKeypress(
   }
   if (keypress.char !== null) {
     cm.username.push(keypress.char);
-    screen.setStatus(
+    deps.screen.setStatus(
       "\u{1f512} " + cm.name + " username: " + cm.username.join(""),
     );
   }
@@ -202,40 +186,33 @@ function advanceToPasswordPhase(
 function routeCredentialPasswordKeypress(
   keypress: { readonly key: string; readonly char: string | null },
   cm: CredentialModeState,
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  editor: LineEditor,
-  log: Logger,
+  deps: ChatReplDeps,
 ): void {
   if (keypress.key === "enter") {
-    submitCredentialValue(cm, state, ws, screen, editor, log);
+    submitCredentialValue(cm, deps);
     return;
   }
   if (keypress.key === "backspace") {
     if (cm.password.length > 0) {
       cm.password.pop();
       const masked = "\u25cf".repeat(cm.password.length);
-      screen.setStatus("\u{1f512} " + cm.name + " password: " + masked);
+      deps.screen.setStatus("\u{1f512} " + cm.name + " password: " + masked);
     }
     return;
   }
   if (keypress.char !== null) {
     cm.password.push(keypress.char);
     const masked = "\u25cf".repeat(cm.password.length);
-    screen.setStatus("\u{1f512} " + cm.name + " password: " + masked);
+    deps.screen.setStatus("\u{1f512} " + cm.name + " password: " + masked);
   }
 }
 
 /** Submit the accumulated credential (username + password) via WebSocket. */
 function submitCredentialValue(
   cm: CredentialModeState,
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  editor: LineEditor,
-  log: Logger,
+  deps: ChatReplDeps,
 ): void {
+  const { ws, screen, state, log } = deps;
   const username = cm.username.join("");
   const password = cm.password.join("");
   try {
@@ -252,18 +229,15 @@ function submitCredentialValue(
   screen.writeOutput("  \x1b[32m\u2713 Credential submitted\x1b[0m");
   screen.clearStatus();
   state.credentialMode = null;
-  screen.redrawInput(editor);
+  screen.redrawInput(deps.getEditor());
 }
 
 /** Cancel the credential entry and notify the daemon. */
 function cancelCredentialEntry(
   cm: CredentialModeState,
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  editor: LineEditor,
-  log: Logger,
+  deps: ChatReplDeps,
 ): void {
+  const { ws, screen, state, log } = deps;
   try {
     ws.send(JSON.stringify({
       type: "credential_prompt_response",
@@ -278,5 +252,5 @@ function cancelCredentialEntry(
   screen.writeOutput("  \x1b[33m\u2717 Credential entry cancelled\x1b[0m");
   screen.clearStatus();
   state.credentialMode = null;
-  screen.redrawInput(editor);
+  screen.redrawInput(deps.getEditor());
 }

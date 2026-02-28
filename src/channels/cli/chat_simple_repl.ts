@@ -15,11 +15,19 @@ import {
 } from "../../cli/chat/chat_ui.ts";
 import type { ChatEvent } from "../../core/types/chat_event.ts";
 
+/** Bundled context for the non-TTY simple REPL. */
+interface SimpleReplContext {
+  readonly ws: WebSocket;
+  readonly providerName: string;
+  readonly config: TriggerFishConfig;
+  readonly workspace: string;
+  readonly log: ReturnType<typeof createLogger>;
+}
+
 /** Read a secret value from stdin and send the response over WebSocket. */
 async function handleSecretPromptEvent(
   evt: ChatEvent & { type: "secret_prompt" },
-  ws: WebSocket,
-  log: ReturnType<typeof createLogger>,
+  ctx: SimpleReplContext,
 ): Promise<void> {
   const hintStr = evt.hint ? ` (${evt.hint})` : "";
   const enc = new TextEncoder();
@@ -32,22 +40,21 @@ async function handleSecretPromptEvent(
     ? new TextDecoder().decode(lineBuf.subarray(0, nRead)).trimEnd()
     : null;
   try {
-    ws.send(JSON.stringify({
+    ctx.ws.send(JSON.stringify({
       type: "secret_prompt_response",
       nonce: evt.nonce,
       value: value && value.length > 0 ? value : null,
     }));
-    log.debug("Secret prompt response sent", { operation: "handleSecretPromptEvent", nonce: evt.nonce, hasValue: value !== null && value.length > 0 });
+    ctx.log.debug("Secret prompt response sent", { operation: "handleSecretPromptEvent", nonce: evt.nonce, hasValue: value !== null && value.length > 0 });
   } catch (err: unknown) {
-    log.debug("WebSocket secret send failed", { operation: "handleSecretPromptEvent", err });
+    ctx.log.debug("WebSocket secret send failed", { operation: "handleSecretPromptEvent", err });
   }
 }
 
 /** Read a credential (username + password) from stdin and send the response over WebSocket. */
 async function handleCredentialPromptEvent(
   evt: ChatEvent & { type: "credential_prompt" },
-  ws: WebSocket,
-  log: ReturnType<typeof createLogger>,
+  ctx: SimpleReplContext,
 ): Promise<void> {
   const hintStr = evt.hint ? ` (${evt.hint})` : "";
   const enc = new TextEncoder();
@@ -64,15 +71,15 @@ async function handleCredentialPromptEvent(
 
   if (!username || username.length === 0) {
     try {
-      ws.send(JSON.stringify({
+      ctx.ws.send(JSON.stringify({
         type: "credential_prompt_response",
         nonce: evt.nonce,
         username: null,
         password: null,
       }));
-      log.debug("Credential prompt cancelled (empty username)", { operation: "handleCredentialPromptEvent", nonce: evt.nonce });
+      ctx.log.debug("Credential prompt cancelled (empty username)", { operation: "handleCredentialPromptEvent", nonce: evt.nonce });
     } catch (err: unknown) {
-      log.debug("WebSocket credential cancel send failed", { operation: "handleCredentialPromptEvent", err });
+      ctx.log.debug("WebSocket credential cancel send failed", { operation: "handleCredentialPromptEvent", err });
     }
     return;
   }
@@ -87,39 +94,36 @@ async function handleCredentialPromptEvent(
     : null;
 
   try {
-    ws.send(JSON.stringify({
+    ctx.ws.send(JSON.stringify({
       type: "credential_prompt_response",
       nonce: evt.nonce,
       username,
       password: password && password.length > 0 ? password : null,
     }));
-    log.debug("Credential prompt response sent", { operation: "handleCredentialPromptEvent", nonce: evt.nonce });
+    ctx.log.debug("Credential prompt response sent", { operation: "handleCredentialPromptEvent", nonce: evt.nonce });
   } catch (err: unknown) {
-    log.debug("WebSocket credential send failed", { operation: "handleCredentialPromptEvent", err });
+    ctx.log.debug("WebSocket credential send failed", { operation: "handleCredentialPromptEvent", err });
   }
 }
 
 /** Dispatch a REPL slash command, returning true if the input was a quit command. */
 function dispatchSlashCommand(
   line: string,
-  ws: WebSocket,
-  providerName: string,
-  config: TriggerFishConfig,
-  workspace: string,
+  ctx: SimpleReplContext,
 ): "quit" | "handled" | "not_command" {
   if (line === "/quit" || line === "/exit" || line === "/q") {
     console.log("\n  Goodbye.\n");
     return "quit";
   }
   if (line === "/clear") {
-    ws.send(JSON.stringify({ type: "clear" }));
+    ctx.ws.send(JSON.stringify({ type: "clear" }));
     console.log("\x1b[2J\x1b[H");
-    printBanner(providerName, config.models.primary.model, workspace);
+    printBanner(ctx.providerName, ctx.config.models.primary.model, ctx.workspace);
     return "handled";
   }
   if (line === "/compact") {
     console.log("  Compacting conversation history...");
-    ws.send(JSON.stringify({ type: "compact" }));
+    ctx.ws.send(JSON.stringify({ type: "compact" }));
     return "handled";
   }
   return "not_command";
@@ -127,8 +131,7 @@ function dispatchSlashCommand(
 
 /** Create a one-shot message handler that resolves on response/error events. */
 function createResponseHandler(
-  ws: WebSocket,
-  log: ReturnType<typeof createLogger>,
+  ctx: SimpleReplContext,
   resolve: () => void,
 ): (event: MessageEvent) => void {
   const handler = async (event: MessageEvent) => {
@@ -138,24 +141,23 @@ function createResponseHandler(
         : new TextDecoder().decode(event.data as ArrayBuffer);
       const evt = JSON.parse(data) as ChatEvent;
       if (evt.type === "secret_prompt") {
-        await handleSecretPromptEvent(evt, ws, log);
+        await handleSecretPromptEvent(evt, ctx);
         return;
       }
       if (evt.type === "credential_prompt") {
         await handleCredentialPromptEvent(
           evt as ChatEvent & { type: "credential_prompt" },
-          ws,
-          log,
+          ctx,
         );
         return;
       }
       if (evt.type === "response" || evt.type === "error") {
         if (evt.type === "error") renderError(evt.message);
-        ws.removeEventListener("message", handler);
+        ctx.ws.removeEventListener("message", handler);
         resolve();
       }
     } catch (err: unknown) {
-      log.warn("Message parse failed", { error: err });
+      ctx.log.warn("Message parse failed", { error: err });
     }
   };
   return handler;
@@ -164,36 +166,31 @@ function createResponseHandler(
 /** Send a user line to the daemon and wait for the response/error event. */
 async function sendLineAndAwaitResponse(
   line: string,
-  ws: WebSocket,
-  log: ReturnType<typeof createLogger>,
+  ctx: SimpleReplContext,
 ): Promise<void> {
   console.log();
   const responsePromise = Promise.withResolvers<void>();
-  const handler = createResponseHandler(ws, log, responsePromise.resolve);
-  ws.addEventListener("message", handler);
-  ws.send(JSON.stringify({ type: "message", content: line }));
+  const handler = createResponseHandler(ctx, responsePromise.resolve);
+  ctx.ws.addEventListener("message", handler);
+  ctx.ws.send(JSON.stringify({ type: "message", content: line }));
   await responsePromise.promise;
 }
 
 /** Process a single complete line from stdin, returning true if the REPL should exit. */
 async function processReplLine(
   line: string,
-  ws: WebSocket,
-  providerName: string,
-  config: TriggerFishConfig,
-  workspace: string,
-  log: ReturnType<typeof createLogger>,
+  ctx: SimpleReplContext,
 ): Promise<boolean> {
-  const result = dispatchSlashCommand(line, ws, providerName, config, workspace);
+  const result = dispatchSlashCommand(line, ctx);
   if (result === "quit") {
-    ws.close();
+    ctx.ws.close();
     return true;
   }
   if (result === "handled" || line.length === 0) {
     renderPrompt();
     return false;
   }
-  await sendLineAndAwaitResponse(line, ws, log);
+  await sendLineAndAwaitResponse(line, ctx);
   renderPrompt();
   return false;
 }
@@ -206,19 +203,22 @@ interface ReplState {
 /** Drain complete lines from the buffer and process each one. Returns true to exit. */
 async function drainCompleteLines(
   state: ReplState,
-  ws: WebSocket,
-  providerName: string,
-  config: TriggerFishConfig,
-  workspace: string,
-  log: ReturnType<typeof createLogger>,
+  ctx: SimpleReplContext,
 ): Promise<boolean> {
   let newlineIdx: number;
   while ((newlineIdx = state.partial.indexOf("\n")) !== -1) {
     const line = state.partial.slice(0, newlineIdx).trimEnd();
     state.partial = state.partial.slice(newlineIdx + 1);
-    if (await processReplLine(line, ws, providerName, config, workspace, log)) return true;
+    if (await processReplLine(line, ctx)) return true;
   }
   return false;
+}
+
+/** Options for the non-TTY simple REPL. */
+export interface SimpleReplOpts {
+  readonly providerName: string;
+  readonly config: TriggerFishConfig;
+  readonly workspace: string;
 }
 
 /**
@@ -229,11 +229,16 @@ async function drainCompleteLines(
  */
 export async function runSimpleWsRepl(
   ws: WebSocket,
-  providerName: string,
-  config: TriggerFishConfig,
-  workspace: string,
+  opts: SimpleReplOpts,
 ): Promise<void> {
   const log = createLogger("cli");
+  const ctx: SimpleReplContext = {
+    ws,
+    providerName: opts.providerName,
+    config: opts.config,
+    workspace: opts.workspace,
+    log,
+  };
   const decoder = new TextDecoder();
   const buf = new Uint8Array(8192);
   const state: ReplState = { partial: "" };
@@ -243,7 +248,7 @@ export async function runSimpleWsRepl(
     const n = await Deno.stdin.read(buf);
     if (n === null) break;
     state.partial += decoder.decode(buf.subarray(0, n));
-    if (await drainCompleteLines(state, ws, providerName, config, workspace, log)) return;
+    if (await drainCompleteLines(state, ctx)) return;
   }
   ws.close();
 }

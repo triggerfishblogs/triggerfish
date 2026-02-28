@@ -11,7 +11,6 @@ import type { Logger } from "../../core/logger/logger.ts";
 import type { TriggerFishConfig } from "../../core/config.ts";
 import type { ToolDisplayMode } from "../../cli/chat/chat_ui.ts";
 import { formatError } from "../../cli/chat/chat_ui.ts";
-import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
 import { taintColor } from "../../cli/terminal/screen.ts";
 import { imageBlock, MAX_IMAGE_BYTES } from "../../core/image/content.ts";
@@ -22,8 +21,9 @@ import type {
 } from "../../core/image/content.ts";
 import { readClipboardImage } from "../../tools/image/clipboard.ts";
 import { saveInputHistory } from "../../cli/chat/history.ts";
-import type { WsRouterState } from "./chat_ws_router.ts";
+import type { ChatReplDeps } from "./chat_ws_types.ts";
 import { dispatchSlashCommand } from "./chat_commands.ts";
+import type { LineEditor } from "../../cli/terminal/terminal.ts";
 
 /** Mutable state for the interactive chat REPL keypress loop. */
 export interface ChatReplState {
@@ -33,6 +33,13 @@ export interface ChatReplState {
   pendingImages: ImageContentBlock[];
   lastCtrlCTime: number;
   inputHistory: import("../../cli/chat/history.ts").InputHistory;
+}
+
+/** Options for handling the enter keypress. */
+export interface EnterKeypressOpts {
+  readonly config: TriggerFishConfig;
+  readonly messageQueue: string[];
+  readonly historyFilePath: string;
 }
 
 /**
@@ -45,12 +52,9 @@ export interface ChatReplState {
 export function submitChatMessage(
   text: string,
   pendingImages: ImageContentBlock[],
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  editor: LineEditor,
-  log: Logger,
+  deps: ChatReplDeps,
 ): ImageContentBlock[] {
+  const { ws, screen, state, log } = deps;
   const messageContent = buildMessageContent(text, pendingImages);
   state.isProcessing = true;
   try {
@@ -66,7 +70,7 @@ export function submitChatMessage(
     screen.writeOutput(formatError("Lost connection to daemon"));
     state.isProcessing = false;
     screen.writeOutput("");
-    screen.redrawInput(editor);
+    screen.redrawInput(deps.getEditor());
   }
   return [];
 }
@@ -167,37 +171,24 @@ export interface EnterKeypressResult {
 /** Handle the enter keypress: echo, history, slash commands, or send message. */
 export function handleEnterKeypress(
   rs: ChatReplState,
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  config: TriggerFishConfig,
-  messageQueue: string[],
-  historyFilePath: string,
-  log: Logger,
+  deps: ChatReplDeps,
+  opts: EnterKeypressOpts,
 ): EnterKeypressResult {
   const text = rs.editor.text.trim();
   if (text.length === 0) return { shouldExit: false };
 
-  echoSubmittedText(text, screen);
-  recordInputHistory(rs, text, historyFilePath, log);
+  echoSubmittedText(text, deps.screen);
+  recordInputHistory(rs, text, opts.historyFilePath, deps.log);
 
   rs.editor = rs.editor.clear();
-  screen.redrawInput(rs.editor);
+  deps.screen.redrawInput(rs.editor);
   rs.stashedInput = "";
 
-  if (!state.isProcessing) {
-    return dispatchEnterIdleMode(
-      rs,
-      text,
-      state,
-      ws,
-      screen,
-      config,
-      log,
-    );
+  if (!deps.state.isProcessing) {
+    return dispatchEnterIdleMode(rs, text, deps, opts.config);
   }
-  messageQueue.push(text);
-  screen.writeOutput(
+  opts.messageQueue.push(text);
+  deps.screen.writeOutput(
     "  \x1b[2m(queued \u2014 will send after current response)\x1b[0m",
   );
   return { shouldExit: false };
@@ -207,39 +198,22 @@ export function handleEnterKeypress(
 export function dispatchEnterIdleMode(
   rs: ChatReplState,
   text: string,
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
+  deps: ChatReplDeps,
   config: TriggerFishConfig,
-  log: Logger,
 ): EnterKeypressResult {
-  const cmd = dispatchSlashCommand(
-    text,
-    ws,
-    screen,
-    rs.editor,
+  const cmd = dispatchSlashCommand(text, deps, {
     config,
-    state.providerName,
-    rs.displayMode,
-    state.workspacePath,
-  );
+    displayMode: rs.displayMode,
+  });
   if (cmd.shouldExit) {
-    screen.writeOutput("  Goodbye.");
+    deps.screen.writeOutput("  Goodbye.");
     return { shouldExit: true };
   }
   if (cmd.newDisplayMode !== undefined) {
     rs.displayMode = cmd.newDisplayMode;
   }
   if (!cmd.handled) {
-    rs.pendingImages = submitChatMessage(
-      text,
-      rs.pendingImages,
-      state,
-      ws,
-      screen,
-      rs.editor,
-      log,
-    );
+    rs.pendingImages = submitChatMessage(text, rs.pendingImages, deps);
   }
   return { shouldExit: false };
 }

@@ -10,10 +10,9 @@
 
 import type { Logger } from "../../core/logger/logger.ts";
 import type { TriggerFishConfig } from "../../core/config.ts";
-import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import { createSuggestionEngine } from "../../cli/terminal/terminal.ts";
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
-import type { WsRouterState } from "./chat_ws_router.ts";
+import type { ChatReplDeps } from "./chat_ws_types.ts";
 import type { ChatReplState } from "./chat_input.ts";
 import { handleClipboardPaste, handleEnterKeypress } from "./chat_input.ts";
 import {
@@ -22,6 +21,15 @@ import {
   navigateHistoryUp,
   refreshAutocompleteSuggestion,
 } from "./chat_commands.ts";
+
+/** Loop-level context for the keypress router. */
+export interface KeypressLoopOpts {
+  readonly config: TriggerFishConfig;
+  readonly messageQueue: string[];
+  readonly historyFilePath: string;
+  readonly suggestionEngine: ReturnType<typeof createSuggestionEngine>;
+  readonly cleanup: () => void;
+}
 
 /** Send a cancel message to the daemon WebSocket. */
 export function sendCancelMessage(ws: WebSocket, log: Logger): void {
@@ -45,13 +53,10 @@ export function handleEscInterrupt(
 /** Handle Ctrl+C: cancel or exit depending on processing state. */
 export function handleCtrlCKeypress(
   rs: ChatReplState,
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  log: Logger,
+  deps: ChatReplDeps,
   cleanup: () => void,
 ): "exit" | "continue" {
-  if (!state.isProcessing) {
+  if (!deps.state.isProcessing) {
     cleanup();
     return "exit";
   }
@@ -61,8 +66,8 @@ export function handleCtrlCKeypress(
     return "exit";
   }
   rs.lastCtrlCTime = now;
-  sendCancelMessage(ws, log);
-  screen.writeOutput(
+  sendCancelMessage(deps.ws, deps.log);
+  deps.screen.writeOutput(
     "  \x1b[33m\u26a0 Interrupted (Ctrl+C again to exit)\x1b[0m",
   );
   return "continue";
@@ -70,25 +75,19 @@ export function handleCtrlCKeypress(
 
 /** Install SIGINT and SIGWINCH signal handlers for TTY mode. */
 export function installChatSignalHandlers(
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  getEditor: () => LineEditor,
+  deps: ChatReplDeps,
   cleanup: () => void,
-  log: Logger,
 ): void {
-  installSigintHandler(state, ws, screen, cleanup, log);
-  installSigwinchHandler(screen, getEditor, log);
+  installSigintHandler(deps, cleanup);
+  installSigwinchHandler(deps);
 }
 
 /** Install a SIGINT handler that cancels or exits. */
 function installSigintHandler(
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
+  deps: ChatReplDeps,
   cleanup: () => void,
-  log: Logger,
 ): void {
+  const { state, ws, screen, log } = deps;
   try {
     Deno.addSignalListener("SIGINT", () => {
       if (state.isProcessing) {
@@ -105,14 +104,11 @@ function installSigintHandler(
 }
 
 /** Install a SIGWINCH handler for terminal resize. */
-function installSigwinchHandler(
-  screen: ScreenManager,
-  getEditor: () => LineEditor,
-  log: Logger,
-): void {
+function installSigwinchHandler(deps: ChatReplDeps): void {
+  const { screen, log } = deps;
   const resizeHandler = () => {
     screen.handleResize();
-    screen.redrawInput(getEditor());
+    screen.redrawInput(deps.getEditor());
   };
   try {
     Deno.addSignalListener("SIGWINCH", resizeHandler);
@@ -128,37 +124,25 @@ function installSigwinchHandler(
  * Returns "exit" to leave the loop, or void to continue.
  */
 export async function routeInputKeypress(
-  key: string,
-  char: string | null,
+  keypress: { readonly key: string; readonly char: string | null },
   rs: ChatReplState,
-  state: WsRouterState,
-  ws: WebSocket,
-  screen: ScreenManager,
-  config: TriggerFishConfig,
-  messageQueue: string[],
-  historyFilePath: string,
-  log: Logger,
-  suggestionEngine: ReturnType<typeof createSuggestionEngine>,
-  cleanup: () => void,
+  deps: ChatReplDeps,
+  loopOpts: KeypressLoopOpts,
 ): Promise<"exit" | void> {
+  const { key, char } = keypress;
   switch (key) {
     case "shift+enter":
-      handleShiftEnter(rs, screen);
+      handleShiftEnter(rs, deps.screen);
       break;
 
     case "enter": {
-      const result = handleEnterKeypress(
-        rs,
-        state,
-        ws,
-        screen,
-        config,
-        messageQueue,
-        historyFilePath,
-        log,
-      );
+      const result = handleEnterKeypress(rs, deps, {
+        config: loopOpts.config,
+        messageQueue: loopOpts.messageQueue,
+        historyFilePath: loopOpts.historyFilePath,
+      });
       if (result.shouldExit) {
-        cleanup();
+        loopOpts.cleanup();
         return "exit";
       }
       break;
@@ -166,14 +150,14 @@ export async function routeInputKeypress(
 
     case "backspace":
       rs.editor = rs.editor.backspace();
-      refreshAutocompleteSuggestion(rs, suggestionEngine);
-      screen.redrawInput(rs.editor);
+      refreshAutocompleteSuggestion(rs, loopOpts.suggestionEngine);
+      deps.screen.redrawInput(rs.editor);
       break;
 
     case "delete":
       rs.editor = rs.editor.deleteChar();
-      refreshAutocompleteSuggestion(rs, suggestionEngine);
-      screen.redrawInput(rs.editor);
+      refreshAutocompleteSuggestion(rs, loopOpts.suggestionEngine);
+      deps.screen.redrawInput(rs.editor);
       break;
 
     case "left":
@@ -182,49 +166,49 @@ export async function routeInputKeypress(
     case "end":
     case "ctrl+a":
     case "ctrl+e":
-      handleCursorMovement(key, rs, screen);
+      handleCursorMovement(key, rs, deps.screen);
       break;
 
     case "up":
-      navigateHistoryUp(rs, screen);
+      navigateHistoryUp(rs, deps.screen);
       break;
 
     case "down":
-      navigateHistoryDown(rs, screen);
+      navigateHistoryDown(rs, deps.screen);
       break;
 
     case "tab":
       rs.editor = rs.editor.acceptSuggestion();
-      screen.redrawInput(rs.editor);
+      deps.screen.redrawInput(rs.editor);
       break;
 
     case "ctrl+v":
       rs.pendingImages = await handleClipboardPaste(
         rs.pendingImages,
-        screen,
-        log,
+        deps.screen,
+        deps.log,
       );
       break;
 
     case "ctrl+o":
-      toggleDisplayMode(rs, screen);
+      toggleDisplayMode(rs, deps.screen);
       break;
 
     case "ctrl+d":
       if (rs.editor.text.length === 0) {
-        cleanup();
+        loopOpts.cleanup();
         return "exit";
       }
       break;
 
     case "ctrl+u":
       rs.editor = rs.editor.clear();
-      screen.redrawInput(rs.editor);
+      deps.screen.redrawInput(rs.editor);
       break;
 
     case "ctrl+w":
       rs.editor = deleteWordBackward(rs.editor);
-      screen.redrawInput(rs.editor);
+      deps.screen.redrawInput(rs.editor);
       break;
 
     case "esc":
@@ -232,7 +216,7 @@ export async function routeInputKeypress(
 
     default:
       if (char !== null) {
-        handlePrintableChar(rs, char, screen, suggestionEngine);
+        handlePrintableChar(rs, char, deps.screen, loopOpts.suggestionEngine);
       }
       break;
   }
