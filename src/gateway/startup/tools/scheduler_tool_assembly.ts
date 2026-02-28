@@ -60,6 +60,7 @@ export interface FactoryInfra {
   readonly domainClassifier: ReturnType<typeof buildWebTools>["domainClassifier"];
   readonly keychain: ReturnType<typeof createKeychain>;
   readonly toolClassifications: ReadonlyMap<string, ClassificationLevel>;
+  readonly integrationClassifications: ReadonlyMap<string, ClassificationLevel>;
   readonly visionProvider: ReturnType<typeof resolveVisionProvider>;
   readonly skillLoader: ReturnType<typeof createSkillLoader>;
 }

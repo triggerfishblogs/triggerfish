@@ -109,6 +109,7 @@ export function assembleOrchestratorConfig(
     debug: config.debug,
     visionProvider: config.visionProvider,
     toolClassifications: config.toolClassifications,
+    integrationClassifications: config.integrationClassifications,
     getSessionTaint,
     escalateTaint,
     isOwnerSession: () => state.activeSessionId === state.ownerSessionId,

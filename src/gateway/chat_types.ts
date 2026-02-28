@@ -96,6 +96,8 @@ export interface ChatSessionConfig {
   readonly visionProvider?: LlmProvider;
   /** Tool prefix → classification level. Enforced before every tool dispatch. */
   readonly toolClassifications?: ReadonlyMap<string, ClassificationLevel>;
+  /** Integration prefix → default resource classification. Used for write-down checks on integration tools. */
+  readonly integrationClassifications?: ReadonlyMap<string, ClassificationLevel>;
   /** Read current session taint for canFlowTo checks. */
   readonly getSessionTaint?: () => ClassificationLevel;
   /** Escalate session taint after tool dispatch. */

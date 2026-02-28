@@ -52,6 +52,7 @@ export function buildMainChatSession(
     config: bootstrap.config,
     visionProvider: toolInfra.visionProvider,
     toolClassifications: toolInfra.toolClassifications,
+    integrationClassifications: toolInfra.integrationClassifications,
     browserHandle: toolInfra.browserHandle,
     log: bootstrap.log,
     pairingService: coreInfra.pairingService,

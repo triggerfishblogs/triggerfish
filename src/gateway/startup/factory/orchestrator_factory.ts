@@ -131,7 +131,10 @@ function initializeFactoryInfra(
     webFetcher,
     domainClassifier,
     keychain: createKeychain(),
-    toolClassifications: mapToolPrefixClassifications(config),
+    ...(() => {
+      const { all, integrations } = mapToolPrefixClassifications(config);
+      return { toolClassifications: all, integrationClassifications: integrations };
+    })(),
     visionProvider: resolveVisionProvider(config.models as ModelsConfig),
     skillLoader: buildSchedulerSkillLoader(
       baseDir,
@@ -215,6 +218,7 @@ export function createOrchestratorFactory(
         ],
         visionProvider: infra.visionProvider,
         toolClassifications: infra.toolClassifications,
+        integrationClassifications: infra.integrationClassifications,
         getSessionTaint: () => session.taint,
         escalateTaint: (level: ClassificationLevel, reason: string) => {
           session = updateTaint(session, level, reason);

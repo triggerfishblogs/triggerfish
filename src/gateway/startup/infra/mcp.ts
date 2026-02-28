@@ -61,7 +61,8 @@ export interface McpWiringResult {
  * @param mcpServersConfig - Raw config map from triggerfish.yaml `mcp_servers`
  * @param hookRunner - Policy hook runner for the MCP gateway
  * @param getSession - Live session getter for the MCP executor
- * @param toolClassifications - Mutable map to inject MCP prefixes into
+ * @param toolClassifications - Mutable map to inject MCP prefixes into (all classifications)
+ * @param integrationClassifications - Mutable map for integration-only write-down checks
  * @param broadcastRefs - Late-bound refs for UI status broadcasting
  * @param keychain - Secret store for MCP server env var resolution
  * @returns MCP wiring result with manager, executor, and live getters
@@ -78,6 +79,7 @@ export function wireMcpServers(
   hookRunner: HookRunner,
   getSession: () => SessionState,
   toolClassifications: Map<string, ClassificationLevel>,
+  integrationClassifications: Map<string, ClassificationLevel>,
   broadcastRefs: McpBroadcastRefs,
   keychain: SecretStore,
 ): McpWiringResult {
@@ -125,7 +127,7 @@ export function wireMcpServers(
       }
     }
 
-    // Rebuild MCP tool classifications into the main map
+    // Rebuild MCP tool classifications into both maps
     const connectedServers = statuses
       .filter((s) => s.state === "connected" && s.server !== undefined)
       .map((s) => s.server!);
@@ -135,8 +137,14 @@ export function wireMcpServers(
         toolClassifications.delete(key);
       }
     }
+    for (const key of [...integrationClassifications.keys()]) {
+      if (key.startsWith("mcp_")) {
+        integrationClassifications.delete(key);
+      }
+    }
     for (const [prefix, level] of mcpClassifications) {
       toolClassifications.set(prefix, level);
+      integrationClassifications.set(prefix, level);
     }
 
     // Broadcast MCP status to all UI surfaces

@@ -84,6 +84,7 @@ export interface ToolInfraResult {
   readonly browserHandle: ReturnType<typeof initializeBrowserExecutor>;
   readonly channelAdapters: Map<string, RegisteredChannel>;
   readonly toolClassifications: Map<string, ClassificationLevel>;
+  readonly integrationClassifications: Map<string, ClassificationLevel>;
   readonly keychain: ReturnType<typeof import("../../../core/secrets/keychain/keychain.ts").createKeychain>;
   readonly mcpBroadcastRefs: McpBroadcastRefs;
   readonly mcpWiring: ReturnType<typeof wireMcpServers> | null;
@@ -241,7 +242,10 @@ export async function initializeBaseToolDeps(
     state,
     cliSecretPrompt,
     cliCredentialPrompt,
-    toolClassifications: mapToolPrefixClassifications(bootstrap.config),
+    ...(() => {
+      const { all, integrations } = mapToolPrefixClassifications(bootstrap.config);
+      return { toolClassifications: all, integrationClassifications: integrations };
+    })(),
   };
 }
 
@@ -304,6 +308,7 @@ export function assembleToolInfraResult(
     browserHandle: sessionExecs.browserHandle,
     channelAdapters: sessionExecs.channelAdapters,
     toolClassifications: baseDeps.toolClassifications,
+    integrationClassifications: baseDeps.integrationClassifications,
     keychain: integrations.keychain,
     mcpBroadcastRefs: integrations.mcpBroadcastRefs,
     mcpWiring: integrations.mcpWiring,

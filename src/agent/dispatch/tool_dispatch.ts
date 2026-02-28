@@ -81,23 +81,23 @@ function preEscalateOwnerTriggerTaint(
   );
 }
 
-/** Check integration write-down (session taint vs tool classification). */
+/** Check integration write-down (session taint vs integration resource classification). */
 function checkIntegrationWriteDown(
   call: ParsedToolCall,
   config: OrchestratorConfig,
 ): { resultText: string | undefined; blocked: boolean } {
-  if (!config.toolClassifications || !config.getSessionTaint) {
+  if (!config.integrationClassifications || !config.getSessionTaint) {
     return { resultText: undefined, blocked: false };
   }
-  const integrationTaint = config.getSessionTaint();
-  for (const [prefix, level] of config.toolClassifications) {
+  const sessionTaint = config.getSessionTaint();
+  for (const [prefix, level] of config.integrationClassifications) {
     if (call.name.startsWith(prefix)) {
-      if (!canFlowTo(integrationTaint, level)) {
+      if (!canFlowTo(sessionTaint, level)) {
         return {
           resultText:
-            `Error: Session taint ${integrationTaint} cannot flow to ${call.name} (classified ${level}). ` +
-            `Accessing a lower-classified tool from a higher-tainted session risks data leakage. ` +
-            `Use /clear to reset your session context and taint before using ${level}-classified tools.`,
+            `Error: Session taint ${sessionTaint} cannot flow to ${call.name} (classified ${level}). ` +
+            `Accessing a lower-classified integration from a higher-tainted session risks data leakage. ` +
+            `Use /clear to reset your session context and taint before using ${level}-classified integrations.`,
           blocked: true,
         };
       }

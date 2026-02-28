@@ -157,6 +157,9 @@ const TOOL_DEFS = [
   { name: "browser_navigate", description: "Navigate", parameters: { url: { type: "string", description: "u", required: true } } },
   { name: "browser_type", description: "Type", parameters: { url: { type: "string", description: "u", required: true }, text: { type: "string", description: "t", required: true } } },
   { name: "memory_save", description: "Save memory", parameters: { key: { type: "string", description: "k", required: true }, value: { type: "string", description: "v", required: true } } },
+  { name: "memory_search", description: "Search memory", parameters: { query: { type: "string", description: "q", required: true } } },
+  { name: "secret_save", description: "Save secret", parameters: { name: { type: "string", description: "n", required: true }, value: { type: "string", description: "v", required: true } } },
+  { name: "gmail_send", description: "Send email", parameters: { to: { type: "string", description: "to", required: true }, subject: { type: "string", description: "s", required: true }, body: { type: "string", description: "b", required: true } } },
 ];
 
 // --- Test 1: Filesystem read escalates taint (Bug 2 fix) ---
@@ -559,7 +562,7 @@ Deno.test("resource-classification: filesystem classification takes precedence o
 Deno.test("resource-classification: read_file on PUBLIC path does not escalate taint", async () => {
   const hookRunner = makeHookRunner();
   const pathClassifier = createMockPathClassifier({ "public-area": "PUBLIC" }, "INTERNAL");
-  const toolClassifications = mapToolPrefixClassifications({});
+  const { all: toolClassifications } = mapToolPrefixClassifications({});
 
   let sessionTaint: ClassificationLevel = "PUBLIC";
   const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
@@ -605,7 +608,7 @@ Deno.test("resource-classification: read_file on PUBLIC path does not escalate t
 Deno.test("resource-classification: edit_file on PUBLIC path does not escalate taint", async () => {
   const hookRunner = makeHookRunner();
   const pathClassifier = createMockPathClassifier({ "public-area": "PUBLIC" }, "INTERNAL");
-  const toolClassifications = mapToolPrefixClassifications({});
+  const { all: toolClassifications } = mapToolPrefixClassifications({});
 
   let sessionTaint: ClassificationLevel = "PUBLIC";
   const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
@@ -651,7 +654,7 @@ Deno.test("resource-classification: edit_file on PUBLIC path does not escalate t
 Deno.test("resource-classification: read_file on INTERNAL path escalates via resource classification", async () => {
   const hookRunner = makeHookRunner();
   const pathClassifier = createMockPathClassifier({}, "INTERNAL");
-  const toolClassifications = mapToolPrefixClassifications({});
+  const { all: toolClassifications } = mapToolPrefixClassifications({});
 
   let sessionTaint: ClassificationLevel = "PUBLIC";
   const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
@@ -697,7 +700,7 @@ Deno.test("resource-classification: read_file on INTERNAL path escalates via res
 
 Deno.test("resource-classification: memory_save does not escalate session taint", async () => {
   const hookRunner = makeHookRunner();
-  const toolClassifications = mapToolPrefixClassifications({});
+  const { all: toolClassifications } = mapToolPrefixClassifications({});
 
   let sessionTaint: ClassificationLevel = "PUBLIC";
   const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
@@ -743,7 +746,7 @@ Deno.test("resource-classification: memory_save does not escalate session taint"
 Deno.test("resource-classification: list_directory on PUBLIC path does not escalate taint", async () => {
   const hookRunner = makeHookRunner();
   const pathClassifier = createMockPathClassifier({ "public-area": "PUBLIC" }, "INTERNAL");
-  const toolClassifications = mapToolPrefixClassifications({});
+  const { all: toolClassifications } = mapToolPrefixClassifications({});
 
   let sessionTaint: ClassificationLevel = "PUBLIC";
   const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
@@ -780,4 +783,208 @@ Deno.test("resource-classification: list_directory on PUBLIC path does not escal
 
   assertEquals(result.ok, true);
   assertEquals(sessionTaint, "PUBLIC", "Session taint should remain PUBLIC after listing a PUBLIC-classified directory");
+});
+
+// --- Integration write-down tests (checkIntegrationWriteDown fix) ---
+
+Deno.test("integration-write-down: secret_save from CONFIDENTIAL session is NOT blocked", async () => {
+  const hookRunner = makeHookRunner();
+  const { all: toolClassifications, integrations: integrationClassifications } = mapToolPrefixClassifications({});
+
+  let sessionTaint: ClassificationLevel = "CONFIDENTIAL";
+  let executedTool = "";
+
+  const registry = createProviderRegistry();
+  registry.register(createToolCallingProvider("secret_save", { name: "api_key", value: "sk-123" }));
+  registry.setDefault("mock-tool-caller");
+
+  const toolResults: Array<{ name: string; blocked: boolean }> = [];
+
+  const orchestrator = createOrchestrator({
+    hookRunner,
+    providerRegistry: registry,
+    tools: TOOL_DEFS,
+    // deno-lint-ignore require-await
+    toolExecutor: async (name, _input) => { executedTool = name; return "saved"; },
+    toolClassifications,
+    integrationClassifications,
+    getSessionTaint: () => sessionTaint,
+    escalateTaint: (level: ClassificationLevel, _reason: string) => {
+      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      if (order[level] > order[sessionTaint]) {
+        sessionTaint = level;
+      }
+    },
+    isOwnerSession: () => true,
+    onEvent: (event) => {
+      if (event.type === "tool_result") {
+        toolResults.push({ name: event.name, blocked: event.blocked });
+      }
+    },
+  });
+
+  let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  session = updateTaint(session, "CONFIDENTIAL", "accessed classified data");
+
+  const result = await orchestrator.executeAgentTurn({
+    session,
+    message: "Save API key",
+    targetClassification: "RESTRICTED",
+  });
+
+  assertEquals(result.ok, true);
+  assertEquals(executedTool, "secret_save", "secret_save should execute successfully");
+  assertEquals(toolResults.length, 1);
+  assertEquals(toolResults[0].blocked, false, "secret_save must NOT be blocked by integration write-down check");
+});
+
+Deno.test("integration-write-down: memory_search from CONFIDENTIAL session is NOT blocked", async () => {
+  const hookRunner = makeHookRunner();
+  const { all: toolClassifications, integrations: integrationClassifications } = mapToolPrefixClassifications({});
+
+  let sessionTaint: ClassificationLevel = "CONFIDENTIAL";
+  let executedTool = "";
+
+  const registry = createProviderRegistry();
+  registry.register(createToolCallingProvider("memory_search", { query: "api keys" }));
+  registry.setDefault("mock-tool-caller");
+
+  const toolResults: Array<{ name: string; blocked: boolean }> = [];
+
+  const orchestrator = createOrchestrator({
+    hookRunner,
+    providerRegistry: registry,
+    tools: TOOL_DEFS,
+    // deno-lint-ignore require-await
+    toolExecutor: async (name, _input) => { executedTool = name; return "results"; },
+    toolClassifications,
+    integrationClassifications,
+    getSessionTaint: () => sessionTaint,
+    escalateTaint: (level: ClassificationLevel, _reason: string) => {
+      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      if (order[level] > order[sessionTaint]) {
+        sessionTaint = level;
+      }
+    },
+    isOwnerSession: () => true,
+    onEvent: (event) => {
+      if (event.type === "tool_result") {
+        toolResults.push({ name: event.name, blocked: event.blocked });
+      }
+    },
+  });
+
+  let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  session = updateTaint(session, "CONFIDENTIAL", "accessed classified data");
+
+  const result = await orchestrator.executeAgentTurn({
+    session,
+    message: "Search memory for API keys",
+    targetClassification: "RESTRICTED",
+  });
+
+  assertEquals(result.ok, true);
+  assertEquals(executedTool, "memory_search", "memory_search should execute successfully");
+  assertEquals(toolResults.length, 1);
+  assertEquals(toolResults[0].blocked, false, "memory_search must NOT be blocked by integration write-down check");
+});
+
+Deno.test("integration-write-down: gmail_send from CONFIDENTIAL session IS blocked", async () => {
+  const hookRunner = makeHookRunner();
+  // Gmail default classification is PUBLIC
+  const { all: toolClassifications, integrations: integrationClassifications } = mapToolPrefixClassifications({});
+
+  let sessionTaint: ClassificationLevel = "CONFIDENTIAL";
+
+  const registry = createProviderRegistry();
+  registry.register(createToolCallingProvider("gmail_send", { to: "test@example.com", subject: "Secret", body: "classified data" }));
+  registry.setDefault("mock-tool-caller");
+
+  const toolResults: Array<{ name: string; blocked: boolean }> = [];
+
+  const orchestrator = createOrchestrator({
+    hookRunner,
+    providerRegistry: registry,
+    tools: TOOL_DEFS,
+    // deno-lint-ignore require-await
+    toolExecutor: async (_name, _input) => "sent",
+    toolClassifications,
+    integrationClassifications,
+    getSessionTaint: () => sessionTaint,
+    escalateTaint: (level: ClassificationLevel, _reason: string) => {
+      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      if (order[level] > order[sessionTaint]) {
+        sessionTaint = level;
+      }
+    },
+    isOwnerSession: () => true,
+    onEvent: (event) => {
+      if (event.type === "tool_result") {
+        toolResults.push({ name: event.name, blocked: event.blocked });
+      }
+    },
+  });
+
+  let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  session = updateTaint(session, "CONFIDENTIAL", "accessed classified data");
+
+  const result = await orchestrator.executeAgentTurn({
+    session,
+    message: "Send email with classified data",
+    targetClassification: "RESTRICTED",
+  });
+
+  assertEquals(result.ok, true);
+  assertEquals(toolResults.length, 1);
+  assertEquals(toolResults[0].blocked, true, "gmail_send must be BLOCKED — CONFIDENTIAL cannot flow to PUBLIC gmail");
+});
+
+Deno.test("integration-write-down: gmail_send from PUBLIC session is NOT blocked", async () => {
+  const hookRunner = makeHookRunner();
+  const { all: toolClassifications, integrations: integrationClassifications } = mapToolPrefixClassifications({});
+
+  let sessionTaint: ClassificationLevel = "PUBLIC";
+  let executedTool = "";
+
+  const registry = createProviderRegistry();
+  registry.register(createToolCallingProvider("gmail_send", { to: "test@example.com", subject: "Hello", body: "public data" }));
+  registry.setDefault("mock-tool-caller");
+
+  const toolResults: Array<{ name: string; blocked: boolean }> = [];
+
+  const orchestrator = createOrchestrator({
+    hookRunner,
+    providerRegistry: registry,
+    tools: TOOL_DEFS,
+    // deno-lint-ignore require-await
+    toolExecutor: async (name, _input) => { executedTool = name; return "sent"; },
+    toolClassifications,
+    integrationClassifications,
+    getSessionTaint: () => sessionTaint,
+    escalateTaint: (level: ClassificationLevel, _reason: string) => {
+      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      if (order[level] > order[sessionTaint]) {
+        sessionTaint = level;
+      }
+    },
+    isOwnerSession: () => true,
+    onEvent: (event) => {
+      if (event.type === "tool_result") {
+        toolResults.push({ name: event.name, blocked: event.blocked });
+      }
+    },
+  });
+
+  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+
+  const result = await orchestrator.executeAgentTurn({
+    session,
+    message: "Send a public email",
+    targetClassification: "PUBLIC",
+  });
+
+  assertEquals(result.ok, true);
+  assertEquals(executedTool, "gmail_send", "gmail_send should execute successfully");
+  assertEquals(toolResults.length, 1);
+  assertEquals(toolResults[0].blocked, false, "gmail_send from PUBLIC session must NOT be blocked");
 });

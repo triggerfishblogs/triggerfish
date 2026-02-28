@@ -56,6 +56,7 @@ export function initializeMcpInfrastructure(
   hookRunner: ReturnType<typeof createHookRunner>,
   state: MainSessionState,
   toolClassifications: Map<string, ClassificationLevel>,
+  integrationClassifications: Map<string, ClassificationLevel>,
   keychain: ReturnType<typeof createKeychain>,
 ) {
   const mcpBroadcastRefs: McpBroadcastRefs = {
@@ -68,6 +69,7 @@ export function initializeMcpInfrastructure(
     hookRunner,
     () => state.session,
     toolClassifications,
+    integrationClassifications,
     mcpBroadcastRefs,
     keychain,
   );
@@ -80,6 +82,7 @@ export async function buildExternalServiceExecutors(
   hookRunner: ReturnType<typeof createHookRunner>,
   state: MainSessionState,
   toolClassifications: Map<string, ClassificationLevel>,
+  integrationClassifications: Map<string, ClassificationLevel>,
 ) {
   const { executor: githubExecutor, keychain } = await buildGitHubExecutor(
     config,
@@ -102,6 +105,7 @@ export async function buildExternalServiceExecutors(
     hookRunner,
     state,
     toolClassifications,
+    integrationClassifications,
     keychain,
   );
   return { githubExecutor, caldavExecutor, keychain, obsidianExecutor, ...mcp };
@@ -200,6 +204,7 @@ export async function buildIntegrationExecutors(
     factory: ReturnType<typeof createOrchestratorFactory>;
     registry: ReturnType<typeof createProviderRegistry>;
     toolClassifications: Map<string, ClassificationLevel>;
+    integrationClassifications: Map<string, ClassificationLevel>;
   },
 ) {
   const { state, factory, registry, mainWorkspace } = toolInfra;
@@ -210,6 +215,7 @@ export async function buildIntegrationExecutors(
     toolInfra.hookRunner,
     state,
     toolInfra.toolClassifications,
+    toolInfra.integrationClassifications,
   );
   const skillAndAgent = await buildSkillAndAgentExecutors(
     bootstrap,

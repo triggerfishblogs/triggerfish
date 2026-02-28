@@ -103,6 +103,7 @@ export interface ChatSessionDeps {
   readonly config: TriggerFishConfig;
   readonly visionProvider: ReturnType<typeof resolveVisionProvider>;
   readonly toolClassifications: Map<string, ClassificationLevel>;
+  readonly integrationClassifications: Map<string, ClassificationLevel>;
   readonly browserHandle: ReturnType<typeof createAutoLaunchBrowserExecutor>;
   readonly log: ReturnType<typeof createLogger>;
   readonly pairingService: ReturnType<typeof createPairingService>;
@@ -159,6 +160,7 @@ export function assembleChatSession(deps: ChatSessionDeps) {
     getSession: () => deps.state.session,
     visionProvider: deps.visionProvider,
     toolClassifications: deps.toolClassifications,
+    integrationClassifications: deps.integrationClassifications,
     ...lifecycle,
     pairingService: deps.pairingService,
     pathClassifier: deps.pathClassifier,

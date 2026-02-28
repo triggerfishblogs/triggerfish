@@ -115,6 +115,7 @@ export function initializeMcpServers(
   hookRunner: ReturnType<typeof createHookRunner>,
   getSession: () => ReturnType<typeof createSession>,
   toolClassifications: Map<string, ClassificationLevel>,
+  integrationClassifications: Map<string, ClassificationLevel>,
   mcpBroadcastRefs: McpBroadcastRefs,
   keychain: ReturnType<typeof createKeychain>,
 ) {
@@ -126,6 +127,7 @@ export function initializeMcpServers(
     hookRunner,
     getSession,
     toolClassifications,
+    integrationClassifications,
     mcpBroadcastRefs,
     keychain,
   );

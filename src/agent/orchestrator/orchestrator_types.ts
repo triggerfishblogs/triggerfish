@@ -100,6 +100,8 @@ export interface OrchestratorConfig {
   readonly visionProvider?: LlmProvider;
   /** Tool prefix → classification level. Enforced before every tool dispatch. */
   readonly toolClassifications?: ReadonlyMap<string, ClassificationLevel>;
+  /** Integration prefix → default resource classification. Used for write-down checks on integration tools. */
+  readonly integrationClassifications?: ReadonlyMap<string, ClassificationLevel>;
   /** Read current session taint for canFlowTo checks. */
   readonly getSessionTaint?: () => ClassificationLevel;
   /** Escalate session taint after tool dispatch (upward only via maxClassification). */
@@ -191,7 +193,12 @@ const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<readonly [string, Classificati
   ["list_directory", "PUBLIC"],
   ["search_files", "PUBLIC"],
   ["browser_", "PUBLIC"],
-  ["secret_", "PUBLIC"],
+  // secret_list is the only secret tool classified here (read-only listing).
+  // secret_save, secret_delete, and secret_save_credential are intentionally
+  // absent — they operate on the OS keychain which has no classification level.
+  // Prefix-based taint escalation and write-down checks must not apply to them;
+  // non-owner blocking is handled by enforceNonOwnerToolCeiling.
+  ["secret_list", "PUBLIC"],
   ["cron_", "PUBLIC"],
   ["trigger_", "PUBLIC"],
   // Skills — read_skill is read-only, works at all classification levels
@@ -226,6 +233,14 @@ const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<readonly [string, Classificati
   ["log_read", "PUBLIC"],
 ];
 
+/** Return type of mapToolPrefixClassifications. */
+export interface ToolClassificationMaps {
+  /** All prefixes: integrations + built-in tools. Used for taint escalation and non-owner ceiling. */
+  readonly all: Map<string, ClassificationLevel>;
+  /** Integration prefixes only (Google, GitHub, plugins). Used for write-down checks. */
+  readonly integrations: Map<string, ClassificationLevel>;
+}
+
 /**
  * Build tool prefix → classification map for integrations, plugins, channels,
  * and built-in tools.
@@ -233,35 +248,48 @@ const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<readonly [string, Classificati
  * Integration-specific overrides (Google, GitHub, plugins) are inserted first.
  * Built-in tool classifications are appended afterward so that explicit
  * integration config always takes precedence.
+ *
+ * Returns two maps:
+ * - `all`: every prefix (integrations + built-ins). Used for taint escalation
+ *   and non-owner ceiling enforcement.
+ * - `integrations`: only integration prefixes (Google, GitHub, plugins, MCP).
+ *   Used for write-down checks — data flowing through an integration classified
+ *   PUBLIC must not carry CONFIDENTIAL session taint.
  */
-export function mapToolPrefixClassifications(config: ClassificationMapConfig): Map<string, ClassificationLevel> {
-  const m = new Map<string, ClassificationLevel>();
+export function mapToolPrefixClassifications(config: ClassificationMapConfig): ToolClassificationMaps {
+  const all = new Map<string, ClassificationLevel>();
+  const integrations = new Map<string, ClassificationLevel>();
 
   // Google Workspace — gmail_, calendar_, drive_, sheets_, tasks_
   const googleClassification = (config.google?.classification ?? "PUBLIC") as ClassificationLevel;
   for (const prefix of ["gmail_", "calendar_", "drive_", "sheets_", "tasks_"]) {
-    m.set(prefix, googleClassification);
+    all.set(prefix, googleClassification);
+    integrations.set(prefix, googleClassification);
   }
 
   // GitHub — all tools start with github_
-  m.set("github_", (config.github?.classification ?? "PUBLIC") as ClassificationLevel);
+  const githubClassification = (config.github?.classification ?? "PUBLIC") as ClassificationLevel;
+  all.set("github_", githubClassification);
+  integrations.set("github_", githubClassification);
 
   // Plugins — each plugin's tools use {pluginName}_ prefix convention
   if (config.plugins) {
     for (const [name, pluginConfig] of Object.entries(config.plugins)) {
       const cfg = pluginConfig as { enabled?: boolean; classification?: string } | undefined;
       if (cfg?.enabled) {
-        m.set(`${name}_`, (cfg.classification ?? "INTERNAL") as ClassificationLevel);
+        const level = (cfg.classification ?? "INTERNAL") as ClassificationLevel;
+        all.set(`${name}_`, level);
+        integrations.set(`${name}_`, level);
       }
     }
   }
 
-  // Built-in tool classifications (not user-configurable)
+  // Built-in tool classifications (not user-configurable) — only in `all`
   for (const [prefix, level] of BUILTIN_TOOL_CLASSIFICATIONS) {
-    if (!m.has(prefix)) m.set(prefix, level);
+    if (!all.has(prefix)) all.set(prefix, level);
   }
 
-  return m;
+  return { all, integrations };
 }
 
 export type {
