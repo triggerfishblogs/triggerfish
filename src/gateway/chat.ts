@@ -337,7 +337,7 @@ function acceptTriggerResult(
 
     if (!canFlowTo(currentTaint, result.classification)) {
       // Write-down: reset session first, then inject
-      chatLog.info("Trigger prompt accepted with session reset (write-down)", {
+      chatLog.warn("Trigger prompt accepted with session reset (write-down)", {
         operation: "acceptTriggerResult",
         source,
         sessionTaint: currentTaint,
@@ -352,7 +352,7 @@ function acceptTriggerResult(
       }
     } else if (!canFlowTo(result.classification, currentTaint)) {
       // Write-up: escalate taint
-      chatLog.info("Trigger prompt escalating session taint", {
+      chatLog.warn("Trigger prompt escalating session taint", {
         operation: "acceptTriggerResult",
         source,
         from: currentTaint,

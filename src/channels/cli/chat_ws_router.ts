@@ -154,6 +154,12 @@ function activateTriggerPrompt(
 ): void {
   const sessionTaint = ctx.screen.getTaint();
   const isWriteDown = !canFlowTo(sessionTaint, prompt.classification);
+  log.debug("Trigger prompt classification check", {
+    operation: "activateTriggerPrompt",
+    sessionTaint,
+    triggerClassification: prompt.classification,
+    isWriteDown,
+  });
   const consequence = describeTriggerConsequence(
     sessionTaint,
     prompt.classification,
@@ -191,6 +197,10 @@ function routeTriggerPromptEvent(
     });
     return;
   }
+  log.debug("Trigger prompt activating immediately", {
+    operation: "routeTriggerPromptEvent",
+    source: evt.source,
+  });
   activateTriggerPrompt(prompt, ctx);
 }
 
