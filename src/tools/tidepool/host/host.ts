@@ -123,6 +123,10 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
       );
     },
 
+    broadcastChatEvent(event: Record<string, unknown>): void {
+      broadcastJsonToClients(state.clients, JSON.stringify(event));
+    },
+
     get connections(): number {
       return state.clients.size;
     },

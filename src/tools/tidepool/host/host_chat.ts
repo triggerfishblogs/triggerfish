@@ -59,6 +59,18 @@ export function dispatchClientChatMessage(
     );
     return;
   }
+  if (msg.type === "trigger_prompt_response") {
+    log.debug("Dispatching trigger prompt response", {
+      operation: "dispatchClientChatMessage",
+      source: msg.source,
+      accepted: msg.accepted,
+    });
+    const send = (evt: unknown) => {
+      trySendSocketPayload(ctx.socket, JSON.stringify(evt));
+    };
+    ctx.chatSession.handleTriggerPromptResponse(msg.source, msg.accepted, send);
+    return;
+  }
   if (msg.type === "message" && isNonEmptyContent(msg.content)) {
     executeAgentTurnFromSocket(msg.content, ctx);
   }

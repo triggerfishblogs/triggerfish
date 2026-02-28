@@ -40,6 +40,10 @@ export interface A2UIHost {
    * Broadcast a trigger/scheduler notification to all connected Tidepool clients.
    */
   broadcastNotification(message: string): void;
+  /**
+   * Broadcast a raw chat event (e.g. trigger_prompt) to all connected Tidepool clients.
+   */
+  broadcastChatEvent(event: Record<string, unknown>): void;
   /** The number of currently connected WebSocket clients. */
   readonly connections: number;
 }

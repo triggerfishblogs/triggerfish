@@ -22,6 +22,7 @@ import type { createToolFloorRegistry } from "../../../core/security/tool_floors
 import { createOrchestratorFactory } from "../factory/orchestrator_factory.ts";
 import { buildSchedulerConfig } from "../factory/scheduler_config.ts";
 import type { GatewayServer } from "../../server/server.ts";
+import type { A2UIHost } from "../../../tools/tidepool/host/host_types.ts";
 import type { BootstrapResult } from "../bootstrap.ts";
 import {
   buildFilesystemPathMap,
@@ -35,6 +36,11 @@ import {
 /** Mutable ref for the gateway server, populated after server start. */
 export interface GatewayServerRef {
   value: GatewayServer | null;
+}
+
+/** Mutable ref for the Tidepool host, populated after Tidepool start. */
+export interface TidepoolHostRef {
+  value: A2UIHost | null;
 }
 
 /** Result of core infrastructure initialization. */
@@ -55,6 +61,7 @@ export interface CoreInfraResult {
   readonly schedulerService: ReturnType<typeof createSchedulerService>;
   readonly factory: ReturnType<typeof createOrchestratorFactory>;
   readonly gatewayServerRef: GatewayServerRef;
+  readonly tidepoolHostRef: TidepoolHostRef;
 }
 
 /** Warn if filesystem default is PUBLIC. */
@@ -111,6 +118,7 @@ export function buildSchedulerInfrastructure(
   );
   const schedulerConfig = buildSchedulerConfig(config, baseDir, factory);
   const gatewayServerRef: GatewayServerRef = { value: null };
+  const tidepoolHostRef: TidepoolHostRef = { value: null };
   const schedulerService = createSchedulerService({
     ...schedulerConfig,
     cronManager: coreInfra.cronManager,
@@ -118,16 +126,18 @@ export function buildSchedulerInfrastructure(
     ownerId: "owner" as UserId,
     triggerStore: coreInfra.triggerStore,
     onTriggerOutput: (source, classification, preview, firedAt) => {
-      gatewayServerRef.value?.broadcastChatEvent({
+      const event = {
         type: "trigger_prompt",
         source,
         classification,
         preview,
         firedAt,
-      });
+      };
+      gatewayServerRef.value?.broadcastChatEvent(event);
+      tidepoolHostRef.value?.broadcastChatEvent(event);
     },
   });
-  return { factory, schedulerConfig, schedulerService, gatewayServerRef };
+  return { factory, schedulerConfig, schedulerService, gatewayServerRef, tidepoolHostRef };
 }
 
 /** Initialize storage, sessions, security config, and scheduler. */

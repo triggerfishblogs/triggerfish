@@ -145,8 +145,9 @@ export async function startNetworkServices(
     coreInfra,
     bootstrap.log,
   );
-  // Populate the deferred ref so onTriggerOutput can broadcast to chat sockets
+  // Populate deferred refs so onTriggerOutput can broadcast to all surfaces
   coreInfra.gatewayServerRef.value = server;
+  coreInfra.tidepoolHostRef.value = tidepoolHost;
   return { tidepoolHost, server };
 }
 
