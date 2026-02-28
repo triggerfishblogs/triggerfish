@@ -33,6 +33,7 @@ import { createWorkspace } from "../../../exec/workspace.ts";
 import type { ToolFloorRegistry } from "../../../core/security/tool_floors.ts";
 import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
 import { TRIGGER_SESSION_SYSTEM_PROMPT } from "../../tools/trigger/trigger_tools.ts";
+import { buildWorkspacePrompt } from "../tools/tool_executor.ts";
 import type { EnhancedSessionManager } from "../../sessions.ts";
 import type { CronManager } from "../../../scheduler/cron/parser.ts";
 import type { StorageProvider } from "../../../core/storage/provider.ts";
@@ -205,6 +206,13 @@ export function createOrchestratorFactory(
 
       const toolProfile = isTrigger ? "triggerSession" : "cronJob";
 
+      const workspacePaths = {
+        publicPath: workspace.publicPath,
+        internalPath: workspace.internalPath,
+        confidentialPath: workspace.confidentialPath,
+        restrictedPath: workspace.restrictedPath,
+      };
+
       const orchestrator = createOrchestrator({
         hookRunner: infra.hookRunner,
         providerRegistry: infra.registry,
@@ -215,6 +223,9 @@ export function createOrchestratorFactory(
           ...resolvePromptsForProfile(toolProfile),
           skillState.prompt,
           ...(isTrigger ? [TRIGGER_SESSION_SYSTEM_PROMPT] : []),
+        ],
+        getExtraSystemPromptSections: () => [
+          buildWorkspacePrompt(session.taint, workspacePaths),
         ],
         visionProvider: infra.visionProvider,
         toolClassifications: infra.toolClassifications,

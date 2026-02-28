@@ -85,6 +85,14 @@ export type ChatEvent =
   }
   /** Server → client: a trigger/scheduler notification delivered to the owner. */
   | { readonly type: "notification"; readonly message: string }
+  /** Server → client: a trigger produced actionable output; prompt user to add to context. */
+  | {
+    readonly type: "trigger_prompt";
+    readonly source: string;
+    readonly classification: ClassificationLevel;
+    readonly preview: string;
+    readonly firedAt: string;
+  }
   /** Server → client: cancel acknowledged — the in-flight request was aborted. */
   | { readonly type: "cancelled" };
 
@@ -117,6 +125,16 @@ export type ChatClientMessage =
     readonly username: string | null;
     /** The password entered by the user, or null if cancelled. */
     readonly password: string | null;
+  }
+  | {
+    /**
+     * Client → server: the user accepted or dismissed a trigger prompt.
+     */
+    readonly type: "trigger_prompt_response";
+    /** The trigger source identifier. */
+    readonly source: string;
+    /** Whether the user accepted (true) or dismissed (false). */
+    readonly accepted: boolean;
   };
 
 /** Callback to send a chat event to a specific client. */

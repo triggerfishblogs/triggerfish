@@ -21,6 +21,8 @@ import type { createTriggerStore } from "../../../scheduler/triggers/store.ts";
 import type { createToolFloorRegistry } from "../../../core/security/tool_floors.ts";
 import { createOrchestratorFactory } from "../factory/orchestrator_factory.ts";
 import { buildSchedulerConfig } from "../factory/scheduler_config.ts";
+import type { GatewayServer } from "../../server/server.ts";
+import type { A2UIHost } from "../../../tools/tidepool/host/host_types.ts";
 import type { BootstrapResult } from "../bootstrap.ts";
 import {
   buildFilesystemPathMap,
@@ -30,6 +32,16 @@ import {
   initializePersistentStorage,
   initializeSessionInfrastructure,
 } from "./storage.ts";
+
+/** Mutable ref for the gateway server, populated after server start. */
+export interface GatewayServerRef {
+  value: GatewayServer | null;
+}
+
+/** Mutable ref for the Tidepool host, populated after Tidepool start. */
+export interface TidepoolHostRef {
+  value: A2UIHost | null;
+}
 
 /** Result of core infrastructure initialization. */
 export interface CoreInfraResult {
@@ -48,6 +60,8 @@ export interface CoreInfraResult {
   readonly schedulerConfig: ReturnType<typeof buildSchedulerConfig>;
   readonly schedulerService: ReturnType<typeof createSchedulerService>;
   readonly factory: ReturnType<typeof createOrchestratorFactory>;
+  readonly gatewayServerRef: GatewayServerRef;
+  readonly tidepoolHostRef: TidepoolHostRef;
 }
 
 /** Warn if filesystem default is PUBLIC. */
@@ -103,14 +117,27 @@ export function buildSchedulerInfrastructure(
     coreInfra.toolFloorRegistry,
   );
   const schedulerConfig = buildSchedulerConfig(config, baseDir, factory);
+  const gatewayServerRef: GatewayServerRef = { value: null };
+  const tidepoolHostRef: TidepoolHostRef = { value: null };
   const schedulerService = createSchedulerService({
     ...schedulerConfig,
     cronManager: coreInfra.cronManager,
     notificationService: coreInfra.notificationService,
     ownerId: "owner" as UserId,
     triggerStore: coreInfra.triggerStore,
+    onTriggerOutput: (source, classification, preview, firedAt) => {
+      const event = {
+        type: "trigger_prompt" as const,
+        source,
+        classification,
+        preview,
+        firedAt,
+      };
+      gatewayServerRef.value?.broadcastChatEvent(event);
+      tidepoolHostRef.value?.broadcastChatEvent(event);
+    },
   });
-  return { factory, schedulerConfig, schedulerService };
+  return { factory, schedulerConfig, schedulerService, gatewayServerRef, tidepoolHostRef };
 }
 
 /** Initialize storage, sessions, security config, and scheduler. */

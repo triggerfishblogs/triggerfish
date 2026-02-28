@@ -9,6 +9,7 @@
 
 import type { ComponentTree } from "../components.ts";
 import type { CanvasMessage } from "../canvas_protocol.ts";
+import type { ChatEvent } from "../../../core/types/chat_event.ts";
 
 // ---------------------------------------------------------------------------
 // A2UI WebSocket Host — public interfaces
@@ -40,6 +41,10 @@ export interface A2UIHost {
    * Broadcast a trigger/scheduler notification to all connected Tidepool clients.
    */
   broadcastNotification(message: string): void;
+  /**
+   * Broadcast a raw chat event (e.g. trigger_prompt) to all connected Tidepool clients.
+   */
+  broadcastChatEvent(event: ChatEvent): void;
   /** The number of currently connected WebSocket clients. */
   readonly connections: number;
 }

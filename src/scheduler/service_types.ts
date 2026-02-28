@@ -108,6 +108,16 @@ export interface SchedulerServiceConfig {
   readonly ownerId?: UserId;
   /** Optional store for persisting the last result of each trigger source. */
   readonly triggerStore?: TriggerStore;
+  /**
+   * Callback invoked when a trigger produces actionable output (non-NO_ACTION).
+   * Used to broadcast trigger_prompt events to connected chat clients.
+   */
+  readonly onTriggerOutput?: (
+    source: string,
+    classification: ClassificationLevel,
+    preview: string,
+    firedAt: string,
+  ) => void;
 }
 
 /** The scheduler service interface. */
