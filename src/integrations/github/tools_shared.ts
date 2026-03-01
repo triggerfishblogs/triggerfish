@@ -96,7 +96,10 @@ export function validateBranchName(
   if (typeof value !== "string" || value.length === 0) {
     return `Error: ${toolName} requires a 'branch' argument.`;
   }
-  if (value.includes("..") || value.includes("\\") || !SAFE_BRANCH_NAME.test(value)) {
+  if (
+    value.includes("..") || value.includes("\\") ||
+    !SAFE_BRANCH_NAME.test(value)
+  ) {
     return `Error: '${value}' is not a valid branch name.`;
   }
   return { branch: value };
@@ -118,7 +121,7 @@ export function validateRepoInput(
   }
   const parsed = parseRepoString(repoStr);
   if (!parsed) {
-    return 'Error: \'repo\' must be in "owner/name" format.';
+    return "Error: 'repo' must be in \"owner/name\" format.";
   }
   return parsed;
 }

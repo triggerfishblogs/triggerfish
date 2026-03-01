@@ -4,7 +4,10 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../../core/types/classification.ts";
 import type {
   GitHubCodeSearchItem,
   GitHubError,

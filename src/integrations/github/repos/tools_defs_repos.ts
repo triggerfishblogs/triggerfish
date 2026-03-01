@@ -117,8 +117,7 @@ export function buildListBranchesDef(): ToolDefinition {
 export function buildCreateBranchDef(): ToolDefinition {
   return {
     name: "github_create_branch",
-    description:
-      "Create a new branch from a specific commit SHA.",
+    description: "Create a new branch from a specific commit SHA.",
     parameters: {
       repo: {
         type: "string",
@@ -143,8 +142,7 @@ export function buildCreateBranchDef(): ToolDefinition {
 export function buildDeleteBranchDef(): ToolDefinition {
   return {
     name: "github_delete_branch",
-    description:
-      "Delete a branch from a repository.",
+    description: "Delete a branch from a repository.",
     parameters: {
       repo: {
         type: "string",

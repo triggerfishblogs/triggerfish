@@ -8,7 +8,11 @@
  */
 
 import type { GitHubClient } from "../client.ts";
-import { validateRepoInput, validatePositiveInt, formatGitHubError } from "../tools_shared.ts";
+import {
+  formatGitHubError,
+  validatePositiveInt,
+  validateRepoInput,
+} from "../tools_shared.ts";
 
 // ─── List Pulls ──────────────────────────────────────────────────────────────
 
@@ -21,8 +25,13 @@ export async function executeListPulls(
   if (typeof repoResult === "string") return repoResult;
 
   const state = typeof input.state === "string" ? input.state : undefined;
-  const perPage = typeof input.per_page === "number" ? input.per_page : undefined;
-  const result = await client.listPulls(repoResult.owner, repoResult.name, { state, perPage });
+  const perPage = typeof input.per_page === "number"
+    ? input.per_page
+    : undefined;
+  const result = await client.listPulls(repoResult.owner, repoResult.name, {
+    state,
+    perPage,
+  });
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     pulls: result.value.map((p) => ({
@@ -48,10 +57,18 @@ export async function executeGetPull(
   const repoResult = validateRepoInput(input, "github_get_pull");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = validatePositiveInt(input.pr_number, "pr_number", "github_get_pull");
+  const prNumber = validatePositiveInt(
+    input.pr_number,
+    "pr_number",
+    "github_get_pull",
+  );
   if (typeof prNumber === "string") return prNumber;
 
-  const result = await client.getPull(repoResult.owner, repoResult.name, prNumber);
+  const result = await client.getPull(
+    repoResult.owner,
+    repoResult.name,
+    prNumber,
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     number: result.value.number,
@@ -133,7 +150,11 @@ export async function executeUpdatePull(
   const repoResult = validateRepoInput(input, "github_update_pull");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = validatePositiveInt(input.pr_number, "pr_number", "github_update_pull");
+  const prNumber = validatePositiveInt(
+    input.pr_number,
+    "pr_number",
+    "github_update_pull",
+  );
   if (typeof prNumber === "string") return prNumber;
 
   const fields: Record<string, unknown> = {};
@@ -142,7 +163,12 @@ export async function executeUpdatePull(
   if (typeof input.base === "string") fields.base = input.base;
   if (typeof input.state === "string") fields.state = input.state;
 
-  const result = await client.updatePull(repoResult.owner, repoResult.name, prNumber, fields);
+  const result = await client.updatePull(
+    repoResult.owner,
+    repoResult.name,
+    prNumber,
+    fields,
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     number: result.value.number,
@@ -163,11 +189,22 @@ export async function executeListPullFiles(
   const repoResult = validateRepoInput(input, "github_list_pull_files");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = validatePositiveInt(input.pr_number, "pr_number", "github_list_pull_files");
+  const prNumber = validatePositiveInt(
+    input.pr_number,
+    "pr_number",
+    "github_list_pull_files",
+  );
   if (typeof prNumber === "string") return prNumber;
-  const perPage = typeof input.per_page === "number" ? input.per_page : undefined;
+  const perPage = typeof input.per_page === "number"
+    ? input.per_page
+    : undefined;
 
-  const result = await client.listPullFiles(repoResult.owner, repoResult.name, prNumber, { perPage });
+  const result = await client.listPullFiles(
+    repoResult.owner,
+    repoResult.name,
+    prNumber,
+    { perPage },
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     files: result.value.map((f) => ({
@@ -191,7 +228,11 @@ export async function executeReviewPull(
   const repoResult = validateRepoInput(input, "github_review_pull");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = validatePositiveInt(input.pr_number, "pr_number", "github_review_pull");
+  const prNumber = validatePositiveInt(
+    input.pr_number,
+    "pr_number",
+    "github_review_pull",
+  );
   if (typeof prNumber === "string") return prNumber;
   const event = input.event;
   if (typeof event !== "string" || event.length === 0) {
@@ -202,7 +243,13 @@ export async function executeReviewPull(
     return "Error: github_review_pull requires a 'body' argument.";
   }
 
-  const result = await client.submitReview(repoResult.owner, repoResult.name, prNumber, event, body);
+  const result = await client.submitReview(
+    repoResult.owner,
+    repoResult.name,
+    prNumber,
+    event,
+    body,
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     id: result.value.id,
@@ -221,12 +268,23 @@ export async function executeMergePull(
   const repoResult = validateRepoInput(input, "github_merge_pull");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = validatePositiveInt(input.pr_number, "pr_number", "github_merge_pull");
+  const prNumber = validatePositiveInt(
+    input.pr_number,
+    "pr_number",
+    "github_merge_pull",
+  );
   if (typeof prNumber === "string") return prNumber;
   const method = typeof input.method === "string" ? input.method : undefined;
-  const commitTitle = typeof input.commit_title === "string" ? input.commit_title : undefined;
+  const commitTitle = typeof input.commit_title === "string"
+    ? input.commit_title
+    : undefined;
 
-  const result = await client.mergePull(repoResult.owner, repoResult.name, prNumber, { method, commitTitle });
+  const result = await client.mergePull(
+    repoResult.owner,
+    repoResult.name,
+    prNumber,
+    { method, commitTitle },
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     merged: result.value.merged,

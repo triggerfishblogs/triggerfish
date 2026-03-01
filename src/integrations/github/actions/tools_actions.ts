@@ -8,7 +8,11 @@
  */
 
 import type { GitHubClient } from "../client.ts";
-import { validateRepoInput, validatePositiveInt, formatGitHubError } from "../tools_shared.ts";
+import {
+  formatGitHubError,
+  validatePositiveInt,
+  validateRepoInput,
+} from "../tools_shared.ts";
 
 /** Validate that a value is a Record<string, string> (all values are strings). */
 function validateStringRecord(
@@ -34,10 +38,18 @@ export async function executeListRuns(
   const repoResult = validateRepoInput(input, "github_list_runs");
   if (typeof repoResult === "string") return repoResult;
 
-  const workflow = typeof input.workflow === "string" ? input.workflow : undefined;
+  const workflow = typeof input.workflow === "string"
+    ? input.workflow
+    : undefined;
   const branch = typeof input.branch === "string" ? input.branch : undefined;
-  const perPage = typeof input.per_page === "number" ? input.per_page : undefined;
-  const result = await client.listWorkflowRuns(repoResult.owner, repoResult.name, { workflow, branch, perPage });
+  const perPage = typeof input.per_page === "number"
+    ? input.per_page
+    : undefined;
+  const result = await client.listWorkflowRuns(
+    repoResult.owner,
+    repoResult.name,
+    { workflow, branch, perPage },
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     runs: result.value.map((r) => ({
@@ -72,7 +84,13 @@ export async function executeTriggerWorkflow(
   }
   const inputs = validateStringRecord(input.inputs);
 
-  const result = await client.triggerWorkflow(repoResult.owner, repoResult.name, workflow, ref, inputs);
+  const result = await client.triggerWorkflow(
+    repoResult.owner,
+    repoResult.name,
+    workflow,
+    ref,
+    inputs,
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     triggered: result.value.triggered,
@@ -90,10 +108,18 @@ export async function executeCancelRun(
   const repoResult = validateRepoInput(input, "github_cancel_run");
   if (typeof repoResult === "string") return repoResult;
 
-  const runId = validatePositiveInt(input.run_id, "run_id", "github_cancel_run");
+  const runId = validatePositiveInt(
+    input.run_id,
+    "run_id",
+    "github_cancel_run",
+  );
   if (typeof runId === "string") return runId;
 
-  const result = await client.cancelRun(repoResult.owner, repoResult.name, runId);
+  const result = await client.cancelRun(
+    repoResult.owner,
+    repoResult.name,
+    runId,
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     cancelled: result.value.cancelled,

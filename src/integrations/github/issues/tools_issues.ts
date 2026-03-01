@@ -8,7 +8,11 @@
  */
 
 import type { GitHubClient } from "../client.ts";
-import { validateRepoInput, validatePositiveInt, formatGitHubError } from "../tools_shared.ts";
+import {
+  formatGitHubError,
+  validatePositiveInt,
+  validateRepoInput,
+} from "../tools_shared.ts";
 
 // ─── List Issues ─────────────────────────────────────────────────────────────
 
@@ -22,8 +26,14 @@ export async function executeListIssues(
 
   const state = typeof input.state === "string" ? input.state : undefined;
   const labels = typeof input.labels === "string" ? input.labels : undefined;
-  const perPage = typeof input.per_page === "number" ? input.per_page : undefined;
-  const result = await client.listIssues(repoResult.owner, repoResult.name, { state, labels, perPage });
+  const perPage = typeof input.per_page === "number"
+    ? input.per_page
+    : undefined;
+  const result = await client.listIssues(repoResult.owner, repoResult.name, {
+    state,
+    labels,
+    perPage,
+  });
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     issues: result.value.map((i) => ({
@@ -48,10 +58,18 @@ export async function executeGetIssue(
   const repoResult = validateRepoInput(input, "github_get_issue");
   if (typeof repoResult === "string") return repoResult;
 
-  const number = validatePositiveInt(input.number, "number", "github_get_issue");
+  const number = validatePositiveInt(
+    input.number,
+    "number",
+    "github_get_issue",
+  );
   if (typeof number === "string") return number;
 
-  const result = await client.getIssue(repoResult.owner, repoResult.name, number);
+  const result = await client.getIssue(
+    repoResult.owner,
+    repoResult.name,
+    number,
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     number: result.value.number,
@@ -85,7 +103,13 @@ export async function executeCreateIssue(
     ? input.labels.split(",").map((l) => l.trim())
     : undefined;
 
-  const result = await client.createIssue(repoResult.owner, repoResult.name, title, body, labels);
+  const result = await client.createIssue(
+    repoResult.owner,
+    repoResult.name,
+    title,
+    body,
+    labels,
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     number: result.value.number,
@@ -98,7 +122,9 @@ export async function executeCreateIssue(
 // ─── Update Issue ───────────────────────────────────────────────────────────
 
 /** Build the update fields from the input. */
-function buildIssueUpdateFields(input: Record<string, unknown>): Record<string, unknown> {
+function buildIssueUpdateFields(
+  input: Record<string, unknown>,
+): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
   if (typeof input.title === "string") fields.title = input.title;
   if (typeof input.body === "string") fields.body = input.body;
@@ -107,7 +133,9 @@ function buildIssueUpdateFields(input: Record<string, unknown>): Record<string, 
     fields.labels = (input.labels as string).split(",").map((l) => l.trim());
   }
   if (typeof input.assignees === "string") {
-    fields.assignees = (input.assignees as string).split(",").map((a) => a.trim());
+    fields.assignees = (input.assignees as string).split(",").map((a) =>
+      a.trim()
+    );
   }
   return fields;
 }
@@ -120,11 +148,20 @@ export async function executeUpdateIssue(
   const repoResult = validateRepoInput(input, "github_update_issue");
   if (typeof repoResult === "string") return repoResult;
 
-  const number = validatePositiveInt(input.number, "number", "github_update_issue");
+  const number = validatePositiveInt(
+    input.number,
+    "number",
+    "github_update_issue",
+  );
   if (typeof number === "string") return number;
 
   const fields = buildIssueUpdateFields(input);
-  const result = await client.updateIssue(repoResult.owner, repoResult.name, number, fields);
+  const result = await client.updateIssue(
+    repoResult.owner,
+    repoResult.name,
+    number,
+    fields,
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     number: result.value.number,
@@ -145,11 +182,22 @@ export async function executeListComments(
   const repoResult = validateRepoInput(input, "github_list_comments");
   if (typeof repoResult === "string") return repoResult;
 
-  const number = validatePositiveInt(input.number, "number", "github_list_comments");
+  const number = validatePositiveInt(
+    input.number,
+    "number",
+    "github_list_comments",
+  );
   if (typeof number === "string") return number;
-  const perPage = typeof input.per_page === "number" ? input.per_page : undefined;
+  const perPage = typeof input.per_page === "number"
+    ? input.per_page
+    : undefined;
 
-  const result = await client.listComments(repoResult.owner, repoResult.name, number, { perPage });
+  const result = await client.listComments(
+    repoResult.owner,
+    repoResult.name,
+    number,
+    { perPage },
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     comments: result.value.map((c) => ({
@@ -173,14 +221,23 @@ export async function executeAddComment(
   const repoResult = validateRepoInput(input, "github_add_comment");
   if (typeof repoResult === "string") return repoResult;
 
-  const number = validatePositiveInt(input.number, "number", "github_add_comment");
+  const number = validatePositiveInt(
+    input.number,
+    "number",
+    "github_add_comment",
+  );
   if (typeof number === "string") return number;
   const body = input.body;
   if (typeof body !== "string" || body.length === 0) {
     return "Error: github_add_comment requires a 'body' argument.";
   }
 
-  const result = await client.createComment(repoResult.owner, repoResult.name, number, body);
+  const result = await client.createComment(
+    repoResult.owner,
+    repoResult.name,
+    number,
+    body,
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     id: result.value.id,

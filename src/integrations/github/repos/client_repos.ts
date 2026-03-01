@@ -4,7 +4,10 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../../core/types/classification.ts";
 import type {
   GitHubBranch,
   GitHubCommit,
@@ -20,7 +23,12 @@ import {
   extractRepoVisibility,
   fetchRepoClassification,
 } from "../client_http.ts";
-import type { RawBranch, RawCommit, RawContent, RawRepo } from "../client_http.ts";
+import type {
+  RawBranch,
+  RawCommit,
+  RawContent,
+  RawRepo,
+} from "../client_http.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
 
 const log = createLogger("github-clone");
@@ -177,7 +185,9 @@ export async function deleteRepoBranch(
   >
 > {
   const result = await apiRequest<undefined>(
-    `${buildRepoPath(owner, repo)}/git/refs/heads/${encodeURIComponent(branchName)}`,
+    `${buildRepoPath(owner, repo)}/git/refs/heads/${
+      encodeURIComponent(branchName)
+    }`,
     { method: "DELETE" },
   );
   if (!result.ok) return result;

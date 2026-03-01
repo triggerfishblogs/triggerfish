@@ -8,7 +8,11 @@
  */
 
 import type { GitHubClient } from "../client.ts";
-import { validateRepoInput, validateBranchName, formatGitHubError } from "../tools_shared.ts";
+import {
+  formatGitHubError,
+  validateBranchName,
+  validateRepoInput,
+} from "../tools_shared.ts";
 
 // ─── List Repos ──────────────────────────────────────────────────────────────
 
@@ -18,7 +22,9 @@ export async function executeListRepos(
   input: Record<string, unknown>,
 ): Promise<string> {
   const page = typeof input.page === "number" ? input.page : undefined;
-  const perPage = typeof input.per_page === "number" ? input.per_page : undefined;
+  const perPage = typeof input.per_page === "number"
+    ? input.per_page
+    : undefined;
   const result = await client.listRepos({ page, perPage });
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
@@ -77,7 +83,12 @@ export async function executeReadFile(
   }
 
   const ref = typeof input.ref === "string" ? input.ref : undefined;
-  const result = await client.readFile(repoResult.owner, repoResult.name, path, ref);
+  const result = await client.readFile(
+    repoResult.owner,
+    repoResult.name,
+    path,
+    ref,
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     path: result.value.path,
@@ -100,8 +111,13 @@ export async function executeListCommits(
   if (typeof repoResult === "string") return repoResult;
 
   const sha = typeof input.sha === "string" ? input.sha : undefined;
-  const perPage = typeof input.per_page === "number" ? input.per_page : undefined;
-  const result = await client.listCommits(repoResult.owner, repoResult.name, { sha, perPage });
+  const perPage = typeof input.per_page === "number"
+    ? input.per_page
+    : undefined;
+  const result = await client.listCommits(repoResult.owner, repoResult.name, {
+    sha,
+    perPage,
+  });
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     commits: result.value.map((c) => ({
@@ -125,8 +141,12 @@ export async function executeListBranches(
   const repoResult = validateRepoInput(input, "github_list_branches");
   if (typeof repoResult === "string") return repoResult;
 
-  const perPage = typeof input.per_page === "number" ? input.per_page : undefined;
-  const result = await client.listBranches(repoResult.owner, repoResult.name, { perPage });
+  const perPage = typeof input.per_page === "number"
+    ? input.per_page
+    : undefined;
+  const result = await client.listBranches(repoResult.owner, repoResult.name, {
+    perPage,
+  });
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     branches: result.value.map((b) => ({
@@ -154,7 +174,12 @@ export async function executeCreateBranch(
     return "Error: github_create_branch requires a 'sha' argument.";
   }
 
-  const result = await client.createBranch(repoResult.owner, repoResult.name, branchResult.branch, sha);
+  const result = await client.createBranch(
+    repoResult.owner,
+    repoResult.name,
+    branchResult.branch,
+    sha,
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     ref: result.value.ref,
@@ -176,7 +201,11 @@ export async function executeDeleteBranch(
   const branchResult = validateBranchName(input.branch, "github_delete_branch");
   if (typeof branchResult === "string") return branchResult;
 
-  const result = await client.deleteBranch(repoResult.owner, repoResult.name, branchResult.branch);
+  const result = await client.deleteBranch(
+    repoResult.owner,
+    repoResult.name,
+    branchResult.branch,
+  );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     deleted: result.value.deleted,

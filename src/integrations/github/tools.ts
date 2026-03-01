@@ -11,39 +11,46 @@
 
 import type { GitHubToolContext } from "./tools_shared.ts";
 import {
-  executeListRepos,
-  executeGetRepo,
-  executeReadFile,
-  executeListCommits,
-  executeListBranches,
+  executeCloneRepo,
   executeCreateBranch,
   executeDeleteBranch,
-  executeCloneRepo,
+  executeGetRepo,
+  executeListBranches,
+  executeListCommits,
+  executeListRepos,
+  executeReadFile,
 } from "./repos/mod.ts";
 import {
-  executeListPulls,
-  executeGetPull,
   executeCreatePull,
-  executeUpdatePull,
+  executeGetPull,
   executeListPullFiles,
-  executeReviewPull,
+  executeListPulls,
   executeMergePull,
+  executeReviewPull,
+  executeUpdatePull,
 } from "./pulls/mod.ts";
 import {
-  executeListIssues,
-  executeGetIssue,
-  executeCreateIssue,
-  executeUpdateIssue,
-  executeListComments,
   executeAddComment,
+  executeCreateIssue,
+  executeGetIssue,
+  executeListComments,
+  executeListIssues,
+  executeUpdateIssue,
 } from "./issues/mod.ts";
-import { executeListRuns, executeCancelRun, executeTriggerWorkflow } from "./actions/mod.ts";
+import {
+  executeCancelRun,
+  executeListRuns,
+  executeTriggerWorkflow,
+} from "./actions/mod.ts";
 import { executeSearchCode, executeSearchIssues } from "./actions/mod.ts";
 
 // ─── Re-exports ──────────────────────────────────────────────────────────────
 
 export type { GitHubToolContext } from "./tools_shared.ts";
-export { getGitHubToolDefinitions, GITHUB_TOOLS_SYSTEM_PROMPT } from "./tools_defs.ts";
+export {
+  getGitHubToolDefinitions,
+  GITHUB_TOOLS_SYSTEM_PROMPT,
+} from "./tools_defs.ts";
 
 // ─── Tool dispatch map ──────────────────────────────────────────────────────
 

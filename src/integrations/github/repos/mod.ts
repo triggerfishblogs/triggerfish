@@ -5,34 +5,34 @@
  */
 
 export {
-  fetchRepo,
-  fetchUserRepos,
-  fetchRepoFile,
-  fetchRepoCommits,
-  fetchRepoBranches,
+  cloneRepoToPath,
   createRepoBranch,
   deleteRepoBranch,
-  cloneRepoToPath,
+  fetchRepo,
+  fetchRepoBranches,
+  fetchRepoCommits,
+  fetchRepoFile,
+  fetchUserRepos,
 } from "./client_repos.ts";
 
 export {
-  executeListRepos,
-  executeGetRepo,
-  executeReadFile,
-  executeListCommits,
-  executeListBranches,
+  executeCloneRepo,
   executeCreateBranch,
   executeDeleteBranch,
-  executeCloneRepo,
+  executeGetRepo,
+  executeListBranches,
+  executeListCommits,
+  executeListRepos,
+  executeReadFile,
 } from "./tools_repos.ts";
 
 export {
-  buildListReposDef,
-  buildGetRepoDef,
-  buildReadFileDef,
-  buildListCommitsDef,
-  buildListBranchesDef,
+  buildCloneRepoDef,
   buildCreateBranchDef,
   buildDeleteBranchDef,
-  buildCloneRepoDef,
+  buildGetRepoDef,
+  buildListBranchesDef,
+  buildListCommitsDef,
+  buildListReposDef,
+  buildReadFileDef,
 } from "./tools_defs_repos.ts";

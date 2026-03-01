@@ -10,41 +10,41 @@
 import type { ToolDefinition } from "../../core/types/tool.ts";
 
 import {
-  buildListReposDef,
-  buildGetRepoDef,
-  buildReadFileDef,
-  buildListCommitsDef,
-  buildListBranchesDef,
+  buildCloneRepoDef,
   buildCreateBranchDef,
   buildDeleteBranchDef,
-  buildCloneRepoDef,
+  buildGetRepoDef,
+  buildListBranchesDef,
+  buildListCommitsDef,
+  buildListReposDef,
+  buildReadFileDef,
 } from "./repos/mod.ts";
 
 import {
-  buildListPullsDef,
-  buildGetPullDef,
   buildCreatePullDef,
-  buildUpdatePullDef,
+  buildGetPullDef,
   buildListPullFilesDef,
-  buildReviewPullDef,
+  buildListPullsDef,
   buildMergePullDef,
+  buildReviewPullDef,
+  buildUpdatePullDef,
 } from "./pulls/mod.ts";
 
 import {
-  buildListIssuesDef,
-  buildGetIssueDef,
-  buildCreateIssueDef,
-  buildUpdateIssueDef,
-  buildListCommentsDef,
   buildAddCommentDef,
+  buildCreateIssueDef,
+  buildGetIssueDef,
+  buildListCommentsDef,
+  buildListIssuesDef,
+  buildUpdateIssueDef,
 } from "./issues/mod.ts";
 
 import {
-  buildListRunsDef,
   buildCancelRunDef,
-  buildTriggerWorkflowDef,
+  buildListRunsDef,
   buildSearchCodeDef,
   buildSearchIssuesDef,
+  buildTriggerWorkflowDef,
 } from "./actions/mod.ts";
 
 // ── Public API ──

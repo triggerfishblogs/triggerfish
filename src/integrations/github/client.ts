@@ -8,9 +8,7 @@
  * @module
  */
 
-import type {
-  ClassificationLevel,
-} from "../../core/types/classification.ts";
+import type { ClassificationLevel } from "../../core/types/classification.ts";
 import type {
   GitHubBranch,
   GitHubClassificationConfig,
@@ -34,36 +32,36 @@ import type { ApiRequestFn, ClassifyRepoFn } from "./client_http.ts";
 import { sendGitHubApiRequest } from "./client_http.ts";
 import type { GitHubApiContext } from "./client_http.ts";
 import {
-  fetchRepo,
-  fetchUserRepos,
-  fetchRepoFile,
-  fetchRepoCommits,
-  fetchRepoBranches,
+  cloneRepoToPath,
   createRepoBranch,
   deleteRepoBranch,
-  cloneRepoToPath,
+  fetchRepo,
+  fetchRepoBranches,
+  fetchRepoCommits,
+  fetchRepoFile,
+  fetchUserRepos,
 } from "./repos/mod.ts";
 import {
-  fetchRepoPulls,
-  fetchRepoPull,
-  updateRepoPull,
   fetchPullFiles,
-  submitRepoPullRequest,
-  submitPullRequestReview,
+  fetchRepoPull,
+  fetchRepoPulls,
   mergeRepoPullRequest,
+  submitPullRequestReview,
+  submitRepoPullRequest,
+  updateRepoPull,
 } from "./pulls/mod.ts";
 import {
-  fetchRepoIssues,
-  fetchRepoIssue,
-  updateRepoIssue,
   fetchIssueComments,
-  submitRepoIssue,
+  fetchRepoIssue,
+  fetchRepoIssues,
   submitIssueComment,
+  submitRepoIssue,
+  updateRepoIssue,
 } from "./issues/mod.ts";
 import {
-  fetchRepoWorkflowRuns,
   cancelRepoWorkflowRun,
   dispatchRepoWorkflow,
+  fetchRepoWorkflowRuns,
   searchGitHubCode,
   searchGitHubIssues,
 } from "./actions/mod.ts";
@@ -369,8 +367,7 @@ export function createGitHubClient(config: GitHubClientConfig): GitHubClient {
 
   return {
     listRepos: (opts) => fetchUserRepos(apiRequest, classifyRepo, opts),
-    getRepo: (owner, repo) =>
-      fetchRepo(apiRequest, classifyRepo, owner, repo),
+    getRepo: (owner, repo) => fetchRepo(apiRequest, classifyRepo, owner, repo),
     readFile: (owner, repo, path, ref) =>
       fetchRepoFile(apiRequest, classifyRepo, owner, repo, path, ref),
     listCommits: (owner, repo, opts) =>
