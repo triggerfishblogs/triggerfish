@@ -4,9 +4,17 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../../core/types/classification.ts";
-import type { GitHubError, GitHubIssue } from "../types.ts";
-import type { ApiRequestFn, ClassifyRepoFn, RawIssue } from "../client_http.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../../core/types/classification.ts";
+import type { GitHubComment, GitHubError, GitHubIssue } from "../types.ts";
+import type {
+  ApiRequestFn,
+  ClassifyRepoFn,
+  RawComment,
+  RawIssue,
+} from "../client_http.ts";
 import { buildRepoPath, fetchRepoClassification } from "../client_http.ts";
 
 /** Extract label names from raw issue label data. */
@@ -32,6 +40,110 @@ function mapRawIssueToGitHubIssue(
     labels: extractIssueLabels(i.labels),
     classification,
   };
+}
+
+/** Fetch a single issue from a GitHub repo. */
+export async function fetchRepoIssue(
+  apiRequest: ApiRequestFn,
+  classifyRepo: ClassifyRepoFn,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+): Promise<Result<GitHubIssue, GitHubError>> {
+  const result = await apiRequest<RawIssue>(
+    `${buildRepoPath(owner, repo)}/issues/${issueNumber}`,
+  );
+  if (!result.ok) return result;
+
+  const classification = await fetchRepoClassification(
+    apiRequest,
+    classifyRepo,
+    owner,
+    repo,
+  );
+  return {
+    ok: true,
+    value: mapRawIssueToGitHubIssue(result.value.data, classification),
+  };
+}
+
+/** Update an issue on a GitHub repo. */
+export async function updateRepoIssue(
+  apiRequest: ApiRequestFn,
+  classifyRepo: ClassifyRepoFn,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  fields: {
+    readonly title?: string;
+    readonly body?: string;
+    readonly state?: string;
+    readonly labels?: readonly string[];
+    readonly assignees?: readonly string[];
+  },
+): Promise<Result<GitHubIssue, GitHubError>> {
+  const result = await apiRequest<RawIssue>(
+    `${buildRepoPath(owner, repo)}/issues/${issueNumber}`,
+    { method: "PATCH", body: fields },
+  );
+  if (!result.ok) return result;
+
+  const classification = await fetchRepoClassification(
+    apiRequest,
+    classifyRepo,
+    owner,
+    repo,
+  );
+  return {
+    ok: true,
+    value: mapRawIssueToGitHubIssue(result.value.data, classification),
+  };
+}
+
+/** Map a raw comment to a GitHubComment domain type. */
+function mapRawCommentToGitHubComment(
+  c: RawComment,
+  classification: ClassificationLevel,
+): GitHubComment {
+  return {
+    id: c.id,
+    author: c.user?.login ?? "unknown",
+    body: c.body,
+    createdAt: c.created_at,
+    htmlUrl: c.html_url,
+    classification,
+  };
+}
+
+/** Fetch comments on an issue or pull request. */
+export async function fetchIssueComments(
+  apiRequest: ApiRequestFn,
+  classifyRepo: ClassifyRepoFn,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  opts?: { readonly perPage?: number },
+): Promise<Result<readonly GitHubComment[], GitHubError>> {
+  const params = new URLSearchParams();
+  params.set("per_page", String(opts?.perPage ?? 30));
+
+  const result = await apiRequest<readonly RawComment[]>(
+    `${
+      buildRepoPath(owner, repo)
+    }/issues/${issueNumber}/comments?${params.toString()}`,
+  );
+  if (!result.ok) return result;
+
+  const classification = await fetchRepoClassification(
+    apiRequest,
+    classifyRepo,
+    owner,
+    repo,
+  );
+  const comments = result.value.data.map((c) =>
+    mapRawCommentToGitHubComment(c, classification)
+  );
+  return { ok: true, value: comments };
 }
 
 /** Fetch issues from a GitHub repo. */

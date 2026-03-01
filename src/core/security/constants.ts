@@ -77,11 +77,10 @@ export const URL_WRITE_TOOLS: ReadonlySet<string> = new Set([
  * profile watermark system (src/browser/watermark.ts) separately prevents
  * a lower-tainted session from reusing a profile used at a higher level.
  *
- * run_command requires CONFIDENTIAL — shell execution is a different risk category.
+ * claude_* exec tools require INTERNAL (spawning sub-agents).
  */
 export const HARDCODED_TOOL_FLOORS: ReadonlyMap<string, ClassificationLevel> =
   new Map<string, ClassificationLevel>([
-    ["run_command", "CONFIDENTIAL"],
     // claude_* exec tools require INTERNAL (spawning sub-agents)
     ["claude_start", "INTERNAL"],
     ["claude_send", "INTERNAL"],

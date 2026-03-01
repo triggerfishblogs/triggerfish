@@ -5,7 +5,10 @@
  * that API responses carry the correct _classification field.
  */
 import { assertEquals } from "@std/assert";
-import { visibilityToClassification, createGitHubClient } from "../../../src/integrations/github/client.ts";
+import {
+  createGitHubClient,
+  visibilityToClassification,
+} from "../../../src/integrations/github/client.ts";
 import type { ClassificationLevel } from "../../../src/core/types/classification.ts";
 
 // ─── Pure Function: Default Mapping ──────────────────────────────────────────
@@ -15,7 +18,10 @@ Deno.test("classification: public repos map to PUBLIC", () => {
 });
 
 Deno.test("classification: private repos map to CONFIDENTIAL", () => {
-  assertEquals(visibilityToClassification("private", "any/repo"), "CONFIDENTIAL");
+  assertEquals(
+    visibilityToClassification("private", "any/repo"),
+    "CONFIDENTIAL",
+  );
 });
 
 Deno.test("classification: internal repos map to INTERNAL", () => {
@@ -84,12 +90,13 @@ Deno.test("classification: listRepos response carries classification for public"
 
   const client = createGitHubClient({
     token: "ghp_test",
-    fetchFn: () => Promise.resolve(
-      new Response(JSON.stringify(rawRepos), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    ),
+    fetchFn: () =>
+      Promise.resolve(
+        new Response(JSON.stringify(rawRepos), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
   });
 
   const result = await client.listRepos();
@@ -112,12 +119,13 @@ Deno.test("classification: listRepos response carries CONFIDENTIAL for private",
 
   const client = createGitHubClient({
     token: "ghp_test",
-    fetchFn: () => Promise.resolve(
-      new Response(JSON.stringify(rawRepos), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    ),
+    fetchFn: () =>
+      Promise.resolve(
+        new Response(JSON.stringify(rawRepos), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
   });
 
   const result = await client.listRepos();
@@ -139,12 +147,13 @@ Deno.test("classification: searchCode carries CONFIDENTIAL for private repos", a
 
   const client = createGitHubClient({
     token: "ghp_test",
-    fetchFn: () => Promise.resolve(
-      new Response(JSON.stringify(rawSearch), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    ),
+    fetchFn: () =>
+      Promise.resolve(
+        new Response(JSON.stringify(rawSearch), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
   });
 
   const result = await client.searchCode("test");
@@ -166,12 +175,13 @@ Deno.test("classification: searchCode carries PUBLIC for public repos", async ()
 
   const client = createGitHubClient({
     token: "ghp_test",
-    fetchFn: () => Promise.resolve(
-      new Response(JSON.stringify(rawSearch), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    ),
+    fetchFn: () =>
+      Promise.resolve(
+        new Response(JSON.stringify(rawSearch), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
   });
 
   const result = await client.searchCode("readme");
@@ -196,12 +206,13 @@ Deno.test("classification: client uses config overrides in listRepos", async () 
 
   const client = createGitHubClient({
     token: "ghp_test",
-    fetchFn: () => Promise.resolve(
-      new Response(JSON.stringify(rawRepos), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    ),
+    fetchFn: () =>
+      Promise.resolve(
+        new Response(JSON.stringify(rawRepos), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
     classificationConfig: {
       overrides: { "acme/secret": "RESTRICTED" },
     },

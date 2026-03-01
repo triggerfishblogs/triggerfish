@@ -4,12 +4,17 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../../core/types/classification.ts";
 import type {
+  ClassificationLevel,
+  Result,
+} from "../../../core/types/classification.ts";
+import type {
+  GitHubBranch,
   GitHubCommit,
   GitHubError,
   GitHubFileContent,
   GitHubRepo,
+  GitHubRepoDetail,
   RepoVisibility,
 } from "../types.ts";
 import type { ApiRequestFn, ClassifyRepoFn } from "../client_http.ts";
@@ -18,7 +23,15 @@ import {
   extractRepoVisibility,
   fetchRepoClassification,
 } from "../client_http.ts";
-import type { RawCommit, RawContent, RawRepo } from "../client_http.ts";
+import type {
+  RawBranch,
+  RawCommit,
+  RawContent,
+  RawRepo,
+} from "../client_http.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("github-clone");
 
 /** Maximum file size (1 MB) for github_repos_read_file. */
 const MAX_FILE_SIZE = 1_048_576;
@@ -38,6 +51,154 @@ function mapRawRepoToGitHubRepo(
     htmlUrl: r.html_url,
     classification: classifyRepo(visibility, r.full_name),
   };
+}
+
+/** Raw repo detail shape from GitHub API (extends RawRepo with extra fields). */
+interface RawRepoDetail extends RawRepo {
+  readonly clone_url: string;
+  readonly ssh_url: string;
+  readonly language?: string | null;
+  readonly stargazers_count: number;
+  readonly forks_count: number;
+  readonly topics?: readonly string[];
+}
+
+/** Fetch a single repo from the GitHub API. */
+export async function fetchRepo(
+  apiRequest: ApiRequestFn,
+  classifyRepo: ClassifyRepoFn,
+  owner: string,
+  repo: string,
+): Promise<Result<GitHubRepoDetail, GitHubError>> {
+  const result = await apiRequest<RawRepoDetail>(buildRepoPath(owner, repo));
+  if (!result.ok) return result;
+
+  const raw = result.value.data;
+  const visibility = extractRepoVisibility(raw);
+  return {
+    ok: true,
+    value: {
+      id: raw.id,
+      fullName: raw.full_name,
+      description: raw.description ?? null,
+      visibility: visibility as RepoVisibility,
+      defaultBranch: raw.default_branch,
+      htmlUrl: raw.html_url,
+      cloneUrl: raw.clone_url,
+      sshUrl: raw.ssh_url,
+      language: raw.language ?? null,
+      stargazersCount: raw.stargazers_count,
+      forksCount: raw.forks_count,
+      topics: raw.topics ?? [],
+      classification: classifyRepo(visibility, raw.full_name),
+    },
+  };
+}
+
+/** Fetch branches from a GitHub repo. */
+export async function fetchRepoBranches(
+  apiRequest: ApiRequestFn,
+  classifyRepo: ClassifyRepoFn,
+  owner: string,
+  repo: string,
+  opts?: { readonly perPage?: number },
+): Promise<Result<readonly GitHubBranch[], GitHubError>> {
+  const params = new URLSearchParams();
+  params.set("per_page", String(opts?.perPage ?? 30));
+
+  const result = await apiRequest<readonly RawBranch[]>(
+    `${buildRepoPath(owner, repo)}/branches?${params.toString()}`,
+  );
+  if (!result.ok) return result;
+
+  const classification = await fetchRepoClassification(
+    apiRequest,
+    classifyRepo,
+    owner,
+    repo,
+  );
+  const branches: readonly GitHubBranch[] = result.value.data.map((b) => ({
+    name: b.name,
+    protected: b.protected,
+    classification,
+  }));
+  return { ok: true, value: branches };
+}
+
+/** Create a branch on a GitHub repo via git refs API. */
+export async function createRepoBranch(
+  apiRequest: ApiRequestFn,
+  classifyRepo: ClassifyRepoFn,
+  owner: string,
+  repo: string,
+  branchName: string,
+  sha: string,
+): Promise<
+  Result<
+    {
+      readonly ref: string;
+      readonly sha: string;
+      readonly classification: ClassificationLevel;
+    },
+    GitHubError
+  >
+> {
+  const result = await apiRequest<{
+    ref: string;
+    object: { sha: string };
+  }>(
+    `${buildRepoPath(owner, repo)}/git/refs`,
+    { method: "POST", body: { ref: `refs/heads/${branchName}`, sha } },
+  );
+  if (!result.ok) return result;
+
+  const classification = await fetchRepoClassification(
+    apiRequest,
+    classifyRepo,
+    owner,
+    repo,
+  );
+  return {
+    ok: true,
+    value: {
+      ref: result.value.data.ref,
+      sha: result.value.data.object.sha,
+      classification,
+    },
+  };
+}
+
+/** Delete a branch on a GitHub repo via git refs API. */
+export async function deleteRepoBranch(
+  apiRequest: ApiRequestFn,
+  classifyRepo: ClassifyRepoFn,
+  owner: string,
+  repo: string,
+  branchName: string,
+): Promise<
+  Result<
+    {
+      readonly deleted: boolean;
+      readonly classification: ClassificationLevel;
+    },
+    GitHubError
+  >
+> {
+  const result = await apiRequest<undefined>(
+    `${buildRepoPath(owner, repo)}/git/refs/heads/${
+      encodeURIComponent(branchName)
+    }`,
+    { method: "DELETE" },
+  );
+  if (!result.ok) return result;
+
+  const classification = await fetchRepoClassification(
+    apiRequest,
+    classifyRepo,
+    owner,
+    repo,
+  );
+  return { ok: true, value: { deleted: true, classification } };
 }
 
 /** Fetch user repos from the GitHub API. */
@@ -158,4 +319,120 @@ export async function fetchRepoCommits(
     mapRawCommitToGitHubCommit(c, classification)
   );
   return { ok: true, value: commits };
+}
+
+/** Build the authenticated clone URL with embedded token. */
+function buildAuthenticatedCloneUrl(
+  token: string,
+  baseUrl: string,
+  owner: string,
+  repo: string,
+): string {
+  const host = baseUrl.includes("github.com")
+    ? "github.com"
+    : new URL(baseUrl).host;
+  return `https://x-access-token:${token}@${host}/${owner}/${repo}.git`;
+}
+
+/** Build git clone command arguments. */
+function buildCloneArgs(
+  cloneUrl: string,
+  destPath: string,
+  opts?: { readonly branch?: string; readonly depth?: number },
+): string[] {
+  const args = ["clone"];
+  if (opts?.depth) args.push("--depth", String(opts.depth));
+  if (opts?.branch) args.push("--branch", opts.branch);
+  args.push(cloneUrl, destPath);
+  return args;
+}
+
+/** Strip tokens from git stderr output. */
+function sanitizeGitStderr(stderr: string): string {
+  return stderr.replace(/x-access-token:[^@]+@/g, "x-access-token:***@");
+}
+
+/** Run git clone and return stderr on failure. */
+async function runGitClone(args: readonly string[]): Promise<string | null> {
+  const cmd = new Deno.Command("git", {
+    args: [...args],
+    stdout: "piped",
+    stderr: "piped",
+  });
+  const output = await cmd.output();
+  if (output.success) return null;
+  return sanitizeGitStderr(new TextDecoder().decode(output.stderr));
+}
+
+/** Clone a GitHub repo to a local path using git CLI. */
+export async function cloneRepoToPath(
+  apiRequest: ApiRequestFn,
+  classifyRepo: ClassifyRepoFn,
+  token: string,
+  baseUrl: string,
+  owner: string,
+  repo: string,
+  destPath: string,
+  opts?: { readonly branch?: string; readonly depth?: number },
+): Promise<
+  Result<
+    { readonly clonedTo: string; readonly classification: ClassificationLevel },
+    GitHubError
+  >
+> {
+  const classification = await fetchRepoClassification(
+    apiRequest,
+    classifyRepo,
+    owner,
+    repo,
+  );
+
+  const cloneUrl = buildAuthenticatedCloneUrl(token, baseUrl, owner, repo);
+  const args = buildCloneArgs(cloneUrl, destPath, opts);
+  const repoSlug = `${owner}/${repo}`;
+
+  log.info("Cloning repository", {
+    operation: "cloneRepoToPath",
+    repo: repoSlug,
+    destPath,
+    branch: opts?.branch ?? "default",
+  });
+
+  const err = await runGitClone(args);
+  if (!err) {
+    return { ok: true, value: { clonedTo: destPath, classification } };
+  }
+
+  // Auto-retry without --branch when the specified branch doesn't exist
+  if (opts?.branch && err.includes("not found in upstream")) {
+    log.info("Branch not found, retrying with default branch", {
+      operation: "cloneRepoToPath",
+      repo: repoSlug,
+      failedBranch: opts.branch,
+    });
+    const retryArgs = buildCloneArgs(cloneUrl, destPath, { depth: opts.depth });
+    const retryErr = await runGitClone(retryArgs);
+    if (!retryErr) {
+      return { ok: true, value: { clonedTo: destPath, classification } };
+    }
+    log.warn("Clone failed on retry", {
+      operation: "cloneRepoToPath",
+      repo: repoSlug,
+      err: retryErr,
+    });
+    return {
+      ok: false,
+      error: { status: 500, message: `Clone failed: ${retryErr.trim()}` },
+    };
+  }
+
+  log.warn("Clone failed", {
+    operation: "cloneRepoToPath",
+    repo: repoSlug,
+    err,
+  });
+  return {
+    ok: false,
+    error: { status: 500, message: `Clone failed: ${err.trim()}` },
+  };
 }

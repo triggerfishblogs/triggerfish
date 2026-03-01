@@ -5,19 +5,28 @@
  */
 
 export {
+  fetchIssueComments,
+  fetchRepoIssue,
   fetchRepoIssues,
-  submitRepoIssue,
   submitIssueComment,
+  submitRepoIssue,
+  updateRepoIssue,
 } from "./client_issues.ts";
 
 export {
-  executeIssuesList,
-  executeIssuesCreate,
-  executeIssuesComment,
+  executeAddComment,
+  executeCreateIssue,
+  executeGetIssue,
+  executeListComments,
+  executeListIssues,
+  executeUpdateIssue,
 } from "./tools_issues.ts";
 
 export {
-  buildIssuesListDef,
-  buildIssuesCreateDef,
-  buildIssuesCommentDef,
+  buildAddCommentDef,
+  buildCreateIssueDef,
+  buildGetIssueDef,
+  buildListCommentsDef,
+  buildListIssuesDef,
+  buildUpdateIssueDef,
 } from "./tools_defs_issues.ts";

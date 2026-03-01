@@ -60,6 +60,11 @@ export interface RawCommit {
   readonly html_url: string;
 }
 
+export interface RawBranch {
+  readonly name: string;
+  readonly protected: boolean;
+}
+
 export interface RawPull {
   readonly number: number;
   readonly title: string;
@@ -69,6 +74,38 @@ export interface RawPull {
   readonly base: { readonly ref: string };
   readonly html_url: string;
   readonly created_at: string;
+}
+
+export interface RawPullDetail {
+  readonly number: number;
+  readonly title: string;
+  readonly state: string;
+  readonly user?: { readonly login?: string };
+  readonly body?: string | null;
+  readonly head: { readonly ref: string };
+  readonly base: { readonly ref: string };
+  readonly html_url: string;
+  readonly created_at: string;
+  readonly additions: number;
+  readonly deletions: number;
+  readonly changed_files: number;
+  readonly mergeable?: boolean | null;
+}
+
+export interface RawPullFile {
+  readonly filename: string;
+  readonly status: string;
+  readonly additions: number;
+  readonly deletions: number;
+  readonly changes: number;
+}
+
+export interface RawComment {
+  readonly id: number;
+  readonly user?: { readonly login?: string };
+  readonly body: string;
+  readonly created_at: string;
+  readonly html_url: string;
 }
 
 export interface RawIssue {
@@ -109,6 +146,11 @@ export interface RawIssueSearchItem {
   readonly state: string;
   readonly html_url: string;
   readonly repository_url?: string;
+  readonly repository?: {
+    readonly full_name: string;
+    readonly visibility?: string;
+    readonly private: boolean;
+  };
 }
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────

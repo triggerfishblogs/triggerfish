@@ -11,6 +11,7 @@ description: >
 classification_ceiling: INTERNAL
 requires_tools:
   - exec
+  - github
 network_domains:
   - github.com
   - api.github.com
@@ -18,7 +19,7 @@ network_domains:
 
 # Git Branch Management
 
-Manage git branches, commits, PRs, and code review feedback when doing development work in the exec environment. All git and GitHub CLI operations use `exec.run`.
+Manage git branches, commits, PRs, and code review feedback when doing development work in the exec environment. Git operations use `exec.run`. When the `github` skill is also active, prefer the native GitHub tools (`github_create_pull`, `github_get_pull`, `github_list_comments`, `github_add_comment`, `github_create_branch`, `github_delete_branch`) over shelling out to `gh` CLI via `exec.run`.
 
 ## When to Use
 

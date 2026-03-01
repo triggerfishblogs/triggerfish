@@ -1,17 +1,17 @@
 /**
  * GitHub pull request tool definitions.
  *
- * Defines the 4 pull request tool schemas: list, create, review, merge.
+ * Defines the 7 pull request tool schemas: list, get, create, update, review, merge, list_files.
  *
  * @module
  */
 
 import type { ToolDefinition } from "../../../core/types/tool.ts";
 
-/** Build the github_pulls_list tool definition. */
-export function buildPullsListDef(): ToolDefinition {
+/** Build the github_list_pulls tool definition. */
+export function buildListPullsDef(): ToolDefinition {
   return {
-    name: "github_pulls_list",
+    name: "github_list_pulls",
     description:
       "List pull requests for a repository. Returns PR number, title, state, author, and branches.",
     parameters: {
@@ -33,10 +33,31 @@ export function buildPullsListDef(): ToolDefinition {
   };
 }
 
-/** Build the github_pulls_create tool definition. */
-export function buildPullsCreateDef(): ToolDefinition {
+/** Build the github_get_pull tool definition. */
+export function buildGetPullDef(): ToolDefinition {
   return {
-    name: "github_pulls_create",
+    name: "github_get_pull",
+    description:
+      "Get a single pull request by number. Returns full details including body, diff stats, and mergeable state.",
+    parameters: {
+      repo: {
+        type: "string",
+        description: 'Repository in "owner/name" format',
+        required: true,
+      },
+      pr_number: {
+        type: "number",
+        description: "Pull request number",
+        required: true,
+      },
+    },
+  };
+}
+
+/** Build the github_create_pull tool definition. */
+export function buildCreatePullDef(): ToolDefinition {
+  return {
+    name: "github_create_pull",
     description: "Create a new pull request. Returns the created PR details.",
     parameters: {
       repo: {
@@ -56,6 +77,59 @@ export function buildPullsCreateDef(): ToolDefinition {
         required: true,
       },
       body: { type: "string", description: "PR description (markdown)" },
+    },
+  };
+}
+
+/** Build the github_update_pull tool definition. */
+export function buildUpdatePullDef(): ToolDefinition {
+  return {
+    name: "github_update_pull",
+    description:
+      "Update a pull request. Can change title, body, base branch, or state.",
+    parameters: {
+      repo: {
+        type: "string",
+        description: 'Repository in "owner/name" format',
+        required: true,
+      },
+      pr_number: {
+        type: "number",
+        description: "Pull request number",
+        required: true,
+      },
+      title: { type: "string", description: "New PR title" },
+      body: { type: "string", description: "New PR description (markdown)" },
+      base: { type: "string", description: "New base branch" },
+      state: {
+        type: "string",
+        description: 'Set state: "open" or "closed"',
+      },
+    },
+  };
+}
+
+/** Build the github_list_pull_files tool definition. */
+export function buildListPullFilesDef(): ToolDefinition {
+  return {
+    name: "github_list_pull_files",
+    description:
+      "List files changed in a pull request. Returns filename, status, additions, and deletions.",
+    parameters: {
+      repo: {
+        type: "string",
+        description: 'Repository in "owner/name" format',
+        required: true,
+      },
+      pr_number: {
+        type: "number",
+        description: "Pull request number",
+        required: true,
+      },
+      per_page: {
+        type: "number",
+        description: "Number of files to return (default: 30)",
+      },
     },
   };
 }
@@ -86,10 +160,10 @@ function buildPullsReviewParams(): ToolDefinition["parameters"] {
   };
 }
 
-/** Build the github_pulls_review tool definition. */
-export function buildPullsReviewDef(): ToolDefinition {
+/** Build the github_review_pull tool definition. */
+export function buildReviewPullDef(): ToolDefinition {
   return {
-    name: "github_pulls_review",
+    name: "github_review_pull",
     description:
       "Submit a review on a pull request. Events: APPROVE, REQUEST_CHANGES, COMMENT.",
     parameters: buildPullsReviewParams(),
@@ -121,10 +195,10 @@ function buildPullsMergeParams(): ToolDefinition["parameters"] {
   };
 }
 
-/** Build the github_pulls_merge tool definition. */
-export function buildPullsMergeDef(): ToolDefinition {
+/** Build the github_merge_pull tool definition. */
+export function buildMergePullDef(): ToolDefinition {
   return {
-    name: "github_pulls_merge",
+    name: "github_merge_pull",
     description:
       "Merge a pull request. Supports merge, squash, or rebase methods.",
     parameters: buildPullsMergeParams(),

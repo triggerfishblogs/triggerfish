@@ -1,7 +1,7 @@
 /**
  * GitHub tool definitions and system prompt for the agent.
  *
- * Barrel that re-exports the 14 tool schemas across repos, pulls,
+ * Barrel that re-exports the 25 tool schemas across repos, pulls,
  * issues, actions, and search from their dedicated per-domain modules.
  *
  * @module
@@ -10,48 +10,72 @@
 import type { ToolDefinition } from "../../core/types/tool.ts";
 
 import {
-  buildReposListDef,
-  buildReposReadFileDef,
-  buildReposCommitsDef,
+  buildCloneRepoDef,
+  buildCreateBranchDef,
+  buildDeleteBranchDef,
+  buildGetRepoDef,
+  buildListBranchesDef,
+  buildListCommitsDef,
+  buildListReposDef,
+  buildReadFileDef,
 } from "./repos/mod.ts";
 
 import {
-  buildPullsListDef,
-  buildPullsCreateDef,
-  buildPullsReviewDef,
-  buildPullsMergeDef,
+  buildCreatePullDef,
+  buildGetPullDef,
+  buildListPullFilesDef,
+  buildListPullsDef,
+  buildMergePullDef,
+  buildReviewPullDef,
+  buildUpdatePullDef,
 } from "./pulls/mod.ts";
 
 import {
-  buildIssuesListDef,
-  buildIssuesCreateDef,
-  buildIssuesCommentDef,
+  buildAddCommentDef,
+  buildCreateIssueDef,
+  buildGetIssueDef,
+  buildListCommentsDef,
+  buildListIssuesDef,
+  buildUpdateIssueDef,
 } from "./issues/mod.ts";
 
 import {
-  buildActionsRunsDef,
-  buildActionsTriggerDef,
+  buildCancelRunDef,
+  buildListRunsDef,
   buildSearchCodeDef,
   buildSearchIssuesDef,
+  buildTriggerWorkflowDef,
 } from "./actions/mod.ts";
 
 // ── Public API ──
 
-/** Get all 14 GitHub tool definitions. */
+/** Get all 26 GitHub tool definitions. */
 export function getGitHubToolDefinitions(): readonly ToolDefinition[] {
   return [
-    buildReposListDef(),
-    buildReposReadFileDef(),
-    buildReposCommitsDef(),
-    buildPullsListDef(),
-    buildPullsCreateDef(),
-    buildPullsReviewDef(),
-    buildPullsMergeDef(),
-    buildIssuesListDef(),
-    buildIssuesCreateDef(),
-    buildIssuesCommentDef(),
-    buildActionsRunsDef(),
-    buildActionsTriggerDef(),
+    buildListReposDef(),
+    buildGetRepoDef(),
+    buildReadFileDef(),
+    buildListCommitsDef(),
+    buildListBranchesDef(),
+    buildCreateBranchDef(),
+    buildDeleteBranchDef(),
+    buildCloneRepoDef(),
+    buildListPullsDef(),
+    buildGetPullDef(),
+    buildCreatePullDef(),
+    buildUpdatePullDef(),
+    buildListPullFilesDef(),
+    buildReviewPullDef(),
+    buildMergePullDef(),
+    buildListIssuesDef(),
+    buildGetIssueDef(),
+    buildCreateIssueDef(),
+    buildUpdateIssueDef(),
+    buildListCommentsDef(),
+    buildAddCommentDef(),
+    buildListRunsDef(),
+    buildCancelRunDef(),
+    buildTriggerWorkflowDef(),
     buildSearchCodeDef(),
     buildSearchIssuesDef(),
   ];
@@ -60,8 +84,9 @@ export function getGitHubToolDefinitions(): readonly ToolDefinition[] {
 /** System prompt section explaining GitHub tools to the LLM. */
 export const GITHUB_TOOLS_SYSTEM_PROMPT = `## GitHub Access
 
-You have access to GitHub via 14 github_* tools: repos, PRs, issues, Actions, and search.
+You have access to GitHub via 26 github_* tools: repos, PRs, issues, Actions, and search.
 
+- All tool names follow the github_verb_noun pattern (e.g. github_list_repos, github_create_pull).
 - The \`repo\` parameter always uses "owner/name" format (e.g. "octocat/Hello-World").
 - Repository visibility determines security classification: public→PUBLIC, private→CONFIDENTIAL, internal→INTERNAL.
 - Accessing private repos escalates session taint — be mindful of classification boundaries.

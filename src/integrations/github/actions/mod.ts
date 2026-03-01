@@ -5,25 +5,25 @@
  */
 
 export {
-  fetchRepoWorkflowRuns,
+  cancelRepoWorkflowRun,
   dispatchRepoWorkflow,
+  fetchRepoWorkflowRuns,
   searchGitHubCode,
   searchGitHubIssues,
 } from "./client_workflows.ts";
 
 export {
-  executeActionsRuns,
-  executeActionsTrigger,
+  executeCancelRun,
+  executeListRuns,
+  executeTriggerWorkflow,
 } from "./tools_actions.ts";
 
-export {
-  executeSearchCode,
-  executeSearchIssues,
-} from "./tools_search.ts";
+export { executeSearchCode, executeSearchIssues } from "./tools_search.ts";
 
 export {
-  buildActionsRunsDef,
-  buildActionsTriggerDef,
+  buildCancelRunDef,
+  buildListRunsDef,
   buildSearchCodeDef,
   buildSearchIssuesDef,
+  buildTriggerWorkflowDef,
 } from "./tools_defs_actions.ts";

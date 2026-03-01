@@ -24,6 +24,7 @@ import {
 import { TRIGGER_TOOLS_SYSTEM_PROMPT } from "../trigger/trigger_tools.ts";
 import { CLAUDE_SESSION_SYSTEM_PROMPT } from "../../../exec/claude.ts";
 import { LOG_READER_SYSTEM_PROMPT } from "../../../tools/log_reader_tool.ts";
+import { GITHUB_TOOLS_SYSTEM_PROMPT } from "../../../integrations/github/mod.ts";
 import { TOOL_GROUPS, type ToolGroupName } from "./tool_groups.ts";
 import type { ToolDefinition } from "../../../core/types/tool.ts";
 
@@ -36,32 +37,103 @@ export type ToolProfile = readonly ToolGroupName[];
 export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
   /** Tidepool web UI — full tool access including canvas. */
   tidepool: [
-    "exec", "todo", "memory", "secrets", "web", "plan", "browser",
-    "tidepool", "sessions", "image", "explore", "google", "github",
-    "caldav", "obsidian", "llmTask", "summarize", "healthcheck", "trigger",
-    "claude", "skills", "releaseNotes", "logReader", "agents", "cron",
+    "exec",
+    "todo",
+    "memory",
+    "secrets",
+    "web",
+    "plan",
+    "browser",
+    "tidepool",
+    "sessions",
+    "image",
+    "explore",
+    "google",
+    "github",
+    "caldav",
+    "obsidian",
+    "llmTask",
+    "summarize",
+    "healthcheck",
+    "trigger",
+    "claude",
+    "skills",
+    "releaseNotes",
+    "logReader",
+    "agents",
+    "cron",
   ],
   /** CLI chat — everything except tidepool canvas tools. */
   cli: [
-    "exec", "todo", "memory", "secrets", "web", "plan", "browser",
-    "sessions", "image", "explore", "google", "github", "caldav",
-    "obsidian", "llmTask", "summarize", "healthcheck", "trigger",
-    "claude", "skills", "releaseNotes", "logReader", "agents", "cron",
+    "exec",
+    "todo",
+    "memory",
+    "secrets",
+    "web",
+    "plan",
+    "browser",
+    "sessions",
+    "image",
+    "explore",
+    "google",
+    "github",
+    "caldav",
+    "obsidian",
+    "llmTask",
+    "summarize",
+    "healthcheck",
+    "trigger",
+    "claude",
+    "skills",
+    "releaseNotes",
+    "logReader",
+    "agents",
+    "cron",
   ],
   /** Trigger sessions — tools with wired executors, no interactive tools. */
   triggerSession: [
-    "exec", "todo", "memory", "web", "google", "github", "caldav",
-    "llmTask", "summarize", "healthcheck", "trigger", "skills", "cron",
+    "exec",
+    "todo",
+    "memory",
+    "web",
+    "google",
+    "github",
+    "caldav",
+    "llmTask",
+    "summarize",
+    "healthcheck",
+    "trigger",
+    "skills",
+    "cron",
   ],
   /** Cron jobs — same scope as trigger minus trigger-specific tools. */
   cronJob: [
-    "exec", "todo", "memory", "web", "google", "github", "caldav",
-    "llmTask", "summarize", "healthcheck", "skills", "cron",
+    "exec",
+    "todo",
+    "memory",
+    "web",
+    "google",
+    "github",
+    "caldav",
+    "llmTask",
+    "summarize",
+    "healthcheck",
+    "skills",
+    "cron",
   ],
   /** Subagents — lightweight, focused. */
   subagent: [
-    "exec", "todo", "memory", "web", "google", "github", "caldav",
-    "llmTask", "summarize", "healthcheck", "skills",
+    "exec",
+    "todo",
+    "memory",
+    "web",
+    "google",
+    "github",
+    "caldav",
+    "llmTask",
+    "summarize",
+    "healthcheck",
+    "skills",
   ],
 };
 
@@ -89,7 +161,7 @@ export function resolveToolsForProfile(
  * Map tool groups to their system prompt section (if any).
  *
  * Groups without a dedicated system prompt section (exec, browser, google,
- * github, obsidian, agents, cron, healthcheck, skills) are omitted — the
+ * obsidian, agents, cron, healthcheck, skills) are omitted — the
  * tool descriptions in the JSON schema are sufficient.
  */
 export const TOOL_GROUP_PROMPTS: Partial<
@@ -110,6 +182,7 @@ export const TOOL_GROUP_PROMPTS: Partial<
   trigger: TRIGGER_TOOLS_SYSTEM_PROMPT,
   releaseNotes: RELEASE_NOTES_SYSTEM_PROMPT,
   logReader: LOG_READER_SYSTEM_PROMPT,
+  github: GITHUB_TOOLS_SYSTEM_PROMPT,
 };
 
 /**

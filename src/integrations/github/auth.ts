@@ -30,8 +30,7 @@ export async function resolveGitHubToken(
 
   return {
     ok: false,
-    error:
-      "GitHub token not found in keychain. Run:\n" +
+    error: "GitHub token not found in keychain. Run:\n" +
       "  triggerfish connect github",
   };
 }

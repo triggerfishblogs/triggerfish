@@ -5,22 +5,31 @@
  */
 
 export {
+  fetchPullFiles,
+  fetchRepoPull,
   fetchRepoPulls,
-  submitRepoPullRequest,
-  submitPullRequestReview,
   mergeRepoPullRequest,
+  submitPullRequestReview,
+  submitRepoPullRequest,
+  updateRepoPull,
 } from "./client_pulls.ts";
 
 export {
-  executePullsList,
-  executePullsCreate,
-  executePullsReview,
-  executePullsMerge,
+  executeCreatePull,
+  executeGetPull,
+  executeListPullFiles,
+  executeListPulls,
+  executeMergePull,
+  executeReviewPull,
+  executeUpdatePull,
 } from "./tools_pulls.ts";
 
 export {
-  buildPullsListDef,
-  buildPullsCreateDef,
-  buildPullsReviewDef,
-  buildPullsMergeDef,
+  buildCreatePullDef,
+  buildGetPullDef,
+  buildListPullFilesDef,
+  buildListPullsDef,
+  buildMergePullDef,
+  buildReviewPullDef,
+  buildUpdatePullDef,
 } from "./tools_defs_pulls.ts";

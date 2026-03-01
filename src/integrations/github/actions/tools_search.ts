@@ -21,7 +21,9 @@ export async function executeSearchCode(
   if (typeof query !== "string" || query.length === 0) {
     return "Error: github_search_code requires a 'query' argument.";
   }
-  const perPage = typeof input.per_page === "number" ? input.per_page : undefined;
+  const perPage = typeof input.per_page === "number"
+    ? input.per_page
+    : undefined;
   const result = await client.searchCode(query, { perPage });
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
@@ -46,7 +48,9 @@ export async function executeSearchIssues(
   if (typeof query !== "string" || query.length === 0) {
     return "Error: github_search_issues requires a 'query' argument.";
   }
-  const perPage = typeof input.per_page === "number" ? input.per_page : undefined;
+  const perPage = typeof input.per_page === "number"
+    ? input.per_page
+    : undefined;
   const result = await client.searchIssues(query, { perPage });
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
