@@ -8,7 +8,7 @@
  */
 
 import type { GitHubClient } from "../client.ts";
-import { validateRepoInput, formatGitHubError } from "../tools_shared.ts";
+import { validateRepoInput, validatePositiveInt, formatGitHubError } from "../tools_shared.ts";
 
 // ─── List Pulls ──────────────────────────────────────────────────────────────
 
@@ -48,10 +48,8 @@ export async function executeGetPull(
   const repoResult = validateRepoInput(input, "github_get_pull");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = input.pr_number;
-  if (typeof prNumber !== "number") {
-    return "Error: github_get_pull requires a 'pr_number' argument (number).";
-  }
+  const prNumber = validatePositiveInt(input.pr_number, "pr_number", "github_get_pull");
+  if (typeof prNumber === "string") return prNumber;
 
   const result = await client.getPull(repoResult.owner, repoResult.name, prNumber);
   if (!result.ok) return formatGitHubError(result.error);
@@ -135,10 +133,8 @@ export async function executeUpdatePull(
   const repoResult = validateRepoInput(input, "github_update_pull");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = input.pr_number;
-  if (typeof prNumber !== "number") {
-    return "Error: github_update_pull requires a 'pr_number' argument (number).";
-  }
+  const prNumber = validatePositiveInt(input.pr_number, "pr_number", "github_update_pull");
+  if (typeof prNumber === "string") return prNumber;
 
   const fields: Record<string, unknown> = {};
   if (typeof input.title === "string") fields.title = input.title;
@@ -167,10 +163,8 @@ export async function executeListPullFiles(
   const repoResult = validateRepoInput(input, "github_list_pull_files");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = input.pr_number;
-  if (typeof prNumber !== "number") {
-    return "Error: github_list_pull_files requires a 'pr_number' argument (number).";
-  }
+  const prNumber = validatePositiveInt(input.pr_number, "pr_number", "github_list_pull_files");
+  if (typeof prNumber === "string") return prNumber;
   const perPage = typeof input.per_page === "number" ? input.per_page : undefined;
 
   const result = await client.listPullFiles(repoResult.owner, repoResult.name, prNumber, { perPage });
@@ -197,10 +191,8 @@ export async function executeReviewPull(
   const repoResult = validateRepoInput(input, "github_review_pull");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = input.pr_number;
-  if (typeof prNumber !== "number") {
-    return "Error: github_review_pull requires a 'pr_number' argument (number).";
-  }
+  const prNumber = validatePositiveInt(input.pr_number, "pr_number", "github_review_pull");
+  if (typeof prNumber === "string") return prNumber;
   const event = input.event;
   if (typeof event !== "string" || event.length === 0) {
     return "Error: github_review_pull requires an 'event' argument (APPROVE, REQUEST_CHANGES, or COMMENT).";
@@ -229,10 +221,8 @@ export async function executeMergePull(
   const repoResult = validateRepoInput(input, "github_merge_pull");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = input.pr_number;
-  if (typeof prNumber !== "number") {
-    return "Error: github_merge_pull requires a 'pr_number' argument (number).";
-  }
+  const prNumber = validatePositiveInt(input.pr_number, "pr_number", "github_merge_pull");
+  if (typeof prNumber === "string") return prNumber;
   const method = typeof input.method === "string" ? input.method : undefined;
   const commitTitle = typeof input.commit_title === "string" ? input.commit_title : undefined;
 

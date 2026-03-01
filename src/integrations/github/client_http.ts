@@ -146,6 +146,11 @@ export interface RawIssueSearchItem {
   readonly state: string;
   readonly html_url: string;
   readonly repository_url?: string;
+  readonly repository?: {
+    readonly full_name: string;
+    readonly visibility?: string;
+    readonly private: boolean;
+  };
 }
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────

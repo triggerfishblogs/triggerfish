@@ -12,6 +12,7 @@ export {
   fetchRepoBranches,
   createRepoBranch,
   deleteRepoBranch,
+  cloneRepoToPath,
 } from "./client_repos.ts";
 
 export {
@@ -22,6 +23,7 @@ export {
   executeListBranches,
   executeCreateBranch,
   executeDeleteBranch,
+  executeCloneRepo,
 } from "./tools_repos.ts";
 
 export {
@@ -32,4 +34,5 @@ export {
   buildListBranchesDef,
   buildCreateBranchDef,
   buildDeleteBranchDef,
+  buildCloneRepoDef,
 } from "./tools_defs_repos.ts";

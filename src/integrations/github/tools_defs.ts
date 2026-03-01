@@ -17,6 +17,7 @@ import {
   buildListBranchesDef,
   buildCreateBranchDef,
   buildDeleteBranchDef,
+  buildCloneRepoDef,
 } from "./repos/mod.ts";
 
 import {
@@ -48,7 +49,7 @@ import {
 
 // ── Public API ──
 
-/** Get all 25 GitHub tool definitions. */
+/** Get all 26 GitHub tool definitions. */
 export function getGitHubToolDefinitions(): readonly ToolDefinition[] {
   return [
     buildListReposDef(),
@@ -58,6 +59,7 @@ export function getGitHubToolDefinitions(): readonly ToolDefinition[] {
     buildListBranchesDef(),
     buildCreateBranchDef(),
     buildDeleteBranchDef(),
+    buildCloneRepoDef(),
     buildListPullsDef(),
     buildGetPullDef(),
     buildCreatePullDef(),
@@ -82,7 +84,7 @@ export function getGitHubToolDefinitions(): readonly ToolDefinition[] {
 /** System prompt section explaining GitHub tools to the LLM. */
 export const GITHUB_TOOLS_SYSTEM_PROMPT = `## GitHub Access
 
-You have access to GitHub via 25 github_* tools: repos, PRs, issues, Actions, and search.
+You have access to GitHub via 26 github_* tools: repos, PRs, issues, Actions, and search.
 
 - All tool names follow the github_verb_noun pattern (e.g. github_list_repos, github_create_pull).
 - The \`repo\` parameter always uses "owner/name" format (e.g. "octocat/Hello-World").

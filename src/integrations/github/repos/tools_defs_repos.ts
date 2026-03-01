@@ -159,3 +159,33 @@ export function buildDeleteBranchDef(): ToolDefinition {
     },
   };
 }
+
+/** Build the github_clone_repo tool definition. */
+export function buildCloneRepoDef(): ToolDefinition {
+  return {
+    name: "github_clone_repo",
+    description:
+      "Clone a GitHub repository to a local directory. Authenticates automatically. Clones the repo's default branch unless you specify a different one — do NOT guess branch names.",
+    parameters: {
+      repo: {
+        type: "string",
+        description: 'Repository in "owner/name" format',
+        required: true,
+      },
+      path: {
+        type: "string",
+        description:
+          "Destination directory path. Defaults to repo name in current workspace.",
+      },
+      branch: {
+        type: "string",
+        description:
+          "Only set if you need a specific non-default branch. Omit to clone the default branch automatically.",
+      },
+      depth: {
+        type: "number",
+        description: "Shallow clone depth (omit for full history)",
+      },
+    },
+  };
+}

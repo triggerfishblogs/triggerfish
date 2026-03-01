@@ -18,6 +18,7 @@ import {
   executeListBranches,
   executeCreateBranch,
   executeDeleteBranch,
+  executeCloneRepo,
 } from "./repos/mod.ts";
 import {
   executeListPulls,
@@ -61,6 +62,7 @@ const TOOL_HANDLERS: Readonly<Record<string, ToolHandler>> = {
   github_list_branches: executeListBranches,
   github_create_branch: executeCreateBranch,
   github_delete_branch: executeDeleteBranch,
+  github_clone_repo: executeCloneRepo,
   github_list_pulls: executeListPulls,
   github_get_pull: executeGetPull,
   github_create_pull: executeCreatePull,

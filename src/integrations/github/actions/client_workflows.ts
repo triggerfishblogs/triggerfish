@@ -195,9 +195,27 @@ export async function searchGitHubCode(
 
 // ─── Issue search ────────────────────────────────────────────────────────────
 
+/** Derive classification from a raw issue search item. */
+function classifyIssueSearchItem(
+  item: RawIssueSearchItem,
+  classifyRepo: ClassifyRepoFn,
+  repoFullName: string,
+): ClassificationLevel {
+  if (item.repository) {
+    return classifyRepo(
+      item.repository.visibility ??
+        (item.repository.private ? "private" : "public"),
+      item.repository.full_name,
+    );
+  }
+  // No repository metadata — default to CONFIDENTIAL (default-deny).
+  return repoFullName ? classifyRepo("private", repoFullName) : "CONFIDENTIAL";
+}
+
 /** Map a raw issue search item to a GitHubIssueSearchItem. */
 function mapRawIssueSearchItemToResult(
   item: RawIssueSearchItem,
+  classifyRepo: ClassifyRepoFn,
   baseUrl: string,
 ): GitHubIssueSearchItem {
   const repoFullName = item.repository_url?.replace(
@@ -210,13 +228,14 @@ function mapRawIssueSearchItemToResult(
     repo: repoFullName,
     state: item.state,
     htmlUrl: item.html_url,
-    classification: "PUBLIC" as ClassificationLevel,
+    classification: classifyIssueSearchItem(item, classifyRepo, repoFullName),
   };
 }
 
 /** Search issues across GitHub repositories. */
 export async function searchGitHubIssues(
   apiRequest: ApiRequestFn,
+  classifyRepo: ClassifyRepoFn,
   baseUrl: string,
   query: string,
   opts?: { readonly perPage?: number },
@@ -231,7 +250,7 @@ export async function searchGitHubIssues(
   if (!result.ok) return result;
 
   const items = result.value.data.items.map((item) =>
-    mapRawIssueSearchItemToResult(item, baseUrl)
+    mapRawIssueSearchItemToResult(item, classifyRepo, baseUrl)
   );
   return { ok: true, value: items };
 }

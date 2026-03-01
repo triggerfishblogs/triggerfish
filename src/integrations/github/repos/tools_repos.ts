@@ -8,7 +8,7 @@
  */
 
 import type { GitHubClient } from "../client.ts";
-import { validateRepoInput, formatGitHubError } from "../tools_shared.ts";
+import { validateRepoInput, validateBranchName, formatGitHubError } from "../tools_shared.ts";
 
 // ─── List Repos ──────────────────────────────────────────────────────────────
 
@@ -147,16 +147,14 @@ export async function executeCreateBranch(
   const repoResult = validateRepoInput(input, "github_create_branch");
   if (typeof repoResult === "string") return repoResult;
 
-  const branch = input.branch;
-  if (typeof branch !== "string" || branch.length === 0) {
-    return "Error: github_create_branch requires a 'branch' argument.";
-  }
+  const branchResult = validateBranchName(input.branch, "github_create_branch");
+  if (typeof branchResult === "string") return branchResult;
   const sha = input.sha;
   if (typeof sha !== "string" || sha.length === 0) {
     return "Error: github_create_branch requires a 'sha' argument.";
   }
 
-  const result = await client.createBranch(repoResult.owner, repoResult.name, branch, sha);
+  const result = await client.createBranch(repoResult.owner, repoResult.name, branchResult.branch, sha);
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     ref: result.value.ref,
@@ -175,15 +173,42 @@ export async function executeDeleteBranch(
   const repoResult = validateRepoInput(input, "github_delete_branch");
   if (typeof repoResult === "string") return repoResult;
 
-  const branch = input.branch;
-  if (typeof branch !== "string" || branch.length === 0) {
-    return "Error: github_delete_branch requires a 'branch' argument.";
-  }
+  const branchResult = validateBranchName(input.branch, "github_delete_branch");
+  if (typeof branchResult === "string") return branchResult;
 
-  const result = await client.deleteBranch(repoResult.owner, repoResult.name, branch);
+  const result = await client.deleteBranch(repoResult.owner, repoResult.name, branchResult.branch);
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     deleted: result.value.deleted,
+    _classification: result.value.classification,
+  });
+}
+
+// ─── Clone Repo ─────────────────────────────────────────────────────────────
+
+/** Handle the github_clone_repo tool invocation. */
+export async function executeCloneRepo(
+  client: GitHubClient,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const repoResult = validateRepoInput(input, "github_clone_repo");
+  if (typeof repoResult === "string") return repoResult;
+
+  const destPath = typeof input.path === "string" && input.path.length > 0
+    ? input.path
+    : repoResult.name;
+  const branch = typeof input.branch === "string" ? input.branch : undefined;
+  const depth = typeof input.depth === "number" ? input.depth : undefined;
+
+  const result = await client.cloneRepo(
+    repoResult.owner,
+    repoResult.name,
+    destPath,
+    { branch, depth },
+  );
+  if (!result.ok) return formatGitHubError(result.error);
+  return JSON.stringify({
+    cloned_to: result.value.clonedTo,
     _classification: result.value.classification,
   });
 }

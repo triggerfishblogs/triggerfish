@@ -63,6 +63,47 @@ export function formatGitHubError(error: GitHubApiError): string {
 
 // ─── Input Validation ────────────────────────────────────────────────────────
 
+// ─── Numeric ID Validation ───────────────────────────────────────────────────
+
+/**
+ * Validate that a value is a positive integer.
+ * Returns the number or an error string.
+ */
+export function validatePositiveInt(
+  value: unknown,
+  fieldName: string,
+  toolName: string,
+): number | string {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    return `Error: ${toolName} requires a '${fieldName}' argument (positive integer).`;
+  }
+  return value;
+}
+
+// ─── Branch Name Validation ─────────────────────────────────────────────────
+
+/** Pattern for valid git ref name components (no .., no control chars, no special sequences). */
+const SAFE_BRANCH_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._\-/]*[a-zA-Z0-9]$/;
+
+/**
+ * Validate that a branch name is safe for use in git refs.
+ * Rejects path traversal, control characters, and malformed ref names.
+ */
+export function validateBranchName(
+  value: unknown,
+  toolName: string,
+): string | { readonly branch: string } {
+  if (typeof value !== "string" || value.length === 0) {
+    return `Error: ${toolName} requires a 'branch' argument.`;
+  }
+  if (value.includes("..") || value.includes("\\") || !SAFE_BRANCH_NAME.test(value)) {
+    return `Error: '${value}' is not a valid branch name.`;
+  }
+  return { branch: value };
+}
+
+// ─── Repo Validation ────────────────────────────────────────────────────────
+
 /**
  * Validate and parse a repo input parameter.
  * Returns the parsed RepoParts or an error string.

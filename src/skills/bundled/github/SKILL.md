@@ -39,6 +39,7 @@ All tool names follow the `github_verb_noun` pattern.
 | `github_list_branches` | List branches with protection status | `repo`*, `per_page` |
 | `github_create_branch` | Create a branch from a SHA | `repo`*, `branch`*, `sha`* |
 | `github_delete_branch` | Delete a branch | `repo`*, `branch`* |
+| `github_clone_repo` | Clone a repo to local directory | `repo`*, `path`, `branch`, `depth` |
 
 ### Pull Requests
 

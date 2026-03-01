@@ -8,7 +8,7 @@
  */
 
 import type { GitHubClient } from "../client.ts";
-import { validateRepoInput, formatGitHubError } from "../tools_shared.ts";
+import { validateRepoInput, validatePositiveInt, formatGitHubError } from "../tools_shared.ts";
 
 // ─── List Issues ─────────────────────────────────────────────────────────────
 
@@ -48,10 +48,8 @@ export async function executeGetIssue(
   const repoResult = validateRepoInput(input, "github_get_issue");
   if (typeof repoResult === "string") return repoResult;
 
-  const number = input.number;
-  if (typeof number !== "number") {
-    return "Error: github_get_issue requires a 'number' argument (number).";
-  }
+  const number = validatePositiveInt(input.number, "number", "github_get_issue");
+  if (typeof number === "string") return number;
 
   const result = await client.getIssue(repoResult.owner, repoResult.name, number);
   if (!result.ok) return formatGitHubError(result.error);
@@ -122,10 +120,8 @@ export async function executeUpdateIssue(
   const repoResult = validateRepoInput(input, "github_update_issue");
   if (typeof repoResult === "string") return repoResult;
 
-  const number = input.number;
-  if (typeof number !== "number") {
-    return "Error: github_update_issue requires a 'number' argument (number).";
-  }
+  const number = validatePositiveInt(input.number, "number", "github_update_issue");
+  if (typeof number === "string") return number;
 
   const fields = buildIssueUpdateFields(input);
   const result = await client.updateIssue(repoResult.owner, repoResult.name, number, fields);
@@ -149,10 +145,8 @@ export async function executeListComments(
   const repoResult = validateRepoInput(input, "github_list_comments");
   if (typeof repoResult === "string") return repoResult;
 
-  const number = input.number;
-  if (typeof number !== "number") {
-    return "Error: github_list_comments requires a 'number' argument (number).";
-  }
+  const number = validatePositiveInt(input.number, "number", "github_list_comments");
+  if (typeof number === "string") return number;
   const perPage = typeof input.per_page === "number" ? input.per_page : undefined;
 
   const result = await client.listComments(repoResult.owner, repoResult.name, number, { perPage });
@@ -179,10 +173,8 @@ export async function executeAddComment(
   const repoResult = validateRepoInput(input, "github_add_comment");
   if (typeof repoResult === "string") return repoResult;
 
-  const number = input.number;
-  if (typeof number !== "number") {
-    return "Error: github_add_comment requires a 'number' argument (number).";
-  }
+  const number = validatePositiveInt(input.number, "number", "github_add_comment");
+  if (typeof number === "string") return number;
   const body = input.body;
   if (typeof body !== "string" || body.length === 0) {
     return "Error: github_add_comment requires a 'body' argument.";

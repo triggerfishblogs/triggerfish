@@ -21,6 +21,9 @@ import {
   fetchRepoClassification,
 } from "../client_http.ts";
 import type { RawBranch, RawCommit, RawContent, RawRepo } from "../client_http.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("github-clone");
 
 /** Maximum file size (1 MB) for github_repos_read_file. */
 const MAX_FILE_SIZE = 1_048_576;
@@ -306,4 +309,120 @@ export async function fetchRepoCommits(
     mapRawCommitToGitHubCommit(c, classification)
   );
   return { ok: true, value: commits };
+}
+
+/** Build the authenticated clone URL with embedded token. */
+function buildAuthenticatedCloneUrl(
+  token: string,
+  baseUrl: string,
+  owner: string,
+  repo: string,
+): string {
+  const host = baseUrl.includes("github.com")
+    ? "github.com"
+    : new URL(baseUrl).host;
+  return `https://x-access-token:${token}@${host}/${owner}/${repo}.git`;
+}
+
+/** Build git clone command arguments. */
+function buildCloneArgs(
+  cloneUrl: string,
+  destPath: string,
+  opts?: { readonly branch?: string; readonly depth?: number },
+): string[] {
+  const args = ["clone"];
+  if (opts?.depth) args.push("--depth", String(opts.depth));
+  if (opts?.branch) args.push("--branch", opts.branch);
+  args.push(cloneUrl, destPath);
+  return args;
+}
+
+/** Strip tokens from git stderr output. */
+function sanitizeGitStderr(stderr: string): string {
+  return stderr.replace(/x-access-token:[^@]+@/g, "x-access-token:***@");
+}
+
+/** Run git clone and return stderr on failure. */
+async function runGitClone(args: readonly string[]): Promise<string | null> {
+  const cmd = new Deno.Command("git", {
+    args: [...args],
+    stdout: "piped",
+    stderr: "piped",
+  });
+  const output = await cmd.output();
+  if (output.success) return null;
+  return sanitizeGitStderr(new TextDecoder().decode(output.stderr));
+}
+
+/** Clone a GitHub repo to a local path using git CLI. */
+export async function cloneRepoToPath(
+  apiRequest: ApiRequestFn,
+  classifyRepo: ClassifyRepoFn,
+  token: string,
+  baseUrl: string,
+  owner: string,
+  repo: string,
+  destPath: string,
+  opts?: { readonly branch?: string; readonly depth?: number },
+): Promise<
+  Result<
+    { readonly clonedTo: string; readonly classification: ClassificationLevel },
+    GitHubError
+  >
+> {
+  const classification = await fetchRepoClassification(
+    apiRequest,
+    classifyRepo,
+    owner,
+    repo,
+  );
+
+  const cloneUrl = buildAuthenticatedCloneUrl(token, baseUrl, owner, repo);
+  const args = buildCloneArgs(cloneUrl, destPath, opts);
+  const repoSlug = `${owner}/${repo}`;
+
+  log.info("Cloning repository", {
+    operation: "cloneRepoToPath",
+    repo: repoSlug,
+    destPath,
+    branch: opts?.branch ?? "default",
+  });
+
+  const err = await runGitClone(args);
+  if (!err) {
+    return { ok: true, value: { clonedTo: destPath, classification } };
+  }
+
+  // Auto-retry without --branch when the specified branch doesn't exist
+  if (opts?.branch && err.includes("not found in upstream")) {
+    log.info("Branch not found, retrying with default branch", {
+      operation: "cloneRepoToPath",
+      repo: repoSlug,
+      failedBranch: opts.branch,
+    });
+    const retryArgs = buildCloneArgs(cloneUrl, destPath, { depth: opts.depth });
+    const retryErr = await runGitClone(retryArgs);
+    if (!retryErr) {
+      return { ok: true, value: { clonedTo: destPath, classification } };
+    }
+    log.warn("Clone failed on retry", {
+      operation: "cloneRepoToPath",
+      repo: repoSlug,
+      err: retryErr,
+    });
+    return {
+      ok: false,
+      error: { status: 500, message: `Clone failed: ${retryErr.trim()}` },
+    };
+  }
+
+  log.warn("Clone failed", {
+    operation: "cloneRepoToPath",
+    repo: repoSlug,
+    err,
+  });
+  return {
+    ok: false,
+    error: { status: 500, message: `Clone failed: ${err.trim()}` },
+  };
 }

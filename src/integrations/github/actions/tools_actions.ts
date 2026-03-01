@@ -8,7 +8,21 @@
  */
 
 import type { GitHubClient } from "../client.ts";
-import { validateRepoInput, formatGitHubError } from "../tools_shared.ts";
+import { validateRepoInput, validatePositiveInt, formatGitHubError } from "../tools_shared.ts";
+
+/** Validate that a value is a Record<string, string> (all values are strings). */
+function validateStringRecord(
+  value: unknown,
+): Readonly<Record<string, string>> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const obj = value as Record<string, unknown>;
+  for (const v of Object.values(obj)) {
+    if (typeof v !== "string") return undefined;
+  }
+  return obj as Readonly<Record<string, string>>;
+}
 
 // ─── List Workflow Runs ──────────────────────────────────────────────────────
 
@@ -56,9 +70,7 @@ export async function executeTriggerWorkflow(
   if (typeof ref !== "string" || ref.length === 0) {
     return "Error: github_trigger_workflow requires a 'ref' argument.";
   }
-  const inputs = (input.inputs && typeof input.inputs === "object" && !Array.isArray(input.inputs))
-    ? input.inputs as Readonly<Record<string, string>>
-    : undefined;
+  const inputs = validateStringRecord(input.inputs);
 
   const result = await client.triggerWorkflow(repoResult.owner, repoResult.name, workflow, ref, inputs);
   if (!result.ok) return formatGitHubError(result.error);
@@ -78,10 +90,8 @@ export async function executeCancelRun(
   const repoResult = validateRepoInput(input, "github_cancel_run");
   if (typeof repoResult === "string") return repoResult;
 
-  const runId = input.run_id;
-  if (typeof runId !== "number" || !Number.isInteger(runId)) {
-    return "Error: github_cancel_run requires a numeric 'run_id' argument.";
-  }
+  const runId = validatePositiveInt(input.run_id, "run_id", "github_cancel_run");
+  if (typeof runId === "string") return runId;
 
   const result = await client.cancelRun(repoResult.owner, repoResult.name, runId);
   if (!result.ok) return formatGitHubError(result.error);

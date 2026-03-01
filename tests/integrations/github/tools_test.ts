@@ -1,7 +1,7 @@
 /**
  * GitHub tools tests.
  *
- * Tests all 25 tool definitions, parameter validation,
+ * Tests all 26 tool definitions, parameter validation,
  * response formatting, null fallthrough, and graceful error handling.
  */
 import { assertEquals } from "@std/assert";
@@ -17,9 +17,9 @@ import type { Result } from "../../../src/core/types/classification.ts";
 
 // ─── Tool Definitions ────────────────────────────────────────────────────────
 
-Deno.test("getGitHubToolDefinitions: returns 25 tool definitions", () => {
+Deno.test("getGitHubToolDefinitions: returns 26 tool definitions", () => {
   const defs = getGitHubToolDefinitions();
-  assertEquals(defs.length, 25);
+  assertEquals(defs.length, 26);
 });
 
 Deno.test("getGitHubToolDefinitions: all tools have github_ prefix", () => {
@@ -39,7 +39,7 @@ Deno.test("getGitHubToolDefinitions: all tools have descriptions", () => {
 
 Deno.test("getGitHubToolDefinitions: all tool names follow verb-first pattern", () => {
   const defs = getGitHubToolDefinitions();
-  const verbs = ["list", "get", "read", "create", "update", "delete", "review", "merge", "trigger", "cancel", "add", "search"];
+  const verbs = ["list", "get", "read", "create", "update", "delete", "review", "merge", "trigger", "cancel", "add", "search", "clone"];
   for (const def of defs) {
     const afterPrefix = def.name.replace("github_", "");
     const firstWord = afterPrefix.split("_")[0];
@@ -80,6 +80,7 @@ Deno.test("getGitHubToolDefinitions: expected tool names present", () => {
     "github_trigger_workflow",
     "github_search_code",
     "github_search_issues",
+    "github_clone_repo",
   ];
   for (const name of expected) {
     assertEquals(names.has(name), true, `Missing tool: ${name}`);
@@ -93,8 +94,8 @@ Deno.test("GITHUB_TOOLS_SYSTEM_PROMPT: is a non-empty string", () => {
   assertEquals(GITHUB_TOOLS_SYSTEM_PROMPT.length > 0, true);
 });
 
-Deno.test("GITHUB_TOOLS_SYSTEM_PROMPT: mentions 25 tools", () => {
-  assertEquals(GITHUB_TOOLS_SYSTEM_PROMPT.includes("25"), true);
+Deno.test("GITHUB_TOOLS_SYSTEM_PROMPT: mentions 26 tools", () => {
+  assertEquals(GITHUB_TOOLS_SYSTEM_PROMPT.includes("26"), true);
 });
 
 // ─── Fallthrough ─────────────────────────────────────────────────────────────
@@ -399,6 +400,7 @@ function createMockContext(
     triggerWorkflow: overrides?.triggerWorkflow as GitHubClient["triggerWorkflow"] ?? defaultMethod as unknown as GitHubClient["triggerWorkflow"],
     searchCode: overrides?.searchCode as GitHubClient["searchCode"] ?? defaultMethod as unknown as GitHubClient["searchCode"],
     searchIssues: overrides?.searchIssues as GitHubClient["searchIssues"] ?? defaultMethod as unknown as GitHubClient["searchIssues"],
+    cloneRepo: overrides?.cloneRepo as GitHubClient["cloneRepo"] ?? defaultMethod as unknown as GitHubClient["cloneRepo"],
   };
 
   return {

@@ -41,6 +41,7 @@ import {
   fetchRepoBranches,
   createRepoBranch,
   deleteRepoBranch,
+  cloneRepoToPath,
 } from "./repos/mod.ts";
 import {
   fetchRepoPulls,
@@ -293,6 +294,20 @@ export interface GitHubClient {
     query: string,
     opts?: { readonly perPage?: number },
   ) => Promise<Result<readonly GitHubIssueSearchItem[], GitHubError>>;
+  readonly cloneRepo: (
+    owner: string,
+    repo: string,
+    destPath: string,
+    opts?: { readonly branch?: string; readonly depth?: number },
+  ) => Promise<
+    Result<
+      {
+        readonly clonedTo: string;
+        readonly classification: ClassificationLevel;
+      },
+      GitHubError
+    >
+  >;
 }
 
 /**
@@ -462,6 +477,17 @@ export function createGitHubClient(config: GitHubClientConfig): GitHubClient {
     searchCode: (query, opts) =>
       searchGitHubCode(apiRequest, classifyRepo, query, opts),
     searchIssues: (query, opts) =>
-      searchGitHubIssues(apiRequest, ctx.baseUrl, query, opts),
+      searchGitHubIssues(apiRequest, classifyRepo, ctx.baseUrl, query, opts),
+    cloneRepo: (owner, repo, destPath, opts) =>
+      cloneRepoToPath(
+        apiRequest,
+        classifyRepo,
+        ctx.token,
+        ctx.baseUrl,
+        owner,
+        repo,
+        destPath,
+        opts,
+      ),
   };
 }
