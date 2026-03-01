@@ -42,13 +42,16 @@ import type {
 } from "./chat_types.ts";
 
 import { buildSendEvent } from "./chat_event_sender.ts";
-import { checkNonOwnerAccess, preloadPairedUsers } from "./chat_access_control.ts";
 import {
-  assembleOrchestratorConfig,
+  checkNonOwnerAccess,
+  preloadPairedUsers,
+} from "./chat_access_control.ts";
+import {
   applyTaintEscalation,
+  assembleOrchestratorConfig,
   resolveSessionTaint,
-  runOwnerAgentTurn,
   runNonOwnerAgentTurn,
+  runOwnerAgentTurn,
 } from "./chat_turn_execution.ts";
 import type { ChatSessionMutableState } from "./chat_turn_execution.ts";
 
@@ -152,7 +155,10 @@ async function routeChannelMessage(
 
   // Per-user rate limiting for non-owner senders
   const effectiveSenderId = senderId || "unknown";
-  if (channelState.rateLimiter && !channelState.rateLimiter.isAllowed(effectiveSenderId)) {
+  if (
+    channelState.rateLimiter &&
+    !channelState.rateLimiter.isAllowed(effectiveSenderId)
+  ) {
     chatLog.warn("Rate limit exceeded for non-owner sender", {
       operation: "routeChannelMessage",
       channelType,
@@ -219,10 +225,17 @@ function resolveSecretPrompt(
   const resolve = pendingSecretPrompts.get(nonce);
   if (resolve) {
     pendingSecretPrompts.delete(nonce);
-    chatLog.debug("Secret prompt resolved", { operation: "resolveSecretPrompt", nonce, hasValue: value !== null });
+    chatLog.debug("Secret prompt resolved", {
+      operation: "resolveSecretPrompt",
+      nonce,
+      hasValue: value !== null,
+    });
     resolve(value);
   } else {
-    chatLog.debug("Secret prompt nonce not found, dropping", { operation: "resolveSecretPrompt", nonce });
+    chatLog.debug("Secret prompt nonce not found, dropping", {
+      operation: "resolveSecretPrompt",
+      nonce,
+    });
   }
 }
 
@@ -254,7 +267,10 @@ interface CredentialResult {
 
 /** Resolve a pending credential prompt by nonce. */
 function resolveCredentialPrompt(
-  pendingCredentialPrompts: Map<string, (value: CredentialResult | null) => void>,
+  pendingCredentialPrompts: Map<
+    string,
+    (value: CredentialResult | null) => void
+  >,
   nonce: string,
   username: string | null,
   password: string | null,
@@ -263,20 +279,32 @@ function resolveCredentialPrompt(
   if (resolve) {
     pendingCredentialPrompts.delete(nonce);
     if (username !== null && password !== null) {
-      chatLog.debug("Credential prompt resolved", { operation: "resolveCredentialPrompt", nonce });
+      chatLog.debug("Credential prompt resolved", {
+        operation: "resolveCredentialPrompt",
+        nonce,
+      });
       resolve({ username, password });
     } else {
-      chatLog.debug("Credential prompt cancelled by client", { operation: "resolveCredentialPrompt", nonce });
+      chatLog.debug("Credential prompt cancelled by client", {
+        operation: "resolveCredentialPrompt",
+        nonce,
+      });
       resolve(null);
     }
   } else {
-    chatLog.debug("Credential prompt nonce not found, dropping", { operation: "resolveCredentialPrompt", nonce });
+    chatLog.debug("Credential prompt nonce not found, dropping", {
+      operation: "resolveCredentialPrompt",
+      nonce,
+    });
   }
 }
 
 /** Create a credential prompt callback for Tidepool mode. */
 function buildTidepoolCredentialPrompt(
-  pendingCredentialPrompts: Map<string, (value: CredentialResult | null) => void>,
+  pendingCredentialPrompts: Map<
+    string,
+    (value: CredentialResult | null) => void
+  >,
   sendEvent: ChatEventSender,
 ): (name: string, hint?: string) => Promise<CredentialResult | null> {
   return (name, hint) => {
@@ -338,7 +366,8 @@ async function acceptTriggerResult(opts: AcceptTriggerOptions): Promise<void> {
       return;
     }
 
-    const currentTaint = config.getSessionTaint?.() ?? "PUBLIC" as ClassificationLevel;
+    const currentTaint = config.getSessionTaint?.() ??
+      "PUBLIC" as ClassificationLevel;
 
     if (!canFlowTo(currentTaint, result.classification)) {
       // Write-down: reset session first, then inject
@@ -353,7 +382,10 @@ async function acceptTriggerResult(opts: AcceptTriggerOptions): Promise<void> {
       if (config.resetSession) config.resetSession();
       // Broadcast taint change after reset
       if (config.broadcastChatEvent) {
-        config.broadcastChatEvent({ type: "taint_changed", level: "PUBLIC" as ClassificationLevel });
+        config.broadcastChatEvent({
+          type: "taint_changed",
+          level: "PUBLIC" as ClassificationLevel,
+        });
       }
     } else if (!canFlowTo(result.classification, currentTaint)) {
       // Write-up: escalate taint
@@ -363,7 +395,10 @@ async function acceptTriggerResult(opts: AcceptTriggerOptions): Promise<void> {
         from: currentTaint,
         to: result.classification,
       });
-      config.escalateTaint?.(result.classification, `trigger prompt: ${source}`);
+      config.escalateTaint?.(
+        result.classification,
+        `trigger prompt: ${source}`,
+      );
     }
 
     const formatted = formatTriggerOutput(result);
@@ -383,7 +418,9 @@ async function acceptTriggerResult(opts: AcceptTriggerOptions): Promise<void> {
     });
     sendEvent({
       type: "error",
-      message: `Trigger load failed: ${err instanceof Error ? err.message : String(err)}`,
+      message: `Trigger load failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
     });
   }
 }
@@ -517,7 +554,12 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     handleSecretPromptResponse: (nonce, value) =>
       resolveSecretPrompt(pendingSecretPrompts, nonce, value),
     handleCredentialPromptResponse: (nonce, username, password) =>
-      resolveCredentialPrompt(pendingCredentialPrompts, nonce, username, password),
+      resolveCredentialPrompt(
+        pendingCredentialPrompts,
+        nonce,
+        username,
+        password,
+      ),
     createTidepoolSecretPrompt: (sendEvent) =>
       buildTidepoolSecretPrompt(pendingSecretPrompts, sendEvent),
     createTidepoolCredentialPrompt: (sendEvent) =>
