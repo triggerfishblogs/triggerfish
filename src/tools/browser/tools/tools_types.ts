@@ -32,12 +32,25 @@ export interface NavigateResult {
 
 // ─── Snapshot ────────────────────────────────────────────────────────────────
 
+/** A link extracted from the page. */
+export interface PageLink {
+  /** Visible link text (trimmed). */
+  readonly text: string;
+  /** Resolved href URL. */
+  readonly href: string;
+}
+
+/** Maximum number of links to extract per snapshot. */
+export const MAX_SNAPSHOT_LINKS = 50;
+
 /** Result returned by snapshot. */
 export interface SnapshotResult {
   /** Base64-encoded PNG screenshot. */
   readonly screenshot: string;
   /** Extracted visible text content from the page. */
   readonly textContent: string;
+  /** Links found on the page (text + href), capped at {@link MAX_SNAPSHOT_LINKS}. */
+  readonly links: readonly PageLink[];
 }
 
 // ─── Scroll ──────────────────────────────────────────────────────────────────

@@ -74,7 +74,16 @@ async function dispatchNavigate(
   return responseJson;
 }
 
-/** Handle browser_snapshot: capture screenshot + text. */
+/** Format snapshot links as a readable section for the LLM. */
+function formatSnapshotLinks(
+  links: ReadonlyArray<{ readonly text: string; readonly href: string }>,
+): string {
+  if (links.length === 0) return "";
+  const lines = links.map((l) => `- [${l.text.replace(/[[\]]/g, "")}](<${l.href}>)`);
+  return `\n\n## Links on page\n${lines.join("\n")}`;
+}
+
+/** Handle browser_snapshot: capture screenshot + text + links. */
 async function dispatchSnapshot(
   tools: BrowserTools,
   lastScreenshotRef: { value: string | undefined },
@@ -82,7 +91,7 @@ async function dispatchSnapshot(
   const result = await tools.snapshot();
   if (!result.ok) return `Snapshot error: ${result.error}`;
   lastScreenshotRef.value = result.value.screenshot;
-  return result.value.textContent;
+  return result.value.textContent + formatSnapshotLinks(result.value.links);
 }
 
 /** Build a vision prompt for screenshot description. */

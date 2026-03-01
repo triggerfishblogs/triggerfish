@@ -11,6 +11,7 @@ import {
   createBrowserTools,
   type DnsChecker,
   type NavigateResult,
+  type PageLink,
   type SnapshotResult,
 } from "../../../src/tools/browser/tools/tools.ts";
 import { createDomainPolicy } from "../../../src/tools/browser/domains.ts";
@@ -49,6 +50,12 @@ function createMockPage() {
         const fnStr = fn.toString();
         if (fnStr.includes("innerText")) {
           return Promise.resolve("Mock page text content");
+        }
+        if (fnStr.includes("querySelectorAll") && fnStr.includes("a[href]")) {
+          return Promise.resolve([
+            { text: "Example Link", href: "https://example.com/page" },
+            { text: "Another Link", href: "https://example.com/other" },
+          ]);
         }
         if (fnStr.includes("scrollBy")) {
           return Promise.resolve(undefined);
@@ -185,16 +192,22 @@ Deno.test("navigate: rejects invalid URL", async () => {
 // Snapshot
 // ---------------------------------------------------------------------------
 
-Deno.test("snapshot: returns SnapshotResult with screenshot and textContent", async () => {
+Deno.test("snapshot: returns SnapshotResult with screenshot, textContent, and links", async () => {
   const { tools } = createMockTools();
   const result = await tools!.snapshot();
   assertEquals(result.ok, true);
   if (result.ok) {
     const snap: SnapshotResult = result.value;
     assertEquals(typeof snap.screenshot, "string");
-    // Should be valid base64
     assertEquals(snap.screenshot.length > 0, true);
     assertEquals(snap.textContent, "Mock page text content");
+    // Links should be extracted from the page
+    const links: readonly PageLink[] = snap.links;
+    assertEquals(links.length, 2);
+    assertEquals(links[0].text, "Example Link");
+    assertEquals(links[0].href, "https://example.com/page");
+    assertEquals(links[1].text, "Another Link");
+    assertEquals(links[1].href, "https://example.com/other");
   }
 });
 
@@ -375,6 +388,28 @@ Deno.test("executor: returns error when browser not connected", async () => {
   });
   assertEquals(typeof result, "string");
   assertEquals(result!.includes("not connected"), true);
+});
+
+Deno.test("executor: browser_snapshot includes links in output", async () => {
+  const { createBrowserToolExecutor, createBrowserTools } = await import(
+    "../../../src/tools/browser/tools/tools.ts"
+  );
+  const { createDomainPolicy } = await import("../../../src/tools/browser/domains.ts");
+
+  const mockPage = createMockPage();
+  const policy = createDomainPolicy({
+    allowList: [],
+    denyList: [],
+    classifications: {},
+  });
+  const tools = createBrowserTools({ page: mockPage, domainPolicy: policy });
+  const executor = createBrowserToolExecutor({ tools });
+
+  const result = await executor("browser_snapshot", {});
+  assertEquals(typeof result, "string");
+  assertEquals(result!.includes("Links on page"), true);
+  assertEquals(result!.includes("[Example Link](<https://example.com/page>)"), true);
+  assertEquals(result!.includes("[Another Link](<https://example.com/other>)"), true);
 });
 
 Deno.test("executor: browser_close closes browser and returns success", async () => {

@@ -50,6 +50,7 @@ export type {
   BrowserToolsConfig,
   DnsChecker,
   NavigateResult,
+  PageLink,
   ScrollDirection,
   SnapshotResult,
 } from "./tools_types.ts";
