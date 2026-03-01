@@ -38,12 +38,19 @@ function createWebSocketSender(socket: WebSocket): (evt: unknown) => void {
 
 /** Send connection metadata to a newly opened chat socket. */
 function sendConnectionInfo(socket: WebSocket, chat: ChatSession): void {
+  const taint = chat.sessionTaint;
+  const workspace = chat.workspacePath;
+  log.info("Sending connection info to chat client", {
+    operation: "sendConnectionInfo",
+    taint,
+    workspace,
+  });
   sendSafeWebSocket(socket, {
     type: "connected",
     provider: chat.providerName,
     model: chat.modelName,
-    taint: chat.sessionTaint,
-    workspace: chat.workspacePath,
+    taint,
+    workspace,
   });
 }
 

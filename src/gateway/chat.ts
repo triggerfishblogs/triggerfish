@@ -537,7 +537,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
       return modelName;
     },
     get workspacePath() {
-      return config.workspacePath ?? "";
+      return config.getWorkspacePath?.() ?? config.workspacePath ?? "";
     },
     get sessionTaint() {
       return getSessionTaint();

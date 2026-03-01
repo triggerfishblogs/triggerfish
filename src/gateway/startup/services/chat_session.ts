@@ -20,8 +20,8 @@ import type { createKeychain } from "../../../core/secrets/keychain/keychain.ts"
 import type { createPathClassifier } from "../../../core/security/path_classification.ts";
 import type { createToolFloorRegistry } from "../../../core/security/tool_floors.ts";
 import type {
-  SecretPromptCallback,
   CredentialPromptCallback,
+  SecretPromptCallback,
 } from "../../../tools/secrets.ts";
 import type { createAutoLaunchBrowserExecutor } from "../../../tools/browser/mod.ts";
 import { createA2UIHost } from "../../../tools/tidepool/host/mod.ts";
@@ -44,20 +44,20 @@ import type { buildWebTools } from "../factory/web_tools.ts";
 import type { MainSessionState } from "../tools/tool_executor.ts";
 import type { WorkspacePaths } from "../tools/tool_executor.ts";
 import {
-  buildExtraToolsGetter,
   buildExtraSystemPromptGetter,
+  buildExtraToolsGetter,
 } from "../tools/tool_executor.ts";
 import {
-  wireTelegramChannel,
+  isValidatedWhatsAppConfig,
   wireDiscordChannel,
   wireSignalChannel,
+  wireTelegramChannel,
   wireWhatsAppChannel,
-  isValidatedWhatsAppConfig,
 } from "../channels/channels.ts";
 import type {
-  TelegramChannelConfig,
   DiscordChannelConfig,
   SignalChannelConfig,
+  TelegramChannelConfig,
   WhatsAppChannelConfig,
 } from "../channels/channels.ts";
 
@@ -115,13 +115,19 @@ export interface ChatSessionDeps {
   >["domainClassifier"];
   readonly toolFloorRegistry: ReturnType<typeof createToolFloorRegistry>;
   /** Active skill context getter for tool filtering (optional). */
-  readonly getActiveSkillContext?: () => import("../../../agent/orchestrator/orchestrator_types.ts").ActiveSkillContext | null;
+  readonly getActiveSkillContext?: () =>
+    | import("../../../agent/orchestrator/orchestrator_types.ts").ActiveSkillContext
+    | null;
   /** Trigger store for retrieving trigger results on prompt acceptance. */
   readonly triggerStore?: TriggerStore;
   /** Broadcast a chat event to all connected sockets. */
-  readonly broadcastChatEvent?: (event: import("../../../core/types/chat_event.ts").ChatEvent) => void;
+  readonly broadcastChatEvent?: (
+    event: import("../../../core/types/chat_event.ts").ChatEvent,
+  ) => void;
   /** Classification-partitioned workspace paths for dynamic prompt injection. */
   readonly workspacePaths: WorkspacePaths;
+  /** Returns the taint-aware workspace path for shell command classification. */
+  readonly getWorkspacePath: () => string | null;
 }
 
 /** Build the dynamic getter and prompt options for the chat session. */
@@ -181,6 +187,7 @@ export function assembleChatSession(deps: ChatSessionDeps) {
     triggerStore: deps.triggerStore,
     broadcastChatEvent: deps.broadcastChatEvent,
     workspacePath: deps.workspacePaths.publicPath,
+    getWorkspacePath: deps.getWorkspacePath,
   });
 }
 
@@ -194,6 +201,21 @@ export function wrapChatSessionForTidepool(
 ) {
   return {
     ...chatSession,
+    // Re-declare getters: spread evaluates them to static values, losing
+    // the live delegation. sessionTaint must stay dynamic so reconnecting
+    // clients see the current taint, not the startup-time value.
+    get providerName() {
+      return chatSession.providerName;
+    },
+    get modelName() {
+      return chatSession.modelName;
+    },
+    get workspacePath() {
+      return chatSession.workspacePath;
+    },
+    get sessionTaint() {
+      return chatSession.sessionTaint;
+    },
     executeAgentTurn: (
       content: Parameters<typeof chatSession.executeAgentTurn>[0],
       sendEvent: Parameters<typeof chatSession.executeAgentTurn>[1],
@@ -246,6 +268,21 @@ export function wrapChatSessionForGateway(
 ) {
   return {
     ...chatSession,
+    // Re-declare getters: spread evaluates them to static values, losing
+    // the live delegation. sessionTaint must stay dynamic so reconnecting
+    // clients see the current taint, not the startup-time value.
+    get providerName() {
+      return chatSession.providerName;
+    },
+    get modelName() {
+      return chatSession.modelName;
+    },
+    get workspacePath() {
+      return chatSession.workspacePath;
+    },
+    get sessionTaint() {
+      return chatSession.sessionTaint;
+    },
     executeAgentTurn: (
       content: Parameters<typeof chatSession.executeAgentTurn>[0],
       sendEvent: Parameters<typeof chatSession.executeAgentTurn>[1],
