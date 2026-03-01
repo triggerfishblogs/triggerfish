@@ -235,19 +235,18 @@ Deno.test("classification: INTERNAL data cannot flow to PUBLIC", () => {
 
 // ─── Test 4: Gmail tool returns data (executor produces output) ─────────────
 
-Deno.test("classification: gmail_search returns data at session taint level", async () => {
+Deno.test("classification: gmail_search returns data with _classification", async () => {
   const ctx = createContextWithTaint("CONFIDENTIAL");
   const executor = createGoogleToolExecutor(ctx);
 
   const result = await executor("gmail_search", { query: "Q4 report" });
   assertEquals(result !== null, true);
 
-  // Data was returned — in a real system, the orchestrator would check
-  // canFlowTo(session.taint, channelClassification) before outputting
   const parsed = JSON.parse(result!);
-  assertEquals(Array.isArray(parsed), true);
-  assertEquals(parsed.length, 1);
-  assertEquals(parsed[0].subject, "Confidential Q4 Report");
+  assertEquals(parsed._classification, "CONFIDENTIAL");
+  assertEquals(Array.isArray(parsed.items), true);
+  assertEquals(parsed.items.length, 1);
+  assertEquals(parsed.items[0].subject, "Confidential Q4 Report");
 });
 
 // ─── Test 5: Drive file read returns content ────────────────────────────────
@@ -263,7 +262,7 @@ Deno.test("classification: drive_read returns file content", async () => {
 
 // ─── Test 6: Calendar with attendees returns data ───────────────────────────
 
-Deno.test("classification: calendar_list returns events with attendees", async () => {
+Deno.test("classification: calendar_list returns events with _classification", async () => {
   const ctx = createContextWithTaint("INTERNAL");
   const executor = createGoogleToolExecutor(ctx);
 
@@ -271,10 +270,11 @@ Deno.test("classification: calendar_list returns events with attendees", async (
   assertEquals(result !== null, true);
 
   const parsed = JSON.parse(result!);
-  assertEquals(Array.isArray(parsed), true);
-  assertEquals(parsed[0].summary, "Board Meeting");
-  assertEquals(parsed[0].attendees.length, 2);
-  assertEquals(parsed[0].attendees[0], "ceo@company.com");
+  assertEquals(parsed._classification, "INTERNAL");
+  assertEquals(Array.isArray(parsed.items), true);
+  assertEquals(parsed.items[0].summary, "Board Meeting");
+  assertEquals(parsed.items[0].attendees.length, 2);
+  assertEquals(parsed.items[0].attendees[0], "ceo@company.com");
 });
 
 // ─── Test 7: Executor handles error results gracefully ──────────────────────
@@ -360,4 +360,133 @@ Deno.test("classification: full flow — taint escalation chain is correct", () 
 
   // Step 5: Output to RESTRICTED channel — allowed
   assertEquals(canFlowTo(taint, "RESTRICTED"), true);
+});
+
+// ─── Test 11: _classification in all Google tool responses ───────────────────
+
+Deno.test("classification: gmail_read response carries _classification", async () => {
+  const ctx = createContextWithTaint("CONFIDENTIAL");
+  const executor = createGoogleToolExecutor(ctx);
+
+  const result = await executor("gmail_read", { message_id: "msg1" });
+  const parsed = JSON.parse(result!);
+  assertEquals(parsed._classification, "CONFIDENTIAL");
+  assertEquals(parsed.subject, "Confidential Q4 Report");
+});
+
+Deno.test("classification: gmail_send response carries _classification", async () => {
+  const ctx = createContextWithTaint("INTERNAL");
+  const executor = createGoogleToolExecutor(ctx);
+
+  const result = await executor("gmail_send", {
+    to: "user@example.com",
+    subject: "Test",
+    body: "Hello",
+  });
+  const parsed = JSON.parse(result!);
+  assertEquals(parsed._classification, "INTERNAL");
+  assertEquals(parsed.sent, true);
+});
+
+Deno.test("classification: calendar_create response carries _classification", async () => {
+  const ctx = createContextWithTaint("INTERNAL");
+  const executor = createGoogleToolExecutor(ctx);
+
+  const result = await executor("calendar_create", {
+    summary: "Meeting",
+    start: "2025-01-15T10:00:00Z",
+    end: "2025-01-15T11:00:00Z",
+  });
+  const parsed = JSON.parse(result!);
+  assertEquals(parsed._classification, "INTERNAL");
+  assertEquals(parsed.created, true);
+});
+
+Deno.test("classification: sheets_read response carries _classification", async () => {
+  const ctx = createContextWithTaint("RESTRICTED");
+  const executor = createGoogleToolExecutor(ctx);
+
+  const result = await executor("sheets_read", {
+    spreadsheet_id: "ss1",
+    range: "Sheet1!A1:B2",
+  });
+  const parsed = JSON.parse(result!);
+  assertEquals(parsed._classification, "RESTRICTED");
+  assertEquals(parsed.range, "Sheet1!A1:B2");
+});
+
+Deno.test("classification: tasks_create response carries _classification", async () => {
+  const ctx = createContextWithTaint("INTERNAL");
+  const executor = createGoogleToolExecutor(ctx);
+
+  const result = await executor("tasks_create", { title: "Test Task" });
+  const parsed = JSON.parse(result!);
+  assertEquals(parsed._classification, "INTERNAL");
+  assertEquals(parsed.created, true);
+});
+
+Deno.test("classification: drive_search response carries _classification", async () => {
+  const ctx = createContextWithTaint("CONFIDENTIAL");
+  const executor = createGoogleToolExecutor(ctx);
+
+  const result = await executor("drive_search", { query: "roadmap" });
+  const parsed = JSON.parse(result!);
+  assertEquals(parsed._classification, "CONFIDENTIAL");
+  assertEquals(Array.isArray(parsed.items), true);
+});
+
+Deno.test("classification: dynamic taint reflected in Google tool output", async () => {
+  let currentTaint: ClassificationLevel = "PUBLIC";
+  const ctx: GoogleToolContext = {
+    ...createContextWithTaint("PUBLIC"),
+    sessionTaint: () => currentTaint,
+  };
+  const executor = createGoogleToolExecutor(ctx);
+
+  const result1 = await executor("gmail_send", {
+    to: "a@b.com",
+    subject: "s",
+    body: "b",
+  });
+  assertEquals(JSON.parse(result1!)._classification, "PUBLIC");
+
+  currentTaint = "CONFIDENTIAL";
+
+  const result2 = await executor("gmail_send", {
+    to: "a@b.com",
+    subject: "s",
+    body: "b",
+  });
+  assertEquals(JSON.parse(result2!)._classification, "CONFIDENTIAL");
+});
+
+Deno.test("classification: error responses do not carry _classification", async () => {
+  const ctx: GoogleToolContext = {
+    ...createContextWithTaint("INTERNAL"),
+    gmail: {
+      search: () =>
+        Promise.resolve({
+          ok: false,
+          error: { code: "HTTP_403", message: "Forbidden", status: 403 },
+        }),
+      read: () =>
+        Promise.resolve({
+          ok: false,
+          error: { code: "HTTP_404", message: "Not found", status: 404 },
+        }),
+      send: () => Promise.resolve({ ok: true, value: { id: "x" } }),
+      label: () => Promise.resolve({ ok: true, value: { id: "x" } }),
+    },
+  };
+  const executor = createGoogleToolExecutor(ctx);
+
+  const result = await executor("gmail_search", { query: "test" });
+  assertEquals(result!.startsWith("Error"), true);
+  // Error strings are not JSON, so _classification is not injected
+  try {
+    JSON.parse(result!);
+    assertEquals(true, false, "Should not be valid JSON");
+  } catch {
+    // Expected — plain text error
+  }
 });

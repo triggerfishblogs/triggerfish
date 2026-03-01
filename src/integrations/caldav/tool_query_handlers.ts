@@ -99,6 +99,7 @@ export async function executeEventsList(
   return JSON.stringify({
     events,
     count: events.length,
+    _classification: ctx.sessionTaint(),
     _origin: "caldav:events",
   });
 }

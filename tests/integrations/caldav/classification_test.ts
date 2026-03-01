@@ -203,6 +203,35 @@ Deno.test("classification: dynamic taint reflected in output", async () => {
   assertEquals(JSON.parse(result2!)._classification, "CONFIDENTIAL");
 });
 
+// ─── Events List and Delete Classification ───────────────────────────────────
+
+Deno.test("classification: events_list response carries _classification", async () => {
+  const ctx = createMockContextWithTaint("CONFIDENTIAL");
+  const executor = createCalDavToolExecutor(ctx);
+
+  const result = await executor("caldav_events_list", {
+    time_min: "20250315T000000Z",
+    time_max: "20250316T000000Z",
+  });
+
+  const parsed = JSON.parse(result!);
+  assertEquals(parsed._classification, "CONFIDENTIAL");
+});
+
+Deno.test("classification: events_delete response carries _classification", async () => {
+  const ctx = createMockContextWithTaint("INTERNAL");
+  const executor = createCalDavToolExecutor(ctx);
+
+  const result = await executor("caldav_events_delete", {
+    event_uid: "uid-456",
+    etag: "etag-1",
+  });
+
+  const parsed = JSON.parse(result!);
+  assertEquals(parsed._classification, "INTERNAL");
+  assertEquals(parsed.deleted, true);
+});
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function createMockClient() {

@@ -227,6 +227,7 @@ export async function executeEventsDelete(
   return JSON.stringify({
     uid: eventUid,
     deleted: true,
+    _classification: ctx.sessionTaint(),
     _origin: `caldav:event:${eventUid}`,
   });
 }
