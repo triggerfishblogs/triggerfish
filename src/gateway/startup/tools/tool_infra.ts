@@ -13,21 +13,22 @@ import { createSession } from "../../../core/types/session.ts";
 import type { ChannelId, UserId } from "../../../core/types/session.ts";
 import type { TriggerFishConfig } from "../../../core/config.ts";
 import { createProviderRegistry } from "../../../agent/llm.ts";
-import {
-  resolveVisionProvider,
-} from "../../../agent/providers/config.ts";
+import { resolveVisionProvider } from "../../../agent/providers/config.ts";
 import type { ModelsConfig } from "../../../agent/providers/config.ts";
 import type { createHookRunner } from "../../../core/policy/hooks/hooks.ts";
 import { createExecTools } from "../../../exec/tools.ts";
 import type { createSqliteStorage } from "../../../core/storage/sqlite.ts";
 import type {
-  SecretPromptCallback,
   CredentialPromptCallback,
+  SecretPromptCallback,
 } from "../../../tools/secrets.ts";
 import { createTodoManager } from "../../../tools/mod.ts";
 import { createImageToolExecutor } from "../../../tools/image/mod.ts";
 import { createTidepoolToolExecutor } from "../../../tools/tidepool/mod.ts";
-import { createPlanManager, createPlanToolExecutor } from "../../../agent/plan/plan.ts";
+import {
+  createPlanManager,
+  createPlanToolExecutor,
+} from "../../../agent/plan/plan.ts";
 import { mapToolPrefixClassifications } from "../../../agent/orchestrator/orchestrator_types.ts";
 import type { createWorkspace } from "../../../exec/workspace.ts";
 import type { createPathClassifier } from "../../../core/security/path_classification.ts";
@@ -39,27 +40,24 @@ import type { createToolExecutor } from "../../tools/agent_tools.ts";
 import type { buildWebTools } from "../factory/web_tools.ts";
 import { buildWebTools as buildWebToolsFn } from "../factory/web_tools.ts";
 import {
-  createCliSecretPrompt,
   createCliCredentialPrompt,
+  createCliSecretPrompt,
 } from "../infra/subsystems.ts";
 import type { BootstrapResult } from "../bootstrap.ts";
 import type { CoreInfraResult } from "../infra/core_infra.ts";
+import { initializeLlmProviders } from "../infra/storage.ts";
 import {
-  initializeLlmProviders,
-} from "../infra/storage.ts";
-import {
-  initializeMainWorkspace,
   buildMainPathClassifier,
+  initializeMainWorkspace,
   initializeMemorySystem,
 } from "../infra/workspace_init.ts";
+import { initializeBrowserExecutor } from "../services/browser_init.ts";
+import type { MainSessionState, WorkspacePaths } from "./tool_executor.ts";
 import {
-  initializeBrowserExecutor,
-} from "../services/browser_init.ts";
-import type { MainSessionState } from "./tool_executor.ts";
-import { assembleMainToolExecutor } from "./tool_executor.ts";
-import {
-  buildIntegrationExecutors,
-} from "../services/integration_init.ts";
+  assembleMainToolExecutor,
+  resolveWorkspacePathForTaint,
+} from "./tool_executor.ts";
+import { buildIntegrationExecutors } from "../services/integration_init.ts";
 import type { SkillContextTracker } from "../../../tools/skills/mod.ts";
 
 /** Mutable ref to tidepool tools, set after host starts. */
@@ -85,13 +83,17 @@ export interface ToolInfraResult {
   readonly channelAdapters: Map<string, RegisteredChannel>;
   readonly toolClassifications: Map<string, ClassificationLevel>;
   readonly integrationClassifications: Map<string, ClassificationLevel>;
-  readonly keychain: ReturnType<typeof import("../../../core/secrets/keychain/keychain.ts").createKeychain>;
+  readonly keychain: ReturnType<
+    typeof import("../../../core/secrets/keychain/keychain.ts").createKeychain
+  >;
   readonly mcpBroadcastRefs: McpBroadcastRefs;
   readonly mcpWiring: ReturnType<typeof wireMcpServers> | null;
   readonly toolExecutor: ReturnType<typeof createToolExecutor>;
   readonly skillsPrompt: string;
   readonly triggersPrompt: string;
-  readonly mainKeychain: ReturnType<typeof import("../../../core/secrets/keychain/keychain.ts").createKeychain>;
+  readonly mainKeychain: ReturnType<
+    typeof import("../../../core/secrets/keychain/keychain.ts").createKeychain
+  >;
   readonly domainClassifier: ReturnType<
     typeof buildWebTools
   >["domainClassifier"];
@@ -228,12 +230,23 @@ export async function initializeBaseToolDeps(
   coreInfra: CoreInfraResult,
 ) {
   const foundation = await buildLlmAndWorkspaceFoundation(bootstrap, coreInfra);
-  const execTools = createExecTools(foundation.mainWorkspace);
+  const { state, cliSecretPrompt, cliCredentialPrompt } =
+    initializeMainSessionState();
+  const workspace = foundation.mainWorkspace;
+  const workspacePaths: WorkspacePaths = {
+    publicPath: workspace.publicPath,
+    internalPath: workspace.internalPath,
+    confidentialPath: workspace.confidentialPath,
+    restrictedPath: workspace.restrictedPath,
+  };
+  const execTools = createExecTools(workspace, {
+    cwdOverride: () =>
+      resolveWorkspacePathForTaint(state.session.taint, workspacePaths),
+  });
   const todoManager = createTodoManager({
     storage: coreInfra.storage,
     agentId: "main-session",
   });
-  const { state, cliSecretPrompt, cliCredentialPrompt } = initializeMainSessionState();
   return {
     ...foundation,
     execTools,
@@ -243,8 +256,13 @@ export async function initializeBaseToolDeps(
     cliSecretPrompt,
     cliCredentialPrompt,
     ...(() => {
-      const { all, integrations } = mapToolPrefixClassifications(bootstrap.config);
-      return { toolClassifications: all, integrationClassifications: integrations };
+      const { all, integrations } = mapToolPrefixClassifications(
+        bootstrap.config,
+      );
+      return {
+        toolClassifications: all,
+        integrationClassifications: integrations,
+      };
     })(),
   };
 }

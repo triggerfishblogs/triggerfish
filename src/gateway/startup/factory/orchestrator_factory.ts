@@ -33,7 +33,10 @@ import { createWorkspace } from "../../../exec/workspace.ts";
 import type { ToolFloorRegistry } from "../../../core/security/tool_floors.ts";
 import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
 import { TRIGGER_SESSION_SYSTEM_PROMPT } from "../../tools/trigger/trigger_tools.ts";
-import { buildWorkspacePrompt } from "../tools/tool_executor.ts";
+import {
+  buildWorkspacePrompt,
+  resolveWorkspacePathForTaint,
+} from "../tools/tool_executor.ts";
 import type { EnhancedSessionManager } from "../../sessions.ts";
 import type { CronManager } from "../../../scheduler/cron/parser.ts";
 import type { StorageProvider } from "../../../core/storage/provider.ts";
@@ -134,7 +137,10 @@ function initializeFactoryInfra(
     keychain: createKeychain(),
     ...(() => {
       const { all, integrations } = mapToolPrefixClassifications(config);
-      return { toolClassifications: all, integrationClassifications: integrations };
+      return {
+        toolClassifications: all,
+        integrationClassifications: integrations,
+      };
     })(),
     visionProvider: resolveVisionProvider(config.models as ModelsConfig),
     skillLoader: buildSchedulerSkillLoader(
@@ -202,6 +208,7 @@ export function createOrchestratorFactory(
         agentId,
         githubExecutor,
         skillContextTracker,
+        getSessionTaint: () => session.taint,
       });
 
       const toolProfile = isTrigger ? "triggerSession" : "cronJob";
@@ -239,6 +246,8 @@ export function createOrchestratorFactory(
           fsDefault,
           workspace,
         ),
+        getWorkspacePath: () =>
+          resolveWorkspacePathForTaint(session.taint, workspacePaths),
         domainClassifier: infra.domainClassifier,
         toolFloorRegistry: schedulerToolFloorRegistry,
         getActiveSkillContext: () => skillContextTracker.getActive(),

@@ -15,7 +15,7 @@ import type { PathClassifier } from "../../core/security/path_classification.ts"
 import type { ToolFloorRegistry } from "../../core/security/tool_floors.ts";
 import type { DomainClassifier } from "../../core/types/domain.ts";
 import type { HookRunner } from "../../core/policy/hooks/hooks.ts";
-import type { LlmProviderRegistry, LlmProvider } from "../llm.ts";
+import type { LlmProvider, LlmProviderRegistry } from "../llm.ts";
 import type { CompactorConfig } from "../compactor/compactor.ts";
 import type { PlanManager } from "../plan/plan.ts";
 
@@ -101,7 +101,10 @@ export interface OrchestratorConfig {
   /** Tool prefix → classification level. Enforced before every tool dispatch. */
   readonly toolClassifications?: ReadonlyMap<string, ClassificationLevel>;
   /** Integration prefix → default resource classification. Used for write-down checks on integration tools. */
-  readonly integrationClassifications?: ReadonlyMap<string, ClassificationLevel>;
+  readonly integrationClassifications?: ReadonlyMap<
+    string,
+    ClassificationLevel
+  >;
   /** Read current session taint for canFlowTo checks. */
   readonly getSessionTaint?: () => ClassificationLevel;
   /** Escalate session taint after tool dispatch (upward only via maxClassification). */
@@ -123,6 +126,8 @@ export interface OrchestratorConfig {
   readonly getNonOwnerCeiling?: () => ClassificationLevel | null;
   /** Path classifier for filesystem tool security checks. */
   readonly pathClassifier?: PathClassifier;
+  /** Returns the workspace root path for shell command classification. */
+  readonly getWorkspacePath?: () => string | null;
   /** Domain classifier for URL-based tool security checks. Uses same infrastructure as pathClassifier. */
   readonly domainClassifier?: DomainClassifier;
   /** Tool floor registry for minimum classification enforcement. */
@@ -159,7 +164,13 @@ export interface ClassificationMapConfig {
   /** GitHub integration classification. */
   readonly github?: { readonly classification?: string };
   /** Plugins keyed by name — each with enabled + classification. */
-  readonly plugins?: Readonly<Record<string, { readonly enabled?: boolean; readonly classification?: string } | undefined>>;
+  readonly plugins?: Readonly<
+    Record<
+      string,
+      | { readonly enabled?: boolean; readonly classification?: string }
+      | undefined
+    >
+  >;
 }
 
 /**
@@ -174,7 +185,9 @@ export interface ClassificationMapConfig {
  * INTERNAL  — read-only local operations, trusted non-owners
  * RESTRICTED — owner-only operations, never reachable by non-owners
  */
-const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<readonly [string, ClassificationLevel]> = [
+const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<
+  readonly [string, ClassificationLevel]
+> = [
   // Memory — read tools are PUBLIC; save/delete are intentionally absent.
   // memory_save and memory_delete operate at the current session taint level
   // (the memory executor forces classification to sessionTaint). They must
@@ -256,26 +269,32 @@ export interface ToolClassificationMaps {
  *   Used for write-down checks — data flowing through an integration classified
  *   PUBLIC must not carry CONFIDENTIAL session taint.
  */
-export function mapToolPrefixClassifications(config: ClassificationMapConfig): ToolClassificationMaps {
+export function mapToolPrefixClassifications(
+  config: ClassificationMapConfig,
+): ToolClassificationMaps {
   const all = new Map<string, ClassificationLevel>();
   const integrations = new Map<string, ClassificationLevel>();
 
   // Google Workspace — gmail_, calendar_, drive_, sheets_, tasks_
-  const googleClassification = (config.google?.classification ?? "PUBLIC") as ClassificationLevel;
+  const googleClassification =
+    (config.google?.classification ?? "PUBLIC") as ClassificationLevel;
   for (const prefix of ["gmail_", "calendar_", "drive_", "sheets_", "tasks_"]) {
     all.set(prefix, googleClassification);
     integrations.set(prefix, googleClassification);
   }
 
   // GitHub — all tools start with github_
-  const githubClassification = (config.github?.classification ?? "PUBLIC") as ClassificationLevel;
+  const githubClassification =
+    (config.github?.classification ?? "PUBLIC") as ClassificationLevel;
   all.set("github_", githubClassification);
   integrations.set("github_", githubClassification);
 
   // Plugins — each plugin's tools use {pluginName}_ prefix convention
   if (config.plugins) {
     for (const [name, pluginConfig] of Object.entries(config.plugins)) {
-      const cfg = pluginConfig as { enabled?: boolean; classification?: string } | undefined;
+      const cfg = pluginConfig as
+        | { enabled?: boolean; classification?: string }
+        | undefined;
       if (cfg?.enabled) {
         const level = (cfg.classification ?? "INTERNAL") as ClassificationLevel;
         all.set(`${name}_`, level);
@@ -293,16 +312,20 @@ export function mapToolPrefixClassifications(config: ClassificationMapConfig): T
 }
 
 export type {
+  CompactResult,
+  HistoryEntry,
   Orchestrator,
   ProcessMessageOptions,
   ProcessMessageResult,
-  HistoryEntry,
-  CompactResult,
 } from "../../core/types/orchestrator.ts";
 
 /** Events emitted by the orchestrator during message processing. */
 export type OrchestratorEvent =
-  | { readonly type: "llm_start"; readonly iteration: number; readonly maxIterations: number }
+  | {
+    readonly type: "llm_start";
+    readonly iteration: number;
+    readonly maxIterations: number;
+  }
   | {
     readonly type: "llm_complete";
     readonly iteration: number;
@@ -320,7 +343,11 @@ export type OrchestratorEvent =
     readonly blocked: boolean;
   }
   | { readonly type: "response"; readonly text: string }
-  | { readonly type: "response_chunk"; readonly text: string; readonly done: boolean }
+  | {
+    readonly type: "response_chunk";
+    readonly text: string;
+    readonly done: boolean;
+  }
   | { readonly type: "vision_start"; readonly imageCount: number }
   | { readonly type: "vision_complete"; readonly imageCount: number };
 

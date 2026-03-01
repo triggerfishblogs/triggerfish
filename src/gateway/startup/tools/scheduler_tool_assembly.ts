@@ -44,20 +44,23 @@ import type { CronManager } from "../../../scheduler/cron/parser.ts";
 import type { StorageProvider } from "../../../core/storage/provider.ts";
 import { createSkillLoader } from "../../../tools/skills/loader.ts";
 import {
-  createSkillToolExecutor,
   createSkillScanner,
+  createSkillToolExecutor,
 } from "../../../tools/skills/mod.ts";
 import type { SkillContextTracker } from "../../../tools/skills/mod.ts";
 import { createToolExecutor } from "../../tools/agent_tools.ts";
 import type { buildWebTools } from "../factory/web_tools.ts";
 import { buildGoogleExecutor } from "../factory/google_executor.ts";
+import { resolveWorkspacePathForTaint } from "./tool_executor.ts";
 
 /** Shared infrastructure captured once at factory creation. */
 export interface FactoryInfra {
   readonly registry: ReturnType<typeof createProviderRegistry>;
   readonly searchProvider: ReturnType<typeof buildWebTools>["searchProvider"];
   readonly webFetcher: ReturnType<typeof buildWebTools>["webFetcher"];
-  readonly domainClassifier: ReturnType<typeof buildWebTools>["domainClassifier"];
+  readonly domainClassifier: ReturnType<
+    typeof buildWebTools
+  >["domainClassifier"];
   readonly keychain: ReturnType<typeof createKeychain>;
   readonly toolClassifications: ReadonlyMap<string, ClassificationLevel>;
   readonly integrationClassifications: ReadonlyMap<string, ClassificationLevel>;
@@ -101,8 +104,8 @@ export async function buildSchedulerGitHubExecutor(opts: {
             ? {
               overrides: opts.config.github
                 .classification_overrides as Readonly<
-                Record<string, ClassificationLevel>
-              >,
+                  Record<string, ClassificationLevel>
+                >,
             }
             : undefined,
         }),
@@ -165,6 +168,8 @@ export function assembleSchedulerToolExecutor(opts: {
   readonly githubExecutor: ReturnType<typeof createGitHubToolExecutor>;
   /** Per-session skill context tracker for tool/domain enforcement. */
   readonly skillContextTracker?: SkillContextTracker;
+  /** Live getter for session taint, used for taint-aware command cwd. */
+  readonly getSessionTaint?: () => ClassificationLevel;
 }) {
   const { infra, session, workspace, agentId, storage } = opts;
 
@@ -185,12 +190,21 @@ export function assembleSchedulerToolExecutor(opts: {
     })
     : undefined;
 
+  const workspacePaths = {
+    publicPath: workspace.publicPath,
+    internalPath: workspace.internalPath,
+    confidentialPath: workspace.confidentialPath,
+    restrictedPath: workspace.restrictedPath,
+  };
+  const getTaint = opts.getSessionTaint ?? (() => session.taint);
+
   return createToolExecutor({
-    execTools: createExecTools(workspace),
+    execTools: createExecTools(workspace, {
+      cwdOverride: () =>
+        resolveWorkspacePathForTaint(getTaint(), workspacePaths),
+    }),
     cronManager: opts.cronManager,
-    todoManager: storage
-      ? createTodoManager({ storage, agentId })
-      : undefined,
+    todoManager: storage ? createTodoManager({ storage, agentId }) : undefined,
     searchProvider: infra.searchProvider,
     webFetcher: infra.webFetcher,
     memoryExecutor,
@@ -216,7 +230,8 @@ export function assembleSchedulerToolExecutor(opts: {
     }),
     skillContextTracker: opts.skillContextTracker,
     providerRegistry: infra.registry,
-    triggerClassificationExecutor:
-      createTriggerClassificationToolExecutor(infra.toolClassifications),
+    triggerClassificationExecutor: createTriggerClassificationToolExecutor(
+      infra.toolClassifications,
+    ),
   });
 }

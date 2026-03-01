@@ -33,6 +33,12 @@ export type { ToolFloorRegistry } from "./tool_floors.ts";
 export { isWithinJail, resolveWithinJail } from "./path_jail.ts";
 
 export {
+  classifyCommandPaths,
+  extractCommandPaths,
+} from "./command_path_extraction.ts";
+export type { CommandClassificationResult } from "./command_path_extraction.ts";
+
+export {
   extractBearerToken,
   isOriginAllowed,
   rejectWebSocketUpgrade,

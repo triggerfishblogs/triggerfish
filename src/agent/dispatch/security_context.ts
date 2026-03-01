@@ -15,7 +15,14 @@ import {
   URL_READ_TOOLS,
   URL_WRITE_TOOLS,
 } from "../../core/security/constants.ts";
-import type { OrchestratorConfig, ParsedToolCall } from "../orchestrator/orchestrator_types.ts";
+import {
+  classifyCommandPaths,
+  extractCommandPaths,
+} from "../../core/security/command_path_extraction.ts";
+import type {
+  OrchestratorConfig,
+  ParsedToolCall,
+} from "../orchestrator/orchestrator_types.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -127,13 +134,41 @@ function assembleIdentityContext(config: OrchestratorConfig): {
   };
 }
 
-/** Resolve resource classification from filesystem or URL tools. */
+/** Classify a `run_command` tool call by extracting paths from the command string. */
+function classifyShellCommandResource(
+  call: ParsedToolCall,
+  config: OrchestratorConfig,
+): ResourceClassResult {
+  if (call.name !== "run_command") return NO_RESOURCE_CLASSIFICATION;
+  const command = call.args.command as string | undefined;
+  if (!command || !config.pathClassifier) return NO_RESOURCE_CLASSIFICATION;
+  const workspacePath = config.getWorkspacePath?.() ?? null;
+  if (!workspacePath) return NO_RESOURCE_CLASSIFICATION;
+
+  const paths = extractCommandPaths(command);
+  const targetPaths = paths.length > 0 ? paths : [workspacePath];
+  const result = classifyCommandPaths({
+    paths: targetPaths,
+    classifier: config.pathClassifier,
+    workspaceCwd: workspacePath,
+  });
+
+  return {
+    classification: result.classification,
+    operation: "write",
+    param: command,
+  };
+}
+
+/** Resolve resource classification from filesystem, shell command, or URL tools. */
 function resolveResourceClassification(
   call: ParsedToolCall,
   config: OrchestratorConfig,
 ): ResourceClassResult {
   const fsResult = classifyFilesystemResource(call, config);
   if (fsResult.classification !== null) return fsResult;
+  const shellResult = classifyShellCommandResource(call, config);
+  if (shellResult.classification !== null) return shellResult;
   return classifyUrlResource(call, config);
 }
 

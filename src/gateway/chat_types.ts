@@ -13,7 +13,7 @@ import type { ClassificationLevel } from "../core/types/classification.ts";
 import type { HookRunner } from "../core/policy/hooks/hooks.ts";
 import type { SessionState } from "../core/types/session.ts";
 import type { SecretStore } from "../core/secrets/keychain/keychain.ts";
-import type { LlmProviderRegistry, LlmProvider } from "../core/types/llm.ts";
+import type { LlmProvider, LlmProviderRegistry } from "../core/types/llm.ts";
 import type { PlanManager } from "../agent/plan/plan.ts";
 import type { PathClassifier } from "../core/security/path_classification.ts";
 import type { DomainClassifier } from "../core/types/domain.ts";
@@ -23,13 +23,14 @@ import type { ActiveSkillContext } from "../agent/orchestrator/orchestrator_type
 import type { MessageContent } from "../core/image/content.ts";
 import type { ChannelAdapter, ChannelMessage } from "../channels/types.ts";
 import type { PairingService } from "../channels/pairing.ts";
-import type {
-  ToolDefinition,
-  ToolExecutor,
-} from "../core/types/tool.ts";
+import type { ToolDefinition, ToolExecutor } from "../core/types/tool.ts";
 import type { TriggerStore } from "../scheduler/triggers/store.ts";
 
-export type { ChatEvent, ChatClientMessage, ChatEventSender } from "../core/types/chat_event.ts";
+export type {
+  ChatClientMessage,
+  ChatEvent,
+  ChatEventSender,
+} from "../core/types/chat_event.ts";
 import type { ChatEvent, ChatEventSender } from "../core/types/chat_event.ts";
 
 /**
@@ -98,7 +99,10 @@ export interface ChatSessionConfig {
   /** Tool prefix → classification level. Enforced before every tool dispatch. */
   readonly toolClassifications?: ReadonlyMap<string, ClassificationLevel>;
   /** Integration prefix → default resource classification. Used for write-down checks on integration tools. */
-  readonly integrationClassifications?: ReadonlyMap<string, ClassificationLevel>;
+  readonly integrationClassifications?: ReadonlyMap<
+    string,
+    ClassificationLevel
+  >;
   /** Read current session taint for canFlowTo checks. */
   readonly getSessionTaint?: () => ClassificationLevel;
   /** Escalate session taint after tool dispatch. */
@@ -127,7 +131,10 @@ export interface ChatSessionConfig {
    * Used by the Tidepool WebSocket handler to route browser responses to the
    * waiting `secret_save` tool executor.
    */
-  readonly onSecretPromptResponse?: (nonce: string, value: string | null) => void;
+  readonly onSecretPromptResponse?: (
+    nonce: string,
+    value: string | null,
+  ) => void;
   /**
    * Returns the currently active skill context for tool filtering.
    * When non-null, the LLM tool list is filtered to the skill's requiresTools.
@@ -145,6 +152,8 @@ export interface ChatSessionConfig {
   readonly broadcastChatEvent?: (event: ChatEvent) => void;
   /** Workspace directory path for display in client banners. */
   readonly workspacePath?: string;
+  /** Returns the taint-aware workspace path for shell command classification. */
+  readonly getWorkspacePath?: () => string | null;
 }
 
 /** Shared chat session that serializes access to the orchestrator. */
@@ -161,7 +170,10 @@ export interface ChatSession {
    * Pre-loads paired senders from storage when pairing is enabled.
    * Must be called before `handleChannelMessage` for a given channel type.
    */
-  registerChannel(channelType: string, config: ChannelRegistrationConfig): Promise<void>;
+  registerChannel(
+    channelType: string,
+    config: ChannelRegistrationConfig,
+  ): Promise<void>;
   /**
    * Route a channel message to the correct session.
    *
@@ -206,7 +218,11 @@ export interface ChatSession {
    * @param username - The entered username, or null if the user cancelled.
    * @param password - The entered password, or null if the user cancelled.
    */
-  handleCredentialPromptResponse(nonce: string, username: string | null, password: string | null): void;
+  handleCredentialPromptResponse(
+    nonce: string,
+    username: string | null,
+    password: string | null,
+  ): void;
   /**
    * Create a `SecretPromptCallback` suitable for use with `createSecretToolExecutor`
    * in Tidepool mode.
@@ -218,7 +234,9 @@ export interface ChatSession {
    * @param sendEvent - The function that sends events to the active WebSocket client.
    * @returns A SecretPromptCallback that resolves when the browser responds.
    */
-  createTidepoolSecretPrompt(sendEvent: ChatEventSender): (name: string, hint?: string) => Promise<string | null>;
+  createTidepoolSecretPrompt(
+    sendEvent: ChatEventSender,
+  ): (name: string, hint?: string) => Promise<string | null>;
   /**
    * Create a `CredentialPromptCallback` suitable for use with `createSecretToolExecutor`
    * in Tidepool mode.
@@ -229,7 +247,12 @@ export interface ChatSession {
    * @param sendEvent - The function that sends events to the active WebSocket client.
    * @returns A CredentialPromptCallback that resolves when the browser responds.
    */
-  createTidepoolCredentialPrompt(sendEvent: ChatEventSender): (name: string, hint?: string) => Promise<{ readonly username: string; readonly password: string } | null>;
+  createTidepoolCredentialPrompt(
+    sendEvent: ChatEventSender,
+  ): (
+    name: string,
+    hint?: string,
+  ) => Promise<{ readonly username: string; readonly password: string } | null>;
   /**
    * Handle a trigger_prompt_response from the client.
    *
@@ -243,12 +266,19 @@ export interface ChatSession {
    * @param accepted - Whether the user accepted (true) or dismissed (false)
    * @param sendEvent - Event sender for the accepting client's socket
    */
-  handleTriggerPromptResponse(source: string, accepted: boolean, sendEvent: ChatEventSender): Promise<void>;
+  handleTriggerPromptResponse(
+    source: string,
+    accepted: boolean,
+    sendEvent: ChatEventSender,
+  ): Promise<void>;
   /**
    * Get the last known MCP server connection status for sending to new clients.
    * Returns null if MCP status has not been set yet (no MCP servers configured).
    */
-  getMcpStatus?: () => { readonly connected: number; readonly configured: number } | null;
+  getMcpStatus?: () => {
+    readonly connected: number;
+    readonly configured: number;
+  } | null;
   /**
    * Update the stored MCP server connection status.
    * Called by the daemon when MCP connection state changes.

@@ -117,6 +117,7 @@ export function assembleOrchestratorConfig(
     pathClassifier: config.pathClassifier,
     domainClassifier: config.domainClassifier,
     toolFloorRegistry: config.toolFloorRegistry,
+    getWorkspacePath: config.getWorkspacePath,
     secretStore: config.secretStore,
     getActiveSkillContext: config.getActiveSkillContext,
     filterTools: filterToolsForRole,
@@ -248,7 +249,12 @@ export async function runNonOwnerAgentTurn(
     userCls,
     `Non-owner classification: ${userCls}`,
   );
-  log.warn("Non-owner taint applied", { operation: "updateTaint", sessionId: userSessionId, classification: userCls, resultTaint: taintedSession.taint });
+  log.warn("Non-owner taint applied", {
+    operation: "updateTaint",
+    sessionId: userSessionId,
+    classification: userCls,
+    resultTaint: taintedSession.taint,
+  });
   state.sessionStates.set(userSessionId, taintedSession);
   state.activeSend = sendEvent;
   state.activeSessionId = userSessionId;

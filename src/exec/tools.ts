@@ -50,7 +50,7 @@ export interface FileEntry {
 /** Options for creating execution tools. */
 export interface ExecToolsOptions {
   /** Override CWD for command execution (e.g., session-taint workspace dir). */
-  readonly cwdOverride?: string;
+  readonly cwdOverride?: string | (() => string);
 }
 
 /** Execution tools bound to a workspace. */
@@ -139,6 +139,13 @@ async function readFile(
   }
 }
 
+/** Resolve the effective cwd from options, supporting both static and dynamic overrides. */
+function resolveCwd(workspace: Workspace, options?: ExecToolsOptions): string {
+  const override = options?.cwdOverride;
+  if (typeof override === "function") return override();
+  return override ?? workspace.path;
+}
+
 async function runShellCommand(
   workspace: Workspace,
   command: string,
@@ -148,7 +155,7 @@ async function runShellCommand(
     const start = performance.now();
     const proc = new Deno.Command("/bin/sh", {
       args: ["-c", command],
-      cwd: options?.cwdOverride ?? workspace.path,
+      cwd: resolveCwd(workspace, options),
       stdout: "piped",
       stderr: "piped",
       env: buildSafeEnv({ workspaceHome: workspace.path }),
@@ -200,7 +207,10 @@ async function listDirectory(
         const stat = await Deno.stat(join(targetPath, entry.name));
         size = stat.size ?? 0;
       } catch (err) {
-        log.debug("Workspace file stat failed, reporting size 0", { file: entry.name, err });
+        log.debug("Workspace file stat failed, reporting size 0", {
+          file: entry.name,
+          err,
+        });
       }
       entries.push({ name: entry.name, size, isDirectory: entry.isDirectory });
     }
