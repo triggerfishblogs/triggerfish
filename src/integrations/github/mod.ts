@@ -10,24 +10,24 @@
 
 export type {
   GitHubBranch,
+  GitHubClassificationConfig,
+  GitHubCodeSearchItem,
   GitHubComment,
-  GitHubRepo,
-  GitHubRepoDetail,
-  GitHubFileContent,
   GitHubCommit,
+  GitHubError,
+  GitHubFileContent,
+  GitHubIssue,
+  GitHubIssueSearchItem,
   GitHubPull,
   GitHubPullDetail,
   GitHubPullFile,
-  GitHubIssue,
+  GitHubRepo,
+  GitHubRepoDetail,
   GitHubWorkflowRun,
-  GitHubCodeSearchItem,
-  GitHubIssueSearchItem,
-  GitHubError,
-  GitHubClassificationConfig,
   RepoVisibility,
 } from "./types.ts";
 
-export type { GitHubClientConfig, GitHubClient } from "./client.ts";
+export type { GitHubClient, GitHubClientConfig } from "./client.ts";
 
 export { createGitHubClient, visibilityToClassification } from "./client.ts";
 
@@ -38,7 +38,7 @@ export { resolveGitHubToken } from "./auth.ts";
 export type { GitHubToolContext } from "./tools.ts";
 
 export {
-  getGitHubToolDefinitions,
   createGitHubToolExecutor,
+  getGitHubToolDefinitions,
   GITHUB_TOOLS_SYSTEM_PROMPT,
 } from "./tools.ts";

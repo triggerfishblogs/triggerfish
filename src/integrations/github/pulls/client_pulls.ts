@@ -4,8 +4,16 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../../core/types/classification.ts";
-import type { GitHubError, GitHubPull, GitHubPullDetail, GitHubPullFile } from "../types.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../../core/types/classification.ts";
+import type {
+  GitHubError,
+  GitHubPull,
+  GitHubPullDetail,
+  GitHubPullFile,
+} from "../types.ts";
 import type {
   ApiRequestFn,
   ClassifyRepoFn,
@@ -77,7 +85,10 @@ export async function fetchRepoPull(
   );
   return {
     ok: true,
-    value: mapRawPullDetailToGitHubPullDetail(result.value.data, classification),
+    value: mapRawPullDetailToGitHubPullDetail(
+      result.value.data,
+      classification,
+    ),
   };
 }
 
@@ -109,7 +120,10 @@ export async function updateRepoPull(
   );
   return {
     ok: true,
-    value: mapRawPullDetailToGitHubPullDetail(result.value.data, classification),
+    value: mapRawPullDetailToGitHubPullDetail(
+      result.value.data,
+      classification,
+    ),
   };
 }
 
@@ -126,7 +140,9 @@ export async function fetchPullFiles(
   params.set("per_page", String(opts?.perPage ?? 30));
 
   const result = await apiRequest<readonly RawPullFile[]>(
-    `${buildRepoPath(owner, repo)}/pulls/${prNumber}/files?${params.toString()}`,
+    `${
+      buildRepoPath(owner, repo)
+    }/pulls/${prNumber}/files?${params.toString()}`,
   );
   if (!result.ok) return result;
 

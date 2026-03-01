@@ -5,7 +5,10 @@
  * error handling, base64 decode, rate limit errors, and classification mapping.
  */
 import { assertEquals } from "@std/assert";
-import { createGitHubClient, visibilityToClassification } from "../../../src/integrations/github/client.ts";
+import {
+  createGitHubClient,
+  visibilityToClassification,
+} from "../../../src/integrations/github/client.ts";
 import type { GitHubClient } from "../../../src/integrations/github/client.ts";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -16,7 +19,10 @@ function mockFetch(
   status = 200,
   headers?: Record<string, string>,
 ): typeof fetch {
-  return (_url: string | URL | Request, _init?: RequestInit): Promise<Response> => {
+  return (
+    _url: string | URL | Request,
+    _init?: RequestInit,
+  ): Promise<Response> => {
     return Promise.resolve(
       new Response(JSON.stringify(body), {
         status,
@@ -35,10 +41,16 @@ function capturingFetch(
   status = 200,
 ): { fetchFn: typeof fetch; captured: { url: string; init?: RequestInit }[] } {
   const captured: { url: string; init?: RequestInit }[] = [];
-  const fetchFn = (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+  const fetchFn = (
+    url: string | URL | Request,
+    init?: RequestInit,
+  ): Promise<Response> => {
     captured.push({ url: String(url), init });
     return Promise.resolve(
-      new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      }),
     );
   };
   return { fetchFn, captured };
@@ -64,7 +76,8 @@ Deno.test("GitHubClient: sends Bearer auth header", async () => {
 
   await client.listRepos();
   assertEquals(captured.length >= 1, true);
-  const authHeader = (captured[0].init?.headers as Record<string, string>)?.Authorization;
+  const authHeader = (captured[0].init?.headers as Record<string, string>)
+    ?.Authorization;
   assertEquals(authHeader, "Bearer ghp_mytoken");
 });
 
@@ -73,7 +86,8 @@ Deno.test("GitHubClient: sends GitHub API version header", async () => {
   const client = createGitHubClient({ token: "ghp_test", fetchFn });
 
   await client.listRepos();
-  const apiVersion = (captured[0].init?.headers as Record<string, string>)?.["X-GitHub-Api-Version"];
+  const apiVersion = (captured[0].init?.headers as Record<string, string>)
+    ?.["X-GitHub-Api-Version"];
   assertEquals(apiVersion, "2022-11-28");
 });
 
@@ -88,7 +102,10 @@ Deno.test("GitHubClient: uses custom baseUrl", async () => {
   });
 
   await client.listRepos();
-  assertEquals(captured[0].url.startsWith("https://github.example.com/api/v3/"), true);
+  assertEquals(
+    captured[0].url.startsWith("https://github.example.com/api/v3/"),
+    true,
+  );
 });
 
 Deno.test("GitHubClient: listRepos constructs correct URL", async () => {
@@ -143,29 +160,38 @@ Deno.test("GitHubClient: listRepos parses repos correctly", async () => {
 
 Deno.test("GitHubClient: readFile decodes base64 content", async () => {
   const encoded = btoa("console.log('hello');");
-  const fetchFn = (url: string | URL | Request, _init?: RequestInit): Promise<Response> => {
+  const fetchFn = (
+    url: string | URL | Request,
+    _init?: RequestInit,
+  ): Promise<Response> => {
     const urlStr = String(url);
     if (urlStr.includes("/contents/")) {
       return Promise.resolve(
-        new Response(JSON.stringify({
-          path: "src/main.ts",
-          content: encoded,
-          sha: "abc123",
-          size: 21,
-          html_url: "https://github.com/o/r/blob/main/src/main.ts",
-        }), { status: 200, headers: { "content-type": "application/json" } }),
+        new Response(
+          JSON.stringify({
+            path: "src/main.ts",
+            content: encoded,
+            sha: "abc123",
+            size: 21,
+            html_url: "https://github.com/o/r/blob/main/src/main.ts",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
       );
     }
     // Repo metadata request
     return Promise.resolve(
-      new Response(JSON.stringify({
-        id: 1,
-        full_name: "o/r",
-        visibility: "public",
-        private: false,
-        default_branch: "main",
-        html_url: "https://github.com/o/r",
-      }), { status: 200, headers: { "content-type": "application/json" } }),
+      new Response(
+        JSON.stringify({
+          id: 1,
+          full_name: "o/r",
+          visibility: "public",
+          private: false,
+          default_branch: "main",
+          html_url: "https://github.com/o/r",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
     );
   };
 
@@ -231,20 +257,30 @@ Deno.test("GitHubClient: readFile rejects files over 1 MB", async () => {
     const urlStr = String(url);
     if (urlStr.includes("/contents/")) {
       return Promise.resolve(
-        new Response(JSON.stringify({
-          path: "big-file.bin",
-          content: "",
-          sha: "abc",
-          size: 2_000_000,
-          html_url: "https://github.com/o/r/blob/main/big-file.bin",
-        }), { status: 200, headers: { "content-type": "application/json" } }),
+        new Response(
+          JSON.stringify({
+            path: "big-file.bin",
+            content: "",
+            sha: "abc",
+            size: 2_000_000,
+            html_url: "https://github.com/o/r/blob/main/big-file.bin",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
       );
     }
     return Promise.resolve(
-      new Response(JSON.stringify({
-        id: 1, full_name: "o/r", visibility: "public", private: false,
-        default_branch: "main", html_url: "https://github.com/o/r",
-      }), { status: 200, headers: { "content-type": "application/json" } }),
+      new Response(
+        JSON.stringify({
+          id: 1,
+          full_name: "o/r",
+          visibility: "public",
+          private: false,
+          default_branch: "main",
+          html_url: "https://github.com/o/r",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
     );
   };
 
@@ -273,12 +309,18 @@ Deno.test("visibilityToClassification: internal → INTERNAL", () => {
 
 Deno.test("visibilityToClassification: per-repo override", () => {
   const config = { overrides: { "acme/secret": "RESTRICTED" as const } };
-  assertEquals(visibilityToClassification("public", "acme/secret", config), "RESTRICTED");
+  assertEquals(
+    visibilityToClassification("public", "acme/secret", config),
+    "RESTRICTED",
+  );
 });
 
 Deno.test("visibilityToClassification: override does not affect other repos", () => {
   const config = { overrides: { "acme/secret": "RESTRICTED" as const } };
-  assertEquals(visibilityToClassification("public", "acme/other", config), "PUBLIC");
+  assertEquals(
+    visibilityToClassification("public", "acme/other", config),
+    "PUBLIC",
+  );
 });
 
 // ─── Pull Requests ───────────────────────────────────────────────────────────
@@ -302,14 +344,24 @@ Deno.test("GitHubClient: listPulls parses PRs", async () => {
     const urlStr = String(url);
     if (urlStr.includes("/pulls")) {
       return Promise.resolve(
-        new Response(JSON.stringify(rawPulls), { status: 200, headers: { "content-type": "application/json" } }),
+        new Response(JSON.stringify(rawPulls), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
       );
     }
     return Promise.resolve(
-      new Response(JSON.stringify({
-        id: 1, full_name: "o/r", visibility: "public", private: false,
-        default_branch: "main", html_url: "https://github.com/o/r",
-      }), { status: 200, headers: { "content-type": "application/json" } }),
+      new Response(
+        JSON.stringify({
+          id: 1,
+          full_name: "o/r",
+          visibility: "public",
+          private: false,
+          default_branch: "main",
+          html_url: "https://github.com/o/r",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
     );
   };
 
@@ -375,14 +427,24 @@ Deno.test("GitHubClient: listWorkflowRuns parses runs", async () => {
     const urlStr = String(url);
     if (urlStr.includes("/actions/")) {
       return Promise.resolve(
-        new Response(JSON.stringify(rawRuns), { status: 200, headers: { "content-type": "application/json" } }),
+        new Response(JSON.stringify(rawRuns), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
       );
     }
     return Promise.resolve(
-      new Response(JSON.stringify({
-        id: 1, full_name: "o/r", visibility: "public", private: false,
-        default_branch: "main", html_url: "https://github.com/o/r",
-      }), { status: 200, headers: { "content-type": "application/json" } }),
+      new Response(
+        JSON.stringify({
+          id: 1,
+          full_name: "o/r",
+          visibility: "public",
+          private: false,
+          default_branch: "main",
+          html_url: "https://github.com/o/r",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
     );
   };
 

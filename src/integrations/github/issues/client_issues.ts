@@ -4,9 +4,17 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../../core/types/classification.ts";
 import type { GitHubComment, GitHubError, GitHubIssue } from "../types.ts";
-import type { ApiRequestFn, ClassifyRepoFn, RawComment, RawIssue } from "../client_http.ts";
+import type {
+  ApiRequestFn,
+  ClassifyRepoFn,
+  RawComment,
+  RawIssue,
+} from "../client_http.ts";
 import { buildRepoPath, fetchRepoClassification } from "../client_http.ts";
 
 /** Extract label names from raw issue label data. */
@@ -120,7 +128,9 @@ export async function fetchIssueComments(
   params.set("per_page", String(opts?.perPage ?? 30));
 
   const result = await apiRequest<readonly RawComment[]>(
-    `${buildRepoPath(owner, repo)}/issues/${issueNumber}/comments?${params.toString()}`,
+    `${
+      buildRepoPath(owner, repo)
+    }/issues/${issueNumber}/comments?${params.toString()}`,
   );
   if (!result.ok) return result;
 
