@@ -10,6 +10,11 @@ export default defineConfig({
   head: [
     ["link", { rel: "icon", type: "image/png", href: "/triggerfish.png" }],
 
+    // Termly consent banner
+    ["script", {
+      src: "https://app.termly.io/resource-blocker/00bdb41e-67d7-4026-a802-0edd02329f10?autoBlock=on",
+    }],
+
     // OpenGraph
     ["meta", {
       property: "og:title",
@@ -211,7 +216,7 @@ export default defineConfig({
 
     footer: {
       message:
-        'Released under the Apache 2.0 License. | <a href="/privacy-policy">Privacy Policy</a> | <a href="/cookie-policy">Cookie Policy</a>',
+        'Released under the Apache 2.0 License. | <a href="/privacy-policy">Privacy Policy</a> | <a href="/cookie-policy">Cookie Policy</a> | <a href="/terms-of-service">Terms of Service</a>',
       copyright: "Copyright 2026 Triggerfish Contributors",
     },
 
