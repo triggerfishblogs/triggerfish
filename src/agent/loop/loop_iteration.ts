@@ -18,6 +18,7 @@ import {
   buildRecoveryNudge,
   classifyResponseQuality,
   handleFinalResponse,
+  type ResponseQuality,
 } from "../dispatch/response_handling.ts";
 import type {
   HistoryEntry,
@@ -38,6 +39,7 @@ import {
   buildLlmMessages,
   CANCELLED_RESULT,
   logFirstIterationDetails,
+  recordToolCallsAndDetectLoop,
   resolveActiveToolList,
   traceLog,
 } from "./loop_types.ts";
@@ -165,11 +167,11 @@ export async function callLlmAndRecordUsage(
 
 // ─── No-tool-call recovery ──────────────────────────────────────────────────
 
-/** Attempt recovery nudge for empty/junk or leaked-intent responses. */
+/** Attempt recovery nudge for empty/junk, leaked-intent, or trailing-intent responses. */
 function attemptRecoveryNudge(
   ctx: AgentLoopContext,
   completion: { content: string },
-  isLeakedIntent: boolean,
+  quality: ResponseQuality,
 ): IterationOutcome | null {
   if (ctx.nudge.count >= 2) return null;
   ctx.nudge.count++;
@@ -178,7 +180,7 @@ function attemptRecoveryNudge(
   }
   ctx.history.push({
     role: "user",
-    content: buildRecoveryNudge(isLeakedIntent, ctx.nudge.count),
+    content: buildRecoveryNudge(quality, ctx.nudge.count),
   });
   return { action: "continue" };
 }
@@ -195,18 +197,11 @@ async function handleNoToolCallsIteration(
     finalText || "(EMPTY)",
   );
 
-  const { isEmptyOrJunk, isLeakedIntent } = classifyResponseQuality(
-    finalText,
-    iter.hasTools,
-  );
-  if (
-    (isEmptyOrJunk || isLeakedIntent) && iter.iteration < MAX_TOOL_ITERATIONS
-  ) {
-    const nudgeResult = attemptRecoveryNudge(
-      ctx,
-      iter.completion,
-      isLeakedIntent,
-    );
+  const quality = classifyResponseQuality(finalText, iter.hasTools);
+  const needsRecovery = quality.isEmptyOrJunk || quality.isLeakedIntent ||
+    quality.hasTrailingIntent;
+  if (needsRecovery && iter.iteration < MAX_TOOL_ITERATIONS) {
+    const nudgeResult = attemptRecoveryNudge(ctx, iter.completion, quality);
     if (nudgeResult) return nudgeResult;
   }
 
@@ -250,6 +245,16 @@ async function handleToolCallsIteration(
   );
   if (!batchResult.ok) return batchResult;
   ctx.history.push({ role: "user", content: batchResult.value.join("\n\n") });
+
+  if (recordToolCallsAndDetectLoop(ctx.toolCallHistory, iter.parsedCalls)) {
+    ctx.history.push({
+      role: "user",
+      content:
+        "[SYSTEM] You are calling the same tool with the same arguments repeatedly. " +
+        "This is not making progress. Try a different approach or provide your best answer now.",
+    });
+  }
+
   return { ok: true, value: undefined };
 }
 

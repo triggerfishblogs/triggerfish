@@ -84,6 +84,7 @@ export function getGitHubToolDefinitions(): readonly ToolDefinition[] {
 /** System prompt section explaining GitHub tools to the LLM. */
 export const GITHUB_TOOLS_SYSTEM_PROMPT = `## GitHub Access
 
+GitHub authentication is already configured. Do NOT use secret_save for GitHub — call the github_* tools directly.
 The \`repo\` parameter uses "owner/name" format (e.g. "octocat/Hello-World").
 Repository visibility determines classification: public→PUBLIC, private→CONFIDENTIAL, internal→INTERNAL.
 Accessing private repos escalates session taint. Never narrate intent — just call the tools directly.`;

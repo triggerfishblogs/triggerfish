@@ -42,6 +42,7 @@ function buildAgentLoopContext(opts: AgentLoopOptions): AgentLoopContext {
     ...opts,
     tokens: { inputTokens: 0, outputTokens: 0 },
     nudge: { count: 0 },
+    toolCallHistory: { calls: new Map() },
   };
 }
 

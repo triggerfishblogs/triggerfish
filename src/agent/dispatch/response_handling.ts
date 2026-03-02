@@ -17,7 +17,10 @@ import type {
   OrchestratorConfig,
   ProcessMessageResult,
 } from "../orchestrator/orchestrator_types.ts";
-import { LEAKED_INTENT_PATTERN } from "../orchestrator/orchestrator_types.ts";
+import {
+  LEAKED_INTENT_PATTERN,
+  TRAILING_CONTINUATION_PATTERN,
+} from "../orchestrator/orchestrator_types.ts";
 import type {
   OrchestratorState,
   TokenAccumulator,
@@ -97,26 +100,57 @@ export function detectRepetition(text: string): string | null {
   return null;
 }
 
-/** Detect whether the final text is empty, bare JSON junk, or leaked intent. */
+/**
+ * Detect trailing continuation intent in the tail of a long response.
+ *
+ * Returns true when the response is long enough to be substantive (>100 chars)
+ * and its last ~250 characters contain a phrase indicating the LLM intended
+ * to continue with a tool call but stopped generating.
+ */
+export function detectTrailingContinuationIntent(text: string): boolean {
+  if (text.length < 100) return false;
+  const tail = text.slice(-250).trim();
+  return TRAILING_CONTINUATION_PATTERN.test(tail);
+}
+
+/** Response quality classification result. */
+export interface ResponseQuality {
+  readonly isEmptyOrJunk: boolean;
+  readonly isLeakedIntent: boolean;
+  readonly hasTrailingIntent: boolean;
+}
+
+/** Detect whether the final text is empty, bare JSON junk, leaked intent, or trailing intent. */
 export function classifyResponseQuality(
   finalText: string,
   hasTools: boolean,
-): { isEmptyOrJunk: boolean; isLeakedIntent: boolean } {
+): ResponseQuality {
   const isEmptyOrJunk = finalText.length === 0 ||
     (finalText.length < 200 && finalText.startsWith("{") &&
       finalText.endsWith("}")) ||
     (finalText.length < 200 && ECHOED_TOOL_PLACEHOLDER.test(finalText));
   const isLeakedIntent = hasTools && finalText.length < 300 &&
     LEAKED_INTENT_PATTERN.test(finalText);
-  return { isEmptyOrJunk, isLeakedIntent };
+  const hasTrailingIntent = hasTools &&
+    detectTrailingContinuationIntent(finalText);
+  return { isEmptyOrJunk, isLeakedIntent, hasTrailingIntent };
 }
 
-/** Build the nudge message for empty/junk or leaked-intent responses. */
+/** Options for building a recovery nudge. */
+export interface RecoveryNudgeOptions {
+  readonly isLeakedIntent: boolean;
+  readonly hasTrailingIntent: boolean;
+}
+
+/** Build the nudge message for empty/junk, leaked-intent, or trailing-intent responses. */
 export function buildRecoveryNudge(
-  isLeakedIntent: boolean,
+  opts: RecoveryNudgeOptions,
   nudgeCount: number,
 ): string {
-  if (isLeakedIntent) {
+  if (opts.hasTrailingIntent) {
+    return "[SYSTEM] You stated you would continue but stopped without using a tool. Execute the next step now.";
+  }
+  if (opts.isLeakedIntent) {
     return "[SYSTEM] You described your intent but didn't use a tool. Use the tools provided to you directly instead of narrating what you plan to do.";
   }
   if (nudgeCount === 1) {

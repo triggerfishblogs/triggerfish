@@ -18,6 +18,7 @@ import { createOpenRouterProvider } from "./openrouter/mod.ts";
 import { createZenMuxProvider } from "./zenmux.ts";
 import { createZaiProvider } from "./zai.ts";
 import { createFireworksProvider } from "./fireworks.ts";
+import { withRetry } from "./retry.ts";
 
 /** Provider block from triggerfish.yaml. */
 export interface ProvidersConfig {
@@ -78,67 +79,67 @@ export function loadProvidersFromConfig(
   const providers = modelsConfig.providers;
 
   if (providers.anthropic) {
-    registry.register(createAnthropicProvider({
+    registry.register(withRetry(createAnthropicProvider({
       model: providers.anthropic.model,
       apiKey: providers.anthropic.apiKey,
-    }));
+    })));
   }
 
   if (providers.openai) {
-    registry.register(createOpenAiProvider({
+    registry.register(withRetry(createOpenAiProvider({
       model: providers.openai.model,
       apiKey: providers.openai.apiKey,
-    }));
+    })));
   }
 
   if (providers.google) {
-    registry.register(createGoogleProvider({
+    registry.register(withRetry(createGoogleProvider({
       model: providers.google.model,
       apiKey: providers.google.apiKey,
-    }));
+    })));
   }
 
   if (providers.ollama) {
-    registry.register(createLocalProvider({
+    registry.register(withRetry(createLocalProvider({
       endpoint: providers.ollama.endpoint,
       model: providers.ollama.model,
-    }));
+    })));
   }
 
   if (providers.lmstudio) {
-    registry.register(createLocalProvider({
+    registry.register(withRetry(createLocalProvider({
       name: "lmstudio",
       endpoint: providers.lmstudio.endpoint ?? "http://localhost:1234",
       model: providers.lmstudio.model,
-    }));
+    })));
   }
 
   if (providers.openrouter) {
-    registry.register(createOpenRouterProvider({
+    registry.register(withRetry(createOpenRouterProvider({
       model: providers.openrouter.model,
       apiKey: providers.openrouter.apiKey,
-    }));
+    })));
   }
 
   if (providers.zenmux) {
-    registry.register(createZenMuxProvider({
+    registry.register(withRetry(createZenMuxProvider({
       model: providers.zenmux.model,
       apiKey: providers.zenmux.apiKey,
-    }));
+    })));
   }
 
   if (providers.zai) {
-    registry.register(createZaiProvider({
+    registry.register(withRetry(createZaiProvider({
       model: providers.zai.model,
       apiKey: providers.zai.apiKey,
-    }));
+    })));
   }
 
   if (providers.fireworks) {
-    registry.register(createFireworksProvider({
+    registry.register(withRetry(createFireworksProvider({
       model: providers.fireworks.model,
       apiKey: providers.fireworks.apiKey,
-    }));
+    })));
   }
 
   // Set default provider directly from models.primary.provider
@@ -180,7 +181,7 @@ export function loadProvidersFromConfig(
       if (overrideProvider) {
         registry.registerClassificationOverride(
           level as ClassificationLevel,
-          overrideProvider,
+          withRetry(overrideProvider),
         );
         log.info("Classification model override registered", {
           operation: "loadClassificationOverride",
@@ -275,5 +276,6 @@ export function resolveVisionProvider(
   ] as Readonly<Record<string, unknown>> | undefined;
   if (!providerConfig) return undefined;
 
-  return createProviderByName(providerName, providerConfig, visionModel);
+  const provider = createProviderByName(providerName, providerConfig, visionModel);
+  return provider ? withRetry(provider) : undefined;
 }

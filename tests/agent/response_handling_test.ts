@@ -3,8 +3,10 @@
  */
 import { assertEquals } from "@std/assert";
 import {
+  buildRecoveryNudge,
   classifyResponseQuality,
   detectRepetition,
+  detectTrailingContinuationIntent,
 } from "../../src/agent/dispatch/response_handling.ts";
 
 // ─── detectRepetition ────────────────────────────────────────────────────────
@@ -94,4 +96,97 @@ Deno.test("classifyResponseQuality: normal response is not junk", () => {
   );
   assertEquals(result.isEmptyOrJunk, false);
   assertEquals(result.isLeakedIntent, false);
+  assertEquals(result.hasTrailingIntent, false);
+});
+
+// ─── detectTrailingContinuationIntent ────────────────────────────────────────
+
+Deno.test("detectTrailingContinuationIntent: detects 'Let me create' at end of long response", () => {
+  const longBody = "Here is the first issue I created. It covers the bug in the login flow. ".repeat(5);
+  const text = longBody + "Let me create the second issue:";
+  assertEquals(detectTrailingContinuationIntent(text), true);
+});
+
+Deno.test("detectTrailingContinuationIntent: detects 'I'll search' at end", () => {
+  const longBody = "I found several results about the topic. ".repeat(10);
+  const text = longBody + "I'll search for more details about this.";
+  assertEquals(detectTrailingContinuationIntent(text), true);
+});
+
+Deno.test("detectTrailingContinuationIntent: detects 'Now let me' at end", () => {
+  const longBody = "The first task is done. ".repeat(10);
+  const text = longBody + "Now let me handle the remaining items.";
+  assertEquals(detectTrailingContinuationIntent(text), true);
+});
+
+Deno.test("detectTrailingContinuationIntent: detects 'Next, I'll' at end", () => {
+  const longBody = "Step one is complete. ".repeat(10);
+  const text = longBody + "Next, I'll create the pull request.";
+  assertEquals(detectTrailingContinuationIntent(text), true);
+});
+
+Deno.test("detectTrailingContinuationIntent: does not trigger on short text", () => {
+  assertEquals(detectTrailingContinuationIntent("Let me create the issue."), false);
+});
+
+Deno.test("detectTrailingContinuationIntent: does not trigger on clean ending", () => {
+  const text = "I found the article you were looking for. ".repeat(5) +
+    "Here is a summary of the key points from the article.";
+  assertEquals(detectTrailingContinuationIntent(text), false);
+});
+
+Deno.test("detectTrailingContinuationIntent: intent in the middle does not trigger", () => {
+  const text = "First part. Let me create the issue. " +
+    "Actually, I already created it. Here are the details of the issue that was created. ".repeat(5);
+  assertEquals(detectTrailingContinuationIntent(text), false);
+});
+
+Deno.test("classifyResponseQuality: long response with trailing intent sets hasTrailingIntent", () => {
+  const longBody = "I completed the first task successfully. ".repeat(10);
+  const text = longBody + "Let me now create the second issue:";
+  const result = classifyResponseQuality(text, true);
+  assertEquals(result.isEmptyOrJunk, false);
+  assertEquals(result.isLeakedIntent, false);
+  assertEquals(result.hasTrailingIntent, true);
+});
+
+Deno.test("classifyResponseQuality: trailing intent requires hasTools", () => {
+  const longBody = "I completed the first task successfully. ".repeat(10);
+  const text = longBody + "Let me now create the second issue:";
+  const result = classifyResponseQuality(text, false);
+  assertEquals(result.hasTrailingIntent, false);
+});
+
+// ─── buildRecoveryNudge ──────────────────────────────────────────────────────
+
+Deno.test("buildRecoveryNudge: trailing intent nudge takes priority", () => {
+  const nudge = buildRecoveryNudge(
+    { isLeakedIntent: false, hasTrailingIntent: true },
+    1,
+  );
+  assertEquals(nudge.includes("stopped without using a tool"), true);
+});
+
+Deno.test("buildRecoveryNudge: leaked intent nudge when no trailing", () => {
+  const nudge = buildRecoveryNudge(
+    { isLeakedIntent: true, hasTrailingIntent: false },
+    1,
+  );
+  assertEquals(nudge.includes("didn't use a tool"), true);
+});
+
+Deno.test("buildRecoveryNudge: empty nudge on first attempt", () => {
+  const nudge = buildRecoveryNudge(
+    { isLeakedIntent: false, hasTrailingIntent: false },
+    1,
+  );
+  assertEquals(nudge.includes("response was empty"), true);
+});
+
+Deno.test("buildRecoveryNudge: persistent empty nudge on second attempt", () => {
+  const nudge = buildRecoveryNudge(
+    { isLeakedIntent: false, hasTrailingIntent: false },
+    2,
+  );
+  assertEquals(nudge.includes("MUST write"), true);
 });

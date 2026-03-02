@@ -32,6 +32,9 @@ export type { ZaiConfig } from "./zai.ts";
 export { createFireworksProvider } from "./fireworks.ts";
 export type { FireworksConfig } from "./fireworks.ts";
 
+export { executeWithRetry, isRetryableError, withRetry } from "./retry.ts";
+export type { RetryOptions } from "./retry.ts";
+
 export { getOpenAiLimits } from "./openai_limits.ts";
 export type { OpenAiModelLimits, OpenAiTier } from "./openai_limits.ts";
 export {

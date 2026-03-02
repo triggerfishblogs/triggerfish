@@ -38,6 +38,17 @@ export const SOFT_LIMIT_ITERATIONS = 20;
 export const LEAKED_INTENT_PATTERN =
   /\b(?:(?:I(?:'ll| will| need to| should| can| am going to)\s+(?:search|fetch|look up|find|check|browse|retrieve|use web_))|(?:(?:Let|let) me (?:search|fetch|look|find|check|browse|retrieve|use))|(?:(?:We|I) need to (?:fetch|search|look up|find|check|browse|retrieve)))/i;
 
+/**
+ * Pattern detecting trailing continuation intent at the end of a long response.
+ *
+ * Matches phrases like "Let me now create", "I'll search", "Next, I'll fetch"
+ * when they appear in the tail of a response. Unlike LEAKED_INTENT_PATTERN
+ * (which checks short responses entirely), this catches the case where the LLM
+ * writes a long valid response but then trails off with unfulfilled intent.
+ */
+export const TRAILING_CONTINUATION_PATTERN =
+  /(?:Let me (?:now |also |next )?(?:create|search|fetch|look|find|check|browse|retrieve|proceed|do|make|add|set up|handle|update|generate|build|write|run|open|close|delete|send|post|submit|call))|(?:I(?:'ll| will| am going to) (?:now |also |next )?(?:create|search|fetch|look|find|check|browse|retrieve|proceed|do|make|add|set up|handle|update|generate|build|write|run|open|close|delete|send|post|submit|call))|(?:Next,? I(?:'ll| will))|(?:Now (?:let me|I'll|I will))/i;
+
 export type { ToolDefinition, ToolExecutor } from "../../core/types/tool.ts";
 
 /**

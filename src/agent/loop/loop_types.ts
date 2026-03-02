@@ -103,6 +103,49 @@ function applySkillFiltering(
   return tools.filter((t) => t.name === "read_skill" || allowed.has(t.name));
 }
 
+// ─── Tool call loop detection ─────────────────────────────────────────────────
+
+/** Tracks repeated identical tool calls across loop iterations. */
+export interface ToolCallHistory {
+  /** Map of serialized tool-call key → invocation count. */
+  readonly calls: Map<string, number>;
+}
+
+/** Threshold at which repeated tool calls trigger a loop nudge. */
+export const TOOL_LOOP_THRESHOLD = 3;
+
+/**
+ * Serialize a tool call's name and arguments into a deterministic string key.
+ *
+ * Arguments are sorted by key name to ensure identical payloads with different
+ * key ordering produce the same key.
+ */
+export function serializeToolCallKey(
+  name: string,
+  args: Record<string, unknown>,
+): string {
+  return `${name}:${JSON.stringify(args, Object.keys(args).sort())}`;
+}
+
+/**
+ * Record tool calls and detect if any call has been repeated at or above the threshold.
+ *
+ * Mutates the history's call map. Returns true if a loop was detected.
+ */
+export function recordToolCallsAndDetectLoop(
+  history: ToolCallHistory,
+  calls: readonly { readonly name: string; readonly args: Record<string, unknown> }[],
+): boolean {
+  let detected = false;
+  for (const call of calls) {
+    const key = serializeToolCallKey(call.name, call.args);
+    const count = (history.calls.get(key) ?? 0) + 1;
+    history.calls.set(key, count);
+    if (count >= TOOL_LOOP_THRESHOLD) detected = true;
+  }
+  return detected;
+}
+
 // ─── Agent loop types ────────────────────────────────────────────────────────
 
 /** Mutable nudge counter passed between iterations. */
@@ -121,6 +164,7 @@ export interface AgentLoopContext {
   readonly signal: AbortSignal | undefined;
   readonly tokens: TokenAccumulator;
   readonly nudge: NudgeState;
+  readonly toolCallHistory: ToolCallHistory;
 }
 
 /** Result of a single agent loop iteration. */
