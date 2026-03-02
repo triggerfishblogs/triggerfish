@@ -12,7 +12,8 @@ import {
   getSkillToolDefinitions,
 } from "../../../src/tools/skills/tools.ts";
 
-const bundledDir = new URL("../../../src/skills/bundled", import.meta.url).pathname;
+const bundledDir =
+  new URL("../../../src/skills/bundled", import.meta.url).pathname;
 
 function makeBundledLoader() {
   return createSkillLoader({
@@ -31,34 +32,40 @@ Deno.test("getSkillToolDefinitions: returns read_skill definition", () => {
 });
 
 Deno.test("read_skill: returns null for unknown tool names", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("some_other_tool", {
     type: "BUNDLED",
-    skill_name: "weather",
+    skill_name: "tdd",
   });
   assertEquals(result, null);
 });
 
 Deno.test("read_skill: reads a bundled skill successfully", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("read_skill", {
     type: "BUNDLED",
-    skill_name: "weather",
+    skill_name: "tdd",
   });
 
   const parsed = JSON.parse(result!);
   assertEquals(parsed.found, true);
-  assertEquals(parsed.skill_name, "weather");
+  assertEquals(parsed.skill_name, "tdd");
   assertEquals(parsed.type, "BUNDLED");
   assertEquals(parsed.source, "bundled");
-  assertStringIncludes(parsed.content, "weather");
+  assertStringIncludes(parsed.content, "tdd");
   assertEquals(typeof parsed.classification_ceiling, "string");
   assertEquals(Array.isArray(parsed.requires_tools), true);
   assertEquals(Array.isArray(parsed.network_domains), true);
 });
 
 Deno.test("read_skill: not found returns available skill list", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("read_skill", {
     type: "BUNDLED",
     skill_name: "nonexistent-skill",
@@ -68,14 +75,16 @@ Deno.test("read_skill: not found returns available skill list", async () => {
   assertEquals(parsed.found, false);
   assertEquals(parsed.skill_name, "nonexistent-skill");
   assertEquals(parsed.type, "BUNDLED");
-  assertStringIncludes(parsed.available, "weather");
+  assertStringIncludes(parsed.available, "tdd");
 });
 
 Deno.test("read_skill: invalid type returns error message", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("read_skill", {
     type: "INVALID",
-    skill_name: "weather",
+    skill_name: "tdd",
   });
   assertStringIncludes(result!, "Error:");
   assertStringIncludes(result!, "BUNDLED");
@@ -83,7 +92,9 @@ Deno.test("read_skill: invalid type returns error message", async () => {
 });
 
 Deno.test("read_skill: empty skill_name returns error message", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("read_skill", {
     type: "BUNDLED",
     skill_name: "",
@@ -93,7 +104,9 @@ Deno.test("read_skill: empty skill_name returns error message", async () => {
 });
 
 Deno.test("read_skill: missing skill_name returns error message", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("read_skill", { type: "BUNDLED" });
   assertStringIncludes(result!, "Error:");
   assertStringIncludes(result!, "skill_name");
@@ -107,13 +120,13 @@ Deno.test(
     });
     const result = await executor("read_skill", {
       type: "USER_PROVIDED",
-      skill_name: "weather",
+      skill_name: "tdd",
     });
 
     const parsed = JSON.parse(result!);
     assertEquals(parsed.found, false);
     assertEquals(parsed.type, "USER_PROVIDED");
-    // Bundled weather should not appear in USER_PROVIDED results
+    // Bundled tdd should not appear in USER_PROVIDED results
     assertEquals(parsed.available, "(none)");
   },
 );
@@ -169,7 +182,7 @@ Deno.test(
 
     const result = await executor("read_skill", {
       type: "BUNDLED",
-      skill_name: "weather",
+      skill_name: "tdd",
     });
 
     const parsed = JSON.parse(result!);
@@ -182,13 +195,15 @@ Deno.test(
 );
 
 Deno.test("read_skill: skill_name is trimmed before lookup", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("read_skill", {
     type: "BUNDLED",
-    skill_name: "  weather  ",
+    skill_name: "  tdd  ",
   });
 
   const parsed = JSON.parse(result!);
   assertEquals(parsed.found, true);
-  assertEquals(parsed.skill_name, "weather");
+  assertEquals(parsed.skill_name, "tdd");
 });

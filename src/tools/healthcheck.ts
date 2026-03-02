@@ -40,7 +40,10 @@ export function getHealthcheckToolDefinitions(): readonly ToolDefinition[] {
   return [
     {
       name: "healthcheck",
-      description: "Check the health status of Triggerfish components.",
+      description:
+        "Check the health status of Triggerfish components. Returns status per " +
+        "component: healthy, degraded, or error. Overall status is the worst " +
+        "of all checked components.",
       parameters: {
         components: {
           type: "array",

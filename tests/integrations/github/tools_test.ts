@@ -116,8 +116,9 @@ Deno.test("GITHUB_TOOLS_SYSTEM_PROMPT: is a non-empty string", () => {
   assertEquals(GITHUB_TOOLS_SYSTEM_PROMPT.length > 0, true);
 });
 
-Deno.test("GITHUB_TOOLS_SYSTEM_PROMPT: mentions 26 tools", () => {
-  assertEquals(GITHUB_TOOLS_SYSTEM_PROMPT.includes("26"), true);
+Deno.test("GITHUB_TOOLS_SYSTEM_PROMPT: mentions classification mapping", () => {
+  assertEquals(GITHUB_TOOLS_SYSTEM_PROMPT.includes("PUBLIC"), true);
+  assertEquals(GITHUB_TOOLS_SYSTEM_PROMPT.includes("CONFIDENTIAL"), true);
 });
 
 // ─── Fallthrough ─────────────────────────────────────────────────────────────

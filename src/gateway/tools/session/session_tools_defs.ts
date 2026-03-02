@@ -208,18 +208,9 @@ export function getSessionToolDefinitions(): readonly ToolDefinition[] {
 /** System prompt section explaining session tools to the LLM. */
 export const SESSION_TOOLS_SYSTEM_PROMPT = `## Session & Channel Management
 
-You have access to messaging channels and can manage sessions across them.
+Write-down enforcement applies to all cross-session and cross-channel communication:
+you cannot send data to a channel or session whose classification is lower than your current session taint.
 
-### Channels
-- Use channels_list to discover connected channels and their classification levels.
-- Use message to send a message to a recipient on a connected channel.
-- Write-down enforcement applies: you cannot send data to a channel whose classification is lower than your current session taint.
-
-### Sessions
-- Use sessions_list to see active sessions across all channels (filtered by your taint level).
-- Use sessions_history to read a session's message transcript.
-- Use sessions_send to send content to another session (write-down checks apply).
-- Use sessions_spawn to create a new background session for autonomous tasks.
-- Use session_status to check a session's metadata (taint, channel, user).
-
-For Signal-specific usage (messaging contacts, groups, pairing), read the "signal" skill.`;
+Use channels_list to discover connected channels before sending messages.
+Use sessions_spawn to create background sessions for autonomous tasks (starts at PUBLIC taint).
+For Signal: use signal_list_contacts/signal_list_groups to find recipients, signal_generate_pairing to onboard new contacts.`;

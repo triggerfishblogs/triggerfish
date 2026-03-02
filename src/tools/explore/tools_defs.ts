@@ -71,22 +71,11 @@ export function getExploreToolDefinitions(): readonly ToolDefinition[] {
 /** System prompt section for the explore tool. */
 export const EXPLORE_SYSTEM_PROMPT = `## Explore Tool
 
-Use \`explore\` to understand a codebase, directory, or file before working with it.
-Spawns parallel agents for fast, thorough exploration.
+Use \`explore\` before modifying unfamiliar code or at the start of non-trivial tasks.
+Spawns parallel agents — faster and more thorough than manually calling read_file/list_directory/search_files in sequence.
 
-When to use explore:
-- Before modifying unfamiliar code
-- When asked "what does this do" or "how is this structured"
-- At the start of any non-trivial task involving existing code
-- When you need to find the right file or pattern to follow
-
-explore is read-only and returns structured results. Prefer it over manually
-calling read_file/list_directory/search_files in sequence — it's faster (parallel)
-and produces better context.
-
-Use the focus parameter to direct exploration toward what matters:
+Use the focus parameter to direct exploration:
   explore({ path: "src/auth", focus: "how tokens are validated" })
-  explore({ path: ".", focus: "test patterns and conventions" })
   explore({ path: "src/core", depth: "deep" })
 
-After exploring, reference the patterns and conventions you found when writing new code.`;
+Reference the patterns and conventions you find when writing new code.`;

@@ -55,39 +55,12 @@ export type CredentialPromptCallback = (
 /** System prompt section explaining secret tool usage to the LLM. */
 export const SECRET_TOOLS_SYSTEM_PROMPT = `## Secret Management
 
-You have access to secure secret storage tools for managing passwords, API keys, and tokens.
+To use a stored secret in any tool argument, use the reference syntax \`{{secret:name}}\`.
+The runtime resolves references to real values before execution — values never enter your context.
+For credentials: \`{{secret:group:username}}\` and \`{{secret:group:password}}\`.
 
-### How to save a single secret (API key, token)
-Call \`secret_save\` with a descriptive name and an optional hint. The user will be prompted
-to enter the value through a secure input channel — the actual value is NEVER passed through
-your context and you will NEVER see it.
-
-### How to save a credential (username + password)
-Call \`secret_save_credential\` with a group name (e.g. "email_smtp") and an optional hint.
-The user will be prompted to enter both a username and a password through a secure input
-channel. The values are stored as two separate secrets:
-- \`<name>:username\` — the username
-- \`<name>:password\` — the password
-
-Use this tool when a service requires both a username and password for login.
-
-### How to reference a secret
-Use the reference syntax \`{{secret:name}}\` anywhere in a tool argument where a password,
-API key, or token is required. The Triggerfish runtime resolves these references to the real
-values before executing the tool — the values are never visible to you.
-
-Example: to use a stored API key named "openai_key" in a tool argument:
-  \`{"api_key": "{{secret:openai_key}}"}\`
-
-Example: to use stored credentials named "email_smtp":
-  \`{"username": "{{secret:email_smtp:username}}", "password": "{{secret:email_smtp:password}}"}\`
-
-### Rules
-- You MUST use the reference syntax. Never ask the user to type secrets in chat.
-- Call \`secret_list\` to see which secrets are already stored before asking to save a new one.
-- Do not log, repeat, or reveal secret values. They are never in your context.
-- Secret names should be lowercase with underscores (e.g. "github_token", "smtp_password").
-- For login credentials, prefer \`secret_save_credential\` over two separate \`secret_save\` calls.`;
+Never ask the user to type secrets in chat — always use secret_save or secret_save_credential.
+Check secret_list before saving to avoid duplicates.`;
 
 function buildSecretSaveDef(): ToolDefinition {
   return {
@@ -174,7 +147,6 @@ export function getSecretToolDefinitions(): readonly ToolDefinition[] {
   ];
 }
 
-
 /**
  * Create a tool executor for secret management tools.
  *
@@ -197,7 +169,11 @@ export function createSecretToolExecutor(
         return await executeSecretSave(store, prompt, input);
 
       case "secret_save_credential":
-        return await executeSecretSaveCredential(store, credentialPrompt, input);
+        return await executeSecretSaveCredential(
+          store,
+          credentialPrompt,
+          input,
+        );
 
       case "secret_list":
         return await executeSecretList(store);
@@ -223,9 +199,7 @@ async function executeSecretSave(
   }
   const trimmedName = secretName.trim();
   log.warn("Secret save requested via LLM tool", { name: trimmedName });
-  const hint = typeof input.hint === "string"
-    ? input.hint.trim()
-    : undefined;
+  const hint = typeof input.hint === "string" ? input.hint.trim() : undefined;
 
   const value = await prompt(trimmedName, hint);
   if (value === null) {
@@ -264,9 +238,7 @@ async function executeSecretSaveCredential(
     return "Error: Credential prompting is not available in this environment.";
   }
 
-  const hint = typeof input.hint === "string"
-    ? input.hint.trim()
-    : undefined;
+  const hint = typeof input.hint === "string" ? input.hint.trim() : undefined;
 
   const credential = await credentialPrompt(trimmedName, hint);
   if (credential === null) {
@@ -282,12 +254,18 @@ async function executeSecretSaveCredential(
   const usernameKey = `${trimmedName}:username`;
   const passwordKey = `${trimmedName}:password`;
 
-  const usernameResult = await store.setSecret(usernameKey, credential.username);
+  const usernameResult = await store.setSecret(
+    usernameKey,
+    credential.username,
+  );
   if (!usernameResult.ok) {
     return `Error saving credential username '${usernameKey}': ${usernameResult.error}`;
   }
 
-  const passwordResult = await store.setSecret(passwordKey, credential.password);
+  const passwordResult = await store.setSecret(
+    passwordKey,
+    credential.password,
+  );
   if (!passwordResult.ok) {
     return `Error saving credential password '${passwordKey}': ${passwordResult.error}`;
   }
