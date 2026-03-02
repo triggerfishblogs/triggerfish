@@ -19,7 +19,7 @@ import {
   detectToolFloorViolation,
 } from "../../../core/policy/hooks/hook_violations.ts";
 import { assembleSecurityContext } from "../../../agent/dispatch/security_context.ts";
-import type { OrchestratorConfig } from "../../../agent/orchestrator/orchestrator_types.ts";
+import type { SecurityContextConfig } from "../../../agent/dispatch/security_context.ts";
 import type { SubsystemExecutor } from "../executor/executor_types.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
 
@@ -199,11 +199,10 @@ export function evaluateSimulatedBlocked(
 
 // ─── Executor factory ────────────────────────────────────────────────────────
 
-/** Build the config proxy subset consumed by assembleSecurityContext. */
+/** Build the config subset consumed by assembleSecurityContext. */
 function buildSecurityConfigProxy(
   ctx: SimulateToolContext,
-): OrchestratorConfig {
-  // assembleSecurityContext only reads these optional fields; cast is safe
+): SecurityContextConfig {
   return {
     pathClassifier: ctx.pathClassifier,
     domainClassifier: ctx.domainClassifier,
@@ -212,7 +211,7 @@ function buildSecurityConfigProxy(
     isTriggerSession: ctx.isTrigger,
     getNonOwnerCeiling: ctx.getNonOwnerCeiling,
     getWorkspacePath: ctx.getWorkspacePath,
-  } as unknown as OrchestratorConfig;
+  };
 }
 
 /** Run the full simulation pipeline and return the result. */
@@ -228,7 +227,7 @@ function executeSimulation(
     fakeCall,
     buildSecurityConfigProxy(ctx),
   );
-  log.debug("Simulation security context assembled", {
+  log.info("Simulation security context assembled", {
     operation: "assembleSecurityContext",
     toolName,
     resourceClassification: secCtx.resourceClassification,
@@ -242,10 +241,10 @@ function executeSimulation(
     toolName,
     ctx.toolClassifications,
   );
-  hookInput.session_taint = resultingTaint;
+  const hookInputWithTaint = { ...hookInput, session_taint: resultingTaint };
 
   const { blocked, reason } = evaluateSimulatedBlocked(
-    hookInput,
+    hookInputWithTaint,
     resultingTaint,
     toolName,
     ctx.integrationClassifications,

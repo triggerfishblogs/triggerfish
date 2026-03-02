@@ -19,12 +19,29 @@ import {
   classifyCommandPaths,
   extractCommandPaths,
 } from "../../core/security/command_path_extraction.ts";
-import type {
-  OrchestratorConfig,
-  ParsedToolCall,
-} from "../orchestrator/orchestrator_types.ts";
+import type { PathClassifier } from "../../core/security/path_classification.ts";
+import type { ToolFloorRegistry } from "../../core/security/tool_floors.ts";
+import type { DomainClassifier } from "../../core/types/domain.ts";
+import type { ParsedToolCall } from "../orchestrator/orchestrator_types.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+
+/**
+ * Subset of OrchestratorConfig consumed by assembleSecurityContext.
+ *
+ * Every field is optional — callers provide only the classifiers and
+ * identity getters relevant to their context. Full OrchestratorConfig
+ * satisfies this structurally, so existing call sites are unaffected.
+ */
+export interface SecurityContextConfig {
+  readonly pathClassifier?: PathClassifier;
+  readonly domainClassifier?: DomainClassifier;
+  readonly toolFloorRegistry?: ToolFloorRegistry;
+  readonly isOwnerSession?: () => boolean;
+  readonly isTriggerSession?: () => boolean;
+  readonly getNonOwnerCeiling?: () => ClassificationLevel | null;
+  readonly getWorkspacePath?: () => string | null;
+}
 
 /** Computed security context returned alongside the hook input. */
 export interface SecurityContext {
@@ -90,7 +107,7 @@ function classifyResourceByToolSets(
 /** Classify a filesystem path tool call. */
 function classifyFilesystemResource(
   call: ParsedToolCall,
-  config: OrchestratorConfig,
+  config: SecurityContextConfig,
 ): ResourceClassResult {
   const pathParam = extractPathParam(call);
   if (!config.pathClassifier || !pathParam) return NO_RESOURCE_CLASSIFICATION;
@@ -106,7 +123,7 @@ function classifyFilesystemResource(
 /** Classify a URL-based tool call. */
 function classifyUrlResource(
   call: ParsedToolCall,
-  config: OrchestratorConfig,
+  config: SecurityContextConfig,
 ): ResourceClassResult {
   const urlParam = (call.args.url) as string | undefined ?? null;
   if (!config.domainClassifier || !urlParam) return NO_RESOURCE_CLASSIFICATION;
@@ -122,7 +139,7 @@ function classifyUrlResource(
 // ─── Identity context ────────────────────────────────────────────────────────
 
 /** Build identity context fields for the hook input. */
-function assembleIdentityContext(config: OrchestratorConfig): {
+function assembleIdentityContext(config: SecurityContextConfig): {
   isOwner: boolean;
   isTrigger: boolean;
   nonOwnerCeiling: ClassificationLevel | null;
@@ -137,7 +154,7 @@ function assembleIdentityContext(config: OrchestratorConfig): {
 /** Classify a `run_command` tool call by extracting paths from the command string. */
 function classifyShellCommandResource(
   call: ParsedToolCall,
-  config: OrchestratorConfig,
+  config: SecurityContextConfig,
 ): ResourceClassResult {
   if (call.name !== "run_command") return NO_RESOURCE_CLASSIFICATION;
   const command = call.args.command as string | undefined;
@@ -163,7 +180,7 @@ function classifyShellCommandResource(
 /** Resolve resource classification from filesystem, shell command, or URL tools. */
 function resolveResourceClassification(
   call: ParsedToolCall,
-  config: OrchestratorConfig,
+  config: SecurityContextConfig,
 ): ResourceClassResult {
   const fsResult = classifyFilesystemResource(call, config);
   if (fsResult.classification !== null) return fsResult;
@@ -196,7 +213,7 @@ function populateHookInputFields(
 /** Build enriched hook input for PRE_TOOL_CALL with security context. */
 export function assembleSecurityContext(
   call: ParsedToolCall,
-  config: OrchestratorConfig,
+  config: SecurityContextConfig,
 ): { input: Record<string, unknown>; ctx: SecurityContext } {
   const hookInput: Record<string, unknown> = { tool_call: call };
   const toolName = call.name;
