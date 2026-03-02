@@ -8,6 +8,7 @@
 import { Input } from "@cliffy/prompt";
 import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
 import { createLogger } from "../../core/logger/mod.ts";
+import { safeFetch } from "../../core/security/mod.ts";
 
 const log = createLogger("cli.connect");
 
@@ -31,9 +32,11 @@ function printGithubSetupInstructions(): void {
   console.log("    6. Click Generate token and copy it\n");
 }
 
-/** Fetch the GitHub user endpoint with a PAT. */
-function fetchGithubUser(token: string): Promise<Response> {
-  return fetch("https://api.github.com/user", {
+/** Fetch the GitHub user endpoint with a PAT using SSRF-checked HTTP. */
+function fetchGithubUser(
+  token: string,
+): ReturnType<typeof safeFetch> {
+  return safeFetch("https://api.github.com/user", {
     headers: {
       "Authorization": `Bearer ${token}`,
       "Accept": "application/vnd.github+json",
@@ -61,21 +64,17 @@ async function reportGithubTokenFailure(resp: Response): Promise<null> {
 
 /** Verify a GitHub PAT against the API. Returns login name or null on failure. */
 async function verifyGithubToken(token: string): Promise<string | null> {
-  try {
-    const resp = await fetchGithubUser(token);
-    if (!resp.ok) return await reportGithubTokenFailure(resp);
-    const user = await resp.json();
-    return (user as Record<string, string>).login;
-  } catch (err: unknown) {
-    log.error("GitHub API request failed", { operation: "connectGithub", err });
-    console.log(
-      `\nCould not reach GitHub API: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
+  const result = await fetchGithubUser(token);
+  if (!result.ok) {
+    log.error("GitHub API request failed", { operation: "connectGithub", err: result.error });
+    console.log(`\nCould not reach GitHub API: ${result.error}`);
     console.log("Check your network connection and try again.");
     return null;
   }
+  const resp = result.value;
+  if (!resp.ok) return await reportGithubTokenFailure(resp);
+  const user = await resp.json();
+  return (user as Record<string, string>).login;
 }
 
 /** Prompt for a GitHub PAT and warn if it looks malformed. Returns trimmed token or null. */

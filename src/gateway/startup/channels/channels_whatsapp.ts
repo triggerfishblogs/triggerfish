@@ -13,7 +13,7 @@ import { buildSendEvent } from "../../chat.ts";
 import type { ChannelWiringDeps } from "./channels_shared.ts";
 import type { NotificationService } from "../../notifications/notifications.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
-import { safeFetch } from "../../../tools/web/mod.ts";
+import { safeFetch } from "../../../core/security/mod.ts";
 
 const log = createLogger("startup-channels-whatsapp");
 
