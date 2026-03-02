@@ -18,9 +18,11 @@ import type { ToolDisplayMode } from "../render/ansi.ts";
 import { formatResponse } from "../render/format.ts";
 import {
   type EventCallback,
+  formatEditFileDiff,
   formatPlanMarkdown,
   formatToolCallExpanded,
   formatToolCompact,
+  formatToolCompactInProgress,
   formatToolResultExpanded,
   isPlanExitTool,
   isTodoTool,
@@ -129,6 +131,19 @@ function handleScreenResponseChunk(
   }
 }
 
+// ─── edit_file helpers ───────────────────────────────────────────────────────
+
+/** Check whether edit_file args contain old_text and new_text strings. */
+function hasEditFileDiffArgs(args: Record<string, unknown>): boolean {
+  return typeof args.old_text === "string" && typeof args.new_text === "string";
+}
+
+/** Truncate a tool result to a single summary line. */
+function truncateResultLine(result: string): string {
+  const first = result.split("\n")[0];
+  return first.length > 80 ? first.slice(0, 80) + "\u2026" : first;
+}
+
 // ─── Tool result sub-handlers ────────────────────────────────────────────────
 
 /** Handle tool_call event. */
@@ -138,11 +153,12 @@ function handleScreenToolCall(
   getDisplayMode: () => ToolDisplayMode,
   event: { name: string; args: Record<string, unknown> },
 ): void {
+  state.pendingToolCall = { name: event.name, args: event.args };
   if (isTodoTool(event.name) || isPlanExitTool(event.name)) {
-    state.pendingToolCall = { name: event.name, args: event.args };
+    // stored above — no display until result arrives
   } else if (getDisplayMode() === "compact") {
-    state.pendingToolCall = { name: event.name, args: event.args };
-  } else {
+    screen.writeOutput(formatToolCompactInProgress(event.name, event.args));
+  } else if (event.name !== "edit_file") {
     screen.writeOutput(formatToolCallExpanded(event.name, event.args));
   }
   if (screen.isTty) screen.startSpinner(event.name);
@@ -189,6 +205,19 @@ function handleScreenToolResult(
     handleTodoToolResult(state, screen, event);
   } else if (isPlanExitTool(event.name)) {
     handlePlanExitToolResult(state, screen, event);
+  } else if (
+    state.pendingToolCall?.name === "edit_file" &&
+    !event.blocked &&
+    hasEditFileDiffArgs(state.pendingToolCall.args)
+  ) {
+    screen.writeOutput(
+      formatEditFileDiff(
+        state.pendingToolCall.args.old_text as string,
+        state.pendingToolCall.args.new_text as string,
+        truncateResultLine(event.result),
+      ),
+    );
+    state.pendingToolCall = null;
   } else if (getDisplayMode() === "compact" && state.pendingToolCall) {
     screen.writeOutput(
       formatToolCompact(

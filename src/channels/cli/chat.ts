@@ -88,6 +88,7 @@ export async function runChat(): Promise<void> {
     stashedInput: "",
     pendingImages: [],
     lastCtrlCTime: 0,
+    isPasting: false,
     inputHistory: await loadInputHistory(join(dataDir, "input_history.json")),
   };
 

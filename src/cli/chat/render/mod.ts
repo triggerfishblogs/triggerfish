@@ -4,6 +4,8 @@
  */
 
 export {
+  BG_GREEN,
+  BG_RED,
   BLUE,
   BOLD,
   CYAN,
@@ -37,10 +39,12 @@ export {
 } from "./format.ts";
 
 export {
+  formatEditFileDiff,
   formatPlanMarkdown,
   formatToolCallCompact,
   formatToolCallExpanded,
   formatToolCompact,
+  formatToolCompactInProgress,
   formatToolResultExpanded,
   isPlanExitTool,
   isTodoTool,
