@@ -436,3 +436,76 @@ export async function cloneRepoToPath(
     error: { status: 500, message: `Clone failed: ${err.trim()}` },
   };
 }
+
+/** Build git pull command arguments. */
+function buildPullArgs(
+  localPath: string,
+  authUrl: string,
+  opts?: { readonly branch?: string },
+): string[] {
+  const args = ["-C", localPath, "pull", authUrl];
+  if (opts?.branch) args.push(opts.branch);
+  return args;
+}
+
+/** Run git pull and return stderr on failure. */
+async function runGitPull(args: readonly string[]): Promise<string | null> {
+  const cmd = new Deno.Command("git", {
+    args: [...args],
+    stdout: "piped",
+    stderr: "piped",
+  });
+  const output = await cmd.output();
+  if (output.success) return null;
+  return sanitizeGitStderr(new TextDecoder().decode(output.stderr));
+}
+
+/** Pull latest changes in an already-cloned repo using authenticated remote. */
+export async function pullRepoAtPath(
+  apiRequest: ApiRequestFn,
+  classifyRepo: ClassifyRepoFn,
+  token: string,
+  baseUrl: string,
+  owner: string,
+  repo: string,
+  localPath: string,
+  opts?: { readonly branch?: string },
+): Promise<
+  Result<
+    { readonly pulled: boolean; readonly classification: ClassificationLevel },
+    GitHubError
+  >
+> {
+  const classification = await fetchRepoClassification(
+    apiRequest,
+    classifyRepo,
+    owner,
+    repo,
+  );
+
+  const repoSlug = `${owner}/${repo}`;
+  const authUrl = buildAuthenticatedCloneUrl(token, baseUrl, owner, repo);
+  const args = buildPullArgs(localPath, authUrl, opts);
+
+  log.info("Pulling repository", {
+    operation: "pullRepoAtPath",
+    repo: repoSlug,
+    localPath,
+    branch: opts?.branch ?? "current",
+  });
+
+  const err = await runGitPull(args);
+  if (!err) {
+    return { ok: true, value: { pulled: true, classification } };
+  }
+
+  log.warn("Pull failed", {
+    operation: "pullRepoAtPath",
+    repo: repoSlug,
+    err,
+  });
+  return {
+    ok: false,
+    error: { status: 500, message: `Pull failed: ${err.trim()}` },
+  };
+}

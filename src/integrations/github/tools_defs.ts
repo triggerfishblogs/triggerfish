@@ -17,6 +17,7 @@ import {
   buildListBranchesDef,
   buildListCommitsDef,
   buildListReposDef,
+  buildPullRepoDef,
   buildReadFileDef,
 } from "./repos/mod.ts";
 
@@ -49,7 +50,7 @@ import {
 
 // ── Public API ──
 
-/** Get all 26 GitHub tool definitions. */
+/** Get all 27 GitHub tool definitions. */
 export function getGitHubToolDefinitions(): readonly ToolDefinition[] {
   return [
     buildListReposDef(),
@@ -60,6 +61,7 @@ export function getGitHubToolDefinitions(): readonly ToolDefinition[] {
     buildCreateBranchDef(),
     buildDeleteBranchDef(),
     buildCloneRepoDef(),
+    buildPullRepoDef(),
     buildListPullsDef(),
     buildGetPullDef(),
     buildCreatePullDef(),

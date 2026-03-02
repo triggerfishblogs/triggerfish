@@ -158,6 +158,31 @@ export function buildDeleteBranchDef(): ToolDefinition {
   };
 }
 
+/** Build the github_pull tool definition. */
+export function buildPullRepoDef(): ToolDefinition {
+  return {
+    name: "github_pull",
+    description:
+      "Pull latest changes in a previously cloned GitHub repository. Re-authenticates automatically.",
+    parameters: {
+      repo: {
+        type: "string",
+        description: 'Repository in "owner/name" format',
+        required: true,
+      },
+      path: {
+        type: "string",
+        description: "Local directory of the cloned repo",
+        required: true,
+      },
+      branch: {
+        type: "string",
+        description: "Branch to pull (defaults to current branch)",
+      },
+    },
+  };
+}
+
 /** Build the github_clone_repo tool definition. */
 export function buildCloneRepoDef(): ToolDefinition {
   return {

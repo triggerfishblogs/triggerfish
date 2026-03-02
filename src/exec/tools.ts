@@ -60,7 +60,7 @@ export interface ExecTools {
   /** Read a file from the workspace. Path is relative to workspace root. */
   read(path: string): Promise<Result<string, string>>;
   /** Run a shell command in the workspace directory. */
-  runCommand(command: string): Promise<Result<RunResult, string>>;
+  runCommand(command: string, cwd?: string): Promise<Result<RunResult, string>>;
   /** List files in the workspace (or a subdirectory). */
   ls(path?: string): Promise<Result<readonly FileEntry[], string>>;
 }
@@ -146,16 +146,46 @@ function resolveCwd(workspace: Workspace, options?: ExecToolsOptions): string {
   return override ?? workspace.path;
 }
 
+/** Resolve a per-call cwd within the workspace, returning null if it escapes. */
+function resolvePerCallCwd(
+  workspace: Workspace,
+  cwd: string,
+): string | null {
+  const resolved = resolve(join(workspace.path, cwd));
+  if (!isWithinJail(resolved, workspace.path)) return null;
+  return resolved;
+}
+
 async function runShellCommand(
   workspace: Workspace,
   command: string,
   options?: ExecToolsOptions,
+  perCallCwd?: string,
 ): Promise<Result<RunResult, string>> {
+  let effectiveCwd: string;
+  if (perCallCwd !== undefined) {
+    const resolved = resolvePerCallCwd(workspace, perCallCwd);
+    if (resolved === null) {
+      log.warn("Working directory path escapes workspace jail", {
+        operation: "runShellCommand",
+        cwd: perCallCwd,
+        workspace: workspace.path,
+      });
+      return {
+        ok: false,
+        error: `Working directory "${perCallCwd}" escapes the workspace`,
+      };
+    }
+    effectiveCwd = resolved;
+  } else {
+    effectiveCwd = resolveCwd(workspace, options);
+  }
+
   try {
     const start = performance.now();
     const proc = new Deno.Command("/bin/sh", {
       args: ["-c", command],
-      cwd: resolveCwd(workspace, options),
+      cwd: effectiveCwd,
       stdout: "piped",
       stderr: "piped",
       env: buildSafeEnv({ workspaceHome: workspace.path }),
@@ -241,7 +271,8 @@ export function createExecTools(
   return {
     write: (path, content) => writeFile(workspace, path, content),
     read: (path) => readFile(workspace, path),
-    runCommand: (command) => runShellCommand(workspace, command, options),
+    runCommand: (command, cwd) =>
+      runShellCommand(workspace, command, options, cwd),
     ls: (path) => listDirectory(workspace, path),
   };
 }

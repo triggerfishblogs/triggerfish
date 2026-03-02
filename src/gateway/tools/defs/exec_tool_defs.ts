@@ -75,6 +75,11 @@ function buildRunCommandDef(): ToolDefinition {
         description: "Shell command to execute",
         required: true,
       },
+      cwd: {
+        type: "string",
+        description:
+          "Working directory for the command (relative to workspace or absolute within workspace). Defaults to workspace root.",
+      },
     },
   };
 }

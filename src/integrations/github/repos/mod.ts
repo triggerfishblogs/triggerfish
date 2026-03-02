@@ -13,6 +13,7 @@ export {
   fetchRepoCommits,
   fetchRepoFile,
   fetchUserRepos,
+  pullRepoAtPath,
 } from "./client_repos.ts";
 
 export {
@@ -23,6 +24,7 @@ export {
   executeListBranches,
   executeListCommits,
   executeListRepos,
+  executePullRepo,
   executeReadFile,
 } from "./tools_repos.ts";
 
@@ -34,5 +36,6 @@ export {
   buildListBranchesDef,
   buildListCommitsDef,
   buildListReposDef,
+  buildPullRepoDef,
   buildReadFileDef,
 } from "./tools_defs_repos.ts";

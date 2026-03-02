@@ -40,6 +40,7 @@ import {
   fetchRepoCommits,
   fetchRepoFile,
   fetchUserRepos,
+  pullRepoAtPath,
 } from "./repos/mod.ts";
 import {
   fetchPullFiles,
@@ -306,6 +307,20 @@ export interface GitHubClient {
       GitHubError
     >
   >;
+  readonly pullRepo: (
+    owner: string,
+    repo: string,
+    localPath: string,
+    opts?: { readonly branch?: string },
+  ) => Promise<
+    Result<
+      {
+        readonly pulled: boolean;
+        readonly classification: ClassificationLevel;
+      },
+      GitHubError
+    >
+  >;
 }
 
 /**
@@ -484,6 +499,17 @@ export function createGitHubClient(config: GitHubClientConfig): GitHubClient {
         owner,
         repo,
         destPath,
+        opts,
+      ),
+    pullRepo: (owner, repo, localPath, opts) =>
+      pullRepoAtPath(
+        apiRequest,
+        classifyRepo,
+        ctx.token,
+        ctx.baseUrl,
+        owner,
+        repo,
+        localPath,
         opts,
       ),
   };

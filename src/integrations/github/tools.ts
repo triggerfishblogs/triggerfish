@@ -1,7 +1,7 @@
 /**
  * GitHub tool executor for the agent.
  *
- * Creates a chain-compatible executor for the 25 `github_*` tools.
+ * Creates a chain-compatible executor for the 26 `github_*` tools.
  * Tool definitions live in `tools_defs.ts`; domain-specific handlers
  * live in `tools_repos.ts`, `tools_pulls.ts`, `tools_issues.ts`,
  * `tools_actions.ts`, and `tools_search.ts`.
@@ -18,6 +18,7 @@ import {
   executeListBranches,
   executeListCommits,
   executeListRepos,
+  executePullRepo,
   executeReadFile,
 } from "./repos/mod.ts";
 import {
@@ -70,6 +71,7 @@ const TOOL_HANDLERS: Readonly<Record<string, ToolHandler>> = {
   github_create_branch: executeCreateBranch,
   github_delete_branch: executeDeleteBranch,
   github_clone_repo: executeCloneRepo,
+  github_pull: executePullRepo,
   github_list_pulls: executeListPulls,
   github_get_pull: executeGetPull,
   github_create_pull: executeCreatePull,

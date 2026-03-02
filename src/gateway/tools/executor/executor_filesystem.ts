@@ -130,7 +130,10 @@ export async function executeRunCommand(
   if (typeof command !== "string" || command.length === 0) {
     return "Error: run_command requires a 'command' argument (string).";
   }
-  const result = await execTools.runCommand(command);
+  const cwd = typeof input.cwd === "string" && input.cwd.length > 0
+    ? input.cwd
+    : undefined;
+  const result = await execTools.runCommand(command, cwd);
   if (!result.ok) return `Error: ${result.error}`;
   return formatCommandOutput(result.value);
 }

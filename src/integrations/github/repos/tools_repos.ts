@@ -213,6 +213,35 @@ export async function executeDeleteBranch(
   });
 }
 
+// ─── Pull Repo ──────────────────────────────────────────────────────────────
+
+/** Handle the github_pull tool invocation. */
+export async function executePullRepo(
+  client: GitHubClient,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const repoResult = validateRepoInput(input, "github_pull");
+  if (typeof repoResult === "string") return repoResult;
+
+  const path = input.path;
+  if (typeof path !== "string" || path.length === 0) {
+    return "Error: github_pull requires a 'path' argument.";
+  }
+
+  const branch = typeof input.branch === "string" ? input.branch : undefined;
+  const result = await client.pullRepo(
+    repoResult.owner,
+    repoResult.name,
+    path,
+    { branch },
+  );
+  if (!result.ok) return formatGitHubError(result.error);
+  return JSON.stringify({
+    pulled: result.value.pulled,
+    _classification: result.value.classification,
+  });
+}
+
 // ─── Clone Repo ─────────────────────────────────────────────────────────────
 
 /** Handle the github_clone_repo tool invocation. */
