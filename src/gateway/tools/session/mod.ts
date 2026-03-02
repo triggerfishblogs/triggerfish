@@ -7,6 +7,7 @@
 export {
   createSessionToolExecutor,
   getSessionToolDefinitions,
+  getSignalToolDefinitions,
   SESSION_TOOLS_SYSTEM_PROMPT,
 } from "./session_tools.ts";
 export type { RegisteredChannel, SessionToolContext } from "./session_tools.ts";

@@ -223,7 +223,10 @@ export function assembleSchedulerToolExecutor(opts: {
       session.id,
     ),
     sessionExecutor,
-    googleExecutor: buildGoogleExecutor(() => session.taint, session.id),
+    googleExecutor: buildGoogleExecutor({
+      getSessionTaint: () => session.taint,
+      sourceSessionId: session.id,
+    }),
     githubExecutor: opts.githubExecutor,
     llmTaskExecutor: createLlmTaskToolExecutor(infra.registry),
     summarizeExecutor: createSummarizeToolExecutor(infra.registry),

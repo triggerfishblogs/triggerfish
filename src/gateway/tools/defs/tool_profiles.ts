@@ -50,6 +50,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "browser",
     "tidepool",
     "sessions",
+    "signal",
     "image",
     "explore",
     "google",
@@ -79,6 +80,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "plan",
     "browser",
     "sessions",
+    "signal",
     "image",
     "explore",
     "google",
@@ -212,6 +214,108 @@ export function resolvePromptsForProfile(
   return groups
     .map((g) => TOOL_GROUP_PROMPTS[g])
     .filter((p): p is string => p !== undefined && p.length > 0);
+}
+
+// ─── Service availability gating ─────────────────────────────────────────────
+
+/** Which external services are configured and have credentials available. */
+export interface ServiceAvailability {
+  /** Google Workspace (keychain google:tokens). */
+  readonly google: boolean;
+  /** GitHub (keychain github-pat). */
+  readonly github: boolean;
+  /** CalDAV (config caldav.enabled). */
+  readonly caldav: boolean;
+  /** Obsidian (config plugins.obsidian.enabled). */
+  readonly obsidian: boolean;
+  /** Signal channel (config channels.signal). */
+  readonly signal: boolean;
+  /** Telegram channel (config channels.telegram.botToken). */
+  readonly telegram: boolean;
+  /** Discord channel (config channels.discord). */
+  readonly discord: boolean;
+  /** WhatsApp channel (config channels.whatsapp). */
+  readonly whatsapp: boolean;
+}
+
+/** Map from ServiceAvailability keys to the tool group names they gate. */
+const SERVICE_TO_GROUP: Readonly<
+  Partial<Record<keyof ServiceAvailability, ToolGroupName>>
+> = {
+  google: "google",
+  github: "github",
+  caldav: "caldav",
+  obsidian: "obsidian",
+  signal: "signal",
+};
+
+/**
+ * Remove tool groups for unconfigured services from a profile.
+ *
+ * Only groups listed in SERVICE_TO_GROUP are filtered — core groups
+ * (sessions, memory, web, etc.) are never removed.
+ */
+export function filterProfileByAvailability(
+  profile: ToolProfile,
+  availability: ServiceAvailability,
+): ToolProfile {
+  const unavailableGroups = new Set<ToolGroupName>();
+  for (
+    const [service, group] of Object.entries(SERVICE_TO_GROUP) as [
+      keyof ServiceAvailability,
+      ToolGroupName,
+    ][]
+  ) {
+    if (!availability[service]) {
+      unavailableGroups.add(group);
+    }
+  }
+  return profile.filter((g) => !unavailableGroups.has(g));
+}
+
+/** Human-readable setup instructions per service. */
+const SERVICE_SETUP_HINTS: Readonly<
+  Record<keyof ServiceAvailability, string>
+> = {
+  google: "Google Workspace — run `triggerfish connect google`",
+  github: "GitHub — run `triggerfish connect github`",
+  caldav: "CalDAV — set `caldav.enabled: true` in triggerfish.yaml",
+  obsidian:
+    "Obsidian — set `plugins.obsidian.enabled: true` in triggerfish.yaml",
+  signal: "Signal — configure `channels.signal` in triggerfish.yaml",
+  telegram: "Telegram — configure `channels.telegram` in triggerfish.yaml",
+  discord: "Discord — configure `channels.discord` in triggerfish.yaml",
+  whatsapp: "WhatsApp — configure `channels.whatsapp` in triggerfish.yaml",
+};
+
+/**
+ * Build a system prompt section listing unconfigured services.
+ *
+ * Returns an empty string if all services are configured.
+ */
+export function buildUnconfiguredServicesPrompt(
+  availability: ServiceAvailability,
+): string {
+  const lines: string[] = [];
+  for (
+    const [service, hint] of Object.entries(SERVICE_SETUP_HINTS) as [
+      keyof ServiceAvailability,
+      string,
+    ][]
+  ) {
+    if (!availability[service]) {
+      lines.push(`  • ${hint}`);
+    }
+  }
+  if (lines.length === 0) return "";
+  return [
+    "## Unconfigured Services",
+    "",
+    "The following integrations are available but not yet configured:",
+    ...lines,
+    "",
+    "Tell the user about these when relevant to their request.",
+  ].join("\n");
 }
 
 // ─── Backward-compatible getToolDefinitions ─────────────────────────────────

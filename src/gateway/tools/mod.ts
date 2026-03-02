@@ -21,6 +21,7 @@ export type {
 export {
   createSessionToolExecutor,
   getSessionToolDefinitions,
+  getSignalToolDefinitions,
   SESSION_TOOLS_SYSTEM_PROMPT,
 } from "./session/session_tools.ts";
 export type { RegisteredChannel } from "./session/session_tools.ts";

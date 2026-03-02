@@ -38,6 +38,12 @@ import {
   resolvePromptsForProfile,
   resolveToolsForProfile,
 } from "../../tools/agent_tools.ts";
+import {
+  buildUnconfiguredServicesPrompt,
+  filterProfileByAvailability,
+  TOOL_PROFILES,
+} from "../../tools/defs/tool_profiles.ts";
+import type { ServiceAvailability } from "../../tools/defs/tool_profiles.ts";
 import type { createToolExecutor } from "../../tools/agent_tools.ts";
 import type { wireMcpServers } from "../infra/mcp.ts";
 import type { buildWebTools } from "../factory/web_tools.ts";
@@ -128,10 +134,19 @@ export interface ChatSessionDeps {
   readonly workspacePaths: WorkspacePaths;
   /** Returns the taint-aware workspace path for shell command classification. */
   readonly getWorkspacePath: () => string | null;
+  /** Which external services are configured and have credentials. */
+  readonly serviceAvailability: ServiceAvailability;
 }
 
 /** Build the dynamic getter and prompt options for the chat session. */
 export function buildChatSessionDynamicOptions(deps: ChatSessionDeps) {
+  const filteredProfile = filterProfileByAvailability(
+    TOOL_PROFILES.cli,
+    deps.serviceAvailability,
+  );
+  const unconfiguredPrompt = buildUnconfiguredServicesPrompt(
+    deps.serviceAvailability,
+  );
   return {
     getExtraTools: buildExtraToolsGetter(
       deps.mcpWiring,
@@ -145,9 +160,10 @@ export function buildChatSessionDynamicOptions(deps: ChatSessionDeps) {
       deps.workspacePaths,
     ),
     systemPromptSections: [
-      ...resolvePromptsForProfile("cli"),
+      ...resolvePromptsForProfile(filteredProfile),
       deps.skillsPrompt,
       deps.triggersPrompt,
+      ...(unconfiguredPrompt ? [unconfiguredPrompt] : []),
     ],
     ...(deps.streamingPref !== undefined
       ? { enableStreaming: deps.streamingPref === true }
@@ -164,11 +180,15 @@ export function assembleChatSession(deps: ChatSessionDeps) {
     deps.browserHandle,
     deps.log,
   );
+  const filteredProfile = filterProfileByAvailability(
+    TOOL_PROFILES.cli,
+    deps.serviceAvailability,
+  );
   return createChatSession({
     hookRunner: deps.hookRunner,
     providerRegistry: deps.registry,
     spinePath: deps.spinePath,
-    tools: resolveToolsForProfile("cli"),
+    tools: resolveToolsForProfile(filteredProfile),
     ...buildChatSessionDynamicOptions(deps),
     toolExecutor: deps.toolExecutor,
     secretStore: deps.mainKeychain,

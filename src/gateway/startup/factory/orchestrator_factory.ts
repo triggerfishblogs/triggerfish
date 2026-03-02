@@ -53,6 +53,12 @@ import {
   resolvePromptsForProfile,
   resolveToolsForProfile,
 } from "../../tools/agent_tools.ts";
+import {
+  filterProfileByAvailability,
+  TOOL_PROFILES,
+} from "../../tools/defs/tool_profiles.ts";
+import type { ServiceAvailability } from "../../tools/defs/tool_profiles.ts";
+import { detectServiceAvailability } from "../tools/tool_infra.ts";
 import { buildWebTools } from "./web_tools.ts";
 import type { FactoryInfra } from "../tools/scheduler_tool_assembly.ts";
 import {
@@ -170,13 +176,21 @@ export function createOrchestratorFactory(
   fsPathMap?: ReadonlyMap<string, ClassificationLevel>,
   fsDefault?: ClassificationLevel,
   schedulerToolFloorRegistry?: ToolFloorRegistry,
+  serviceAvailability?: ServiceAvailability,
 ): OrchestratorFactory {
   const infra = initializeFactoryInfra(config, baseDir);
   const skillState = { discovered: false, prompt: "" };
+  let cachedAvailability: ServiceAvailability | undefined = serviceAvailability;
 
   return {
     async create(channelId: string, options?: OrchestratorCreateOptions) {
       await discoverSkillsOnce(infra.skillLoader, skillState);
+      if (!cachedAvailability) {
+        cachedAvailability = await detectServiceAvailability(
+          config,
+          infra.keychain,
+        );
+      }
 
       const isTrigger = options?.isTrigger ?? false;
       const triggerCeiling = options?.ceiling ?? null;
@@ -216,7 +230,11 @@ export function createOrchestratorFactory(
         memoryAgentId: isTrigger ? OWNER_MEMORY_AGENT_ID : undefined,
       });
 
-      const toolProfile = isTrigger ? "triggerSession" : "cronJob";
+      const baseProfileName = isTrigger ? "triggerSession" : "cronJob";
+      const toolProfile = filterProfileByAvailability(
+        TOOL_PROFILES[baseProfileName],
+        cachedAvailability,
+      );
 
       const workspacePaths = {
         publicPath: workspace.publicPath,

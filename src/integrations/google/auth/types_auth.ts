@@ -45,6 +45,10 @@ export interface GoogleAuthManager {
   readonly clearTokens: () => Promise<void>;
   /** Check if tokens are stored. */
   readonly hasTokens: () => Promise<boolean>;
+  /** Retrieve the stored OAuth client credentials (clientId/clientSecret), or null if none. */
+  readonly getStoredCredentials: () => Promise<
+    { readonly clientId: string; readonly clientSecret: string } | null
+  >;
 }
 
 /** Result of an auth operation — either a token string or an error. */

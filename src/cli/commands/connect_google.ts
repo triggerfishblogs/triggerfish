@@ -129,8 +129,19 @@ async function awaitOAuthCode(
   ]);
 }
 
+/** Try to load stored OAuth client credentials from an existing token set. */
+async function loadStoredGoogleCredentials(
+  store: SecretStore,
+): Promise<{ clientId: string; clientSecret: string } | null> {
+  const authManager = createGoogleAuthManager(store);
+  return await authManager.getStoredCredentials();
+}
+
 /**
  * Run the Google OAuth2 flow: prompt for credentials, open browser, exchange code.
+ *
+ * If credentials are already stored in the keychain (from a previous connect),
+ * they are reused automatically. Otherwise the user is prompted.
  *
  * Shared by both `triggerfish connect google` and the dive wizard.
  *
@@ -139,10 +150,16 @@ async function awaitOAuthCode(
 export async function performGoogleOAuth(
   secretStore?: SecretStore,
 ): Promise<boolean> {
-  const creds = await promptGoogleCredentials();
-  if (!creds) return false;
-
   const store = secretStore ?? createKeychain();
+  const storedCreds = await loadStoredGoogleCredentials(store);
+  let creds: { clientId: string; clientSecret: string } | null;
+  if (storedCreds) {
+    console.log("Using existing Google credentials from keychain.");
+    creds = storedCreds;
+  } else {
+    creds = await promptGoogleCredentials();
+  }
+  if (!creds) return false;
   const authManager = createGoogleAuthManager(store);
   const { server, port, codePromise } = createOAuthCallbackServer();
   const keepAlive = setInterval(() => {}, 60_000);

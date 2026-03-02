@@ -216,5 +216,12 @@ export function createGoogleAuthManager(
     async hasTokens(): Promise<boolean> {
       return (await secretStore.getSecret(TOKEN_KEY)).ok;
     },
+    async getStoredCredentials(): Promise<
+      { readonly clientId: string; readonly clientSecret: string } | null
+    > {
+      const tokens = await loadGoogleTokens(secretStore);
+      if (!tokens?.clientId || !tokens?.clientSecret) return null;
+      return { clientId: tokens.clientId, clientSecret: tokens.clientSecret };
+    },
   };
 }

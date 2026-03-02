@@ -15,7 +15,10 @@ import { getWebToolDefinitions } from "../../../tools/web/mod.ts";
 import { getPlanToolDefinitions } from "../../../agent/plan/tools.ts";
 import { getBrowserToolDefinitions } from "../../../tools/browser/mod.ts";
 import { getTidepoolToolDefinitions } from "../../../tools/tidepool/mod.ts";
-import { getSessionToolDefinitions } from "../session/session_tools.ts";
+import {
+  getSessionToolDefinitions,
+  getSignalToolDefinitions,
+} from "../session/session_tools.ts";
 import { getImageToolDefinitions } from "../../../tools/image/mod.ts";
 import { getExploreToolDefinitions } from "../../../tools/explore/mod.ts";
 import { getGoogleToolDefinitions } from "../../../integrations/google/mod.ts";
@@ -54,6 +57,7 @@ export const TOOL_GROUPS = {
   browser: getBrowserToolDefinitions,
   tidepool: getTidepoolToolDefinitions,
   sessions: getSessionToolDefinitions,
+  signal: getSignalToolDefinitions,
   image: getImageToolDefinitions,
   explore: getExploreToolDefinitions,
   google: getGoogleToolDefinitions,

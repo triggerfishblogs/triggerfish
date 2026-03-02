@@ -189,7 +189,7 @@ function buildSignalGeneratePairingDef(): ToolDefinition {
   };
 }
 
-/** Get session tool definitions for the agent orchestrator. */
+/** Get session tool definitions for the agent orchestrator (excludes Signal). */
 export function getSessionToolDefinitions(): readonly ToolDefinition[] {
   return [
     buildSessionsListDef(),
@@ -199,6 +199,12 @@ export function getSessionToolDefinitions(): readonly ToolDefinition[] {
     buildSessionStatusDef(),
     buildMessageDef(),
     buildChannelsListDef(),
+  ];
+}
+
+/** Get Signal-specific tool definitions (separate group for conditional loading). */
+export function getSignalToolDefinitions(): readonly ToolDefinition[] {
+  return [
     buildSignalListGroupsDef(),
     buildSignalListContactsDef(),
     buildSignalGeneratePairingDef(),

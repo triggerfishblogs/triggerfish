@@ -61,6 +61,47 @@ import {
 import { buildIntegrationExecutors } from "../services/integration_init.ts";
 import type { SkillContextTracker } from "../../../tools/skills/mod.ts";
 import { createSimulateToolExecutor } from "../../tools/simulate/mod.ts";
+import type { ServiceAvailability } from "../../tools/defs/tool_profiles.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+
+const availabilityLog = createLogger("service-availability");
+
+/**
+ * Detect which external services have credentials/config available.
+ *
+ * Probes the keychain for Google tokens and GitHub PAT,
+ * and checks config for CalDAV, Obsidian, Signal, Telegram, Discord, WhatsApp.
+ */
+export async function detectServiceAvailability(
+  config: TriggerFishConfig,
+  keychain: ReturnType<
+    typeof import("../../../core/secrets/keychain/keychain.ts").createKeychain
+  >,
+): Promise<ServiceAvailability> {
+  const [googleResult, githubResult] = await Promise.all([
+    keychain.getSecret("google:tokens"),
+    keychain.getSecret("github-pat"),
+  ]);
+
+  const availability: ServiceAvailability = {
+    google: googleResult.ok,
+    github: githubResult.ok,
+    caldav: config.caldav?.enabled === true,
+    obsidian: config.plugins?.obsidian?.enabled === true,
+    signal: config.channels?.signal !== undefined,
+    telegram: (config.channels?.telegram as { botToken?: string } | undefined)
+      ?.botToken !== undefined,
+    discord: config.channels?.discord !== undefined,
+    whatsapp: config.channels?.whatsapp !== undefined,
+  };
+
+  availabilityLog.info("Service availability detected", {
+    operation: "detectServiceAvailability",
+    ...availability,
+  });
+
+  return availability;
+}
 
 /** Mutable ref to tidepool tools, set after host starts. */
 export type TidepoolToolsRef = {
@@ -103,6 +144,8 @@ export interface ToolInfraResult {
   readonly tidepoolToolsRef: TidepoolToolsRef;
   /** Per-session skill context tracker for tool/domain enforcement. */
   readonly skillContextTracker?: SkillContextTracker;
+  /** Which external services are configured and have credentials. */
+  readonly serviceAvailability: ServiceAvailability;
 }
 
 /** Create the main session state and core session-level executors. */
@@ -332,6 +375,7 @@ export function assembleToolInfraResult(
   sessionExecs: Awaited<ReturnType<typeof buildSessionScopedExecutors>>,
   integrations: Awaited<ReturnType<typeof buildIntegrationExecutors>>,
   toolExecutor: ReturnType<typeof createToolExecutor>,
+  serviceAvailability: ServiceAvailability,
 ): ToolInfraResult {
   return {
     registry: baseDeps.registry,
@@ -359,6 +403,7 @@ export function assembleToolInfraResult(
     toolFloorRegistry: coreInfra.toolFloorRegistry,
     tidepoolToolsRef: sessionExecs.tidepoolToolsRef,
     skillContextTracker: integrations.skillContextTracker,
+    serviceAvailability,
   };
 }
 
@@ -384,11 +429,16 @@ export async function initializeToolInfrastructure(
     sessionExecs,
     integrations,
   );
+  const serviceAvailability = await detectServiceAvailability(
+    bootstrap.config,
+    integrations.keychain,
+  );
   return assembleToolInfraResult(
     baseDeps,
     coreInfra,
     sessionExecs,
     integrations,
     toolExecutor,
+    serviceAvailability,
   );
 }

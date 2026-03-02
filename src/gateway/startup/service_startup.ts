@@ -83,6 +83,7 @@ export function buildMainChatSession(
           restrictedPath: toolInfra.mainWorkspace.restrictedPath,
         },
       ),
+    serviceAvailability: toolInfra.serviceAvailability,
   });
 }
 

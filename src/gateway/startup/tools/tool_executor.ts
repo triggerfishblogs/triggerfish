@@ -172,10 +172,10 @@ export function assembleMainToolExecutor(
   );
   return createToolExecutor({
     ...deps,
-    googleExecutor: buildGoogleExecutor(
-      () => deps.state.session.taint,
-      deps.state.session.id,
-    ),
+    googleExecutor: buildGoogleExecutor({
+      getSessionTaint: () => deps.state.session.taint,
+      sourceSessionId: deps.state.session.id,
+    }),
     ...aux,
     providerRegistry: deps.registry,
   });

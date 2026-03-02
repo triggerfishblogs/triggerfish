@@ -24,6 +24,7 @@ import type { SessionToolContext } from "./session_tools_defs.ts";
 
 export {
   getSessionToolDefinitions,
+  getSignalToolDefinitions,
   SESSION_TOOLS_SYSTEM_PROMPT,
 } from "./session_tools_defs.ts";
 export type {
