@@ -56,6 +56,7 @@ Open a PR against the `main` branch of `greghavens/reef-registry`.
 ### 4. CI Validation
 
 The PR pipeline will automatically:
+
 - Parse your SKILL.md frontmatter
 - Validate all required fields
 - Run the security scanner
@@ -63,27 +64,27 @@ The PR pipeline will automatically:
 
 ### 5. Review and Merge
 
-A maintainer will review your skill against the criteria in REVIEW.md.
-After merge, the index rebuilds automatically and your skill becomes
-available via `triggerfish skill install my-skill`.
+A maintainer will review your skill against the criteria in REVIEW.md. After
+merge, the index rebuilds automatically and your skill becomes available via
+`triggerfish skill install my-skill`.
 
 ## Required Frontmatter Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | string | Unique skill identifier (lowercase, hyphens) |
-| `version` | string | Semver version (e.g., `1.0.0`) |
-| `description` | string | Brief description |
-| `author` | string | Your GitHub username |
-| `tags` | string[] | Searchable tags |
-| `category` | string | Skill category |
-| `classification_ceiling` | string | `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, or `RESTRICTED` |
+| Field                    | Type     | Description                                           |
+| ------------------------ | -------- | ----------------------------------------------------- |
+| `name`                   | string   | Unique skill identifier (lowercase, hyphens)          |
+| `version`                | string   | Semver version (e.g., `1.0.0`)                        |
+| `description`            | string   | Brief description                                     |
+| `author`                 | string   | Your GitHub username                                  |
+| `tags`                   | string[] | Searchable tags                                       |
+| `category`               | string   | Skill category                                        |
+| `classification_ceiling` | string   | `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, or `RESTRICTED` |
 
 ## Optional Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `requires_tools` | string[] | Tools the skill needs (null = unrestricted) |
+| Field             | Type     | Description                                      |
+| ----------------- | -------- | ------------------------------------------------ |
+| `requires_tools`  | string[] | Tools the skill needs (null = unrestricted)      |
 | `network_domains` | string[] | Domains the skill accesses (null = unrestricted) |
 
 ## Naming Conventions
@@ -95,6 +96,7 @@ available via `triggerfish skill install my-skill`.
 ## Publishing Updates
 
 To publish a new version:
+
 1. Create a new version directory: `skills/my-skill/1.1.0/SKILL.md`
 2. Update the `version` field in frontmatter
 3. Submit a PR

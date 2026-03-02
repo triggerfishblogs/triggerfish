@@ -5,17 +5,29 @@
  * are a single decision — "does this user have a classification?" Pairing
  * is one way to get a classification (alongside static config).
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { createChatSession } from "../../src/gateway/chat.ts";
-import type { ChannelAdapter, ChannelMessage, ChannelStatus, MessageHandler } from "../../src/channels/types.ts";
-import type { ClassificationLevel, Result } from "../../src/core/types/classification.ts";
+import type {
+  ChannelAdapter,
+  ChannelMessage,
+  ChannelStatus,
+  MessageHandler,
+} from "../../src/channels/types.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../src/core/types/classification.ts";
 import { createProviderRegistry } from "../../src/agent/llm.ts";
 import type { LlmProvider } from "../../src/agent/llm.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
 import { createHookRunner } from "../../src/core/policy/hooks/hooks.ts";
 import { createSession } from "../../src/core/types/session.ts";
-import type { UserId, ChannelId } from "../../src/core/types/session.ts";
-import type { PairingService, PairingCode, PairingResult } from "../../src/channels/pairing.ts";
+import type { ChannelId, UserId } from "../../src/core/types/session.ts";
+import type {
+  PairingCode,
+  PairingResult,
+  PairingService,
+} from "../../src/channels/pairing.ts";
 
 /** Create a mock adapter that records send calls. */
 function createMockAdapter(cls: ClassificationLevel = "PUBLIC"): {
@@ -29,8 +41,12 @@ function createMockAdapter(cls: ClassificationLevel = "PUBLIC"): {
   const adapter: ChannelAdapter = {
     classification: cls,
     isOwner: false,
-    connect(): Promise<void> { return Promise.resolve(); },
-    disconnect(): Promise<void> { return Promise.resolve(); },
+    connect(): Promise<void> {
+      return Promise.resolve();
+    },
+    disconnect(): Promise<void> {
+      return Promise.resolve();
+    },
     send(msg: ChannelMessage): Promise<void> {
       sent.push(msg);
       return Promise.resolve();
@@ -69,11 +85,17 @@ function createMockPairingService(opts?: {
   verifyResult?: Result<PairingResult, string>;
 }): PairingService {
   const linked = opts?.linkedUsers ?? [];
-  const verifyResult = opts?.verifyResult ?? { ok: false, error: "Invalid" } as Result<PairingResult, string>;
+  const verifyResult = opts?.verifyResult ??
+    { ok: false, error: "Invalid" } as Result<PairingResult, string>;
 
   return {
     generateCode(_channelType: string): Promise<PairingCode> {
-      return Promise.resolve({ code: "123456", channelType: _channelType, expiresAt: new Date(Date.now() + 300000), used: false });
+      return Promise.resolve({
+        code: "123456",
+        channelType: _channelType,
+        expiresAt: new Date(Date.now() + 300000),
+        used: false,
+      });
     },
     verifyCode(
       _code: string,
@@ -136,7 +158,10 @@ Deno.test("Access control: owner messages bypass all gates", async () => {
     isOwner: true,
   }, "signal");
 
-  assert(sent.length > 0, "Owner messages should bypass all gates and get a response");
+  assert(
+    sent.length > 0,
+    "Owner messages should bypass all gates and get a response",
+  );
 });
 
 // --- Test 2: Config-classified user ---
@@ -183,7 +208,11 @@ Deno.test("Access control: unclassified + respondToUnclassified=false drops send
     isOwner: false,
   }, "telegram");
 
-  assertEquals(sent.length, 0, "Unclassified sender should be silently dropped");
+  assertEquals(
+    sent.length,
+    0,
+    "Unclassified sender should be silently dropped",
+  );
 });
 
 // --- Test 4: Unclassified + respondToUnclassified=true → allowed ---
@@ -206,7 +235,10 @@ Deno.test("Access control: unclassified + respondToUnclassified=true allows send
     isOwner: false,
   }, "telegram");
 
-  assert(sent.length > 0, "Unclassified sender should get a response when respondToUnclassified=true");
+  assert(
+    sent.length > 0,
+    "Unclassified sender should get a response when respondToUnclassified=true",
+  );
 });
 
 // --- Test 5: Pairing enabled + unpaired + non-code msg → dropped ---
@@ -230,7 +262,11 @@ Deno.test("Access control: pairing enabled, unpaired sender with non-code msg dr
     isOwner: false,
   }, "signal");
 
-  assertEquals(sent.length, 0, "Unpaired sender with non-code msg should be dropped");
+  assertEquals(
+    sent.length,
+    0,
+    "Unpaired sender with non-code msg should be dropped",
+  );
 });
 
 // --- Test 6: Pairing enabled + valid 6-digit code → confirms + adds classification ---
@@ -266,7 +302,10 @@ Deno.test("Access control: valid 6-digit code pairs and confirms", async () => {
   }, "signal");
 
   assertEquals(sent.length, 1, "Should send pairing confirmation");
-  assert(sent[0].content.includes("Paired successfully"), "Confirmation message");
+  assert(
+    sent[0].content.includes("Paired successfully"),
+    "Confirmation message",
+  );
 });
 
 // --- Test 7: Pairing enabled + invalid code → silent drop ---
@@ -318,7 +357,11 @@ Deno.test("Access control: group message from unpaired sender dropped, no code c
     isOwner: false,
   }, "signal");
 
-  assertEquals(sent.length, 0, "Group message from unpaired sender should be silently dropped");
+  assertEquals(
+    sent.length,
+    0,
+    "Group message from unpaired sender should be silently dropped",
+  );
 });
 
 // --- Test 9: Pre-paired user (from storage) → allowed with pairing classification ---
@@ -371,7 +414,10 @@ Deno.test("Access control: pre-paired user allowed even with respondToUnclassifi
     isOwner: false,
   }, "signal");
 
-  assert(sent.length > 0, "Pre-paired user must be allowed even when respondToUnclassified=false");
+  assert(
+    sent.length > 0,
+    "Pre-paired user must be allowed even when respondToUnclassified=false",
+  );
 });
 
 // --- Test 11: sendTyping integration ---
@@ -393,7 +439,10 @@ Deno.test("Access control: sendTyping called on adapter during processing", asyn
     isOwner: false,
   }, "telegram");
 
-  assert(typingSent.length > 0, "sendTyping should be called on the adapter during LLM processing");
+  assert(
+    typingSent.length > 0,
+    "sendTyping should be called on the adapter during LLM processing",
+  );
 });
 
 // --- Test 12: Write-down blocked tool sends direct notification to channel ---
@@ -421,7 +470,11 @@ Deno.test("buildSendEvent: write-down blocked tool sends direct notification to 
             {
               function: {
                 name: "gmail_send",
-                arguments: JSON.stringify({ to: "test@example.com", subject: "Hi", body: "Hello" }),
+                arguments: JSON.stringify({
+                  to: "test@example.com",
+                  subject: "Hi",
+                  body: "Hello",
+                }),
               },
             },
           ],
@@ -430,7 +483,8 @@ Deno.test("buildSendEvent: write-down blocked tool sends direct notification to 
       }
       // Second call: final response after receiving the blocked tool result
       return {
-        content: "I was unable to send the email because your session taint is elevated.",
+        content:
+          "I was unable to send the email because your session taint is elevated.",
         toolCalls: [],
         usage: { inputTokens: 10, outputTokens: 5 },
       };
@@ -461,7 +515,7 @@ Deno.test("buildSendEvent: write-down blocked tool sends direct notification to 
     toolClassifications,
     // Taint is INTERNAL — simulates owner session after reading an INTERNAL resource
     getSessionTaint: () => "INTERNAL" as ClassificationLevel,
-    escalateTaint: (_level, _reason) => { /* no-op for this test */ },
+    escalateTaint: (_level, _reason) => {/* no-op for this test */},
     tools: [
       {
         name: "gmail_send",
@@ -478,7 +532,9 @@ Deno.test("buildSendEvent: write-down blocked tool sends direct notification to 
     toolExecutor: (name: string, _input: unknown) => `Tool ${name} executed`,
   });
 
-  const { adapter, sent } = createMockAdapter("INTERNAL" as ClassificationLevel);
+  const { adapter, sent } = createMockAdapter(
+    "INTERNAL" as ClassificationLevel,
+  );
 
   await chatSession.registerChannel("telegram", {
     adapter,
@@ -495,15 +551,23 @@ Deno.test("buildSendEvent: write-down blocked tool sends direct notification to 
   // Should have received at least 2 messages:
   //   1. The write-down block notification (tool_result with blocked=true)
   //   2. The LLM's final response
-  assert(sent.length >= 2, `Expected ≥2 adapter messages (block notification + final response), got ${sent.length}: ${JSON.stringify(sent.map(m => m.content))}`);
+  assert(
+    sent.length >= 2,
+    `Expected ≥2 adapter messages (block notification + final response), got ${sent.length}: ${
+      JSON.stringify(sent.map((m) => m.content))
+    }`,
+  );
 
   // The first message should be the write-down block reason
   const blockMsg = sent.find(
-    (m) => m.content.includes("cannot flow to") && m.content.includes("gmail_send"),
+    (m) =>
+      m.content.includes("cannot flow to") && m.content.includes("gmail_send"),
   );
   assert(
     blockMsg !== undefined,
-    `Expected a write-down block notification mentioning 'gmail_send', got: ${JSON.stringify(sent.map(m => m.content))}`,
+    `Expected a write-down block notification mentioning 'gmail_send', got: ${
+      JSON.stringify(sent.map((m) => m.content))
+    }`,
   );
 });
 
@@ -545,7 +609,11 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
             {
               function: {
                 name: "gmail_send",
-                arguments: JSON.stringify({ to: "a@b.com", subject: "test", body: "test" }),
+                arguments: JSON.stringify({
+                  to: "a@b.com",
+                  subject: "test",
+                  body: "test",
+                }),
               },
             },
           ],
@@ -579,7 +647,9 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
   // Path classifier that classifies all paths as INTERNAL —
   // reading /data/internal.txt escalates non-owner taint to INTERNAL.
   const pathClassifier = {
-    classify: (_path: string) => ({ classification: "INTERNAL" as ClassificationLevel }),
+    classify: (_path: string) => ({
+      classification: "INTERNAL" as ClassificationLevel,
+    }),
   };
 
   const chatSession = createChatSession({
@@ -609,7 +679,9 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
     toolExecutor: (name: string, _input: unknown) => `Result from ${name}`,
   });
 
-  const { adapter, sent } = createMockAdapter("INTERNAL" as ClassificationLevel);
+  const { adapter, sent } = createMockAdapter(
+    "INTERNAL" as ClassificationLevel,
+  );
 
   await chatSession.registerChannel("telegram", {
     adapter,
@@ -626,14 +698,20 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
   }, "telegram");
 
   // Tool should have been blocked — at minimum a final response should be sent
-  assert(sent.length >= 1, "Non-owner session should receive at least a final response");
+  assert(
+    sent.length >= 1,
+    "Non-owner session should receive at least a final response",
+  );
 
   // Verify the block notification was sent (taint escalated to INTERNAL, gmail_ is PUBLIC)
   const blockMsg = sent.find(
-    (m) => m.content.includes("cannot flow to") && m.content.includes("gmail_send"),
+    (m) =>
+      m.content.includes("cannot flow to") && m.content.includes("gmail_send"),
   );
   assert(
     blockMsg !== undefined,
-    `Expected a write-down block notification for non-owner, got: ${JSON.stringify(sent.map(m => m.content))}`,
+    `Expected a write-down block notification for non-owner, got: ${
+      JSON.stringify(sent.map((m) => m.content))
+    }`,
   );
 });

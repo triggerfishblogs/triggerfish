@@ -1,7 +1,7 @@
 /**
  * Tests for the file writer with rotation.
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { join } from "@std/path";
 import { createFileWriter } from "../../../src/core/logger/writer.ts";
 
@@ -45,7 +45,10 @@ Deno.test("FileWriter: rotates when exceeding maxBytes", async () => {
 
   // The current log should have the post-rotation content
   const current = await Deno.readTextFile(join(tmpDir, "rot.log"));
-  assert(current.includes("ddd"), "current file should have post-rotation content");
+  assert(
+    current.includes("ddd"),
+    "current file should have post-rotation content",
+  );
 
   await Deno.remove(tmpDir, { recursive: true });
 });
@@ -74,7 +77,10 @@ Deno.test("FileWriter: respects maxFiles limit", async () => {
   assert(entries.includes("lim.log"), "main log should exist");
   // There should be at most maxFiles (2) rotated files
   const rotatedCount = entries.filter((e) => /^lim\.\d+\.log$/.test(e)).length;
-  assert(rotatedCount <= 2, `should have at most 2 rotated files, got ${rotatedCount}`);
+  assert(
+    rotatedCount <= 2,
+    `should have at most 2 rotated files, got ${rotatedCount}`,
+  );
 
   await Deno.remove(tmpDir, { recursive: true });
 });

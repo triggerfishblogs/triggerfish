@@ -10,9 +10,15 @@ import { getModelInfo } from "../../src/agent/models.ts";
 // ─── Known models ──────────────────────────────────────────────
 
 Deno.test("getModelInfo returns 200k for Claude models", () => {
-  assertEquals(getModelInfo("claude-sonnet-4-5-20250929").contextWindow, 200_000);
+  assertEquals(
+    getModelInfo("claude-sonnet-4-5-20250929").contextWindow,
+    200_000,
+  );
   assertEquals(getModelInfo("claude-opus-4-6").contextWindow, 200_000);
-  assertEquals(getModelInfo("claude-3-5-sonnet-20241022").contextWindow, 200_000);
+  assertEquals(
+    getModelInfo("claude-3-5-sonnet-20241022").contextWindow,
+    200_000,
+  );
   assertEquals(getModelInfo("claude-3-haiku-20240307").contextWindow, 200_000);
 });
 
@@ -51,7 +57,10 @@ Deno.test("getModelInfo returns 100k default for unknown model", () => {
 // ─── Case insensitivity ────────────────────────────────────────
 
 Deno.test("getModelInfo is case insensitive", () => {
-  assertEquals(getModelInfo("Claude-Sonnet-4-5-20250929").contextWindow, 200_000);
+  assertEquals(
+    getModelInfo("Claude-Sonnet-4-5-20250929").contextWindow,
+    200_000,
+  );
   assertEquals(getModelInfo("GPT-4O").contextWindow, 128_000);
   assertEquals(getModelInfo("GEMINI-2.0-FLASH").contextWindow, 1_048_576);
 });
@@ -68,7 +77,13 @@ Deno.test("getModelInfo returns correct output limits", () => {
 
 Deno.test("getModelInfo handles OpenRouter-style model names", () => {
   // OpenRouter uses provider/model format — the regex should still match
-  assertEquals(getModelInfo("anthropic/claude-sonnet-4-5").contextWindow, 200_000);
+  assertEquals(
+    getModelInfo("anthropic/claude-sonnet-4-5").contextWindow,
+    200_000,
+  );
   assertEquals(getModelInfo("openai/gpt-4o").contextWindow, 128_000);
-  assertEquals(getModelInfo("google/gemini-2.0-flash").contextWindow, 1_048_576);
+  assertEquals(
+    getModelInfo("google/gemini-2.0-flash").contextWindow,
+    1_048_576,
+  );
 });

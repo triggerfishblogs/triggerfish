@@ -4,9 +4,19 @@
  * Tests SearchProvider interface contract, Brave provider request
  * construction, error handling, and option propagation.
  */
-import { assertEquals, assertGreaterOrEqual, assertLessOrEqual } from "@std/assert";
-import { createBraveSearchProvider, createRateLimitedSearchProvider } from "../../../src/tools/web/search.ts";
-import type { SearchProvider, SearchResult } from "../../../src/tools/web/search.ts";
+import {
+  assertEquals,
+  assertGreaterOrEqual,
+  assertLessOrEqual,
+} from "@std/assert";
+import {
+  createBraveSearchProvider,
+  createRateLimitedSearchProvider,
+} from "../../../src/tools/web/search.ts";
+import type {
+  SearchProvider,
+  SearchResult,
+} from "../../../src/tools/web/search.ts";
 import type { Result } from "../../../src/core/types/classification.ts";
 
 // ─── SearchProvider Interface Contract ──────────────────────────────────────
@@ -147,7 +157,9 @@ Deno.test("BraveSearchProvider: handles network error", async () => {
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (() =>
-    Promise.reject(new Error("Network unreachable"))) as unknown as typeof fetch;
+    Promise.reject(
+      new Error("Network unreachable"),
+    )) as unknown as typeof fetch;
 
   try {
     const result = await provider.search("test");
@@ -324,7 +336,11 @@ Deno.test("RateLimitedSearchProvider: preserves search results", async () => {
         ok: true as const,
         value: {
           query,
-          results: [{ title: "Result", url: "https://example.com", snippet: "Snippet" }],
+          results: [{
+            title: "Result",
+            url: "https://example.com",
+            snippet: "Snippet",
+          }],
           totalEstimate: 42,
         },
       });

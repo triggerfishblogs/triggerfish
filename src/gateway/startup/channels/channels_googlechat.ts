@@ -44,10 +44,13 @@ export interface GoogleChatChannelConfig {
 function validateGroupMode(mode: string | undefined): GroupMode {
   if (mode && VALID_GROUP_MODES.has(mode)) return mode as GroupMode;
   if (mode) {
-    log.warn("Google Chat invalid default_group_mode, falling back to mentioned-only", {
-      operation: "validateGroupMode",
-      invalidValue: mode,
-    });
+    log.warn(
+      "Google Chat invalid default_group_mode, falling back to mentioned-only",
+      {
+        operation: "validateGroupMode",
+        invalidValue: mode,
+      },
+    );
   }
   return "mentioned-only";
 }
@@ -124,8 +127,7 @@ function registerGoogleChatNotifications(
   const sessionId = `googlechat-${encodeSpaceName(ownerSpaceId)}`;
   notificationService.registerChannel({
     name: "googlechat",
-    send: (msg) =>
-      adapter.send({ content: msg, sessionId }),
+    send: (msg) => adapter.send({ content: msg, sessionId }),
   });
 }
 
@@ -145,7 +147,9 @@ export async function wireGoogleChatChannel(
   deps: ChannelWiringDeps,
   resolveToken: () => Promise<string>,
 ): Promise<void> {
-  if (!googlechatConfig.credentials_ref || !googlechatConfig.pubsub_subscription) {
+  if (
+    !googlechatConfig.credentials_ref || !googlechatConfig.pubsub_subscription
+  ) {
     log.warn(
       "Google Chat channel configured but credentials_ref or pubsub_subscription is missing",
       {

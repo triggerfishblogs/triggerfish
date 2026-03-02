@@ -5,29 +5,35 @@
  * TidePoolTools canvas render/update/clear operations, canvas protocol,
  * tool definitions, executor dispatching, and HTML composition.
  */
-import { assertEquals, assertExists, assert, assertNotEquals, assertStringIncludes } from "@std/assert";
 import {
-  card,
-  table,
-  chart,
-  form,
-  image,
-  markdown,
-  layout,
-  createA2UIHost,
-  createTidePoolTools,
-  getTidepoolToolDefinitions,
-  createTidepoolToolExecutor,
-  generateRenderId,
+  assert,
+  assertEquals,
+  assertExists,
+  assertNotEquals,
+  assertStringIncludes,
+} from "@std/assert";
+import {
   buildTidepoolHtml,
+  card,
+  chart,
+  createA2UIHost,
+  createTidepoolToolExecutor,
+  createTidePoolTools,
+  form,
+  generateRenderId,
+  getTidepoolToolDefinitions,
+  image,
+  layout,
+  markdown,
+  table,
 } from "../../src/tools/tidepool/mod.ts";
 import type {
   A2UIComponent,
   A2UIHost,
-  ComponentTree,
-  TidePoolTools,
   CanvasMessage,
   CanvasRenderComponentMessage,
+  ComponentTree,
+  TidePoolTools,
 } from "../../src/tools/tidepool/mod.ts";
 
 // ---------------------------------------------------------------------------
@@ -100,7 +106,9 @@ Deno.test("form: produces correct shape", () => {
   ]);
   assertEquals(f.type, "form");
   assertEquals(f.id, "f1");
-  const fields = f.props.fields as Array<{ name: string; type: string; label: string }>;
+  const fields = f.props.fields as Array<
+    { name: string; type: string; label: string }
+  >;
   assertEquals(fields.length, 2);
   assertEquals(fields[0].name, "email");
   assertEquals(fields[1].label, "Name");
@@ -151,7 +159,9 @@ Deno.test({
       assertEquals(host.connections, 0);
 
       const ws = new WebSocket(`ws://127.0.0.1:${TEST_PORT}`);
-      await new Promise<void>((resolve) => { ws.onopen = () => resolve(); });
+      await new Promise<void>((resolve) => {
+        ws.onopen = () => resolve();
+      });
 
       // Give the server a moment to register the connection
       await new Promise<void>((resolve) => setTimeout(resolve, 50));
@@ -182,8 +192,12 @@ Deno.test({
       const ws2 = new WebSocket(`ws://127.0.0.1:${TEST_PORT + 1}`);
 
       await Promise.all([
-        new Promise<void>((resolve) => { ws1.onopen = () => resolve(); }),
-        new Promise<void>((resolve) => { ws2.onopen = () => resolve(); }),
+        new Promise<void>((resolve) => {
+          ws1.onopen = () => resolve();
+        }),
+        new Promise<void>((resolve) => {
+          ws2.onopen = () => resolve();
+        }),
       ]);
 
       // Wait for server-side registration
@@ -252,7 +266,9 @@ Deno.test({
         };
       });
 
-      await new Promise<void>((resolve) => { ws.onopen = () => resolve(); });
+      await new Promise<void>((resolve) => {
+        ws.onopen = () => resolve();
+      });
 
       const result = await received;
       assertEquals(result.version, 5);
@@ -277,7 +293,9 @@ Deno.test({
 
     try {
       const ws = new WebSocket(`ws://127.0.0.1:${TEST_PORT + 3}`);
-      await new Promise<void>((resolve) => { ws.onopen = () => resolve(); });
+      await new Promise<void>((resolve) => {
+        ws.onopen = () => resolve();
+      });
       await new Promise<void>((resolve) => setTimeout(resolve, 50));
       assertEquals(host.connections, 1);
 
@@ -315,7 +333,9 @@ Deno.test({
 
     try {
       const ws = new WebSocket(`ws://127.0.0.1:${TEST_PORT + 10}`);
-      await new Promise<void>((resolve) => { ws.onopen = () => resolve(); });
+      await new Promise<void>((resolve) => {
+        ws.onopen = () => resolve();
+      });
       await new Promise<void>((resolve) => setTimeout(resolve, 50));
 
       const received = new Promise<CanvasMessage>((resolve) => {
@@ -353,14 +373,20 @@ Deno.test({
 // ---------------------------------------------------------------------------
 
 /** Create a mock host that records sendCanvas calls. */
-function createMockHost(): A2UIHost & { readonly canvasMessages: CanvasMessage[] } {
+function createMockHost(): A2UIHost & {
+  readonly canvasMessages: CanvasMessage[];
+} {
   const canvasMessages: CanvasMessage[] = [];
   return {
     start: async (_port: number) => {},
     stop: async () => {},
-    sendCanvas: (msg: CanvasMessage) => { canvasMessages.push(msg); },
+    sendCanvas: (msg: CanvasMessage) => {
+      canvasMessages.push(msg);
+    },
     broadcast: (_tree: ComponentTree) => {},
-    get connections() { return 0; },
+    get connections() {
+      return 0;
+    },
     canvasMessages,
   };
 }
@@ -400,7 +426,11 @@ Deno.test("TidePoolTools: renderFile sends canvas message", () => {
   const mockHost = createMockHost();
   const tools = createTidePoolTools(mockHost);
 
-  const result = tools.renderFile("Report", { filename: "report.pdf", mime: "application/pdf", data: "AAAA" });
+  const result = tools.renderFile("Report", {
+    filename: "report.pdf",
+    mime: "application/pdf",
+    data: "AAAA",
+  });
   assert(result.ok);
 
   assertEquals(mockHost.canvasMessages.length, 1);
@@ -512,8 +542,14 @@ Deno.test("executor: returns null for non-tidepool tool names", async () => {
 
 Deno.test("executor: returns error when getter returns undefined", async () => {
   const executor = createTidepoolToolExecutor(() => undefined);
-  const result = await executor("tidepool_render_component", { label: "Test", tree: {} });
-  assertEquals(result, "Tidepool is not connected. Visual workspace is unavailable.");
+  const result = await executor("tidepool_render_component", {
+    label: "Test",
+    tree: {},
+  });
+  assertEquals(
+    result,
+    "Tidepool is not connected. Visual workspace is unavailable.",
+  );
 });
 
 Deno.test("executor: dispatches render_component correctly", async () => {
@@ -574,7 +610,10 @@ Deno.test("executor: lazy getter works after wiring", async () => {
 
   // Before wiring — should return not connected
   const before = await executor("tidepool_clear", {});
-  assertEquals(before, "Tidepool is not connected. Visual workspace is unavailable.");
+  assertEquals(
+    before,
+    "Tidepool is not connected. Visual workspace is unavailable.",
+  );
 
   // Wire up the tools
   const mockHost = createMockHost();

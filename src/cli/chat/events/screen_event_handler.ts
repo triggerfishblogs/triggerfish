@@ -9,7 +9,10 @@
 
 import type { OrchestratorEvent } from "../../../agent/orchestrator/orchestrator_types.ts";
 import type { ScreenManager } from "../../terminal/screen.ts";
-import { extractTodosFromEvent, formatTodoListAnsi } from "../../../tools/todo.ts";
+import {
+  extractTodosFromEvent,
+  formatTodoListAnsi,
+} from "../../../tools/todo.ts";
 import { DIM, RED, RESET, YELLOW } from "../render/ansi.ts";
 import type { ToolDisplayMode } from "../render/ansi.ts";
 import { formatResponse } from "../render/format.ts";
@@ -24,10 +27,10 @@ import {
 } from "../render/tool_display.ts";
 import { createSpinner } from "../render/spinner.ts";
 import {
-  type ScreenHandlerState,
   buildScreenHandlerState,
   ensureStreamingActive,
   resetScreenStreamingState,
+  type ScreenHandlerState,
   stopSpinnerFallback,
   writeIndentedChunk,
   writeStreamingHeader,

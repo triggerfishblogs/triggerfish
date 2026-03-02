@@ -105,13 +105,20 @@ async function executeWebSearch(
   const result = await searchProvider.search(query, { maxResults });
 
   if (!result.ok) {
-    log.warn("Web search failed", { operation: "executeWebSearch", query, error: result.error });
+    log.warn("Web search failed", {
+      operation: "executeWebSearch",
+      query,
+      error: result.error,
+    });
     return `Search error: ${result.error}`;
   }
 
   const sr = result.value;
   if (sr.results.length === 0) {
-    log.info("Web search returned zero results", { operation: "executeWebSearch", query });
+    log.info("Web search returned zero results", {
+      operation: "executeWebSearch",
+      query,
+    });
     return `No results found for "${query}".`;
   }
 

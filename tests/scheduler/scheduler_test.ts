@@ -1,25 +1,25 @@
 /**
  * Phase 17: Cron, Triggers & Webhooks — full test suite.
  */
-import { assertEquals, assertExists, assert } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import {
-  parseCronExpression,
   createCronManager,
   createPersistentCronManager,
   matchesNow,
+  parseCronExpression,
 } from "../../src/scheduler/cron/cron.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import { createTrigger } from "../../src/scheduler/triggers/trigger.ts";
 import {
+  computeHmac,
   createWebhookHandler,
   verifyHmac,
   verifyHmacAsync,
-  computeHmac,
 } from "../../src/scheduler/webhooks/webhooks.ts";
 import { createSchedulerService } from "../../src/scheduler/service.ts";
 import type {
-  OrchestratorFactory,
   OrchestratorCreateOptions,
+  OrchestratorFactory,
   SchedulerServiceConfig,
 } from "../../src/scheduler/service_types.ts";
 
@@ -53,8 +53,16 @@ Deno.test("CronManager: creates job with classification ceiling", () => {
 
 Deno.test("CronManager: list returns all jobs", () => {
   const mgr = createCronManager();
-  mgr.create({ expression: "0 9 * * *", task: "a", classificationCeiling: "PUBLIC" });
-  mgr.create({ expression: "0 17 * * *", task: "b", classificationCeiling: "PUBLIC" });
+  mgr.create({
+    expression: "0 9 * * *",
+    task: "a",
+    classificationCeiling: "PUBLIC",
+  });
+  mgr.create({
+    expression: "0 17 * * *",
+    task: "b",
+    classificationCeiling: "PUBLIC",
+  });
   const jobs = mgr.list();
   assertEquals(jobs.length, 2);
 });
@@ -116,11 +124,11 @@ Deno.test("matchesNow: matches step expression", () => {
   assert(result.ok);
   if (!result.ok) return;
 
-  assertEquals(matchesNow(result.value, new Date(2026, 0, 1, 0, 0)), true);   // :00
-  assertEquals(matchesNow(result.value, new Date(2026, 0, 1, 0, 15)), true);  // :15
-  assertEquals(matchesNow(result.value, new Date(2026, 0, 1, 0, 30)), true);  // :30
-  assertEquals(matchesNow(result.value, new Date(2026, 0, 1, 0, 45)), true);  // :45
-  assertEquals(matchesNow(result.value, new Date(2026, 0, 1, 0, 7)), false);  // :07
+  assertEquals(matchesNow(result.value, new Date(2026, 0, 1, 0, 0)), true); // :00
+  assertEquals(matchesNow(result.value, new Date(2026, 0, 1, 0, 15)), true); // :15
+  assertEquals(matchesNow(result.value, new Date(2026, 0, 1, 0, 30)), true); // :30
+  assertEquals(matchesNow(result.value, new Date(2026, 0, 1, 0, 45)), true); // :45
+  assertEquals(matchesNow(result.value, new Date(2026, 0, 1, 0, 7)), false); // :07
 });
 
 Deno.test("matchesNow: matches day-of-week", () => {
@@ -152,7 +160,9 @@ Deno.test("Trigger: fires callback at interval", async () => {
   const hb = createTrigger({
     intervalMs: 50,
     // deno-lint-ignore require-await
-    callback: async () => { fired++; },
+    callback: async () => {
+      fired++;
+    },
     classificationCeiling: "PUBLIC",
   });
   hb.start();
@@ -166,7 +176,9 @@ Deno.test("Trigger: respects quiet hours", async () => {
   const hb = createTrigger({
     intervalMs: 50,
     // deno-lint-ignore require-await
-    callback: async () => { fired++; },
+    callback: async () => {
+      fired++;
+    },
     classificationCeiling: "PUBLIC",
     quietHours: { start: 0, end: 24 }, // All hours are quiet
   });
@@ -232,7 +244,9 @@ Deno.test("WebhookHandler: routes events to handlers", async () => {
   const handler = createWebhookHandler();
   let received: unknown = null;
   // deno-lint-ignore require-await
-  handler.on("push", async (event) => { received = event; });
+  handler.on("push", async (event) => {
+    received = event;
+  });
   await handler.handleWebhookEvent({ event: "push", data: { ref: "main" } });
   assertExists(received);
 });
@@ -241,7 +255,9 @@ Deno.test("WebhookHandler: ignores unregistered event types", async () => {
   const handler = createWebhookHandler();
   let called = false;
   // deno-lint-ignore require-await
-  handler.on("push", async () => { called = true; });
+  handler.on("push", async () => {
+    called = true;
+  });
   await handler.handleWebhookEvent({ event: "release", data: {} });
   assertEquals(called, false);
 });
@@ -264,8 +280,14 @@ function createMockFactory(): {
       return {
         orchestrator: {
           // deno-lint-ignore require-await
-          executeAgentTurn: async () => ({ ok: true as const, value: { response: "done", tokenUsage: { inputTokens: 100, outputTokens: 50 } } }),
-        // deno-lint-ignore no-explicit-any
+          executeAgentTurn: async () => ({
+            ok: true as const,
+            value: {
+              response: "done",
+              tokenUsage: { inputTokens: 100, outputTokens: 50 },
+            },
+          }),
+          // deno-lint-ignore no-explicit-any
         } as any,
         session: {
           id: "mock-session",
@@ -274,7 +296,7 @@ function createMockFactory(): {
           lastActivityAt: new Date(),
           messages: [],
           context: {},
-        // deno-lint-ignore no-explicit-any
+          // deno-lint-ignore no-explicit-any
         } as any,
       };
     },
@@ -306,7 +328,9 @@ function createTestConfig(
 }
 
 /** Config with timestamp enforcement enabled (5-minute window). */
-function createTimestampConfig(factory: OrchestratorFactory): SchedulerServiceConfig {
+function createTimestampConfig(
+  factory: OrchestratorFactory,
+): SchedulerServiceConfig {
   return {
     orchestratorFactory: factory,
     triggerMdPath: "/tmp/nonexistent-trigger.md",
@@ -338,7 +362,9 @@ Deno.test("SchedulerService: webhook rejects when disabled", async () => {
     webhooks: { enabled: false, sources: {} },
   }));
 
-  const result = await svc.handleWebhookRequest("github", "{}", { signature: "sha256=abc" });
+  const result = await svc.handleWebhookRequest("github", "{}", {
+    signature: "sha256=abc",
+  });
   assertEquals(result.ok, false);
   if (!result.ok) {
     assertEquals(result.error, "Webhooks are disabled");
@@ -349,7 +375,9 @@ Deno.test("SchedulerService: webhook rejects unknown source", async () => {
   const { factory } = createMockFactory();
   const svc = createSchedulerService(createTestConfig(factory));
 
-  const result = await svc.handleWebhookRequest("unknown", "{}", { signature: "sha256=abc" });
+  const result = await svc.handleWebhookRequest("unknown", "{}", {
+    signature: "sha256=abc",
+  });
   assertEquals(result.ok, false);
   if (!result.ok) {
     assert(result.error.includes("Unknown webhook source"));
@@ -361,7 +389,9 @@ Deno.test("SchedulerService: webhook rejects invalid signature", async () => {
   const svc = createSchedulerService(createTestConfig(factory));
 
   const body = '{"event":"push","data":{}}';
-  const result = await svc.handleWebhookRequest("github", body, { signature: "sha256=bad" });
+  const result = await svc.handleWebhookRequest("github", body, {
+    signature: "sha256=bad",
+  });
   assertEquals(result.ok, false);
   if (!result.ok) {
     assertEquals(result.error, "Invalid HMAC signature");
@@ -374,7 +404,9 @@ Deno.test("SchedulerService: webhook processes valid request", async () => {
 
   const body = '{"event":"push","data":{"ref":"main"}}';
   const sig = await computeHmac(body, "gh-secret");
-  const result = await svc.handleWebhookRequest("github", body, { signature: sig });
+  const result = await svc.handleWebhookRequest("github", body, {
+    signature: sig,
+  });
   assertEquals(result.ok, true);
   assertEquals(calls.length, 1);
   assertEquals(calls[0], "webhook-github");
@@ -386,7 +418,9 @@ Deno.test("SchedulerService: webhook dispatches to event handler", async () => {
 
   let receivedEvent: unknown = null;
   // deno-lint-ignore require-await
-  svc.webhookHandler.on("push", async (evt) => { receivedEvent = evt; });
+  svc.webhookHandler.on("push", async (evt) => {
+    receivedEvent = evt;
+  });
 
   const body = '{"event":"push","data":{"ref":"main"}}';
   const sig = await computeHmac(body, "gh-secret");
@@ -411,7 +445,11 @@ Deno.test("SchedulerService: cron manager is accessible", () => {
 Deno.test("SchedulerService: uses injected cronManager", () => {
   const { factory } = createMockFactory();
   const mgr = createCronManager();
-  mgr.create({ expression: "0 9 * * *", task: "pre-existing", classificationCeiling: "PUBLIC" });
+  mgr.create({
+    expression: "0 9 * * *",
+    task: "pre-existing",
+    classificationCeiling: "PUBLIC",
+  });
 
   const svc = createSchedulerService({
     ...createTestConfig(factory),
@@ -534,7 +572,9 @@ Deno.test("SchedulerService: webhook output delivered via notificationService", 
 
   const body = '{"event":"push","data":{"ref":"main"}}';
   const sig = await computeHmac(body, "gh-secret");
-  const result = await svc.handleWebhookRequest("github", body, { signature: sig });
+  const result = await svc.handleWebhookRequest("github", body, {
+    signature: sig,
+  });
   assertEquals(result.ok, true);
   assertEquals(calls.length, 1);
 
@@ -553,7 +593,9 @@ Deno.test("SchedulerService: delivery failure does not crash scheduler", async (
   notificationService.registerChannel({
     name: "broken",
     // deno-lint-ignore require-await
-    send: async () => { throw new Error("delivery boom"); },
+    send: async () => {
+      throw new Error("delivery boom");
+    },
   });
   const ownerId = "test-owner" as UserId;
 
@@ -567,7 +609,9 @@ Deno.test("SchedulerService: delivery failure does not crash scheduler", async (
   const body = '{"event":"push","data":{"ref":"main"}}';
   const sig = await computeHmac(body, "gh-secret");
   // Should not throw
-  const result = await svc.handleWebhookRequest("github", body, { signature: sig });
+  const result = await svc.handleWebhookRequest("github", body, {
+    signature: sig,
+  });
   assertEquals(result.ok, true);
 
   // Notification should still be stored despite channel failure
@@ -582,7 +626,9 @@ Deno.test("SchedulerService: no error when notificationService is absent", async
   const body = '{"event":"push","data":{"ref":"main"}}';
   const sig = await computeHmac(body, "gh-secret");
   // Should not throw even without notificationService
-  const result = await svc.handleWebhookRequest("github", body, { signature: sig });
+  const result = await svc.handleWebhookRequest("github", body, {
+    signature: sig,
+  });
   assertEquals(result.ok, true);
   assertEquals(calls.length, 1);
 });
@@ -642,7 +688,9 @@ Deno.test("OrchestratorFactory: create() works without options (cron/subagent)",
  * Create a factory whose orchestrator returns a specific tokenUsage.
  * Used to verify the scheduler correctly handles and logs token data.
  */
-function createTokenAwareMockFactory(tokenUsage: { inputTokens: number; outputTokens: number }): {
+function createTokenAwareMockFactory(
+  tokenUsage: { inputTokens: number; outputTokens: number },
+): {
   factory: OrchestratorFactory;
   calls: string[];
 } {
@@ -658,7 +706,7 @@ function createTokenAwareMockFactory(tokenUsage: { inputTokens: number; outputTo
             ok: true as const,
             value: { response: "token test response", tokenUsage },
           }),
-        // deno-lint-ignore no-explicit-any
+          // deno-lint-ignore no-explicit-any
         } as any,
         session: {
           id: "mock-session",
@@ -667,7 +715,7 @@ function createTokenAwareMockFactory(tokenUsage: { inputTokens: number; outputTo
           lastActivityAt: new Date(),
           messages: [],
           context: {},
-        // deno-lint-ignore no-explicit-any
+          // deno-lint-ignore no-explicit-any
         } as any,
       };
     },
@@ -676,13 +724,18 @@ function createTokenAwareMockFactory(tokenUsage: { inputTokens: number; outputTo
 }
 
 Deno.test("SchedulerService: token usage from executeAgentTurn is logged without error (webhook)", async () => {
-  const { factory } = createTokenAwareMockFactory({ inputTokens: 1234, outputTokens: 567 });
+  const { factory } = createTokenAwareMockFactory({
+    inputTokens: 1234,
+    outputTokens: 567,
+  });
   const svc = createSchedulerService(createTestConfig(factory));
 
   const body = '{"event":"push","data":{"ref":"main"}}';
   const sig = await computeHmac(body, "gh-secret");
   // Should succeed — the token logging code path runs without throwing
-  const result = await svc.handleWebhookRequest("github", body, { signature: sig });
+  const result = await svc.handleWebhookRequest("github", body, {
+    signature: sig,
+  });
   assertEquals(result.ok, true);
 });
 
@@ -691,7 +744,9 @@ Deno.test("SchedulerService: runTrigger() fires trigger callback immediately", a
   await Deno.writeTextFile(triggerPath, "# Test Trigger\nCheck for updates.");
   try {
     const { factory, calls, options } = createMockFactory();
-    const svc = createSchedulerService(createTestConfig(factory, { triggerMdPath: triggerPath }));
+    const svc = createSchedulerService(
+      createTestConfig(factory, { triggerMdPath: triggerPath }),
+    );
 
     await svc.runTrigger();
 
@@ -713,10 +768,14 @@ Deno.test("SchedulerService: webhook rejects replayed request (same signature)",
   const body = '{"event":"push","data":{"ref":"replay-test"}}';
   const sig = await computeHmac(body, "gh-secret");
 
-  const first = await svc.handleWebhookRequest("github", body, { signature: sig });
+  const first = await svc.handleWebhookRequest("github", body, {
+    signature: sig,
+  });
   assertEquals(first.ok, true);
 
-  const replay = await svc.handleWebhookRequest("github", body, { signature: sig });
+  const replay = await svc.handleWebhookRequest("github", body, {
+    signature: sig,
+  });
   assertEquals(replay.ok, false);
   if (!replay.ok) {
     assert(replay.error.includes("Replay"));
@@ -731,7 +790,9 @@ Deno.test("SchedulerService: webhook rejects missing timestamp when maxAgeMs con
   const body = '{"event":"push","data":{}}';
   const sig = await computeHmac(body, "gh-secret");
   // No timestamp in context → rejected
-  const result = await svc.handleWebhookRequest("github", body, { signature: sig });
+  const result = await svc.handleWebhookRequest("github", body, {
+    signature: sig,
+  });
   assertEquals(result.ok, false);
   if (!result.ok) assert(result.error.includes("timestamp"));
 });
@@ -742,7 +803,10 @@ Deno.test("SchedulerService: webhook rejects expired timestamp", async () => {
   const body = '{"event":"push","data":{}}';
   const sig = await computeHmac(body, "gh-secret");
   const expired = String(Date.now() - 600_000); // 10 minutes ago (5-min window)
-  const result = await svc.handleWebhookRequest("github", body, { signature: sig, timestamp: expired });
+  const result = await svc.handleWebhookRequest("github", body, {
+    signature: sig,
+    timestamp: expired,
+  });
   assertEquals(result.ok, false);
   if (!result.ok) assert(result.error.includes("timestamp"));
 });
@@ -777,14 +841,18 @@ Deno.test("SchedulerService: webhook rate limiter blocks requests beyond burst l
   for (let i = 0; i < 2; i++) {
     const body = `{"event":"push","data":{"ref":"${i}"}}`;
     const sig = await computeHmac(body, "gh-secret");
-    const result = await svc.handleWebhookRequest("github", body, { signature: sig });
+    const result = await svc.handleWebhookRequest("github", body, {
+      signature: sig,
+    });
     assertEquals(result.ok, true, `Request ${i} should succeed`);
   }
 
   // 3rd request exceeds burst
   const body3 = '{"event":"push","data":{"ref":"overflow"}}';
   const sig3 = await computeHmac(body3, "gh-secret");
-  const limited = await svc.handleWebhookRequest("github", body3, { signature: sig3 });
+  const limited = await svc.handleWebhookRequest("github", body3, {
+    signature: sig3,
+  });
   assertEquals(limited.ok, false);
   if (!limited.ok) {
     assert(limited.error.includes("Rate limit"));
@@ -814,7 +882,10 @@ Deno.test("SchedulerService: trigger callback passes isTrigger=true and ceiling 
 
     // Verify the factory was called with trigger options
     const triggerCall = options.find((o) => o?.isTrigger === true);
-    assert(triggerCall !== undefined, "Expected trigger to call factory with isTrigger=true");
+    assert(
+      triggerCall !== undefined,
+      "Expected trigger to call factory with isTrigger=true",
+    );
     assertEquals(triggerCall?.ceiling, "CONFIDENTIAL");
   } finally {
     await Deno.remove(triggerPath).catch(() => {});

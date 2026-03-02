@@ -30,7 +30,10 @@ Deno.test("route: low priority routes to batch digest", () => {
 // Deduplication
 // ---------------------------------------------------------------------------
 
-function makeOptions(message: string, userId = "user-1" as UserId): DeliverOptions {
+function makeOptions(
+  message: string,
+  userId = "user-1" as UserId,
+): DeliverOptions {
   return { userId, message, priority: "normal" };
 }
 
@@ -58,7 +61,10 @@ Deno.test("isDuplicate: different users are not duplicates", () => {
   const router = createPriorityRouter();
 
   router.recordDelivery(makeOptions("hello", "user-1" as UserId));
-  assertEquals(router.isDuplicate(makeOptions("hello", "user-2" as UserId)), false);
+  assertEquals(
+    router.isDuplicate(makeOptions("hello", "user-2" as UserId)),
+    false,
+  );
 });
 
 Deno.test("isDuplicate: returns false after deduplication window expires", () => {

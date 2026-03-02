@@ -6,7 +6,10 @@
 
 import { assertEquals } from "@std/assert";
 import { createDriveService } from "../../../src/integrations/google/drive/drive.ts";
-import type { GoogleApiClient, GoogleApiResult } from "../../../src/integrations/google/types.ts";
+import type {
+  GoogleApiClient,
+  GoogleApiResult,
+} from "../../../src/integrations/google/types.ts";
 
 function createMockClient(
   responses: Record<string, GoogleApiResult<unknown>>,
@@ -19,11 +22,17 @@ function createMockClient(
     for (const [key, value] of sorted) {
       if (url.includes(key)) return value;
     }
-    return { ok: false, error: { code: "NOT_FOUND", message: `No mock for: ${url}` } };
+    return {
+      ok: false,
+      error: { code: "NOT_FOUND", message: `No mock for: ${url}` },
+    };
   }
 
   return {
-    get<T>(url: string, _params?: Record<string, string>): Promise<GoogleApiResult<T>> {
+    get<T>(
+      url: string,
+      _params?: Record<string, string>,
+    ): Promise<GoogleApiResult<T>> {
       return Promise.resolve(findResponse(url) as GoogleApiResult<T>);
     },
     post<T>(url: string, _body: unknown): Promise<GoogleApiResult<T>> {
@@ -53,7 +62,8 @@ Deno.test("DriveService.search: returns files", async () => {
           {
             id: "f2",
             name: "Budget.xlsx",
-            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            mimeType:
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             size: "15000",
           },
         ],

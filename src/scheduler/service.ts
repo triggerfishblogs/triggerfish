@@ -117,7 +117,15 @@ function stopSchedulerTimers(state: SchedulerState): void {
 async function processWebhookRequest(
   options: ProcessWebhookOptions,
 ): Promise<Result<void, string>> {
-  const { config, webhookHandler, sourceId, body, context, replayGuard, getRateLimiter } = options;
+  const {
+    config,
+    webhookHandler,
+    sourceId,
+    body,
+    context,
+    replayGuard,
+    getRateLimiter,
+  } = options;
   const validation = await validateWebhookRequest({
     config,
     sourceId,
@@ -128,7 +136,13 @@ async function processWebhookRequest(
   });
   if (!validation.ok) return validation;
   const { event, classification } = validation.value;
-  await executeWebhookSession({ config, sourceId, body, event, classification });
+  await executeWebhookSession({
+    config,
+    sourceId,
+    body,
+    event,
+    classification,
+  });
   await webhookHandler.handleWebhookEvent(event);
   return { ok: true, value: undefined };
 }
@@ -150,7 +164,9 @@ export function createSchedulerService(
   const state: SchedulerState = { cronTickId: undefined, trigger: undefined };
   const infra: SchedulerInfra = { state, config, cronManager };
 
-  const replayGuard = createReplayGuard(config.webhooks.replayGuardSize ?? 10_000);
+  const replayGuard = createReplayGuard(
+    config.webhooks.replayGuardSize ?? 10_000,
+  );
   const rateLimiters = new Map<string, RateLimiter>();
 
   function getRateLimiter(sourceId: string): RateLimiter {

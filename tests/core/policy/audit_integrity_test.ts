@@ -6,10 +6,10 @@
  */
 import { assertEquals } from "@std/assert";
 import {
-  createAuditChain,
-  verifyAuditChain,
   type AuditEntry,
   type ChainedAuditEntry,
+  createAuditChain,
+  verifyAuditChain,
 } from "../../../src/core/policy/mod.ts";
 
 // ---------------------------------------------------------------------------
@@ -74,7 +74,9 @@ Deno.test("append: three entries form a linked chain", async () => {
 Deno.test("entries: returns snapshot of all chained entries", async () => {
   const chain = createAuditChain("test-secret");
   await chain.append(makeEntry());
-  await chain.append(makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }));
+  await chain.append(
+    makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }),
+  );
 
   const snapshot = chain.entries();
   assertEquals(snapshot.length, 2);
@@ -124,8 +126,12 @@ Deno.test("verify: multi-entry chain is valid", async () => {
 Deno.test("verify: tampered entry hash breaks chain", async () => {
   const chain = createAuditChain("test-secret");
   await chain.append(makeEntry());
-  await chain.append(makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }));
-  await chain.append(makeEntry({ timestamp: new Date("2025-01-15T12:02:00Z") }));
+  await chain.append(
+    makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }),
+  );
+  await chain.append(
+    makeEntry({ timestamp: new Date("2025-01-15T12:02:00Z") }),
+  );
 
   // Extract entries and tamper with the middle one's hash
   const snapshot = chain.entries() as ChainedAuditEntry[];
@@ -146,7 +152,9 @@ Deno.test("verify: tampered entry hash breaks chain", async () => {
 Deno.test("verify: tampered entry data breaks chain", async () => {
   const chain = createAuditChain("test-secret");
   await chain.append(makeEntry());
-  await chain.append(makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }));
+  await chain.append(
+    makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }),
+  );
 
   // Extract entries and modify the first entry's payload
   const snapshot = chain.entries() as ChainedAuditEntry[];
@@ -170,7 +178,9 @@ Deno.test("verify: tampered entry data breaks chain", async () => {
 Deno.test("verify: tampered previousHash breaks chain", async () => {
   const chain = createAuditChain("test-secret");
   await chain.append(makeEntry());
-  await chain.append(makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }));
+  await chain.append(
+    makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }),
+  );
 
   const snapshot = chain.entries() as ChainedAuditEntry[];
   const tampered: ChainedAuditEntry[] = snapshot.map((e, i) => {
@@ -190,7 +200,9 @@ Deno.test("verify: tampered previousHash breaks chain", async () => {
 Deno.test("verify: wrong secret fails verification", async () => {
   const chain = createAuditChain("correct-secret");
   await chain.append(makeEntry());
-  await chain.append(makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }));
+  await chain.append(
+    makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }),
+  );
 
   const snapshot = chain.entries();
   const result = await verifyAuditChain("wrong-secret", snapshot);
@@ -212,8 +224,12 @@ Deno.test("verifyAuditChain: empty array is valid", async () => {
 Deno.test("verifyAuditChain: valid entries from chain pass", async () => {
   const chain = createAuditChain("shared-secret");
   await chain.append(makeEntry());
-  await chain.append(makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }));
-  await chain.append(makeEntry({ timestamp: new Date("2025-01-15T12:02:00Z") }));
+  await chain.append(
+    makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }),
+  );
+  await chain.append(
+    makeEntry({ timestamp: new Date("2025-01-15T12:02:00Z") }),
+  );
 
   const result = await verifyAuditChain("shared-secret", chain.entries());
   assertEquals(result.ok, true);
@@ -222,7 +238,9 @@ Deno.test("verifyAuditChain: valid entries from chain pass", async () => {
 Deno.test("verifyAuditChain: detects out-of-order index", async () => {
   const chain = createAuditChain("test-secret");
   await chain.append(makeEntry());
-  await chain.append(makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }));
+  await chain.append(
+    makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }),
+  );
 
   const snapshot = chain.entries() as ChainedAuditEntry[];
   // Swap the index on the second entry
@@ -297,8 +315,12 @@ Deno.test("append: entry with only timestamp is valid", async () => {
 Deno.test("verify: removing an entry from the middle breaks chain", async () => {
   const chain = createAuditChain("test-secret");
   await chain.append(makeEntry());
-  await chain.append(makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }));
-  await chain.append(makeEntry({ timestamp: new Date("2025-01-15T12:02:00Z") }));
+  await chain.append(
+    makeEntry({ timestamp: new Date("2025-01-15T12:01:00Z") }),
+  );
+  await chain.append(
+    makeEntry({ timestamp: new Date("2025-01-15T12:02:00Z") }),
+  );
 
   const snapshot = chain.entries() as ChainedAuditEntry[];
   // Remove middle entry

@@ -34,8 +34,7 @@ export function buildSheetsReadDef(): ToolDefinition {
 export function buildSheetsWriteDef(): ToolDefinition {
   return {
     name: "sheets_write",
-    description:
-      "Write values to a range of cells in a Google Sheet.",
+    description: "Write values to a range of cells in a Google Sheet.",
     parameters: {
       spreadsheet_id: {
         type: "string",

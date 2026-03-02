@@ -7,10 +7,10 @@ import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import { createTriggerStore } from "../../src/scheduler/triggers/store.ts";
 import type { TriggerResult } from "../../src/scheduler/triggers/store.ts";
 import {
-  createTriggerToolExecutor,
   createTriggerClassificationToolExecutor,
-  getTriggerToolDefinitions,
+  createTriggerToolExecutor,
   getTriggerContextToolDefinitions,
+  getTriggerToolDefinitions,
 } from "../../src/gateway/tools/trigger/trigger_tools.ts";
 import type { TriggerToolContext } from "../../src/gateway/tools/trigger/trigger_tools.ts";
 
@@ -67,8 +67,13 @@ Deno.test("trigger_add_to_context: returns error when no trigger result exists",
 Deno.test("trigger_add_to_context: returns error for unknown source", async () => {
   const ctx = makeCtx();
   const exec = createTriggerToolExecutor(ctx);
-  const result = await exec("trigger_add_to_context", { source: "cron:nonexistent" });
-  assertStringIncludes(result as string, "No trigger result found for source: cron:nonexistent");
+  const result = await exec("trigger_add_to_context", {
+    source: "cron:nonexistent",
+  });
+  assertStringIncludes(
+    result as string,
+    "No trigger result found for source: cron:nonexistent",
+  );
 });
 
 // ── Classification allowed ────────────────────────────────────────────
@@ -76,7 +81,10 @@ Deno.test("trigger_add_to_context: returns error for unknown source", async () =
 Deno.test("trigger_add_to_context: returns trigger content when classification allows", async () => {
   const storage = createMemoryStorage();
   const store = createTriggerStore(storage);
-  const triggerResult = makeResult({ message: "Everything is fine.", classification: "PUBLIC" });
+  const triggerResult = makeResult({
+    message: "Everything is fine.",
+    classification: "PUBLIC",
+  });
   await store.save(triggerResult);
 
   const ctx = makeCtx({ triggerStore: store, sessionTaint: "PUBLIC" });
@@ -90,7 +98,10 @@ Deno.test("trigger_add_to_context: returns trigger content when classification a
 Deno.test("trigger_add_to_context: session taint < trigger classification (write-up) is allowed", async () => {
   const storage = createMemoryStorage();
   const store = createTriggerStore(storage);
-  const triggerResult = makeResult({ message: "Internal info.", classification: "INTERNAL" });
+  const triggerResult = makeResult({
+    message: "Internal info.",
+    classification: "INTERNAL",
+  });
   await store.save(triggerResult);
 
   const ctx = makeCtx({ triggerStore: store, sessionTaint: "PUBLIC" });
@@ -104,7 +115,10 @@ Deno.test("trigger_add_to_context: session taint < trigger classification (write
 Deno.test("trigger_add_to_context: blocks when session taint > trigger classification (write-down)", async () => {
   const storage = createMemoryStorage();
   const store = createTriggerStore(storage);
-  const triggerResult = makeResult({ message: "Public news.", classification: "PUBLIC" });
+  const triggerResult = makeResult({
+    message: "Public news.",
+    classification: "PUBLIC",
+  });
   await store.save(triggerResult);
 
   const ctx = makeCtx({ triggerStore: store, sessionTaint: "CONFIDENTIAL" });
@@ -131,13 +145,20 @@ Deno.test("trigger_add_to_context: RESTRICTED session blocked from PUBLIC trigge
 Deno.test("trigger_add_to_context: escalates session taint when trigger classification is higher", async () => {
   const storage = createMemoryStorage();
   const store = createTriggerStore(storage);
-  await store.save(makeResult({ message: "Confidential info.", classification: "CONFIDENTIAL" }));
+  await store.save(
+    makeResult({
+      message: "Confidential info.",
+      classification: "CONFIDENTIAL",
+    }),
+  );
 
   let escalatedTo: string | undefined;
   const ctx = makeCtx({
     triggerStore: store,
     sessionTaint: "PUBLIC",
-    escalateTaint: (level) => { escalatedTo = level; },
+    escalateTaint: (level) => {
+      escalatedTo = level;
+    },
   });
   const exec = createTriggerToolExecutor(ctx);
   await exec("trigger_add_to_context", {});
@@ -153,7 +174,9 @@ Deno.test("trigger_add_to_context: does not escalate when trigger classification
   const ctx = makeCtx({
     triggerStore: store,
     sessionTaint: "INTERNAL",
-    escalateTaint: () => { escalated = true; },
+    escalateTaint: () => {
+      escalated = true;
+    },
   });
   const exec = createTriggerToolExecutor(ctx);
   await exec("trigger_add_to_context", {});
@@ -165,8 +188,12 @@ Deno.test("trigger_add_to_context: does not escalate when trigger classification
 Deno.test("trigger_add_to_context: defaults to 'trigger' source when not specified", async () => {
   const storage = createMemoryStorage();
   const store = createTriggerStore(storage);
-  await store.save(makeResult({ source: "trigger", message: "default source result" }));
-  await store.save(makeResult({ source: "cron:job-1", message: "cron result" }));
+  await store.save(
+    makeResult({ source: "trigger", message: "default source result" }),
+  );
+  await store.save(
+    makeResult({ source: "cron:job-1", message: "cron result" }),
+  );
 
   const ctx = makeCtx({ triggerStore: store, sessionTaint: "PUBLIC" });
   const exec = createTriggerToolExecutor(ctx);
@@ -177,8 +204,12 @@ Deno.test("trigger_add_to_context: defaults to 'trigger' source when not specifi
 Deno.test("trigger_add_to_context: source parameter selects the correct stored result", async () => {
   const storage = createMemoryStorage();
   const store = createTriggerStore(storage);
-  await store.save(makeResult({ source: "trigger", message: "periodic result" }));
-  await store.save(makeResult({ source: "cron:job-1", message: "cron job result" }));
+  await store.save(
+    makeResult({ source: "trigger", message: "periodic result" }),
+  );
+  await store.save(
+    makeResult({ source: "cron:job-1", message: "cron job result" }),
+  );
 
   const ctx = makeCtx({ triggerStore: store, sessionTaint: "PUBLIC" });
   const exec = createTriggerToolExecutor(ctx);
@@ -213,32 +244,65 @@ Deno.test("trigger executor: returns error when context is undefined", async () 
 // ── get_tool_classification ───────────────────────────────────────────
 
 Deno.test("get_tool_classification: returns PUBLIC for built-in tools", async () => {
-  const map = new Map<string, "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED">([
+  const map = new Map<
+    string,
+    "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED"
+  >([
     ["gmail_", "CONFIDENTIAL"],
     ["github_", "INTERNAL"],
   ]);
   const exec = createTriggerClassificationToolExecutor(map);
-  const result = await exec("get_tool_classification", { tools: ["web_search", "memory_save"] });
+  const result = await exec("get_tool_classification", {
+    tools: ["web_search", "memory_save"],
+  });
   const parsed = JSON.parse(result as string);
   assertEquals(parsed.classifications.length, 2);
-  assertEquals(parsed.classifications.find((c: { tool: string }) => c.tool === "web_search").classification, "PUBLIC");
-  assertEquals(parsed.classifications.find((c: { tool: string }) => c.tool === "memory_save").classification, "PUBLIC");
+  assertEquals(
+    parsed.classifications.find((c: { tool: string }) =>
+      c.tool === "web_search"
+    ).classification,
+    "PUBLIC",
+  );
+  assertEquals(
+    parsed.classifications.find((c: { tool: string }) =>
+      c.tool === "memory_save"
+    ).classification,
+    "PUBLIC",
+  );
 });
 
 Deno.test("get_tool_classification: returns correct classification for integration tools", async () => {
-  const map = new Map<string, "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED">([
+  const map = new Map<
+    string,
+    "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED"
+  >([
     ["gmail_", "CONFIDENTIAL"],
     ["github_", "INTERNAL"],
   ]);
   const exec = createTriggerClassificationToolExecutor(map);
-  const result = await exec("get_tool_classification", { tools: ["gmail_list", "github_search_repos"] });
+  const result = await exec("get_tool_classification", {
+    tools: ["gmail_list", "github_search_repos"],
+  });
   const parsed = JSON.parse(result as string);
-  assertEquals(parsed.classifications.find((c: { tool: string }) => c.tool === "gmail_list").classification, "CONFIDENTIAL");
-  assertEquals(parsed.classifications.find((c: { tool: string }) => c.tool === "github_search_repos").classification, "INTERNAL");
+  assertEquals(
+    parsed.classifications.find((c: { tool: string }) =>
+      c.tool === "gmail_list"
+    ).classification,
+    "CONFIDENTIAL",
+  );
+  assertEquals(
+    parsed.classifications.find((c: { tool: string }) =>
+      c.tool === "github_search_repos"
+    ).classification,
+    "INTERNAL",
+  );
 });
 
 Deno.test("get_tool_classification: recommended_order sorts lowest to highest", async () => {
-  const map = new Map<string, "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED">([
+  const map = new Map<
+    string,
+    "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED"
+  >([
     ["gmail_", "CONFIDENTIAL"],
     ["github_", "INTERNAL"],
   ]);
@@ -247,7 +311,9 @@ Deno.test("get_tool_classification: recommended_order sorts lowest to highest", 
     tools: ["gmail_list", "web_search", "github_search_repos"],
   });
   const parsed = JSON.parse(result as string);
-  const order = parsed.recommended_order.map((c: { classification: string }) => c.classification);
+  const order = parsed.recommended_order.map((c: { classification: string }) =>
+    c.classification
+  );
   // web_search = PUBLIC, github = INTERNAL, gmail = CONFIDENTIAL
   assertEquals(order[0], "PUBLIC");
   assertEquals(order[1], "INTERNAL");
@@ -255,25 +321,36 @@ Deno.test("get_tool_classification: recommended_order sorts lowest to highest", 
 });
 
 Deno.test("get_tool_classification: returns error for empty tools list", async () => {
-  const map = new Map<string, "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED">();
+  const map = new Map<
+    string,
+    "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED"
+  >();
   const exec = createTriggerClassificationToolExecutor(map);
   const result = await exec("get_tool_classification", { tools: [] });
   assertStringIncludes(result as string, "Error");
 });
 
 Deno.test("get_tool_classification: returns null for non-matching tool names", async () => {
-  const map = new Map<string, "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED">();
+  const map = new Map<
+    string,
+    "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED"
+  >();
   const exec = createTriggerClassificationToolExecutor(map);
   const result = await exec("some_other_tool", { tools: ["foo"] });
   assertEquals(result, null);
 });
 
 Deno.test("get_tool_classification: includes instruction in output", async () => {
-  const map = new Map<string, "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED">([
+  const map = new Map<
+    string,
+    "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED"
+  >([
     ["gmail_", "CONFIDENTIAL"],
   ]);
   const exec = createTriggerClassificationToolExecutor(map);
-  const result = await exec("get_tool_classification", { tools: ["gmail_list"] });
+  const result = await exec("get_tool_classification", {
+    tools: ["gmail_list"],
+  });
   const parsed = JSON.parse(result as string);
   assertStringIncludes(parsed.instruction, "lowest classification first");
 });

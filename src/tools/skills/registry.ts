@@ -33,7 +33,11 @@ const DEFAULT_BASE_URL = "https://greghavens.github.io/reef-registry";
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
 
 // Re-export shared types from core so existing importers continue to work.
-export type { ReefRegistry, ReefSearchOptions, ReefSkillListing } from "../../core/types/skills.ts";
+export type {
+  ReefRegistry,
+  ReefSearchOptions,
+  ReefSkillListing,
+} from "../../core/types/skills.ts";
 
 /** Options for creating a Reef registry client. */
 export interface ReefRegistryOptions {
@@ -135,7 +139,8 @@ function validateSkillName(name: string): Result<string, string> {
   if (!SKILL_NAME_PATTERN.test(name)) {
     return {
       ok: false,
-      error: `Skill name contains invalid characters: "${name}" (must match ${SKILL_NAME_PATTERN})`,
+      error:
+        `Skill name contains invalid characters: "${name}" (must match ${SKILL_NAME_PATTERN})`,
     };
   }
   return { ok: true, value: name };
@@ -151,7 +156,8 @@ function validateSkillVersion(version: string): Result<string, string> {
   if (!SEMVER_VERSION_PATTERN.test(version)) {
     return {
       ok: false,
-      error: `Skill version contains invalid characters: "${version}" (must match ${SEMVER_VERSION_PATTERN})`,
+      error:
+        `Skill version contains invalid characters: "${version}" (must match ${SEMVER_VERSION_PATTERN})`,
     };
   }
   return { ok: true, value: version };
@@ -216,7 +222,8 @@ function validateRegistryUrl(
   if (parsed.hostname !== expectedHost) {
     return {
       ok: false,
-      error: `Registry URL hostname mismatch: expected ${expectedHost}, got ${parsed.hostname}`,
+      error:
+        `Registry URL hostname mismatch: expected ${expectedHost}, got ${parsed.hostname}`,
     };
   }
   return { ok: true, value: parsed };
@@ -399,8 +406,7 @@ async function verifyDownloadChecksum(
   if (actual !== expectedChecksum) {
     return {
       ok: false,
-      error:
-        `Checksum mismatch: expected ${expectedChecksum}, got ${actual}`,
+      error: `Checksum mismatch: expected ${expectedChecksum}, got ${actual}`,
     };
   }
   return { ok: true, value: undefined };
@@ -735,8 +741,7 @@ async function executePublish(
   if (!raw) {
     return {
       ok: false,
-      error:
-        "SKILL.md missing YAML frontmatter (must start with ---)",
+      error: "SKILL.md missing YAML frontmatter (must start with ---)",
     };
   }
 

@@ -1,12 +1,12 @@
 /**
  * Tests for the structured logger.
  */
-import { assertEquals, assert, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import {
-  initLogger,
-  shutdownLogger,
   createLogger,
+  initLogger,
   isLoggerInitialized,
+  shutdownLogger,
 } from "../../../src/core/logger/logger.ts";
 import type { FileWriter } from "../../../src/core/logger/writer.ts";
 
@@ -35,7 +35,10 @@ Deno.test("Logger: format includes timestamp, level, and component", () => {
   assertEquals(writer.lines.length, 1);
   const line = writer.lines[0];
   // Check format: [ISO timestamp] [INFO] [gateway] server started
-  assert(/^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\]/.test(line), "should start with ISO timestamp");
+  assert(
+    /^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\]/.test(line),
+    "should start with ISO timestamp",
+  );
   assertStringIncludes(line, "[INFO]");
   assertStringIncludes(line, "[gateway]");
   assertStringIncludes(line, "server started");

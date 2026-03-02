@@ -3,21 +3,32 @@
  * Tests MUST FAIL until orchestrator.ts and llm.ts are implemented.
  * Tests LlmProvider interface, provider registry, orchestrator loop.
  */
-import { assertEquals, assertExists, assert, assertStringIncludes } from "@std/assert";
 import {
-  type LlmProvider,
+  assert,
+  assertEquals,
+  assertExists,
+  assertStringIncludes,
+} from "@std/assert";
+import {
   createProviderRegistry,
+  type LlmProvider,
 } from "../../src/agent/llm.ts";
 import { createOrchestrator } from "../../src/agent/orchestrator/orchestrator.ts";
 import { LEAKED_INTENT_PATTERN } from "../../src/agent/orchestrator/orchestrator_types.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
-import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks/hooks.ts";
+import {
+  createDefaultRules,
+  createHookRunner,
+} from "../../src/core/policy/hooks/hooks.ts";
 import { createSession } from "../../src/core/types/session.ts";
-import type { UserId, ChannelId } from "../../src/core/types/session.ts";
+import type { ChannelId, UserId } from "../../src/core/types/session.ts";
 
 // --- Mock LLM Provider ---
 
-function createMockProvider(name: string, response = "mock response"): LlmProvider {
+function createMockProvider(
+  name: string,
+  response = "mock response",
+): LlmProvider {
   return {
     name,
     supportsStreaming: false,
@@ -119,7 +130,10 @@ Deno.test("Orchestrator: blocks output when write-down would occur", async () =>
   });
 
   // Session already tainted to RESTRICTED
-  let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  let session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const { updateTaint } = await import("../../src/core/types/session.ts");
   session = updateTaint(session, "RESTRICTED", "secret doc");
 
@@ -144,7 +158,10 @@ Deno.test("Orchestrator: maintains conversation history per session", async () =
     providerRegistry: registry,
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
 
   await orchestrator.executeAgentTurn({
     session,
@@ -170,7 +187,11 @@ Deno.test("Orchestrator: loads SPINE.md as system prompt foundation", async () =
     async complete(messages, _tools, _options) {
       const system = messages.find((m) => m.role === "system");
       if (system) receivedSystemPrompt = system.content as string;
-      return { content: "ok", toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } };
+      return {
+        content: "ok",
+        toolCalls: [],
+        usage: { inputTokens: 1, outputTokens: 1 },
+      };
     },
   };
   registry.register(trackingProvider);
@@ -182,7 +203,10 @@ Deno.test("Orchestrator: loads SPINE.md as system prompt foundation", async () =
     spinePath: "/tmp/test-spine.md",
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   await orchestrator.executeAgentTurn({
     session,
     message: "hi",
@@ -208,15 +232,22 @@ Deno.test("Orchestrator: parses native tool calls (OpenAI format)", async () => 
       callCount++;
       if (callCount === 1) {
         return {
-          content: '',
+          content: "",
           toolCalls: [{
             type: "function",
-            function: { name: "read_file", arguments: '{"path":"/tmp/test.txt"}' },
+            function: {
+              name: "read_file",
+              arguments: '{"path":"/tmp/test.txt"}',
+            },
           }],
           usage: { inputTokens: 10, outputTokens: 5 },
         };
       }
-      return { content: "Done reading file.", toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } };
+      return {
+        content: "Done reading file.",
+        toolCalls: [],
+        usage: { inputTokens: 10, outputTokens: 5 },
+      };
     },
   };
   registry.register(toolProvider);
@@ -226,13 +257,29 @@ Deno.test("Orchestrator: parses native tool calls (OpenAI format)", async () => 
   const orchestrator = createOrchestrator({
     hookRunner: runner,
     providerRegistry: registry,
-    tools: [{ name: "read_file", description: "Read a file", parameters: { path: { type: "string", description: "path", required: true } } }],
+    tools: [{
+      name: "read_file",
+      description: "Read a file",
+      parameters: {
+        path: { type: "string", description: "path", required: true },
+      },
+    }],
     // deno-lint-ignore require-await
-    toolExecutor: async (_name, input) => { executedArgs = input; return "file content"; },
+    toolExecutor: async (_name, input) => {
+      executedArgs = input;
+      return "file content";
+    },
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  await orchestrator.executeAgentTurn({ session, message: "read it", targetClassification: "INTERNAL" });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
+  await orchestrator.executeAgentTurn({
+    session,
+    message: "read it",
+    targetClassification: "INTERNAL",
+  });
   assertEquals(executedArgs.path, "/tmp/test.txt");
 });
 
@@ -250,7 +297,7 @@ Deno.test("Orchestrator: parses native tool calls (Anthropic format)", async () 
       callCount++;
       if (callCount === 1) {
         return {
-          content: '',
+          content: "",
           toolCalls: [{
             type: "tool_use",
             name: "run_command",
@@ -259,7 +306,11 @@ Deno.test("Orchestrator: parses native tool calls (Anthropic format)", async () 
           usage: { inputTokens: 10, outputTokens: 5 },
         };
       }
-      return { content: "Listed files.", toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } };
+      return {
+        content: "Listed files.",
+        toolCalls: [],
+        usage: { inputTokens: 10, outputTokens: 5 },
+      };
     },
   };
   registry.register(toolProvider);
@@ -269,13 +320,29 @@ Deno.test("Orchestrator: parses native tool calls (Anthropic format)", async () 
   const orchestrator = createOrchestrator({
     hookRunner: runner,
     providerRegistry: registry,
-    tools: [{ name: "run_command", description: "Run command", parameters: { command: { type: "string", description: "cmd", required: true } } }],
+    tools: [{
+      name: "run_command",
+      description: "Run command",
+      parameters: {
+        command: { type: "string", description: "cmd", required: true },
+      },
+    }],
     // deno-lint-ignore require-await
-    toolExecutor: async (_name, input) => { executedArgs = input; return "output"; },
+    toolExecutor: async (_name, input) => {
+      executedArgs = input;
+      return "output";
+    },
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  await orchestrator.executeAgentTurn({ session, message: "run ls", targetClassification: "INTERNAL" });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
+  await orchestrator.executeAgentTurn({
+    session,
+    message: "run ls",
+    targetClassification: "INTERNAL",
+  });
   assertEquals(executedArgs.command, "ls -la");
 });
 
@@ -293,7 +360,7 @@ Deno.test("Orchestrator: parses native tool calls with nested arguments", async 
       callCount++;
       if (callCount === 1) {
         return {
-          content: '',
+          content: "",
           toolCalls: [{
             type: "function",
             function: { name: "list_directory", arguments: '{"path":"/home"}' },
@@ -301,7 +368,11 @@ Deno.test("Orchestrator: parses native tool calls with nested arguments", async 
           usage: { inputTokens: 10, outputTokens: 5 },
         };
       }
-      return { content: "Listed dir.", toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } };
+      return {
+        content: "Listed dir.",
+        toolCalls: [],
+        usage: { inputTokens: 10, outputTokens: 5 },
+      };
     },
   };
   registry.register(toolProvider);
@@ -311,13 +382,29 @@ Deno.test("Orchestrator: parses native tool calls with nested arguments", async 
   const orchestrator = createOrchestrator({
     hookRunner: runner,
     providerRegistry: registry,
-    tools: [{ name: "list_directory", description: "List dir", parameters: { path: { type: "string", description: "path", required: true } } }],
+    tools: [{
+      name: "list_directory",
+      description: "List dir",
+      parameters: {
+        path: { type: "string", description: "path", required: true },
+      },
+    }],
     // deno-lint-ignore require-await
-    toolExecutor: async (_name, input) => { executedArgs = input; return "/home/venom"; },
+    toolExecutor: async (_name, input) => {
+      executedArgs = input;
+      return "/home/venom";
+    },
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  await orchestrator.executeAgentTurn({ session, message: "list home", targetClassification: "INTERNAL" });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
+  await orchestrator.executeAgentTurn({
+    session,
+    message: "list home",
+    targetClassification: "INTERNAL",
+  });
   assertEquals(executedArgs.path, "/home");
 });
 
@@ -335,15 +422,22 @@ Deno.test("Orchestrator: parses native tool calls with content alongside", async
       callCount++;
       if (callCount === 1) {
         return {
-          content: 'Running the command now.',
+          content: "Running the command now.",
           toolCalls: [{
             type: "function",
-            function: { name: "run_command", arguments: '{"command":"echo hello"}' },
+            function: {
+              name: "run_command",
+              arguments: '{"command":"echo hello"}',
+            },
           }],
           usage: { inputTokens: 10, outputTokens: 5 },
         };
       }
-      return { content: "Echoed.", toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } };
+      return {
+        content: "Echoed.",
+        toolCalls: [],
+        usage: { inputTokens: 10, outputTokens: 5 },
+      };
     },
   };
   registry.register(toolProvider);
@@ -353,13 +447,29 @@ Deno.test("Orchestrator: parses native tool calls with content alongside", async
   const orchestrator = createOrchestrator({
     hookRunner: runner,
     providerRegistry: registry,
-    tools: [{ name: "run_command", description: "Run command", parameters: { command: { type: "string", description: "cmd", required: true } } }],
+    tools: [{
+      name: "run_command",
+      description: "Run command",
+      parameters: {
+        command: { type: "string", description: "cmd", required: true },
+      },
+    }],
     // deno-lint-ignore require-await
-    toolExecutor: async (_name, input) => { executedArgs = input; return "hello"; },
+    toolExecutor: async (_name, input) => {
+      executedArgs = input;
+      return "hello";
+    },
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  await orchestrator.executeAgentTurn({ session, message: "echo", targetClassification: "INTERNAL" });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
+  await orchestrator.executeAgentTurn({
+    session,
+    message: "echo",
+    targetClassification: "INTERNAL",
+  });
   assertEquals(executedArgs.command, "echo hello");
 });
 
@@ -376,7 +486,10 @@ Deno.test("Orchestrator: uses default prompt when SPINE.md absent", async () => 
     spinePath: "/nonexistent/SPINE.md",
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const result = await orchestrator.executeAgentTurn({
     session,
     message: "hi",
@@ -418,7 +531,10 @@ Deno.test("LEAKED_INTENT_PATTERN: does not match normal response text", () => {
     "Search results indicate several options.",
   ];
   for (const phrase of negatives) {
-    assert(!LEAKED_INTENT_PATTERN.test(phrase), `Should NOT match: "${phrase}"`);
+    assert(
+      !LEAKED_INTENT_PATTERN.test(phrase),
+      `Should NOT match: "${phrase}"`,
+    );
   }
 });
 
@@ -443,12 +559,19 @@ Deno.test("Orchestrator: isTriggerSession=undefined is always false (default den
   const orchestrator = createOrchestrator({
     hookRunner: runner,
     providerRegistry: registry,
-    tools: [{ name: "read_file", description: "Read a file", parameters: { path: { type: "string", description: "path" } } }],
+    tools: [{
+      name: "read_file",
+      description: "Read a file",
+      parameters: { path: { type: "string", description: "path" } },
+    }],
     toolExecutor: (name) => `${name} result`,
     // isTriggerSession not set — must be false per "undefined is always false" rule
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   // With no isOwnerSession or isTriggerSession set, the non-owner check is bypassed
   // (legacy behaviour). The tool runs because neither check activates.
   const result = await orchestrator.executeAgentTurn({
@@ -471,7 +594,14 @@ Deno.test("Orchestrator: trigger session allows built-in tools (not blocked as n
   const orchestrator = createOrchestrator({
     hookRunner: runner,
     providerRegistry: registry,
-    tools: [{ name: "memory_save", description: "Save memory", parameters: { key: { type: "string", description: "key" }, value: { type: "string", description: "value" } } }],
+    tools: [{
+      name: "memory_save",
+      description: "Save memory",
+      parameters: {
+        key: { type: "string", description: "key" },
+        value: { type: "string", description: "value" },
+      },
+    }],
     toolExecutor: (name) => `${name} saved`,
     isTriggerSession: () => true,
     getNonOwnerCeiling: () => "CONFIDENTIAL" as const,
@@ -480,7 +610,10 @@ Deno.test("Orchestrator: trigger session allows built-in tools (not blocked as n
     escalateTaint: () => {},
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const result = await orchestrator.executeAgentTurn({
     session,
     message: "use memory tool",
@@ -507,11 +640,18 @@ Deno.test("Orchestrator: trigger session blocks integration tool above ceiling",
       if (callCount === 1) {
         return {
           content: "",
-          toolCalls: [{ type: "function", function: { name: "gmail_list", arguments: "{}" } }],
+          toolCalls: [{
+            type: "function",
+            function: { name: "gmail_list", arguments: "{}" },
+          }],
           usage: { inputTokens: 10, outputTokens: 5 },
         };
       }
-      return { content: "Done.", toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } };
+      return {
+        content: "Done.",
+        toolCalls: [],
+        usage: { inputTokens: 10, outputTokens: 5 },
+      };
     },
   };
   registry.register(toolProvider);
@@ -534,7 +674,10 @@ Deno.test("Orchestrator: trigger session blocks integration tool above ceiling",
     },
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   await orchestrator.executeAgentTurn({
     session,
     message: "list gmail",
@@ -560,11 +703,18 @@ Deno.test("Orchestrator: trigger session allows integration tool at ceiling leve
       if (callCount === 1) {
         return {
           content: "",
-          toolCalls: [{ type: "function", function: { name: "github_search_repos", arguments: "{}" } }],
+          toolCalls: [{
+            type: "function",
+            function: { name: "github_search_repos", arguments: "{}" },
+          }],
           usage: { inputTokens: 10, outputTokens: 5 },
         };
       }
-      return { content: "Done.", toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } };
+      return {
+        content: "Done.",
+        toolCalls: [],
+        usage: { inputTokens: 10, outputTokens: 5 },
+      };
     },
   };
   registry.register(toolProvider);
@@ -574,8 +724,15 @@ Deno.test("Orchestrator: trigger session allows integration tool at ceiling leve
   const orchestrator = createOrchestrator({
     hookRunner: runner,
     providerRegistry: registry,
-    tools: [{ name: "github_search_repos", description: "Search GitHub repos", parameters: {} }],
-    toolExecutor: () => { toolExecuted = true; return "repos found"; },
+    tools: [{
+      name: "github_search_repos",
+      description: "Search GitHub repos",
+      parameters: {},
+    }],
+    toolExecutor: () => {
+      toolExecuted = true;
+      return "repos found";
+    },
     isTriggerSession: () => true,
     // Ceiling is INTERNAL — github (INTERNAL) is at ceiling → allowed
     getNonOwnerCeiling: () => "INTERNAL" as const,
@@ -584,7 +741,10 @@ Deno.test("Orchestrator: trigger session allows integration tool at ceiling leve
     escalateTaint: () => {},
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   await orchestrator.executeAgentTurn({
     session,
     message: "search repos",

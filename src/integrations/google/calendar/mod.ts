@@ -8,23 +8,23 @@
 
 export type {
   Attendee,
+  CalendarCreateOptions,
   CalendarEvent,
   CalendarListOptions,
-  CalendarCreateOptions,
-  CalendarUpdateOptions,
   CalendarService,
+  CalendarUpdateOptions,
 } from "./types_calendar.ts";
 
 export { createCalendarService } from "./calendar.ts";
 
 export {
-  buildCalendarListDef,
   buildCalendarCreateDef,
+  buildCalendarListDef,
   buildCalendarUpdateDef,
 } from "./tools_defs_calendar.ts";
 
 export {
-  executeCalendarList,
   executeCalendarCreate,
+  executeCalendarList,
   executeCalendarUpdate,
 } from "./tools_exec_calendar.ts";

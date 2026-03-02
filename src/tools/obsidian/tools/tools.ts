@@ -16,7 +16,10 @@ import { getClassificationForPath } from "../vault.ts";
 
 import type { ObsidianToolContext } from "./tools_defs.ts";
 import { resolveNotePath } from "./tools_read_write.ts";
-import { executeObsidianRead, executeObsidianWrite } from "./tools_read_write.ts";
+import {
+  executeObsidianRead,
+  executeObsidianWrite,
+} from "./tools_read_write.ts";
 
 // ─── Executor ────────────────────────────────────────────────────────────────
 
@@ -46,18 +49,30 @@ export function createObsidianToolExecutor(
           return "Error: obsidian_search requires a 'query' argument (non-empty string).";
         }
 
-        const folder = typeof input.folder === "string" ? input.folder : undefined;
+        const folder = typeof input.folder === "string"
+          ? input.folder
+          : undefined;
         const tags = Array.isArray(input.tags)
           ? input.tags.filter((t): t is string => typeof t === "string")
           : undefined;
-        const maxResults = typeof input.max_results === "number" ? input.max_results : undefined;
+        const maxResults = typeof input.max_results === "number"
+          ? input.max_results
+          : undefined;
 
-        const result = await ctx.noteStore.search({ query, folder, tags, maxResults });
+        const result = await ctx.noteStore.search({
+          query,
+          folder,
+          tags,
+          maxResults,
+        });
         if (!result.ok) return `Error: ${result.error}`;
 
         // Filter by classification
         const filtered = result.value.filter((note) => {
-          const noteClass = getClassificationForPath(ctx.vaultContext, note.path);
+          const noteClass = getClassificationForPath(
+            ctx.vaultContext,
+            note.path,
+          );
           return canFlowTo(noteClass, ctx.getSessionTaint());
         });
 
@@ -74,21 +89,33 @@ export function createObsidianToolExecutor(
       }
 
       case "obsidian_list": {
-        const folder = typeof input.folder === "string" ? input.folder : undefined;
+        const folder = typeof input.folder === "string"
+          ? input.folder
+          : undefined;
         const tags = Array.isArray(input.tags)
           ? input.tags.filter((t): t is string => typeof t === "string")
           : undefined;
         const sortBy = typeof input.sort_by === "string"
           ? input.sort_by as "name" | "modified" | "created"
           : undefined;
-        const maxResults = typeof input.max_results === "number" ? input.max_results : undefined;
+        const maxResults = typeof input.max_results === "number"
+          ? input.max_results
+          : undefined;
 
-        const result = await ctx.noteStore.list({ folder, tags, sortBy, maxResults });
+        const result = await ctx.noteStore.list({
+          folder,
+          tags,
+          sortBy,
+          maxResults,
+        });
         if (!result.ok) return `Error: ${result.error}`;
 
         // Filter by classification
         const filtered = result.value.filter((note) => {
-          const noteClass = getClassificationForPath(ctx.vaultContext, note.path);
+          const noteClass = getClassificationForPath(
+            ctx.vaultContext,
+            note.path,
+          );
           return canFlowTo(noteClass, ctx.getSessionTaint());
         });
 
@@ -104,7 +131,9 @@ export function createObsidianToolExecutor(
 
       case "obsidian_daily": {
         const date = typeof input.date === "string" ? input.date : undefined;
-        const template = typeof input.template === "string" ? input.template : undefined;
+        const template = typeof input.template === "string"
+          ? input.template
+          : undefined;
 
         const result = await ctx.dailyNoteManager.getOrCreate(date, template);
         if (!result.ok) return `Error: ${result.error}`;
@@ -124,7 +153,9 @@ export function createObsidianToolExecutor(
           return "Error: obsidian_links requires a 'note' argument (non-empty string).";
         }
 
-        const direction = typeof input.direction === "string" ? input.direction : "backlinks";
+        const direction = typeof input.direction === "string"
+          ? input.direction
+          : "backlinks";
 
         if (direction === "resolve") {
           const resolved = await ctx.linkResolver.resolveWikilink(noteName);

@@ -2,7 +2,7 @@
  * Phase 21: Multi-Agent, Failover & Onboarding
  * Tests MUST FAIL until routing, failover, and dive setup are implemented.
  */
-import { assertEquals, assertExists, assert } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import { createAgentRouter } from "../../src/routing/router.ts";
 import { createFailoverChain } from "../../src/models/failover.ts";
 import { createPatrolCheck } from "../../src/dive/patrol.ts";
@@ -39,7 +39,11 @@ function mockProvider(name: string, shouldFail: boolean): LlmProvider {
     // deno-lint-ignore require-await
     async complete() {
       if (shouldFail) throw new Error("rate_limited");
-      return { content: `response from ${name}`, toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } };
+      return {
+        content: `response from ${name}`,
+        toolCalls: [],
+        usage: { inputTokens: 1, outputTokens: 1 },
+      };
     },
   };
 }
@@ -49,7 +53,11 @@ Deno.test("FailoverChain: uses primary when available", async () => {
     mockProvider("primary", false),
     mockProvider("backup", false),
   ]);
-  const result = await chain.complete([{ role: "user", content: "hi" }], [], {});
+  const result = await chain.complete(
+    [{ role: "user", content: "hi" }],
+    [],
+    {},
+  );
   assertEquals(result.content, "response from primary");
 });
 
@@ -58,7 +66,11 @@ Deno.test("FailoverChain: falls back on primary failure", async () => {
     mockProvider("primary", true),
     mockProvider("backup", false),
   ]);
-  const result = await chain.complete([{ role: "user", content: "hi" }], [], {});
+  const result = await chain.complete(
+    [{ role: "user", content: "hi" }],
+    [],
+    {},
+  );
   assertEquals(result.content, "response from backup");
 });
 

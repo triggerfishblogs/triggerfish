@@ -113,7 +113,9 @@ async function executeSignalGeneratePairing(
     const code = await ctx.pairingService.generateCode("signal");
     return `Pairing code generated: ${code.code}\n\nGive this code to the person who wants to chat. They should send it as a message to your Signal number. The code expires in 5 minutes.`;
   } catch (err) {
-    return `Error generating pairing code: ${err instanceof Error ? err.message : String(err)}`;
+    return `Error generating pairing code: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   }
 }
 

@@ -13,8 +13,8 @@ export {
 export { createObsidianToolExecutor } from "./tools.ts";
 
 export {
-  resolveNotePath,
-  recordLineage,
   executeObsidianRead,
   executeObsidianWrite,
+  recordLineage,
+  resolveNotePath,
 } from "./tools_read_write.ts";

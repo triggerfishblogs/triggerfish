@@ -2,13 +2,15 @@
  * Link resolution tests — wikilink resolve, backlinks, outlinks.
  */
 
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { createVaultContext } from "../../../src/tools/obsidian/vault.ts";
 import { createLinkResolver } from "../../../src/tools/obsidian/links.ts";
 import type { VaultContext } from "../../../src/tools/obsidian/vault.ts";
 
 /** Create a temp vault with .obsidian marker. */
-async function makeTempVaultCtx(): Promise<{ ctx: VaultContext; path: string }> {
+async function makeTempVaultCtx(): Promise<
+  { ctx: VaultContext; path: string }
+> {
   const dir = await Deno.makeTempDir({ prefix: "obsidian_links_" });
   await Deno.mkdir(`${dir}/.obsidian`);
   const result = await createVaultContext({
@@ -88,8 +90,14 @@ Deno.test("LinkResolver.getBacklinks: finds notes linking to target", async () =
   const { ctx, path } = await makeTempVaultCtx();
   try {
     await Deno.writeTextFile(`${path}/Target.md`, "# Target Note");
-    await Deno.writeTextFile(`${path}/Source A.md`, "Links to [[Target]] here.");
-    await Deno.writeTextFile(`${path}/Source B.md`, "Also links to [[Target]] there.");
+    await Deno.writeTextFile(
+      `${path}/Source A.md`,
+      "Links to [[Target]] here.",
+    );
+    await Deno.writeTextFile(
+      `${path}/Source B.md`,
+      "Also links to [[Target]] there.",
+    );
     await Deno.writeTextFile(`${path}/Unrelated.md`, "No links here.");
     const resolver = createLinkResolver(ctx);
     const result = await resolver.getBacklinks("Target");
@@ -124,7 +132,10 @@ Deno.test("LinkResolver.getBacklinks: returns empty for note with no backlinks",
 Deno.test("LinkResolver.getOutlinks: finds all wikilinks in a note", async () => {
   const { ctx, path } = await makeTempVaultCtx();
   try {
-    await Deno.writeTextFile(`${path}/Source.md`, "Links to [[Alpha]] and [[Beta]] and [[Gamma]].");
+    await Deno.writeTextFile(
+      `${path}/Source.md`,
+      "Links to [[Alpha]] and [[Beta]] and [[Gamma]].",
+    );
     await Deno.writeTextFile(`${path}/Alpha.md`, "# Alpha");
     await Deno.writeTextFile(`${path}/Beta.md`, "# Beta");
     const resolver = createLinkResolver(ctx);

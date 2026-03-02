@@ -6,19 +6,19 @@
 
 export type {
   HookContext,
-  HookLogger,
   HookLogEntry,
+  HookLogger,
   HookResult,
   HookRunner,
   HookRunnerOptions,
 } from "./hook_types.ts";
 
 export {
-  detectWriteDownViolation,
-  detectToolFloorViolation,
-  detectResourceWriteDownViolation,
-  detectResourceReadCeilingViolation,
   buildEvaluationContext,
+  detectResourceReadCeilingViolation,
+  detectResourceWriteDownViolation,
+  detectToolFloorViolation,
+  detectWriteDownViolation,
 } from "./hook_violations.ts";
 
 export { createHookRunner } from "./hook_runner.ts";

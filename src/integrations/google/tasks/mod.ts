@@ -7,22 +7,22 @@
  */
 
 export type {
+  TaskCreateOptions,
   TaskItem,
   TaskListOptions,
-  TaskCreateOptions,
   TasksService,
 } from "./types_tasks.ts";
 
 export { createTasksService } from "./tasks.ts";
 
 export {
-  buildTasksListDef,
-  buildTasksCreateDef,
   buildTasksCompleteDef,
+  buildTasksCreateDef,
+  buildTasksListDef,
 } from "./tools_defs_tasks.ts";
 
 export {
-  executeTasksList,
-  executeTasksCreate,
   executeTasksComplete,
+  executeTasksCreate,
+  executeTasksList,
 } from "./tools_exec_tasks.ts";

@@ -29,9 +29,9 @@ export {
 } from "./classifier.ts";
 
 export {
+  type BraveSearchConfig,
   createBraveSearchProvider,
   createRateLimitedSearchProvider,
-  type BraveSearchConfig,
   type SearchOptions,
   type SearchProvider,
   type SearchResult,

@@ -75,7 +75,10 @@ async function collectChannelChoices(): Promise<ChannelChoice[]> {
       { name: "Telegram (requires bot token)", value: "telegram" },
       { name: "Discord (requires bot token)", value: "discord" },
       { name: "Signal (requires signal-cli)", value: "signal" },
-      { name: "Google Chat (requires service account + PubSub)", value: "googlechat" },
+      {
+        name: "Google Chat (requires service account + PubSub)",
+        value: "googlechat",
+      },
     ],
   })) as ChannelChoice[];
 
@@ -128,7 +131,9 @@ async function collectSignalConfig(): Promise<{
   signalPhoneNumber: string;
   signalEndpoint: string;
 }> {
-  console.log("  Signal channel requires signal-cli to be installed and linked");
+  console.log(
+    "  Signal channel requires signal-cli to be installed and linked",
+  );
   const signalPhoneNumber = await Input.prompt({
     message: "Your Signal phone number (E.164 format, e.g. +15551234567)",
   });
@@ -148,7 +153,9 @@ async function collectGoogleChatConfig(): Promise<{
   googlechatPubsubSubscription: string;
   googlechatOwnerEmail: string;
 }> {
-  console.log("  Google Chat channel requires a service account and PubSub subscription");
+  console.log(
+    "  Google Chat channel requires a service account and PubSub subscription",
+  );
   const googlechatCredentialsRef = await Input.prompt({
     message: "Service account credentials secret ref",
   });
@@ -161,7 +168,11 @@ async function collectGoogleChatConfig(): Promise<{
   if (googlechatCredentialsRef.length > 0) {
     console.log("  Google Chat credentials collected for config");
   }
-  return { googlechatCredentialsRef, googlechatPubsubSubscription, googlechatOwnerEmail };
+  return {
+    googlechatCredentialsRef,
+    googlechatPubsubSubscription,
+    googlechatOwnerEmail,
+  };
 }
 
 // ── Collect configs for selected channels ─────────────────────────────────────
@@ -201,7 +212,9 @@ async function collectSelectedChannelConfigs(
 // ── Step entry point ──────────────────────────────────────────────────────────
 
 /** Run the channel selection wizard step (Step 3/8). */
-export async function promptChannelSelectionStep(): Promise<ChannelSelectionResult> {
+export async function promptChannelSelectionStep(): Promise<
+  ChannelSelectionResult
+> {
   console.log("  Step 3/8: Connect your first channel");
   console.log("  (CLI is always available)");
   console.log("");

@@ -9,7 +9,11 @@
 
 import { assertEquals, assertRejects } from "@std/assert";
 import { createGoogleChatChannel } from "../../../src/channels/googlechat/adapter.ts";
-import type { GoogleChatConfig, GoogleChatEvent, PubSubPullResponse } from "../../../src/channels/googlechat/types.ts";
+import type {
+  GoogleChatConfig,
+  GoogleChatEvent,
+  PubSubPullResponse,
+} from "../../../src/channels/googlechat/types.ts";
 import type { ChannelMessage } from "../../../src/channels/types.ts";
 
 // ─── Test helpers ───────────────────────────────────────────────────────────
@@ -44,8 +48,8 @@ function createMockFetch(): {
     const url = typeof input === "string"
       ? input
       : input instanceof URL
-        ? input.toString()
-        : input.url;
+      ? input.toString()
+      : input.url;
     calls.push({ url, body: (init?.body as string) ?? "" });
     return Promise.resolve(
       new Response(JSON.stringify({ name: "spaces/AAAA/messages/123" }), {
@@ -175,7 +179,8 @@ Deno.test({
 // ─── DM message dispatch tests ──────────────────────────────────────────────
 
 Deno.test({
-  name: "googlechat adapter: DM messages produce googlechat-{space} session IDs",
+  name:
+    "googlechat adapter: DM messages produce googlechat-{space} session IDs",
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -262,7 +267,8 @@ Deno.test({
 // ─── Group space tests ──────────────────────────────────────────────────────
 
 Deno.test({
-  name: "googlechat adapter: group messages produce googlechat-group-{space} session IDs",
+  name:
+    "googlechat adapter: group messages produce googlechat-group-{space} session IDs",
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -304,7 +310,8 @@ Deno.test({
 });
 
 Deno.test({
-  name: "googlechat adapter: mentioned-only mode filters non-mentioned group messages",
+  name:
+    "googlechat adapter: mentioned-only mode filters non-mentioned group messages",
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {

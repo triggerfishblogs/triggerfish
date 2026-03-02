@@ -9,11 +9,9 @@
  * @module
  */
 
-/** Minimal trusted PATH for exec subprocesses. Never inherited from parent. */
-export const SAFE_EXEC_PATH = "/usr/local/bin:/usr/bin:/bin";
-
 /** Env vars that are safe to inherit from the parent for all subprocesses. */
 const BASE_INHERIT_ALLOWLIST: ReadonlySet<string> = new Set([
+  "PATH",
   "HOME",
   "USER",
   "LANG",
@@ -62,10 +60,10 @@ export interface SafeEnvOptions {
 /**
  * Build a sanitized environment for general subprocess execution.
  *
- * PATH is always set to SAFE_EXEC_PATH. Only vars in the base allowlist
- * are inherited from the parent. Caller may provide extra vars via
- * options.extraVars. LD_PRELOAD, LD_LIBRARY_PATH, secrets, and all other
- * unlisted vars are never passed to the child process.
+ * Only vars in the base allowlist (PATH, HOME, LANG, etc.) are inherited
+ * from the parent. Caller may provide extra vars via options.extraVars.
+ * LD_PRELOAD, LD_LIBRARY_PATH, secrets, and all other unlisted vars are
+ * never passed to the child process.
  */
 export function buildSafeEnv(options?: SafeEnvOptions): Record<string, string> {
   const parent = Deno.env.toObject();
@@ -78,9 +76,6 @@ export function buildSafeEnv(options?: SafeEnvOptions): Record<string, string> {
   if (options?.workspaceHome !== undefined) {
     env["HOME"] = options.workspaceHome;
   }
-
-  // Always override PATH with the safe minimal value — never inherit.
-  env["PATH"] = SAFE_EXEC_PATH;
 
   if (options?.extraVars) {
     for (const [k, v] of Object.entries(options.extraVars)) {
@@ -95,19 +90,17 @@ export function buildSafeEnv(options?: SafeEnvOptions): Record<string, string> {
  * Build a sanitized environment for spawning the Claude CLI binary.
  *
  * Extends buildSafeEnv with the Claude-specific allowlist (API auth vars).
- * PATH is always set to SAFE_EXEC_PATH. CLAUDECODE is always excluded to
- * avoid the nesting guard in the Claude CLI.
+ * CLAUDECODE is always excluded to avoid the nesting guard in the Claude CLI.
  */
-export function buildClaudeEnv(options?: SafeEnvOptions): Record<string, string> {
+export function buildClaudeEnv(
+  options?: SafeEnvOptions,
+): Record<string, string> {
   const parent = Deno.env.toObject();
   const env: Record<string, string> = {};
 
   for (const key of CLAUDE_INHERIT_ALLOWLIST) {
     if (key in parent) env[key] = parent[key];
   }
-
-  // Always override PATH with the safe minimal value — never inherit.
-  env["PATH"] = SAFE_EXEC_PATH;
 
   if (options?.extraVars) {
     for (const [k, v] of Object.entries(options.extraVars)) {

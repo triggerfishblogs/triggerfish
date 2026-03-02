@@ -380,7 +380,10 @@ Deno.test("MemoryStore — overwrite preserves createdAt", async () => {
   if (!result2.ok) return;
 
   assertEquals(result2.value.createdAt.getTime(), originalCreatedAt.getTime());
-  assertNotEquals(result2.value.updatedAt.getTime(), originalCreatedAt.getTime());
+  assertNotEquals(
+    result2.value.updatedAt.getTime(),
+    originalCreatedAt.getTime(),
+  );
 
   await storage.close();
 });

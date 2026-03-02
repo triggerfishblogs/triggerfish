@@ -127,7 +127,9 @@ async function handleLegacyMigration(
   if (!migrated.ok) return migrated;
   cache.file = migrated.value;
   await persistSecretsFile(secretsPath, migrated.value);
-  log.info("Migrating secrets to encrypted format", { operation: "migrateSecrets" });
+  log.info("Migrating secrets to encrypted format", {
+    operation: "migrateSecrets",
+  });
   return { ok: true, value: migrated.value };
 }
 

@@ -11,10 +11,10 @@ import { createLogger } from "../../../core/logger/mod.ts";
 import type { LlmCompletionResult, LlmMessage } from "../../llm.ts";
 import type { ContentBlock } from "../../../core/image/content.ts";
 import {
-  type OpenRouterApiResponse,
-  OPENROUTER_API_URL,
   formatDataPolicyHint,
   isRetryableStatusCode,
+  OPENROUTER_API_URL,
+  type OpenRouterApiResponse,
 } from "./openrouter_types.ts";
 
 /** Logger type alias for readability. */

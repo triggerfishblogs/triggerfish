@@ -32,7 +32,10 @@ Deno.test("DomainPolicy: returns classification for domain", () => {
     denyList: [],
     classifications: { "internal.corp": "CONFIDENTIAL" },
   });
-  assertEquals(policy.getClassification("https://internal.corp/secret"), "CONFIDENTIAL");
+  assertEquals(
+    policy.getClassification("https://internal.corp/secret"),
+    "CONFIDENTIAL",
+  );
 });
 
 Deno.test("DomainPolicy: unclassified domain returns PUBLIC", () => {

@@ -36,7 +36,10 @@ const bootstrapLog = createLogger("startup");
 
 /** Print Docker-specific help when config is missing. */
 export function printDockerConfigHelp(configPath: string): void {
-  bootstrapLog.error("No configuration found (Docker)", { operation: "bootstrap", configPath });
+  bootstrapLog.error("No configuration found (Docker)", {
+    operation: "bootstrap",
+    configPath,
+  });
   console.error(`No configuration found at ${configPath}\n`);
   console.error("Option 1: Mount your config file:");
   console.error(
@@ -56,7 +59,10 @@ export async function verifyConfigExists(configPath: string): Promise<void> {
     if (isDockerEnvironment()) {
       printDockerConfigHelp(configPath);
     } else {
-      bootstrapLog.warn("Configuration not found", { operation: "bootstrap", configPath });
+      bootstrapLog.warn("Configuration not found", {
+        operation: "bootstrap",
+        configPath,
+      });
       console.log("Configuration not found.");
       console.log("Run 'triggerfish dive' to set up your agent.\n");
     }

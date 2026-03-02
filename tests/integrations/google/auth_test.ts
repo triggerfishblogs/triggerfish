@@ -10,7 +10,10 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { createMemorySecretStore } from "../../../src/core/secrets/keychain/keychain.ts";
 import { createGoogleAuthManager } from "../../../src/integrations/google/auth/auth.ts";
-import type { GoogleAuthConfig, GoogleTokens } from "../../../src/integrations/google/types.ts";
+import type {
+  GoogleAuthConfig,
+  GoogleTokens,
+} from "../../../src/integrations/google/types.ts";
 
 const TEST_CONFIG: GoogleAuthConfig = {
   clientId: "test-client-id",
@@ -145,15 +148,18 @@ Deno.test("getAccessToken: refreshes expired token using stored client credentia
   const mockFetch = (_input: string | URL | Request, init?: RequestInit) => {
     capturedBody = init?.body as string ?? "";
     return Promise.resolve(
-      new Response(JSON.stringify({
-        access_token: "refreshed_token",
-        expires_in: 3600,
-        scope: "email",
-        token_type: "Bearer",
-      }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+      new Response(
+        JSON.stringify({
+          access_token: "refreshed_token",
+          expires_in: 3600,
+          scope: "email",
+          token_type: "Bearer",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
     );
   };
   const manager = createGoogleAuthManager(secretStore, mockFetch);

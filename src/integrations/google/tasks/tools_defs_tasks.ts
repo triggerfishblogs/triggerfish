@@ -47,8 +47,7 @@ function buildTasksCreateParams(): ToolDefinition["parameters"] {
     },
     due: {
       type: "string",
-      description:
-        "Due date (ISO 8601, e.g. '2025-01-20T00:00:00Z')",
+      description: "Due date (ISO 8601, e.g. '2025-01-20T00:00:00Z')",
       required: false,
     },
     task_list_id: {

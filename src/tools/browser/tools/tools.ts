@@ -27,10 +27,7 @@ import {
   executeBrowserNavigation,
   parseNavigationUrl,
 } from "./tools_navigation.ts";
-import {
-  captureBrowserSnapshot,
-  scrollBrowserPage,
-} from "./tools_page.ts";
+import { captureBrowserSnapshot, scrollBrowserPage } from "./tools_page.ts";
 
 // ─── Barrel re-exports ──────────────────────────────────────────────────────
 

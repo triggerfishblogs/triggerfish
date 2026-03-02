@@ -3,11 +3,11 @@
  *
  * Covers hash computation, record storage, and tamper detection.
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
   computeSkillHash,
-  recordSkillHash,
   loadSkillHashRecord,
+  recordSkillHash,
   verifySkillIntegrity,
 } from "../../../src/tools/skills/integrity.ts";
 

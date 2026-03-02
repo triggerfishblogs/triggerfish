@@ -49,7 +49,11 @@ Deno.test("Dockerfile uses denoland/deno base image", async () => {
 Deno.test("Dockerfile uses distroless runtime base", async () => {
   const content = await Deno.readTextFile(DOCKERFILE_PATH);
   assertStringIncludes(content, "gcr.io/distroless/cc-debian12");
-  assertEquals(content.includes("trixie-slim"), false, "Should not use trixie-slim");
+  assertEquals(
+    content.includes("trixie-slim"),
+    false,
+    "Should not use trixie-slim",
+  );
   assertEquals(content.includes("alpine"), false, "Should not use alpine");
 });
 
@@ -143,13 +147,21 @@ Deno.test("Dockerfile.release uses TARGETARCH for multi-arch", async () => {
 Deno.test("Dockerfile.release uses distroless runtime base", async () => {
   const content = await Deno.readTextFile(DOCKERFILE_RELEASE_PATH);
   assertStringIncludes(content, "gcr.io/distroless/cc-debian12");
-  assertEquals(content.includes("trixie-slim"), false, "Should not use trixie-slim");
+  assertEquals(
+    content.includes("trixie-slim"),
+    false,
+    "Should not use trixie-slim",
+  );
   assertEquals(content.includes("alpine"), false, "Should not use alpine");
 });
 
 Deno.test("Dockerfile.release has no build stage", async () => {
   const content = await Deno.readTextFile(DOCKERFILE_RELEASE_PATH);
-  assertEquals(content.includes("AS builder"), false, "Should not have a build stage");
+  assertEquals(
+    content.includes("AS builder"),
+    false,
+    "Should not have a build stage",
+  );
   assertEquals(content.includes("deno compile"), false, "Should not compile");
 });
 

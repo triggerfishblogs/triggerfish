@@ -4,16 +4,15 @@
  * Tests server classification, tool permissions, enforcement flow.
  */
 import { assertEquals } from "@std/assert";
-import {
-  createMcpGateway,
-} from "../../src/mcp/gateway/gateway.ts";
-import {
-  classifyServer,
-} from "../../src/mcp/gateway/classifier.ts";
+import { createMcpGateway } from "../../src/mcp/gateway/gateway.ts";
+import { classifyServer } from "../../src/mcp/gateway/classifier.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
-import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks/hooks.ts";
+import {
+  createDefaultRules,
+  createHookRunner,
+} from "../../src/core/policy/hooks/hooks.ts";
 import { createSession, updateTaint } from "../../src/core/types/session.ts";
-import type { UserId, ChannelId } from "../../src/core/types/session.ts";
+import type { ChannelId, UserId } from "../../src/core/types/session.ts";
 
 function makeSession(taint = "PUBLIC" as const) {
   let s = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
@@ -112,11 +111,18 @@ Deno.test("Gateway: allows tool call to CLASSIFIED server", async () => {
 Deno.test("Gateway: logs all decisions", async () => {
   const engine = createPolicyEngine();
   const entries: unknown[] = [];
-  const runner = createHookRunner(engine, { logger: { log: (e: unknown) => entries.push(e) } });
+  const runner = createHookRunner(engine, {
+    logger: { log: (e: unknown) => entries.push(e) },
+  });
   const gateway = createMcpGateway({ hookRunner: runner });
   gateway.registerServer({ uri: "test://s", name: "s", status: "UNTRUSTED" });
   const session = makeSession();
-  await gateway.callTool({ serverUri: "test://s", toolName: "t", arguments: {}, session });
+  await gateway.callTool({
+    serverUri: "test://s",
+    toolName: "t",
+    arguments: {},
+    session,
+  });
   // At least one log entry from the hook runner
   assertEquals(entries.length >= 1, true);
 });

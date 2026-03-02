@@ -52,6 +52,7 @@ import {
   initializeMemorySystem,
 } from "../infra/workspace_init.ts";
 import { initializeBrowserExecutor } from "../services/browser_init.ts";
+import { createFilesystemSandbox } from "../../../exec/sandbox/mod.ts";
 import type { MainSessionState, WorkspacePaths } from "./tool_executor.ts";
 import {
   assembleMainToolExecutor,
@@ -207,7 +208,6 @@ export async function buildSessionScopedExecutors(
 /** Build LLM, workspace, and path classifier foundation. */
 export async function buildLlmAndWorkspaceFoundation(
   bootstrap: BootstrapResult,
-  coreInfra: CoreInfraResult,
 ) {
   const { registry, hookRunner } = initializeLlmProviders(
     bootstrap.config,
@@ -216,12 +216,7 @@ export async function buildLlmAndWorkspaceFoundation(
   const { spinePath, mainWorkspace } = await initializeMainWorkspace(
     bootstrap.baseDir,
   );
-  const pathClassifier = buildMainPathClassifier(
-    coreInfra.fsPathMap,
-    coreInfra.fsDefault,
-    mainWorkspace,
-  );
-  return { registry, hookRunner, spinePath, mainWorkspace, pathClassifier };
+  return { registry, hookRunner, spinePath, mainWorkspace };
 }
 
 /** Initialize LLM providers, workspace, and base tool dependencies. */
@@ -229,7 +224,7 @@ export async function initializeBaseToolDeps(
   bootstrap: BootstrapResult,
   coreInfra: CoreInfraResult,
 ) {
-  const foundation = await buildLlmAndWorkspaceFoundation(bootstrap, coreInfra);
+  const foundation = await buildLlmAndWorkspaceFoundation(bootstrap);
   const { state, cliSecretPrompt, cliCredentialPrompt } =
     initializeMainSessionState();
   const workspace = foundation.mainWorkspace;
@@ -239,9 +234,19 @@ export async function initializeBaseToolDeps(
     confidentialPath: workspace.confidentialPath,
     restrictedPath: workspace.restrictedPath,
   };
+  const resolveTaintCwd = () =>
+    resolveWorkspacePathForTaint(state.session.taint, workspacePaths);
+  const pathClassifier = buildMainPathClassifier(
+    coreInfra.fsPathMap,
+    coreInfra.fsDefault,
+    workspace,
+    { resolveCwd: resolveTaintCwd },
+  );
   const execTools = createExecTools(workspace, {
-    cwdOverride: () =>
-      resolveWorkspacePathForTaint(state.session.taint, workspacePaths),
+    cwdOverride: resolveTaintCwd,
+  });
+  const filesystemSandbox = createFilesystemSandbox({
+    resolveWorkspacePath: resolveTaintCwd,
   });
   const todoManager = createTodoManager({
     storage: coreInfra.storage,
@@ -249,7 +254,9 @@ export async function initializeBaseToolDeps(
   });
   return {
     ...foundation,
+    pathClassifier,
     execTools,
+    filesystemSandbox,
     todoManager,
     ...buildWebToolsFn(bootstrap.config),
     state,
@@ -276,6 +283,7 @@ export function buildCompositeToolExecutor(
 ) {
   return assembleMainToolExecutor({
     execTools: baseDeps.execTools,
+    filesystemSandbox: baseDeps.filesystemSandbox,
     cronManager: coreInfra.cronManager,
     todoManager: baseDeps.todoManager,
     searchProvider: baseDeps.searchProvider,

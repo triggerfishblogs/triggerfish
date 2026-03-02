@@ -164,7 +164,10 @@ async function scanSkillDirectory(
       try {
         content = await Deno.readTextFile(join(skillDir, "SKILL.md"));
       } catch (err) {
-        log.debug("Skill SKILL.md read failed, skipping directory", { skillDir, err });
+        log.debug("Skill SKILL.md read failed, skipping directory", {
+          skillDir,
+          err,
+        });
         continue;
       }
       const contentHash = await computeSkillHash(content);

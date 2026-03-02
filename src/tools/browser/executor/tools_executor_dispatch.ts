@@ -61,7 +61,10 @@ async function dispatchNavigate(
     url: String(url),
   });
   if (typeof url !== "string" || url.trim().length === 0) {
-    log.warn("browser_navigate validation failed", "url is missing or not a non-empty string");
+    log.warn(
+      "browser_navigate validation failed",
+      "url is missing or not a non-empty string",
+    );
     return "Error: browser_navigate requires a non-empty 'url' argument.";
   }
   const result = await tools.navigate(url);
@@ -70,7 +73,9 @@ async function dispatchNavigate(
     return `Navigation error: ${result.error}`;
   }
   const responseJson = JSON.stringify(result.value);
-  log.debug("browser_navigate success", { responseLength: responseJson.length });
+  log.debug("browser_navigate success", {
+    responseLength: responseJson.length,
+  });
   return responseJson;
 }
 
@@ -79,7 +84,9 @@ function formatSnapshotLinks(
   links: ReadonlyArray<{ readonly text: string; readonly href: string }>,
 ): string {
   if (links.length === 0) return "";
-  const lines = links.map((l) => `- [${l.text.replace(/[[\]]/g, "")}](<${l.href}>)`);
+  const lines = links.map((l) =>
+    `- [${l.text.replace(/[[\]]/g, "")}](<${l.href}>)`
+  );
   return `\n\n## Links on page\n${lines.join("\n")}`;
 }
 
@@ -218,7 +225,9 @@ async function dispatchWait(
   tools: BrowserTools,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const selector = typeof input.selector === "string" ? input.selector : undefined;
+  const selector = typeof input.selector === "string"
+    ? input.selector
+    : undefined;
   const timeout = typeof input.timeout === "number" ? input.timeout : undefined;
   const result = await tools.wait(selector, timeout);
   if (!result.ok) return `Wait error: ${result.error}`;

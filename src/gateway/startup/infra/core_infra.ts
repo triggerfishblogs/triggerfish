@@ -137,7 +137,13 @@ export function buildSchedulerInfrastructure(
       tidepoolHostRef.value?.broadcastChatEvent(event);
     },
   });
-  return { factory, schedulerConfig, schedulerService, gatewayServerRef, tidepoolHostRef };
+  return {
+    factory,
+    schedulerConfig,
+    schedulerService,
+    gatewayServerRef,
+    tidepoolHostRef,
+  };
 }
 
 /** Initialize storage, sessions, security config, and scheduler. */

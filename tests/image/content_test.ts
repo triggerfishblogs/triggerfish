@@ -3,17 +3,15 @@
  * @module
  */
 
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
-  normalizeContent,
   extractText,
   hasImages,
   imageBlock,
   MAX_IMAGE_BYTES,
+  normalizeContent,
 } from "../../src/core/image/content.ts";
-import type {
-  ContentBlock,
-} from "../../src/core/image/content.ts";
+import type { ContentBlock } from "../../src/core/image/content.ts";
 
 Deno.test("normalizeContent — string input wraps in TextContentBlock", () => {
   const result = normalizeContent("hello");

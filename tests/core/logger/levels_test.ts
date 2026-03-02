@@ -2,15 +2,26 @@
  * Tests for log level ordering and user-level parsing.
  */
 import { assertEquals } from "@std/assert";
-import { shouldLog, parseUserLogLevel, USER_LEVEL_MAP } from "../../../src/core/logger/levels.ts";
-import type { LogLevel, UserLogLevel } from "../../../src/core/logger/levels.ts";
+import {
+  parseUserLogLevel,
+  shouldLog,
+  USER_LEVEL_MAP,
+} from "../../../src/core/logger/levels.ts";
+import type {
+  LogLevel,
+  UserLogLevel,
+} from "../../../src/core/logger/levels.ts";
 
 // --- shouldLog threshold tests ---
 
 Deno.test("shouldLog: ERROR passes all thresholds", () => {
   const levels: LogLevel[] = ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"];
   for (const threshold of levels) {
-    assertEquals(shouldLog("ERROR", threshold), true, `ERROR should pass ${threshold}`);
+    assertEquals(
+      shouldLog("ERROR", threshold),
+      true,
+      `ERROR should pass ${threshold}`,
+    );
   }
 });
 
@@ -56,7 +67,11 @@ Deno.test("parseUserLogLevel: valid levels", () => {
     ["debug", "debug"],
   ];
   for (const [input, expected] of cases) {
-    assertEquals(parseUserLogLevel(input), expected, `"${input}" → "${expected}"`);
+    assertEquals(
+      parseUserLogLevel(input),
+      expected,
+      `"${input}" → "${expected}"`,
+    );
   }
 });
 

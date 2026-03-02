@@ -24,78 +24,81 @@ configure it.
 
 ### Top-Level Commands
 
-| Command | Description |
-|---------|-------------|
-| `triggerfish` | If no config exists, runs `dive`; otherwise shows help |
-| `triggerfish chat` | Start an interactive CLI chat session |
-| `triggerfish run` | Run the gateway in the foreground (not as daemon) |
-| `triggerfish start` | Install and start the OS daemon |
-| `triggerfish stop` | Stop the OS daemon |
-| `triggerfish status` | Show daemon running state, PID, uptime, manager type |
-| `triggerfish logs` | Show last 50 log lines |
-| `triggerfish patrol` | Run health diagnostics |
-| `triggerfish dive` | First-run setup wizard (creates triggerfish.yaml) |
-| `triggerfish changelog` | Show release notes between versions |
-| `triggerfish update` | Download latest release, verify SHA256, replace binary, restart daemon |
-| `triggerfish version` / `--version` | Show version string |
-| `triggerfish help` | Show help |
-| `triggerfish tidepool url` | Print the Tidepool A2UI URL |
+| Command                             | Description                                                            |
+| ----------------------------------- | ---------------------------------------------------------------------- |
+| `triggerfish`                       | If no config exists, runs `dive`; otherwise shows help                 |
+| `triggerfish chat`                  | Start an interactive CLI chat session                                  |
+| `triggerfish run`                   | Run the gateway in the foreground (not as daemon)                      |
+| `triggerfish start`                 | Install and start the OS daemon                                        |
+| `triggerfish stop`                  | Stop the OS daemon                                                     |
+| `triggerfish status`                | Show daemon running state, PID, uptime, manager type                   |
+| `triggerfish logs`                  | Show last 50 log lines                                                 |
+| `triggerfish patrol`                | Run health diagnostics                                                 |
+| `triggerfish dive`                  | First-run setup wizard (creates triggerfish.yaml)                      |
+| `triggerfish changelog`             | Show release notes between versions                                    |
+| `triggerfish update`                | Download latest release, verify SHA256, replace binary, restart daemon |
+| `triggerfish version` / `--version` | Show version string                                                    |
+| `triggerfish help`                  | Show help                                                              |
+| `triggerfish tidepool url`          | Print the Tidepool A2UI URL                                            |
 
 ### `logs` Flags
 
-| Flag | Description |
-|------|-------------|
-| `--tail` | Follow the log live (like `tail -f`) |
+| Flag              | Description                                                                             |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| `--tail`          | Follow the log live (like `tail -f`)                                                    |
 | `--level <LEVEL>` | Filter by level: `ERROR`, `WARN`, `INFO`, `DEBUG`, `TRACE` (shows that level and above) |
 
 ### `dive` Flags
 
-| Flag | Description |
-|------|-------------|
-| `--force` | Re-run wizard even if config already exists (lets you selectively update sections) |
-| `--install-daemon` | Auto-start daemon after wizard completes (used by the install script) |
+| Flag               | Description                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| `--force`          | Re-run wizard even if config already exists (lets you selectively update sections) |
+| `--install-daemon` | Auto-start daemon after wizard completes (used by the install script)              |
 
 ### `config` Subcommands
 
-| Subcommand | Description |
-|------------|-------------|
-| `config set <dotted.key> <value>` | Set any YAML key by dotted path |
-| `config get <dotted.key>` | Read any YAML key (masks keys containing `key`/`secret`/`token`) |
-| `config validate` | Parse YAML and check structure |
-| `config add-channel [type]` | Interactive channel setup (telegram, slack, discord, whatsapp, webchat, email, signal) |
-| `config remove-channel [type]` | Remove a channel and optionally restart daemon |
-| `config add-plugin [name]` | Interactive plugin setup (obsidian) |
-| `config set-secret <key> <value>` | Store a value in the OS keychain |
-| `config get-secret <key>` | Retrieve a value from the OS keychain |
-| `config migrate-secrets` | Find plaintext secrets in YAML, move to keychain, rewrite with `secret:` refs |
+| Subcommand                        | Description                                                                            |
+| --------------------------------- | -------------------------------------------------------------------------------------- |
+| `config set <dotted.key> <value>` | Set any YAML key by dotted path                                                        |
+| `config get <dotted.key>`         | Read any YAML key (masks keys containing `key`/`secret`/`token`)                       |
+| `config validate`                 | Parse YAML and check structure                                                         |
+| `config add-channel [type]`       | Interactive channel setup (telegram, slack, discord, whatsapp, webchat, email, signal) |
+| `config remove-channel [type]`    | Remove a channel and optionally restart daemon                                         |
+| `config add-plugin [name]`        | Interactive plugin setup (obsidian)                                                    |
+| `config set-secret <key> <value>` | Store a value in the OS keychain                                                       |
+| `config get-secret <key>`         | Retrieve a value from the OS keychain                                                  |
+| `config migrate-secrets`          | Find plaintext secrets in YAML, move to keychain, rewrite with `secret:` refs          |
 
 ### `cron` Subcommands
 
-| Subcommand | Description |
-|------------|-------------|
-| `cron add "<cron-expression>" <task>` | Create a scheduled job |
-| `cron list` | Show all jobs with last-run time and run count |
-| `cron delete <job_id>` | Remove a job by UUID |
-| `cron history <job_id>` | Show last 20 executions with status/duration/error |
+| Subcommand                            | Description                                        |
+| ------------------------------------- | -------------------------------------------------- |
+| `cron add "<cron-expression>" <task>` | Create a scheduled job                             |
+| `cron list`                           | Show all jobs with last-run time and run count     |
+| `cron delete <job_id>`                | Remove a job by UUID                               |
+| `cron history <job_id>`               | Show last 20 executions with status/duration/error |
 
 **`cron add` flag:**
-- `--classification <level>` — classification ceiling for this job's session (default: `INTERNAL`). Valid: `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`.
+
+- `--classification <level>` — classification ceiling for this job's session
+  (default: `INTERNAL`). Valid: `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`,
+  `RESTRICTED`.
 
 ### `connect` / `disconnect` Subcommands
 
-| Subcommand | Description |
-|------------|-------------|
-| `connect google` | OAuth2 flow for Gmail, Calendar, Tasks, Drive, Sheets |
-| `connect github` | Store GitHub PAT in keychain |
-| `disconnect google` | Remove Google tokens |
-| `disconnect github` | Remove GitHub token |
+| Subcommand          | Description                                           |
+| ------------------- | ----------------------------------------------------- |
+| `connect google`    | OAuth2 flow for Gmail, Calendar, Tasks, Drive, Sheets |
+| `connect github`    | Store GitHub PAT in keychain                          |
+| `disconnect google` | Remove Google tokens                                  |
+| `disconnect github` | Remove GitHub token                                   |
 
 ---
 
 ## Config File — `triggerfish.yaml`
 
-**Location:** `~/.triggerfish/triggerfish.yaml`
-(overridden by `$TRIGGERFISH_DATA_DIR` env var; Docker uses `/data/triggerfish.yaml`)
+**Location:** `~/.triggerfish/triggerfish.yaml` (overridden by
+`$TRIGGERFISH_DATA_DIR` env var; Docker uses `/data/triggerfish.yaml`)
 
 A backup is automatically created in `~/.triggerfish/backups/` before every
 `config set`, `add-channel`, or `add-plugin` call (10 backups retained).
@@ -129,44 +132,50 @@ models:
 ```
 
 **Common `config set` paths for models:**
+
 - `models.primary.provider` — which provider to use
 - `models.primary.model` — model ID
 - `models.providers.anthropic.apiKey` — API key (use `secret:` reference)
 
 ### Channels
 
-Each channel has a `classification` field controlling what data can flow through it.
+Each channel has a `classification` field controlling what data can flow through
+it.
 
 #### Telegram
+
 ```yaml
 channels:
   telegram:
     botToken: "secret:telegram:botToken"
-    ownerId: 123456789          # numeric Telegram user ID
+    ownerId: 123456789 # numeric Telegram user ID
     classification: INTERNAL
 ```
 
 #### Slack
+
 ```yaml
 channels:
   slack:
-    botToken: "secret:slack:botToken"       # xoxb-...
-    appToken: "secret:slack:appToken"       # xapp-... for Socket Mode
+    botToken: "secret:slack:botToken" # xoxb-...
+    appToken: "secret:slack:appToken" # xapp-... for Socket Mode
     signingSecret: "secret:slack:signingSecret"
-    ownerId: "U012ABC3DEF"                  # optional
+    ownerId: "U012ABC3DEF" # optional
     classification: PUBLIC
 ```
 
 #### Discord
+
 ```yaml
 channels:
   discord:
     botToken: "secret:discord:botToken"
-    ownerId: "123456789012345678"           # optional snowflake
+    ownerId: "123456789012345678" # optional snowflake
     classification: PUBLIC
 ```
 
 #### WhatsApp
+
 ```yaml
 channels:
   whatsapp:
@@ -174,11 +183,12 @@ channels:
     phoneNumberId: "123456789"
     verifyToken: "secret:whatsapp:webhookVerifyToken"
     webhookPort: 8443
-    ownerPhone: "+15551234567"             # optional
+    ownerPhone: "+15551234567" # optional
     classification: PUBLIC
 ```
 
 #### WebChat
+
 ```yaml
 channels:
   webchat:
@@ -187,6 +197,7 @@ channels:
 ```
 
 #### Email
+
 ```yaml
 channels:
   email:
@@ -197,19 +208,20 @@ channels:
     imapUser: "you@example.com"
     imapPassword: "secret:email:imapPassword"
     fromAddress: "you@example.com"
-    pollInterval: 30000                    # milliseconds
-    ownerEmail: "you@example.com"          # optional
+    pollInterval: 30000 # milliseconds
+    ownerEmail: "you@example.com" # optional
     classification: CONFIDENTIAL
 ```
 
 #### Signal
+
 ```yaml
 channels:
   signal:
-    account: "+15551234567"               # E.164 format
-    endpoint: "tcp://localhost:7583"      # signal-cli daemon
-    pairing: false                        # require pairing code for new contacts
-    defaultGroupMode: "always"            # always | mentioned-only | owner-only
+    account: "+15551234567" # E.164 format
+    endpoint: "tcp://localhost:7583" # signal-cli daemon
+    pairing: false # require pairing code for new contacts
+    defaultGroupMode: "always" # always | mentioned-only | owner-only
     classification: PUBLIC
 ```
 
@@ -236,8 +248,8 @@ scheduler:
     interval_minutes: 30
     classification_ceiling: INTERNAL
     quiet_hours:
-      start: 23          # 11pm local time
-      end: 7             # 7am local time
+      start: 23 # 11pm local time
+      end: 7 # 7am local time
   webhooks:
     sources:
       my-webhook:
@@ -265,7 +277,7 @@ classification:
   levels: standard
 
 logging:
-  level: normal          # quiet | normal | verbose | debug
+  level: normal # quiet | normal | verbose | debug
 ```
 
 ### Policy
@@ -279,15 +291,17 @@ policy:
 
 ## Secrets Management
 
-**Never store plaintext secrets in `triggerfish.yaml`.** Use `secret:` references
-resolved from the OS keychain at runtime.
+**Never store plaintext secrets in `triggerfish.yaml`.** Use `secret:`
+references resolved from the OS keychain at runtime.
 
 **Store a secret:**
+
 ```
 triggerfish config set-secret provider:anthropic:apiKey sk-ant-...
 ```
 
 **Reference it in config:**
+
 ```yaml
 models:
   providers:
@@ -296,25 +310,27 @@ models:
 ```
 
 **Migrate existing plaintext secrets:**
+
 ```
 triggerfish config migrate-secrets
 ```
-This scans known secret fields, stores values in keychain, rewrites config
-with `secret:` refs, and creates a backup first.
+
+This scans known secret fields, stores values in keychain, rewrites config with
+`secret:` refs, and creates a backup first.
 
 **Known secret field → keychain key mappings:**
 
-| Config path | Keychain key |
-|-------------|-------------|
+| Config path                      | Keychain key             |
+| -------------------------------- | ------------------------ |
 | `models.providers.<name>.apiKey` | `provider:<name>:apiKey` |
-| `web.search.api_key` | `web:search:apiKey` |
-| `channels.telegram.botToken` | `telegram:botToken` |
-| `channels.discord.botToken` | `discord:botToken` |
-| `channels.slack.botToken` | `slack:botToken` |
-| `channels.slack.appToken` | `slack:appToken` |
-| `channels.slack.signingSecret` | `slack:signingSecret` |
-| `channels.whatsapp.accessToken` | `whatsapp:accessToken` |
-| `channels.email.imapPassword` | `email:imapPassword` |
+| `web.search.api_key`             | `web:search:apiKey`      |
+| `channels.telegram.botToken`     | `telegram:botToken`      |
+| `channels.discord.botToken`      | `discord:botToken`       |
+| `channels.slack.botToken`        | `slack:botToken`         |
+| `channels.slack.appToken`        | `slack:appToken`         |
+| `channels.slack.signingSecret`   | `slack:signingSecret`    |
+| `channels.whatsapp.accessToken`  | `whatsapp:accessToken`   |
+| `channels.email.imapPassword`    | `email:imapPassword`     |
 
 ---
 
@@ -348,6 +364,7 @@ with `secret:` refs, and creates a backup first.
 ```
 
 **Ports:**
+
 - Gateway WebSocket: `18789`
 - Tidepool A2UI: `18790`
 
@@ -355,31 +372,32 @@ with `secret:` refs, and creates a backup first.
 
 ## Daemon Management
 
-| Platform | Manager | Service name | Notes |
-|----------|---------|-------------|-------|
-| macOS | launchd | `dev.triggerfish.agent` | plist in `~/Library/LaunchAgents/` |
-| Linux | systemd (user) | `triggerfish.service` | unit in `~/.config/systemd/user/` |
-| Windows | Windows Service | `Triggerfish` | installer registers; `start` triggers elevation |
+| Platform | Manager         | Service name            | Notes                                           |
+| -------- | --------------- | ----------------------- | ----------------------------------------------- |
+| macOS    | launchd         | `dev.triggerfish.agent` | plist in `~/Library/LaunchAgents/`              |
+| Linux    | systemd (user)  | `triggerfish.service`   | unit in `~/.config/systemd/user/`               |
+| Windows  | Windows Service | `Triggerfish`           | installer registers; `start` triggers elevation |
 
 - `triggerfish start` — installs service definition and starts it
 - `triggerfish stop` — stops the service
 - `triggerfish status` — shows PID, uptime, manager type
 - `triggerfish run` — runs gateway in foreground (no service install)
-- `triggerfish update` — fetches latest GitHub release → verifies SHA256 →
-  stops daemon → replaces binary → restarts daemon
+- `triggerfish update` — fetches latest GitHub release → verifies SHA256 → stops
+  daemon → replaces binary → restarts daemon
 
-**Linux linger note:** systemd user services stop on logout by default.
-The installer enables linger (`loginctl enable-linger $USER`). If not set,
-run: `sudo loginctl enable-linger $USER`
+**Linux linger note:** systemd user services stop on logout by default. The
+installer enables linger (`loginctl enable-linger $USER`). If not set, run:
+`sudo loginctl enable-linger $USER`
 
 ---
 
 ## Log System
 
-**Log path:** `~/.triggerfish/logs/triggerfish.log`
-**Rotation:** `.1.log` through `.10.log` (`.1` = most recent), 10 files max
+**Log path:** `~/.triggerfish/logs/triggerfish.log` **Rotation:** `.1.log`
+through `.10.log` (`.1` = most recent), 10 files max
 
 **Log line format:**
+
 ```
 [2026-02-17T14:30:45.123Z] [LEVEL] [component] message
 ```
@@ -387,6 +405,7 @@ run: `sudo loginctl enable-linger $USER`
 **Levels (most severe → least):** ERROR > WARN > INFO > DEBUG > TRACE
 
 **CLI access:**
+
 ```
 triggerfish logs                   # last 50 lines
 triggerfish logs --tail            # follow live
@@ -394,7 +413,8 @@ triggerfish logs --level ERROR     # only ERROR and WARN
 triggerfish logs --level WARN      # WARN and ERROR
 ```
 
-**Classification:** Log output is INTERNAL — never share raw logs on PUBLIC channels.
+**Classification:** Log output is INTERNAL — never share raw logs on PUBLIC
+channels.
 
 **Bug report prep:** Collect last 50 ERROR/WARN lines, redact tokens and keys,
 exclude TRACE content.
@@ -405,13 +425,13 @@ exclude TRACE content.
 
 Checks runtime health and prints a report:
 
-| Check | What it verifies |
-|-------|-----------------|
-| Gateway | WebSocket on port 18789 is reachable |
-| LLM | Provider connected (inferred from gateway health) |
-| Channels | Number of channels configured in YAML |
-| Policy | Policy rules loaded (fixed rules when running) |
-| Skills | Installed skill count in `~/.triggerfish/skills/` |
+| Check    | What it verifies                                  |
+| -------- | ------------------------------------------------- |
+| Gateway  | WebSocket on port 18789 is reachable              |
+| LLM      | Provider connected (inferred from gateway health) |
+| Channels | Number of channels configured in YAML             |
+| Policy   | Policy rules loaded (fixed rules when running)    |
+| Skills   | Installed skill count in `~/.triggerfish/skills/` |
 
 **Status values:** `HEALTHY` / `WARNING` / `CRITICAL`
 
@@ -421,8 +441,8 @@ Exit code 1 if any check is CRITICAL.
 
 ## Architecture Concepts
 
-**Classification levels** (ascending sensitivity):
-`PUBLIC` < `INTERNAL` < `CONFIDENTIAL` < `RESTRICTED`
+**Classification levels** (ascending sensitivity): `PUBLIC` < `INTERNAL` <
+`CONFIDENTIAL` < `RESTRICTED`
 
 **Taint** — Session-level classification that only escalates, never decreases.
 The session taint is determined by the most sensitive data it has accessed.
@@ -433,7 +453,8 @@ CONFIDENTIAL data is blocked from reaching a PUBLIC channel at the policy layer.
 **Deterministic hooks** — Pure functions running below the LLM. Same input
 always produces the same decision. The LLM cannot bypass or influence them.
 
-Hook types: `PRE_CONTEXT_INJECTION`, `PRE_TOOL_CALL`, `POST_TOOL_RESPONSE`, `PRE_OUTPUT`
+Hook types: `PRE_CONTEXT_INJECTION`, `PRE_TOOL_CALL`, `POST_TOOL_RESPONSE`,
+`PRE_OUTPUT`
 
 **Session isolation** — Each session tracks taint independently. Background
 sessions (triggers, cron jobs) start with fresh PUBLIC taint.
@@ -442,8 +463,8 @@ sessions (triggers, cron jobs) start with fresh PUBLIC taint.
 classification are rejected. Unclassified operations are a security violation.
 
 **SSRF prevention** — All outbound HTTP (web_fetch, browser navigate) resolves
-DNS first and checks against a hardcoded IP denylist. Private/reserved IP
-ranges are always blocked. This is not user-configurable.
+DNS first and checks against a hardcoded IP denylist. Private/reserved IP ranges
+are always blocked. This is not user-configurable.
 
 **Audit trail** — Every policy decision is logged with timestamp, hook type,
 session ID, input, and result.
@@ -452,9 +473,9 @@ session ID, input, and result.
 
 ## SPINE.md — Agent Identity
 
-`~/.triggerfish/SPINE.md` is the agent's identity and mission file. Its
-contents form the foundation of the system prompt. Use it to define the
-agent's name, personality, capabilities, and standing instructions.
+`~/.triggerfish/SPINE.md` is the agent's identity and mission file. Its contents
+form the foundation of the system prompt. Use it to define the agent's name,
+personality, capabilities, and standing instructions.
 
 If the file does not exist, a generic identity is used.
 
@@ -462,9 +483,9 @@ If the file does not exist, a generic identity is used.
 
 ## TRIGGER.md — Proactive Monitoring
 
-`~/.triggerfish/TRIGGER.md` defines what the agent monitors and acts on
-during periodic trigger wakeups. The scheduler reads this file at each
-trigger interval and sends it as the prompt to a fresh session.
+`~/.triggerfish/TRIGGER.md` defines what the agent monitors and acts on during
+periodic trigger wakeups. The scheduler reads this file at each trigger interval
+and sends it as the prompt to a fresh session.
 
 If TRIGGER.md does not exist, the scheduler uses a vague fallback prompt.
 **Create it** when setting up proactive monitoring.
@@ -473,21 +494,24 @@ If TRIGGER.md does not exist, the scheduler uses a vague fallback prompt.
 # Morning Briefing
 
 Check and summarize:
+
 - Weather forecast for today
 - New GitHub notifications
 - Upcoming calendar events
 
 ## Alerts
+
 - If any email marked urgent, notify me immediately
 ```
 
 **Trigger config in `triggerfish.yaml`:**
+
 ```yaml
 scheduler:
   trigger:
     enabled: true
     interval_minutes: 30
-    classification_ceiling: INTERNAL   # session cannot exceed this
+    classification_ceiling: INTERNAL # session cannot exceed this
     quiet_hours:
       start: 23
       end: 7
@@ -497,10 +521,11 @@ scheduler:
 
 ## Skills System
 
-**Skill structure:** a folder containing `SKILL.md` with YAML frontmatter
-and a markdown body.
+**Skill structure:** a folder containing `SKILL.md` with YAML frontmatter and a
+markdown body.
 
 **Frontmatter fields:**
+
 - `name` — unique skill identifier
 - `description` — when to use this skill (used for skill selection)
 - `classification_ceiling` — max classification the skill can access
@@ -508,12 +533,15 @@ and a markdown body.
 - `network_domains` — domains this skill is permitted to fetch from
 
 **Three-tier priority** (higher wins):
-1. **Workspace** — agent-authored, at `~/.triggerfish/workspace/<agent-id>/skills/`
-   Require owner approval before activation.
+
+1. **Workspace** — agent-authored, at
+   `~/.triggerfish/workspace/<agent-id>/skills/` Require owner approval before
+   activation.
 2. **Managed** — installed from The Reef, at `~/.triggerfish/skills/`
 3. **Bundled** — ship with Triggerfish binary, read-only
 
-**Approval states for workspace skills:** `PENDING_APPROVAL` → `APPROVED` / `REJECTED`
+**Approval states for workspace skills:** `PENDING_APPROVAL` → `APPROVED` /
+`REJECTED`
 
 Security scan checks for prompt injection, identity hijacking, and privilege
 escalation patterns before approval.
@@ -523,17 +551,20 @@ escalation patterns before approval.
 ## Common Tasks
 
 **Start fresh / initial setup:**
+
 ```
 triggerfish dive
 triggerfish start
 ```
 
 **Add a channel:**
+
 ```
 triggerfish config add-channel telegram
 ```
 
 **Check if everything works:**
+
 ```
 triggerfish patrol
 triggerfish status
@@ -541,28 +572,33 @@ triggerfish logs --level WARN
 ```
 
 **Change LLM model:**
+
 ```
 triggerfish config set models.primary.model claude-opus-4-5
 triggerfish config set models.primary.provider anthropic
 ```
 
 **Add a daily 9am scheduled task:**
+
 ```
 triggerfish cron add "0 9 * * *" morning briefing — check weather and email
 triggerfish cron list
 ```
 
 **Connect Google Workspace:**
+
 ```
 triggerfish connect google
 ```
 
 **Update to latest version:**
+
 ```
 triggerfish update
 ```
 
 **View release notes between versions:**
+
 ```
 triggerfish changelog                       # Latest releases
 triggerfish changelog v0.2.16 v0.3.3       # Between two versions
@@ -571,15 +607,17 @@ triggerfish changelog --latest 10          # Last 10 releases
 ```
 
 In chat, use the `release_notes` tool to fetch and summarize changes between
-versions. Example: ask "What changed between v0.2.16 and v0.3.3?" and the
-agent will fetch and summarize the release notes.
+versions. Example: ask "What changed between v0.2.16 and v0.3.3?" and the agent
+will fetch and summarize the release notes.
 
 **Migrate plaintext secrets to keychain:**
+
 ```
 triggerfish config migrate-secrets
 ```
 
 **Re-run setup wizard to update a section:**
+
 ```
 triggerfish dive --force
 ```

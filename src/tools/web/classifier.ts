@@ -6,10 +6,7 @@
  */
 
 import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type {
-  DomainClassification,
-  DomainPolicy,
-} from "./policy.ts";
+import type { DomainClassification, DomainPolicy } from "./policy.ts";
 import { createDomainPolicy } from "./policy.ts";
 
 // ─── Domain Classifier ─────────────────────────────────────────────────────

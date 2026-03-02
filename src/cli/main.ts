@@ -25,7 +25,11 @@ import {
   runDaemonStop,
   runUpdate,
 } from "./daemon_commands.ts";
-import { createLogger, initLogger, isLoggerInitialized } from "../core/logger/mod.ts";
+import {
+  createLogger,
+  initLogger,
+  isLoggerInitialized,
+} from "../core/logger/mod.ts";
 
 const log = createLogger("cli");
 
@@ -51,7 +55,7 @@ export {
 } from "./main_commands.ts";
 
 // Re-export platform and command functions for backward-compatibility
-export { probeGateway, enableWindowsAnsi } from "./platform.ts";
+export { enableWindowsAnsi, probeGateway } from "./platform.ts";
 export { runPatrol } from "./dive_command.ts";
 
 // ─── Command dispatch ─────────────────────────────────────────────────────────

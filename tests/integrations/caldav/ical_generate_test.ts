@@ -8,10 +8,10 @@
  */
 import { assertEquals } from "@std/assert";
 import {
-  parseVEvent,
+  expandRecurrence,
   generateVEvent,
   parseFreeBusy,
-  expandRecurrence,
+  parseVEvent,
 } from "../../../src/integrations/caldav/ical.ts";
 
 // ─── VEVENT Generation ────────────────────────────────────────────────────────
@@ -63,7 +63,12 @@ Deno.test("generateVEvent: includes attendees", () => {
     ],
   });
 
-  assertEquals(ical.includes('ATTENDEE;CN="Alice";ROLE=REQ-PARTICIPANT:mailto:alice@example.com'), true);
+  assertEquals(
+    ical.includes(
+      'ATTENDEE;CN="Alice";ROLE=REQ-PARTICIPANT:mailto:alice@example.com',
+    ),
+    true,
+  );
   assertEquals(ical.includes("ATTENDEE:mailto:bob@example.com"), true);
 });
 

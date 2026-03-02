@@ -14,7 +14,11 @@ function createMockFetch(
   handler: (url: string, init: RequestInit) => Response,
 ): typeof fetch {
   return ((url: string | URL | Request, init?: RequestInit) => {
-    const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+    const urlStr = typeof url === "string"
+      ? url
+      : url instanceof URL
+      ? url.toString()
+      : url.url;
     return Promise.resolve(handler(urlStr, init ?? {}));
   }) as typeof fetch;
 }
@@ -59,17 +63,25 @@ Deno.test("client: PROPFIND sends correct headers and parses response", async ()
     fetchFn: mockFetch,
   });
 
-  const result = await client.propfind("/calendars/user/", "1", ["displayname"]);
+  const result = await client.propfind("/calendars/user/", "1", [
+    "displayname",
+  ]);
 
   assertEquals(capturedMethod, "PROPFIND");
   assertEquals(capturedHeaders["Depth"], "1");
-  assertEquals(capturedHeaders["Content-Type"], "application/xml; charset=utf-8");
+  assertEquals(
+    capturedHeaders["Content-Type"],
+    "application/xml; charset=utf-8",
+  );
   assertEquals(capturedHeaders["Authorization"], "Basic dGVzdDp0ZXN0");
   assertEquals(result.ok, true);
   if (result.ok) {
     assertEquals(result.value.responses.length, 1);
     assertEquals(result.value.responses[0].href, "/calendars/user/");
-    assertEquals(result.value.responses[0].properties["displayname"], "My Calendar");
+    assertEquals(
+      result.value.responses[0].properties["displayname"],
+      "My Calendar",
+    );
   }
 });
 
@@ -162,7 +174,8 @@ END:VCALENDAR</c:calendar-data>
     fetchFn: mockFetch,
   });
 
-  const reportBody = `<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  const reportBody =
+    `<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
     <d:prop><d:getetag /><c:calendar-data /></d:prop>
     <c:filter><c:comp-filter name="VCALENDAR" /></c:filter>
   </c:calendar-query>`;
@@ -174,6 +187,9 @@ END:VCALENDAR</c:calendar-data>
   if (result.ok) {
     assertEquals(result.value.resources.length, 1);
     assertEquals(result.value.resources[0].etag, "etag-123");
-    assertEquals(result.value.resources[0].calendarData.includes("VEVENT"), true);
+    assertEquals(
+      result.value.resources[0].calendarData.includes("VEVENT"),
+      true,
+    );
   }
 });

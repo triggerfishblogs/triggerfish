@@ -18,11 +18,7 @@ import type {
   ChannelStatus,
   MessageHandler,
 } from "../types.ts";
-import type {
-  GoogleChatConfig,
-  PubSubAckFn,
-  PubSubPullFn,
-} from "./types.ts";
+import type { GoogleChatConfig, PubSubAckFn, PubSubPullFn } from "./types.ts";
 import {
   createPubSubAcknowledger,
   createPubSubPuller,
@@ -30,10 +26,7 @@ import {
   sendGoogleChatMessage,
   sendGoogleChatTyping,
 } from "./client.ts";
-import {
-  dispatchGoogleChatEvent,
-  spaceNameFromSessionId,
-} from "./dispatch.ts";
+import { dispatchGoogleChatEvent, spaceNameFromSessionId } from "./dispatch.ts";
 
 const log = createLogger("googlechat");
 
@@ -130,7 +123,9 @@ export function createGoogleChatChannel(
     "INTERNAL") as ClassificationLevel;
 
   const state: GoogleChatAdapterState = {
-    connected: false, handler: null, pollTimer: null,
+    connected: false,
+    handler: null,
+    pollTimer: null,
     pullFn: config._pullFn ?? createPubSubPuller(config),
     ackFn: config._ackFn ?? createPubSubAcknowledger(config),
   };

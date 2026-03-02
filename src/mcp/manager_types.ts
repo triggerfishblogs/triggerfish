@@ -56,7 +56,11 @@ export interface ConnectedMcpServer {
 }
 
 /** Connection state for a configured MCP server. */
-export type McpServerState = "connecting" | "connected" | "disconnected" | "failed";
+export type McpServerState =
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "failed";
 
 /** Full status of a configured MCP server (connected or not). */
 export interface McpServerStatus {
@@ -83,7 +87,10 @@ export interface McpServerManager {
    * Start background connection loops for all configured servers. Non-blocking.
    * Servers that fail to connect are retried with exponential backoff.
    */
-  startAll(configs: readonly McpServerConfig[], secretStore?: SecretStore): void;
+  startAll(
+    configs: readonly McpServerConfig[],
+    secretStore?: SecretStore,
+  ): void;
   /** Get full status (connected + disconnected) for all configured servers. */
   getStatus(): readonly McpServerStatus[];
   /** Get count of configured (non-disabled) servers. */

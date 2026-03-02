@@ -52,7 +52,9 @@ export async function runTidepool(
       console.log(`  Tidepool: ${getTidepoolUrl()}`);
     } else {
       console.log("✗ Tidepool is not running.");
-      console.log("  Run 'triggerfish run' or 'triggerfish start' to launch the gateway.");
+      console.log(
+        "  Run 'triggerfish run' or 'triggerfish start' to launch the gateway.",
+      );
     }
     return;
   }

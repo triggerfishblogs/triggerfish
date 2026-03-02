@@ -1,96 +1,374 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 580" width="860" height="580" font-family="system-ui, sans-serif">
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 860 580"
+  width="860"
+  height="580"
+  font-family="system-ui, sans-serif"
+>
   <defs>
-    <marker id="ch-allow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#16a34a"/>
+    <marker
+      id="ch-allow"
+      markerWidth="10"
+      markerHeight="7"
+      refX="10"
+      refY="3.5"
+      orient="auto"
+    >
+      <polygon points="0 0, 10 3.5, 0 7" fill="#16a34a" />
     </marker>
-    <marker id="ch-block" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626"/>
+    <marker
+      id="ch-block"
+      markerWidth="10"
+      markerHeight="7"
+      refX="10"
+      refY="3.5"
+      orient="auto"
+    >
+      <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626" />
     </marker>
   </defs>
 
   <!-- Background -->
-  <rect width="860" height="580" fill="#ffffff"/>
+  <rect width="860" height="580" fill="#ffffff" />
 
   <!-- Title -->
-  <text x="430" y="36" text-anchor="middle" font-size="18" font-weight="700" fill="#1e40af">Classification Hierarchy — Data Flow Rules</text>
+  <text
+    x="430"
+    y="36"
+    text-anchor="middle"
+    font-size="18"
+    font-weight="700"
+    fill="#1e40af"
+  >Classification Hierarchy — Data Flow Rules</text>
 
   <!-- RESTRICTED (top) -->
-  <rect x="220" y="60" width="280" height="70" rx="8" fill="#dc2626" stroke="#b91c1c" stroke-width="1.5"/>
-  <text x="360" y="88" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">RESTRICTED</text>
-  <text x="360" y="108" text-anchor="middle" font-size="12" fill="#fecaca">Level 3 — Highest sensitivity</text>
+  <rect
+    x="220"
+    y="60"
+    width="280"
+    height="70"
+    rx="8"
+    fill="#dc2626"
+    stroke="#b91c1c"
+    stroke-width="1.5"
+  />
+  <text
+    x="360"
+    y="88"
+    text-anchor="middle"
+    font-size="16"
+    font-weight="700"
+    fill="#ffffff"
+  >RESTRICTED</text>
+  <text x="360" y="108" text-anchor="middle" font-size="12" fill="#fecaca"
+  >Level 3 — Highest sensitivity</text>
 
   <!-- Flow label for RESTRICTED -->
-  <rect x="530" y="72" width="280" height="44" rx="6" fill="#fef2f2" stroke="#fca5a5" stroke-width="1"/>
-  <text x="670" y="92" text-anchor="middle" font-size="12" font-weight="500" fill="#dc2626">Can flow to: RESTRICTED only</text>
-  <text x="670" y="108" text-anchor="middle" font-size="11" fill="#991b1b">Most restrictive — no downward flow</text>
+  <rect
+    x="530"
+    y="72"
+    width="280"
+    height="44"
+    rx="6"
+    fill="#fef2f2"
+    stroke="#fca5a5"
+    stroke-width="1"
+  />
+  <text
+    x="670"
+    y="92"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="500"
+    fill="#dc2626"
+  >Can flow to: RESTRICTED only</text>
+  <text x="670" y="108" text-anchor="middle" font-size="11" fill="#991b1b"
+  >Most restrictive — no downward flow</text>
 
   <!-- Arrow down -->
-  <line x1="360" y1="130" x2="360" y2="170" stroke="#16a34a" stroke-width="1.5" marker-end="url(#ch-allow)"/>
+  <line
+    x1="360"
+    y1="130"
+    x2="360"
+    y2="170"
+    stroke="#16a34a"
+    stroke-width="1.5"
+    marker-end="url(#ch-allow)"
+  />
 
   <!-- CONFIDENTIAL -->
-  <rect x="220" y="176" width="280" height="70" rx="8" fill="#d97706" stroke="#b45309" stroke-width="1.5"/>
-  <text x="360" y="204" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">CONFIDENTIAL</text>
-  <text x="360" y="224" text-anchor="middle" font-size="12" fill="#fef3c7">Level 2</text>
+  <rect
+    x="220"
+    y="176"
+    width="280"
+    height="70"
+    rx="8"
+    fill="#d97706"
+    stroke="#b45309"
+    stroke-width="1.5"
+  />
+  <text
+    x="360"
+    y="204"
+    text-anchor="middle"
+    font-size="16"
+    font-weight="700"
+    fill="#ffffff"
+  >CONFIDENTIAL</text>
+  <text x="360" y="224" text-anchor="middle" font-size="12" fill="#fef3c7"
+  >Level 2</text>
 
   <!-- Flow label for CONFIDENTIAL -->
-  <rect x="530" y="188" width="280" height="44" rx="6" fill="#fef3c7" stroke="#fbbf24" stroke-width="1"/>
-  <text x="670" y="208" text-anchor="middle" font-size="12" font-weight="500" fill="#92400e">Can flow to: CONFIDENTIAL, RESTRICTED</text>
-  <text x="670" y="224" text-anchor="middle" font-size="11" fill="#92400e">Upward only</text>
+  <rect
+    x="530"
+    y="188"
+    width="280"
+    height="44"
+    rx="6"
+    fill="#fef3c7"
+    stroke="#fbbf24"
+    stroke-width="1"
+  />
+  <text
+    x="670"
+    y="208"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="500"
+    fill="#92400e"
+  >Can flow to: CONFIDENTIAL, RESTRICTED</text>
+  <text x="670" y="224" text-anchor="middle" font-size="11" fill="#92400e"
+  >Upward only</text>
 
   <!-- Arrow down -->
-  <line x1="360" y1="246" x2="360" y2="286" stroke="#16a34a" stroke-width="1.5" marker-end="url(#ch-allow)"/>
+  <line
+    x1="360"
+    y1="246"
+    x2="360"
+    y2="286"
+    stroke="#16a34a"
+    stroke-width="1.5"
+    marker-end="url(#ch-allow)"
+  />
 
   <!-- INTERNAL -->
-  <rect x="220" y="292" width="280" height="70" rx="8" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
-  <text x="360" y="320" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">INTERNAL</text>
-  <text x="360" y="340" text-anchor="middle" font-size="12" fill="#bfdbfe">Level 1</text>
+  <rect
+    x="220"
+    y="292"
+    width="280"
+    height="70"
+    rx="8"
+    fill="#2563eb"
+    stroke="#1e40af"
+    stroke-width="1.5"
+  />
+  <text
+    x="360"
+    y="320"
+    text-anchor="middle"
+    font-size="16"
+    font-weight="700"
+    fill="#ffffff"
+  >INTERNAL</text>
+  <text x="360" y="340" text-anchor="middle" font-size="12" fill="#bfdbfe"
+  >Level 1</text>
 
   <!-- Flow label for INTERNAL -->
-  <rect x="530" y="296" width="280" height="56" rx="6" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
-  <text x="670" y="316" text-anchor="middle" font-size="12" font-weight="500" fill="#1e40af">Can flow to: INTERNAL,</text>
-  <text x="670" y="332" text-anchor="middle" font-size="12" font-weight="500" fill="#1e40af">CONFIDENTIAL, RESTRICTED</text>
-  <text x="670" y="348" text-anchor="middle" font-size="11" fill="#1e40af">Upward only</text>
+  <rect
+    x="530"
+    y="296"
+    width="280"
+    height="56"
+    rx="6"
+    fill="#dbeafe"
+    stroke="#93c5fd"
+    stroke-width="1"
+  />
+  <text
+    x="670"
+    y="316"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="500"
+    fill="#1e40af"
+  >Can flow to: INTERNAL,</text>
+  <text
+    x="670"
+    y="332"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="500"
+    fill="#1e40af"
+  >CONFIDENTIAL, RESTRICTED</text>
+  <text x="670" y="348" text-anchor="middle" font-size="11" fill="#1e40af"
+  >Upward only</text>
 
   <!-- Arrow down -->
-  <line x1="360" y1="362" x2="360" y2="402" stroke="#16a34a" stroke-width="1.5" marker-end="url(#ch-allow)"/>
+  <line
+    x1="360"
+    y1="362"
+    x2="360"
+    y2="402"
+    stroke="#16a34a"
+    stroke-width="1.5"
+    marker-end="url(#ch-allow)"
+  />
 
   <!-- PUBLIC (bottom) -->
-  <rect x="220" y="408" width="280" height="70" rx="8" fill="#16a34a" stroke="#15803d" stroke-width="1.5"/>
-  <text x="360" y="436" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">PUBLIC</text>
-  <text x="360" y="456" text-anchor="middle" font-size="12" fill="#dcfce7">Level 0 — Lowest sensitivity</text>
+  <rect
+    x="220"
+    y="408"
+    width="280"
+    height="70"
+    rx="8"
+    fill="#16a34a"
+    stroke="#15803d"
+    stroke-width="1.5"
+  />
+  <text
+    x="360"
+    y="436"
+    text-anchor="middle"
+    font-size="16"
+    font-weight="700"
+    fill="#ffffff"
+  >PUBLIC</text>
+  <text x="360" y="456" text-anchor="middle" font-size="12" fill="#dcfce7"
+  >Level 0 — Lowest sensitivity</text>
 
   <!-- Flow label for PUBLIC -->
-  <rect x="530" y="414" width="280" height="44" rx="6" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
-  <text x="670" y="434" text-anchor="middle" font-size="12" font-weight="500" fill="#166534">Can flow to: Anywhere</text>
-  <text x="670" y="450" text-anchor="middle" font-size="11" fill="#166534">Unrestricted upward flow</text>
+  <rect
+    x="530"
+    y="414"
+    width="280"
+    height="44"
+    rx="6"
+    fill="#dcfce7"
+    stroke="#86efac"
+    stroke-width="1"
+  />
+  <text
+    x="670"
+    y="434"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="500"
+    fill="#166534"
+  >Can flow to: Anywhere</text>
+  <text x="670" y="450" text-anchor="middle" font-size="11" fill="#166534"
+  >Unrestricted upward flow</text>
 
   <!-- Blocked arrows on the left side -->
   <!-- RESTRICTED trying to go down -->
-  <line x1="190" y1="95" x2="190" y2="200" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#ch-block)"/>
-  <line x1="178" y1="155" x2="202" y2="135" stroke="#dc2626" stroke-width="3"/>
-  <line x1="178" y1="135" x2="202" y2="155" stroke="#dc2626" stroke-width="3"/>
+  <line
+    x1="190"
+    y1="95"
+    x2="190"
+    y2="200"
+    stroke="#dc2626"
+    stroke-width="2"
+    stroke-dasharray="6,3"
+    marker-end="url(#ch-block)"
+  />
+  <line x1="178" y1="155" x2="202" y2="135" stroke="#dc2626" stroke-width="3" />
+  <line x1="178" y1="135" x2="202" y2="155" stroke="#dc2626" stroke-width="3" />
 
-  <line x1="160" y1="210" x2="160" y2="330" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#ch-block)"/>
-  <line x1="148" y1="275" x2="172" y2="255" stroke="#dc2626" stroke-width="3"/>
-  <line x1="148" y1="255" x2="172" y2="275" stroke="#dc2626" stroke-width="3"/>
+  <line
+    x1="160"
+    y1="210"
+    x2="160"
+    y2="330"
+    stroke="#dc2626"
+    stroke-width="2"
+    stroke-dasharray="6,3"
+    marker-end="url(#ch-block)"
+  />
+  <line x1="148" y1="275" x2="172" y2="255" stroke="#dc2626" stroke-width="3" />
+  <line x1="148" y1="255" x2="172" y2="275" stroke="#dc2626" stroke-width="3" />
 
-  <line x1="130" y1="330" x2="130" y2="440" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#ch-block)"/>
-  <line x1="118" y1="390" x2="142" y2="370" stroke="#dc2626" stroke-width="3"/>
-  <line x1="118" y1="370" x2="142" y2="390" stroke="#dc2626" stroke-width="3"/>
+  <line
+    x1="130"
+    y1="330"
+    x2="130"
+    y2="440"
+    stroke="#dc2626"
+    stroke-width="2"
+    stroke-dasharray="6,3"
+    marker-end="url(#ch-block)"
+  />
+  <line x1="118" y1="390" x2="142" y2="370" stroke="#dc2626" stroke-width="3" />
+  <line x1="118" y1="370" x2="142" y2="390" stroke="#dc2626" stroke-width="3" />
 
   <!-- Left side label -->
-  <text x="80" y="260" text-anchor="middle" font-size="13" font-weight="600" fill="#dc2626" transform="rotate(-90,80,260)">BLOCKED — No Write-Down</text>
+  <text
+    x="80"
+    y="260"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#dc2626"
+    transform="rotate(-90,80,260)"
+  >BLOCKED — No Write-Down</text>
 
   <!-- Right side label -->
-  <text x="840" y="260" text-anchor="middle" font-size="13" font-weight="600" fill="#16a34a" transform="rotate(90,840,260)">ALLOWED — Upward Flow</text>
+  <text
+    x="840"
+    y="260"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#16a34a"
+    transform="rotate(90,840,260)"
+  >ALLOWED — Upward Flow</text>
 
   <!-- Allowed arrows on right (behind the labels) -->
-  <line x1="826" y1="440" x2="826" y2="330" stroke="#16a34a" stroke-width="2" marker-end="url(#ch-allow)"/>
-  <line x1="826" y1="320" x2="826" y2="210" stroke="#16a34a" stroke-width="2" marker-end="url(#ch-allow)"/>
-  <line x1="826" y1="200" x2="826" y2="100" stroke="#16a34a" stroke-width="2" marker-end="url(#ch-allow)"/>
+  <line
+    x1="826"
+    y1="440"
+    x2="826"
+    y2="330"
+    stroke="#16a34a"
+    stroke-width="2"
+    marker-end="url(#ch-allow)"
+  />
+  <line
+    x1="826"
+    y1="320"
+    x2="826"
+    y2="210"
+    stroke="#16a34a"
+    stroke-width="2"
+    marker-end="url(#ch-allow)"
+  />
+  <line
+    x1="826"
+    y1="200"
+    x2="826"
+    y2="100"
+    stroke="#16a34a"
+    stroke-width="2"
+    marker-end="url(#ch-allow)"
+  />
 
   <!-- Bottom summary -->
-  <rect x="160" y="510" width="540" height="50" rx="8" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1"/>
-  <text x="430" y="532" text-anchor="middle" font-size="13" font-weight="600" fill="#374151">canFlowTo(source, destination): source.level &lt;= destination.level</text>
-  <text x="430" y="550" text-anchor="middle" font-size="12" fill="#6b7280">Data flows upward (to equal or higher classification). Never downward.</text>
+  <rect
+    x="160"
+    y="510"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1"
+  />
+  <text
+    x="430"
+    y="532"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#374151"
+  >canFlowTo(source, destination): source.level &lt;= destination.level</text>
+  <text x="430" y="550" text-anchor="middle" font-size="12" fill="#6b7280"
+  >Data flows upward (to equal or higher classification). Never downward.</text>
 </svg>

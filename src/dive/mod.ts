@@ -15,7 +15,7 @@ export {
   type PatrolReport,
 } from "./patrol.ts";
 
-export { type VerifyResult, verifyProvider } from "./verify.ts";
+export { verifyProvider, type VerifyResult } from "./verify.ts";
 
 export {
   buildToneGuidelines,

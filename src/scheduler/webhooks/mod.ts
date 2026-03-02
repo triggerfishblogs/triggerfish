@@ -5,14 +5,14 @@
  */
 
 export {
-  verifyHmac,
-  verifyHmacAsync,
   computeHmac,
   createWebhookHandler,
+  verifyHmac,
+  verifyHmacAsync,
   type WebhookEvent,
   type WebhookEventHandler,
-  type WebhookSource,
   type WebhookHandler,
+  type WebhookSource,
 } from "./webhooks.ts";
 
 export { signWebhook, verifyWebhookSignature } from "./security.ts";
@@ -23,7 +23,4 @@ export {
   type RateLimiterConfig,
 } from "./rate_limiter.ts";
 
-export {
-  createReplayGuard,
-  type ReplayGuard,
-} from "./replay_guard.ts";
+export { createReplayGuard, type ReplayGuard } from "./replay_guard.ts";

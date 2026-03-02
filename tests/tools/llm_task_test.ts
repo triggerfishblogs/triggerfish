@@ -10,7 +10,12 @@ import {
   getLlmTaskToolDefinitions,
   LLM_TASK_SYSTEM_PROMPT,
 } from "../../src/tools/mod.ts";
-import type { LlmProvider, LlmProviderRegistry, LlmCompletionResult, LlmMessage } from "../../src/agent/llm.ts";
+import type {
+  LlmCompletionResult,
+  LlmMessage,
+  LlmProvider,
+  LlmProviderRegistry,
+} from "../../src/agent/llm.ts";
 
 /** Recorded call to the mock provider. */
 interface RecordedCall {
@@ -18,7 +23,10 @@ interface RecordedCall {
 }
 
 /** Create a mock LlmProvider that records calls and returns canned responses. */
-function createMockProvider(name: string, response: string): { provider: LlmProvider; calls: RecordedCall[] } {
+function createMockProvider(
+  name: string,
+  response: string,
+): { provider: LlmProvider; calls: RecordedCall[] } {
   const calls: RecordedCall[] = [];
   const provider: LlmProvider = {
     name,
@@ -110,8 +118,14 @@ Deno.test("llm_task: system prompt passed to provider", async () => {
 // ─── Model override ────────────────────────────────────────────
 
 Deno.test("llm_task: model override uses named provider", async () => {
-  const { provider: defaultP } = createMockProvider("default", "default response");
-  const { provider: gpt4, calls: gpt4Calls } = createMockProvider("gpt-4", "gpt-4 response");
+  const { provider: defaultP } = createMockProvider(
+    "default",
+    "default response",
+  );
+  const { provider: gpt4, calls: gpt4Calls } = createMockProvider(
+    "gpt-4",
+    "gpt-4 response",
+  );
   const registry = createMockRegistry(defaultP, { "gpt-4": gpt4 });
   const executor = createLlmTaskToolExecutor(registry);
 
@@ -121,11 +135,17 @@ Deno.test("llm_task: model override uses named provider", async () => {
 });
 
 Deno.test("llm_task: unknown model falls back to default", async () => {
-  const { provider: defaultP, calls: defaultCalls } = createMockProvider("default", "default response");
+  const { provider: defaultP, calls: defaultCalls } = createMockProvider(
+    "default",
+    "default response",
+  );
   const registry = createMockRegistry(defaultP);
   const executor = createLlmTaskToolExecutor(registry);
 
-  const result = await executor("llm_task", { prompt: "Test", model: "nonexistent" });
+  const result = await executor("llm_task", {
+    prompt: "Test",
+    model: "nonexistent",
+  });
   assertEquals(result, "default response");
   assertEquals(defaultCalls.length, 1);
 });

@@ -5,13 +5,13 @@
  * result assembly, token budget truncation, focus parameter handling,
  * LLM summary vs template fallback, and plan mode integration.
  */
-import { assertEquals, assert, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import {
-  getExploreToolDefinitions,
-  createExploreToolExecutor,
-  buildAgentTasks,
   assembleResult,
+  buildAgentTasks,
+  createExploreToolExecutor,
   EXPLORE_SYSTEM_PROMPT,
+  getExploreToolDefinitions,
 } from "../../src/tools/explore/mod.ts";
 import type { ExploreResult } from "../../src/tools/explore/mod.ts";
 import { PLAN_ALLOWED_TOOLS } from "../../src/agent/plan/types.ts";

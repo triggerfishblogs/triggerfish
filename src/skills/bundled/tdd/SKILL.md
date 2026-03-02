@@ -23,7 +23,8 @@ GREEN  Write the simplest code that makes the test pass. Nothing more.
 REFACTOR  Clean up duplication and improve structure. Tests stay green.
 ```
 
-Never skip the red step. If the test passes before you write implementation code, either the test is wrong or the feature already exists.
+Never skip the red step. If the test passes before you write implementation
+code, either the test is wrong or the feature already exists.
 
 ## When to Use TDD
 
@@ -34,7 +35,8 @@ Never skip the red step. If the test passes before you write implementation code
 
 ## Test Structure
 
-Every test uses `Deno.test()`. Name tests as `"ComponentName: descriptive behavior"`:
+Every test uses `Deno.test()`. Name tests as
+`"ComponentName: descriptive behavior"`:
 
 ```typescript
 import { assertEquals, assertExists } from "jsr:@std/assert";
@@ -52,7 +54,10 @@ For async tests:
 ```typescript
 Deno.test("SessionManager: create returns session with PUBLIC taint", async () => {
   const mgr = await makeManager();
-  const session = await mgr.create({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = await mgr.create({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   assertEquals(session.taint, "PUBLIC");
   assertExists(session.id);
 });
@@ -64,28 +69,29 @@ Import from `jsr:@std/assert`:
 
 ```typescript
 import {
-  assert,              // boolean truthiness
-  assertEquals,        // strict equality (most common)
-  assertExists,        // not null/undefined
-  assertMatch,         // regex match
-  assertNotEquals,     // strict inequality
-  assertRejects,       // async function throws
+  assert, // boolean truthiness
+  assertEquals, // strict equality (most common)
+  assertExists, // not null/undefined
+  assertMatch, // regex match
+  assertNotEquals, // strict inequality
+  assertRejects, // async function throws
   assertStringIncludes, // substring match
 } from "jsr:@std/assert";
 ```
 
-| Function | Use When |
-|----------|----------|
-| `assertEquals(actual, expected)` | Comparing values, objects, arrays |
-| `assertExists(value)` | Checking something is not null/undefined |
-| `assert(condition)` | Simple boolean check |
-| `assertStringIncludes(str, sub)` | Checking partial string content |
-| `assertRejects(fn, ErrorType?)` | Testing async error paths |
-| `assertMatch(str, regex)` | Pattern matching on strings |
+| Function                         | Use When                                 |
+| -------------------------------- | ---------------------------------------- |
+| `assertEquals(actual, expected)` | Comparing values, objects, arrays        |
+| `assertExists(value)`            | Checking something is not null/undefined |
+| `assert(condition)`              | Simple boolean check                     |
+| `assertStringIncludes(str, sub)` | Checking partial string content          |
+| `assertRejects(fn, ErrorType?)`  | Testing async error paths                |
+| `assertMatch(str, regex)`        | Pattern matching on strings              |
 
 ## Testing the Result Pattern
 
-Every Triggerfish function returns `Result<T, E>`, never throws. Test both paths:
+Every Triggerfish function returns `Result<T, E>`, never throws. Test both
+paths:
 
 ```typescript
 // Success path
@@ -107,7 +113,8 @@ Deno.test("parseClassification: invalid input returns error Result", () => {
 });
 ```
 
-Always narrow with `if (result.ok)` before accessing `.value` or `.error`. TypeScript enforces this.
+Always narrow with `if (result.ok)` before accessing `.value` or `.error`.
+TypeScript enforces this.
 
 ## Test Helpers
 
@@ -195,7 +202,8 @@ Deno.test("ExecTools: write creates file in workspace", async () => {
 });
 ```
 
-Never leave temp directories behind. The `finally` block runs even when assertions fail.
+Never leave temp directories behind. The `finally` block runs even when
+assertions fail.
 
 ## Environment-Gated Tests
 
@@ -217,11 +225,13 @@ Deno.test({
 });
 ```
 
-The `ignore` flag skips the test when the env var is missing. It runs in CI where credentials are set.
+The `ignore` flag skips the test when the env var is missing. It runs in CI
+where credentials are set.
 
 ## Sanitizer Flags
 
-Some SDKs (Slack, Discord) leak async ops on import. Disable sanitizers for those tests only:
+Some SDKs (Slack, Discord) leak async ops on import. Disable sanitizers for
+those tests only:
 
 ```typescript
 Deno.test({
@@ -235,7 +245,8 @@ Deno.test({
 });
 ```
 
-Only use these flags when you understand why the leak occurs. Never use them to hide real bugs.
+Only use these flags when you understand why the leak occurs. Never use them to
+hide real bugs.
 
 ## Running Tests
 
@@ -271,8 +282,8 @@ Deno.test("maxClassification: returns higher of two levels", () => {
 });
 ```
 
-Run: `deno task test tests/core/types/classification_test.ts`
-Result: **FAIL** -- `maxClassification` is not defined.
+Run: `deno task test tests/core/types/classification_test.ts` Result: **FAIL**
+-- `maxClassification` is not defined.
 
 **Step 2: GREEN -- Write minimal implementation**
 
@@ -290,7 +301,8 @@ Run the test again. Result: **PASS**.
 
 **Step 3: REFACTOR**
 
-The implementation is already minimal. Check if the function should be exported from `mod.ts`. Add it to the barrel. Run all tests to confirm nothing broke.
+The implementation is already minimal. Check if the function should be exported
+from `mod.ts`. Add it to the barrel. Run all tests to confirm nothing broke.
 
 ## Deterministic Tests
 
@@ -317,11 +329,11 @@ Deno.test("HookRunner: same input always produces same decision", async () => {
 
 ## Common Mistakes
 
-| Mistake | Why It's Wrong | Fix |
-|---------|---------------|-----|
-| Writing code before the test | You don't know if your test actually catches failures | Write test, see it fail, then implement |
-| Testing implementation details | Tests break when you refactor | Test behavior and outputs, not internals |
-| Over-implementing in GREEN | Extra code has no test coverage | Write only what the current test requires |
-| Using `any` in test helpers | Defeats TypeScript safety | Type your mocks with the real interfaces |
-| Skipping the REFACTOR step | Technical debt accumulates | Always review after green; clean up |
-| Ignoring failing tests | Broken tests erode trust | Fix immediately or delete if obsolete |
+| Mistake                        | Why It's Wrong                                        | Fix                                       |
+| ------------------------------ | ----------------------------------------------------- | ----------------------------------------- |
+| Writing code before the test   | You don't know if your test actually catches failures | Write test, see it fail, then implement   |
+| Testing implementation details | Tests break when you refactor                         | Test behavior and outputs, not internals  |
+| Over-implementing in GREEN     | Extra code has no test coverage                       | Write only what the current test requires |
+| Using `any` in test helpers    | Defeats TypeScript safety                             | Type your mocks with the real interfaces  |
+| Skipping the REFACTOR step     | Technical debt accumulates                            | Always review after green; clean up       |
+| Ignoring failing tests         | Broken tests erode trust                              | Fix immediately or delete if obsolete     |

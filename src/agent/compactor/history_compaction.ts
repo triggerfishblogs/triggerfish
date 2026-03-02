@@ -95,12 +95,15 @@ export async function compactSessionHistory(
   const provider = providerRegistry.getForClassification(taint);
 
   if (!provider) {
-    log.debug("No classification-specific provider found, falling back to sliding-window compaction", {
-      operation: "compactSessionHistory",
-      sessionId,
-      taint,
-      usedClassificationOverride: false,
-    });
+    log.debug(
+      "No classification-specific provider found, falling back to sliding-window compaction",
+      {
+        operation: "compactSessionHistory",
+        sessionId,
+        taint,
+        usedClassificationOverride: false,
+      },
+    );
     return compactHistoryWithSlidingWindow(
       history,
       compactor,

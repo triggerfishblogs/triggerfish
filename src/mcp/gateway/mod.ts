@@ -6,18 +6,18 @@
 
 export {
   createMcpGateway,
-  type ServerClassification,
   type GatewayCallOptions,
   type GatewayOptions,
   type GatewayToolResult,
   type McpGateway,
   type McpServer,
   type McpServerToolResult,
+  type ServerClassification,
 } from "./gateway.ts";
 
 export {
   classifyServer,
+  type ClassifyServerOptions,
   type ServerState,
   type ServerStatus,
-  type ClassifyServerOptions,
 } from "./classifier.ts";

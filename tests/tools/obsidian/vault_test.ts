@@ -3,12 +3,12 @@
  * classification mapping, vault discovery.
  */
 
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
   createVaultContext,
-  resolveVaultPath,
-  isExcluded,
   getClassificationForPath,
+  isExcluded,
+  resolveVaultPath,
 } from "../../../src/tools/obsidian/vault.ts";
 import type { ObsidianVaultConfig } from "../../../src/tools/obsidian/types.ts";
 
@@ -20,7 +20,10 @@ async function makeTempVault(): Promise<string> {
 }
 
 /** Create a basic config for a vault path. */
-function makeConfig(vaultPath: string, overrides?: Partial<ObsidianVaultConfig>): ObsidianVaultConfig {
+function makeConfig(
+  vaultPath: string,
+  overrides?: Partial<ObsidianVaultConfig>,
+): ObsidianVaultConfig {
   return {
     vaultPath,
     classification: "INTERNAL",
@@ -44,7 +47,9 @@ Deno.test("createVaultContext: succeeds for valid vault with .obsidian marker", 
 });
 
 Deno.test("createVaultContext: fails when path does not exist", async () => {
-  const result = await createVaultContext(makeConfig("/nonexistent/vault/path"));
+  const result = await createVaultContext(
+    makeConfig("/nonexistent/vault/path"),
+  );
   assertEquals(result.ok, false);
 });
 
@@ -81,7 +86,10 @@ Deno.test("resolveVaultPath: rejects embedded .. components", async () => {
     assert(ctx.ok);
     if (!ctx.ok) return;
 
-    const result = await resolveVaultPath(ctx.value, "folder/../../../etc/passwd");
+    const result = await resolveVaultPath(
+      ctx.value,
+      "folder/../../../etc/passwd",
+    );
     assertEquals(result.ok, false);
   } finally {
     await Deno.remove(vaultPath, { recursive: true });
@@ -192,7 +200,10 @@ Deno.test("getClassificationForPath: returns vault default for unmapped paths", 
     assert(ctx.ok);
     if (!ctx.ok) return;
 
-    assertEquals(getClassificationForPath(ctx.value, "notes/general.md"), "INTERNAL");
+    assertEquals(
+      getClassificationForPath(ctx.value, "notes/general.md"),
+      "INTERNAL",
+    );
   } finally {
     await Deno.remove(vaultPath, { recursive: true });
   }
@@ -210,9 +221,18 @@ Deno.test("getClassificationForPath: applies folder overrides", async () => {
     assert(ctx.ok);
     if (!ctx.ok) return;
 
-    assertEquals(getClassificationForPath(ctx.value, "private/secret.md"), "CONFIDENTIAL");
-    assertEquals(getClassificationForPath(ctx.value, "public/readme.md"), "PUBLIC");
-    assertEquals(getClassificationForPath(ctx.value, "notes/general.md"), "INTERNAL");
+    assertEquals(
+      getClassificationForPath(ctx.value, "private/secret.md"),
+      "CONFIDENTIAL",
+    );
+    assertEquals(
+      getClassificationForPath(ctx.value, "public/readme.md"),
+      "PUBLIC",
+    );
+    assertEquals(
+      getClassificationForPath(ctx.value, "notes/general.md"),
+      "INTERNAL",
+    );
   } finally {
     await Deno.remove(vaultPath, { recursive: true });
   }
@@ -230,8 +250,14 @@ Deno.test("getClassificationForPath: most specific path wins", async () => {
     assert(ctx.ok);
     if (!ctx.ok) return;
 
-    assertEquals(getClassificationForPath(ctx.value, "work/notes.md"), "INTERNAL");
-    assertEquals(getClassificationForPath(ctx.value, "work/classified/top-secret.md"), "RESTRICTED");
+    assertEquals(
+      getClassificationForPath(ctx.value, "work/notes.md"),
+      "INTERNAL",
+    );
+    assertEquals(
+      getClassificationForPath(ctx.value, "work/classified/top-secret.md"),
+      "RESTRICTED",
+    );
   } finally {
     await Deno.remove(vaultPath, { recursive: true });
   }

@@ -13,7 +13,8 @@ import { createMemorySecretStore } from "../../src/core/secrets/keychain/keychai
 // ─── loadConfigWithSecrets ────────────────────────────────────────────────────
 
 Deno.test({
-  name: "loadConfigWithSecrets: config with no secret refs loads same as loadConfig",
+  name:
+    "loadConfigWithSecrets: config with no secret refs loads same as loadConfig",
   // SQLite FFI library loaded on import — cannot be closed in test context
   sanitizeResources: false,
   fn: async () => {
@@ -79,7 +80,8 @@ Deno.test({
 });
 
 Deno.test({
-  name: "loadConfigWithSecrets: returns error when secret: ref cannot be resolved",
+  name:
+    "loadConfigWithSecrets: returns error when secret: ref cannot be resolved",
   sanitizeResources: false,
   fn: async () => {
     const { loadConfigWithSecrets } = await import("../../src/cli/main.ts");
@@ -132,7 +134,8 @@ Deno.test({
 });
 
 Deno.test({
-  name: "loadConfigWithSecrets: resolves multiple secret: refs across nested paths",
+  name:
+    "loadConfigWithSecrets: resolves multiple secret: refs across nested paths",
   sanitizeResources: false,
   fn: async () => {
     const { loadConfigWithSecrets } = await import("../../src/cli/main.ts");

@@ -50,14 +50,14 @@ Deno.test("detectChrome: prefers direct binary over Flatpak", async () => {
 });
 
 Deno.test({
-  name: "detectChrome: Windows detection returns chrome.exe, brave.exe, or msedge.exe path",
+  name:
+    "detectChrome: Windows detection returns chrome.exe, brave.exe, or msedge.exe path",
   ignore: Deno.build.os !== "windows",
   async fn() {
     const result = await detectChrome();
     if (result !== undefined && result.kind === "direct") {
       const lowerTarget = result.target.toLowerCase();
-      const isKnownBrowser =
-        lowerTarget.endsWith("chrome.exe") ||
+      const isKnownBrowser = lowerTarget.endsWith("chrome.exe") ||
         lowerTarget.endsWith("brave.exe") ||
         lowerTarget.endsWith("msedge.exe");
       assertEquals(isKnownBrowser, true);
@@ -99,7 +99,7 @@ Deno.test("pollCdpReady: returns Ok when endpoint responds", async () => {
     hostname: "127.0.0.1",
     port: 0,
     signal: ac.signal,
-    onListen() { /* suppress default log */ },
+    onListen() {/* suppress default log */},
   }, () => {
     const body = JSON.stringify({
       webSocketDebuggerUrl: wsUrl,
@@ -179,17 +179,28 @@ Deno.test("withTimeout: propagates original rejection", async () => {
 Deno.test("baseChromeArgs: includes --disable-blink-features=AutomationControlled", () => {
   const config = {
     profileBaseDir: "/tmp/test",
-    domainPolicy: createDomainPolicy({ allowList: [], denyList: [], classifications: {} }),
+    domainPolicy: createDomainPolicy({
+      allowList: [],
+      denyList: [],
+      classifications: {},
+    }),
     storage: createMemoryStorage(),
   };
   const args = baseChromeArgs(config);
-  assertEquals(args.includes("--disable-blink-features=AutomationControlled"), true);
+  assertEquals(
+    args.includes("--disable-blink-features=AutomationControlled"),
+    true,
+  );
 });
 
 Deno.test("baseChromeArgs: includes --disable-infobars", () => {
   const config = {
     profileBaseDir: "/tmp/test",
-    domainPolicy: createDomainPolicy({ allowList: [], denyList: [], classifications: {} }),
+    domainPolicy: createDomainPolicy({
+      allowList: [],
+      denyList: [],
+      classifications: {},
+    }),
     storage: createMemoryStorage(),
   };
   const args = baseChromeArgs(config);
@@ -199,7 +210,11 @@ Deno.test("baseChromeArgs: includes --disable-infobars", () => {
 Deno.test("baseChromeArgs: includes --exclude-switches=enable-automation", () => {
   const config = {
     profileBaseDir: "/tmp/test",
-    domainPolicy: createDomainPolicy({ allowList: [], denyList: [], classifications: {} }),
+    domainPolicy: createDomainPolicy({
+      allowList: [],
+      denyList: [],
+      classifications: {},
+    }),
     storage: createMemoryStorage(),
   };
   const args = baseChromeArgs(config);
@@ -209,7 +224,11 @@ Deno.test("baseChromeArgs: includes --exclude-switches=enable-automation", () =>
 Deno.test("baseChromeArgs: retains base operational flags", () => {
   const config = {
     profileBaseDir: "/tmp/test",
-    domainPolicy: createDomainPolicy({ allowList: [], denyList: [], classifications: {} }),
+    domainPolicy: createDomainPolicy({
+      allowList: [],
+      denyList: [],
+      classifications: {},
+    }),
     storage: createMemoryStorage(),
   };
   const args = baseChromeArgs(config);
@@ -221,7 +240,11 @@ Deno.test("baseChromeArgs: retains base operational flags", () => {
 Deno.test("baseChromeArgs: propagates extra launchArgs", () => {
   const config = {
     profileBaseDir: "/tmp/test",
-    domainPolicy: createDomainPolicy({ allowList: [], denyList: [], classifications: {} }),
+    domainPolicy: createDomainPolicy({
+      allowList: [],
+      denyList: [],
+      classifications: {},
+    }),
     storage: createMemoryStorage(),
     launchArgs: ["--some-custom-flag"],
   };
@@ -264,7 +287,10 @@ Deno.test("launch: error when no Chrome found", async () => {
   assertEquals(result.ok, false);
   if (!result.ok) {
     assertEquals(typeof result.error, "string");
-    assertEquals(result.error.includes("launch failed") || result.error.includes("Launch"), true);
+    assertEquals(
+      result.error.includes("launch failed") || result.error.includes("Launch"),
+      true,
+    );
   }
 });
 

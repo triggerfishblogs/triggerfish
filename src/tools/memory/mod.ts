@@ -4,42 +4,35 @@
  * @module
  */
 
-export type {
-  MemoryRecord,
-  StoredMemoryRecord,
-  MemoryError,
-} from "./types.ts";
+export type { MemoryError, MemoryRecord, StoredMemoryRecord } from "./types.ts";
 
 export type {
+  MemorySearchOptions,
   MemorySearchProvider,
   MemorySearchResult,
-  MemorySearchOptions,
 } from "./search/mod.ts";
 
 export {
-  createInMemorySearchProvider,
   createFts5SearchProvider,
-  serialiseRecord,
+  createInMemorySearchProvider,
   deserialiseRecord,
+  serialiseRecord,
 } from "./search/mod.ts";
 
 export type {
-  MemoryStore,
   CreateMemoryStoreOptions,
-  MemorySaveOptions,
+  MemoryDeleteOptions,
   MemoryGetOptions,
   MemoryListOptions,
-  MemoryDeleteOptions,
   MemoryPurgeOptions,
+  MemorySaveOptions,
+  MemoryStore,
 } from "./store.ts";
 
 export { createMemoryStore } from "./store.ts";
 
 export type { MemoryToolContext } from "./tools/mod.ts";
 
-export {
-  getMemoryToolDefinitions,
-  MEMORY_SYSTEM_PROMPT,
-} from "./tools/mod.ts";
+export { getMemoryToolDefinitions, MEMORY_SYSTEM_PROMPT } from "./tools/mod.ts";
 
 export { createMemoryToolExecutor } from "./tools/mod.ts";

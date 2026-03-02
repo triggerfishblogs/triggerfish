@@ -3,45 +3,117 @@
     <span class="dot disconnected" id="dot"></span>
     <span>Triggerfish Tidepool</span>
     <span class="provider" id="provider-info"></span>
-    <span class="mcp-status" id="mcp-status" style="display:none"></span>
+    <span class="mcp-status" id="mcp-status" style="display: none"></span>
     <span class="taint-badge public" id="taint-badge">PUBLIC</span>
   </div>
 
   <div id="messages"></div>
 
-  <div id="paste-indicator"><span class="paste-icon">&#x1F4CE;</span> <span id="paste-text">Image pasted</span> <span class="paste-dismiss" id="paste-dismiss">&#x2715;</span></div>
+  <div id="paste-indicator">
+    <span class="paste-icon">&#x1F4CE;</span> <span id="paste-text"
+    >Image pasted</span> <span class="paste-dismiss" id="paste-dismiss"
+    >&#x2715;</span>
+  </div>
   <div id="input-bar">
-    <textarea id="input" rows="1" placeholder="Type a message..." autocomplete="off"></textarea>
+    <textarea
+      id="input"
+      rows="1"
+      placeholder="Type a message..."
+      autocomplete="off"
+    ></textarea>
     <button id="send" disabled>Send</button>
   </div>
 </div>
 
 <!-- Secret prompt overlay: shown when the agent needs a password/key/token -->
-<div id="secret-prompt-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:var(--bg,#1a1a1a);border:1px solid var(--border,#333);border-radius:8px;padding:24px;width:min(400px,90vw);display:flex;flex-direction:column;gap:12px;">
-    <div id="secret-prompt-title" style="font-weight:600;font-size:14px;color:var(--fg,#e0e0e0);">Enter secret</div>
-    <div id="secret-prompt-hint" style="font-size:12px;color:var(--muted,#888);min-height:16px;"></div>
-    <input id="secret-prompt-value" type="password" placeholder="Enter value..." autocomplete="off"
-      style="background:var(--input-bg,#111);border:1px solid var(--border,#333);border-radius:4px;padding:8px 10px;color:var(--fg,#e0e0e0);font-size:13px;outline:none;width:100%;box-sizing:border-box;" />
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button id="secret-prompt-cancel" style="background:transparent;border:1px solid var(--border,#333);border-radius:4px;padding:6px 14px;color:var(--muted,#888);cursor:pointer;font-size:13px;">Cancel</button>
-      <button id="secret-prompt-submit" style="background:var(--accent,#4a9eff);border:none;border-radius:4px;padding:6px 14px;color:#fff;cursor:pointer;font-size:13px;font-weight:600;">Save</button>
+<div
+  id="secret-prompt-overlay"
+  style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); z-index: 1000; align-items: center; justify-content: center"
+>
+  <div
+    style="background: var(--bg, #1a1a1a); border: 1px solid var(--border, #333); border-radius: 8px; padding: 24px; width: min(400px, 90vw); display: flex; flex-direction: column; gap: 12px"
+  >
+    <div
+      id="secret-prompt-title"
+      style="font-weight: 600; font-size: 14px; color: var(--fg, #e0e0e0)"
+    >
+      Enter secret
+    </div>
+    <div
+      id="secret-prompt-hint"
+      style="font-size: 12px; color: var(--muted, #888); min-height: 16px"
+    >
+    </div>
+    <input
+      id="secret-prompt-value"
+      type="password"
+      placeholder="Enter value..."
+      autocomplete="off"
+      style="background: var(--input-bg, #111); border: 1px solid var(--border, #333); border-radius: 4px; padding: 8px 10px; color: var(--fg, #e0e0e0); font-size: 13px; outline: none; width: 100%; box-sizing: border-box"
+    />
+    <div style="display: flex; gap: 8px; justify-content: flex-end">
+      <button
+        id="secret-prompt-cancel"
+        style="background: transparent; border: 1px solid var(--border, #333); border-radius: 4px; padding: 6px 14px; color: var(--muted, #888); cursor: pointer; font-size: 13px"
+      >
+        Cancel
+      </button>
+      <button
+        id="secret-prompt-submit"
+        style="background: var(--accent, #4a9eff); border: none; border-radius: 4px; padding: 6px 14px; color: #fff; cursor: pointer; font-size: 13px; font-weight: 600"
+      >
+        Save
+      </button>
     </div>
   </div>
 </div>
 
 <!-- Credential prompt overlay: shown when the agent needs a username + password -->
-<div id="credential-prompt-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:var(--bg,#1a1a1a);border:1px solid var(--border,#333);border-radius:8px;padding:24px;width:min(400px,90vw);display:flex;flex-direction:column;gap:12px;">
-    <div id="credential-prompt-title" style="font-weight:600;font-size:14px;color:var(--fg,#e0e0e0);">Enter credentials</div>
-    <div id="credential-prompt-hint" style="font-size:12px;color:var(--muted,#888);min-height:16px;"></div>
-    <input id="credential-prompt-username" type="text" placeholder="Username..." autocomplete="off"
-      style="background:var(--input-bg,#111);border:1px solid var(--border,#333);border-radius:4px;padding:8px 10px;color:var(--fg,#e0e0e0);font-size:13px;outline:none;width:100%;box-sizing:border-box;" />
-    <input id="credential-prompt-password" type="password" placeholder="Password..." autocomplete="off"
-      style="background:var(--input-bg,#111);border:1px solid var(--border,#333);border-radius:4px;padding:8px 10px;color:var(--fg,#e0e0e0);font-size:13px;outline:none;width:100%;box-sizing:border-box;" />
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button id="credential-prompt-cancel" style="background:transparent;border:1px solid var(--border,#333);border-radius:4px;padding:6px 14px;color:var(--muted,#888);cursor:pointer;font-size:13px;">Cancel</button>
-      <button id="credential-prompt-submit" style="background:var(--accent,#4a9eff);border:none;border-radius:4px;padding:6px 14px;color:#fff;cursor:pointer;font-size:13px;font-weight:600;">Save</button>
+<div
+  id="credential-prompt-overlay"
+  style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); z-index: 1000; align-items: center; justify-content: center"
+>
+  <div
+    style="background: var(--bg, #1a1a1a); border: 1px solid var(--border, #333); border-radius: 8px; padding: 24px; width: min(400px, 90vw); display: flex; flex-direction: column; gap: 12px"
+  >
+    <div
+      id="credential-prompt-title"
+      style="font-weight: 600; font-size: 14px; color: var(--fg, #e0e0e0)"
+    >
+      Enter credentials
+    </div>
+    <div
+      id="credential-prompt-hint"
+      style="font-size: 12px; color: var(--muted, #888); min-height: 16px"
+    >
+    </div>
+    <input
+      id="credential-prompt-username"
+      type="text"
+      placeholder="Username..."
+      autocomplete="off"
+      style="background: var(--input-bg, #111); border: 1px solid var(--border, #333); border-radius: 4px; padding: 8px 10px; color: var(--fg, #e0e0e0); font-size: 13px; outline: none; width: 100%; box-sizing: border-box"
+    />
+    <input
+      id="credential-prompt-password"
+      type="password"
+      placeholder="Password..."
+      autocomplete="off"
+      style="background: var(--input-bg, #111); border: 1px solid var(--border, #333); border-radius: 4px; padding: 8px 10px; color: var(--fg, #e0e0e0); font-size: 13px; outline: none; width: 100%; box-sizing: border-box"
+    />
+    <div style="display: flex; gap: 8px; justify-content: flex-end">
+      <button
+        id="credential-prompt-cancel"
+        style="background: transparent; border: 1px solid var(--border, #333); border-radius: 4px; padding: 6px 14px; color: var(--muted, #888); cursor: pointer; font-size: 13px"
+      >
+        Cancel
+      </button>
+      <button
+        id="credential-prompt-submit"
+        style="background: var(--accent, #4a9eff); border: none; border-radius: 4px; padding: 6px 14px; color: #fff; cursor: pointer; font-size: 13px; font-weight: 600"
+      >
+        Save
+      </button>
     </div>
   </div>
 </div>

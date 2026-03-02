@@ -1,13 +1,18 @@
 # Plugin SDK & Sandbox
 
-Triggerfish plugins let you extend the agent with custom code that interacts with external systems -- CRM queries, database operations, API integrations, multi-step workflows -- while running inside a double sandbox that prevents the code from doing anything it has not explicitly been permitted to do.
+Triggerfish plugins let you extend the agent with custom code that interacts
+with external systems -- CRM queries, database operations, API integrations,
+multi-step workflows -- while running inside a double sandbox that prevents the
+code from doing anything it has not explicitly been permitted to do.
 
 ## Runtime Environment
 
-Plugins run on Deno + Pyodide (WASM). No Docker. No containers. No prerequisites beyond the Triggerfish installation itself.
+Plugins run on Deno + Pyodide (WASM). No Docker. No containers. No prerequisites
+beyond the Triggerfish installation itself.
 
 - **TypeScript plugins** run directly in the Deno sandbox
-- **Python plugins** run inside Pyodide (a Python interpreter compiled to WebAssembly), which itself runs inside the Deno sandbox
+- **Python plugins** run inside Pyodide (a Python interpreter compiled to
+  WebAssembly), which itself runs inside the Deno sandbox
 
 ```
 +---------------------------------------------------+
@@ -29,11 +34,14 @@ Plugins run on Deno + Pyodide (WASM). No Docker. No containers. No prerequisites
 +---------------------------------------------------+
 ```
 
-This double-sandbox architecture means that even if a plugin contains malicious code, it cannot access the filesystem, make undeclared network calls, or escape to the host system.
+This double-sandbox architecture means that even if a plugin contains malicious
+code, it cannot access the filesystem, make undeclared network calls, or escape
+to the host system.
 
 ## What Plugins Can Do
 
-Plugins have a flexible interior within strict boundaries. Inside the sandbox, your plugin can:
+Plugins have a flexible interior within strict boundaries. Inside the sandbox,
+your plugin can:
 
 - Perform full CRUD operations on target systems (using the user's permissions)
 - Execute complex queries and data transformations
@@ -44,22 +52,24 @@ Plugins have a flexible interior within strict boundaries. Inside the sandbox, y
 
 ## What Plugins Cannot Do
 
-| Constraint | How It Is Enforced |
-|------------|-------------------|
-| Access undeclared network endpoints | Sandbox blocks all network calls not on the allowlist |
-| Emit data without a classification label | SDK rejects unclassified data |
-| Read data without taint propagation | SDK auto-taints the session when data is accessed |
-| Persist data outside Triggerfish | No filesystem access from within the sandbox |
-| Exfiltrate via side channels | Resource limits enforced, no raw socket access |
-| Use system credentials | SDK blocks `get_system_credential()`; user credentials only |
+| Constraint                               | How It Is Enforced                                          |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| Access undeclared network endpoints      | Sandbox blocks all network calls not on the allowlist       |
+| Emit data without a classification label | SDK rejects unclassified data                               |
+| Read data without taint propagation      | SDK auto-taints the session when data is accessed           |
+| Persist data outside Triggerfish         | No filesystem access from within the sandbox                |
+| Exfiltrate via side channels             | Resource limits enforced, no raw socket access              |
+| Use system credentials                   | SDK blocks `get_system_credential()`; user credentials only |
 
-::: warning SECURITY
-`sdk.get_system_credential()` is **blocked** by design. Plugins must always use delegated user credentials via `sdk.get_user_credential()`. This ensures the agent can only access what the user can access -- never more.
-:::
+::: warning SECURITY `sdk.get_system_credential()` is **blocked** by design.
+Plugins must always use delegated user credentials via
+`sdk.get_user_credential()`. This ensures the agent can only access what the
+user can access -- never more. :::
 
 ## Plugin SDK Methods
 
-The SDK provides a controlled interface for plugins to interact with external systems and the Triggerfish platform.
+The SDK provides a controlled interface for plugins to interact with external
+systems and the Triggerfish platform.
 
 ### Credential Access
 
@@ -71,7 +81,9 @@ const credential = await sdk.get_user_credential("salesforce");
 const connected = await sdk.has_user_connection("notion");
 ```
 
-`sdk.get_user_credential(service)` retrieves the user's OAuth token or API key for the named service. If the user has not connected the service, the call returns `null` and the plugin should handle this gracefully.
+`sdk.get_user_credential(service)` retrieves the user's OAuth token or API key
+for the named service. If the user has not connected the service, the call
+returns `null` and the plugin should handle this gracefully.
 
 ### Data Operations
 
@@ -89,9 +101,9 @@ sdk.emitData({
 });
 ```
 
-::: info
-Every call to `sdk.emitData()` requires a `classification` label. If you omit it, the SDK rejects the call. This ensures that all data flowing from plugins into the agent context is properly classified.
-:::
+::: info Every call to `sdk.emitData()` requires a `classification` label. If
+you omit it, the SDK rejects the call. This ensures that all data flowing from
+plugins into the agent context is properly classified. :::
 
 ### Connection Check
 
@@ -139,31 +151,34 @@ Every plugin follows a lifecycle that ensures security review before activation.
    - All invocations pass through policy hooks
 ```
 
-::: tip
-In the personal tier, you are the owner -- you review and classify your own plugins. In the enterprise tier, an admin manages the plugin registry and assigns classification levels.
-:::
+::: tip In the personal tier, you are the owner -- you review and classify your
+own plugins. In the enterprise tier, an admin manages the plugin registry and
+assigns classification levels. :::
 
 ## Database Connectivity
 
-Native database drivers (psycopg2, mysqlclient, etc.) do not work inside the WASM sandbox. Plugins connect to databases through HTTP-based APIs instead.
+Native database drivers (psycopg2, mysqlclient, etc.) do not work inside the
+WASM sandbox. Plugins connect to databases through HTTP-based APIs instead.
 
-| Database | HTTP-Based Option |
-|----------|-------------------|
+| Database   | HTTP-Based Option                 |
+| ---------- | --------------------------------- |
 | PostgreSQL | PostgREST, Supabase SDK, Neon API |
-| MySQL | PlanetScale API |
-| MongoDB | Atlas Data API |
-| Snowflake | REST API |
-| BigQuery | REST API |
-| DynamoDB | AWS SDK (HTTP) |
+| MySQL      | PlanetScale API                   |
+| MongoDB    | Atlas Data API                    |
+| Snowflake  | REST API                          |
+| BigQuery   | REST API                          |
+| DynamoDB   | AWS SDK (HTTP)                    |
 
-This is a security advantage, not a limitation. All database access flows through inspectable, controllable HTTP requests that the sandbox can enforce and the audit system can log.
+This is a security advantage, not a limitation. All database access flows
+through inspectable, controllable HTTP requests that the sandbox can enforce and
+the audit system can log.
 
 ## Writing a TypeScript Plugin
 
 A minimal TypeScript plugin that queries a REST API:
 
 ```typescript
-import type { PluginSdk, PluginResult } from "triggerfish/plugin";
+import type { PluginResult, PluginSdk } from "triggerfish/plugin";
 
 export async function execute(sdk: PluginSdk): Promise<PluginResult> {
   // Check if the user has connected the service
@@ -218,13 +233,16 @@ async def execute(sdk):
     return {"success": True}
 ```
 
-Python plugins run inside the Pyodide WASM runtime. Standard library modules are available, but native C extensions are not. Use HTTP-based APIs for external connectivity.
+Python plugins run inside the Pyodide WASM runtime. Standard library modules are
+available, but native C extensions are not. Use HTTP-based APIs for external
+connectivity.
 
 ## Plugin Security Summary
 
 - Plugins run in a double sandbox (Deno + WASM) with strict isolation
 - All network access must be declared in the plugin manifest
 - All emitted data must carry a classification label
-- System credentials are blocked -- only user-delegated credentials are available
+- System credentials are blocked -- only user-delegated credentials are
+  available
 - Each plugin enters the system as `UNTRUSTED` and must be classified before use
 - All plugin invocations pass through policy hooks and are fully audited

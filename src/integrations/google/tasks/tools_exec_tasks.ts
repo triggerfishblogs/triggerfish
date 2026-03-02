@@ -9,7 +9,11 @@
 import type { TasksService } from "../types.ts";
 
 /** Validate that a value is a non-empty string. */
-function requireNonEmptyString(value: unknown, field: string, tool: string): string | null {
+function requireNonEmptyString(
+  value: unknown,
+  field: string,
+  tool: string,
+): string | null {
   if (typeof value !== "string" || value.trim().length === 0) {
     return `Error: ${tool} requires a non-empty '${field}' argument.`;
   }
@@ -49,7 +53,9 @@ export async function executeTasksList(
 ): Promise<string> {
   const result = await tasks.list({
     taskListId: optionalString(input.task_list_id),
-    showCompleted: typeof input.show_completed === "boolean" ? input.show_completed : undefined,
+    showCompleted: typeof input.show_completed === "boolean"
+      ? input.show_completed
+      : undefined,
     maxResults: typeof input.max_results === "number" ? input.max_results : 20,
   });
   if (!result.ok) return `Error: ${result.error.message}`;

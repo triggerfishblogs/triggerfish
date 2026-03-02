@@ -9,25 +9,25 @@
 
 import type { Transport } from "./transport.ts";
 import type {
-  JsonRpcResponse,
   JsonRpcNotification,
+  JsonRpcResponse,
 } from "./protocol_jsonrpc.ts";
 import { formatRequest, parseMessage } from "./protocol_jsonrpc.ts";
 
 // ─── Barrel re-exports from protocol_jsonrpc.ts ─────────────────
 
 export type {
-  JsonRpcRequest,
   JsonRpcError,
-  JsonRpcResponse,
   JsonRpcNotification,
+  JsonRpcRequest,
+  JsonRpcResponse,
 } from "./protocol_jsonrpc.ts";
 
 export {
   formatRequest,
   formatResponse,
-  parseMessage,
   MCP_ERROR_CODES,
+  parseMessage,
 } from "./protocol_jsonrpc.ts";
 
 // --- MCP Types ---
@@ -139,7 +139,9 @@ export function createMcpClient(
       // Set up timeout
       const timer = setTimeout(() => {
         pendingRequests.delete(request.id);
-        reject(new Error(`MCP request timed out after ${timeoutMs}ms: ${method}`));
+        reject(
+          new Error(`MCP request timed out after ${timeoutMs}ms: ${method}`),
+        );
       }, timeoutMs);
 
       // Clear timeout when resolved
@@ -201,7 +203,10 @@ export function createMcpClient(
       name: string,
       args: Record<string, unknown>,
     ): Promise<McpToolResult> {
-      const response = await sendRequest("tools/call", { name, arguments: args });
+      const response = await sendRequest("tools/call", {
+        name,
+        arguments: args,
+      });
 
       if (response.error) {
         throw new Error(`tools/call failed: ${response.error.message}`);

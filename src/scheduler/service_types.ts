@@ -8,7 +8,10 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../core/types/classification.ts";
 import type { UserId } from "../core/types/session.ts";
 import type { Orchestrator } from "../core/types/orchestrator.ts";
 import type { SessionState } from "../core/types/session.ts";

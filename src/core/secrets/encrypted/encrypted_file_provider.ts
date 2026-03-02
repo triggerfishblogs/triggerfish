@@ -32,7 +32,10 @@ import type {
   EncryptedSecretsFile,
   SecretsFileCache,
 } from "./encrypted_file_types.ts";
-import { decryptSecretEntry, encryptSecretValue } from "./encrypted_file_crypto.ts";
+import {
+  decryptSecretEntry,
+  encryptSecretValue,
+} from "./encrypted_file_crypto.ts";
 import {
   classifyAndResolveSecretsJson,
   parseSecretsJson,

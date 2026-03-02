@@ -9,7 +9,7 @@
 
 import type { Result } from "../../core/types/classification.ts";
 import type { SecretStore } from "../../core/secrets/keychain/keychain.ts";
-import type { CalDavCredentials, CalDavConfig } from "./types.ts";
+import type { CalDavConfig, CalDavCredentials } from "./types.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("caldav:auth");

@@ -110,7 +110,10 @@ async function sendDiscordMessage(
 ): Promise<void> {
   if (!message.sessionId) return;
 
-  const channelId = message.sessionId.replace("discord-group-", "").replace("discord-", "");
+  const channelId = message.sessionId.replace("discord-group-", "").replace(
+    "discord-",
+    "",
+  );
   const channel = await client.channels.fetch(channelId);
 
   if (!channel || !("send" in channel)) return;
@@ -129,7 +132,10 @@ async function sendDiscordTypingIndicator(
   sessionId: string,
 ): Promise<void> {
   if (!sessionId) return;
-  const channelId = sessionId.replace("discord-group-", "").replace("discord-", "");
+  const channelId = sessionId.replace("discord-group-", "").replace(
+    "discord-",
+    "",
+  );
   try {
     const channel = await client.channels.fetch(channelId);
     if (channel && "sendTyping" in channel) {

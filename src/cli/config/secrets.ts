@@ -9,7 +9,10 @@ import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
 import { findSecretRefs } from "../../core/secrets/resolver.ts";
 import { readNestedYamlValue, writeNestedYamlValue } from "./config.ts";
 import type { SecretFieldDescriptor } from "./secrets_fields.ts";
-import { KNOWN_SECRET_FIELDS, collectProviderSecretFields } from "./secrets_fields.ts";
+import {
+  collectProviderSecretFields,
+  KNOWN_SECRET_FIELDS,
+} from "./secrets_fields.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("cli.secrets");
@@ -33,7 +36,11 @@ export async function runConfigSetSecret(
   if (result.ok) {
     console.log(`Secret "${key}" stored in keychain.`);
   } else {
-    log.error("Secret store failed", { operation: "setSecret", key, error: result.error });
+    log.error("Secret store failed", {
+      operation: "setSecret",
+      key,
+      error: result.error,
+    });
     console.error(`Failed to store secret: ${result.error}`);
     Deno.exit(1);
   }
@@ -80,7 +87,11 @@ function loadConfigYaml(): ParsedConfigResult {
   try {
     raw = Deno.readTextFileSync(configPath);
   } catch (err: unknown) {
-    log.error("Configuration file read failed", { operation: "loadConfigYaml", configPath, err });
+    log.error("Configuration file read failed", {
+      operation: "loadConfigYaml",
+      configPath,
+      err,
+    });
     console.error(`Cannot read config: ${configPath}`);
     Deno.exit(1);
   }
@@ -88,14 +99,20 @@ function loadConfigYaml(): ParsedConfigResult {
   try {
     const p = parseYaml(raw);
     if (typeof p !== "object" || p === null) {
-      log.error("Configuration file did not parse to an object", { operation: "loadConfigYaml", configPath });
+      log.error("Configuration file did not parse to an object", {
+        operation: "loadConfigYaml",
+        configPath,
+      });
       console.error("Config file did not parse to an object");
       Deno.exit(1);
     }
     return { configPath, parsed: p as Record<string, unknown> };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    log.error("Configuration parse failed", { operation: "loadConfigYaml", err });
+    log.error("Configuration parse failed", {
+      operation: "loadConfigYaml",
+      err,
+    });
     console.error(`Failed to parse config: ${message}`);
     Deno.exit(1);
   }
@@ -138,7 +155,11 @@ async function migrateSecretFieldsToKeychain(
 
     const result = await store.setSecret(keychainKey, value);
     if (!result.ok) {
-      log.error("Secret migration store failed", { operation: "migrateSecrets", field: field.path, error: result.error });
+      log.error("Secret migration store failed", {
+        operation: "migrateSecrets",
+        field: field.path,
+        error: result.error,
+      });
       console.error(
         `Failed to store secret for ${field.path}: ${result.error}`,
       );

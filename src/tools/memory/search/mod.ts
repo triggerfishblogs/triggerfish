@@ -11,15 +11,15 @@
  */
 
 export type {
-  MemorySearchResult,
   MemorySearchOptions,
   MemorySearchProvider,
+  MemorySearchResult,
 } from "./search_types.ts";
 
 export {
+  applyShadowing,
   deserialiseRecord,
   serialiseRecord,
-  applyShadowing,
 } from "./search_serialise.ts";
 
 export { createInMemorySearchProvider } from "./search_memory.ts";

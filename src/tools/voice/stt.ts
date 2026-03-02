@@ -25,7 +25,10 @@ export interface SttProvider {
   /** Provider name (e.g. "whisper", "deepgram", "openai"). */
   readonly name: string;
   /** Transcribe audio data to text. */
-  transcribe(audio: Uint8Array, options?: TranscribeOptions): Promise<TranscriptionResult>;
+  transcribe(
+    audio: Uint8Array,
+    options?: TranscribeOptions,
+  ): Promise<TranscriptionResult>;
 }
 
 /** Registry for managing STT providers. */

@@ -1,70 +1,258 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 520" width="860" height="520" font-family="system-ui, sans-serif">
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 860 520"
+  width="860"
+  height="520"
+  font-family="system-ui, sans-serif"
+>
   <defs>
-    <marker id="arrow-down" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#374151"/>
+    <marker
+      id="arrow-down"
+      markerWidth="10"
+      markerHeight="7"
+      refX="10"
+      refY="3.5"
+      orient="auto"
+    >
+      <polygon points="0 0, 10 3.5, 0 7" fill="#374151" />
     </marker>
-    <marker id="arrow-up" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
-      <polygon points="10 0, 0 3.5, 10 7" fill="#374151"/>
+    <marker
+      id="arrow-up"
+      markerWidth="10"
+      markerHeight="7"
+      refX="0"
+      refY="3.5"
+      orient="auto"
+    >
+      <polygon points="10 0, 0 3.5, 10 7" fill="#374151" />
     </marker>
   </defs>
 
   <!-- Background -->
-  <rect width="860" height="520" fill="#ffffff" rx="0"/>
+  <rect width="860" height="520" fill="#ffffff" rx="0" />
 
   <!-- Title -->
-  <text x="430" y="36" text-anchor="middle" font-size="18" font-weight="700" fill="#1e40af">Policy Enforcement Layers</text>
+  <text
+    x="430"
+    y="36"
+    text-anchor="middle"
+    font-size="18"
+    font-weight="700"
+    fill="#1e40af"
+  >Policy Enforcement Layers</text>
 
   <!-- LLM Layer -->
-  <rect x="60" y="60" width="540" height="110" rx="8" fill="#dbeafe" stroke="#93c5fd" stroke-width="1.5"/>
-  <rect x="60" y="60" width="540" height="36" rx="8" fill="#93c5fd"/>
-  <rect x="60" y="84" width="540" height="12" fill="#93c5fd"/>
-  <text x="330" y="84" text-anchor="middle" font-size="15" font-weight="600" fill="#1e40af">LLM Layer</text>
-  <text x="330" y="126" text-anchor="middle" font-size="14" fill="#374151">Generates responses, calls tools</text>
-  <text x="330" y="148" text-anchor="middle" font-size="12" fill="#6b7280">Non-deterministic — can hallucinate, be prompt-injected</text>
+  <rect
+    x="60"
+    y="60"
+    width="540"
+    height="110"
+    rx="8"
+    fill="#dbeafe"
+    stroke="#93c5fd"
+    stroke-width="1.5"
+  />
+  <rect x="60" y="60" width="540" height="36" rx="8" fill="#93c5fd" />
+  <rect x="60" y="84" width="540" height="12" fill="#93c5fd" />
+  <text
+    x="330"
+    y="84"
+    text-anchor="middle"
+    font-size="15"
+    font-weight="600"
+    fill="#1e40af"
+  >LLM Layer</text>
+  <text x="330" y="126" text-anchor="middle" font-size="14" fill="#374151"
+  >Generates responses, calls tools</text>
+  <text x="330" y="148" text-anchor="middle" font-size="12" fill="#6b7280"
+  >Non-deterministic — can hallucinate, be prompt-injected</text>
 
   <!-- Arrow: LLM → Policy -->
-  <line x1="280" y1="170" x2="280" y2="210" stroke="#374151" stroke-width="2" marker-end="url(#arrow-down)"/>
-  <text x="292" y="197" font-size="12" fill="#374151" font-weight="500">Action Request</text>
+  <line
+    x1="280"
+    y1="170"
+    x2="280"
+    y2="210"
+    stroke="#374151"
+    stroke-width="2"
+    marker-end="url(#arrow-down)"
+  />
+  <text x="292" y="197" font-size="12" fill="#374151" font-weight="500"
+  >Action Request</text>
 
   <!-- Policy Enforcement Layer -->
-  <rect x="60" y="216" width="540" height="110" rx="8" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
-  <rect x="60" y="216" width="540" height="36" rx="8" fill="#1e40af"/>
-  <rect x="60" y="240" width="540" height="12" fill="#1e40af"/>
-  <text x="330" y="240" text-anchor="middle" font-size="15" font-weight="600" fill="#ffffff">Policy Enforcement Layer</text>
-  <text x="330" y="282" text-anchor="middle" font-size="14" fill="#ffffff">Deterministic hooks — no LLM calls, no randomness</text>
-  <text x="330" y="304" text-anchor="middle" font-size="12" fill="#bfdbfe">Same input always produces same decision</text>
+  <rect
+    x="60"
+    y="216"
+    width="540"
+    height="110"
+    rx="8"
+    fill="#2563eb"
+    stroke="#1e40af"
+    stroke-width="1.5"
+  />
+  <rect x="60" y="216" width="540" height="36" rx="8" fill="#1e40af" />
+  <rect x="60" y="240" width="540" height="12" fill="#1e40af" />
+  <text
+    x="330"
+    y="240"
+    text-anchor="middle"
+    font-size="15"
+    font-weight="600"
+    fill="#ffffff"
+  >Policy Enforcement Layer</text>
+  <text x="330" y="282" text-anchor="middle" font-size="14" fill="#ffffff"
+  >Deterministic hooks — no LLM calls, no randomness</text>
+  <text x="330" y="304" text-anchor="middle" font-size="12" fill="#bfdbfe"
+  >Same input always produces same decision</text>
 
   <!-- Arrow: Policy → Execution -->
-  <line x1="280" y1="326" x2="280" y2="366" stroke="#374151" stroke-width="2" marker-end="url(#arrow-down)"/>
-  <text x="292" y="353" font-size="12" fill="#374151" font-weight="500">Allowed Actions</text>
+  <line
+    x1="280"
+    y1="326"
+    x2="280"
+    y2="366"
+    stroke="#374151"
+    stroke-width="2"
+    marker-end="url(#arrow-down)"
+  />
+  <text x="292" y="353" font-size="12" fill="#374151" font-weight="500"
+  >Allowed Actions</text>
 
   <!-- Execution Layer -->
-  <rect x="60" y="372" width="540" height="110" rx="8" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1.5"/>
-  <rect x="60" y="372" width="540" height="36" rx="8" fill="#e5e7eb"/>
-  <rect x="60" y="396" width="540" height="12" fill="#e5e7eb"/>
-  <text x="330" y="396" text-anchor="middle" font-size="15" font-weight="600" fill="#374151">Execution Layer</text>
-  <text x="330" y="438" text-anchor="middle" font-size="14" fill="#374151">Tools, MCP servers, channels</text>
-  <text x="330" y="460" text-anchor="middle" font-size="12" fill="#6b7280">File I/O, web requests, database access, messaging</text>
+  <rect
+    x="60"
+    y="372"
+    width="540"
+    height="110"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <rect x="60" y="372" width="540" height="36" rx="8" fill="#e5e7eb" />
+  <rect x="60" y="396" width="540" height="12" fill="#e5e7eb" />
+  <text
+    x="330"
+    y="396"
+    text-anchor="middle"
+    font-size="15"
+    font-weight="600"
+    fill="#374151"
+  >Execution Layer</text>
+  <text x="330" y="438" text-anchor="middle" font-size="14" fill="#374151"
+  >Tools, MCP servers, channels</text>
+  <text x="330" y="460" text-anchor="middle" font-size="12" fill="#6b7280"
+  >File I/O, web requests, database access, messaging</text>
 
   <!-- Return arrows on the right side -->
   <!-- Execution → Policy -->
-  <line x1="640" y1="420" x2="640" y2="280" stroke="#374151" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrow-up)"/>
-  <text x="652" y="370" font-size="12" fill="#374151" font-weight="500">Results</text>
+  <line
+    x1="640"
+    y1="420"
+    x2="640"
+    y2="280"
+    stroke="#374151"
+    stroke-width="2"
+    stroke-dasharray="6,3"
+    marker-end="url(#arrow-up)"
+  />
+  <text x="652" y="370" font-size="12" fill="#374151" font-weight="500"
+  >Results</text>
 
   <!-- Policy → LLM -->
-  <line x1="640" y1="216" x2="640" y2="130" stroke="#374151" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrow-up)"/>
-  <text x="652" y="180" font-size="12" fill="#374151" font-weight="500">Filtered Results</text>
+  <line
+    x1="640"
+    y1="216"
+    x2="640"
+    y2="130"
+    stroke="#374151"
+    stroke-width="2"
+    stroke-dasharray="6,3"
+    marker-end="url(#arrow-up)"
+  />
+  <text x="652" y="180" font-size="12" fill="#374151" font-weight="500"
+  >Filtered Results</text>
 
   <!-- Side annotations -->
-  <rect x="700" y="90" width="140" height="50" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1"/>
-  <text x="770" y="112" text-anchor="middle" font-size="11" fill="#92400e" font-weight="500">LLM cannot</text>
-  <text x="770" y="128" text-anchor="middle" font-size="11" fill="#92400e" font-weight="500">bypass hooks</text>
+  <rect
+    x="700"
+    y="90"
+    width="140"
+    height="50"
+    rx="6"
+    fill="#fef3c7"
+    stroke="#f59e0b"
+    stroke-width="1"
+  />
+  <text
+    x="770"
+    y="112"
+    text-anchor="middle"
+    font-size="11"
+    fill="#92400e"
+    font-weight="500"
+  >LLM cannot</text>
+  <text
+    x="770"
+    y="128"
+    text-anchor="middle"
+    font-size="11"
+    fill="#92400e"
+    font-weight="500"
+  >bypass hooks</text>
 
-  <rect x="700" y="246" width="140" height="50" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
-  <text x="770" y="268" text-anchor="middle" font-size="11" fill="#166534" font-weight="500">Pure functions</text>
-  <text x="770" y="284" text-anchor="middle" font-size="11" fill="#166534" font-weight="500">Unforgeable</text>
+  <rect
+    x="700"
+    y="246"
+    width="140"
+    height="50"
+    rx="6"
+    fill="#dcfce7"
+    stroke="#16a34a"
+    stroke-width="1"
+  />
+  <text
+    x="770"
+    y="268"
+    text-anchor="middle"
+    font-size="11"
+    fill="#166534"
+    font-weight="500"
+  >Pure functions</text>
+  <text
+    x="770"
+    y="284"
+    text-anchor="middle"
+    font-size="11"
+    fill="#166534"
+    font-weight="500"
+  >Unforgeable</text>
 
-  <rect x="700" y="402" width="140" height="50" rx="6" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1"/>
-  <text x="770" y="424" text-anchor="middle" font-size="11" fill="#374151" font-weight="500">Sandboxed</text>
-  <text x="770" y="440" text-anchor="middle" font-size="11" fill="#374151" font-weight="500">execution</text>
+  <rect
+    x="700"
+    y="402"
+    width="140"
+    height="50"
+    rx="6"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1"
+  />
+  <text
+    x="770"
+    y="424"
+    text-anchor="middle"
+    font-size="11"
+    fill="#374151"
+    font-weight="500"
+  >Sandboxed</text>
+  <text
+    x="770"
+    y="440"
+    text-anchor="middle"
+    font-size="11"
+    fill="#374151"
+    font-weight="500"
+  >execution</text>
 </svg>

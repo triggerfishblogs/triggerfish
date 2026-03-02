@@ -40,9 +40,10 @@ export function parseFrontmatter(content: string): FrontmatterResult {
 
   try {
     const parsed = parseYaml(raw);
-    const data = (parsed && typeof parsed === "object" && !Array.isArray(parsed))
-      ? parsed as Record<string, unknown>
-      : {};
+    const data =
+      (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+        ? parsed as Record<string, unknown>
+        : {};
     return { data, body, raw };
   } catch {
     // Invalid YAML — treat as no frontmatter

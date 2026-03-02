@@ -13,11 +13,13 @@ network_domains: []
 
 # Mastering TypeScript for Deno and Triggerfish
 
-Strict mode, no exceptions, no `any`, no classes. Factory functions, Result types, branded IDs, immutable interfaces.
+Strict mode, no exceptions, no `any`, no classes. Factory functions, Result
+types, branded IDs, immutable interfaces.
 
 ## Deno 2.x Basics
 
-Deno replaces Node.js, npm, and bundlers with a single runtime. No `package.json`, no `node_modules`.
+Deno replaces Node.js, npm, and bundlers with a single runtime. No
+`package.json`, no `node_modules`.
 
 ### Dependencies
 
@@ -36,6 +38,7 @@ Dependencies are declared in `deno.json` with import maps:
 ```
 
 Two specifier types:
+
 - `jsr:` -- Deno standard library and Deno-native packages
 - `npm:` -- Node.js packages (used for SDKs like Anthropic, grammy, Bolt)
 
@@ -51,13 +54,13 @@ import { Database } from "@db/sqlite";
 
 No external tools needed:
 
-| Command | Purpose |
-|---------|---------|
-| `deno fmt` | Format code (replaces Prettier) |
-| `deno lint` | Lint code (replaces ESLint) |
-| `deno test` | Run tests (replaces Jest/Vitest) |
-| `deno check` | Type check (replaces tsc) |
-| `deno task <name>` | Run tasks from deno.json |
+| Command            | Purpose                          |
+| ------------------ | -------------------------------- |
+| `deno fmt`         | Format code (replaces Prettier)  |
+| `deno lint`        | Lint code (replaces ESLint)      |
+| `deno test`        | Run tests (replaces Jest/Vitest) |
+| `deno check`       | Type check (replaces tsc)        |
+| `deno task <name>` | Run tasks from deno.json         |
 
 ### Permissions
 
@@ -79,22 +82,24 @@ TypeScript strict mode is non-negotiable. In `deno.json`:
 }
 ```
 
-This enables all strict checks: `strictNullChecks`, `noImplicitAny`, `strictFunctionTypes`, etc.
+This enables all strict checks: `strictNullChecks`, `noImplicitAny`,
+`strictFunctionTypes`, etc.
 
 ### The `any` Ban
 
 Never use `any`. Alternatives:
 
-| Instead of `any` | Use |
-|-------------------|-----|
+| Instead of `any`                   | Use                                   |
+| ---------------------------------- | ------------------------------------- |
 | Unknown data from external sources | `unknown` and narrow with type guards |
-| Flexible object | `Record<string, unknown>` |
-| Callback with unknown signature | Proper typed function signature |
-| Temporary "make it compile" | Fix the actual type issue |
+| Flexible object                    | `Record<string, unknown>`             |
+| Callback with unknown signature    | Proper typed function signature       |
+| Temporary "make it compile"        | Fix the actual type issue             |
 
 ## The Result Pattern
 
-Triggerfish never throws exceptions for expected failures. Every fallible operation returns `Result<T, E>`:
+Triggerfish never throws exceptions for expected failures. Every fallible
+operation returns `Result<T, E>`:
 
 ```typescript
 export type Result<T, E> =
@@ -131,8 +136,10 @@ if (result.ok) {
 
 ### When to throw vs return Result
 
-- **Return Result**: Expected failures (invalid input, missing data, permission denied)
-- **Throw**: Programmer errors that should never happen (violated invariants, impossible states)
+- **Return Result**: Expected failures (invalid input, missing data, permission
+  denied)
+- **Throw**: Programmer errors that should never happen (violated invariants,
+  impossible states)
 
 In practice, Triggerfish almost never throws.
 
@@ -146,18 +153,21 @@ export type UserId = string & { readonly __brand: unique symbol };
 export type ChannelId = string & { readonly __brand: unique symbol };
 ```
 
-This is a compile-time-only check. At runtime, branded types are plain strings. Create them with:
+This is a compile-time-only check. At runtime, branded types are plain strings.
+Create them with:
 
 ```typescript
 const sessionId = crypto.randomUUID() as SessionId;
 const userId = "user-123" as UserId;
 ```
 
-TypeScript prevents accidentally passing a `UserId` where a `SessionId` is expected.
+TypeScript prevents accidentally passing a `UserId` where a `SessionId` is
+expected.
 
 ## Interface Over Type
 
-Always use `interface` for object shapes. Use `type` only for unions and aliases:
+Always use `interface` for object shapes. Use `type` only for unions and
+aliases:
 
 ```typescript
 // Good: interface for object shapes
@@ -167,7 +177,11 @@ interface ChannelStatus {
 }
 
 // Good: type for unions
-type ClassificationLevel = "RESTRICTED" | "CONFIDENTIAL" | "INTERNAL" | "PUBLIC";
+type ClassificationLevel =
+  | "RESTRICTED"
+  | "CONFIDENTIAL"
+  | "INTERNAL"
+  | "PUBLIC";
 
 // Good: type for aliases
 type MessageHandler = (message: ChannelMessage) => void;
@@ -192,7 +206,8 @@ For arrays, use `readonly T[]` or `ReadonlyArray<T>`.
 
 ## Factory Functions Over Classes
 
-Triggerfish uses factory functions that return interface objects. Never use classes:
+Triggerfish uses factory functions that return interface objects. Never use
+classes:
 
 ```typescript
 export function createProviderRegistry(): LlmProviderRegistry {
@@ -220,6 +235,7 @@ export function createProviderRegistry(): LlmProviderRegistry {
 ```
 
 Why factory functions:
+
 - Private state via closure (no `private` keyword gymnastics)
 - No `this` binding issues
 - No inheritance hierarchies
@@ -299,13 +315,14 @@ Every file starts with a JSDoc module comment:
 
 ## @std/ Library Usage
 
-| Package | Purpose | Import |
-|---------|---------|--------|
-| `@std/assert` | Test assertions | `import { assertEquals } from "@std/assert"` |
-| `@std/yaml` | YAML parsing | `import { parse } from "@std/yaml"` |
-| `@std/path` | Path manipulation | `import { join, resolve } from "@std/path"` |
+| Package       | Purpose           | Import                                       |
+| ------------- | ----------------- | -------------------------------------------- |
+| `@std/assert` | Test assertions   | `import { assertEquals } from "@std/assert"` |
+| `@std/yaml`   | YAML parsing      | `import { parse } from "@std/yaml"`          |
+| `@std/path`   | Path manipulation | `import { join, resolve } from "@std/path"`  |
 
-Some files use the older URL-based imports (`https://deno.land/std@0.224.0/`). New code should use the mapped imports from `deno.json`.
+Some files use the older URL-based imports (`https://deno.land/std@0.224.0/`).
+New code should use the mapped imports from `deno.json`.
 
 ## SQLite with @db/sqlite
 
@@ -330,7 +347,7 @@ interface KvRow {
 }
 
 const rows = stmt.all<KvRow>();
-rows.map(r => r.key); // typed correctly
+rows.map((r) => r.key); // typed correctly
 ```
 
 Requires `--allow-ffi` permission (native SQLite binding).
@@ -346,21 +363,21 @@ RESTRICTED (4)  >  CONFIDENTIAL (3)  >  INTERNAL (2)  >  PUBLIC (1)
 Data can only flow to equal or higher classification (no write-down rule):
 
 ```typescript
-canFlowTo("CONFIDENTIAL", "RESTRICTED")  // true (up is ok)
-canFlowTo("CONFIDENTIAL", "PUBLIC")      // false (write-down blocked)
-canFlowTo("INTERNAL", "INTERNAL")        // true (same level ok)
+canFlowTo("CONFIDENTIAL", "RESTRICTED"); // true (up is ok)
+canFlowTo("CONFIDENTIAL", "PUBLIC"); // false (write-down blocked)
+canFlowTo("INTERNAL", "INTERNAL"); // true (same level ok)
 ```
 
 ## Common Mistakes
 
-| Mistake | Rule |
-|---------|------|
-| Using `any` | Use `unknown` and narrow |
-| Throwing exceptions | Return `Result<T, E>` |
-| Mutating objects | Spread to create new objects |
-| Using classes | Use factory functions |
-| Using `type` for objects | Use `interface` |
-| Missing `readonly` | Every property, every array |
-| Cross-module relative imports | Import from `mod.ts` barrels |
-| Positional SQLite access | Use named properties from row objects |
-| Forgetting permissions | Deno is secure-by-default |
+| Mistake                       | Rule                                  |
+| ----------------------------- | ------------------------------------- |
+| Using `any`                   | Use `unknown` and narrow              |
+| Throwing exceptions           | Return `Result<T, E>`                 |
+| Mutating objects              | Spread to create new objects          |
+| Using classes                 | Use factory functions                 |
+| Using `type` for objects      | Use `interface`                       |
+| Missing `readonly`            | Every property, every array           |
+| Cross-module relative imports | Import from `mod.ts` barrels          |
+| Positional SQLite access      | Use named properties from row objects |
+| Forgetting permissions        | Deno is secure-by-default             |

@@ -5,18 +5,18 @@
  * even when the LLM hallucinates write tool calls. Also verifies that
  * read tools remain available in plan mode.
  */
-import { assertEquals, assert, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import type { LlmProvider } from "../../src/agent/llm.ts";
 import { createProviderRegistry } from "../../src/agent/llm.ts";
 import { createOrchestrator } from "../../src/agent/orchestrator/orchestrator.ts";
 import type { ToolDefinition } from "../../src/agent/orchestrator/orchestrator_types.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
 import {
-  createHookRunner,
   createDefaultRules,
+  createHookRunner,
 } from "../../src/core/policy/hooks/hooks.ts";
 import { createSession } from "../../src/core/types/session.ts";
-import type { UserId, ChannelId } from "../../src/core/types/session.ts";
+import type { ChannelId, UserId } from "../../src/core/types/session.ts";
 import { createPlanManager } from "../../src/agent/plan/plan.ts";
 import { getPlanToolDefinitions } from "../../src/agent/plan/tools.ts";
 
@@ -27,9 +27,11 @@ interface MockResponse {
 }
 
 /** Create a mock response with native tool calls. */
-function toolResponse(...calls: Array<{ name: string; args: Record<string, unknown> }>): MockResponse {
+function toolResponse(
+  ...calls: Array<{ name: string; args: Record<string, unknown> }>
+): MockResponse {
   return {
-    content: '',
+    content: "",
     toolCalls: calls.map((c) => ({
       type: "function",
       function: { name: c.name, arguments: JSON.stringify(c.args) },
@@ -49,7 +51,8 @@ function createMockProvider(responses: readonly MockResponse[]): LlmProvider {
     supportsStreaming: false,
     // deno-lint-ignore require-await
     async complete(_messages, _tools, _options) {
-      const r = responses[callIndex] ?? { content: "No more responses", toolCalls: [] };
+      const r = responses[callIndex] ??
+        { content: "No more responses", toolCalls: [] };
       callIndex++;
       return {
         content: r.content,
@@ -98,7 +101,8 @@ function createTestOrchestrator(
     },
   ];
 
-  const toolResults: Array<{ name: string; result: string; blocked: boolean }> = [];
+  const toolResults: Array<{ name: string; result: string; blocked: boolean }> =
+    [];
   let externalToolCalled = false;
 
   const orchestrator = createOrchestrator({
@@ -127,7 +131,12 @@ function createTestOrchestrator(
     channelId: "test" as ChannelId,
   });
 
-  return { orchestrator, session, toolResults, wasExternalToolCalled: () => externalToolCalled };
+  return {
+    orchestrator,
+    session,
+    toolResults,
+    wasExternalToolCalled: () => externalToolCalled,
+  };
 }
 
 // --- Blocking Tests ---
@@ -141,12 +150,20 @@ Deno.test("Blocking: write_file is blocked in plan mode", async () => {
     // First call: LLM enters plan mode
     toolResponse({ name: "plan_enter", args: { goal: "Build feature" } }),
     // Second call: LLM tries to write a file (should be blocked)
-    toolResponse({ name: "write_file", args: { path: "test.ts", content: "hello" } }),
+    toolResponse({
+      name: "write_file",
+      args: { path: "test.ts", content: "hello" },
+    }),
     // Third call: LLM gets the blocked message and gives up
-    textResponse("I see that write_file is blocked in plan mode. Let me create a plan instead."),
+    textResponse(
+      "I see that write_file is blocked in plan mode. Let me create a plan instead.",
+    ),
   ];
 
-  const { orchestrator, session, toolResults } = createTestOrchestrator(responses, pm);
+  const { orchestrator, session, toolResults } = createTestOrchestrator(
+    responses,
+    pm,
+  );
 
   const result = await orchestrator.executeAgentTurn({
     session,
@@ -158,7 +175,10 @@ Deno.test("Blocking: write_file is blocked in plan mode", async () => {
 
   // Find the write_file tool result — should be blocked
   const writeResult = toolResults.find((r) => r.name === "write_file");
-  assert(writeResult !== undefined, "write_file tool call should have been attempted");
+  assert(
+    writeResult !== undefined,
+    "write_file tool call should have been attempted",
+  );
   assert(writeResult!.blocked, "write_file should be blocked");
   assertStringIncludes(writeResult!.result, "blocked in plan mode");
 });
@@ -176,7 +196,8 @@ Deno.test("Blocking: read_file is allowed in plan mode", async () => {
     textResponse("I've explored the codebase."),
   ];
 
-  const { orchestrator, session, toolResults, wasExternalToolCalled } = createTestOrchestrator(responses, pm);
+  const { orchestrator, session, toolResults, wasExternalToolCalled } =
+    createTestOrchestrator(responses, pm);
 
   await orchestrator.executeAgentTurn({
     session,
@@ -186,8 +207,15 @@ Deno.test("Blocking: read_file is allowed in plan mode", async () => {
 
   const readResult = toolResults.find((r) => r.name === "read_file");
   assert(readResult !== undefined, "read_file should have been called");
-  assertEquals(readResult!.blocked, false, "read_file should not be blocked in plan mode");
-  assert(wasExternalToolCalled(), "External tool executor should have been called for read_file");
+  assertEquals(
+    readResult!.blocked,
+    false,
+    "read_file should not be blocked in plan mode",
+  );
+  assert(
+    wasExternalToolCalled(),
+    "External tool executor should have been called for read_file",
+  );
 });
 
 Deno.test("Blocking: tools unblocked after plan_exit", async () => {
@@ -197,7 +225,13 @@ Deno.test("Blocking: tools unblocked after plan_exit", async () => {
   const planJson = JSON.stringify({
     summary: "Build feature",
     approach: "Direct",
-    steps: [{ id: 1, description: "Create file", files: ["x.ts"], depends_on: [], verification: "test" }],
+    steps: [{
+      id: 1,
+      description: "Create file",
+      files: ["x.ts"],
+      depends_on: [],
+      verification: "test",
+    }],
     risks: [],
     files_to_create: ["x.ts"],
     files_to_modify: [],
@@ -211,12 +245,18 @@ Deno.test("Blocking: tools unblocked after plan_exit", async () => {
     // Exit plan mode with plan
     toolResponse({ name: "plan_exit", args: { plan: JSON.parse(planJson) } }),
     // Now in awaiting_approval — write should be allowed
-    toolResponse({ name: "write_file", args: { path: "test.ts", content: "hello" } }),
+    toolResponse({
+      name: "write_file",
+      args: { path: "test.ts", content: "hello" },
+    }),
     // Done
     textResponse("File written."),
   ];
 
-  const { orchestrator, session, toolResults } = createTestOrchestrator(responses, pm);
+  const { orchestrator, session, toolResults } = createTestOrchestrator(
+    responses,
+    pm,
+  );
 
   await orchestrator.executeAgentTurn({
     session,
@@ -227,7 +267,11 @@ Deno.test("Blocking: tools unblocked after plan_exit", async () => {
   // write_file should NOT be blocked after plan_exit (mode = awaiting_approval, not plan)
   const writeResult = toolResults.find((r) => r.name === "write_file");
   assert(writeResult !== undefined, "write_file should have been attempted");
-  assertEquals(writeResult!.blocked, false, "write_file should not be blocked after plan_exit");
+  assertEquals(
+    writeResult!.blocked,
+    false,
+    "write_file should not be blocked after plan_exit",
+  );
 });
 
 Deno.test("Blocking: plan_enter itself is never blocked", async () => {
@@ -239,7 +283,10 @@ Deno.test("Blocking: plan_enter itself is never blocked", async () => {
     textResponse("In plan mode now."),
   ];
 
-  const { orchestrator, session, toolResults } = createTestOrchestrator(responses, pm);
+  const { orchestrator, session, toolResults } = createTestOrchestrator(
+    responses,
+    pm,
+  );
 
   await orchestrator.executeAgentTurn({
     session,
@@ -261,7 +308,10 @@ Deno.test("Blocking: cron_create blocked in plan mode", async () => {
   pm.enter(session_id(), "Test");
 
   const responses: readonly MockResponse[] = [
-    toolResponse({ name: "cron_create", args: { expression: "0 * * * *", task: "test" } }),
+    toolResponse({
+      name: "cron_create",
+      args: { expression: "0 * * * *", task: "test" },
+    }),
     textResponse("Blocked, I see."),
   ];
 
@@ -282,7 +332,11 @@ Deno.test("Blocking: cron_create blocked in plan mode", async () => {
     async complete() {
       const r = responses[callIdx] ?? { content: "done", toolCalls: [] };
       callIdx++;
-      return { content: r.content, toolCalls: r.toolCalls ?? [], usage: { inputTokens: 10, outputTokens: 5 } };
+      return {
+        content: r.content,
+        toolCalls: r.toolCalls ?? [],
+        usage: { inputTokens: 10, outputTokens: 5 },
+      };
     },
   });
   registry.setDefault("mock");
@@ -309,7 +363,9 @@ Deno.test("Blocking: cron_create blocked in plan mode", async () => {
     toolExecutor: async () => "executed",
     planManager: pm,
     onEvent: (e) => {
-      if (e.type === "tool_result") toolResults.push({ name: e.name, blocked: e.blocked });
+      if (e.type === "tool_result") {
+        toolResults.push({ name: e.name, blocked: e.blocked });
+      }
     },
   });
 

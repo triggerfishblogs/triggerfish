@@ -114,9 +114,7 @@ export async function launchDirect(
   const usePipe = Deno.build.os !== "windows";
   const headless = config.headless !== false;
   const vp = config.viewport ?? DEFAULT_VIEWPORT;
-  const windowArgs = headless
-    ? []
-    : [`--window-size=${vp.width},${vp.height}`];
+  const windowArgs = headless ? [] : [`--window-size=${vp.width},${vp.height}`];
 
   log.debug("direct Chrome launch config", {
     execPath,

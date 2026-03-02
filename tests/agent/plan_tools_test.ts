@@ -4,15 +4,21 @@
  * Tests individual plan tool calls via createPlanToolExecutor,
  * including validation of untrusted LLM input.
  */
-import { assertEquals, assert, assertStringIncludes } from "@std/assert";
-import { createPlanManager, createPlanToolExecutor } from "../../src/agent/plan/plan.ts";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
+import {
+  createPlanManager,
+  createPlanToolExecutor,
+} from "../../src/agent/plan/plan.ts";
 import type { PlanManager } from "../../src/agent/plan/plan.ts";
 
 const SESSION = "test-session";
 
 function createTestSetup(): {
   manager: PlanManager;
-  exec: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  exec: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
 } {
   const tmpDir = Deno.makeTempDirSync();
   const manager = createPlanManager({ plansDir: `${tmpDir}/plans` });
@@ -25,7 +31,13 @@ const VALID_PLAN = {
   approach: "JWT tokens",
   alternatives_considered: ["OAuth"],
   steps: [
-    { id: 1, description: "Create auth module", files: ["src/auth.ts"], depends_on: [], verification: "deno test" },
+    {
+      id: 1,
+      description: "Create auth module",
+      files: ["src/auth.ts"],
+      depends_on: [],
+      verification: "deno test",
+    },
   ],
   risks: ["Security"],
   files_to_create: ["src/auth.ts"],
@@ -92,7 +104,9 @@ Deno.test("plan_exit: validates required plan fields", async () => {
   await exec("plan_enter", { goal: "Build auth" });
 
   // Missing summary
-  const result = await exec("plan_exit", { plan: { approach: "x", steps: [{ id: 1, description: "x" }] } });
+  const result = await exec("plan_exit", {
+    plan: { approach: "x", steps: [{ id: 1, description: "x" }] },
+  });
   assert(result !== null);
   assertStringIncludes(result!, "summary");
 });

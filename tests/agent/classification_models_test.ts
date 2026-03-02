@@ -5,7 +5,7 @@
  * provider loading with classification_models, and provider
  * selection in the agent loop.
  */
-import { assertEquals, assertExists, assert } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import {
   createProviderRegistry,
   type LlmProvider,
@@ -20,7 +20,12 @@ function createMockProvider(name: string, contextWindow?: number): LlmProvider {
     name,
     supportsStreaming: true,
     contextWindow,
-    complete: () => Promise.resolve({ content: "", toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 } }),
+    complete: () =>
+      Promise.resolve({
+        content: "",
+        toolCalls: [],
+        usage: { inputTokens: 0, outputTokens: 0 },
+      }),
   };
 }
 
@@ -211,7 +216,10 @@ Deno.test("loadProvidersFromConfig: warns on missing provider for classification
   }, registry);
 
   // CONFIDENTIAL should fall back to default since ollama isn't configured
-  assertEquals(registry.getForClassification("CONFIDENTIAL")!.name, "anthropic");
+  assertEquals(
+    registry.getForClassification("CONFIDENTIAL")!.name,
+    "anthropic",
+  );
 });
 
 Deno.test("loadProvidersFromConfig: works without classification_models", () => {
@@ -224,5 +232,8 @@ Deno.test("loadProvidersFromConfig: works without classification_models", () => 
   }, registry);
 
   assertEquals(registry.getDefault()!.name, "anthropic");
-  assertEquals(registry.getForClassification("CONFIDENTIAL")!.name, "anthropic");
+  assertEquals(
+    registry.getForClassification("CONFIDENTIAL")!.name,
+    "anthropic",
+  );
 });

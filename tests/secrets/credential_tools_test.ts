@@ -36,7 +36,9 @@ Deno.test("secret_save_credential — stores both username and password as separ
     makeCredentialPrompt({ username: "greg@example.com", password: "hunter2" }),
   );
 
-  const result = await executor("secret_save_credential", { name: "email_smtp" });
+  const result = await executor("secret_save_credential", {
+    name: "email_smtp",
+  });
   assertEquals(typeof result, "string");
   assertStringIncludes(result!, "email_smtp");
   assertStringIncludes(result!, "saved successfully");
@@ -77,7 +79,9 @@ Deno.test("secret_save_credential — empty username returns error", async () =>
     makeCredentialPrompt({ username: "", password: "pass123" }),
   );
 
-  const result = await executor("secret_save_credential", { name: "test_cred" });
+  const result = await executor("secret_save_credential", {
+    name: "test_cred",
+  });
   assertStringIncludes(result!, "Error");
   assertStringIncludes(result!, "Username cannot be empty");
 });
@@ -90,7 +94,9 @@ Deno.test("secret_save_credential — empty password returns error", async () =>
     makeCredentialPrompt({ username: "user@test.com", password: "" }),
   );
 
-  const result = await executor("secret_save_credential", { name: "test_cred" });
+  const result = await executor("secret_save_credential", {
+    name: "test_cred",
+  });
   assertStringIncludes(result!, "Error");
   assertStringIncludes(result!, "Password cannot be empty");
 });
@@ -167,7 +173,11 @@ Deno.test("secret_save_credential — hint is passed to prompt callback", async 
     capturedHint = hint;
     return Promise.resolve({ username: "u", password: "p" });
   };
-  const executor = createSecretToolExecutor(store, makePrompt("unused"), credPrompt);
+  const executor = createSecretToolExecutor(
+    store,
+    makePrompt("unused"),
+    credPrompt,
+  );
 
   await executor("secret_save_credential", {
     name: "test",
@@ -194,7 +204,9 @@ Deno.test("secret_save_credential — existing secret_save still works alongside
   if (saved.ok) assertEquals(saved.value, "api-key-value");
 
   // Use the new credential tool
-  const credResult = await executor("secret_save_credential", { name: "login" });
+  const credResult = await executor("secret_save_credential", {
+    name: "login",
+  });
   assertStringIncludes(credResult!, "saved successfully");
 
   const u = await store.getSecret("login:username");

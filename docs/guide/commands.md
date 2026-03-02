@@ -1,28 +1,36 @@
 # CLI Commands
 
-Triggerfish provides a comprehensive CLI for managing your agent, daemon, channels, and sessions. This page covers every available command and in-chat shortcut.
+Triggerfish provides a comprehensive CLI for managing your agent, daemon,
+channels, and sessions. This page covers every available command and in-chat
+shortcut.
 
 ## Core Commands
 
 ### `triggerfish dive`
 
-Run the interactive setup wizard. This is the first command you run after installation and can be re-run at any time to reconfigure.
+Run the interactive setup wizard. This is the first command you run after
+installation and can be re-run at any time to reconfigure.
 
 ```bash
 triggerfish dive
 ```
 
-The wizard walks through 8 steps: LLM provider, agent name/personality, channel setup, classification mode, skill installation, Google Workspace connection, search provider, and daemon installation. See [Quick Start](./quickstart) for a full walkthrough.
+The wizard walks through 8 steps: LLM provider, agent name/personality, channel
+setup, classification mode, skill installation, Google Workspace connection,
+search provider, and daemon installation. See [Quick Start](./quickstart) for a
+full walkthrough.
 
 ### `triggerfish chat`
 
-Start an interactive chat session in your terminal. This is the default command when you run `triggerfish` with no arguments.
+Start an interactive chat session in your terminal. This is the default command
+when you run `triggerfish` with no arguments.
 
 ```bash
 triggerfish chat
 ```
 
 The chat interface features:
+
 - Full-width input bar at the bottom of the terminal
 - Streaming responses with real-time token display
 - Compact tool call display (toggle with Ctrl+O)
@@ -32,29 +40,34 @@ The chat interface features:
 
 ### `triggerfish run`
 
-Start the gateway server in the foreground. Useful for development and debugging.
+Start the gateway server in the foreground. Useful for development and
+debugging.
 
 ```bash
 triggerfish run
 ```
 
-The gateway manages WebSocket connections, channel adapters, the policy engine, and session state. In production, use `triggerfish start` to run as a daemon instead.
+The gateway manages WebSocket connections, channel adapters, the policy engine,
+and session state. In production, use `triggerfish start` to run as a daemon
+instead.
 
 ### `triggerfish start`
 
-Install and start Triggerfish as a background daemon using your OS service manager.
+Install and start Triggerfish as a background daemon using your OS service
+manager.
 
 ```bash
 triggerfish start
 ```
 
-| Platform | Service Manager |
-|----------|----------------|
-| macOS | launchd |
-| Linux | systemd |
-| Windows | Windows Service / Task Scheduler |
+| Platform | Service Manager                  |
+| -------- | -------------------------------- |
+| macOS    | launchd                          |
+| Linux    | systemd                          |
+| Windows  | Windows Service / Task Scheduler |
 
-The daemon starts automatically on login and keeps your agent running in the background.
+The daemon starts automatically on login and keeps your agent running in the
+background.
 
 ### `triggerfish stop`
 
@@ -66,7 +79,8 @@ triggerfish stop
 
 ### `triggerfish status`
 
-Check whether the daemon is currently running and display basic status information.
+Check whether the daemon is currently running and display basic status
+information.
 
 ```bash
 triggerfish status
@@ -120,6 +134,7 @@ Overall: HEALTHY
 ```
 
 Patrol checks:
+
 - Gateway process status and uptime
 - LLM provider connectivity
 - Channel adapter health
@@ -168,7 +183,9 @@ Migrate plaintext credentials from `triggerfish.yaml` to the OS keychain.
 triggerfish config migrate-secrets
 ```
 
-This scans your configuration for plaintext API keys, tokens, and passwords, stores them in the OS keychain, and replaces the plaintext values with `secret:` references. A backup of the original file is created before any changes.
+This scans your configuration for plaintext API keys, tokens, and passwords,
+stores them in the OS keychain, and replaces the plaintext values with `secret:`
+references. A backup of the original file is created before any changes.
 
 See [Secrets Management](/security/secrets) for details.
 
@@ -181,9 +198,15 @@ triggerfish connect google    # Google Workspace (OAuth2 flow)
 triggerfish connect github    # GitHub (Personal Access Token)
 ```
 
-**Google Workspace** -- Starts the OAuth2 flow. Prompts for your Google Cloud OAuth Client ID and Client Secret, opens a browser for authorization, and stores tokens securely in the OS keychain. See [Google Workspace](/integrations/google-workspace) for full setup instructions including how to create credentials.
+**Google Workspace** -- Starts the OAuth2 flow. Prompts for your Google Cloud
+OAuth Client ID and Client Secret, opens a browser for authorization, and stores
+tokens securely in the OS keychain. See
+[Google Workspace](/integrations/google-workspace) for full setup instructions
+including how to create credentials.
 
-**GitHub** -- Walks you through creating a fine-grained Personal Access Token, validates it against the GitHub API, and stores it in the OS keychain. See [GitHub](/integrations/github) for details.
+**GitHub** -- Walks you through creating a fine-grained Personal Access Token,
+validates it against the GitHub API, and stores it in the OS keychain. See
+[GitHub](/integrations/github) for details.
 
 ### `triggerfish disconnect`
 
@@ -246,48 +269,51 @@ triggerfish buoys pair                  # Pair a new buoy device
 
 ## In-Chat Commands
 
-These commands are available during an interactive chat session (via `triggerfish chat` or any connected channel). They are owner-only.
+These commands are available during an interactive chat session (via
+`triggerfish chat` or any connected channel). They are owner-only.
 
-| Command | Description |
-|---------|-------------|
-| `/help` | Show available in-chat commands |
-| `/status` | Display session status: model, token count, cost, taint level |
-| `/reset` | Reset session taint and conversation history |
-| `/compact` | Compress conversation history using LLM summarization |
-| `/model <name>` | Switch the LLM model for the current session |
-| `/skill install <name>` | Install a skill from The Reef |
-| `/cron list` | List scheduled cron jobs |
+| Command                 | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `/help`                 | Show available in-chat commands                               |
+| `/status`               | Display session status: model, token count, cost, taint level |
+| `/reset`                | Reset session taint and conversation history                  |
+| `/compact`              | Compress conversation history using LLM summarization         |
+| `/model <name>`         | Switch the LLM model for the current session                  |
+| `/skill install <name>` | Install a skill from The Reef                                 |
+| `/cron list`            | List scheduled cron jobs                                      |
 
 ## Keyboard Shortcuts
 
 These shortcuts work in the CLI chat interface:
 
-| Shortcut | Action |
-|----------|--------|
-| ESC | Interrupt the current LLM response |
-| Ctrl+V | Paste image from clipboard (see [Image and Vision](/features/image-vision)) |
-| Ctrl+O | Toggle compact/expanded tool call display |
-| Ctrl+C | Exit the chat session |
-| Up/Down | Navigate input history |
+| Shortcut | Action                                                                      |
+| -------- | --------------------------------------------------------------------------- |
+| ESC      | Interrupt the current LLM response                                          |
+| Ctrl+V   | Paste image from clipboard (see [Image and Vision](/features/image-vision)) |
+| Ctrl+O   | Toggle compact/expanded tool call display                                   |
+| Ctrl+C   | Exit the chat session                                                       |
+| Up/Down  | Navigate input history                                                      |
 
-::: tip
-The ESC interrupt sends an abort signal through the entire chain -- from the orchestrator through to the LLM provider. The response stops cleanly and you can continue the conversation.
-:::
+::: tip The ESC interrupt sends an abort signal through the entire chain -- from
+the orchestrator through to the LLM provider. The response stops cleanly and you
+can continue the conversation. :::
 
 ## Debug Output
 
-Triggerfish includes detailed debug logging for diagnosing LLM provider issues, tool call parsing, and agent loop behavior. Enable it by setting the `TRIGGERFISH_DEBUG` environment variable to `1`.
+Triggerfish includes detailed debug logging for diagnosing LLM provider issues,
+tool call parsing, and agent loop behavior. Enable it by setting the
+`TRIGGERFISH_DEBUG` environment variable to `1`.
 
-::: tip
-The preferred way to control log verbosity is through `triggerfish.yaml`:
+::: tip The preferred way to control log verbosity is through
+`triggerfish.yaml`:
 
 ```yaml
 logging:
-  level: verbose   # quiet, normal, verbose, or debug
+  level: verbose # quiet, normal, verbose, or debug
 ```
 
-The `TRIGGERFISH_DEBUG=1` environment variable is still supported for backward compatibility. See [Structured Logging](/features/logging) for full details.
-:::
+The `TRIGGERFISH_DEBUG=1` environment variable is still supported for backward
+compatibility. See [Structured Logging](/features/logging) for full details. :::
 
 ### Foreground Mode
 
@@ -333,11 +359,11 @@ journalctl --user -u triggerfish.service -f
 
 When debug mode is enabled, the following is written to stderr:
 
-| Component | Log Prefix | Details |
-|-----------|-----------|---------|
-| Orchestrator | `[orch]` | Each iteration: system prompt length, history entry count, message roles/sizes, parsed tool call count, final response text |
-| OpenRouter | `[openrouter]` | Full request payload (model, message count, tool count), raw response body, content length, finish reason, token usage |
-| Other providers | `[provider]` | Request/response summaries (varies by provider) |
+| Component       | Log Prefix     | Details                                                                                                                     |
+| --------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Orchestrator    | `[orch]`       | Each iteration: system prompt length, history entry count, message roles/sizes, parsed tool call count, final response text |
+| OpenRouter      | `[openrouter]` | Full request payload (model, message count, tool count), raw response body, content length, finish reason, token usage      |
+| Other providers | `[provider]`   | Request/response summaries (varies by provider)                                                                             |
 
 Example debug output:
 
@@ -352,9 +378,9 @@ Example debug output:
 [openrouter] response: content=1284chars finish=stop tokens=342
 ```
 
-::: warning
-Debug output includes full LLM request and response payloads. Do not leave it enabled in production as it may log sensitive conversation content to stderr/journal.
-:::
+::: warning Debug output includes full LLM request and response payloads. Do not
+leave it enabled in production as it may log sensitive conversation content to
+stderr/journal. :::
 
 ## Quick Reference
 

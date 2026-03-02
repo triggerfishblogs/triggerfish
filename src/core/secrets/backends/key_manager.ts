@@ -49,7 +49,8 @@ export async function loadOrCreateMachineKey(
         });
         return {
           ok: false,
-          error: `Key file '${keyPath}' is corrupt: expected 32 bytes, got ${fileBytes.byteLength}`,
+          error:
+            `Key file '${keyPath}' is corrupt: expected 32 bytes, got ${fileBytes.byteLength}`,
         };
       }
       log.info("Machine key loaded from disk", { keyPath });

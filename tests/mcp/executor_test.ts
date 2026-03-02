@@ -6,22 +6,24 @@
  */
 import { assertEquals } from "@std/assert";
 import {
-  encodeMcpToolName,
-  decodeMcpToolName,
-  getMcpToolDefinitions,
-  buildMcpToolClassifications,
   buildMcpSystemPrompt,
+  buildMcpToolClassifications,
   createMcpExecutor,
+  decodeMcpToolName,
+  encodeMcpToolName,
+  getMcpToolDefinitions,
 } from "../../src/mcp/executor.ts";
 import type { ConnectedMcpServer } from "../../src/mcp/manager.ts";
 import type { McpToolDefinition } from "../../src/mcp/client/protocol.ts";
 import type { McpGateway } from "../../src/mcp/gateway/gateway.ts";
 
-
 // --- encodeMcpToolName ---
 
 Deno.test("encodeMcpToolName: produces correct namespaced name", () => {
-  assertEquals(encodeMcpToolName("github", "list_repos"), "mcp_github_list_repos");
+  assertEquals(
+    encodeMcpToolName("github", "list_repos"),
+    "mcp_github_list_repos",
+  );
   assertEquals(encodeMcpToolName("fs", "read"), "mcp_fs_read");
 });
 
@@ -52,7 +54,10 @@ Deno.test("decodeMcpToolName: handles overlapping server ID prefixes (longest ma
     "mcp_github_enterprise_list_repos",
     ["github", "github_enterprise"],
   );
-  assertEquals(result, { serverId: "github_enterprise", toolName: "list_repos" });
+  assertEquals(result, {
+    serverId: "github_enterprise",
+    toolName: "list_repos",
+  });
 });
 
 Deno.test("decodeMcpToolName: falls back to shorter match when longer doesn't apply", () => {
@@ -80,7 +85,13 @@ function makeServer(
     id,
     classification: classification as ConnectedMcpServer["classification"],
     tools,
-    server: { callTool: () => Promise.resolve({ ok: true, value: { content: "", classification: "PUBLIC" as const } }) },
+    server: {
+      callTool: () =>
+        Promise.resolve({
+          ok: true,
+          value: { content: "", classification: "PUBLIC" as const },
+        }),
+    },
     client: {} as ConnectedMcpServer["client"],
     transport: {} as ConnectedMcpServer["transport"],
   };
@@ -113,11 +124,19 @@ Deno.test("getMcpToolDefinitions: generates definitions with correct names", () 
 
 Deno.test("getMcpToolDefinitions: handles multiple servers", () => {
   const server1 = makeServer("github", [
-    { name: "list", description: "List repos", inputSchema: { type: "object" } },
+    {
+      name: "list",
+      description: "List repos",
+      inputSchema: { type: "object" },
+    },
   ]);
   const server2 = makeServer("fs", [
     { name: "read", description: "Read file", inputSchema: { type: "object" } },
-    { name: "write", description: "Write file", inputSchema: { type: "object" } },
+    {
+      name: "write",
+      description: "Write file",
+      inputSchema: { type: "object" },
+    },
   ]);
 
   const defs = getMcpToolDefinitions([server1, server2]);

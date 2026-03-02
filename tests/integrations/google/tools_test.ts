@@ -13,12 +13,12 @@ import {
   GOOGLE_TOOLS_SYSTEM_PROMPT,
 } from "../../../src/integrations/google/tools.ts";
 import type {
-  GoogleToolContext,
-  GmailService,
   CalendarService,
-  TasksService,
   DriveService,
+  GmailService,
+  GoogleToolContext,
   SheetsService,
+  TasksService,
 } from "../../../src/integrations/google/types.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 
@@ -41,11 +41,20 @@ Deno.test("getGoogleToolDefinitions: contains all expected tool names", () => {
   const names = new Set(defs.map((d) => d.name));
 
   const expected = [
-    "gmail_search", "gmail_read", "gmail_send", "gmail_label",
-    "calendar_list", "calendar_create", "calendar_update",
-    "tasks_list", "tasks_create", "tasks_complete",
-    "drive_search", "drive_read",
-    "sheets_read", "sheets_write",
+    "gmail_search",
+    "gmail_read",
+    "gmail_send",
+    "gmail_label",
+    "calendar_list",
+    "calendar_create",
+    "calendar_update",
+    "tasks_list",
+    "tasks_create",
+    "tasks_complete",
+    "drive_search",
+    "drive_read",
+    "sheets_read",
+    "sheets_write",
   ];
 
   for (const name of expected) {

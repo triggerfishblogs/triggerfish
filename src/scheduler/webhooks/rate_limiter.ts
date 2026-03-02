@@ -40,7 +40,8 @@ export function createRateLimiter(config: RateLimiterConfig): RateLimiter {
   return {
     allowRequest(key: string): boolean {
       const now = Date.now();
-      const bucket = buckets.get(key) ?? { tokens: config.burst, lastRefillMs: now };
+      const bucket = buckets.get(key) ??
+        { tokens: config.burst, lastRefillMs: now };
       const elapsed = now - bucket.lastRefillMs;
       const refilled = Math.floor(elapsed / msPerToken);
       const newTokens = Math.min(config.burst, bucket.tokens + refilled);

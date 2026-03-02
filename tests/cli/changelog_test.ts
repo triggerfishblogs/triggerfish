@@ -4,7 +4,7 @@
  * Tests version comparison, range filtering, and formatting without
  * making real network requests.
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
   compareVersionTags,
   normalizeVersionTag,
@@ -94,14 +94,16 @@ Deno.test("formatChangelogPlainText: formats releases newest first", () => {
         name: "v0.2.1",
         body: "Bug fixes",
         publishedAt: "2026-01-01T00:00:00Z",
-        htmlUrl: "https://github.com/greghavens/triggerfish/releases/tag/v0.2.1",
+        htmlUrl:
+          "https://github.com/greghavens/triggerfish/releases/tag/v0.2.1",
       },
       {
         tag: "v0.3.0",
         name: "v0.3.0",
         body: "New features",
         publishedAt: "2026-02-01T00:00:00Z",
-        htmlUrl: "https://github.com/greghavens/triggerfish/releases/tag/v0.3.0",
+        htmlUrl:
+          "https://github.com/greghavens/triggerfish/releases/tag/v0.3.0",
       },
     ],
   };

@@ -13,7 +13,10 @@ import { createWebToolExecutor } from "../../../tools/web/mod.ts";
 import type { ToolExecutor } from "../../../core/types/tool.ts";
 import type { LlmProviderRegistry } from "../../../core/types/llm.ts";
 
-export type { SubsystemExecutor, ToolExecutorOptions } from "./executor_types.ts";
+export type {
+  SubsystemExecutor,
+  ToolExecutorOptions,
+} from "./executor_types.ts";
 import type {
   SubsystemExecutor,
   ToolExecutorOptions,
@@ -39,10 +42,18 @@ function buildCoreSubsystems(
   todoExecutor: SubsystemExecutor | null,
 ): (SubsystemExecutor | null | undefined)[] {
   return [
-    todoExecutor, opts.memoryExecutor, opts.planExecutor,
-    opts.browserExecutor, opts.tidepoolExecutor, opts.sessionExecutor,
-    opts.imageExecutor, opts.exploreExecutor, opts.googleExecutor,
-    opts.githubExecutor, opts.caldavExecutor, opts.obsidianExecutor,
+    todoExecutor,
+    opts.memoryExecutor,
+    opts.planExecutor,
+    opts.browserExecutor,
+    opts.tidepoolExecutor,
+    opts.sessionExecutor,
+    opts.imageExecutor,
+    opts.exploreExecutor,
+    opts.googleExecutor,
+    opts.githubExecutor,
+    opts.caldavExecutor,
+    opts.obsidianExecutor,
   ];
 }
 
@@ -52,10 +63,17 @@ function buildExtendedSubsystems(
   webExecutor: SubsystemExecutor,
 ): (SubsystemExecutor | null | undefined)[] {
   return [
-    opts.llmTaskExecutor, opts.summarizeExecutor, opts.healthcheckExecutor,
-    opts.claudeExecutor, opts.mcpExecutor, opts.secretExecutor,
-    opts.triggerExecutor, opts.triggerClassificationExecutor,
-    opts.skillExecutor, opts.releaseNotesExecutor, webExecutor,
+    opts.llmTaskExecutor,
+    opts.summarizeExecutor,
+    opts.healthcheckExecutor,
+    opts.claudeExecutor,
+    opts.mcpExecutor,
+    opts.secretExecutor,
+    opts.triggerExecutor,
+    opts.triggerClassificationExecutor,
+    opts.skillExecutor,
+    opts.releaseNotesExecutor,
+    webExecutor,
   ];
 }
 
@@ -134,22 +152,25 @@ function dispatchFilesystemTool(
   input: Record<string, unknown>,
   opts: ToolExecutorOptions,
 ): Promise<string> | null {
+  const sandbox = opts.filesystemSandbox;
   switch (name) {
     case "read_file":
-      return executeReadFile(input);
+      return executeReadFile(input, sandbox);
     case "write_file":
-      return executeWriteFile(input, opts.execTools);
+      return executeWriteFile(input, opts.execTools, sandbox);
     case "list_directory":
-      return executeListDirectory(input);
+      return executeListDirectory(input, sandbox);
     case "run_command":
       return executeRunCommand(input, opts.execTools);
     case "search_files":
-      return executeSearchFiles(input);
+      return executeSearchFiles(input, sandbox);
     case "edit_file":
-      return executeEditFile(input);
+      return executeEditFile(input, sandbox);
     case "log_read":
       // executeLogRead returns Promise<string | null>; null cannot occur here since name === "log_read"
-      return executeLogRead(name, input).then((r) => r ?? "No log files found or logs are empty.");
+      return executeLogRead(name, input).then((r) =>
+        r ?? "No log files found or logs are empty."
+      );
     default:
       return null;
   }

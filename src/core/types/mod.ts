@@ -4,14 +4,11 @@
  * @module
  */
 
-export type {
-  ClassificationLevel,
-  Result,
-} from "./classification.ts";
+export type { ClassificationLevel, Result } from "./classification.ts";
 
 export {
-  CLASSIFICATION_ORDER,
   canFlowTo,
+  CLASSIFICATION_ORDER,
   compareClassification,
   maxClassification,
   minClassification,
@@ -35,44 +32,38 @@ export {
   updateTaint,
 } from "./session.ts";
 
-export type {
-  ToolDefinition,
-  ToolExecutor,
-} from "./tool.ts";
+export type { ToolDefinition, ToolExecutor } from "./tool.ts";
 
 export type {
-  LlmMessage,
-  LlmUsage,
   LlmCompletionResult,
-  LlmStreamChunk,
+  LlmMessage,
   LlmProvider,
   LlmProviderRegistry,
+  LlmStreamChunk,
+  LlmUsage,
 } from "./llm.ts";
 
-export type {
-  DomainClassificationResult,
-  DomainClassifier,
-} from "./domain.ts";
+export type { DomainClassificationResult, DomainClassifier } from "./domain.ts";
 
 export type {
+  CompactResult,
+  HistoryEntry,
   Orchestrator,
   ProcessMessageOptions,
   ProcessMessageResult,
-  HistoryEntry,
-  CompactResult,
 } from "./orchestrator.ts";
 
 export type {
-  NotificationPriority,
-  Notification,
   DeliverOptions,
   DeliveryChannel,
+  Notification,
+  NotificationPriority,
   NotificationService,
 } from "./notification.ts";
 
 export type {
-  ChatEvent,
   ChatClientMessage,
+  ChatEvent,
   ChatEventSender,
 } from "./chat_event.ts";
 

@@ -16,7 +16,11 @@
 
 import type { PlanModeState } from "./types.ts";
 import { DEFAULT_PLAN_STATE, PLAN_BLOCKED_TOOLS } from "./types.ts";
-import type { PendingPlan, PlanManager, PlanManagerOptions } from "./plan_types.ts";
+import type {
+  PendingPlan,
+  PlanManager,
+  PlanManagerOptions,
+} from "./plan_types.ts";
 import type { TransitionContext } from "./plan_transitions.ts";
 import {
   approvePendingPlan,
@@ -25,7 +29,10 @@ import {
   exitPlanMode,
   rejectPendingPlan,
 } from "./plan_transitions.ts";
-import type { RecordStepOptions, StepOperationContext } from "./plan_operations.ts";
+import type {
+  RecordStepOptions,
+  StepOperationContext,
+} from "./plan_operations.ts";
 import {
   buildPlanStatusSnapshot,
   modifyPlanStep,
@@ -114,20 +121,43 @@ function assembleManagerMethods(cfg: ManagerConfig): PlanManager {
   return {
     getState: gs,
     enter: (sid, goal, scope) =>
-      enterPlanMode({ ctx: buildTxCtx(cfg, sid), current: gs(sid), goal, scope }),
+      enterPlanMode({
+        ctx: buildTxCtx(cfg, sid),
+        current: gs(sid),
+        goal,
+        scope,
+      }),
     exit: (sid, plan) =>
-      exitPlanMode({ ctx: buildTxCtx(cfg, sid), plansDir: cfg.plansDir, current: gs(sid), plan }),
+      exitPlanMode({
+        ctx: buildTxCtx(cfg, sid),
+        plansDir: cfg.plansDir,
+        current: gs(sid),
+        plan,
+      }),
     status: (sid) => buildPlanStatusSnapshot(gs(sid)),
     approve: (sid) => approvePendingPlan(buildTxCtx(cfg, sid)),
     reject: (sid) => rejectPendingPlan(buildTxCtx(cfg, sid)),
     stepComplete: (sid, stepId, vr) =>
-      dispatchStepComplete({ ctx: buildStepCtx(cfg, sid), stepId, verificationResult: vr }),
+      dispatchStepComplete({
+        ctx: buildStepCtx(cfg, sid),
+        stepId,
+        verificationResult: vr,
+      }),
     complete: (sid, summary, devs) =>
-      completePlanExecution({ ctx: buildTxCtx(cfg, sid), current: gs(sid), summary, deviations: devs }),
+      completePlanExecution({
+        ctx: buildTxCtx(cfg, sid),
+        current: gs(sid),
+        summary,
+        deviations: devs,
+      }),
     modify: (sid, stepId, reason, desc, files?, verif?) =>
       dispatchModifyStep({
         ctx: buildStepCtx(cfg, sid),
-        stepId, reason, newDescription: desc, newFiles: files, newVerification: verif,
+        stepId,
+        reason,
+        newDescription: desc,
+        newFiles: files,
+        newVerification: verif,
       }),
     isToolBlocked: (sid, toolName) =>
       gs(sid).mode === "plan" && PLAN_BLOCKED_TOOLS.includes(toolName),

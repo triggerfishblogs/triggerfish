@@ -9,7 +9,10 @@
  * @module
  */
 import { assertEquals } from "@std/assert";
-import { checkIpListForSsrf, isPrivateIp } from "../../../src/tools/web/ssrf.ts";
+import {
+  checkIpListForSsrf,
+  isPrivateIp,
+} from "../../../src/tools/web/ssrf.ts";
 import { safeFetch } from "../../../src/tools/web/safe_fetch.ts";
 
 // ─── isPrivateIp: full-form IPv4-mapped IPv6 ─────────────────────────────────

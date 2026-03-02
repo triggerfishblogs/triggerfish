@@ -203,9 +203,12 @@ function connectWhatsAppWebhook(
   state: WhatsAppAdapterState,
 ): void {
   if (!config.ownerPhone) {
-    log.warn("WhatsApp adapter started without ownerPhone — all senders treated as owner", {
-      operation: "connectWhatsAppWebhook",
-    });
+    log.warn(
+      "WhatsApp adapter started without ownerPhone — all senders treated as owner",
+      {
+        operation: "connectWhatsAppWebhook",
+      },
+    );
   }
   state.server = Deno.serve(
     { port: webhookPort },

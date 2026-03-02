@@ -5,9 +5,9 @@
  */
 import { assertEquals } from "@std/assert";
 import {
-  validateWebChatUpgrade,
   MAX_SINGLE_HEADER_BYTES,
   MAX_TOTAL_HEADER_BYTES,
+  validateWebChatUpgrade,
 } from "../../src/channels/webchat/adapter.ts";
 import type { WebChatConfig } from "../../src/channels/webchat/adapter.ts";
 

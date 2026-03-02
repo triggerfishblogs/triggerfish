@@ -47,7 +47,10 @@ async function reportGithubTokenFailure(resp: Response): Promise<null> {
   const body = await resp.json().catch(
     () => ({}) as Record<string, unknown>,
   );
-  log.warn("GitHub token verification failed", { operation: "connectGithub", status: resp.status });
+  log.warn("GitHub token verification failed", {
+    operation: "connectGithub",
+    status: resp.status,
+  });
   console.log(
     `\nToken verification failed (${resp.status}): ${
       (body as Record<string, string>).message ?? "Unknown error"
@@ -101,7 +104,10 @@ async function storeGithubToken(token: string): Promise<boolean> {
   const secretStore = createKeychain();
   const result = await secretStore.setSecret("github-pat", token);
   if (!result.ok) {
-    log.error("GitHub token keychain store failed", { operation: "connectGithub", error: result.error });
+    log.error("GitHub token keychain store failed", {
+      operation: "connectGithub",
+      error: result.error,
+    });
     console.log(`\nFailed to store token: ${result.error}`);
     return false;
   }

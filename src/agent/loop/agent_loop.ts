@@ -8,13 +8,22 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../core/types/classification.ts";
 import type { SessionState } from "../../core/types/session.ts";
-import type { HistoryEntry, ProcessMessageResult } from "../orchestrator/orchestrator_types.ts";
+import type {
+  HistoryEntry,
+  ProcessMessageResult,
+} from "../orchestrator/orchestrator_types.ts";
 import { MAX_TOOL_ITERATIONS } from "../orchestrator/orchestrator_types.ts";
 import type { OrchestratorState } from "../orchestrator/orchestrator.ts";
 import type { AgentLoopContext } from "./loop_types.ts";
-import { callLlmAndRecordUsage, dispatchIterationOutcome } from "./loop_iteration.ts";
+import {
+  callLlmAndRecordUsage,
+  dispatchIterationOutcome,
+} from "./loop_iteration.ts";
 
 /** Options for running the agent loop. */
 export interface AgentLoopOptions {
@@ -40,7 +49,9 @@ function buildAgentLoopContext(opts: AgentLoopOptions): AgentLoopContext {
 async function executeIteration(
   ctx: AgentLoopContext,
   iteration: number,
-): Promise<{ done: true; result: Result<ProcessMessageResult, string> } | { done: false }> {
+): Promise<
+  { done: true; result: Result<ProcessMessageResult, string> } | { done: false }
+> {
   const llmResult = await callLlmAndRecordUsage(ctx, iteration);
   if (!llmResult.ok) return { done: true, result: llmResult.result };
   const outcome = await dispatchIterationOutcome(ctx, {

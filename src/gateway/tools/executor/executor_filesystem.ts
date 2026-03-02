@@ -2,11 +2,15 @@
  * Built-in filesystem tool handlers — read, write, list, search, edit.
  *
  * Each handler validates its input and returns a result string.
- * Write operations delegate to ExecTools for workspace sandboxing.
+ * When a FilesystemSandbox is provided, operations are routed through
+ * the sandboxed Deno subprocess for OS-level permission enforcement.
+ * Otherwise, handlers fall back to direct Deno API calls.
  *
  * @module
  */
 
+import type { FilesystemSandbox } from "../../../exec/sandbox/mod.ts";
+import type { SandboxResponse } from "../../../exec/sandbox/mod.ts";
 import type { ToolExecutorOptions } from "./executor_types.ts";
 import { executeLogRead } from "../../../tools/log_reader_tool.ts";
 
@@ -15,13 +19,29 @@ function formatFsError(prefix: string, err: unknown): string {
   return `${prefix}: ${err instanceof Error ? err.message : String(err)}`;
 }
 
+/** Unpack a sandbox response into a result string. */
+function unpackSandboxResponse(resp: SandboxResponse): string {
+  return resp.ok
+    ? (resp.result ?? "")
+    : (resp.error ?? "Unknown sandbox error");
+}
+
 /** Handle read_file tool call. */
 export async function executeReadFile(
   input: Record<string, unknown>,
+  sandbox?: FilesystemSandbox,
 ): Promise<string> {
   const path = input.path;
   if (typeof path !== "string" || path.length === 0) {
     return "Error: read_file requires a 'path' argument (string).";
+  }
+  if (sandbox) {
+    const resp = await sandbox.request({
+      id: "",
+      op: "read",
+      args: { path },
+    });
+    return unpackSandboxResponse(resp);
   }
   try {
     return await Deno.readTextFile(path);
@@ -30,10 +50,11 @@ export async function executeReadFile(
   }
 }
 
-/** Handle write_file tool call via ExecTools sandbox. */
+/** Handle write_file tool call via sandbox or ExecTools. */
 export async function executeWriteFile(
   input: Record<string, unknown>,
   execTools: ToolExecutorOptions["execTools"],
+  sandbox?: FilesystemSandbox,
 ): Promise<string> {
   const path = input.path;
   const content = input.content;
@@ -42,6 +63,14 @@ export async function executeWriteFile(
   }
   if (typeof content !== "string") {
     return "Error: write_file requires a 'content' argument (string).";
+  }
+  if (sandbox) {
+    const resp = await sandbox.request({
+      id: "",
+      op: "write",
+      args: { path, content },
+    });
+    return unpackSandboxResponse(resp);
   }
   const result = await execTools.write(path, content);
   return result.ok
@@ -52,10 +81,19 @@ export async function executeWriteFile(
 /** Handle list_directory tool call. */
 export async function executeListDirectory(
   input: Record<string, unknown>,
+  sandbox?: FilesystemSandbox,
 ): Promise<string> {
   const path = input.path;
   if (typeof path !== "string" || path.length === 0) {
     return "Error: list_directory requires a 'path' argument (string).";
+  }
+  if (sandbox) {
+    const resp = await sandbox.request({
+      id: "",
+      op: "list",
+      args: { path },
+    });
+    return unpackSandboxResponse(resp);
   }
   try {
     const entries: string[] = [];
@@ -129,9 +167,22 @@ function validateSearchInput(
 /** Handle search_files tool call (glob or content search). */
 export async function executeSearchFiles(
   input: Record<string, unknown>,
+  sandbox?: FilesystemSandbox,
 ): Promise<string> {
   const validationError = validateSearchInput(input);
   if (validationError) return validationError;
+  if (sandbox) {
+    const resp = await sandbox.request({
+      id: "",
+      op: "search",
+      args: {
+        path: input.path,
+        pattern: input.pattern,
+        content_search: input.content_search,
+      },
+    });
+    return unpackSandboxResponse(resp);
+  }
   const searchPath = input.path as string;
   const pattern = input.pattern as string;
   try {
@@ -188,12 +239,21 @@ export { executeLogRead };
 /** Handle edit_file tool call (find-and-replace unique string). */
 export async function executeEditFile(
   input: Record<string, unknown>,
+  sandbox?: FilesystemSandbox,
 ): Promise<string> {
   const validationError = validateEditInput(input);
   if (validationError) return validationError;
   const path = input.path as string;
   const oldText = input.old_text as string;
   const newText = input.new_text as string;
+  if (sandbox) {
+    const resp = await sandbox.request({
+      id: "",
+      op: "edit",
+      args: { path, old_text: oldText, new_text: newText },
+    });
+    return unpackSandboxResponse(resp);
+  }
   try {
     const content = await Deno.readTextFile(path);
     const replaceError = applyUniqueReplacement(content, oldText, newText);

@@ -14,7 +14,10 @@
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { canFlowTo } from "../../core/types/classification.ts";
 import { resolveSecretRefs } from "../../core/secrets/resolver.ts";
-import type { OrchestratorConfig, ToolExecutor } from "../orchestrator/orchestrator_types.ts";
+import type {
+  OrchestratorConfig,
+  ToolExecutor,
+} from "../orchestrator/orchestrator_types.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("access-control");

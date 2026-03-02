@@ -157,8 +157,6 @@ export function dispatchGoogleChatEvent(
     isOwner,
     sessionTaint: isOwner ? undefined : ("PUBLIC" as ClassificationLevel),
     isGroup: !isDm,
-    groupId: !isDm
-      ? (event.message?.space?.name ?? undefined)
-      : undefined,
+    groupId: !isDm ? (event.message?.space?.name ?? undefined) : undefined,
   });
 }

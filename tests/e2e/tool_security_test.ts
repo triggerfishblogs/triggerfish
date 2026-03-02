@@ -5,9 +5,12 @@
  */
 import { assertEquals } from "@std/assert";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
-import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks/hooks.ts";
+import {
+  createDefaultRules,
+  createHookRunner,
+} from "../../src/core/policy/hooks/hooks.ts";
 import { createSession, updateTaint } from "../../src/core/types/session.ts";
-import type { UserId, ChannelId } from "../../src/core/types/session.ts";
+import type { ChannelId, UserId } from "../../src/core/types/session.ts";
 import type { ClassificationLevel } from "../../src/core/types/classification.ts";
 
 function makeSession(taint: ClassificationLevel = "PUBLIC") {
@@ -65,7 +68,10 @@ Deno.test("e2e: tool floor allows PUBLIC session to use browser_navigate (no flo
   const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
-      tool_call: { name: "browser_navigate", args: { url: "https://example.com" } },
+      tool_call: {
+        name: "browser_navigate",
+        args: { url: "https://example.com" },
+      },
       // No tool_floor set — browser_navigate no longer has a hardcoded floor
     },
   });
@@ -98,7 +104,10 @@ Deno.test("e2e: path write-down blocks CONFIDENTIAL session writing to INTERNAL 
   const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
-      tool_call: { name: "write_file", args: { path: "/tmp/workspace/internal/file.txt" } },
+      tool_call: {
+        name: "write_file",
+        args: { path: "/tmp/workspace/internal/file.txt" },
+      },
       resource_classification: "INTERNAL" as ClassificationLevel,
       operation_type: "write",
       is_owner: true,
@@ -117,7 +126,10 @@ Deno.test("e2e: path write allows CONFIDENTIAL session writing to CONFIDENTIAL p
   const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
-      tool_call: { name: "write_file", args: { path: "/tmp/workspace/confidential/file.txt" } },
+      tool_call: {
+        name: "write_file",
+        args: { path: "/tmp/workspace/confidential/file.txt" },
+      },
       resource_classification: "CONFIDENTIAL" as ClassificationLevel,
       operation_type: "write",
       is_owner: true,
@@ -134,7 +146,10 @@ Deno.test("e2e: path write allows INTERNAL session writing to CONFIDENTIAL path 
   const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
-      tool_call: { name: "write_file", args: { path: "/tmp/workspace/confidential/file.txt" } },
+      tool_call: {
+        name: "write_file",
+        args: { path: "/tmp/workspace/confidential/file.txt" },
+      },
       resource_classification: "CONFIDENTIAL" as ClassificationLevel,
       operation_type: "write",
       is_owner: true,
@@ -226,7 +241,10 @@ Deno.test("e2e: write-down prevention is universal — blocks owner too", async 
   const result = await runner.evaluateHook("PRE_TOOL_CALL", {
     session,
     input: {
-      tool_call: { name: "write_file", args: { path: "/tmp/workspace/internal/report.txt" } },
+      tool_call: {
+        name: "write_file",
+        args: { path: "/tmp/workspace/internal/report.txt" },
+      },
       resource_classification: "INTERNAL" as ClassificationLevel,
       operation_type: "write",
       is_owner: true,

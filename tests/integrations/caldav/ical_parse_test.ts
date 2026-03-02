@@ -8,18 +8,22 @@
  */
 import { assertEquals } from "@std/assert";
 import {
+  parseRRule,
   parseVEvent,
   parseVEvents,
-  parseRRule,
   unfoldLines,
 } from "../../../src/integrations/caldav/ical.ts";
 
 // ─── Line Folding ─────────────────────────────────────────────────────────────
 
 Deno.test("unfoldLines: unfolds continuation lines with space", () => {
-  const input = "DESCRIPTION:This is a \r\n long description \r\n that continues";
+  const input =
+    "DESCRIPTION:This is a \r\n long description \r\n that continues";
   const lines = unfoldLines(input);
-  assertEquals(lines[0], "DESCRIPTION:This is a long description that continues");
+  assertEquals(
+    lines[0],
+    "DESCRIPTION:This is a long description that continues",
+  );
 });
 
 Deno.test("unfoldLines: unfolds continuation lines with tab", () => {

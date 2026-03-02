@@ -12,8 +12,8 @@ import type {
   CalDavClientInterface,
   CalDavClientResult,
   PropfindResponse,
-  ReportResponse,
   PutResponse,
+  ReportResponse,
 } from "../../../src/integrations/caldav/types.ts";
 
 /** Create a mock CalDAV client from a PROPFIND handler. */

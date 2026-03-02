@@ -27,12 +27,8 @@ export {
   buildClaudeEnv,
   buildSafeEnv,
   detectShellInjection,
-  SAFE_EXEC_PATH,
 } from "./sanitize.ts";
-export type {
-  InjectionCheckResult,
-  SafeEnvOptions,
-} from "./sanitize.ts";
+export type { InjectionCheckResult, SafeEnvOptions } from "./sanitize.ts";
 
 export { createExecTools } from "./tools.ts";
 export type {
@@ -62,3 +58,12 @@ export {
   createClaudeToolExecutor,
   getClaudeToolDefinitions,
 } from "./claude.ts";
+
+export { createFilesystemSandbox } from "./sandbox/mod.ts";
+export type {
+  FilesystemSandbox,
+  FilesystemSandboxOptions,
+  SandboxOp,
+  SandboxRequest,
+  SandboxResponse,
+} from "./sandbox/mod.ts";

@@ -9,7 +9,7 @@
  */
 
 import type { ToolDefinition } from "../../core/types/tool.ts";
-import type { LlmProviderRegistry, LlmProvider } from "../../core/types/llm.ts";
+import type { LlmProvider, LlmProviderRegistry } from "../../core/types/llm.ts";
 
 /** MIME type mapping for common image extensions. */
 const MIME_TYPES: Readonly<Record<string, string>> = {
@@ -91,7 +91,9 @@ export function createImageToolExecutor(
     const ext = path.substring(path.lastIndexOf(".")).toLowerCase();
     const mimeType = MIME_TYPES[ext];
     if (!mimeType) {
-      return `Error: Unsupported image format '${ext}'. Supported: ${Object.keys(MIME_TYPES).join(", ")}`;
+      return `Error: Unsupported image format '${ext}'. Supported: ${
+        Object.keys(MIME_TYPES).join(", ")
+      }`;
     }
 
     // Read and base64-encode the image
@@ -107,7 +109,9 @@ export function createImageToolExecutor(
       }
       base64Data = btoa(chunks.join(""));
     } catch (err) {
-      return `Error reading image: ${err instanceof Error ? err.message : String(err)}`;
+      return `Error reading image: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
     }
 
     // Send to vision-capable provider: prefer dedicated vision provider
@@ -139,7 +143,9 @@ export function createImageToolExecutor(
       const result = await provider.complete(messages, [], {});
       return result.content;
     } catch (err) {
-      return `Error analyzing image: ${err instanceof Error ? err.message : String(err)}`;
+      return `Error analyzing image: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
     }
   };
 }

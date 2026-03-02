@@ -12,15 +12,25 @@ import {
   HEALTHCHECK_SYSTEM_PROMPT,
 } from "../../src/tools/mod.ts";
 import type { HealthcheckDeps } from "../../src/tools/mod.ts";
-import type { LlmProvider, LlmProviderRegistry, LlmCompletionResult } from "../../src/agent/llm.ts";
+import type {
+  LlmCompletionResult,
+  LlmProvider,
+  LlmProviderRegistry,
+} from "../../src/agent/llm.ts";
 
 /** Create a mock registry with a default provider. */
-function createMockRegistry(defaultProvider?: LlmProvider): LlmProviderRegistry {
+function createMockRegistry(
+  defaultProvider?: LlmProvider,
+): LlmProviderRegistry {
   return {
     register(): void {},
-    get(): LlmProvider | undefined { return undefined; },
+    get(): LlmProvider | undefined {
+      return undefined;
+    },
     setDefault(): void {},
-    getDefault(): LlmProvider | undefined { return defaultProvider; },
+    getDefault(): LlmProvider | undefined {
+      return defaultProvider;
+    },
   };
 }
 
@@ -112,7 +122,9 @@ Deno.test("healthcheck: healthy state reports HEALTHY overall", async () => {
   };
   const executor = createHealthcheckToolExecutor(deps);
 
-  const result = await executor("healthcheck", { components: ["providers", "storage", "config"] });
+  const result = await executor("healthcheck", {
+    components: ["providers", "storage", "config"],
+  });
   assertStringIncludes(result!, "Overall: HEALTHY");
 
   await storage.close();

@@ -8,7 +8,12 @@
  */
 
 export { createSkillLoader } from "./loader.ts";
-export type { Skill, SkillLoader, SkillLoaderOptions, SkillSource } from "./loader.ts";
+export type {
+  Skill,
+  SkillLoader,
+  SkillLoaderOptions,
+  SkillSource,
+} from "./loader.ts";
 
 export { createSkillScanner } from "./scanner.ts";
 export type { ScanResult, SkillScanner } from "./scanner.ts";
@@ -39,15 +44,15 @@ export { createSkillContextTracker } from "./context.ts";
 export type { SkillContextTracker } from "./context.ts";
 
 export {
-  filterToolsForActiveSkill,
-  checkSkillNetworkDomain,
   checkSkillClassificationCeiling,
+  checkSkillNetworkDomain,
+  filterToolsForActiveSkill,
 } from "./enforcer.ts";
 
 export {
   computeSkillHash,
-  recordSkillHash,
   loadSkillHashRecord,
+  recordSkillHash,
   verifySkillIntegrity,
 } from "./integrity.ts";
 export type { SkillHashRecord } from "./integrity.ts";

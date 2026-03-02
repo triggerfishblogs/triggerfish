@@ -23,20 +23,23 @@ sends its contents as your prompt.
 ## How Triggers Work
 
 1. The scheduler fires a trigger at a configured interval (default: 30 minutes).
-2. It reads TRIGGER.md and passes the content as a message to a fresh orchestrator.
+2. It reads TRIGGER.md and passes the content as a message to a fresh
+   orchestrator.
 3. You execute the instructions — check things, search, fetch, summarize.
 4. Output is delivered to the owner via the notification service.
 
-**If TRIGGER.md does not exist, create it.** Without this file the scheduler falls
-back to a vague "check for anything worth reporting" prompt, which wastes tokens
-and produces low-quality results. When the user asks about triggers, or when you
-are setting up proactive monitoring, always check for TRIGGER.md first and create
-it if missing. Use `write_file` with the path `~/.triggerfish/TRIGGER.md`.
+**If TRIGGER.md does not exist, create it.** Without this file the scheduler
+falls back to a vague "check for anything worth reporting" prompt, which wastes
+tokens and produces low-quality results. When the user asks about triggers, or
+when you are setting up proactive monitoring, always check for TRIGGER.md first
+and create it if missing. Use `write_file` with the path
+`~/.triggerfish/TRIGGER.md`.
 
 ## TRIGGER.md Format
 
-Write natural language instructions. You can use markdown for structure.
-The entire file is sent as your prompt, so be specific about what you want to monitor.
+Write natural language instructions. You can use markdown for structure. The
+entire file is sent as your prompt, so be specific about what you want to
+monitor.
 
 ### Example
 
@@ -73,19 +76,21 @@ scheduler:
       end: 7
 ```
 
-The trigger session cannot access data above this ceiling. If you need to
-access CONFIDENTIAL data during triggers, the ceiling must be raised in config.
+The trigger session cannot access data above this ceiling. If you need to access
+CONFIDENTIAL data during triggers, the ceiling must be raised in config.
 
 ## Quiet Hours
 
-Quiet hours prevent triggers from firing during specified times.
-Hours are in 24-hour local time format. The trigger simply skips if the
-current time falls within the quiet window.
+Quiet hours prevent triggers from firing during specified times. Hours are in
+24-hour local time format. The trigger simply skips if the current time falls
+within the quiet window.
 
 ## Best Practices
 
-- Be specific: "Check HackerNews front page for AI news" beats "look around the internet"
+- Be specific: "Check HackerNews front page for AI news" beats "look around the
+  internet"
 - Prioritize: List the most important checks first
-- Set classification: If triggers only need public data, keep the ceiling at PUBLIC
+- Set classification: If triggers only need public data, keep the ceiling at
+  PUBLIC
 - Use quiet hours: Avoid unnecessary wakeups during sleep/focus time
 - Keep it concise: Long TRIGGER.md files cost tokens on every wakeup

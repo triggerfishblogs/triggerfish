@@ -77,7 +77,8 @@ export function createExecRunner(
         });
         return {
           ok: false,
-          error: `Command rejected — shell injection detected: ${injectionCheck.reason}`,
+          error:
+            `Command rejected — shell injection detected: ${injectionCheck.reason}`,
         };
       }
 

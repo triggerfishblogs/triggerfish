@@ -157,6 +157,16 @@ function classifyWorkspacePath(
     }
   }
 
+  // Workspace basePath and ancestors are structural (contain classification
+  // dirs but are not classified data themselves). Classify as PUBLIC so
+  // paths like ".." from the sandbox root don't falsely escalate taint.
+  if (
+    absolutePath === workspacePaths.basePath ||
+    workspacePaths.basePath.startsWith(absolutePath + "/")
+  ) {
+    return { classification: "PUBLIC", source: "workspace" };
+  }
+
   return null;
 }
 
@@ -194,23 +204,38 @@ function resolvePathClassification(
   return { classification: config.defaultClassification, source: "default" };
 }
 
+/** Options for path classifier creation. */
+export interface PathClassifierOptions {
+  /**
+   * Resolve the current working directory for relative path resolution.
+   * When provided, relative paths like "." or "subdir" resolve against
+   * this directory instead of the daemon's CWD. Should return the
+   * taint-appropriate workspace subdirectory.
+   */
+  readonly resolveCwd?: () => string;
+}
+
 /**
  * Create a path classifier.
  *
  * @param config - Filesystem security configuration (path mappings + default)
  * @param workspacePaths - Optional workspace paths for classification directory detection
+ * @param opts - Optional classifier behavior overrides
  * @returns A PathClassifier instance
  */
 export function createPathClassifier(
   config: FilesystemSecurityConfig,
   workspacePaths?: WorkspacePaths,
+  opts?: PathClassifierOptions,
 ): PathClassifier {
   const homeDir = resolveHome();
 
   return {
     classify(inputPath: string): PathClassificationResult {
       const expanded = expandTilde(inputPath);
-      const absolutePath = resolve(expanded);
+      const absolutePath = opts?.resolveCwd
+        ? resolve(opts.resolveCwd(), expanded)
+        : resolve(expanded);
       return resolvePathClassification(
         absolutePath,
         homeDir,

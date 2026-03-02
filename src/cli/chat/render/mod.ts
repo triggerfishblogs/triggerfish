@@ -4,47 +4,47 @@
  */
 
 export {
-  RESET,
-  BOLD,
-  DIM,
-  CYAN,
-  GREEN,
-  YELLOW,
-  RED,
   BLUE,
-  SPINNER_FRAMES,
+  BOLD,
+  CYAN,
+  DIM,
   enc,
+  GREEN,
+  RED,
+  RESET,
+  SPINNER_FRAMES,
   write,
   writeln,
+  YELLOW,
 } from "./ansi.ts";
 export type { ToolDisplayMode } from "./ansi.ts";
 
-export { printBanner, formatBanner } from "./banner.ts";
+export { formatBanner, printBanner } from "./banner.ts";
 
 export type { Spinner } from "./spinner.ts";
 export { createSpinner } from "./spinner.ts";
 
 export {
-  truncate,
   extractLeadToolArgument,
   formatBytes,
-  stripThinkingTags,
-  renderResponse,
+  formatError,
   formatResponse,
   renderError,
-  formatError,
   renderPrompt,
+  renderResponse,
+  stripThinkingTags,
+  truncate,
 } from "./format.ts";
 
 export {
-  isTodoTool,
-  isPlanExitTool,
-  renderToolCall,
-  renderToolResult,
+  formatPlanMarkdown,
   formatToolCallCompact,
   formatToolCallExpanded,
-  formatToolResultExpanded,
   formatToolCompact,
-  formatPlanMarkdown,
+  formatToolResultExpanded,
+  isPlanExitTool,
+  isTodoTool,
+  renderToolCall,
+  renderToolResult,
 } from "./tool_display.ts";
 export type { EventCallback } from "./tool_display.ts";

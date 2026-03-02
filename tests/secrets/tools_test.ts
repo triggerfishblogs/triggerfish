@@ -6,7 +6,11 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { createMemorySecretStore } from "../../src/core/secrets/keychain/keychain.ts";
-import { createSecretToolExecutor, getSecretToolDefinitions, SECRET_TOOLS_SYSTEM_PROMPT } from "../../src/tools/secrets.ts";
+import {
+  createSecretToolExecutor,
+  getSecretToolDefinitions,
+  SECRET_TOOLS_SYSTEM_PROMPT,
+} from "../../src/tools/secrets.ts";
 
 /** Create a test prompt callback that always returns the given value. */
 function makePrompt(value: string | null) {
@@ -31,7 +35,10 @@ Deno.test("SECRET_TOOLS_SYSTEM_PROMPT — contains reference syntax", () => {
 
 Deno.test("createSecretToolExecutor — secret_save stores value and returns confirmation", async () => {
   const store = createMemorySecretStore();
-  const executor = createSecretToolExecutor(store, makePrompt("my-secret-value"));
+  const executor = createSecretToolExecutor(
+    store,
+    makePrompt("my-secret-value"),
+  );
 
   const result = await executor("secret_save", { name: "my_key" });
   assertEquals(typeof result, "string");

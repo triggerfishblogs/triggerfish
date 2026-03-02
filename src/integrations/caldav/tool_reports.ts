@@ -12,7 +12,10 @@ import type { CalDavEvent, CalDavToolContext } from "./types.ts";
 // ─── Report Builders ──────────────────────────────────────────────────────────
 
 /** Build a calendar-query REPORT body for a time range. */
-export function buildCalendarQueryReport(timeMin: string, timeMax: string): string {
+export function buildCalendarQueryReport(
+  timeMin: string,
+  timeMax: string,
+): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
   <d:prop>

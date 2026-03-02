@@ -3,15 +3,15 @@
  * Tests MUST FAIL until hooks.ts is implemented.
  * Tests determinism, timeout=BLOCK, logging, write-down blocking, default rules.
  */
-import { assertEquals, assertExists, assert } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import {
-  type HookLogEntry,
-  createHookRunner,
   createDefaultRules,
+  createHookRunner,
+  type HookLogEntry,
 } from "../../src/core/policy/hooks/hooks.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
 import { createSession, updateTaint } from "../../src/core/types/session.ts";
-import type { UserId, ChannelId } from "../../src/core/types/session.ts";
+import type { ChannelId, UserId } from "../../src/core/types/session.ts";
 
 function makeSession(taint = "PUBLIC" as const) {
   let s = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
@@ -31,7 +31,10 @@ Deno.test("run: returns HookResult with allowed, action, ruleId, duration", asyn
   const engine = createPolicyEngine();
   const runner = createHookRunner(engine);
   const session = makeSession();
-  const result = await runner.evaluateHook("PRE_OUTPUT", { session, input: {} });
+  const result = await runner.evaluateHook("PRE_OUTPUT", {
+    session,
+    input: {},
+  });
   assertExists(result.allowed);
   assertExists(result.action);
   assert(typeof result.duration === "number");
@@ -41,7 +44,10 @@ Deno.test("run: default ALLOW when no rules match", async () => {
   const engine = createPolicyEngine();
   const runner = createHookRunner(engine);
   const session = makeSession();
-  const result = await runner.evaluateHook("PRE_OUTPUT", { session, input: {} });
+  const result = await runner.evaluateHook("PRE_OUTPUT", {
+    session,
+    input: {},
+  });
   assertEquals(result.allowed, true);
   assertEquals(result.action, "ALLOW");
 });
@@ -132,7 +138,10 @@ Deno.test("run: timeout causes BLOCK rejection", async () => {
   });
   const runner = createHookRunner(engine, { timeoutMs: 0 }); // instant timeout
   const session = makeSession();
-  const result = await runner.evaluateHook("PRE_OUTPUT", { session, input: { x: "1" } });
+  const result = await runner.evaluateHook("PRE_OUTPUT", {
+    session,
+    input: { x: "1" },
+  });
   // With 0ms timeout, should BLOCK
   assertEquals(result.allowed, false);
   assertEquals(result.action, "BLOCK");

@@ -106,7 +106,11 @@ export function markdown(id: string, content: string): A2UIComponent {
  */
 export function chart(
   id: string,
-  props: { readonly type: string; readonly labels: readonly string[]; readonly values: readonly number[] } | { readonly svg: string },
+  props: {
+    readonly type: string;
+    readonly labels: readonly string[];
+    readonly values: readonly number[];
+  } | { readonly svg: string },
 ): A2UIComponent {
   return {
     type: "chart",
@@ -126,7 +130,11 @@ export function chart(
  */
 export function form(
   id: string,
-  fields: readonly { readonly name: string; readonly type: string; readonly label: string }[],
+  fields: readonly {
+    readonly name: string;
+    readonly type: string;
+    readonly label: string;
+  }[],
 ): A2UIComponent {
   return {
     type: "form",

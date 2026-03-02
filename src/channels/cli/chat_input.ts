@@ -119,7 +119,8 @@ export async function handleClipboardPaste(
     }
     const sizeKb = (clipResult.value.data.length / 1024).toFixed(1);
     screen.setStatus(
-      "Image pasted (" + clipResult.value.mimeType + ", " + sizeKb + "KB) \u2014 will send with next message",
+      "Image pasted (" + clipResult.value.mimeType + ", " + sizeKb +
+        "KB) \u2014 will send with next message",
     );
     setTimeout(() => screen.clearStatus(), 3000);
     return [...pendingImages, imgResult.value];
@@ -142,7 +143,8 @@ export function echoSubmittedText(
     ? text.split("\n").join("\n  \x1b[2m\xb7\x1b[0m ")
     : text;
   screen.writeOutput(
-    "  " + taintColor(screen.getTaint()) + "\x1b[1m\u276f\x1b[0m " + displayText,
+    "  " + taintColor(screen.getTaint()) + "\x1b[1m\u276f\x1b[0m " +
+      displayText,
   );
   screen.writeOutput("");
 }

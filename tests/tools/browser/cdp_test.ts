@@ -261,8 +261,7 @@ Deno.test("scroll: down calls evaluate with positive Y offset", async () => {
   assertEquals(result.ok, true);
 
   // The last evaluate call should have scrollBy args (dx=0, dy=300)
-  const lastCall =
-    mockPage._evaluateCalls[mockPage._evaluateCalls.length - 1];
+  const lastCall = mockPage._evaluateCalls[mockPage._evaluateCalls.length - 1];
   assertEquals(lastCall.args, [0, 300]);
 });
 
@@ -271,8 +270,7 @@ Deno.test("scroll: up calls evaluate with negative Y offset", async () => {
   const result = await tools!.scroll("up", 200);
   assertEquals(result.ok, true);
 
-  const lastCall =
-    mockPage._evaluateCalls[mockPage._evaluateCalls.length - 1];
+  const lastCall = mockPage._evaluateCalls[mockPage._evaluateCalls.length - 1];
   assertEquals(lastCall.args, [0, -200]);
 });
 
@@ -281,8 +279,7 @@ Deno.test("scroll: left calls evaluate with negative X offset", async () => {
   const result = await tools!.scroll("left");
   assertEquals(result.ok, true);
 
-  const lastCall =
-    mockPage._evaluateCalls[mockPage._evaluateCalls.length - 1];
+  const lastCall = mockPage._evaluateCalls[mockPage._evaluateCalls.length - 1];
   assertEquals(lastCall.args, [-500, 0]);
 });
 
@@ -291,8 +288,7 @@ Deno.test("scroll: right calls evaluate with positive X offset", async () => {
   const result = await tools!.scroll("right", 100);
   assertEquals(result.ok, true);
 
-  const lastCall =
-    mockPage._evaluateCalls[mockPage._evaluateCalls.length - 1];
+  const lastCall = mockPage._evaluateCalls[mockPage._evaluateCalls.length - 1];
   assertEquals(lastCall.args, [100, 0]);
 });
 
@@ -394,7 +390,9 @@ Deno.test("executor: browser_snapshot includes links in output", async () => {
   const { createBrowserToolExecutor, createBrowserTools } = await import(
     "../../../src/tools/browser/tools/tools.ts"
   );
-  const { createDomainPolicy } = await import("../../../src/tools/browser/domains.ts");
+  const { createDomainPolicy } = await import(
+    "../../../src/tools/browser/domains.ts"
+  );
 
   const mockPage = createMockPage();
   const policy = createDomainPolicy({
@@ -408,15 +406,23 @@ Deno.test("executor: browser_snapshot includes links in output", async () => {
   const result = await executor("browser_snapshot", {});
   assertEquals(typeof result, "string");
   assertEquals(result!.includes("Links on page"), true);
-  assertEquals(result!.includes("[Example Link](<https://example.com/page>)"), true);
-  assertEquals(result!.includes("[Another Link](<https://example.com/other>)"), true);
+  assertEquals(
+    result!.includes("[Example Link](<https://example.com/page>)"),
+    true,
+  );
+  assertEquals(
+    result!.includes("[Another Link](<https://example.com/other>)"),
+    true,
+  );
 });
 
 Deno.test("executor: browser_close closes browser and returns success", async () => {
   const { createBrowserToolExecutor, createBrowserTools } = await import(
     "../../../src/tools/browser/tools/tools.ts"
   );
-  const { createDomainPolicy } = await import("../../../src/tools/browser/domains.ts");
+  const { createDomainPolicy } = await import(
+    "../../../src/tools/browser/domains.ts"
+  );
 
   const mockPage = createMockPage();
   const policy = createDomainPolicy({

@@ -8,11 +8,11 @@
  */
 
 import type {
-  CalDavToolContext,
   CalDavEvent,
   CalDavEventInput,
+  CalDavToolContext,
 } from "./types.ts";
-import { parseVEvent, generateVEvent } from "./ical.ts";
+import { generateVEvent, parseVEvent } from "./ical.ts";
 import { buildMultigetReport } from "./tool_reports.ts";
 import { resolveCalendarUrl } from "./tool_query_handlers.ts";
 import { createLogger } from "../../core/logger/logger.ts";
@@ -87,7 +87,9 @@ function buildCreateEventInput(
     end: input.end as string,
     allDay,
     ...(typeof input.location === "string" ? { location: input.location } : {}),
-    ...(typeof input.description === "string" ? { description: input.description } : {}),
+    ...(typeof input.description === "string"
+      ? { description: input.description }
+      : {}),
     ...(attendees ? { attendees } : {}),
     ...(recurrence ? { recurrence } : {}),
   };
@@ -122,7 +124,8 @@ export async function executeEventsUpdate(
     buildUpdateEventInput(eventUid, existing.value.event, input),
   );
 
-  const eventHref = existing.value.href || `${calendarUrl.replace(/\/$/, "")}/${eventUid}.ics`;
+  const eventHref = existing.value.href ||
+    `${calendarUrl.replace(/\/$/, "")}/${eventUid}.ics`;
   const putResult = await ctx.client.put(eventHref, updated, etag);
 
   if (!putResult.ok) {
@@ -146,12 +149,20 @@ async function fetchExistingEvent(
   ctx: CalDavToolContext,
   calendarUrl: string,
   eventUid: string,
-): Promise<{ ok: true; value: { event: CalDavEvent; href: string } } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; value: { event: CalDavEvent; href: string } } | {
+    ok: false;
+    error: string;
+  }
+> {
   const reportBody = buildMultigetReport(eventUid);
   const getResult = await ctx.client.report(calendarUrl, reportBody);
 
   if (!getResult.ok) {
-    return { ok: false, error: `Error fetching event for update: ${getResult.error.message}` };
+    return {
+      ok: false,
+      error: `Error fetching event for update: ${getResult.error.message}`,
+    };
   }
 
   for (const resource of getResult.value.resources) {
@@ -164,7 +175,10 @@ async function fetchExistingEvent(
     }
   }
 
-  return { ok: false, error: `Error: Event with UID '${eventUid}' not found for update.` };
+  return {
+    ok: false,
+    error: `Error: Event with UID '${eventUid}' not found for update.`,
+  };
 }
 
 /** Build merged event input for update. */
@@ -175,12 +189,18 @@ function buildUpdateEventInput(
 ): CalDavEventInput {
   return {
     uid: eventUid,
-    summary: typeof input.summary === "string" ? input.summary : existing.summary,
+    summary: typeof input.summary === "string"
+      ? input.summary
+      : existing.summary,
     start: typeof input.start === "string" ? input.start : existing.start,
     end: typeof input.end === "string" ? input.end : existing.end,
     allDay: existing.allDay,
-    location: typeof input.location === "string" ? input.location : existing.location,
-    description: typeof input.description === "string" ? input.description : existing.description,
+    location: typeof input.location === "string"
+      ? input.location
+      : existing.location,
+    description: typeof input.description === "string"
+      ? input.description
+      : existing.description,
     attendees: Array.isArray(input.attendees)
       ? input.attendees.map((email: unknown) => ({ email: String(email) }))
       : existing.attendees.length > 0

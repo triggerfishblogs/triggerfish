@@ -4,31 +4,45 @@ Triggerfish integrates with GitHub through two complementary approaches:
 
 ## Quick Setup: REST API Tools
 
-The fastest way to connect GitHub. Gives the agent 14 built-in tools for repos, PRs, issues, Actions, and code search -- all with classification-aware taint propagation.
+The fastest way to connect GitHub. Gives the agent 14 built-in tools for repos,
+PRs, issues, Actions, and code search -- all with classification-aware taint
+propagation.
 
 ```bash
 triggerfish connect github
 ```
 
-This walks you through creating a fine-grained Personal Access Token, validates it, and stores it in the OS keychain. That's it -- your agent can now use all `github_*` tools.
+This walks you through creating a fine-grained Personal Access Token, validates
+it, and stores it in the OS keychain. That's it -- your agent can now use all
+`github_*` tools.
 
-See the [Skills documentation](/integrations/skills) for more on how skills work, or run `triggerfish skills list` to see all available tools.
+See the [Skills documentation](/integrations/skills) for more on how skills
+work, or run `triggerfish skills list` to see all available tools.
 
 ## Advanced: `gh` CLI + Webhooks
 
-For the full development feedback loop (agent creates branches, opens PRs, responds to code review), Triggerfish also supports the `gh` CLI via exec and webhook-driven review delivery. This uses three composable pieces:
+For the full development feedback loop (agent creates branches, opens PRs,
+responds to code review), Triggerfish also supports the `gh` CLI via exec and
+webhook-driven review delivery. This uses three composable pieces:
 
-1. **`gh` CLI via exec** -- perform all GitHub actions (create PRs, read reviews, comment, merge)
-2. **Review delivery** -- two modes: **webhook events** (instant, requires public endpoint) or **trigger-based polling** via `gh pr view` (works behind firewalls)
-3. **git-branch-management skill** -- teaches the agent the complete branch/PR/review workflow
+1. **`gh` CLI via exec** -- perform all GitHub actions (create PRs, read
+   reviews, comment, merge)
+2. **Review delivery** -- two modes: **webhook events** (instant, requires
+   public endpoint) or **trigger-based polling** via `gh pr view` (works behind
+   firewalls)
+3. **git-branch-management skill** -- teaches the agent the complete
+   branch/PR/review workflow
 
-Together, these create a full development feedback loop: the agent creates branches, commits code, opens PRs, and responds to reviewer feedback -- no custom GitHub API code required.
+Together, these create a full development feedback loop: the agent creates
+branches, commits code, opens PRs, and responds to reviewer feedback -- no
+custom GitHub API code required.
 
 ### Prerequisites
 
 #### gh CLI
 
-The GitHub CLI (`gh`) must be installed and authenticated in the environment where Triggerfish runs.
+The GitHub CLI (`gh`) must be installed and authenticated in the environment
+where Triggerfish runs.
 
 ```bash
 # Install gh (Fedora/RHEL)
@@ -50,7 +64,8 @@ Verify authentication:
 gh auth status
 ```
 
-The agent uses `gh` via `exec.run("gh ...")` -- no separate GitHub token configuration is needed beyond the `gh` login.
+The agent uses `gh` via `exec.run("gh ...")` -- no separate GitHub token
+configuration is needed beyond the `gh` login.
 
 ### Git
 
@@ -63,15 +78,18 @@ git config --global user.email "triggerfish@example.com"
 
 ### Repository Access
 
-The agent's workspace must be a git repository (or contain one) with push access to the remote.
+The agent's workspace must be a git repository (or contain one) with push access
+to the remote.
 
 ## Review Delivery
 
-There are two ways for the agent to learn about new PR reviews. Choose one or use both together.
+There are two ways for the agent to learn about new PR reviews. Choose one or
+use both together.
 
 ### Option A: Trigger-Based Polling
 
-No inbound connectivity required. The agent polls GitHub on a schedule using `gh pr view`. Works behind any firewall, NAT, or VPN.
+No inbound connectivity required. The agent polls GitHub on a schedule using
+`gh pr view`. Works behind any firewall, NAT, or VPN.
 
 Add a cron job to `triggerfish.yaml`:
 
@@ -89,11 +107,14 @@ scheduler:
         classification: INTERNAL
 ```
 
-Or add "check open PRs for review feedback" to the agent's TRIGGER.md for execution during the regular trigger wakeup cycle.
+Or add "check open PRs for review feedback" to the agent's TRIGGER.md for
+execution during the regular trigger wakeup cycle.
 
 ### Option B: Webhook Setup
 
-Webhooks deliver review events instantly. This requires the Triggerfish gateway to be reachable from GitHub's servers (e.g. via Tailscale Funnel, reverse proxy, or tunnel).
+Webhooks deliver review events instantly. This requires the Triggerfish gateway
+to be reachable from GitHub's servers (e.g. via Tailscale Funnel, reverse proxy,
+or tunnel).
 
 ### Step 1: Generate a webhook secret
 
@@ -186,14 +207,16 @@ In your GitHub repository (or organization):
    ```
 3. Set **Content type** to `application/json`
 4. Set **Secret** to the same value as `GITHUB_WEBHOOK_SECRET`
-5. Under **Which events would you like to trigger this webhook?**, select **Let me select individual events** and check:
+5. Under **Which events would you like to trigger this webhook?**, select **Let
+   me select individual events** and check:
    - **Pull requests** (covers `pull_request.opened`, `pull_request.closed`)
    - **Pull request reviews** (covers `pull_request_review`)
    - **Pull request review comments** (covers `pull_request_review_comment`)
    - **Issue comments** (covers `issue_comment` on PRs and issues)
 6. Click **Add webhook**
 
-GitHub will send a ping event to verify the connection. Check Triggerfish logs to confirm receipt:
+GitHub will send a ping event to verify the connection. Check Triggerfish logs
+to confirm receipt:
 
 ```bash
 triggerfish logs --tail
@@ -254,7 +277,9 @@ Agent                              GitHub
   |                                  |
 ```
 
-Both paths use the same tracking files. The agent recovers context by reading the PR tracking file from `~/.triggerfish/workspace/<agent-id>/scratch/pr-tracking/`.
+Both paths use the same tracking files. The agent recovers context by reading
+the PR tracking file from
+`~/.triggerfish/workspace/<agent-id>/scratch/pr-tracking/`.
 
 ## PR Tracking Files
 
@@ -289,7 +314,9 @@ After merge, tracking files are archived to `completed/`.
 
 ## Merge Policy
 
-By default, the agent does **not** auto-merge approved PRs. When a review is approved, the agent notifies the owner and waits for an explicit merge instruction.
+By default, the agent does **not** auto-merge approved PRs. When a review is
+approved, the agent notifies the owner and waits for an explicit merge
+instruction.
 
 To enable auto-merge, add to `triggerfish.yaml`:
 
@@ -298,15 +325,17 @@ github:
   auto_merge: true
 ```
 
-When enabled, the agent will run `gh pr merge --squash --delete-branch` after receiving an approving review.
+When enabled, the agent will run `gh pr merge --squash --delete-branch` after
+receiving an approving review.
 
-::: warning
-Auto-merge is disabled by default for safety. Only enable it if you trust the agent's changes and have branch protection rules (required reviewers, CI checks) configured in GitHub.
-:::
+::: warning Auto-merge is disabled by default for safety. Only enable it if you
+trust the agent's changes and have branch protection rules (required reviewers,
+CI checks) configured in GitHub. :::
 
 ## Optional: GitHub MCP Server
 
-For richer GitHub API access beyond what `gh` CLI and the built-in tools provide, you can also configure the GitHub MCP server:
+For richer GitHub API access beyond what `gh` CLI and the built-in tools
+provide, you can also configure the GitHub MCP server:
 
 ```yaml
 mcp_servers:
@@ -317,29 +346,33 @@ mcp_servers:
     classification: CONFIDENTIAL
 ```
 
-This is not required for most workflows -- the built-in `github_*` tools (set up via `triggerfish connect github`) and `gh` CLI cover all common operations. The MCP server is useful for advanced queries not covered by the built-in tools.
+This is not required for most workflows -- the built-in `github_*` tools (set up
+via `triggerfish connect github`) and `gh` CLI cover all common operations. The
+MCP server is useful for advanced queries not covered by the built-in tools.
 
 ## Security Considerations
 
-| Control | Detail |
-|---------|--------|
-| **HMAC verification** | All GitHub webhooks are verified with HMAC-SHA256 before processing (webhook mode) |
-| **Classification** | GitHub data is classified as `INTERNAL` by default -- code and PR data do not leak to public channels |
-| **Session isolation** | Each webhook event or trigger wakeup spawns a fresh isolated session |
-| **No Write-Down** | Agent responses to INTERNAL-classified PR events cannot be sent to PUBLIC channels |
-| **Credential handling** | `gh` CLI manages its own auth token; no GitHub tokens stored in triggerfish.yaml |
-| **Branch naming** | `triggerfish/` prefix makes agent branches easily identifiable and filterable |
+| Control                 | Detail                                                                                                |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| **HMAC verification**   | All GitHub webhooks are verified with HMAC-SHA256 before processing (webhook mode)                    |
+| **Classification**      | GitHub data is classified as `INTERNAL` by default -- code and PR data do not leak to public channels |
+| **Session isolation**   | Each webhook event or trigger wakeup spawns a fresh isolated session                                  |
+| **No Write-Down**       | Agent responses to INTERNAL-classified PR events cannot be sent to PUBLIC channels                    |
+| **Credential handling** | `gh` CLI manages its own auth token; no GitHub tokens stored in triggerfish.yaml                      |
+| **Branch naming**       | `triggerfish/` prefix makes agent branches easily identifiable and filterable                         |
 
-::: tip
-If your repository contains sensitive code (proprietary, security-critical), consider setting the webhook classification to `CONFIDENTIAL` instead of `INTERNAL`.
-:::
+::: tip If your repository contains sensitive code (proprietary,
+security-critical), consider setting the webhook classification to
+`CONFIDENTIAL` instead of `INTERNAL`. :::
 
 ## Troubleshooting
 
 ### Webhook not receiving events
 
-1. Check that the webhook URL is reachable from the internet (use `curl` from an external machine)
-2. In GitHub, go to **Settings** > **Webhooks** and check the **Recent Deliveries** tab for errors
+1. Check that the webhook URL is reachable from the internet (use `curl` from an
+   external machine)
+2. In GitHub, go to **Settings** > **Webhooks** and check the **Recent
+   Deliveries** tab for errors
 3. Verify the secret matches between GitHub and `GITHUB_WEBHOOK_SECRET`
 4. Check Triggerfish logs: `triggerfish logs --tail`
 
@@ -347,7 +380,8 @@ If your repository contains sensitive code (proprietary, security-critical), con
 
 1. Check that the `pr-review-check` cron job is configured in `triggerfish.yaml`
 2. Verify the daemon is running: `triggerfish status`
-3. Check that tracking files exist in `~/.triggerfish/workspace/<agent-id>/scratch/pr-tracking/`
+3. Check that tracking files exist in
+   `~/.triggerfish/workspace/<agent-id>/scratch/pr-tracking/`
 4. Test manually: `gh pr view <number> --json reviews`
 5. Check Triggerfish logs: `triggerfish logs --tail`
 
@@ -372,4 +406,7 @@ Ensure the authenticated GitHub account has push access to the repository.
 
 ### Tracking file not found during review
 
-The agent looks for tracking files in `~/.triggerfish/workspace/<agent-id>/scratch/pr-tracking/`. If the file is missing, the PR may have been created outside Triggerfish, or the workspace was cleaned. The agent should notify the owner and skip automated handling.
+The agent looks for tracking files in
+`~/.triggerfish/workspace/<agent-id>/scratch/pr-tracking/`. If the file is
+missing, the PR may have been created outside Triggerfish, or the workspace was
+cleaned. The agent should notify the owner and skip automated handling.

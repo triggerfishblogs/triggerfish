@@ -3,13 +3,16 @@
  * Tests MUST FAIL until storage providers are implemented.
  * Tests both InMemory and SQLite backends against the same interface.
  */
-import { assertEquals, assertExists, assert } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import type { StorageProvider } from "../../src/core/storage/provider.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import { createSqliteStorage } from "../../src/core/storage/sqlite.ts";
 
 // Run the same test suite against both backends
-function storageTests(name: string, factory: () => Promise<StorageProvider> | StorageProvider) {
+function storageTests(
+  name: string,
+  factory: () => Promise<StorageProvider> | StorageProvider,
+) {
   Deno.test(`${name}: set and get a value`, async () => {
     const store = await factory();
     try {

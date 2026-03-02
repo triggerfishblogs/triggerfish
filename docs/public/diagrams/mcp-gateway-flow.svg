@@ -1,75 +1,267 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" width="960" height="360" font-family="system-ui, sans-serif">
-  <rect width="960" height="360" fill="#ffffff" rx="0"/>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 960 360"
+  width="960"
+  height="360"
+  font-family="system-ui, sans-serif"
+>
+  <rect width="960" height="360" fill="#ffffff" rx="0" />
 
   <defs>
-    <marker id="mg-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-      <path d="M0,0 L8,3 L0,6 Z" fill="#374151"/>
+    <marker
+      id="mg-arrow"
+      markerWidth="8"
+      markerHeight="6"
+      refX="8"
+      refY="3"
+      orient="auto"
+    >
+      <path d="M0,0 L8,3 L0,6 Z" fill="#374151" />
     </marker>
-    <marker id="mg-arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-      <path d="M0,0 L8,3 L0,6 Z" fill="#16a34a"/>
+    <marker
+      id="mg-arrow-green"
+      markerWidth="8"
+      markerHeight="6"
+      refX="8"
+      refY="3"
+      orient="auto"
+    >
+      <path d="M0,0 L8,3 L0,6 Z" fill="#16a34a" />
     </marker>
   </defs>
 
   <!-- Title -->
-  <text x="480" y="36" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e40af">MCP Gateway — Policy-Enforced Pipeline</text>
+  <text
+    x="480"
+    y="36"
+    text-anchor="middle"
+    font-size="16"
+    font-weight="bold"
+    fill="#1e40af"
+  >MCP Gateway — Policy-Enforced Pipeline</text>
 
   <!-- Agent box -->
-  <rect x="30" y="100" width="120" height="70" rx="8" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
-  <text x="90" y="132" text-anchor="middle" font-size="14" font-weight="600" fill="#ffffff">Agent</text>
-  <text x="90" y="150" text-anchor="middle" font-size="11" fill="#bfdbfe">LLM + tools</text>
+  <rect
+    x="30"
+    y="100"
+    width="120"
+    height="70"
+    rx="8"
+    fill="#2563eb"
+    stroke="#1e40af"
+    stroke-width="1.5"
+  />
+  <text
+    x="90"
+    y="132"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="600"
+    fill="#ffffff"
+  >Agent</text>
+  <text x="90" y="150" text-anchor="middle" font-size="11" fill="#bfdbfe"
+  >LLM + tools</text>
 
   <!-- Arrow 1 -->
-  <line x1="150" y1="135" x2="195" y2="135" stroke="#374151" stroke-width="1.5" marker-end="url(#mg-arrow)"/>
-  <text x="173" y="125" text-anchor="middle" font-size="10" fill="#6b7280">call</text>
+  <line
+    x1="150"
+    y1="135"
+    x2="195"
+    y2="135"
+    stroke="#374151"
+    stroke-width="1.5"
+    marker-end="url(#mg-arrow)"
+  />
+  <text x="173" y="125" text-anchor="middle" font-size="10" fill="#6b7280"
+  >call</text>
 
   <!-- MCP Gateway box -->
-  <rect x="200" y="88" width="150" height="95" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-  <rect x="200" y="88" width="150" height="32" rx="8" fill="#2563eb"/>
-  <rect x="200" y="104" width="150" height="16" fill="#2563eb"/>
-  <text x="275" y="110" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">MCP Gateway</text>
-  <text x="275" y="140" text-anchor="middle" font-size="11" fill="#374151">Protocol adapter</text>
-  <text x="275" y="156" text-anchor="middle" font-size="11" fill="#6b7280">JSON-RPC 2.0</text>
-  <text x="275" y="172" text-anchor="middle" font-size="11" fill="#6b7280">Tool registry</text>
+  <rect
+    x="200"
+    y="88"
+    width="150"
+    height="95"
+    rx="8"
+    fill="#eff6ff"
+    stroke="#2563eb"
+    stroke-width="2"
+  />
+  <rect x="200" y="88" width="150" height="32" rx="8" fill="#2563eb" />
+  <rect x="200" y="104" width="150" height="16" fill="#2563eb" />
+  <text
+    x="275"
+    y="110"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="bold"
+    fill="#ffffff"
+  >MCP Gateway</text>
+  <text x="275" y="140" text-anchor="middle" font-size="11" fill="#374151"
+  >Protocol adapter</text>
+  <text x="275" y="156" text-anchor="middle" font-size="11" fill="#6b7280"
+  >JSON-RPC 2.0</text>
+  <text x="275" y="172" text-anchor="middle" font-size="11" fill="#6b7280"
+  >Tool registry</text>
 
   <!-- Arrow 2 -->
-  <line x1="350" y1="135" x2="395" y2="135" stroke="#374151" stroke-width="1.5" marker-end="url(#mg-arrow)"/>
+  <line
+    x1="350"
+    y1="135"
+    x2="395"
+    y2="135"
+    stroke="#374151"
+    stroke-width="1.5"
+    marker-end="url(#mg-arrow)"
+  />
 
   <!-- Policy Layer (highlighted) -->
-  <rect x="400" y="68" width="260" height="200" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="2.5"/>
-  <rect x="400" y="68" width="260" height="36" rx="8" fill="#dc2626"/>
-  <rect x="400" y="86" width="260" height="18" fill="#dc2626"/>
-  <text x="530" y="93" text-anchor="middle" font-size="14" font-weight="bold" fill="#ffffff">Policy Layer</text>
+  <rect
+    x="400"
+    y="68"
+    width="260"
+    height="200"
+    rx="8"
+    fill="#fef2f2"
+    stroke="#dc2626"
+    stroke-width="2.5"
+  />
+  <rect x="400" y="68" width="260" height="36" rx="8" fill="#dc2626" />
+  <rect x="400" y="86" width="260" height="18" fill="#dc2626" />
+  <text
+    x="530"
+    y="93"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="bold"
+    fill="#ffffff"
+  >Policy Layer</text>
 
   <!-- Policy items -->
   <g font-size="12">
-    <rect x="420" y="118" width="220" height="28" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="1"/>
-    <text x="432" y="137" font-weight="500" fill="#374151">Classification enforcement</text>
+    <rect
+      x="420"
+      y="118"
+      width="220"
+      height="28"
+      rx="6"
+      fill="#ffffff"
+      stroke="#fca5a5"
+      stroke-width="1"
+    />
+    <text x="432" y="137" font-weight="500" fill="#374151"
+    >Classification enforcement</text>
 
-    <rect x="420" y="152" width="220" height="28" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="1"/>
-    <text x="432" y="171" font-weight="500" fill="#374151">Taint tracking + escalation</text>
+    <rect
+      x="420"
+      y="152"
+      width="220"
+      height="28"
+      rx="6"
+      fill="#ffffff"
+      stroke="#fca5a5"
+      stroke-width="1"
+    />
+    <text x="432" y="171" font-weight="500" fill="#374151"
+    >Taint tracking + escalation</text>
 
-    <rect x="420" y="186" width="220" height="28" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="1"/>
-    <text x="432" y="205" font-weight="500" fill="#374151">Schema validation</text>
+    <rect
+      x="420"
+      y="186"
+      width="220"
+      height="28"
+      rx="6"
+      fill="#ffffff"
+      stroke="#fca5a5"
+      stroke-width="1"
+    />
+    <text x="432" y="205" font-weight="500" fill="#374151"
+    >Schema validation</text>
 
-    <rect x="420" y="220" width="220" height="28" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="1"/>
+    <rect
+      x="420"
+      y="220"
+      width="220"
+      height="28"
+      rx="6"
+      fill="#ffffff"
+      stroke="#fca5a5"
+      stroke-width="1"
+    />
     <text x="432" y="239" font-weight="500" fill="#374151">Audit logging</text>
   </g>
 
   <!-- Arrow 3 (green = allowed) -->
-  <line x1="660" y1="135" x2="715" y2="135" stroke="#16a34a" stroke-width="1.5" marker-end="url(#mg-arrow-green)"/>
-  <text x="688" y="125" text-anchor="middle" font-size="10" fill="#16a34a" font-weight="500">allow</text>
+  <line
+    x1="660"
+    y1="135"
+    x2="715"
+    y2="135"
+    stroke="#16a34a"
+    stroke-width="1.5"
+    marker-end="url(#mg-arrow-green)"
+  />
+  <text
+    x="688"
+    y="125"
+    text-anchor="middle"
+    font-size="10"
+    fill="#16a34a"
+    font-weight="500"
+  >allow</text>
 
   <!-- MCP Server box -->
-  <rect x="720" y="100" width="140" height="70" rx="8" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1.5"/>
-  <text x="790" y="132" text-anchor="middle" font-size="14" font-weight="600" fill="#374151">MCP Server</text>
-  <text x="790" y="150" text-anchor="middle" font-size="11" fill="#6b7280">External tool</text>
+  <rect
+    x="720"
+    y="100"
+    width="140"
+    height="70"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#9ca3af"
+    stroke-width="1.5"
+  />
+  <text
+    x="790"
+    y="132"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="600"
+    fill="#374151"
+  >MCP Server</text>
+  <text x="790" y="150" text-anchor="middle" font-size="11" fill="#6b7280"
+  >External tool</text>
 
   <!-- Deny path -->
-  <line x1="530" y1="268" x2="530" y2="300" stroke="#dc2626" stroke-width="1.5" marker-end="url(#mg-arrow)"/>
-  <rect x="460" y="302" width="140" height="32" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
-  <text x="530" y="323" text-anchor="middle" font-size="12" font-weight="600" fill="#dc2626">BLOCKED</text>
+  <line
+    x1="530"
+    y1="268"
+    x2="530"
+    y2="300"
+    stroke="#dc2626"
+    stroke-width="1.5"
+    marker-end="url(#mg-arrow)"
+  />
+  <rect
+    x="460"
+    y="302"
+    width="140"
+    height="32"
+    rx="6"
+    fill="#fee2e2"
+    stroke="#dc2626"
+    stroke-width="1.5"
+  />
+  <text
+    x="530"
+    y="323"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="600"
+    fill="#dc2626"
+  >BLOCKED</text>
   <text x="635" y="323" font-size="11" fill="#6b7280">+ audit record</text>
 
   <!-- Bottom explanation -->
-  <text x="480" y="355" text-anchor="middle" font-size="12" fill="#6b7280">Every MCP tool call passes through the policy layer — no bypass path exists</text>
+  <text x="480" y="355" text-anchor="middle" font-size="12" fill="#6b7280"
+  >Every MCP tool call passes through the policy layer — no bypass path exists</text>
 </svg>

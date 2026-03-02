@@ -11,10 +11,18 @@ import {
   getSummarizeToolDefinitions,
   SUMMARIZE_SYSTEM_PROMPT,
 } from "../../src/tools/mod.ts";
-import type { LlmProvider, LlmProviderRegistry, LlmCompletionResult, LlmMessage } from "../../src/agent/llm.ts";
+import type {
+  LlmCompletionResult,
+  LlmMessage,
+  LlmProvider,
+  LlmProviderRegistry,
+} from "../../src/agent/llm.ts";
 
 /** Create a mock provider that captures the prompt it receives. */
-function createCapturingProvider(): { provider: LlmProvider; prompts: string[] } {
+function createCapturingProvider(): {
+  provider: LlmProvider;
+  prompts: string[];
+} {
   const prompts: string[] = [];
   const provider: LlmProvider = {
     name: "mock",
@@ -33,12 +41,18 @@ function createCapturingProvider(): { provider: LlmProvider; prompts: string[] }
 }
 
 /** Create a mock registry with a default provider. */
-function createMockRegistry(defaultProvider?: LlmProvider): LlmProviderRegistry {
+function createMockRegistry(
+  defaultProvider?: LlmProvider,
+): LlmProviderRegistry {
   return {
     register(): void {},
-    get(): LlmProvider | undefined { return undefined; },
+    get(): LlmProvider | undefined {
+      return undefined;
+    },
     setDefault(): void {},
-    getDefault(): LlmProvider | undefined { return defaultProvider; },
+    getDefault(): LlmProvider | undefined {
+      return defaultProvider;
+    },
   };
 }
 

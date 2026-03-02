@@ -5,9 +5,9 @@
  */
 
 export type {
+  RateLimiter,
   RateLimiterConfig,
   RateLimiterSnapshot,
-  RateLimiter,
 } from "./rate_limiter_types.ts";
 
 export { createRateLimiter } from "./rate_limiter_core.ts";

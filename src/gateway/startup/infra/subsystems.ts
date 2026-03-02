@@ -12,8 +12,8 @@ import { join } from "@std/path";
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import type { SessionId } from "../../../core/types/session.ts";
 import type {
-  SecretPromptCallback,
   CredentialPromptCallback,
+  SecretPromptCallback,
 } from "../../../tools/secrets.ts";
 import {
   createDailyNoteManager,
@@ -264,7 +264,9 @@ export function createCliCredentialPrompt(): CredentialPromptCallback {
   return async (
     name: string,
     hint?: string,
-  ): Promise<{ readonly username: string; readonly password: string } | null> => {
+  ): Promise<
+    { readonly username: string; readonly password: string } | null
+  > => {
     // Phase 1: username (echoed)
     writeStderr(buildUsernamePromptText(name, hint));
     const username = await readVisibleLine();

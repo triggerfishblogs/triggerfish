@@ -72,7 +72,13 @@ async function runMcpRetryLoop(
         );
         return;
       }
-      delay = handleMcpConnectionFailure(cfg, { err, delay, ctx, attempts, maxRetries });
+      delay = handleMcpConnectionFailure(cfg, {
+        err,
+        delay,
+        ctx,
+        attempts,
+        maxRetries,
+      });
     }
     await new Promise<void>((resolve) => setTimeout(resolve, delay));
     delay = Math.min(delay * 2, 30000);
@@ -156,7 +162,12 @@ function markMcpServerPermanentlyFailed(
 ): void {
   ctx.mcpLog.error(
     `MCP server '${cfg.id}' permanently failed after ${maxRetries} attempts`,
-    { operation: "mcp-server-retry", serverId: cfg.id, attempts: maxRetries, lastError },
+    {
+      operation: "mcp-server-retry",
+      serverId: cfg.id,
+      attempts: maxRetries,
+      lastError,
+    },
   );
   ctx.state.statusMap.set(cfg.id, {
     id: cfg.id,

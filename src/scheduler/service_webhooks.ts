@@ -10,7 +10,10 @@ import type {
   Result,
 } from "../core/types/classification.ts";
 import type { WebhookEvent } from "./webhooks/webhooks.ts";
-import type { SchedulerServiceConfig, WebhookRequestContext } from "./service_types.ts";
+import type {
+  SchedulerServiceConfig,
+  WebhookRequestContext,
+} from "./service_types.ts";
 import type { RateLimiter } from "./webhooks/rate_limiter.ts";
 import type { ReplayGuard } from "./webhooks/replay_guard.ts";
 import { verifyHmacAsync } from "./webhooks/webhooks.ts";
@@ -57,7 +60,8 @@ interface WebhookExecutionOptions {
 export async function validateWebhookRequest(
   options: WebhookValidationOptions,
 ): Promise<Result<ValidatedWebhook, string>> {
-  const { config, sourceId, body, context, replayGuard, getRateLimiter } = options;
+  const { config, sourceId, body, context, replayGuard, getRateLimiter } =
+    options;
 
   if (!config.webhooks.enabled) {
     return { ok: false, error: "Webhooks are disabled" };
@@ -78,7 +82,9 @@ export async function validateWebhookRequest(
     const ts = Number(context.timestamp);
     const age = Date.now() - ts;
     if (!context.timestamp || isNaN(age) || age > maxAgeMs || age < 0) {
-      log.warn(`Webhook timestamp rejected: source=${sourceId} timestamp=${context.timestamp} age=${age}ms maxAgeMs=${maxAgeMs}`);
+      log.warn(
+        `Webhook timestamp rejected: source=${sourceId} timestamp=${context.timestamp} age=${age}ms maxAgeMs=${maxAgeMs}`,
+      );
       return { ok: false, error: "Webhook timestamp missing or expired" };
     }
   }
@@ -121,23 +127,40 @@ function parseWebhookBody(
 }
 
 /** Build the prompt message for a webhook event. */
-function buildWebhookPrompt(sourceId: string, event: WebhookEvent, body: string): string {
+function buildWebhookPrompt(
+  sourceId: string,
+  event: WebhookEvent,
+  body: string,
+): string {
   return `Webhook event from ${sourceId}: ${event.event}\n\nPayload:\n${body}`;
 }
 
 /** Execute a webhook event in an isolated orchestrator session. */
-export async function executeWebhookSession(options: WebhookExecutionOptions): Promise<void> {
+export async function executeWebhookSession(
+  options: WebhookExecutionOptions,
+): Promise<void> {
   const { config, sourceId, body, event, classification } = options;
   try {
-    const { orchestrator, session } = await config.orchestratorFactory.create(`webhook-${sourceId}`);
+    const { orchestrator, session } = await config.orchestratorFactory.create(
+      `webhook-${sourceId}`,
+    );
     const result = await orchestrator.executeAgentTurn({
       session,
       message: buildWebhookPrompt(sourceId, event, body),
       targetClassification: classification,
     });
     logSchedulerTokenUsage(`webhook:${sourceId}`, result);
-    await deliverSchedulerOutput({ config, result, sessionTaint: session.taint, source: `webhook:${sourceId}` });
+    await deliverSchedulerOutput({
+      config,
+      result,
+      sessionTaint: session.taint,
+      source: `webhook:${sourceId}`,
+    });
   } catch (err) {
-    log.error(`Webhook session execution failed: source=${sourceId} error=${err instanceof Error ? err.message : String(err)}`);
+    log.error(
+      `Webhook session execution failed: source=${sourceId} error=${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
   }
 }

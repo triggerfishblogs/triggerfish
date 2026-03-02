@@ -191,7 +191,8 @@ export async function createWorkspace(
         });
         return {
           ok: false,
-          error: `Workspace path "${relativePath}" contains traversal or absolute components`,
+          error:
+            `Workspace path "${relativePath}" contains traversal or absolute components`,
         };
       }
       const prefix = extractClassificationPrefix(relativePath);
@@ -206,7 +207,10 @@ export async function createWorkspace(
         });
       }
       if (operation === "write") {
-        log.debug("Workspace write routed to session taint directory", { relativePath, sessionTaint });
+        log.debug("Workspace write routed to session taint directory", {
+          relativePath,
+          sessionTaint,
+        });
         return resolveBareWritePath(
           relativePath,
           sessionTaint,

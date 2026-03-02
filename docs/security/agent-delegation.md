@@ -1,10 +1,16 @@
 # Agent Delegation
 
-As AI agents increasingly interact with each other -- one agent calling another to complete subtasks -- a new class of security risks emerges. An agent chain could be used to launder data through a less-restricted agent, bypassing classification controls. Triggerfish prevents this with cryptographic agent identity, classification ceilings, and mandatory taint inheritance.
+As AI agents increasingly interact with each other -- one agent calling another
+to complete subtasks -- a new class of security risks emerges. An agent chain
+could be used to launder data through a less-restricted agent, bypassing
+classification controls. Triggerfish prevents this with cryptographic agent
+identity, classification ceilings, and mandatory taint inheritance.
 
 ## Agent Certificates
 
-Every agent in Triggerfish has a certificate that defines its identity, capabilities, and delegation permissions. This certificate is signed by the agent's owner and cannot be modified by the agent itself or by other agents.
+Every agent in Triggerfish has a certificate that defines its identity,
+capabilities, and delegation permissions. This certificate is signed by the
+agent's owner and cannot be modified by the agent itself or by other agents.
 
 ```json
 {
@@ -37,17 +43,19 @@ Every agent in Triggerfish has a certificate that defines its identity, capabili
 
 Key fields in the certificate:
 
-| Field | Purpose |
-|-------|---------|
-| `max_classification` | The **classification ceiling** -- the highest taint level at which this agent can operate. An agent with an INTERNAL ceiling cannot be invoked by a session tainted at CONFIDENTIAL. |
-| `can_invoke_agents` | Whether this agent is permitted to call other agents. |
-| `can_be_invoked_by` | Explicit allowlist of agents that may invoke this one. |
-| `max_delegation_depth` | Maximum depth of the agent invocation chain. Prevents unbounded recursion. |
-| `signature` | Ed25519 signature from the owner. Prevents certificate tampering. |
+| Field                  | Purpose                                                                                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `max_classification`   | The **classification ceiling** -- the highest taint level at which this agent can operate. An agent with an INTERNAL ceiling cannot be invoked by a session tainted at CONFIDENTIAL. |
+| `can_invoke_agents`    | Whether this agent is permitted to call other agents.                                                                                                                                |
+| `can_be_invoked_by`    | Explicit allowlist of agents that may invoke this one.                                                                                                                               |
+| `max_delegation_depth` | Maximum depth of the agent invocation chain. Prevents unbounded recursion.                                                                                                           |
+| `signature`            | Ed25519 signature from the owner. Prevents certificate tampering.                                                                                                                    |
 
 ## Invocation Flow
 
-When one agent calls another, the policy layer verifies the delegation before the callee agent executes. The check is deterministic and runs in code -- the calling agent cannot influence the decision.
+When one agent calls another, the policy layer verifies the delegation before
+the callee agent executes. The check is deterministic and runs in code -- the
+calling agent cannot influence the decision.
 
 ```
 +--------------+         +--------------+         +--------------+
@@ -76,15 +84,21 @@ When one agent calls another, the policy layer verifies the delegation before th
        | (CONFIDENTIAL)         |                        |
 ```
 
-In this example, Agent A has a session taint of CONFIDENTIAL (it accessed Salesforce data earlier). Agent B has a classification ceiling of INTERNAL. Because CONFIDENTIAL is higher than INTERNAL, the invocation is blocked. Agent A's tainted data cannot flow to an agent with a lower classification ceiling.
+In this example, Agent A has a session taint of CONFIDENTIAL (it accessed
+Salesforce data earlier). Agent B has a classification ceiling of INTERNAL.
+Because CONFIDENTIAL is higher than INTERNAL, the invocation is blocked. Agent
+A's tainted data cannot flow to an agent with a lower classification ceiling.
 
-::: warning SECURITY
-The policy layer checks the caller's **current session taint**, not its ceiling. Even if Agent A has a CONFIDENTIAL ceiling, what matters is the actual taint level of the session at the time of invocation. If Agent A has not accessed any classified data (taint is PUBLIC), it can invoke Agent B (INTERNAL ceiling) without issue.
-:::
+::: warning SECURITY The policy layer checks the caller's **current session
+taint**, not its ceiling. Even if Agent A has a CONFIDENTIAL ceiling, what
+matters is the actual taint level of the session at the time of invocation. If
+Agent A has not accessed any classified data (taint is PUBLIC), it can invoke
+Agent B (INTERNAL ceiling) without issue. :::
 
 ## Delegation Chain Tracking
 
-When agents invoke other agents, the full chain is tracked with timestamps and taint levels at each step:
+When agents invoke other agents, the full chain is tracked with timestamps and
+taint levels at each step:
 
 ```json
 {
@@ -110,22 +124,29 @@ When agents invoke other agents, the full chain is tracked with timestamps and t
 }
 ```
 
-This chain is recorded in the audit log and can be queried for compliance and forensic analysis. You can trace exactly which agents were involved, what their taint levels were, and what tasks they performed.
+This chain is recorded in the audit log and can be queried for compliance and
+forensic analysis. You can trace exactly which agents were involved, what their
+taint levels were, and what tasks they performed.
 
 ## Security Invariants
 
-Four invariants govern agent delegation. All are enforced by code in the policy layer and cannot be overridden by any agent in the chain.
+Four invariants govern agent delegation. All are enforced by code in the policy
+layer and cannot be overridden by any agent in the chain.
 
-| Invariant | Enforcement |
-|-----------|-------------|
-| **Taint only increases** | Each callee inherits `max(own taint, caller taint)`. A callee can never have a lower taint than its caller. |
-| **Ceiling respected** | An agent cannot be invoked if the caller's taint exceeds the callee's `max_classification` ceiling. |
-| **Depth limits enforced** | The chain terminates at `max_delegation_depth`. If the limit is 3, a fourth-level invocation is blocked. |
+| Invariant                       | Enforcement                                                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Taint only increases**        | Each callee inherits `max(own taint, caller taint)`. A callee can never have a lower taint than its caller.                             |
+| **Ceiling respected**           | An agent cannot be invoked if the caller's taint exceeds the callee's `max_classification` ceiling.                                     |
+| **Depth limits enforced**       | The chain terminates at `max_delegation_depth`. If the limit is 3, a fourth-level invocation is blocked.                                |
 | **Circular invocation blocked** | An agent cannot appear twice in the same chain. If Agent A calls Agent B which tries to call Agent A, the second invocation is blocked. |
 
 ### Taint Inheritance in Detail
 
-When Agent A (taint: CONFIDENTIAL) successfully invokes Agent B (ceiling: CONFIDENTIAL), Agent B starts with a taint of CONFIDENTIAL -- inherited from Agent A. If Agent B then accesses RESTRICTED data, its taint escalates to RESTRICTED. This elevated taint is carried back to Agent A when the invocation completes.
+When Agent A (taint: CONFIDENTIAL) successfully invokes Agent B (ceiling:
+CONFIDENTIAL), Agent B starts with a taint of CONFIDENTIAL -- inherited from
+Agent A. If Agent B then accesses RESTRICTED data, its taint escalates to
+RESTRICTED. This elevated taint is carried back to Agent A when the invocation
+completes.
 
 ```
 Agent A (taint: INTERNAL)
@@ -138,11 +159,14 @@ Agent A (taint: INTERNAL)
 Agent A taint updates to: CONFIDENTIAL (max of own + callee's)
 ```
 
-Taint flows in both directions -- from caller to callee at invocation time, and from callee back to caller at completion. It can only escalate.
+Taint flows in both directions -- from caller to callee at invocation time, and
+from callee back to caller at completion. It can only escalate.
 
 ## Preventing Data Laundering
 
-A key attack vector in multi-agent systems is **data laundering** -- using an agent chain to move classified data to a lower-classification destination by routing it through intermediate agents.
+A key attack vector in multi-agent systems is **data laundering** -- using an
+agent chain to move classified data to a lower-classification destination by
+routing it through intermediate agents.
 
 ### The Attack
 
@@ -159,15 +183,24 @@ Attempted flow:
 
 Triggerfish blocks this attack at multiple points:
 
-**Block point 1: Invocation check.** If Agent B has a ceiling below CONFIDENTIAL, the invocation is blocked outright. Agent A's taint (CONFIDENTIAL) exceeds Agent B's ceiling.
+**Block point 1: Invocation check.** If Agent B has a ceiling below
+CONFIDENTIAL, the invocation is blocked outright. Agent A's taint (CONFIDENTIAL)
+exceeds Agent B's ceiling.
 
-**Block point 2: Taint inheritance.** Even if Agent B has a CONFIDENTIAL ceiling and the invocation succeeds, Agent B inherits Agent A's CONFIDENTIAL taint. When Agent B tries to output to a PUBLIC channel, the `PRE_OUTPUT` hook blocks the write-down.
+**Block point 2: Taint inheritance.** Even if Agent B has a CONFIDENTIAL ceiling
+and the invocation succeeds, Agent B inherits Agent A's CONFIDENTIAL taint. When
+Agent B tries to output to a PUBLIC channel, the `PRE_OUTPUT` hook blocks the
+write-down.
 
-**Block point 3: No taint reset in delegation.** Agents in a delegation chain cannot reset their taint. Taint reset is only available to the end user, and it clears the entire conversation history. There is no mechanism for an agent to "wash" its taint level during a chain.
+**Block point 3: No taint reset in delegation.** Agents in a delegation chain
+cannot reset their taint. Taint reset is only available to the end user, and it
+clears the entire conversation history. There is no mechanism for an agent to
+"wash" its taint level during a chain.
 
-::: danger
-Data cannot escape its classification through agent delegation. The combination of ceiling checks, mandatory taint inheritance, and no-taint-reset-in-chains makes data laundering through agent chains impossible within the Triggerfish security model.
-:::
+::: danger Data cannot escape its classification through agent delegation. The
+combination of ceiling checks, mandatory taint inheritance, and
+no-taint-reset-in-chains makes data laundering through agent chains impossible
+within the Triggerfish security model. :::
 
 ## Example Scenarios
 
@@ -232,6 +265,8 @@ Reason: Circular agent invocation detected
 ## Related Pages
 
 - [Security-First Design](./) -- overview of the security architecture
-- [No Write-Down Rule](./no-write-down) -- the classification flow rule that delegation enforces
+- [No Write-Down Rule](./no-write-down) -- the classification flow rule that
+  delegation enforces
 - [Identity & Auth](./identity) -- how user and channel identity is established
-- [Audit & Compliance](./audit-logging) -- how delegation chains are recorded in the audit log
+- [Audit & Compliance](./audit-logging) -- how delegation chains are recorded in
+  the audit log

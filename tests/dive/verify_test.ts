@@ -10,17 +10,25 @@ import { verifyProvider } from "../../src/dive/verify.ts";
 
 /** OpenAI-compatible model list body. */
 function openaiModelList(ids: ReadonlyArray<string>): string {
-  return JSON.stringify({ object: "list", data: ids.map((id) => ({ id, object: "model" })) });
+  return JSON.stringify({
+    object: "list",
+    data: ids.map((id) => ({ id, object: "model" })),
+  });
 }
 
 /** Google model list body. */
 function googleModelList(names: ReadonlyArray<string>): string {
-  return JSON.stringify({ models: names.map((n) => ({ name: `models/${n}` })) });
+  return JSON.stringify({
+    models: names.map((n) => ({ name: `models/${n}` })),
+  });
 }
 
 /** Create a mock fetcher that returns a JSON body with the given status. */
 function mockFetcher(status: number, body?: string): typeof fetch {
-  return (_url: string | URL | Request, _init?: RequestInit): Promise<Response> => {
+  return (
+    _url: string | URL | Request,
+    _init?: RequestInit,
+  ): Promise<Response> => {
     return Promise.resolve(new Response(body ?? null, { status }));
   };
 }
@@ -37,15 +45,23 @@ function googleFetcher(names: ReadonlyArray<string>): typeof fetch {
 
 /** Create a mock fetcher that throws a TypeError (network error). */
 function networkErrorFetcher(): typeof fetch {
-  return (_url: string | URL | Request, _init?: RequestInit): Promise<Response> => {
+  return (
+    _url: string | URL | Request,
+    _init?: RequestInit,
+  ): Promise<Response> => {
     return Promise.reject(new TypeError("Failed to fetch"));
   };
 }
 
 /** Create a mock fetcher that throws a DOMException (timeout). */
 function timeoutFetcher(): typeof fetch {
-  return (_url: string | URL | Request, _init?: RequestInit): Promise<Response> => {
-    return Promise.reject(new DOMException("The operation was aborted", "TimeoutError"));
+  return (
+    _url: string | URL | Request,
+    _init?: RequestInit,
+  ): Promise<Response> => {
+    return Promise.reject(
+      new DOMException("The operation was aborted", "TimeoutError"),
+    );
   };
 }
 
@@ -58,8 +74,15 @@ function capturingFetcher(modelId = "some-model"): {
   readonly captured: { url: string; headers: Record<string, string> };
 } {
   const captured = { url: "", headers: {} as Record<string, string> };
-  const fetcher = (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-    captured.url = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+  const fetcher = (
+    url: string | URL | Request,
+    init?: RequestInit,
+  ): Promise<Response> => {
+    captured.url = typeof url === "string"
+      ? url
+      : url instanceof URL
+      ? url.toString()
+      : url.url;
     if (init?.headers) {
       const h = init.headers;
       if (h instanceof Headers) {
@@ -85,7 +108,10 @@ function capturingFetcher(modelId = "some-model"): {
 
 Deno.test("Verify: successful verification with matching model returns ok=true", async () => {
   const result = await verifyProvider(
-    "anthropic", "sk-test-key", "claude-sonnet-4-5", undefined,
+    "anthropic",
+    "sk-test-key",
+    "claude-sonnet-4-5",
+    undefined,
     modelFetcher(["claude-sonnet-4-5", "claude-opus-4"]),
   );
   assertEquals(result.ok, true);
@@ -96,7 +122,10 @@ Deno.test("Verify: successful verification with matching model returns ok=true",
 
 Deno.test("Verify: model not in list returns error with available models", async () => {
   const result = await verifyProvider(
-    "openai", "sk-test", "gpt-5-turbo", undefined,
+    "openai",
+    "sk-test",
+    "gpt-5-turbo",
+    undefined,
     modelFetcher(["gpt-4o", "gpt-4o-mini", "gpt-4"]),
   );
   assertEquals(result.ok, false);
@@ -107,7 +136,10 @@ Deno.test("Verify: model not in list returns error with available models", async
 
 Deno.test("Verify: Ollama llama3 matches llama3:latest in list", async () => {
   const result = await verifyProvider(
-    "ollama", "", "llama3", "http://localhost:11434",
+    "ollama",
+    "",
+    "llama3",
+    "http://localhost:11434",
     modelFetcher(["llama3:latest", "mistral:latest"]),
   );
   assertEquals(result.ok, true);
@@ -115,7 +147,10 @@ Deno.test("Verify: Ollama llama3 matches llama3:latest in list", async () => {
 
 Deno.test("Verify: Ollama exact tag match works", async () => {
   const result = await verifyProvider(
-    "ollama", "", "llama3:latest", "http://localhost:11434",
+    "ollama",
+    "",
+    "llama3:latest",
+    "http://localhost:11434",
     modelFetcher(["llama3:latest", "mistral:latest"]),
   );
   assertEquals(result.ok, true);
@@ -123,7 +158,10 @@ Deno.test("Verify: Ollama exact tag match works", async () => {
 
 Deno.test("Verify: Ollama model not found returns error", async () => {
   const result = await verifyProvider(
-    "ollama", "", "nonexistent", "http://localhost:11434",
+    "ollama",
+    "",
+    "nonexistent",
+    "http://localhost:11434",
     modelFetcher(["llama3:latest", "mistral:latest"]),
   );
   assertEquals(result.ok, false);
@@ -133,7 +171,10 @@ Deno.test("Verify: Ollama model not found returns error", async () => {
 
 Deno.test("Verify: Google model name matched without models/ prefix", async () => {
   const result = await verifyProvider(
-    "google", "AIza-key", "gemini-2.0-flash", undefined,
+    "google",
+    "AIza-key",
+    "gemini-2.0-flash",
+    undefined,
     googleFetcher(["gemini-2.0-flash", "gemini-1.5-pro"]),
   );
   assertEquals(result.ok, true);
@@ -141,7 +182,10 @@ Deno.test("Verify: Google model name matched without models/ prefix", async () =
 
 Deno.test("Verify: Google model not found returns error", async () => {
   const result = await verifyProvider(
-    "google", "AIza-key", "gemini-99", undefined,
+    "google",
+    "AIza-key",
+    "gemini-99",
+    undefined,
     googleFetcher(["gemini-2.0-flash", "gemini-1.5-pro"]),
   );
   assertEquals(result.ok, false);
@@ -151,7 +195,10 @@ Deno.test("Verify: Google model not found returns error", async () => {
 
 Deno.test("Verify: empty model list skips model check (ok=true)", async () => {
   const result = await verifyProvider(
-    "anthropic", "sk-test", "claude-sonnet-4-5", undefined,
+    "anthropic",
+    "sk-test",
+    "claude-sonnet-4-5",
+    undefined,
     mockFetcher(200, JSON.stringify({ data: [] })),
   );
   assertEquals(result.ok, true);
@@ -160,21 +207,45 @@ Deno.test("Verify: empty model list skips model check (ok=true)", async () => {
 // ─── Auth failure ────────────────────────────────────────────────────────────
 
 Deno.test("Verify: HTTP 401 returns auth error", async () => {
-  const result = await verifyProvider("openai", "bad-key", "gpt-4o", undefined, mockFetcher(401));
+  const result = await verifyProvider(
+    "openai",
+    "bad-key",
+    "gpt-4o",
+    undefined,
+    mockFetcher(401),
+  );
   assertEquals(result.ok, false);
-  assertEquals(result.error, "API key was not accepted. Check that your key is correct and active.");
+  assertEquals(
+    result.error,
+    "API key was not accepted. Check that your key is correct and active.",
+  );
 });
 
 Deno.test("Verify: HTTP 403 returns auth error", async () => {
-  const result = await verifyProvider("openai", "bad-key", "gpt-4o", undefined, mockFetcher(403));
+  const result = await verifyProvider(
+    "openai",
+    "bad-key",
+    "gpt-4o",
+    undefined,
+    mockFetcher(403),
+  );
   assertEquals(result.ok, false);
-  assertEquals(result.error, "API key was not accepted. Check that your key is correct and active.");
+  assertEquals(
+    result.error,
+    "API key was not accepted. Check that your key is correct and active.",
+  );
 });
 
 // ─── Network error ───────────────────────────────────────────────────────────
 
 Deno.test("Verify: network unreachable returns connection error", async () => {
-  const result = await verifyProvider("anthropic", "sk-test", "claude-sonnet-4-5", undefined, networkErrorFetcher());
+  const result = await verifyProvider(
+    "anthropic",
+    "sk-test",
+    "claude-sonnet-4-5",
+    undefined,
+    networkErrorFetcher(),
+  );
   assertEquals(result.ok, false);
   assertEquals(
     result.error,
@@ -185,7 +256,13 @@ Deno.test("Verify: network unreachable returns connection error", async () => {
 // ─── Timeout ─────────────────────────────────────────────────────────────────
 
 Deno.test("Verify: timeout returns timeout error", async () => {
-  const result = await verifyProvider("openai", "sk-test", "gpt-4o", undefined, timeoutFetcher());
+  const result = await verifyProvider(
+    "openai",
+    "sk-test",
+    "gpt-4o",
+    undefined,
+    timeoutFetcher(),
+  );
   assertEquals(result.ok, false);
   assertEquals(
     result.error,
@@ -196,13 +273,25 @@ Deno.test("Verify: timeout returns timeout error", async () => {
 // ─── Other HTTP error ────────────────────────────────────────────────────────
 
 Deno.test("Verify: HTTP 500 returns generic server error", async () => {
-  const result = await verifyProvider("anthropic", "sk-test", "claude-sonnet-4-5", undefined, mockFetcher(500));
+  const result = await verifyProvider(
+    "anthropic",
+    "sk-test",
+    "claude-sonnet-4-5",
+    undefined,
+    mockFetcher(500),
+  );
   assertEquals(result.ok, false);
   assertEquals(result.error, "Server returned an error (HTTP 500).");
 });
 
 Deno.test("Verify: HTTP 429 returns generic server error", async () => {
-  const result = await verifyProvider("openrouter", "sk-test", "some-model", undefined, mockFetcher(429));
+  const result = await verifyProvider(
+    "openrouter",
+    "sk-test",
+    "some-model",
+    undefined,
+    mockFetcher(429),
+  );
   assertEquals(result.ok, false);
   assertEquals(result.error, "Server returned an error (HTTP 429).");
 });
@@ -211,13 +300,22 @@ Deno.test("Verify: HTTP 429 returns generic server error", async () => {
 
 Deno.test("Verify: local provider uses custom endpoint URL", async () => {
   const { fetcher, captured } = capturingFetcher("llama3:latest");
-  await verifyProvider("ollama", "", "llama3", "http://192.168.1.50:11434", fetcher);
+  await verifyProvider(
+    "ollama",
+    "",
+    "llama3",
+    "http://192.168.1.50:11434",
+    fetcher,
+  );
   assertEquals(captured.url, "http://192.168.1.50:11434/v1/models");
 });
 
 Deno.test("Verify: local provider network error shows endpoint in message", async () => {
   const result = await verifyProvider(
-    "ollama", "", "llama3", "http://192.168.1.50:11434",
+    "ollama",
+    "",
+    "llama3",
+    "http://192.168.1.50:11434",
     networkErrorFetcher(),
   );
   assertEquals(result.ok, false);
@@ -231,7 +329,13 @@ Deno.test("Verify: local provider network error shows endpoint in message", asyn
 
 Deno.test("Verify: Anthropic sends x-api-key and anthropic-version headers", async () => {
   const { fetcher, captured } = capturingFetcher("claude-sonnet-4-5");
-  await verifyProvider("anthropic", "sk-ant-key", "claude-sonnet-4-5", undefined, fetcher);
+  await verifyProvider(
+    "anthropic",
+    "sk-ant-key",
+    "claude-sonnet-4-5",
+    undefined,
+    fetcher,
+  );
   assertEquals(captured.url, "https://api.anthropic.com/v1/models");
   assertEquals(captured.headers["x-api-key"], "sk-ant-key");
   assertEquals(captured.headers["anthropic-version"], "2023-06-01");
@@ -246,7 +350,13 @@ Deno.test("Verify: OpenAI sends Bearer auth header", async () => {
 
 Deno.test("Verify: Google passes key as query parameter", async () => {
   const { fetcher, captured } = capturingFetcher("gemini-2.0-flash");
-  await verifyProvider("google", "AIza-google-key", "gemini-2.0-flash", undefined, fetcher);
+  await verifyProvider(
+    "google",
+    "AIza-google-key",
+    "gemini-2.0-flash",
+    undefined,
+    fetcher,
+  );
   assertEquals(
     captured.url,
     "https://generativelanguage.googleapis.com/v1beta/models?key=AIza-google-key",
@@ -256,7 +366,13 @@ Deno.test("Verify: Google passes key as query parameter", async () => {
 
 Deno.test("Verify: OpenRouter sends Bearer auth header", async () => {
   const { fetcher, captured } = capturingFetcher("anthropic/claude-sonnet-4-5");
-  await verifyProvider("openrouter", "sk-or-key", "anthropic/claude-sonnet-4-5", undefined, fetcher);
+  await verifyProvider(
+    "openrouter",
+    "sk-or-key",
+    "anthropic/claude-sonnet-4-5",
+    undefined,
+    fetcher,
+  );
   assertEquals(captured.url, "https://openrouter.ai/api/v1/models");
   assertEquals(captured.headers["Authorization"], "Bearer sk-or-key");
 });
@@ -277,7 +393,13 @@ Deno.test("Verify: Z.AI sends Bearer auth header", async () => {
 
 Deno.test("Verify: local provider sends no auth headers", async () => {
   const { fetcher, captured } = capturingFetcher("llama3:latest");
-  await verifyProvider("ollama", "", "llama3", "http://localhost:11434", fetcher);
+  await verifyProvider(
+    "ollama",
+    "",
+    "llama3",
+    "http://localhost:11434",
+    fetcher,
+  );
   assertEquals(captured.headers["Authorization"], undefined);
   assertEquals(captured.headers["x-api-key"], undefined);
 });
@@ -296,32 +418,56 @@ function fireworksFetcher(names: ReadonlyArray<string>): typeof fetch {
 
 Deno.test("Verify: Fireworks full API format matches", async () => {
   const result = await verifyProvider(
-    "fireworks", "fw-key", "accounts/fireworks/models/kimi-k2p5", undefined,
-    fireworksFetcher(["accounts/fireworks/models/kimi-k2p5", "accounts/fireworks/models/deepseek-v3p1"]),
+    "fireworks",
+    "fw-key",
+    "accounts/fireworks/models/kimi-k2p5",
+    undefined,
+    fireworksFetcher([
+      "accounts/fireworks/models/kimi-k2p5",
+      "accounts/fireworks/models/deepseek-v3p1",
+    ]),
   );
   assertEquals(result.ok, true);
 });
 
 Deno.test("Verify: Fireworks bare model name matches full API format", async () => {
   const result = await verifyProvider(
-    "fireworks", "fw-key", "kimi-k2p5", undefined,
-    fireworksFetcher(["accounts/fireworks/models/kimi-k2p5", "accounts/fireworks/models/deepseek-v3p1"]),
+    "fireworks",
+    "fw-key",
+    "kimi-k2p5",
+    undefined,
+    fireworksFetcher([
+      "accounts/fireworks/models/kimi-k2p5",
+      "accounts/fireworks/models/deepseek-v3p1",
+    ]),
   );
   assertEquals(result.ok, true);
 });
 
 Deno.test("Verify: Fireworks fireworks/ prefix matches full API format", async () => {
   const result = await verifyProvider(
-    "fireworks", "fw-key", "fireworks/kimi-k2p5", undefined,
-    fireworksFetcher(["accounts/fireworks/models/kimi-k2p5", "accounts/fireworks/models/deepseek-v3p1"]),
+    "fireworks",
+    "fw-key",
+    "fireworks/kimi-k2p5",
+    undefined,
+    fireworksFetcher([
+      "accounts/fireworks/models/kimi-k2p5",
+      "accounts/fireworks/models/deepseek-v3p1",
+    ]),
   );
   assertEquals(result.ok, true);
 });
 
 Deno.test("Verify: Fireworks model not found returns error with full API names", async () => {
   const result = await verifyProvider(
-    "fireworks", "fw-key", "nonexistent-model", undefined,
-    fireworksFetcher(["accounts/fireworks/models/kimi-k2p5", "accounts/fireworks/models/deepseek-v3p1"]),
+    "fireworks",
+    "fw-key",
+    "nonexistent-model",
+    undefined,
+    fireworksFetcher([
+      "accounts/fireworks/models/kimi-k2p5",
+      "accounts/fireworks/models/deepseek-v3p1",
+    ]),
   );
   assertEquals(result.ok, false);
   assertStringIncludes(result.error!, "nonexistent-model");
@@ -334,18 +480,34 @@ Deno.test("Verify: Fireworks sends Bearer auth and correct URL", async () => {
   // capturingFetcher returns OpenAI format, but Fireworks parsing expects { models: [] }.
   // Use a custom fetcher instead.
   const fw: typeof fetch = (url, init) => {
-    captured.url = typeof url === "string" ? url : url instanceof URL ? url.toString() : (url as Request).url;
+    captured.url = typeof url === "string"
+      ? url
+      : url instanceof URL
+      ? url.toString()
+      : (url as Request).url;
     if (init?.headers) {
       Object.assign(captured.headers, init.headers);
     }
     return Promise.resolve(
-      new Response(fireworksModelList(["accounts/fireworks/models/kimi-k2p5"]), { status: 200 }),
+      new Response(
+        fireworksModelList(["accounts/fireworks/models/kimi-k2p5"]),
+        { status: 200 },
+      ),
     );
   };
   // Suppress unused variable — capturingFetcher's fetcher not used here
   void fetcher;
-  await verifyProvider("fireworks", "fw-key", "accounts/fireworks/models/kimi-k2p5", undefined, fw);
-  assertStringIncludes(captured.url, "api.fireworks.ai/v1/accounts/fireworks/models");
+  await verifyProvider(
+    "fireworks",
+    "fw-key",
+    "accounts/fireworks/models/kimi-k2p5",
+    undefined,
+    fw,
+  );
+  assertStringIncludes(
+    captured.url,
+    "api.fireworks.ai/v1/accounts/fireworks/models",
+  );
   assertEquals(captured.headers["Authorization"], "Bearer fw-key");
 });
 
@@ -353,15 +515,24 @@ Deno.test("Verify: Fireworks sends Bearer auth and correct URL", async () => {
 
 Deno.test("Verify: LM Studio exact model match works", async () => {
   const result = await verifyProvider(
-    "lmstudio", "", "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF", "http://localhost:1234",
-    modelFetcher(["lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF", "TheBloke/Mistral-7B-v0.1-GGUF"]),
+    "lmstudio",
+    "",
+    "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+    "http://localhost:1234",
+    modelFetcher([
+      "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+      "TheBloke/Mistral-7B-v0.1-GGUF",
+    ]),
   );
   assertEquals(result.ok, true);
 });
 
 Deno.test("Verify: LM Studio model not found returns error", async () => {
   const result = await verifyProvider(
-    "lmstudio", "", "nonexistent/model", "http://localhost:1234",
+    "lmstudio",
+    "",
+    "nonexistent/model",
+    "http://localhost:1234",
     modelFetcher(["lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF"]),
   );
   assertEquals(result.ok, false);
@@ -370,14 +541,25 @@ Deno.test("Verify: LM Studio model not found returns error", async () => {
 });
 
 Deno.test("Verify: LM Studio uses custom endpoint URL", async () => {
-  const { fetcher, captured } = capturingFetcher("lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF");
-  await verifyProvider("lmstudio", "", "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF", "http://192.168.1.50:1234", fetcher);
+  const { fetcher, captured } = capturingFetcher(
+    "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+  );
+  await verifyProvider(
+    "lmstudio",
+    "",
+    "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+    "http://192.168.1.50:1234",
+    fetcher,
+  );
   assertEquals(captured.url, "http://192.168.1.50:1234/v1/models");
 });
 
 Deno.test("Verify: LM Studio network error shows endpoint in message", async () => {
   const result = await verifyProvider(
-    "lmstudio", "", "some-model", "http://192.168.1.50:1234",
+    "lmstudio",
+    "",
+    "some-model",
+    "http://192.168.1.50:1234",
     networkErrorFetcher(),
   );
   assertEquals(result.ok, false);
@@ -388,8 +570,16 @@ Deno.test("Verify: LM Studio network error shows endpoint in message", async () 
 });
 
 Deno.test("Verify: LM Studio sends no auth headers", async () => {
-  const { fetcher, captured } = capturingFetcher("lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF");
-  await verifyProvider("lmstudio", "", "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF", "http://localhost:1234", fetcher);
+  const { fetcher, captured } = capturingFetcher(
+    "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+  );
+  await verifyProvider(
+    "lmstudio",
+    "",
+    "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+    "http://localhost:1234",
+    fetcher,
+  );
   assertEquals(captured.headers["Authorization"], undefined);
   assertEquals(captured.headers["x-api-key"], undefined);
 });

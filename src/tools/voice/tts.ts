@@ -25,7 +25,10 @@ export interface TtsProvider {
   /** Provider name (e.g. "elevenlabs", "openai", "system"). */
   readonly name: string;
   /** Synthesize text to audio. */
-  synthesize(text: string, options?: SynthesizeOptions): Promise<SynthesisResult>;
+  synthesize(
+    text: string,
+    options?: SynthesizeOptions,
+  ): Promise<SynthesisResult>;
   /** List available voices for this provider. */
   listVoices?(): Promise<readonly string[]>;
 }

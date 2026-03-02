@@ -3,11 +3,7 @@
  * @module
  */
 
-export {
-  loadConfig,
-  parseCommand,
-  validateConfig,
-} from "./main.ts";
+export { loadConfig, parseCommand, validateConfig } from "./main.ts";
 
 export type {
   Err,
@@ -18,7 +14,7 @@ export type {
   TriggerFishConfig,
 } from "./main.ts";
 
-export { probeGateway, enableWindowsAnsi } from "./platform.ts";
+export { enableWindowsAnsi, probeGateway } from "./platform.ts";
 export { runPatrol } from "./dive_command.ts";
 export {
   runDaemonLogs,
@@ -62,13 +58,13 @@ export { createScreenManager } from "./terminal/screen.ts";
 export type { ScreenManager } from "./terminal/screen.ts";
 
 export {
-  formatBanner,
-  formatToolCallCompact,
-  formatToolCompact,
-  formatToolCallExpanded,
-  formatToolResultExpanded,
-  formatResponse,
-  formatError,
   createScreenEventHandler,
+  formatBanner,
+  formatError,
+  formatResponse,
+  formatToolCallCompact,
+  formatToolCallExpanded,
+  formatToolCompact,
+  formatToolResultExpanded,
 } from "./chat/chat_ui.ts";
 export type { ToolDisplayMode } from "./chat/chat_ui.ts";

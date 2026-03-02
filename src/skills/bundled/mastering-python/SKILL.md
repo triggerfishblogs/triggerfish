@@ -13,47 +13,50 @@ network_domains: []
 
 # Mastering Python for Triggerfish Plugins
 
-Python plugins run inside Pyodide (a CPython interpreter compiled to WebAssembly) inside the Deno sandbox. This is a double-sandbox: WASM inside Deno. The environment is intentionally constrained for security.
+Python plugins run inside Pyodide (a CPython interpreter compiled to
+WebAssembly) inside the Deno sandbox. This is a double-sandbox: WASM inside
+Deno. The environment is intentionally constrained for security.
 
 ## The Pyodide Runtime
 
-Pyodide is CPython 3.11+ compiled to WASM. Most of the standard library works. Native C extensions do not.
+Pyodide is CPython 3.11+ compiled to WASM. Most of the standard library works.
+Native C extensions do not.
 
 ### What Works
 
-| Category | Available |
-|----------|-----------|
-| Standard library | `json`, `re`, `datetime`, `collections`, `itertools`, `functools`, `math`, `decimal`, `fractions`, `statistics`, `hashlib`, `hmac`, `base64`, `urllib.parse`, `html`, `csv`, `io`, `textwrap`, `difflib`, `enum`, `dataclasses`, `typing`, `abc`, `copy`, `pprint` |
-| Async | `asyncio` (event loop provided by Pyodide) |
-| Data structures | `array`, `heapq`, `bisect`, `queue`, `struct` |
-| String/text | `string`, `unicodedata`, `codecs` |
-| Pure-Python packages | Installable via `micropip` (Pyodide's package manager) |
+| Category             | Available                                                                                                                                                                                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Standard library     | `json`, `re`, `datetime`, `collections`, `itertools`, `functools`, `math`, `decimal`, `fractions`, `statistics`, `hashlib`, `hmac`, `base64`, `urllib.parse`, `html`, `csv`, `io`, `textwrap`, `difflib`, `enum`, `dataclasses`, `typing`, `abc`, `copy`, `pprint` |
+| Async                | `asyncio` (event loop provided by Pyodide)                                                                                                                                                                                                                         |
+| Data structures      | `array`, `heapq`, `bisect`, `queue`, `struct`                                                                                                                                                                                                                      |
+| String/text          | `string`, `unicodedata`, `codecs`                                                                                                                                                                                                                                  |
+| Pure-Python packages | Installable via `micropip` (Pyodide's package manager)                                                                                                                                                                                                             |
 
 ### What Does NOT Work
 
-| Category | Why |
-|----------|-----|
-| Native C extensions | WASM cannot load `.so`/`.dylib` files |
-| `psycopg2`, `mysqlclient` | C-based database drivers |
-| `numpy` (partial) | Pyodide ships a WASM build, but it's heavy |
-| `pandas` (partial) | Works via Pyodide's WASM build, but slow |
-| `os.system()`, `subprocess` | No process spawning in WASM |
-| `socket` (raw) | No raw socket access |
-| File I/O to host | Filesystem is virtual, isolated from host |
-| `multiprocessing` | No forking in WASM |
-| `ctypes`, `cffi` | No native code loading |
+| Category                    | Why                                        |
+| --------------------------- | ------------------------------------------ |
+| Native C extensions         | WASM cannot load `.so`/`.dylib` files      |
+| `psycopg2`, `mysqlclient`   | C-based database drivers                   |
+| `numpy` (partial)           | Pyodide ships a WASM build, but it's heavy |
+| `pandas` (partial)          | Works via Pyodide's WASM build, but slow   |
+| `os.system()`, `subprocess` | No process spawning in WASM                |
+| `socket` (raw)              | No raw socket access                       |
+| File I/O to host            | Filesystem is virtual, isolated from host  |
+| `multiprocessing`           | No forking in WASM                         |
+| `ctypes`, `cffi`            | No native code loading                     |
 
 ### Pure-Python Alternatives
 
-| Instead of | Use |
-|------------|-----|
-| `psycopg2` (PostgreSQL) | HTTP via PostgREST, Supabase SDK, or Neon API |
-| `mysqlclient` (MySQL) | HTTP via PlanetScale API |
-| `pymongo` (MongoDB) | HTTP via Atlas Data API |
-| `requests` | `pyodide.http.pyfetch()` or `sdk.query_as_user()` |
-| `boto3` (AWS) | HTTP via AWS REST APIs with SigV4 signing |
-| `pandas` for simple transforms | `csv` + list comprehensions |
-| `numpy` for basic math | `math`, `statistics`, `decimal` |
+| Instead of                     | Use                                               |
+| ------------------------------ | ------------------------------------------------- |
+| `psycopg2` (PostgreSQL)        | HTTP via PostgREST, Supabase SDK, or Neon API     |
+| `mysqlclient` (MySQL)          | HTTP via PlanetScale API                          |
+| `pymongo` (MongoDB)            | HTTP via Atlas Data API                           |
+| `requests`                     | `pyodide.http.pyfetch()` or `sdk.query_as_user()` |
+| `boto3` (AWS)                  | HTTP via AWS REST APIs with SigV4 signing         |
+| `pandas` for simple transforms | `csv` + list comprehensions                       |
+| `numpy` for basic math         | `math`, `statistics`, `decimal`                   |
 
 ## Plugin Structure
 
@@ -164,12 +167,12 @@ sdk.emit_data({"classification": "RESTRICTED", "payload": data})  # SDK rejects 
 
 Choose the lowest classification that fits:
 
-| Level | When to Use |
-|-------|-------------|
-| `PUBLIC` | Publicly available data (weather, stock prices, public APIs) |
-| `INTERNAL` | Internal project data, non-sensitive configs |
+| Level          | When to Use                                                  |
+| -------------- | ------------------------------------------------------------ |
+| `PUBLIC`       | Publicly available data (weather, stock prices, public APIs) |
+| `INTERNAL`     | Internal project data, non-sensitive configs                 |
 | `CONFIDENTIAL` | User PII, private messages, API responses with personal data |
-| `RESTRICTED` | Encryption keys, financial records, compliance data |
+| `RESTRICTED`   | Encryption keys, financial records, compliance data          |
 
 ## Async Patterns
 
@@ -198,7 +201,8 @@ async def execute(sdk):
 
 ## Data Processing Patterns
 
-Since native libraries are unavailable, use standard library for data transforms:
+Since native libraries are unavailable, use standard library for data
+transforms:
 
 ### JSON Processing
 
@@ -278,7 +282,8 @@ def summarize_issues(issues):
 
 ## HTTP Requests in Pyodide
 
-For direct HTTP calls (when not using `sdk.query_as_user()`), Pyodide provides `pyfetch`:
+For direct HTTP calls (when not using `sdk.query_as_user()`), Pyodide provides
+`pyfetch`:
 
 ```python
 from pyodide.http import pyfetch
@@ -289,7 +294,8 @@ async def fetch_json(url, headers=None):
     return await response.json()
 ```
 
-The sandbox enforces the declared endpoints allowlist. Requests to undeclared domains are blocked.
+The sandbox enforces the declared endpoints allowlist. Requests to undeclared
+domains are blocked.
 
 ## Error Handling
 
@@ -338,17 +344,18 @@ def test_process_results_empty():
     assert result["total"] == 0
 ```
 
-Extract business logic into pure functions. Test those functions. The `execute()` function is just glue between SDK calls and logic.
+Extract business logic into pure functions. Test those functions. The
+`execute()` function is just glue between SDK calls and logic.
 
 ## Common Mistakes
 
-| Mistake | Fix |
-|---------|-----|
-| Importing `requests` | Use `sdk.query_as_user()` or `pyodide.http.pyfetch()` |
-| Importing `psycopg2` or `pymongo` | Use HTTP-based database APIs |
-| Forgetting classification on `emit_data()` | Always include `"classification"` key |
-| Using `open()` for file I/O | Filesystem is virtual; use in-memory `io.StringIO` |
-| Blocking I/O in async function | Use `await` for all I/O operations |
-| Catching `Exception` silently | Log or return the error message |
-| Using `subprocess` or `os.system()` | Not available in WASM; use SDK methods |
-| Heavy `numpy`/`pandas` for simple tasks | Use `statistics`, `collections`, list comprehensions |
+| Mistake                                    | Fix                                                   |
+| ------------------------------------------ | ----------------------------------------------------- |
+| Importing `requests`                       | Use `sdk.query_as_user()` or `pyodide.http.pyfetch()` |
+| Importing `psycopg2` or `pymongo`          | Use HTTP-based database APIs                          |
+| Forgetting classification on `emit_data()` | Always include `"classification"` key                 |
+| Using `open()` for file I/O                | Filesystem is virtual; use in-memory `io.StringIO`    |
+| Blocking I/O in async function             | Use `await` for all I/O operations                    |
+| Catching `Exception` silently              | Log or return the error message                       |
+| Using `subprocess` or `os.system()`        | Not available in WASM; use SDK methods                |
+| Heavy `numpy`/`pandas` for simple tasks    | Use `statistics`, `collections`, list comprehensions  |

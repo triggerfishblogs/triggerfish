@@ -4,7 +4,10 @@
  */
 import { assertEquals, assertRejects } from "@std/assert";
 import { createPythonSandbox } from "../../src/plugin/sandbox.ts";
-import type { PyodideInstance, PyodideLoader } from "../../src/plugin/sandbox.ts";
+import type {
+  PyodideInstance,
+  PyodideLoader,
+} from "../../src/plugin/sandbox.ts";
 import { createPluginSdk } from "../../src/plugin/sdk.ts";
 import type { ClassificationLevel } from "../../src/core/types/classification.ts";
 

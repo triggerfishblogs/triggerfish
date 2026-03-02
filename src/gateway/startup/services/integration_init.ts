@@ -18,9 +18,9 @@ import {
 } from "../../../exec/claude.ts";
 import { createSecretToolExecutor } from "../../../tools/secrets.ts";
 import {
-  createSkillToolExecutor,
   createSkillContextTracker,
   createSkillScanner,
+  createSkillToolExecutor,
 } from "../../../tools/skills/mod.ts";
 import type { SkillContextTracker } from "../../../tools/skills/mod.ts";
 import {
@@ -34,17 +34,14 @@ import { createTriggerStore } from "../../../scheduler/triggers/store.ts";
 import type { McpBroadcastRefs } from "../infra/mcp.ts";
 import { buildSubagentFactory } from "../factory/subagent.ts";
 import { createOrchestratorFactory } from "../factory/orchestrator_factory.ts";
-import {
-  buildObsidianExecutor,
-  discoverSkills,
-} from "../infra/subsystems.ts";
+import { buildObsidianExecutor, discoverSkills } from "../infra/subsystems.ts";
 import type { ObsidianPluginConfig } from "../infra/subsystems.ts";
 import type { BootstrapResult } from "../bootstrap.ts";
 import type { CoreInfraResult } from "../infra/core_infra.ts";
 import type { MainSessionState } from "../tools/tool_executor.ts";
 import {
-  buildGitHubExecutor,
   buildExploreExecutor,
+  buildGitHubExecutor,
   initializeMcpServers,
 } from "./browser_init.ts";
 import { buildCalDavExecutor } from "../factory/caldav_executor.ts";

@@ -8,7 +8,7 @@
  * @module
  */
 
-export { createTunnelService, createDefaultCommandRunner } from "./tunnel.ts";
+export { createDefaultCommandRunner, createTunnelService } from "./tunnel.ts";
 export type {
   CommandResult,
   CommandRunner,

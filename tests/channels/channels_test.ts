@@ -5,12 +5,14 @@
  * and per-channel configuration. Integration tests are gated behind
  * environment variables (BOT_TOKEN, etc.).
  */
-import { assertEquals, assertExists, assert } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 
 // --- Telegram ---
 
 Deno.test("Telegram: factory creates adapter with correct channel type", async () => {
-  const { createTelegramChannel } = await import("../../src/channels/telegram/adapter.ts");
+  const { createTelegramChannel } = await import(
+    "../../src/channels/telegram/adapter.ts"
+  );
   const adapter = createTelegramChannel({ botToken: "fake:token" });
   assertEquals(adapter.status().channelType, "telegram");
   assertEquals(adapter.status().connected, false);
@@ -18,7 +20,9 @@ Deno.test("Telegram: factory creates adapter with correct channel type", async (
 });
 
 Deno.test("Telegram: respects custom classification", async () => {
-  const { createTelegramChannel } = await import("../../src/channels/telegram/adapter.ts");
+  const { createTelegramChannel } = await import(
+    "../../src/channels/telegram/adapter.ts"
+  );
   const adapter = createTelegramChannel({
     botToken: "fake:token",
     classification: "CONFIDENTIAL",
@@ -27,7 +31,9 @@ Deno.test("Telegram: respects custom classification", async () => {
 });
 
 Deno.test("Telegram: chunkMessage splits long text", async () => {
-  const { chunkMessage } = await import("../../src/channels/telegram/adapter.ts");
+  const { chunkMessage } = await import(
+    "../../src/channels/telegram/adapter.ts"
+  );
   const longText = "a".repeat(5000);
   const chunks = chunkMessage(longText, 4096);
   assert(chunks.length >= 2, "Should split into at least 2 chunks");
@@ -37,14 +43,18 @@ Deno.test("Telegram: chunkMessage splits long text", async () => {
 });
 
 Deno.test("Telegram: chunkMessage preserves short text", async () => {
-  const { chunkMessage } = await import("../../src/channels/telegram/adapter.ts");
+  const { chunkMessage } = await import(
+    "../../src/channels/telegram/adapter.ts"
+  );
   const chunks = chunkMessage("Hello world", 4096);
   assertEquals(chunks.length, 1);
   assertEquals(chunks[0], "Hello world");
 });
 
 Deno.test("Telegram: chunkMessage splits on newlines when possible", async () => {
-  const { chunkMessage } = await import("../../src/channels/telegram/adapter.ts");
+  const { chunkMessage } = await import(
+    "../../src/channels/telegram/adapter.ts"
+  );
   const text = "Line one\n" + "x".repeat(90) + "\nLine three";
   const chunks = chunkMessage(text, 50);
   // Should split at a newline rather than mid-word
@@ -52,30 +62,40 @@ Deno.test("Telegram: chunkMessage splits on newlines when possible", async () =>
 });
 
 Deno.test("Telegram: registers message handler", async () => {
-  const { createTelegramChannel } = await import("../../src/channels/telegram/adapter.ts");
+  const { createTelegramChannel } = await import(
+    "../../src/channels/telegram/adapter.ts"
+  );
   const adapter = createTelegramChannel({ botToken: "fake:token" });
   let called = false;
-  adapter.onMessage(() => { called = true; });
+  adapter.onMessage(() => {
+    called = true;
+  });
   // Handler is registered but won't fire without bot connection
   assertEquals(called, false);
 });
 
 Deno.test("Telegram: sendTyping method exists on adapter", async () => {
-  const { createTelegramChannel } = await import("../../src/channels/telegram/adapter.ts");
+  const { createTelegramChannel } = await import(
+    "../../src/channels/telegram/adapter.ts"
+  );
   const adapter = createTelegramChannel({ botToken: "fake:token" });
   assertExists(adapter.sendTyping);
   assertEquals(typeof adapter.sendTyping, "function");
 });
 
 Deno.test("Telegram: sendTyping returns early for empty sessionId", async () => {
-  const { createTelegramChannel } = await import("../../src/channels/telegram/adapter.ts");
+  const { createTelegramChannel } = await import(
+    "../../src/channels/telegram/adapter.ts"
+  );
   const adapter = createTelegramChannel({ botToken: "fake:token" });
   // Should not throw — returns early for empty/invalid sessionId
   await adapter.sendTyping("");
 });
 
 Deno.test("Telegram: sendTyping returns early for invalid sessionId", async () => {
-  const { createTelegramChannel } = await import("../../src/channels/telegram/adapter.ts");
+  const { createTelegramChannel } = await import(
+    "../../src/channels/telegram/adapter.ts"
+  );
   const adapter = createTelegramChannel({ botToken: "fake:token" });
   // "telegram-notanumber" → NaN → returns early
   await adapter.sendTyping("telegram-notanumber");
@@ -88,7 +108,9 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { createSlackChannel } = await import("../../src/channels/slack/adapter.ts");
+    const { createSlackChannel } = await import(
+      "../../src/channels/slack/adapter.ts"
+    );
     const adapter = createSlackChannel({
       botToken: "xoxb-fake",
       appToken: "xapp-fake",
@@ -104,7 +126,9 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { createSlackChannel } = await import("../../src/channels/slack/adapter.ts");
+    const { createSlackChannel } = await import(
+      "../../src/channels/slack/adapter.ts"
+    );
     const adapter = createSlackChannel({
       botToken: "xoxb-fake",
       appToken: "xapp-fake",
@@ -122,7 +146,9 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { createDiscordChannel } = await import("../../src/channels/discord/adapter.ts");
+    const { createDiscordChannel } = await import(
+      "../../src/channels/discord/adapter.ts"
+    );
     const adapter = createDiscordChannel({ botToken: "fake-discord-token" });
     assertEquals(adapter.status().channelType, "discord");
     assertEquals(adapter.status().connected, false);
@@ -134,7 +160,9 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { createDiscordChannel } = await import("../../src/channels/discord/adapter.ts");
+    const { createDiscordChannel } = await import(
+      "../../src/channels/discord/adapter.ts"
+    );
     const adapter = createDiscordChannel({ botToken: "fake-discord-token" });
     assertEquals(adapter.classification, "PUBLIC");
   },
@@ -145,7 +173,9 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { createDiscordChannel } = await import("../../src/channels/discord/adapter.ts");
+    const { createDiscordChannel } = await import(
+      "../../src/channels/discord/adapter.ts"
+    );
     const adapter = createDiscordChannel({
       botToken: "fake-discord-token",
       classification: "INTERNAL",
@@ -159,7 +189,9 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { createDiscordChannel } = await import("../../src/channels/discord/adapter.ts");
+    const { createDiscordChannel } = await import(
+      "../../src/channels/discord/adapter.ts"
+    );
     const adapter = createDiscordChannel({ botToken: "fake-discord-token" });
     assertEquals(typeof adapter.sendTyping, "function");
   },
@@ -170,7 +202,9 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { createDiscordChannel } = await import("../../src/channels/discord/adapter.ts");
+    const { createDiscordChannel } = await import(
+      "../../src/channels/discord/adapter.ts"
+    );
     const adapter = createDiscordChannel({ botToken: "fake-discord-token" });
     let received = false;
     adapter.onMessage(() => {
@@ -195,7 +229,9 @@ Deno.test({
 // --- WhatsApp ---
 
 Deno.test("WhatsApp: factory creates adapter with correct channel type", async () => {
-  const { createWhatsAppChannel } = await import("../../src/channels/whatsapp/adapter.ts");
+  const { createWhatsAppChannel } = await import(
+    "../../src/channels/whatsapp/adapter.ts"
+  );
   const adapter = createWhatsAppChannel({
     accessToken: "fake-token",
     phoneNumberId: "123456",
@@ -206,7 +242,9 @@ Deno.test("WhatsApp: factory creates adapter with correct channel type", async (
 });
 
 Deno.test("WhatsApp: defaults to PUBLIC classification", async () => {
-  const { createWhatsAppChannel } = await import("../../src/channels/whatsapp/adapter.ts");
+  const { createWhatsAppChannel } = await import(
+    "../../src/channels/whatsapp/adapter.ts"
+  );
   const adapter = createWhatsAppChannel({
     accessToken: "fake-token",
     phoneNumberId: "123456",
@@ -218,7 +256,9 @@ Deno.test("WhatsApp: defaults to PUBLIC classification", async () => {
 // --- WebChat ---
 
 Deno.test("WebChat: factory creates adapter with correct channel type", async () => {
-  const { createWebChatChannel } = await import("../../src/channels/webchat/adapter.ts");
+  const { createWebChatChannel } = await import(
+    "../../src/channels/webchat/adapter.ts"
+  );
   const adapter = createWebChatChannel({ port: 0 });
   assertEquals(adapter.status().channelType, "webchat");
   assertEquals(adapter.status().connected, false);
@@ -226,7 +266,9 @@ Deno.test("WebChat: factory creates adapter with correct channel type", async ()
 });
 
 Deno.test("WebChat: defaults to PUBLIC classification", async () => {
-  const { createWebChatChannel } = await import("../../src/channels/webchat/adapter.ts");
+  const { createWebChatChannel } = await import(
+    "../../src/channels/webchat/adapter.ts"
+  );
   const adapter = createWebChatChannel();
   assertEquals(adapter.classification, "PUBLIC");
 });
@@ -234,7 +276,9 @@ Deno.test("WebChat: defaults to PUBLIC classification", async () => {
 // --- Email ---
 
 Deno.test("Email: factory creates adapter with correct channel type", async () => {
-  const { createEmailChannel } = await import("../../src/channels/email/adapter.ts");
+  const { createEmailChannel } = await import(
+    "../../src/channels/email/adapter.ts"
+  );
   const adapter = createEmailChannel({
     smtpApiUrl: "https://api.sendgrid.com/v3/mail/send",
     smtpApiKey: "fake-key",
@@ -248,7 +292,9 @@ Deno.test("Email: factory creates adapter with correct channel type", async () =
 });
 
 Deno.test("Email: defaults to CONFIDENTIAL classification", async () => {
-  const { createEmailChannel } = await import("../../src/channels/email/adapter.ts");
+  const { createEmailChannel } = await import(
+    "../../src/channels/email/adapter.ts"
+  );
   const adapter = createEmailChannel({
     smtpApiUrl: "https://api.sendgrid.com/v3/mail/send",
     smtpApiKey: "fake-key",
@@ -263,7 +309,9 @@ Deno.test("Email: defaults to CONFIDENTIAL classification", async () => {
 // --- Signal ---
 
 Deno.test("Signal: factory creates adapter with correct channel type", async () => {
-  const { createSignalChannel } = await import("../../src/channels/signal/adapter.ts");
+  const { createSignalChannel } = await import(
+    "../../src/channels/signal/adapter.ts"
+  );
   const adapter = createSignalChannel({
     endpoint: "tcp://localhost:7583",
     account: "+15551234567",
@@ -273,7 +321,9 @@ Deno.test("Signal: factory creates adapter with correct channel type", async () 
 });
 
 Deno.test("Signal: defaults to PUBLIC classification", async () => {
-  const { createSignalChannel } = await import("../../src/channels/signal/adapter.ts");
+  const { createSignalChannel } = await import(
+    "../../src/channels/signal/adapter.ts"
+  );
   const adapter = createSignalChannel({
     endpoint: "tcp://localhost:7583",
     account: "+15551234567",
@@ -282,7 +332,9 @@ Deno.test("Signal: defaults to PUBLIC classification", async () => {
 });
 
 Deno.test("Signal: respects custom classification", async () => {
-  const { createSignalChannel } = await import("../../src/channels/signal/adapter.ts");
+  const { createSignalChannel } = await import(
+    "../../src/channels/signal/adapter.ts"
+  );
   const adapter = createSignalChannel({
     endpoint: "tcp://localhost:7583",
     account: "+15551234567",
@@ -292,7 +344,9 @@ Deno.test("Signal: respects custom classification", async () => {
 });
 
 Deno.test("Signal: isOwner is always false", async () => {
-  const { createSignalChannel } = await import("../../src/channels/signal/adapter.ts");
+  const { createSignalChannel } = await import(
+    "../../src/channels/signal/adapter.ts"
+  );
   const adapter = createSignalChannel({
     endpoint: "tcp://localhost:7583",
     account: "+15551234567",
@@ -313,7 +367,9 @@ Deno.test("Router: sendWithRetry succeeds on first try", async () => {
     connect: async () => {},
     disconnect: async () => {},
     // deno-lint-ignore require-await
-    send: async () => { sent = true; },
+    send: async () => {
+      sent = true;
+    },
     onMessage: () => {},
     status: () => ({ connected: true, channelType: "mock" }),
   };
@@ -327,7 +383,9 @@ Deno.test("Router: sendWithRetry succeeds on first try", async () => {
 Deno.test("Router: sendWithRetry returns false for unknown channel", async () => {
   const { createChannelRouter } = await import("../../src/channels/router.ts");
   const router = createChannelRouter();
-  const result = await router.sendWithRetry("nonexistent", { content: "hello" });
+  const result = await router.sendWithRetry("nonexistent", {
+    content: "hello",
+  });
   assertEquals(result, false);
 });
 
@@ -366,7 +424,9 @@ Deno.test("Router: sendWithRetry gives up after max retries", async () => {
     connect: async () => {},
     disconnect: async () => {},
     // deno-lint-ignore require-await
-    send: async () => { throw new Error("Permanent failure"); },
+    send: async () => {
+      throw new Error("Permanent failure");
+    },
     onMessage: () => {},
     status: () => ({ connected: true, channelType: "mock" }),
   };
@@ -385,7 +445,9 @@ Deno.test("Router: connectAll connects all adapters", async () => {
     classification: "INTERNAL" as const,
     isOwner: true,
     // deno-lint-ignore require-await
-    connect: async () => { connected.push(name); },
+    connect: async () => {
+      connected.push(name);
+    },
     disconnect: async () => {},
     send: async () => {},
     onMessage: () => {},
@@ -411,7 +473,9 @@ Deno.test("Router: disconnectAll disconnects all adapters", async () => {
     isOwner: true,
     connect: async () => {},
     // deno-lint-ignore require-await
-    disconnect: async () => { disconnected.push(name); },
+    disconnect: async () => {
+      disconnected.push(name);
+    },
     send: async () => {},
     onMessage: () => {},
     status: () => ({ connected: true, channelType: name }),

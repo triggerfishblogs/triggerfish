@@ -67,7 +67,8 @@ async function fetchTailscaleIp(
   if (!statusResult.success) {
     return {
       ok: false,
-      error: `tailscale status failed (code ${statusResult.code}): ${statusResult.stderr}`,
+      error:
+        `tailscale status failed (code ${statusResult.code}): ${statusResult.stderr}`,
     };
   }
   return parseTailscaleStatus(statusResult.stdout);
@@ -95,7 +96,8 @@ export function createTailscaleService(
       if (!upResult.success) {
         return {
           ok: false,
-          error: `tailscale up failed (code ${upResult.code}): ${upResult.stderr}`,
+          error:
+            `tailscale up failed (code ${upResult.code}): ${upResult.stderr}`,
         };
       }
 
@@ -103,7 +105,10 @@ export function createTailscaleService(
       if (!parsed.ok) {
         return parsed;
       }
-      return { ok: true, value: formatTailscaleUrl(parsed.value, config.gatewayPort) };
+      return {
+        ok: true,
+        value: formatTailscaleUrl(parsed.value, config.gatewayPort),
+      };
     },
 
     async disable(): Promise<Result<void, string>> {
@@ -111,7 +116,8 @@ export function createTailscaleService(
       if (!result.success) {
         return {
           ok: false,
-          error: `tailscale down failed (code ${result.code}): ${result.stderr}`,
+          error:
+            `tailscale down failed (code ${result.code}): ${result.stderr}`,
         };
       }
       return { ok: true, value: undefined };

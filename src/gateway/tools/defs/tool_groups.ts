@@ -32,13 +32,19 @@ import { getTriggerToolDefinitions } from "../trigger/trigger_tools.ts";
 import { getClaudeToolDefinitions } from "../../../exec/claude.ts";
 import { getSkillToolDefinitions } from "../../../tools/skills/mod.ts";
 import { getLogReaderToolDefinitions } from "../../../tools/log_reader_tool.ts";
-import { getExecInlineDefinitions } from "./exec_tool_defs.ts";
+import {
+  getExecCommandDefinitions,
+  getExecFileDefinitions,
+  getExecInlineDefinitions,
+} from "./exec_tool_defs.ts";
 import { getAgentInlineDefinitions } from "./agent_tool_defs.ts";
 import { getCronInlineDefinitions } from "./cron_tool_defs.ts";
 
 /** Composable tool groups — each returns a focused set of ToolDefinitions. */
 export const TOOL_GROUPS = {
   exec: getExecInlineDefinitions,
+  exec_file: getExecFileDefinitions,
+  exec_command: getExecCommandDefinitions,
   todo: getTodoToolDefinitions,
   memory: getMemoryToolDefinitions,
   secrets: getSecretToolDefinitions,

@@ -13,10 +13,11 @@ import type { createSession } from "../../../core/types/session.ts";
 import type { createProviderRegistry } from "../../../agent/llm.ts";
 import type { createSqliteStorage } from "../../../core/storage/sqlite.ts";
 import type {
-  SecretPromptCallback,
   CredentialPromptCallback,
+  SecretPromptCallback,
 } from "../../../tools/secrets.ts";
 import type { createExecTools } from "../../../exec/tools.ts";
+import type { FilesystemSandbox } from "../../../exec/sandbox/mod.ts";
 import type { createPersistentCronManager } from "../../../scheduler/cron/cron.ts";
 import type { createTodoManager } from "../../../tools/mod.ts";
 import {
@@ -44,7 +45,10 @@ import type { createPlanToolExecutor } from "../../../agent/plan/plan.ts";
 import type { createMemoryToolExecutor } from "../../../tools/memory/mod.ts";
 import type { buildWebTools } from "../factory/web_tools.ts";
 import type { buildSubagentFactory } from "../factory/subagent.ts";
-import type { buildObsidianExecutor, discoverSkills } from "../infra/subsystems.ts";
+import type {
+  buildObsidianExecutor,
+  discoverSkills,
+} from "../infra/subsystems.ts";
 import { buildGoogleExecutor } from "../factory/google_executor.ts";
 import { createToolExecutor, TOOL_GROUPS } from "../../tools/agent_tools.ts";
 import type { wireMcpServers } from "../infra/mcp.ts";
@@ -88,8 +92,8 @@ export function buildWorkspacePrompt(
   return [
     "## Workspace",
     `Your working directory is ${dir}.`,
-    "Use this directory for all file operations. Accessing paths outside your",
-    "working directory may escalate your session classification.",
+    "Use this directory for all file operations.",
+    "Paths outside your workspace are not accessible.",
   ].join("\n");
 }
 
@@ -120,6 +124,7 @@ export function buildAuxiliaryExecutors(
 export function assembleMainToolExecutor(
   deps: {
     readonly execTools: ReturnType<typeof createExecTools>;
+    readonly filesystemSandbox?: FilesystemSandbox;
     readonly cronManager: Awaited<
       ReturnType<typeof createPersistentCronManager>
     >;

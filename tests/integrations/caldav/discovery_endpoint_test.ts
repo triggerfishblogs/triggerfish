@@ -12,8 +12,8 @@ import type {
   CalDavClientInterface,
   CalDavClientResult,
   PropfindResponse,
-  ReportResponse,
   PutResponse,
+  ReportResponse,
 } from "../../../src/integrations/caldav/types.ts";
 
 /** Create a mock CalDAV client from a PROPFIND handler. */
@@ -119,7 +119,9 @@ Deno.test("discoverCalDavEndpoint: returns error when calendar home not found", 
     }
     return {
       ok: true,
-      value: { responses: [{ href: "/principals/users/test/", properties: {} }] },
+      value: {
+        responses: [{ href: "/principals/users/test/", properties: {} }],
+      },
     };
   });
 

@@ -12,8 +12,18 @@ import type { MessageContent } from "../image/content.ts";
 
 /** Events sent over the chat wire protocol. */
 export type ChatEvent =
-  | { readonly type: "connected"; readonly provider: string; readonly model: string; readonly taint?: ClassificationLevel; readonly workspace?: string }
-  | { readonly type: "llm_start"; readonly iteration: number; readonly maxIterations: number }
+  | {
+    readonly type: "connected";
+    readonly provider: string;
+    readonly model: string;
+    readonly taint?: ClassificationLevel;
+    readonly workspace?: string;
+  }
+  | {
+    readonly type: "llm_start";
+    readonly iteration: number;
+    readonly maxIterations: number;
+  }
   | {
     readonly type: "llm_complete";
     readonly iteration: number;
@@ -31,7 +41,11 @@ export type ChatEvent =
     readonly blocked: boolean;
   }
   | { readonly type: "response"; readonly text: string }
-  | { readonly type: "response_chunk"; readonly text: string; readonly done: boolean }
+  | {
+    readonly type: "response_chunk";
+    readonly text: string;
+    readonly done: boolean;
+  }
   | { readonly type: "error"; readonly message: string }
   | { readonly type: "vision_start"; readonly imageCount: number }
   | { readonly type: "vision_complete"; readonly imageCount: number }

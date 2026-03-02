@@ -8,7 +8,11 @@
  * @module
  */
 
-import type { CalDavClientInterface, CalDavCalendar, DiscoveryResult } from "./types.ts";
+import type {
+  CalDavCalendar,
+  CalDavClientInterface,
+  DiscoveryResult,
+} from "./types.ts";
 import type { Result } from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
@@ -57,8 +61,7 @@ export async function discoverCalDavEndpoint(
   if (!principalUrl) {
     return {
       ok: false,
-      error:
-        "CalDAV server did not return current-user-principal. " +
+      error: "CalDAV server did not return current-user-principal. " +
         "Verify the server URL and credentials.",
     };
   }
@@ -88,8 +91,7 @@ export async function discoverCalDavEndpoint(
   if (!calendarHomeUrl) {
     return {
       ok: false,
-      error:
-        "CalDAV server did not return calendar-home-set for principal.",
+      error: "CalDAV server did not return calendar-home-set for principal.",
     };
   }
 
@@ -159,7 +161,8 @@ export async function listCalendars(
 
     calendars.push({
       url: resource.href,
-      displayName: resource.properties["displayname"] ?? extractCalendarName(resource.href),
+      displayName: resource.properties["displayname"] ??
+        extractCalendarName(resource.href),
       ctag: resource.properties["getctag"] ?? "",
       ...(resource.properties["calendar-color"]
         ? { color: resource.properties["calendar-color"] }
@@ -182,7 +185,10 @@ export async function listCalendars(
 
 /** Extract principal URL from PROPFIND responses. */
 function extractPrincipalUrl(
-  responses: readonly { readonly href: string; readonly properties: Readonly<Record<string, string>> }[],
+  responses: readonly {
+    readonly href: string;
+    readonly properties: Readonly<Record<string, string>>;
+  }[],
 ): string | null {
   for (const r of responses) {
     const principal = r.properties["current-user-principal"];
@@ -193,7 +199,10 @@ function extractPrincipalUrl(
 
 /** Extract calendar home URL from PROPFIND responses. */
 function extractCalendarHomeUrl(
-  responses: readonly { readonly href: string; readonly properties: Readonly<Record<string, string>> }[],
+  responses: readonly {
+    readonly href: string;
+    readonly properties: Readonly<Record<string, string>>;
+  }[],
 ): string | null {
   for (const r of responses) {
     const homeSet = r.properties["calendar-home-set"];
@@ -221,7 +230,10 @@ function hostnameMatchesDomain(serverUrl: string, domain: string): boolean {
 /** Detect the CalDAV server type from URL patterns. */
 function detectServerType(serverUrl: string): string | undefined {
   if (hostnameMatchesDomain(serverUrl, "icloud.com")) return "iCloud";
-  if (hostnameMatchesDomain(serverUrl, "google.com") || hostnameMatchesDomain(serverUrl, "googleapis.com")) {
+  if (
+    hostnameMatchesDomain(serverUrl, "google.com") ||
+    hostnameMatchesDomain(serverUrl, "googleapis.com")
+  ) {
     return "Google";
   }
   if (hostnameMatchesDomain(serverUrl, "fastmail.com")) return "Fastmail";

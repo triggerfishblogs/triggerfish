@@ -11,15 +11,18 @@
 import { assertEquals } from "@std/assert";
 import { createGoogleToolExecutor } from "../../../src/integrations/google/tools.ts";
 import type {
-  GoogleToolContext,
-  GmailService,
   CalendarService,
-  TasksService,
   DriveService,
+  GmailService,
+  GoogleToolContext,
   SheetsService,
+  TasksService,
 } from "../../../src/integrations/google/types.ts";
 import type { ClassificationLevel } from "../../../src/core/types/classification.ts";
-import { canFlowTo, maxClassification } from "../../../src/core/types/classification.ts";
+import {
+  canFlowTo,
+  maxClassification,
+} from "../../../src/core/types/classification.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -297,10 +300,8 @@ Deno.test("classification: executor surfaces API errors as strings", async () =>
           ok: false,
           error: { code: "HTTP_404", message: "Not found", status: 404 },
         }),
-      send: () =>
-        Promise.resolve({ ok: true, value: { id: "x" } }),
-      label: () =>
-        Promise.resolve({ ok: true, value: { id: "x" } }),
+      send: () => Promise.resolve({ ok: true, value: { id: "x" } }),
+      label: () => Promise.resolve({ ok: true, value: { id: "x" } }),
     },
   };
   const executor = createGoogleToolExecutor(ctx);

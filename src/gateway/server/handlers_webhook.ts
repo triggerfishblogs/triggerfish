@@ -73,7 +73,9 @@ async function consumeWebhookBody(
   } catch (err) {
     return {
       ok: false,
-      error: `Webhook body read failed: ${err instanceof Error ? err.message : String(err)}`,
+      error: `Webhook body read failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
     };
   }
   const merged = new Uint8Array(totalBytes);

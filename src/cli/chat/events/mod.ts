@@ -9,9 +9,9 @@ export { createScreenEventHandler } from "./screen_event_handler.ts";
 export type { ScreenHandlerState } from "./event_handler_state.ts";
 export {
   buildScreenHandlerState,
-  stopSpinnerFallback,
   ensureStreamingActive,
-  writeStreamingHeader,
-  writeIndentedChunk,
   resetScreenStreamingState,
+  stopSpinnerFallback,
+  writeIndentedChunk,
+  writeStreamingHeader,
 } from "./event_handler_state.ts";

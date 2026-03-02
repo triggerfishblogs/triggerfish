@@ -6,7 +6,10 @@
 
 import { assertEquals } from "@std/assert";
 import { createTasksService } from "../../../src/integrations/google/tasks/tasks.ts";
-import type { GoogleApiClient, GoogleApiResult } from "../../../src/integrations/google/types.ts";
+import type {
+  GoogleApiClient,
+  GoogleApiResult,
+} from "../../../src/integrations/google/types.ts";
 
 function createMockClient(
   responses: Record<string, GoogleApiResult<unknown>>,
@@ -15,11 +18,17 @@ function createMockClient(
     for (const [key, value] of Object.entries(responses)) {
       if (url.includes(key)) return value;
     }
-    return { ok: false, error: { code: "NOT_FOUND", message: `No mock for: ${url}` } };
+    return {
+      ok: false,
+      error: { code: "NOT_FOUND", message: `No mock for: ${url}` },
+    };
   }
 
   return {
-    get<T>(url: string, _params?: Record<string, string>): Promise<GoogleApiResult<T>> {
+    get<T>(
+      url: string,
+      _params?: Record<string, string>,
+    ): Promise<GoogleApiResult<T>> {
       return Promise.resolve(findResponse(url) as GoogleApiResult<T>);
     },
     post<T>(url: string, _body: unknown): Promise<GoogleApiResult<T>> {
@@ -41,7 +50,12 @@ Deno.test("TasksService.list: returns tasks", async () => {
       value: {
         items: [
           { id: "t1", title: "Buy groceries", status: "needsAction" },
-          { id: "t2", title: "Walk dog", status: "completed", completed: "2025-01-15" },
+          {
+            id: "t2",
+            title: "Walk dog",
+            status: "completed",
+            completed: "2025-01-15",
+          },
         ],
       },
     },

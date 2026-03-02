@@ -4,9 +4,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
-import {
-  createTriggerStore,
-} from "../../src/scheduler/triggers/store.ts";
+import { createTriggerStore } from "../../src/scheduler/triggers/store.ts";
 import type { TriggerResult } from "../../src/scheduler/triggers/store.ts";
 
 function makeResult(
@@ -85,8 +83,12 @@ Deno.test("TriggerStore: preserves classification level", async () => {
 
 Deno.test("TriggerStore: different sources are stored independently", async () => {
   const store = createTriggerStore(createMemoryStorage());
-  await store.save(makeResult({ source: "trigger", message: "periodic result" }));
-  await store.save(makeResult({ source: "cron:job-1", message: "cron result" }));
+  await store.save(
+    makeResult({ source: "trigger", message: "periodic result" }),
+  );
+  await store.save(
+    makeResult({ source: "cron:job-1", message: "cron result" }),
+  );
 
   const periodic = await store.getLast("trigger");
   const cron = await store.getLast("cron:job-1");

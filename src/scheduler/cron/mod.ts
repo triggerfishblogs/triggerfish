@@ -5,16 +5,13 @@
  */
 
 export {
-  parseCronExpression,
-  matchesNow,
   type CronExpression,
   type CronJob,
   type CronJobExecution,
   type CronJobOptions,
   type CronManager,
+  matchesNow,
+  parseCronExpression,
 } from "./parser.ts";
 
-export {
-  createCronManager,
-  createPersistentCronManager,
-} from "./cron.ts";
+export { createCronManager, createPersistentCronManager } from "./cron.ts";

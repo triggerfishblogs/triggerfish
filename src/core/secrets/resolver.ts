@@ -44,14 +44,18 @@ export async function resolveSecretRef(
 
   const key = value.slice(SECRET_PREFIX.length);
   if (key.length === 0) {
-    return { ok: false, error: `Invalid secret reference: "${value}" has empty key` };
+    return {
+      ok: false,
+      error: `Invalid secret reference: "${value}" has empty key`,
+    };
   }
 
   const result = await store.getSecret(key);
   if (!result.ok) {
     return {
       ok: false,
-      error: `Secret reference "${value}" could not be resolved: ${result.error}`,
+      error:
+        `Secret reference "${value}" could not be resolved: ${result.error}`,
     };
   }
 

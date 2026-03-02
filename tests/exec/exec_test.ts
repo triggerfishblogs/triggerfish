@@ -4,14 +4,23 @@
  * Tests write/run/read cycle, isolation, denied commands.
  * Extended with classification-partitioned workspace tests.
  */
-import { assertEquals, assertExists, assert, assertStringIncludes, assertRejects } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertExists,
+  assertRejects,
+  assertStringIncludes,
+} from "@std/assert";
 import { createWorkspace } from "../../src/exec/workspace.ts";
 import { createExecTools } from "../../src/exec/tools.ts";
 import { createExecRunner } from "../../src/exec/runner.ts";
 import { join } from "@std/path";
 
 Deno.test("Workspace: creates isolated directory for agent", async () => {
-  const ws = await createWorkspace({ agentId: "test-agent", basePath: await Deno.makeTempDir() });
+  const ws = await createWorkspace({
+    agentId: "test-agent",
+    basePath: await Deno.makeTempDir(),
+  });
   try {
     const stat = await Deno.stat(ws.path);
     assert(stat.isDirectory);
@@ -154,7 +163,9 @@ Deno.test("Workspace: creates classification directories on init", async () => {
     assert(restrictedStat.isDirectory);
 
     // Check subdirectories exist
-    for (const dir of [ws.internalPath, ws.confidentialPath, ws.restrictedPath]) {
+    for (
+      const dir of [ws.internalPath, ws.confidentialPath, ws.restrictedPath]
+    ) {
       for (const sub of ["scratch", "integrations", "skills"]) {
         const stat = await Deno.stat(join(dir, sub));
         assert(stat.isDirectory);
@@ -170,7 +181,11 @@ Deno.test("Workspace: CONFIDENTIAL write resolves bare path to confidential/", a
   const tmpDir = await Deno.makeTempDir();
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   try {
-    const result = ws.resolveClassifiedPath("notes.txt", "CONFIDENTIAL", "write");
+    const result = ws.resolveClassifiedPath(
+      "notes.txt",
+      "CONFIDENTIAL",
+      "write",
+    );
     assertEquals(result.ok, true);
     if (result.ok) {
       assertStringIncludes(result.value.absolutePath, "confidential");
@@ -186,7 +201,11 @@ Deno.test("Workspace: INTERNAL session cannot read confidential/ path", async ()
   const tmpDir = await Deno.makeTempDir();
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   try {
-    const result = ws.resolveClassifiedPath("confidential/report.txt", "INTERNAL", "read");
+    const result = ws.resolveClassifiedPath(
+      "confidential/report.txt",
+      "INTERNAL",
+      "read",
+    );
     assertEquals(result.ok, false);
   } finally {
     await ws.destroy();
@@ -198,7 +217,11 @@ Deno.test("Workspace: CONFIDENTIAL session can read internal/ path (read-down)",
   const tmpDir = await Deno.makeTempDir();
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   try {
-    const result = ws.resolveClassifiedPath("internal/notes.txt", "CONFIDENTIAL", "read");
+    const result = ws.resolveClassifiedPath(
+      "internal/notes.txt",
+      "CONFIDENTIAL",
+      "read",
+    );
     assertEquals(result.ok, true);
     if (result.ok) {
       assertEquals(result.value.classification, "INTERNAL");
@@ -213,7 +236,11 @@ Deno.test("Workspace: RESTRICTED session cannot write to internal/ (write-down)"
   const tmpDir = await Deno.makeTempDir();
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   try {
-    const result = ws.resolveClassifiedPath("internal/notes.txt", "RESTRICTED", "write");
+    const result = ws.resolveClassifiedPath(
+      "internal/notes.txt",
+      "RESTRICTED",
+      "write",
+    );
     assertEquals(result.ok, false);
   } finally {
     await ws.destroy();
@@ -225,7 +252,11 @@ Deno.test("Workspace: bare path write resolves to session taint directory", asyn
   const tmpDir = await Deno.makeTempDir();
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   try {
-    const result = ws.resolveClassifiedPath("notes.txt", "CONFIDENTIAL", "write");
+    const result = ws.resolveClassifiedPath(
+      "notes.txt",
+      "CONFIDENTIAL",
+      "write",
+    );
     assertEquals(result.ok, true);
     if (result.ok) {
       assertStringIncludes(result.value.absolutePath, "confidential");
@@ -240,7 +271,11 @@ Deno.test("Workspace: path traversal blocked in resolveClassifiedPath", async ()
   const tmpDir = await Deno.makeTempDir();
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   try {
-    const result = ws.resolveClassifiedPath("../../etc/passwd", "CONFIDENTIAL", "read");
+    const result = ws.resolveClassifiedPath(
+      "../../etc/passwd",
+      "CONFIDENTIAL",
+      "read",
+    );
     assertEquals(result.ok, false);
   } finally {
     await ws.destroy();
@@ -251,7 +286,11 @@ Deno.test("Workspace: PUBLIC session cannot access workspace files", async () =>
   const tmpDir = await Deno.makeTempDir();
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   try {
-    const result = ws.resolveClassifiedPath("internal/notes.txt", "PUBLIC", "read");
+    const result = ws.resolveClassifiedPath(
+      "internal/notes.txt",
+      "PUBLIC",
+      "read",
+    );
     assertEquals(result.ok, false);
   } finally {
     await ws.destroy();
@@ -264,10 +303,17 @@ Deno.test("Workspace: bare read searches readable levels for existing file", asy
   try {
     // Write a file at INTERNAL level
     const encoder = new TextEncoder();
-    await Deno.writeFile(join(ws.internalPath, "shared.txt"), encoder.encode("internal data"));
+    await Deno.writeFile(
+      join(ws.internalPath, "shared.txt"),
+      encoder.encode("internal data"),
+    );
 
     // CONFIDENTIAL session reads bare path "shared.txt" → finds it at INTERNAL
-    const result = ws.resolveClassifiedPath("shared.txt", "CONFIDENTIAL", "read");
+    const result = ws.resolveClassifiedPath(
+      "shared.txt",
+      "CONFIDENTIAL",
+      "read",
+    );
     assertEquals(result.ok, true);
     if (result.ok) {
       assertEquals(result.value.classification, "INTERNAL");
@@ -294,7 +340,11 @@ Deno.test("Workspace.resolveClassifiedPath: ../ traversal attempt is blocked", a
   const tmpDir = await Deno.makeTempDir();
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   try {
-    const result = ws.resolveClassifiedPath("../escape.txt", "INTERNAL", "write");
+    const result = ws.resolveClassifiedPath(
+      "../escape.txt",
+      "INTERNAL",
+      "write",
+    );
     assertEquals(result.ok, false);
   } finally {
     await ws.destroy();
@@ -305,7 +355,11 @@ Deno.test("Workspace.resolveClassifiedPath: absolute path escaping workspace is 
   const tmpDir = await Deno.makeTempDir();
   const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
   try {
-    const result = ws.resolveClassifiedPath("/etc/passwd", "CONFIDENTIAL", "read");
+    const result = ws.resolveClassifiedPath(
+      "/etc/passwd",
+      "CONFIDENTIAL",
+      "read",
+    );
     assertEquals(result.ok, false);
   } finally {
     await ws.destroy();
@@ -331,7 +385,10 @@ Deno.test("ExecTools: cwdOverride sets command working directory", async () => {
 
 Deno.test("Workspace: agentId with newline is sanitized for path construction", async () => {
   const tmpDir = await Deno.makeTempDir();
-  const ws = await createWorkspace({ agentId: "agent\ninjected", basePath: tmpDir });
+  const ws = await createWorkspace({
+    agentId: "agent\ninjected",
+    basePath: tmpDir,
+  });
   try {
     assert(!ws.path.includes("\n"), "workspace path must not contain newline");
     assertEquals(ws.agentId, "agentinjected");
@@ -344,9 +401,15 @@ Deno.test("Workspace: agentId with newline is sanitized for path construction", 
 
 Deno.test("Workspace: agentId with bidi override (U+202E) is sanitized", async () => {
   const tmpDir = await Deno.makeTempDir();
-  const ws = await createWorkspace({ agentId: "agent\u202Eid", basePath: tmpDir });
+  const ws = await createWorkspace({
+    agentId: "agent\u202Eid",
+    basePath: tmpDir,
+  });
   try {
-    assert(!ws.path.includes("\u202E"), "workspace path must not contain bidi override");
+    assert(
+      !ws.path.includes("\u202E"),
+      "workspace path must not contain bidi override",
+    );
     assertEquals(ws.agentId, "agentid");
     const stat = await Deno.stat(ws.path);
     assert(stat.isDirectory);
@@ -357,9 +420,15 @@ Deno.test("Workspace: agentId with bidi override (U+202E) is sanitized", async (
 
 Deno.test("Workspace: agentId with zero-width space (U+200B) is sanitized", async () => {
   const tmpDir = await Deno.makeTempDir();
-  const ws = await createWorkspace({ agentId: "agent\u200Bid", basePath: tmpDir });
+  const ws = await createWorkspace({
+    agentId: "agent\u200Bid",
+    basePath: tmpDir,
+  });
   try {
-    assert(!ws.path.includes("\u200B"), "workspace path must not contain zero-width space");
+    assert(
+      !ws.path.includes("\u200B"),
+      "workspace path must not contain zero-width space",
+    );
     assertEquals(ws.agentId, "agentid");
     const stat = await Deno.stat(ws.path);
     assert(stat.isDirectory);
@@ -370,7 +439,10 @@ Deno.test("Workspace: agentId with zero-width space (U+200B) is sanitized", asyn
 
 Deno.test("Workspace: normal ASCII agentId is unchanged after sanitization", async () => {
   const tmpDir = await Deno.makeTempDir();
-  const ws = await createWorkspace({ agentId: "my-agent-123", basePath: tmpDir });
+  const ws = await createWorkspace({
+    agentId: "my-agent-123",
+    basePath: tmpDir,
+  });
   try {
     assertEquals(ws.agentId, "my-agent-123");
     assert(ws.path.endsWith("my-agent-123"));

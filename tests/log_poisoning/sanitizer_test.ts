@@ -3,12 +3,16 @@
  *
  * @module
  */
-import { assertEquals, assertStringIncludes, assertNotEquals } from "@std/assert";
 import {
-  sanitizeExternal,
-  tagExternal,
+  assertEquals,
+  assertNotEquals,
+  assertStringIncludes,
+} from "@std/assert";
+import {
   formatTaggedEntry,
   MAX_EXTERNAL_BYTES,
+  sanitizeExternal,
+  tagExternal,
 } from "../../src/core/logger/sanitizer.ts";
 
 // ─── sanitizeExternal ───────────────────────────────────────────────────────
@@ -104,13 +108,18 @@ Deno.test("tagExternal: inner « escaped so no nested delimiter", () => {
 // ─── formatTaggedEntry ──────────────────────────────────────────────────────
 
 Deno.test("formatTaggedEntry: trusted message left unchanged", () => {
-  const result = formatTaggedEntry("WS upgrade", { origin: "http://example.com" });
+  const result = formatTaggedEntry("WS upgrade", {
+    origin: "http://example.com",
+  });
   // Message part should not be wrapped in « »
   assertEquals(result.startsWith("WS upgrade"), true);
 });
 
 Deno.test("formatTaggedEntry: each field value is wrapped in « »", () => {
-  const result = formatTaggedEntry("msg", { origin: "http://a.com", ua: "curl" });
+  const result = formatTaggedEntry("msg", {
+    origin: "http://a.com",
+    ua: "curl",
+  });
   assertStringIncludes(result, "origin=\u00AB");
   assertStringIncludes(result, "ua=\u00AB");
   assertStringIncludes(result, "\u00BB");

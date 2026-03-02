@@ -5,11 +5,11 @@
  */
 import { assertEquals } from "@std/assert";
 import {
-  createMcpServerManager,
-  resolveEnvVars,
   createMcpServerAdapter,
-  enforceCommandAllowlist,
+  createMcpServerManager,
   DEFAULT_ALLOWED_MCP_COMMANDS,
+  enforceCommandAllowlist,
+  resolveEnvVars,
 } from "../../src/mcp/manager.ts";
 import type { McpServerConfig } from "../../src/mcp/manager.ts";
 import { createMemorySecretStore } from "../../src/core/secrets/keychain/keychain.ts";
@@ -171,7 +171,11 @@ Deno.test("McpServerManager: startAll with no configs sets configuredCount to 0"
 });
 
 Deno.test(
-  { name: "McpServerManager: startAll counts non-disabled configs", sanitizeOps: false, sanitizeResources: false },
+  {
+    name: "McpServerManager: startAll counts non-disabled configs",
+    sanitizeOps: false,
+    sanitizeResources: false,
+  },
   () => {
     const manager = createMcpServerManager();
     const configs: McpServerConfig[] = [
@@ -188,7 +192,8 @@ Deno.test(
 
 Deno.test(
   {
-    name: "McpServerManager: onStatusChange callback is invoked on status update",
+    name:
+      "McpServerManager: onStatusChange callback is invoked on status update",
     sanitizeOps: false,
     sanitizeResources: false,
   },
@@ -202,7 +207,11 @@ Deno.test(
     // Manually simulate status notification by calling startAll with a bad server
     // The first status change fires almost immediately (connecting state)
     const configs: McpServerConfig[] = [
-      { id: "bad", command: "nonexistent-binary-that-does-not-exist-99999", args: [] },
+      {
+        id: "bad",
+        command: "nonexistent-binary-that-does-not-exist-99999",
+        args: [],
+      },
     ];
     manager.startAll(configs);
 
@@ -288,13 +297,22 @@ Deno.test("enforceCommandAllowlist: strips path prefix and validates by basename
   assertEquals(enforceCommandAllowlist("/usr/bin/node").ok, true);
   assertEquals(enforceCommandAllowlist("/usr/local/bin/npx").ok, true);
   assertEquals(enforceCommandAllowlist("/usr/bin/curl").ok, false);
-  assertEquals(enforceCommandAllowlist("C:\\Windows\\System32\\cmd.exe").ok, false);
+  assertEquals(
+    enforceCommandAllowlist("C:\\Windows\\System32\\cmd.exe").ok,
+    false,
+  );
 });
 
 Deno.test("enforceCommandAllowlist: extraAllowed extends built-in allowlist", () => {
-  assertEquals(enforceCommandAllowlist("my-mcp-server", ["my-mcp-server"]).ok, true);
+  assertEquals(
+    enforceCommandAllowlist("my-mcp-server", ["my-mcp-server"]).ok,
+    true,
+  );
   assertEquals(enforceCommandAllowlist("npx", ["my-mcp-server"]).ok, true);
-  assertEquals(enforceCommandAllowlist("other-tool", ["my-mcp-server"]).ok, false);
+  assertEquals(
+    enforceCommandAllowlist("other-tool", ["my-mcp-server"]).ok,
+    false,
+  );
 });
 
 Deno.test("McpServerManager: connectAll rejects disallowed command gracefully", async () => {
@@ -344,7 +362,8 @@ Deno.test("createMcpServerAdapter: no ceiling passes declared classification unc
 
 Deno.test(
   {
-    name: "McpServerManager: retry loop stops after maxRetries and marks server FAILED",
+    name:
+      "McpServerManager: retry loop stops after maxRetries and marks server FAILED",
     sanitizeOps: false,
     sanitizeResources: false,
   },

@@ -212,8 +212,10 @@ export function createClaudeSessionManager(
         timeoutId: null,
       };
 
-      (entry as { timeoutId: number | null }).timeoutId =
-        setupSessionTimeout(entry, fullConfig.timeoutMs ?? 300_000);
+      (entry as { timeoutId: number | null }).timeoutId = setupSessionTimeout(
+        entry,
+        fullConfig.timeoutMs ?? 300_000,
+      );
       startOutputReader(entry, process.stdout.getReader());
       drainStderr(entry, process.stderr.getReader());
       watchProcessExit(entry);

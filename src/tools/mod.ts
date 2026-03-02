@@ -45,7 +45,7 @@ export {
 export type { HealthcheckDeps } from "./healthcheck.ts";
 
 export { readLogsForLlm } from "./log_reader.ts";
-export type { LogReadResult, LogReaderOptions } from "./log_reader.ts";
+export type { LogReaderOptions, LogReadResult } from "./log_reader.ts";
 
 export {
   executeLogRead,
@@ -60,7 +60,7 @@ export {
 } from "./release_notes.ts";
 
 export type {
-  ReleaseNotesFetcher,
   ReleaseNoteRange,
+  ReleaseNotesFetcher,
   ReleaseNoteSummary,
 } from "./release_notes.ts";

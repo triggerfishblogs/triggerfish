@@ -186,7 +186,9 @@ async function verifyLlmConnection(
     console.log("");
     console.log("  Verifying connection...");
     const endpoint = isLocal ? state.localEndpoint : undefined;
-    const verifyKey = isLocal ? "" : await resolveApiKeyForVerification(state.apiKey);
+    const verifyKey = isLocal
+      ? ""
+      : await resolveApiKeyForVerification(state.apiKey);
     const result = await verifyProvider(
       provider,
       verifyKey,
@@ -292,7 +294,9 @@ export async function reconfigureLlmProvider(
   ) as string | undefined) ?? "";
 
   const credentials = await promptLlmCredentials(
-    provider, currentEndpoint, currentApiKey,
+    provider,
+    currentEndpoint,
+    currentApiKey,
   );
   const state: LlmVerifyState = {
     apiKey: credentials.apiKey,

@@ -118,7 +118,12 @@ function handleWhatsAppMessage(
       sessionId: msg.sessionId,
       isOwner: msg.isOwner,
     });
-    handleWhatsAppClearCommand(adapter, chatSession, notificationService, msg.sessionId);
+    handleWhatsAppClearCommand(
+      adapter,
+      chatSession,
+      notificationService,
+      msg.sessionId,
+    );
     return;
   }
   if (msg.isOwner === true) {

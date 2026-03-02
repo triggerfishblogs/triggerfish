@@ -75,7 +75,10 @@ export function createWireGuardService(
     },
 
     async disable(): Promise<Result<void, string>> {
-      const result = await runner.runCommand("wg-quick", ["down", WG_INTERFACE]);
+      const result = await runner.runCommand("wg-quick", [
+        "down",
+        WG_INTERFACE,
+      ]);
       if (!result.success) {
         return {
           ok: false,

@@ -1,10 +1,14 @@
 # Key Interfaces
 
-This page documents the TypeScript interfaces that define Triggerfish's extension points. If you are building a custom channel adapter, LLM provider, storage backend, or policy integration, these are the contracts your code must satisfy.
+This page documents the TypeScript interfaces that define Triggerfish's
+extension points. If you are building a custom channel adapter, LLM provider,
+storage backend, or policy integration, these are the contracts your code must
+satisfy.
 
 ## Result\<T, E\>
 
-Triggerfish uses a discriminated union result type instead of thrown exceptions for all expected failures.
+Triggerfish uses a discriminated union result type instead of thrown exceptions
+for all expected failures.
 
 ```typescript
 type Result<T, E> =
@@ -32,9 +36,9 @@ if (result.ok) {
 }
 ```
 
-::: warning
-Never throw exceptions for expected failures. Use `Result<T, E>` throughout. Thrown exceptions are reserved for truly unexpected, unrecoverable errors (bugs).
-:::
+::: warning Never throw exceptions for expected failures. Use `Result<T, E>`
+throughout. Thrown exceptions are reserved for truly unexpected, unrecoverable
+errors (bugs). :::
 
 ## ClassificationLevel
 
@@ -48,11 +52,13 @@ type ClassificationLevel =
   | "PUBLIC";
 ```
 
-Ordered highest to lowest: `RESTRICTED > CONFIDENTIAL > INTERNAL > PUBLIC`. Data can only flow to equal or higher levels (no write-down).
+Ordered highest to lowest: `RESTRICTED > CONFIDENTIAL > INTERNAL > PUBLIC`. Data
+can only flow to equal or higher levels (no write-down).
 
 ## StorageProvider
 
-The unified persistence abstraction. All stateful data in Triggerfish flows through this interface.
+The unified persistence abstraction. All stateful data in Triggerfish flows
+through this interface.
 
 ```typescript
 interface StorageProvider {
@@ -75,17 +81,19 @@ interface StorageProvider {
 
 **Implementations:**
 
-| Backend | Use Case |
-|---------|----------|
-| `MemoryStorageProvider` | Testing, ephemeral sessions |
+| Backend                 | Use Case                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| `MemoryStorageProvider` | Testing, ephemeral sessions                                                    |
 | `SqliteStorageProvider` | Default for personal tier (SQLite WAL at `~/.triggerfish/data/triggerfish.db`) |
-| Enterprise backends | Customer-managed (Postgres, S3, etc.) |
+| Enterprise backends     | Customer-managed (Postgres, S3, etc.)                                          |
 
-**Key namespaces:** `sessions:`, `taint:`, `lineage:`, `audit:`, `cron:`, `notifications:`, `exec:`, `skills:`, `config:`
+**Key namespaces:** `sessions:`, `taint:`, `lineage:`, `audit:`, `cron:`,
+`notifications:`, `exec:`, `skills:`, `config:`
 
 ## ChannelAdapter
 
-The common interface for all messaging channel adapters (CLI, Telegram, Slack, Discord, WhatsApp, WebChat, Email).
+The common interface for all messaging channel adapters (CLI, Telegram, Slack,
+Discord, WhatsApp, WebChat, Email).
 
 ```typescript
 interface ChannelAdapter {
@@ -131,7 +139,8 @@ type MessageHandler = (message: ChannelMessage) => void;
 
 ## LlmProvider
 
-The interface for LLM completions. Each provider (Anthropic, OpenAI, Google, Local, OpenRouter) implements this interface.
+The interface for LLM completions. Each provider (Anthropic, OpenAI, Google,
+Local, OpenRouter) implements this interface.
 
 ```typescript
 interface LlmProvider {
@@ -170,7 +179,8 @@ interface LlmProviderRegistry {
 
 ## NotificationService
 
-The notification delivery abstraction. See [Notifications](/features/notifications) for usage details.
+The notification delivery abstraction. See
+[Notifications](/features/notifications) for usage details.
 
 ```typescript
 type NotificationPriority = "critical" | "normal" | "low";
@@ -203,7 +213,8 @@ interface NotificationService {
 
 ## Hook Types
 
-Policy enforcement hooks intercept actions at critical points in the data flow. All hooks are deterministic, synchronous, logged, and unforgeable.
+Policy enforcement hooks intercept actions at critical points in the data flow.
+All hooks are deterministic, synchronous, logged, and unforgeable.
 
 ### HookType
 
@@ -262,8 +273,9 @@ type UserId = string & { readonly __brand: "UserId" };
 type ChannelId = string & { readonly __brand: "ChannelId" };
 ```
 
-Branded types prevent accidental misuse of IDs -- you cannot pass a `UserId` where a `SessionId` is expected.
+Branded types prevent accidental misuse of IDs -- you cannot pass a `UserId`
+where a `SessionId` is expected.
 
-::: info
-All session operations are immutable. Functions return new `SessionState` objects rather than mutating existing ones. This ensures referential transparency and simplifies testing.
-:::
+::: info All session operations are immutable. Functions return new
+`SessionState` objects rather than mutating existing ones. This ensures
+referential transparency and simplifies testing. :::

@@ -3,11 +3,11 @@
  * Tests MUST FAIL until protocol.ts and transport.ts are implemented.
  * Tests JSON-RPC formatting, handshake, tool invocation.
  */
-import { assertEquals, assertExists, assert } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import {
+  createMcpClient,
   formatRequest,
   parseMessage,
-  createMcpClient,
 } from "../../src/mcp/client/protocol.ts";
 import type { Transport } from "../../src/mcp/client/transport.ts";
 
@@ -56,8 +56,13 @@ function createMockTransport(responses: Record<string, unknown>): Transport {
     // deno-lint-ignore require-await
     async send(msg: string) {
       const parsed = JSON.parse(msg);
-      const response = responses[parsed.method] ?? { error: { code: -32601, message: "Not found" } };
-      const reply = JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result: response });
+      const response = responses[parsed.method] ??
+        { error: { code: -32601, message: "Not found" } };
+      const reply = JSON.stringify({
+        jsonrpc: "2.0",
+        id: parsed.id,
+        result: response,
+      });
       for (const h of handlers) h(reply);
     },
     onMessage(handler: (msg: string) => void) {
@@ -84,10 +89,18 @@ Deno.test("McpClient: initialize handshake completes", async () => {
 
 Deno.test("McpClient: listTools returns tool definitions", async () => {
   const transport = createMockTransport({
-    initialize: { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "test", version: "1" } },
+    initialize: {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      serverInfo: { name: "test", version: "1" },
+    },
     "tools/list": {
       tools: [
-        { name: "read_file", description: "Read a file", inputSchema: { type: "object" } },
+        {
+          name: "read_file",
+          description: "Read a file",
+          inputSchema: { type: "object" },
+        },
       ],
     },
   });
@@ -100,7 +113,11 @@ Deno.test("McpClient: listTools returns tool definitions", async () => {
 
 Deno.test("McpClient: callTool sends correct request and returns result", async () => {
   const transport = createMockTransport({
-    initialize: { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "test", version: "1" } },
+    initialize: {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      serverInfo: { name: "test", version: "1" },
+    },
     "tools/call": { content: [{ type: "text", text: "file contents here" }] },
   });
   const client = createMcpClient(transport);

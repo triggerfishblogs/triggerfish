@@ -84,12 +84,20 @@ async function validateSkill(skillDir: string): Promise<ValidationResult> {
   try {
     content = await Deno.readTextFile(skillMdPath);
   } catch {
-    return { valid: false, errors: [`SKILL.md not found in ${skillDir}`], warnings: [] };
+    return {
+      valid: false,
+      errors: [`SKILL.md not found in ${skillDir}`],
+      warnings: [],
+    };
   }
 
   const raw = extractFrontmatter(content);
   if (!raw) {
-    return { valid: false, errors: ["SKILL.md missing YAML frontmatter"], warnings: [] };
+    return {
+      valid: false,
+      errors: ["SKILL.md missing YAML frontmatter"],
+      warnings: [],
+    };
   }
 
   // Check required fields
@@ -100,8 +108,13 @@ async function validateSkill(skillDir: string): Promise<ValidationResult> {
   }
 
   // Validate classification_ceiling
-  if (raw.classification_ceiling && !VALID_CLASSIFICATIONS.has(String(raw.classification_ceiling))) {
-    errors.push(`Invalid classification_ceiling: ${raw.classification_ceiling}`);
+  if (
+    raw.classification_ceiling &&
+    !VALID_CLASSIFICATIONS.has(String(raw.classification_ceiling))
+  ) {
+    errors.push(
+      `Invalid classification_ceiling: ${raw.classification_ceiling}`,
+    );
   }
 
   // Validate tags is an array

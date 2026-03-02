@@ -1,7 +1,7 @@
 /**
  * Tests for session retention policies.
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { applyRetention } from "../../../src/core/session/retention.ts";
 import { createMemoryStorage } from "../../../src/core/storage/memory.ts";
 import type { StorageProvider } from "../../../src/core/storage/provider.ts";

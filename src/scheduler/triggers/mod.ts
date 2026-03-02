@@ -6,9 +6,9 @@
 
 export {
   createTrigger,
+  type QuietHours,
   type Trigger,
   type TriggerOptions,
-  type QuietHours,
 } from "./trigger.ts";
 
 export {

@@ -25,7 +25,13 @@ export interface OpenAiModelLimits {
 }
 
 /** OpenAI usage tier identifier. */
-export type OpenAiTier = "free" | "tier1" | "tier2" | "tier3" | "tier4" | "tier5";
+export type OpenAiTier =
+  | "free"
+  | "tier1"
+  | "tier2"
+  | "tier3"
+  | "tier4"
+  | "tier5";
 
 // ---------------------------------------------------------------------------
 // gpt-4o limits by tier

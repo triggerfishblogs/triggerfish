@@ -171,10 +171,13 @@ async function executeSecurityEnforcedToolCall(
   );
   preEscalateOwnerTriggerTaint(secCtx, config, call);
   if (secCtx.resourceClassification === null) {
-    log.debug("Falling back to prefix-based taint escalation — resource classification is null", {
-      operation: "escalateToolPrefixTaint",
-      toolName: call.name,
-    });
+    log.debug(
+      "Falling back to prefix-based taint escalation — resource classification is null",
+      {
+        operation: "escalateToolPrefixTaint",
+        toolName: call.name,
+      },
+    );
     escalateToolPrefixTaint(
       call.name,
       config.toolClassifications,

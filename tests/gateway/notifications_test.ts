@@ -100,7 +100,9 @@ Deno.test("deliver: sends to registered channel and auto-acknowledges", async ()
   svc.registerChannel({
     name: "test",
     // deno-lint-ignore require-await
-    send: async (msg) => { delivered.push(msg); },
+    send: async (msg) => {
+      delivered.push(msg);
+    },
   });
 
   await svc.deliver({ userId: USER, message: "push me", priority: "normal" });
@@ -120,10 +122,16 @@ Deno.test("deliver: channel failure leaves notification pending", async () => {
   svc.registerChannel({
     name: "broken",
     // deno-lint-ignore require-await
-    send: async () => { throw new Error("send failed"); },
+    send: async () => {
+      throw new Error("send failed");
+    },
   });
 
-  await svc.deliver({ userId: USER, message: "should stay queued", priority: "normal" });
+  await svc.deliver({
+    userId: USER,
+    message: "should stay queued",
+    priority: "normal",
+  });
 
   const pending = await svc.getPending(USER);
   assertEquals(pending.length, 1);
@@ -137,9 +145,19 @@ Deno.test("deliver: fans out to multiple channels", async () => {
   const ch2: string[] = [];
 
   // deno-lint-ignore require-await
-  svc.registerChannel({ name: "ch1", send: async (msg) => { ch1.push(msg); } });
+  svc.registerChannel({
+    name: "ch1",
+    send: async (msg) => {
+      ch1.push(msg);
+    },
+  });
   // deno-lint-ignore require-await
-  svc.registerChannel({ name: "ch2", send: async (msg) => { ch2.push(msg); } });
+  svc.registerChannel({
+    name: "ch2",
+    send: async (msg) => {
+      ch2.push(msg);
+    },
+  });
 
   await svc.deliver({ userId: USER, message: "broadcast", priority: "normal" });
 
@@ -156,10 +174,16 @@ Deno.test("deliver: cli-websocket channel receives trigger notifications via fan
   svc.registerChannel({
     name: "cli-websocket",
     // deno-lint-ignore require-await
-    send: async (msg) => { received.push(msg); },
+    send: async (msg) => {
+      received.push(msg);
+    },
   });
 
-  await svc.deliver({ userId: USER, message: "trigger fired", priority: "normal" });
+  await svc.deliver({
+    userId: USER,
+    message: "trigger fired",
+    priority: "normal",
+  });
 
   assertEquals(received.length, 1);
   assertEquals(received[0], "trigger fired");
@@ -181,7 +205,12 @@ Deno.test("flushPending: delivers queued notifications when channel becomes avai
   // Register a channel and flush
   const delivered: string[] = [];
   // deno-lint-ignore require-await
-  svc.registerChannel({ name: "late", send: async (msg) => { delivered.push(msg); } });
+  svc.registerChannel({
+    name: "late",
+    send: async (msg) => {
+      delivered.push(msg);
+    },
+  });
 
   const remaining = await svc.flushPending(USER);
   assertEquals(remaining, 0);

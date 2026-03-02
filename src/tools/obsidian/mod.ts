@@ -5,35 +5,35 @@
  */
 
 export type {
-  ObsidianVaultConfig,
+  Backlink,
+  DailyNoteOptions,
   DailyNotesConfig,
-  ObsidianNote,
   Heading,
   NoteCreateOptions,
-  NoteUpdateOptions,
-  NoteSearchOptions,
   NoteListOptions,
-  DailyNoteOptions,
+  NoteSearchOptions,
+  NoteUpdateOptions,
+  ObsidianNote,
+  ObsidianVaultConfig,
   WikilinkTarget,
-  Backlink,
 } from "./types.ts";
 
 export type { VaultContext } from "./vault.ts";
 export {
   createVaultContext,
-  resolveVaultPath,
-  isExcluded,
   getClassificationForPath,
+  isExcluded,
+  resolveVaultPath,
 } from "./vault.ts";
 
 export {
+  buildNote,
+  extractHeadings,
+  extractTags,
+  extractWikilinks,
+  mergeFrontmatter,
   parseFrontmatter,
   serializeFrontmatter,
-  mergeFrontmatter,
-  extractWikilinks,
-  extractTags,
-  extractHeadings,
-  buildNote,
 } from "./markdown.ts";
 export type { FrontmatterResult } from "./markdown.ts";
 
@@ -48,7 +48,7 @@ export { createLinkResolver } from "./links.ts";
 
 export type { ObsidianToolContext } from "./tools/mod.ts";
 export {
-  getObsidianToolDefinitions,
   createObsidianToolExecutor,
+  getObsidianToolDefinitions,
   OBSIDIAN_SYSTEM_PROMPT,
 } from "./tools/mod.ts";

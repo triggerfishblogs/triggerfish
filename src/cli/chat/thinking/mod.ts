@@ -4,17 +4,17 @@
  */
 
 export type {
-  ThinkFilterState,
-  ThinkFilterResult,
-  ThinkingFilter,
-  FilterState,
   CharAccumulator,
+  FilterState,
+  ThinkFilterResult,
+  ThinkFilterState,
+  ThinkingFilter,
 } from "./think_filter_types.ts";
 export {
-  THINK_BUFFER_MAX,
-  OPEN_TAG_RE,
   CLOSE_TAG_RE,
   EMPTY_RESULT,
+  OPEN_TAG_RE,
+  THINK_BUFFER_MAX,
 } from "./think_filter_types.ts";
 
 export { filterBufferingChunk } from "./think_filter_buffer.ts";

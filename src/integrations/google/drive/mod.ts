@@ -14,12 +14,6 @@ export type {
 
 export { createDriveService } from "./drive.ts";
 
-export {
-  buildDriveSearchDef,
-  buildDriveReadDef,
-} from "./tools_defs_drive.ts";
+export { buildDriveReadDef, buildDriveSearchDef } from "./tools_defs_drive.ts";
 
-export {
-  executeDriveSearch,
-  executeDriveRead,
-} from "./tools_exec_drive.ts";
+export { executeDriveRead, executeDriveSearch } from "./tools_exec_drive.ts";

@@ -69,7 +69,12 @@ function handleTelegramMessage(
   }
 
   if (msg.content === "/clear" && msg.isOwner !== false) {
-    handleClearCommand(adapter, chatSession, notificationService, msg.sessionId);
+    handleClearCommand(
+      adapter,
+      chatSession,
+      notificationService,
+      msg.sessionId,
+    );
     return;
   }
 
@@ -96,8 +101,7 @@ function registerTelegramNotifications(
 
   notificationService.registerChannel({
     name: "telegram",
-    send: (msg) =>
-      adapter.send({ content: msg, sessionId: ownerChatId }),
+    send: (msg) => adapter.send({ content: msg, sessionId: ownerChatId }),
   });
 }
 

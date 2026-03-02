@@ -45,13 +45,13 @@ reef-registry/
 
 ## Static Files Served
 
-| Path | Description |
-|------|-------------|
-| `/index/catalog.json` | All skill metadata (name, version, description, tags, category, ceiling, checksum) |
-| `/index/tags.json` | Tag → skill name mapping |
-| `/index/categories.json` | Category → skill name mapping |
-| `/skills/{name}/{version}/SKILL.md` | The skill file |
-| `/skills/{name}/{version}/metadata.json` | Parsed frontmatter + checksum + publish date |
+| Path                                     | Description                                                                        |
+| ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| `/index/catalog.json`                    | All skill metadata (name, version, description, tags, category, ceiling, checksum) |
+| `/index/tags.json`                       | Tag → skill name mapping                                                           |
+| `/index/categories.json`                 | Category → skill name mapping                                                      |
+| `/skills/{name}/{version}/SKILL.md`      | The skill file                                                                     |
+| `/skills/{name}/{version}/metadata.json` | Parsed frontmatter + checksum + publish date                                       |
 
 ## How to Submit a Skill
 

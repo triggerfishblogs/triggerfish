@@ -8,8 +8,8 @@ import { assert, assertEquals } from "@std/assert";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import {
   createDelegationService,
-  type DelegationChain,
   type DelegationCertificate,
+  type DelegationChain,
   type UnsignedCertificate,
 } from "../../src/routing/delegation.ts";
 
@@ -39,8 +39,14 @@ Deno.test("DelegationService: generateKeypair returns valid keys", async () => {
   assert(result.ok, `Expected ok but got error: ${!result.ok && result.error}`);
 
   const keypair = result.value;
-  assert(keypair.publicKey instanceof CryptoKey, "publicKey should be a CryptoKey");
-  assert(keypair.privateKey instanceof CryptoKey, "privateKey should be a CryptoKey");
+  assert(
+    keypair.publicKey instanceof CryptoKey,
+    "publicKey should be a CryptoKey",
+  );
+  assert(
+    keypair.privateKey instanceof CryptoKey,
+    "privateKey should be a CryptoKey",
+  );
 
   // Verify the key types
   assertEquals(keypair.publicKey.type, "public");
@@ -72,7 +78,10 @@ Deno.test("DelegationService: sign and verify certificate round-trips", async ()
     expiry: futureExpiry(),
   };
 
-  const signResult = await service.signCertificate(keypair.privateKey, unsigned);
+  const signResult = await service.signCertificate(
+    keypair.privateKey,
+    unsigned,
+  );
   assert(signResult.ok, `Sign failed: ${!signResult.ok && signResult.error}`);
   const cert = signResult.value;
 
@@ -85,7 +94,10 @@ Deno.test("DelegationService: sign and verify certificate round-trips", async ()
 
   // Verify passes
   const verifyResult = await service.verifyCertificate(cert);
-  assert(verifyResult.ok, `Verify failed: ${!verifyResult.ok && verifyResult.error}`);
+  assert(
+    verifyResult.ok,
+    `Verify failed: ${!verifyResult.ok && verifyResult.error}`,
+  );
 
   await storage.close();
 });
@@ -108,7 +120,10 @@ Deno.test("DelegationService: verify rejects tampered certificate", async () => 
     expiry: futureExpiry(),
   };
 
-  const signResult = await service.signCertificate(keypairResult.value.privateKey, unsigned);
+  const signResult = await service.signCertificate(
+    keypairResult.value.privateKey,
+    unsigned,
+  );
   assert(signResult.ok);
   const cert = signResult.value;
 
@@ -146,7 +161,10 @@ Deno.test("DelegationService: verify rejects expired certificate", async () => {
     expiry: pastExpiry(),
   };
 
-  const signResult = await service.signCertificate(keypairResult.value.privateKey, unsigned);
+  const signResult = await service.signCertificate(
+    keypairResult.value.privateKey,
+    unsigned,
+  );
   assert(signResult.ok);
   const cert = signResult.value;
 
@@ -339,7 +357,10 @@ Deno.test("DelegationService: store and load chain round-trips", async () => {
 
   // Store
   const storeResult = await service.storeChain("chain-1", chain);
-  assert(storeResult.ok, `Store failed: ${!storeResult.ok && storeResult.error}`);
+  assert(
+    storeResult.ok,
+    `Store failed: ${!storeResult.ok && storeResult.error}`,
+  );
 
   // Load
   const loadResult = await service.loadChain("chain-1");
@@ -357,7 +378,12 @@ Deno.test("DelegationService: store and load chain round-trips", async () => {
 
   // Verify the loaded chain is still cryptographically valid
   const verifyResult = await service.verifyChain(loaded);
-  assert(verifyResult.ok, `Loaded chain failed verification: ${!verifyResult.ok && verifyResult.error}`);
+  assert(
+    verifyResult.ok,
+    `Loaded chain failed verification: ${
+      !verifyResult.ok && verifyResult.error
+    }`,
+  );
 
   await storage.close();
 });

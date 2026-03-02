@@ -10,15 +10,37 @@
 
 import type { GoogleToolContext } from "./types.ts";
 
-import { executeGmailSearch, executeGmailRead, executeGmailSend, executeGmailLabel } from "./gmail/tools_exec_gmail.ts";
-import { executeCalendarList, executeCalendarCreate, executeCalendarUpdate } from "./calendar/tools_exec_calendar.ts";
-import { executeTasksList, executeTasksCreate, executeTasksComplete } from "./tasks/tools_exec_tasks.ts";
-import { executeDriveSearch, executeDriveRead } from "./drive/tools_exec_drive.ts";
-import { executeSheetsRead, executeSheetsWrite } from "./sheets/tools_exec_sheets.ts";
+import {
+  executeGmailLabel,
+  executeGmailRead,
+  executeGmailSearch,
+  executeGmailSend,
+} from "./gmail/tools_exec_gmail.ts";
+import {
+  executeCalendarCreate,
+  executeCalendarList,
+  executeCalendarUpdate,
+} from "./calendar/tools_exec_calendar.ts";
+import {
+  executeTasksComplete,
+  executeTasksCreate,
+  executeTasksList,
+} from "./tasks/tools_exec_tasks.ts";
+import {
+  executeDriveRead,
+  executeDriveSearch,
+} from "./drive/tools_exec_drive.ts";
+import {
+  executeSheetsRead,
+  executeSheetsWrite,
+} from "./sheets/tools_exec_sheets.ts";
 
 // ─── Barrel re-exports from tools_defs.ts ───────────────────────────────────
 
-export { getGoogleToolDefinitions, GOOGLE_TOOLS_SYSTEM_PROMPT } from "./tools_defs.ts";
+export {
+  getGoogleToolDefinitions,
+  GOOGLE_TOOLS_SYSTEM_PROMPT,
+} from "./tools_defs.ts";
 
 // ─── Dispatch table ─────────────────────────────────────────────────────────
 

@@ -99,7 +99,7 @@ jobs:
             As your FINAL action, write a verdict file using the Write tool:
             - Path: audit-verdict.txt
             - Content: exactly "FAIL" or "PASS" (nothing else)
-          allowed_bots: 'claude'
+          allowed_bots: "claude"
           settings: |
             {
               "model": "claude-sonnet-4-6"
@@ -206,7 +206,7 @@ jobs:
             As your FINAL action, write a verdict file using the Write tool:
             - Path: audit-verdict.txt
             - Content: exactly "FAIL" or "PASS" (nothing else)
-          allowed_bots: 'claude'
+          allowed_bots: "claude"
           settings: |
             {
               "model": "claude-sonnet-4-6"
@@ -245,8 +245,8 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-plugins-official.git'
-          plugins: 'code-review@claude-plugins-official'
+          plugin_marketplaces: "https://github.com/anthropics/claude-plugins-official.git"
+          plugins: "code-review@claude-plugins-official"
           additional_permissions: |
             actions: read
           prompt: |
@@ -313,7 +313,7 @@ jobs:
             - If you found ANY issues: write exactly "FAIL"
             - If the code looks good with no issues: write exactly "PASS"
             You must ALWAYS write this file. The workflow will fail if the file is missing.
-          allowed_bots: 'claude'
+          allowed_bots: "claude"
           settings: |
             {
               "model": "claude-sonnet-4-6"

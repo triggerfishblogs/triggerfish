@@ -5,6 +5,10 @@
  * they are wired directly in the gateway executor, not through a
  * dedicated tool module.
  *
+ * Split into two groups:
+ * - exec_file: sandboxed filesystem ops (read, write, list, search, edit)
+ * - exec_command: run_command (stays in parent process)
+ *
  * @module
  */
 
@@ -13,11 +17,13 @@ import type { ToolDefinition } from "../../../core/types/tool.ts";
 function buildReadFileDef(): ToolDefinition {
   return {
     name: "read_file",
-    description: "Read the contents of a file at an absolute path.",
+    description:
+      "Read the contents of a file. Paths are resolved relative to your workspace.",
     parameters: {
       path: {
         type: "string",
-        description: "Absolute file path to read",
+        description:
+          "File path to read (relative to workspace or absolute within workspace)",
         required: true,
       },
     },
@@ -46,11 +52,13 @@ function buildWriteFileDef(): ToolDefinition {
 function buildListDirectoryDef(): ToolDefinition {
   return {
     name: "list_directory",
-    description: "List files and directories at a given absolute path.",
+    description:
+      "List files and directories. Paths are resolved relative to your workspace.",
     parameters: {
       path: {
         type: "string",
-        description: "Absolute directory path to list",
+        description:
+          "Directory path to list (relative to workspace or absolute within workspace)",
         required: true,
       },
     },
@@ -75,7 +83,7 @@ function buildSearchFilesDef(): ToolDefinition {
   return {
     name: "search_files",
     description:
-      "Search for files matching a glob pattern, or search file contents with grep.",
+      "Search for files matching a glob pattern, or search file contents with grep. Paths outside your workspace are not accessible.",
     parameters: {
       path: {
         type: "string",
@@ -105,7 +113,8 @@ function buildEditFileDef(): ToolDefinition {
     parameters: {
       path: {
         type: "string",
-        description: "Absolute file path to edit",
+        description:
+          "File path to edit (relative to workspace or absolute within workspace)",
         required: true,
       },
       old_text: {
@@ -122,14 +131,27 @@ function buildEditFileDef(): ToolDefinition {
   };
 }
 
-/** Filesystem tools: read_file, write_file, list_directory, run_command, search_files, edit_file. */
-export function getExecInlineDefinitions(): readonly ToolDefinition[] {
+/** Sandboxed filesystem tools: read_file, write_file, list_directory, search_files, edit_file. */
+export function getExecFileDefinitions(): readonly ToolDefinition[] {
   return [
     buildReadFileDef(),
     buildWriteFileDef(),
     buildListDirectoryDef(),
-    buildRunCommandDef(),
     buildSearchFilesDef(),
     buildEditFileDef(),
   ];
+}
+
+/** Command execution tools: run_command (stays in parent process). */
+export function getExecCommandDefinitions(): readonly ToolDefinition[] {
+  return [buildRunCommandDef()];
+}
+
+/**
+ * All exec tools combined (backward compat).
+ *
+ * Equivalent to `[...getExecFileDefinitions(), ...getExecCommandDefinitions()]`.
+ */
+export function getExecInlineDefinitions(): readonly ToolDefinition[] {
+  return [...getExecFileDefinitions(), ...getExecCommandDefinitions()];
 }

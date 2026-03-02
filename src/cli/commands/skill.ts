@@ -200,7 +200,7 @@ async function handleSkillList(deps: SkillCommandDeps): Promise<void> {
   if (skills.length === 0) {
     console.log("No managed skills installed.");
     console.log(
-      '\nSearch The Reef with: triggerfish skill search <query>',
+      "\nSearch The Reef with: triggerfish skill search <query>",
     );
     return;
   }

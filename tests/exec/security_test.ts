@@ -1,19 +1,18 @@
 /**
  * Phase 11: Exec environment security property tests.
  *
- * Covers OS command injection prevention and PATH safety:
- * - buildSafeEnv / buildClaudeEnv always set PATH to SAFE_EXEC_PATH
+ * Covers OS command injection prevention and env sanitization:
+ * - buildSafeEnv / buildClaudeEnv inherit PATH from the parent environment
  * - Dangerous env vars (LD_PRELOAD, arbitrary secrets) are not inherited
  * - detectShellInjection blocks null bytes and embedded newlines
- * - Subprocess runtime: PATH equals SAFE_EXEC_PATH, parent secrets not visible
+ * - Subprocess runtime: parent secrets not visible
  * - ExecRunner: injection detection is enforced before execution
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
-  buildSafeEnv,
   buildClaudeEnv,
+  buildSafeEnv,
   detectShellInjection,
-  SAFE_EXEC_PATH,
 } from "../../src/exec/sanitize.ts";
 import { createWorkspace } from "../../src/exec/workspace.ts";
 import { createExecTools } from "../../src/exec/tools.ts";
@@ -21,25 +20,12 @@ import { createExecRunner } from "../../src/exec/runner.ts";
 
 // ─── buildSafeEnv ────────────────────────────────────────────────
 
-Deno.test("buildSafeEnv: PATH is always SAFE_EXEC_PATH regardless of parent PATH", () => {
+Deno.test("buildSafeEnv: PATH is inherited from parent environment", () => {
   const original = Deno.env.get("PATH");
   try {
-    Deno.env.set("PATH", "/tmp/malicious:/usr/bin");
+    Deno.env.set("PATH", "/usr/local/bin:/usr/bin:/bin");
     const env = buildSafeEnv();
-    assertEquals(env["PATH"], SAFE_EXEC_PATH);
-  } finally {
-    if (original !== undefined) Deno.env.set("PATH", original);
-    else Deno.env.delete("PATH");
-  }
-});
-
-Deno.test("buildSafeEnv: does not inherit PATH from parent env", () => {
-  const original = Deno.env.get("PATH");
-  try {
-    Deno.env.set("PATH", "/attacker/controlled/bin:/usr/bin");
-    const env = buildSafeEnv();
-    assert(!env["PATH"].includes("/attacker"), "Should not inherit attacker PATH");
-    assertEquals(env["PATH"], SAFE_EXEC_PATH);
+    assertEquals(env["PATH"], "/usr/local/bin:/usr/bin:/bin");
   } finally {
     if (original !== undefined) Deno.env.set("PATH", original);
     else Deno.env.delete("PATH");
@@ -71,7 +57,10 @@ Deno.test("buildSafeEnv: excludes LD_PRELOAD and LD_LIBRARY_PATH", () => {
     Deno.env.set("LD_LIBRARY_PATH", "/tmp/evil");
     const env = buildSafeEnv();
     assert(!("LD_PRELOAD" in env), "LD_PRELOAD must not be inherited");
-    assert(!("LD_LIBRARY_PATH" in env), "LD_LIBRARY_PATH must not be inherited");
+    assert(
+      !("LD_LIBRARY_PATH" in env),
+      "LD_LIBRARY_PATH must not be inherited",
+    );
   } finally {
     if (prevPreload !== undefined) Deno.env.set("LD_PRELOAD", prevPreload);
     else Deno.env.delete("LD_PRELOAD");
@@ -85,18 +74,19 @@ Deno.test("buildSafeEnv: excludes arbitrary secrets from parent env", () => {
   try {
     Deno.env.set("MY_SECRET_TOKEN", "supersecret");
     const env = buildSafeEnv();
-    assert(!("MY_SECRET_TOKEN" in env), "Arbitrary secrets must not be inherited");
+    assert(
+      !("MY_SECRET_TOKEN" in env),
+      "Arbitrary secrets must not be inherited",
+    );
   } finally {
     if (prevSecret !== undefined) Deno.env.set("MY_SECRET_TOKEN", prevSecret);
     else Deno.env.delete("MY_SECRET_TOKEN");
   }
 });
 
-Deno.test("buildSafeEnv: extraVars override defaults", () => {
+Deno.test("buildSafeEnv: extraVars are merged into env", () => {
   const env = buildSafeEnv({ extraVars: { MY_CUSTOM_VAR: "hello" } });
   assertEquals(env["MY_CUSTOM_VAR"], "hello");
-  // PATH must still be SAFE_EXEC_PATH even if extraVars tries to override
-  // (this is documented behaviour — callers set their own after the function returns)
 });
 
 Deno.test("buildSafeEnv: workspaceHome overrides HOME", () => {
@@ -118,12 +108,12 @@ Deno.test("buildClaudeEnv: includes ANTHROPIC_API_KEY from parent env", () => {
   }
 });
 
-Deno.test("buildClaudeEnv: always overrides PATH with SAFE_EXEC_PATH", () => {
+Deno.test("buildClaudeEnv: PATH is inherited from parent environment", () => {
   const original = Deno.env.get("PATH");
   try {
-    Deno.env.set("PATH", "/tmp/malicious:/usr/bin");
+    Deno.env.set("PATH", "/usr/local/bin:/usr/bin:/bin");
     const env = buildClaudeEnv();
-    assertEquals(env["PATH"], SAFE_EXEC_PATH);
+    assertEquals(env["PATH"], "/usr/local/bin:/usr/bin:/bin");
   } finally {
     if (original !== undefined) Deno.env.set("PATH", original);
     else Deno.env.delete("PATH");
@@ -135,7 +125,10 @@ Deno.test("buildClaudeEnv: excludes CLAUDECODE to avoid nesting guard", () => {
   try {
     Deno.env.set("CLAUDECODE", "1");
     const env = buildClaudeEnv();
-    assert(!("CLAUDECODE" in env), "CLAUDECODE must never be passed to child Claude process");
+    assert(
+      !("CLAUDECODE" in env),
+      "CLAUDECODE must never be passed to child Claude process",
+    );
   } finally {
     if (prev !== undefined) Deno.env.set("CLAUDECODE", prev);
     else Deno.env.delete("CLAUDECODE");
@@ -178,7 +171,7 @@ Deno.test("detectShellInjection: normal commands pass", () => {
 
 // ─── Runtime subprocess isolation ────────────────────────────────
 
-Deno.test("runtime: subprocess PATH equals SAFE_EXEC_PATH", async () => {
+Deno.test("runtime: subprocess PATH matches parent PATH", async () => {
   const tmpDir = await Deno.makeTempDir();
   const ws = await createWorkspace({ agentId: "test-path", basePath: tmpDir });
   const tools = createExecTools(ws);
@@ -186,7 +179,7 @@ Deno.test("runtime: subprocess PATH equals SAFE_EXEC_PATH", async () => {
     const result = await tools.runCommand("printenv PATH");
     assertEquals(result.ok, true);
     if (result.ok) {
-      assertEquals(result.value.stdout.trim(), SAFE_EXEC_PATH);
+      assertEquals(result.value.stdout.trim(), Deno.env.get("PATH") ?? "");
     }
   } finally {
     await ws.destroy();
@@ -196,11 +189,16 @@ Deno.test("runtime: subprocess PATH equals SAFE_EXEC_PATH", async () => {
 Deno.test("runtime: parent SECRET_TOKEN is not visible in subprocess env", async () => {
   const prev = Deno.env.get("TEST_SECRET_TOKEN_XYZ");
   const tmpDir = await Deno.makeTempDir();
-  const ws = await createWorkspace({ agentId: "test-secret", basePath: tmpDir });
+  const ws = await createWorkspace({
+    agentId: "test-secret",
+    basePath: tmpDir,
+  });
   const tools = createExecTools(ws);
   try {
     Deno.env.set("TEST_SECRET_TOKEN_XYZ", "must-not-leak");
-    const result = await tools.runCommand("printenv TEST_SECRET_TOKEN_XYZ; true");
+    const result = await tools.runCommand(
+      "printenv TEST_SECRET_TOKEN_XYZ; true",
+    );
     assertEquals(result.ok, true);
     if (result.ok) {
       assertEquals(

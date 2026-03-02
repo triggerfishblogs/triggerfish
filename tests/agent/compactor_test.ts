@@ -10,10 +10,10 @@
 
 import { assertEquals, assertGreater, assertLessOrEqual } from "@std/assert";
 import {
-  createCompactor,
-  estimateTokens,
   countTokens,
+  createCompactor,
   estimateHistoryTokens,
+  estimateTokens,
 } from "../../src/agent/compactor/compactor.ts";
 import type { HistoryEntry } from "../../src/agent/orchestrator/orchestrator_types.ts";
 
@@ -47,7 +47,10 @@ Deno.test("estimateHistoryTokens sums all entries", () => {
   ];
   const total = estimateHistoryTokens(history);
   assertGreater(total, 0);
-  assertEquals(total, countTokens("Hello world") + countTokens("Hi there, how can I help?"));
+  assertEquals(
+    total,
+    countTokens("Hello world") + countTokens("Hi there, how can I help?"),
+  );
 });
 
 Deno.test("estimateHistoryTokens returns 0 for empty history", () => {
@@ -72,7 +75,10 @@ Deno.test("compact produces single summary message when over budget", () => {
   const history: HistoryEntry[] = [];
   for (let i = 0; i < 20; i++) {
     history.push({ role: "user", content: `Message ${i}: ${"x".repeat(100)}` });
-    history.push({ role: "assistant", content: `Response ${i}: ${"y".repeat(100)}` });
+    history.push({
+      role: "assistant",
+      content: `Response ${i}: ${"y".repeat(100)}`,
+    });
   }
 
   const compactor = createCompactor({ contextBudget: 200 });
@@ -81,14 +87,23 @@ Deno.test("compact produces single summary message when over budget", () => {
   // Should be compacted to exactly 1 summary message
   assertEquals(result.length, 1);
   assertEquals(result[0].role, "user");
-  assertEquals((result[0].content as string).startsWith("[Conversation context:"), true);
+  assertEquals(
+    (result[0].content as string).startsWith("[Conversation context:"),
+    true,
+  );
 });
 
 Deno.test("compact summary includes message count", () => {
   const history: HistoryEntry[] = [];
   for (let i = 0; i < 10; i++) {
-    history.push({ role: "user", content: `Question ${i}: ${"x".repeat(100)}` });
-    history.push({ role: "assistant", content: `Answer ${i}: ${"y".repeat(100)}` });
+    history.push({
+      role: "user",
+      content: `Question ${i}: ${"x".repeat(100)}`,
+    });
+    history.push({
+      role: "assistant",
+      content: `Answer ${i}: ${"y".repeat(100)}`,
+    });
   }
 
   const compactor = createCompactor({ contextBudget: 200 });
@@ -103,7 +118,10 @@ Deno.test("compact summary captures last user message", () => {
     { role: "user", content: "First question" + "x".repeat(200) },
     { role: "assistant", content: "First answer" + "y".repeat(200) },
     { role: "user", content: "What about TypeScript generics?" },
-    { role: "assistant", content: "Generics let you parameterize types..." + "z".repeat(200) },
+    {
+      role: "assistant",
+      content: "Generics let you parameterize types..." + "z".repeat(200),
+    },
   ];
 
   const compactor = createCompactor({ contextBudget: 50 });
@@ -116,7 +134,10 @@ Deno.test("compact summary captures last user message", () => {
 Deno.test("compact summary captures last assistant response", () => {
   const history: HistoryEntry[] = [
     { role: "user", content: "x".repeat(200) },
-    { role: "assistant", content: "The deployment completed successfully" + "y".repeat(200) },
+    {
+      role: "assistant",
+      content: "The deployment completed successfully" + "y".repeat(200),
+    },
     { role: "user", content: "Great, what's next?" + "z".repeat(200) },
   ];
 
@@ -149,7 +170,10 @@ Deno.test("compact handles single giant message", () => {
   const history: HistoryEntry[] = [
     { role: "user", content: "Read the file" },
     { role: "assistant", content: "Here's the content..." },
-    { role: "user", content: "[TOOL_RESULT]\n" + "x".repeat(50000) + "\n[/TOOL_RESULT]" },
+    {
+      role: "user",
+      content: "[TOOL_RESULT]\n" + "x".repeat(50000) + "\n[/TOOL_RESULT]",
+    },
     { role: "assistant", content: "The file contains..." },
     { role: "user", content: "Now summarize it" },
   ];
@@ -167,7 +191,10 @@ Deno.test("compact handles single giant message", () => {
 Deno.test("summarize produces single summary message via LLM", async () => {
   const history: HistoryEntry[] = [
     { role: "user", content: "What is TypeScript?" },
-    { role: "assistant", content: "TypeScript is a typed superset of JavaScript." },
+    {
+      role: "assistant",
+      content: "TypeScript is a typed superset of JavaScript.",
+    },
     { role: "user", content: "How do I use interfaces?" },
     { role: "assistant", content: "Define them with the interface keyword." },
     { role: "user", content: "What about generics?" },
@@ -179,7 +206,8 @@ Deno.test("summarize produces single summary message via LLM", async () => {
     supportsStreaming: false,
     // deno-lint-ignore require-await
     complete: async () => ({
-      content: "The user asked about TypeScript fundamentals. You explained interfaces and generics. The user's last question was about generics.",
+      content:
+        "The user asked about TypeScript fundamentals. You explained interfaces and generics. The user's last question was about generics.",
       toolCalls: [],
       usage: { inputTokens: 100, outputTokens: 30 },
     }),
@@ -191,8 +219,14 @@ Deno.test("summarize produces single summary message via LLM", async () => {
   // Should be exactly 1 summary message
   assertEquals(result.length, 1);
   assertEquals(result[0].role, "user");
-  assertEquals((result[0].content as string).startsWith("[Conversation summary"), true);
-  assertEquals((result[0].content as string).includes("TypeScript fundamentals"), true);
+  assertEquals(
+    (result[0].content as string).startsWith("[Conversation summary"),
+    true,
+  );
+  assertEquals(
+    (result[0].content as string).includes("TypeScript fundamentals"),
+    true,
+  );
 });
 
 Deno.test("summarize preserves tiny history unchanged", async () => {
@@ -229,7 +263,9 @@ Deno.test("summarize truncates giant messages in digest", async () => {
     name: "mock",
     supportsStreaming: false,
     // deno-lint-ignore require-await
-    complete: async (msgs: readonly { role: string; content: string | unknown }[]) => {
+    complete: async (
+      msgs: readonly { role: string; content: string | unknown }[],
+    ) => {
       receivedPrompt = msgs[1].content as string;
       return {
         content: "Summary of conversation.",
@@ -255,7 +291,10 @@ Deno.test("compactor.getTokenEstimate matches standalone function", () => {
     { role: "user", content: "Hello world, this is a test message." },
   ];
   const compactor = createCompactor();
-  assertEquals(compactor.getTokenEstimate(history), estimateHistoryTokens(history));
+  assertEquals(
+    compactor.getTokenEstimate(history),
+    estimateHistoryTokens(history),
+  );
 });
 
 // ─── updateBudget ────────────────────────────────────────────────
@@ -266,7 +305,10 @@ Deno.test("updateBudget changes the compaction threshold", () => {
   const history: HistoryEntry[] = [];
   for (let i = 0; i < 20; i++) {
     history.push({ role: "user", content: `Message ${i}: ${"x".repeat(100)}` });
-    history.push({ role: "assistant", content: `Response ${i}: ${"y".repeat(100)}` });
+    history.push({
+      role: "assistant",
+      content: `Response ${i}: ${"y".repeat(100)}`,
+    });
   }
 
   // With a huge budget, no compaction
@@ -297,7 +339,10 @@ Deno.test("compact fires when overhead + history exceeds threshold", () => {
   const result = compactor.compact(history, 60);
 
   assertEquals(result.length, 1);
-  assertEquals((result[0].content as string).startsWith("[Conversation context:"), true);
+  assertEquals(
+    (result[0].content as string).startsWith("[Conversation context:"),
+    true,
+  );
 });
 
 Deno.test("compact does NOT fire when overhead + history is under threshold", () => {
@@ -318,7 +363,10 @@ Deno.test("compact with zero overhead behaves identically to no argument", () =>
   const history: HistoryEntry[] = [];
   for (let i = 0; i < 20; i++) {
     history.push({ role: "user", content: `Message ${i}: ${"x".repeat(100)}` });
-    history.push({ role: "assistant", content: `Response ${i}: ${"y".repeat(100)}` });
+    history.push({
+      role: "assistant",
+      content: `Response ${i}: ${"y".repeat(100)}`,
+    });
   }
 
   const compactor = createCompactor({ contextBudget: 200 });
@@ -334,8 +382,14 @@ Deno.test("compact summary includes topic keywords", () => {
   const history: HistoryEntry[] = [];
   const topics = ["authentication", "database", "routing", "deployment"];
   for (const topic of topics) {
-    history.push({ role: "user", content: `Tell me about ${topic} patterns ${"x".repeat(100)}` });
-    history.push({ role: "assistant", content: `Here's info about ${topic}... ${"y".repeat(100)}` });
+    history.push({
+      role: "user",
+      content: `Tell me about ${topic} patterns ${"x".repeat(100)}`,
+    });
+    history.push({
+      role: "assistant",
+      content: `Here's info about ${topic}... ${"y".repeat(100)}`,
+    });
   }
 
   const compactor = createCompactor({ contextBudget: 100 });
