@@ -19,6 +19,7 @@ COPY config/ config/
 RUN deno compile --allow-all \
     --include config/ \
     --include src/skills/ \
+    --include src/exec/sandbox/worker.ts \
     --include src/tools/tidepool/tmpl_base.html \
     --include src/tools/tidepool/tmpl_styles.html \
     --include src/tools/tidepool/tmpl_chat.html \
