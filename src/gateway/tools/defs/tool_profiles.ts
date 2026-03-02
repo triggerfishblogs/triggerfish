@@ -27,6 +27,7 @@ import { LOG_READER_SYSTEM_PROMPT } from "../../../tools/log_reader_tool.ts";
 import { GITHUB_TOOLS_SYSTEM_PROMPT } from "../../../integrations/github/mod.ts";
 import { OBSIDIAN_SYSTEM_PROMPT } from "../../../tools/obsidian/mod.ts";
 import { HEALTHCHECK_SYSTEM_PROMPT } from "../../../tools/healthcheck.ts";
+import { SIMULATE_SYSTEM_PROMPT } from "../../../tools/simulate/mod.ts";
 import { TOOL_GROUPS, type ToolGroupName } from "./tool_groups.ts";
 import type { ToolDefinition } from "../../../core/types/tool.ts";
 
@@ -65,6 +66,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "logReader",
     "agents",
     "cron",
+    "simulate",
   ],
   /** CLI chat — everything except tidepool canvas tools. */
   cli: [
@@ -93,6 +95,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "logReader",
     "agents",
     "cron",
+    "simulate",
   ],
   /** Trigger sessions — sandboxed file tools only, no run_command. */
   triggerSession: [
@@ -109,6 +112,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "trigger",
     "skills",
     "cron",
+    "simulate",
   ],
   /** Cron jobs — sandboxed file tools only, no run_command. */
   cronJob: [
@@ -124,6 +128,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "healthcheck",
     "skills",
     "cron",
+    "simulate",
   ],
   /** Subagents — sandboxed file tools only, no run_command. */
   subagent: [
@@ -189,6 +194,7 @@ export const TOOL_GROUP_PROMPTS: Partial<
   github: GITHUB_TOOLS_SYSTEM_PROMPT,
   obsidian: OBSIDIAN_SYSTEM_PROMPT,
   healthcheck: HEALTHCHECK_SYSTEM_PROMPT,
+  simulate: SIMULATE_SYSTEM_PROMPT,
 };
 
 /**

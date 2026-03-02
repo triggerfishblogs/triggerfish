@@ -60,6 +60,7 @@ import {
 } from "./tool_executor.ts";
 import { buildIntegrationExecutors } from "../services/integration_init.ts";
 import type { SkillContextTracker } from "../../../tools/skills/mod.ts";
+import { createSimulateToolExecutor } from "../../tools/simulate/mod.ts";
 
 /** Mutable ref to tidepool tools, set after host starts. */
 export type TidepoolToolsRef = {
@@ -281,6 +282,17 @@ export function buildCompositeToolExecutor(
   sessionExecs: Awaited<ReturnType<typeof buildSessionScopedExecutors>>,
   integrations: Awaited<ReturnType<typeof buildIntegrationExecutors>>,
 ) {
+  const simulateExecutor = createSimulateToolExecutor({
+    getSessionTaint: () => baseDeps.state.session.taint,
+    isOwner: () => true,
+    isTrigger: () => false,
+    toolClassifications: baseDeps.toolClassifications,
+    integrationClassifications: baseDeps.integrationClassifications,
+    pathClassifier: baseDeps.pathClassifier,
+    domainClassifier: baseDeps.domainClassifier,
+    toolFloorRegistry: coreInfra.toolFloorRegistry,
+    getWorkspacePath: () => baseDeps.mainWorkspace.path,
+  });
   return assembleMainToolExecutor({
     execTools: baseDeps.execTools,
     filesystemSandbox: baseDeps.filesystemSandbox,
@@ -309,6 +321,7 @@ export function buildCompositeToolExecutor(
     triggerExecutor: integrations.triggerExecutor,
     skillExecutor: integrations.skillExecutor,
     skillContextTracker: integrations.skillContextTracker,
+    simulateExecutor,
   });
 }
 

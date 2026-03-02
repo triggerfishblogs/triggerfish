@@ -244,6 +244,7 @@ const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<
   ["explore", "PUBLIC"],
   ["llm_task", "PUBLIC"],
   ["log_read", "PUBLIC"],
+  ["simulate_tool_call", "PUBLIC"],
 ];
 
 /** Return type of mapToolPrefixClassifications. */

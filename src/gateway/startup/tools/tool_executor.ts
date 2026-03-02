@@ -51,6 +51,7 @@ import type {
 } from "../infra/subsystems.ts";
 import { buildGoogleExecutor } from "../factory/google_executor.ts";
 import { createToolExecutor, TOOL_GROUPS } from "../../tools/agent_tools.ts";
+import type { SubsystemExecutor } from "../../tools/executor/executor_types.ts";
 import type { wireMcpServers } from "../infra/mcp.ts";
 
 /** Mutable state bag for the main daemon session. */
@@ -161,6 +162,7 @@ export function assembleMainToolExecutor(
     readonly triggerExecutor: ReturnType<typeof createTriggerToolExecutor>;
     readonly skillExecutor: ReturnType<typeof createSkillToolExecutor>;
     readonly skillContextTracker?: SkillContextTracker;
+    readonly simulateExecutor?: SubsystemExecutor;
   },
 ) {
   const aux = buildAuxiliaryExecutors(

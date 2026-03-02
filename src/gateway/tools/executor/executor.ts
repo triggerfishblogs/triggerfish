@@ -73,6 +73,7 @@ function buildExtendedSubsystems(
     opts.triggerClassificationExecutor,
     opts.skillExecutor,
     opts.releaseNotesExecutor,
+    opts.simulateExecutor,
     webExecutor,
   ];
 }

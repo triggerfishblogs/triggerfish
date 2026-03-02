@@ -53,6 +53,7 @@ import { createToolExecutor } from "../../tools/agent_tools.ts";
 import type { buildWebTools } from "../factory/web_tools.ts";
 import { buildGoogleExecutor } from "../factory/google_executor.ts";
 import { resolveWorkspacePathForTaint } from "./tool_executor.ts";
+import { createSimulateToolExecutor } from "../../tools/simulate/mod.ts";
 
 /** Shared infrastructure captured once at factory creation. */
 export interface FactoryInfra {
@@ -243,5 +244,17 @@ export function assembleSchedulerToolExecutor(opts: {
     triggerClassificationExecutor: createTriggerClassificationToolExecutor(
       infra.toolClassifications,
     ),
+    simulateExecutor: createSimulateToolExecutor({
+      getSessionTaint: getTaint,
+      isOwner: () => false,
+      isTrigger: () => true,
+      toolClassifications: infra.toolClassifications
+        ? new Map(infra.toolClassifications)
+        : undefined,
+      integrationClassifications: infra.integrationClassifications
+        ? new Map(infra.integrationClassifications)
+        : undefined,
+      getWorkspacePath: () => workspace.path,
+    }),
   });
 }
