@@ -200,10 +200,9 @@ export function getObsidianToolDefinitions(): readonly ToolDefinition[] {
 /** System prompt section for obsidian tools. */
 export const OBSIDIAN_SYSTEM_PROMPT = `## Obsidian Vault
 
-You have tools to interact with the user's Obsidian vault (obsidian_read, obsidian_write, obsidian_search, obsidian_list, obsidian_daily, obsidian_links).
+Wikilink syntax: [[Note Name]] links to a note, ![[Note Name]] embeds it inline.
+Frontmatter is YAML between --- delimiters at the top of a note.
+Tags: in frontmatter (tags: [foo, bar]) or inline (#foo).
 
-Use [[wikilinks]] when referencing notes in content you write. Use obsidian_daily for journal entries and daily logs. Use obsidian_links to explore note connections.
-
-When creating notes, use descriptive names and add relevant tags in frontmatter. Respect the vault's folder structure.
-
-Classification is enforced — you can only read notes at or below the current session's security level, and cannot write classified data to lower-classification folders.`;
+Use obsidian_daily for journal entries. Use obsidian_links to explore backlinks and outlinks.
+Classification is enforced — reads gated by session taint, writes cannot flow down.`;

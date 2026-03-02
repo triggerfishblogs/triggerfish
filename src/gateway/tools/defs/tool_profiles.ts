@@ -25,6 +25,8 @@ import { TRIGGER_TOOLS_SYSTEM_PROMPT } from "../trigger/trigger_tools.ts";
 import { CLAUDE_SESSION_SYSTEM_PROMPT } from "../../../exec/claude.ts";
 import { LOG_READER_SYSTEM_PROMPT } from "../../../tools/log_reader_tool.ts";
 import { GITHUB_TOOLS_SYSTEM_PROMPT } from "../../../integrations/github/mod.ts";
+import { OBSIDIAN_SYSTEM_PROMPT } from "../../../tools/obsidian/mod.ts";
+import { HEALTHCHECK_SYSTEM_PROMPT } from "../../../tools/healthcheck.ts";
 import { TOOL_GROUPS, type ToolGroupName } from "./tool_groups.ts";
 import type { ToolDefinition } from "../../../core/types/tool.ts";
 
@@ -161,8 +163,8 @@ export function resolveToolsForProfile(
  * Map tool groups to their system prompt section (if any).
  *
  * Groups without a dedicated system prompt section (exec, browser, google,
- * obsidian, agents, cron, healthcheck, skills) are omitted — the
- * tool descriptions in the JSON schema are sufficient.
+ * agents, cron, caldav, skills) are omitted — the tool descriptions
+ * in the JSON schema are sufficient.
  */
 export const TOOL_GROUP_PROMPTS: Partial<
   Readonly<Record<ToolGroupName, string>>
@@ -183,6 +185,8 @@ export const TOOL_GROUP_PROMPTS: Partial<
   releaseNotes: RELEASE_NOTES_SYSTEM_PROMPT,
   logReader: LOG_READER_SYSTEM_PROMPT,
   github: GITHUB_TOOLS_SYSTEM_PROMPT,
+  obsidian: OBSIDIAN_SYSTEM_PROMPT,
+  healthcheck: HEALTHCHECK_SYSTEM_PROMPT,
 };
 
 /**
