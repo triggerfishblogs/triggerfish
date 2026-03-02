@@ -10,7 +10,7 @@ We operate the website [https://trigger.fish](https://trigger.fish) (the "**Site
 
 Triggerfish is a desktop application that provides users with a personal AI agent. The agent connects to third-party services (Google Workspace, GitHub, Slack, etc.) on the user's behalf using OAuth. The application runs locally on the user's computer. Triggerfish provides a cloud account system for authentication and subscription management, and routes AI model requests through a cloud API endpoint.
 
-You can contact us by phone at (+1) 512-269-6400, email at [greg@trigger.fish](mailto:greg@trigger.fish), or by mail to 3801 Capital of Texas Highway, Suite E240, PMB 440, Austin, TX 78746, United States.
+You can contact us by phone at (+1) 512-677-5483, email at [greg@trigger.fish](mailto:greg@trigger.fish), or by mail to 3801 Capital of Texas Highway, Suite E240, PMB 440, Austin, TX 78746, United States.
 
 These Legal Terms constitute a legally binding agreement made between you, whether personally or on behalf of an entity ("**you**"), and Triggerfish, Inc., concerning your access to and use of the Services. You agree that by accessing the Services, you have read, understood, and agreed to be bound by all of these Legal Terms. IF YOU DO NOT AGREE WITH ALL OF THESE LEGAL TERMS, THEN YOU ARE EXPRESSLY PROHIBITED FROM USING THE SERVICES AND YOU MUST DISCONTINUE USE IMMEDIATELY.
 
@@ -296,5 +296,5 @@ In order to resolve a complaint regarding the Services or to receive further inf
 Austin, TX 78746
 United States
 
-**Phone:** (+1) 512-269-6400
+**Phone:** (+1) 512-677-5483
 **Email:** [greg@trigger.fish](mailto:greg@trigger.fish)
