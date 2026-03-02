@@ -8,6 +8,7 @@
 import { Input } from "@cliffy/prompt";
 import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
 import { createLogger } from "../../core/logger/mod.ts";
+import { safeFetch } from "../../core/security/safe_fetch.ts";
 import { isValidNotionTokenFormat } from "../../integrations/notion/auth.ts";
 
 const log = createLogger("cli.connect");
@@ -36,9 +37,11 @@ function printNotionSetupInstructions(): void {
   );
 }
 
-/** Fetch the Notion users/me endpoint to verify a token. */
-function fetchNotionUser(token: string): Promise<Response> {
-  return fetch("https://api.notion.com/v1/users/me", {
+/** Fetch the Notion users/me endpoint to verify a token (SSRF-safe). */
+async function fetchNotionUser(
+  token: string,
+): Promise<{ ok: true; value: Response } | { ok: false; error: string }> {
+  return await safeFetch("https://api.notion.com/v1/users/me", {
     headers: {
       "Authorization": `Bearer ${token}`,
       "Notion-Version": "2022-06-28",
@@ -68,24 +71,29 @@ async function reportNotionTokenFailure(resp: Response): Promise<null> {
 
 /** Verify a Notion token against the API. Returns bot name or null on failure. */
 async function verifyNotionToken(token: string): Promise<string | null> {
+  const result = await fetchNotionUser(token);
+  if (!result.ok) {
+    log.error("Notion API request failed", {
+      operation: "connectNotion",
+      err: result.error,
+    });
+    console.log(`\nCould not reach Notion API: ${result.error}`);
+    console.log("Check your network connection and try again.");
+    return null;
+  }
+  const resp = result.value;
+  if (!resp.ok) return await reportNotionTokenFailure(resp);
   try {
-    const resp = await fetchNotionUser(token);
-    if (!resp.ok) return await reportNotionTokenFailure(resp);
     const user = await resp.json();
     return (user as Record<string, string>).name ??
       (user as { bot?: { owner?: { user?: { name?: string } } } }).bot?.owner
         ?.user?.name ?? "Notion Bot";
   } catch (err: unknown) {
-    log.error("Notion API request failed", {
+    log.error("Notion API response parse failed", {
       operation: "connectNotion",
       err,
     });
-    console.log(
-      `\nCould not reach Notion API: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
-    console.log("Check your network connection and try again.");
+    console.log("\nFailed to parse Notion API response.");
     return null;
   }
 }
