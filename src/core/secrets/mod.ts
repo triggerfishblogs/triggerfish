@@ -14,6 +14,7 @@ export {
   createKeychain,
   createLinuxKeychain,
   createMacKeychain,
+  resolveDockerKeyPath,
   runCommand,
 } from "./keychain/mod.ts";
 
@@ -33,6 +34,18 @@ export type {
 // encrypted/ — AES-256-GCM encrypted file store
 export { createEncryptedFileSecretStore } from "./encrypted/mod.ts";
 export type { EncryptedFileSecretStoreOptions } from "./encrypted/mod.ts";
+
+// validation/ — Docker secret store hardening checks
+export {
+  isPermissionSecure,
+  parseMountPoints,
+  verifyKeyFilePermissions,
+  verifyMountPoint,
+} from "./validation/mod.ts";
+export type {
+  MountCheckResult,
+  PermissionCheckResult,
+} from "./validation/mod.ts";
 
 // resolver — secret reference resolution
 export {

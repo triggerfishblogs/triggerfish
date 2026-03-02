@@ -4,7 +4,7 @@
  * @module
  */
 
-export { createKeychain } from "./keychain.ts";
+export { createKeychain, resolveDockerKeyPath } from "./keychain.ts";
 export { createLinuxKeychain } from "./linux_keychain.ts";
 export { createMacKeychain } from "./mac_keychain.ts";
 export { runCommand } from "./command_runner.ts";

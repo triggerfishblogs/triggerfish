@@ -1,0 +1,97 @@
+# ============================================================
+# Hardened Triggerfish Docker Compose
+# ============================================================
+#
+# This compose file demonstrates production-grade secret isolation
+# for Triggerfish. The key hardening principle: separate the
+# encryption key from the encrypted secrets so that a single
+# volume compromise does not expose both components.
+#
+# Key decisions explained:
+#
+#   tmpfs for /keys — The AES-256 encryption key lives only in RAM.
+#     It is never written to a persistent disk layer, so a host
+#     filesystem snapshot or stopped-container inspection cannot
+#     recover it. The downside: the key is regenerated on every
+#     container restart, meaning secrets encrypted with the old key
+#     become unreadable. For durable keys, use a separate encrypted
+#     volume or external secret manager instead of tmpfs.
+#
+#   read_only root — Prevents the container process from writing
+#     anywhere except explicitly mounted volumes/tmpfs. This blocks
+#     an attacker from dropping payloads into the container filesystem
+#     after a compromise.
+#
+#   no-new-privileges — Prevents the process from gaining additional
+#     privileges via setuid/setgid binaries or capability escalation.
+#     Combined with running as UID 65534 (nobody), this limits the
+#     blast radius of a container escape.
+#
+#   TRIGGERFISH_STRICT_PERMISSIONS — Causes the application to exit
+#     immediately if the key file has insecure permissions (e.g. 0644)
+#     or if /data is not a proper mount point. Better to fail loudly
+#     at startup than to run with a misconfigured secret store.
+#
+# Usage:
+#   docker compose -f docker-compose.hardened.yml up -d
+#
+# ============================================================
+
+services:
+  triggerfish:
+    image: ${TRIGGERFISH_IMAGE:-ghcr.io/greghavens/triggerfish:latest}
+    container_name: triggerfish
+
+    # --- Restart policy ---
+    # Restart on failure, but not on manual stop.
+    restart: unless-stopped
+
+    # --- Network ---
+    # Host networking avoids NAT overhead for the gateway WebSocket.
+    # For multi-tenant hosts, use bridge networking with published ports instead.
+    network_mode: host
+
+    # --- Volumes ---
+    # Persistent data volume for secrets.json, config, database, and logs.
+    # The encryption key is NOT stored here — it goes to the tmpfs below.
+    volumes:
+      - triggerfish-data:/data
+
+    # --- Tmpfs (RAM-only) ---
+    # The AES-256 encryption key lives here, isolated from the persistent
+    # volume. If the /data volume is snapshotted or the host is compromised,
+    # the key is not included. Size is minimal (10 MiB) since it holds only
+    # a 32-byte key file. noexec and nosuid prevent execution of anything
+    # written to this mount.
+    tmpfs:
+      - /keys:rw,noexec,nosuid,size=10m
+
+    # --- Environment ---
+    environment:
+      # Point the key file to the tmpfs mount instead of the default /data/secrets.key
+      - TRIGGERFISH_KEY_PATH=/keys/secrets.key
+      # Fail hard on insecure permissions or missing volume mounts
+      - TRIGGERFISH_STRICT_PERMISSIONS=true
+
+    env_file:
+      - path: .env
+        required: false
+
+    # --- Security options ---
+    security_opt:
+      # Prevent privilege escalation via setuid/setgid binaries
+      - no-new-privileges:true
+
+    # --- Read-only root filesystem ---
+    # The container process cannot write to the root filesystem.
+    # Only /data (volume) and /keys (tmpfs) are writable.
+    read_only: true
+
+    # --- Non-root user ---
+    # UID 65534 is 'nobody' in Debian — matches the Dockerfile USER directive.
+    # Running as non-root limits the impact of container escape vulnerabilities.
+    user: "65534:65534"
+
+volumes:
+  triggerfish-data:
+    name: triggerfish-data

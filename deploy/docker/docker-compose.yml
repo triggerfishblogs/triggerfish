@@ -1,3 +1,7 @@
+# Basic Triggerfish deployment. For production environments with secret
+# isolation (tmpfs key storage, strict permissions, read-only root),
+# see docker-compose.hardened.yml in this directory.
+
 services:
   triggerfish:
     image: ${TRIGGERFISH_IMAGE:-ghcr.io/greghavens/triggerfish:latest}

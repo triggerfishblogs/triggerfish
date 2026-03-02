@@ -23,7 +23,12 @@ import { logDir as resolveLogDir } from "../../cli/daemon/daemon.ts";
 import { loadConfigWithSecrets } from "../../core/config.ts";
 import type { TriggerFishConfig } from "../../core/config.ts";
 import { resolveBaseDir, resolveConfigPath } from "../../cli/config/paths.ts";
-import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
+import {
+  createKeychain,
+  resolveDockerKeyPath,
+} from "../../core/secrets/keychain/keychain.ts";
+import { verifyKeyFilePermissions } from "../../core/secrets/validation/permission_check.ts";
+import { verifyMountPoint } from "../../core/secrets/validation/mount_check.ts";
 
 /** Result of the bootstrap phase: config loaded and logger ready. */
 export interface BootstrapResult {
@@ -171,12 +176,86 @@ export function buildToolFloorRegistryFromConfig(
   return createToolFloorRegistry(overrides.size > 0 ? overrides : undefined);
 }
 
+/** Whether strict permission mode is enabled via env var. */
+function isStrictPermissionsEnabled(): boolean {
+  const val = Deno.env.get("TRIGGERFISH_STRICT_PERMISSIONS");
+  return val === "true" || val === "1";
+}
+
+/** Whether the mount point check is disabled via env var. */
+function isMountCheckSkipped(): boolean {
+  const val = Deno.env.get("TRIGGERFISH_SKIP_MOUNT_CHECK");
+  return val === "true" || val === "1";
+}
+
+/**
+ * Run Docker-specific security validation on startup.
+ *
+ * Checks key file permissions and volume mount configuration.
+ * In strict mode (`TRIGGERFISH_STRICT_PERMISSIONS=true`), insecure
+ * configurations cause immediate process exit.
+ */
+export async function validateDockerSecurityConfig(): Promise<void> {
+  const strict = isStrictPermissionsEnabled();
+  const keyPath = resolveDockerKeyPath();
+
+  // Check key file permissions (only if the file already exists)
+  const permResult = await verifyKeyFilePermissions(keyPath);
+  if (permResult.ok && !permResult.value.secure) {
+    bootstrapLog.warn("Docker security: insecure key file permissions", {
+      operation: "validateDockerSecurityConfig",
+      keyPath,
+      message: permResult.value.message,
+    });
+    if (strict) {
+      bootstrapLog.error(
+        "Docker security: exiting due to strict permission enforcement",
+        { operation: "validateDockerSecurityConfig", keyPath },
+      );
+      Deno.exit(78); // EX_CONFIG
+    }
+  } else if (!permResult.ok) {
+    // File not found is expected on first run — only log at debug
+    bootstrapLog.debug("Docker security: key file permission check skipped", {
+      operation: "validateDockerSecurityConfig",
+      reason: permResult.error,
+    });
+  }
+
+  // Check volume mount (unless explicitly skipped)
+  if (!isMountCheckSkipped()) {
+    const mountResult = await verifyMountPoint("/data");
+    if (mountResult.ok && !mountResult.value.isMountPoint) {
+      bootstrapLog.warn("Docker security: /data is not a mount point", {
+        operation: "validateDockerSecurityConfig",
+        message: mountResult.value.message,
+      });
+      if (strict) {
+        bootstrapLog.error(
+          "Docker security: exiting due to missing volume mount",
+          { operation: "validateDockerSecurityConfig" },
+        );
+        Deno.exit(78); // EX_CONFIG
+      }
+    } else if (!mountResult.ok) {
+      bootstrapLog.warn("Docker security: mount check failed", {
+        operation: "validateDockerSecurityConfig",
+        err: mountResult.error,
+      });
+    }
+  }
+}
+
 /** Load config, initialize logging, and return bootstrap context. */
 export async function bootstrapConfigAndLogging(): Promise<BootstrapResult> {
   const baseDir = resolveBaseDir();
   const configPath = resolveConfigPath(baseDir);
   await verifyConfigExists(configPath);
   await ensureBaseDirs(baseDir);
+
+  if (isDockerEnvironment()) {
+    await validateDockerSecurityConfig();
+  }
 
   const fileWriter = await initializeStartupLogger();
   bootstrapLog.info("Gateway starting", { operation: "bootstrap" });

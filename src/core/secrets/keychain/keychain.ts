@@ -39,12 +39,18 @@ function resolveWindowsSecretStorePaths(): {
   };
 }
 
+/** Resolve the Docker encryption key path, allowing override via env var. */
+export function resolveDockerKeyPath(): string {
+  return Deno.env.get("TRIGGERFISH_KEY_PATH") ?? "/data/secrets.key";
+}
+
 /** Select the secret backend for Docker environments. */
 function createDockerSecretStore(): SecretStore {
-  log.info("Secret backend selected: encrypted-file (Docker)");
+  const keyPath = resolveDockerKeyPath();
+  log.info("Secret backend selected: encrypted-file (Docker)", { keyPath });
   return createEncryptedFileSecretStore({
     secretsPath: "/data/secrets.json",
-    keyPath: "/data/secrets.key",
+    keyPath,
   });
 }
 
