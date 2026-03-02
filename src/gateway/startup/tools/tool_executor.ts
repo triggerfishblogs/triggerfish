@@ -86,14 +86,14 @@ export function resolveWorkspacePathForTaint(
 
 /** Build a dynamic system prompt section describing the agent's workspace. */
 export function buildWorkspacePrompt(
-  taint: ClassificationLevel,
-  paths: WorkspacePaths,
+  _taint: ClassificationLevel,
+  _paths: WorkspacePaths,
 ): string {
-  const dir = resolveWorkspacePathForTaint(taint, paths);
   return [
     "## Workspace",
-    `Your working directory is ${dir}.`,
-    "Use this directory for all file operations.",
+    "Your working directory is the current directory (`.`).",
+    "All file paths are relative to this directory.",
+    "Use relative paths (e.g. `./myfile.txt`, `src/`) for all file operations.",
     "Paths outside your workspace are not accessible.",
   ].join("\n");
 }
