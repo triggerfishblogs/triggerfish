@@ -170,13 +170,15 @@ export function assembleSchedulerToolExecutor(opts: {
   readonly skillContextTracker?: SkillContextTracker;
   /** Live getter for session taint, used for taint-aware command cwd. */
   readonly getSessionTaint?: () => ClassificationLevel;
+  /** Override memory namespace (e.g. triggers share the owner namespace). */
+  readonly memoryAgentId?: string;
 }) {
   const { infra, session, workspace, agentId, storage } = opts;
 
   const memoryExecutor = storage
     ? buildSchedulerMemoryExecutor({
       storage,
-      agentId,
+      agentId: opts.memoryAgentId ?? agentId,
       sessionTaint: session.taint,
       sourceSessionId: session.id,
     })

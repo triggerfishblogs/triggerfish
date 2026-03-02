@@ -10,7 +10,11 @@
 import { join } from "@std/path";
 import type { TriggerFishConfig } from "../../../core/config.ts";
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
-import { createSession, updateTaint } from "../../../core/types/session.ts";
+import {
+  createSession,
+  OWNER_MEMORY_AGENT_ID,
+  updateTaint,
+} from "../../../core/types/session.ts";
 import type { ChannelId, UserId } from "../../../core/types/session.ts";
 import { createProviderRegistry } from "../../../agent/llm.ts";
 import {
@@ -209,6 +213,7 @@ export function createOrchestratorFactory(
         githubExecutor,
         skillContextTracker,
         getSessionTaint: () => session.taint,
+        memoryAgentId: isTrigger ? OWNER_MEMORY_AGENT_ID : undefined,
       });
 
       const toolProfile = isTrigger ? "triggerSession" : "cronJob";
@@ -259,7 +264,7 @@ export function createOrchestratorFactory(
           : {}),
       });
 
-      return { orchestrator, session };
+      return { orchestrator, session, toolExecutor };
     },
   };
 }

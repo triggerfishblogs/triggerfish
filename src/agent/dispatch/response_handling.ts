@@ -21,10 +21,11 @@ import type { OrchestratorState, TokenAccumulator } from "../orchestrator/orches
 
 /**
  * Pattern matching echoed tool-call placeholder text.
- * Some models parrot back the assistant history entry instead of continuing work.
+ * Some models parrot back the assistant history entry instead of continuing
+ * work, or narrate "N tool calls pending/queued" instead of invoking them.
  */
 const ECHOED_TOOL_PLACEHOLDER =
-  /^\[Used tools:.*\]$|^\(\d+ tool call\(s\) executed/;
+  /^\[Used tools:.*\]$|^\(\d+ tool call(?:\(s\))? (?:executed|pending|queued|in progress)/;
 
 /** Minimum phrase length to consider for repetition detection. */
 const MIN_REPEAT_PHRASE_LEN = 60;
