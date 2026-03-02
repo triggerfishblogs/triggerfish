@@ -70,7 +70,6 @@ function buildExtendedSubsystems(
     opts.mcpExecutor,
     opts.secretExecutor,
     opts.triggerExecutor,
-    opts.triggerClassificationExecutor,
     opts.skillExecutor,
     opts.releaseNotesExecutor,
     opts.simulateExecutor,

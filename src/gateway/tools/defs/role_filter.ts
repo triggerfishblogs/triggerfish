@@ -50,7 +50,6 @@ export const OWNER_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "cron_history",
   // Trigger management
   "trigger_add_to_context",
-  "get_tool_classification",
   // Skill management
   "read_skill",
   // Subagent spawning

@@ -39,7 +39,6 @@ import {
 } from "../../../integrations/github/mod.ts";
 import type { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
 import { createSessionToolExecutor } from "../../tools/session/session_tools.ts";
-import { createTriggerClassificationToolExecutor } from "../../tools/trigger/trigger_tools.ts";
 import type { EnhancedSessionManager } from "../../sessions.ts";
 import type { CronManager } from "../../../scheduler/cron/parser.ts";
 import type { StorageProvider } from "../../../core/storage/provider.ts";
@@ -241,9 +240,6 @@ export function assembleSchedulerToolExecutor(opts: {
     }),
     skillContextTracker: opts.skillContextTracker,
     providerRegistry: infra.registry,
-    triggerClassificationExecutor: createTriggerClassificationToolExecutor(
-      infra.toolClassifications,
-    ),
     simulateExecutor: createSimulateToolExecutor({
       getSessionTaint: getTaint,
       isOwner: () => false,

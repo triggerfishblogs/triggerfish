@@ -52,12 +52,6 @@ export interface ToolExecutorOptions {
   readonly subagentFactory?: (task: string, tools?: string) => Promise<string>;
   readonly secretExecutor?: SubsystemExecutor;
   readonly triggerExecutor?: SubsystemExecutor;
-  /**
-   * Executor for `get_tool_classification` — available in trigger sessions
-   * so the agent can look up tool classifications and order its work from
-   * lowest to highest classification before calling any integration tools.
-   */
-  readonly triggerClassificationExecutor?: SubsystemExecutor;
   readonly skillExecutor?: SubsystemExecutor;
   readonly releaseNotesExecutor?: SubsystemExecutor;
   /** Executor for `simulate_tool_call` — dry-run security pipeline simulation. */

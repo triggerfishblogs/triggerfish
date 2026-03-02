@@ -3,7 +3,6 @@
  *
  * Provides ToolDefinition objects for:
  * - `trigger_add_to_context` — loads the most recent trigger output into context.
- * - `get_tool_classification` — returns classification levels for planned tools.
  *
  * Also exports system prompt fragments for user sessions and trigger sessions.
  *
@@ -31,39 +30,14 @@ function buildTriggerAddToContextDef(): ToolDefinition {
   };
 }
 
-function buildToolClassificationDef(): ToolDefinition {
-  return {
-    name: "get_tool_classification",
-    description: "Look up the classification level of one or more tools. " +
-      "In trigger sessions, call this before executing your planned tool calls to determine " +
-      "the correct order (lowest to highest classification). " +
-      "Built-in tools (exec, memory, web, etc.) are PUBLIC. " +
-      "Integration tools (gmail_, calendar_, github_, etc.) have their configured classification.",
-    parameters: {
-      tools: {
-        type: "array",
-        items: { type: "string" },
-        description:
-          "List of tool names to classify. Returns classifications and recommended call order.",
-        required: true,
-      },
-    },
-  };
-}
-
 /** Get the tool definitions for trigger context tools. */
 export function getTriggerToolDefinitions(): readonly ToolDefinition[] {
-  return [
-    buildTriggerAddToContextDef(),
-    buildToolClassificationDef(),
-  ];
+  return [buildTriggerAddToContextDef()];
 }
 
-/** Get trigger tool definitions for the main (user) session — only trigger_add_to_context. */
+/** @deprecated Use getTriggerToolDefinitions — now identical. Kept for backward compat. */
 export function getTriggerContextToolDefinitions(): readonly ToolDefinition[] {
-  return getTriggerToolDefinitions().filter((t) =>
-    t.name === "trigger_add_to_context"
-  );
+  return getTriggerToolDefinitions();
 }
 
 /** System prompt section explaining trigger_add_to_context to the user-session LLM. */
@@ -84,7 +58,7 @@ You can retrieve recent trigger outputs and inject them into the conversation.
  * System prompt section for trigger sessions — explains classification-ordered execution.
  *
  * Injected into the orchestrator system prompt when isTriggerSession is true.
- * Instructs the agent to call get_tool_classification first and order its work
+ * Instructs the agent to use simulate_tool_call to determine execution order
  * from lowest to highest classification to avoid write-down violations mid-session.
  */
 export const TRIGGER_SESSION_SYSTEM_PROMPT =
@@ -95,13 +69,13 @@ You are running in a trigger session. Your session taint starts at PUBLIC and es
 **Required protocol before calling any integration tools (gmail_, calendar_, drive_, github_, etc.):**
 
 1. **Identify all tools** you plan to call in this session.
-2. **Call \`get_tool_classification\`** with your full list of planned tools to get their classification levels.
-3. **Order your work from lowest to highest classification** — PUBLIC first, then INTERNAL, then CONFIDENTIAL, then RESTRICTED.
+2. **Call \`simulate_tool_call\`** for each planned tool to see its resulting taint level.
+3. **Order your work from lowest to highest resulting taint** — PUBLIC first, then INTERNAL, then CONFIDENTIAL, then RESTRICTED.
 4. **Execute in order** — your session taint escalates naturally. Your final session taint reflects the highest classification you accessed.
 
 Your output is stored in the trigger store and stamped with your final session taint. The owner can then optionally pull it into their session via \`trigger_add_to_context\`, at which point their session taint may escalate to match yours.
 
-If you skip classification ordering and call a higher-classified tool before a lower one, subsequent lower-classified calls will be blocked by write-down enforcement. Always call \`get_tool_classification\` first.
+If you skip classification ordering and call a higher-classified tool before a lower one, subsequent lower-classified calls will be blocked by write-down enforcement. Always simulate first.
 
 **Deduplication — CRITICAL:**
 
