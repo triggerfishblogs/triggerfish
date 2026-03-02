@@ -21,6 +21,9 @@ import {
 import { assembleSecurityContext } from "../../../agent/dispatch/security_context.ts";
 import type { OrchestratorConfig } from "../../../agent/orchestrator/orchestrator_types.ts";
 import type { SubsystemExecutor } from "../executor/executor_types.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("simulate-tool");
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -107,6 +110,74 @@ export function computeSimulatedTaint(
 
 // ─── Blocked evaluation ──────────────────────────────────────────────────────
 
+/** Block result for a detected violation. */
+interface BlockResult {
+  readonly blocked: boolean;
+  readonly reason?: string;
+}
+
+const NOT_BLOCKED: BlockResult = { blocked: false };
+
+/** Check tool floor violation. */
+function checkToolFloorBlock(
+  hookInput: Record<string, unknown>,
+  resultingTaint: ClassificationLevel,
+  toolName: string,
+): BlockResult | null {
+  if (!detectToolFloorViolation(hookInput, resultingTaint)) return null;
+  const floor = hookInput.tool_floor as ClassificationLevel;
+  return {
+    blocked: true,
+    reason: `Tool floor: ${toolName} requires ${floor}, session would be at ${resultingTaint}.`,
+  };
+}
+
+/** Check resource write-down violation. */
+function checkResourceWriteDownBlock(
+  hookInput: Record<string, unknown>,
+  resultingTaint: ClassificationLevel,
+): BlockResult | null {
+  if (!detectResourceWriteDownViolation(hookInput, resultingTaint)) return null;
+  const rc = hookInput.resource_classification as ClassificationLevel;
+  return {
+    blocked: true,
+    reason: `Write-down: session taint ${resultingTaint} cannot write to ${rc} resource.`,
+  };
+}
+
+/** Check non-owner read ceiling violation. */
+function checkReadCeilingBlock(
+  hookInput: Record<string, unknown>,
+): BlockResult | null {
+  if (!detectResourceReadCeilingViolation(hookInput)) return null;
+  const rc = hookInput.resource_classification as ClassificationLevel;
+  const ceiling = hookInput.non_owner_ceiling as ClassificationLevel;
+  return {
+    blocked: true,
+    reason: `Read ceiling: resource ${rc} exceeds session ceiling ${ceiling}.`,
+  };
+}
+
+/** Check integration write-down (session taint vs integration classification). */
+function checkIntegrationWriteDownBlock(
+  resultingTaint: ClassificationLevel,
+  toolName: string,
+  integrationClassifications?: ReadonlyMap<string, ClassificationLevel>,
+): BlockResult | null {
+  if (!integrationClassifications) return null;
+  for (const [prefix, level] of integrationClassifications) {
+    if (!toolName.startsWith(prefix)) continue;
+    if (!canFlowTo(resultingTaint, level)) {
+      return {
+        blocked: true,
+        reason: `Integration write-down: session taint ${resultingTaint} cannot flow to ${toolName} (classified ${level}).`,
+      };
+    }
+    break;
+  }
+  return null;
+}
+
 /**
  * Check whether the tool call would be blocked by policy.
  *
@@ -118,46 +189,31 @@ export function evaluateSimulatedBlocked(
   resultingTaint: ClassificationLevel,
   toolName: string,
   integrationClassifications?: ReadonlyMap<string, ClassificationLevel>,
-): { blocked: boolean; reason?: string } {
-  if (detectToolFloorViolation(hookInput, resultingTaint)) {
-    const floor = hookInput.tool_floor as ClassificationLevel;
-    return {
-      blocked: true,
-      reason: `Tool floor: ${toolName} requires ${floor}, session would be at ${resultingTaint}.`,
-    };
-  }
-  if (detectResourceWriteDownViolation(hookInput, resultingTaint)) {
-    const rc = hookInput.resource_classification as ClassificationLevel;
-    return {
-      blocked: true,
-      reason: `Write-down: session taint ${resultingTaint} cannot write to ${rc} resource.`,
-    };
-  }
-  if (detectResourceReadCeilingViolation(hookInput)) {
-    const rc = hookInput.resource_classification as ClassificationLevel;
-    const ceiling = hookInput.non_owner_ceiling as ClassificationLevel;
-    return {
-      blocked: true,
-      reason: `Read ceiling: resource ${rc} exceeds session ceiling ${ceiling}.`,
-    };
-  }
-  if (integrationClassifications) {
-    for (const [prefix, level] of integrationClassifications) {
-      if (toolName.startsWith(prefix)) {
-        if (!canFlowTo(resultingTaint, level)) {
-          return {
-            blocked: true,
-            reason: `Integration write-down: session taint ${resultingTaint} cannot flow to ${toolName} (classified ${level}).`,
-          };
-        }
-        break;
-      }
-    }
-  }
-  return { blocked: false };
+): BlockResult {
+  return checkToolFloorBlock(hookInput, resultingTaint, toolName)
+    ?? checkResourceWriteDownBlock(hookInput, resultingTaint)
+    ?? checkReadCeilingBlock(hookInput)
+    ?? checkIntegrationWriteDownBlock(resultingTaint, toolName, integrationClassifications)
+    ?? NOT_BLOCKED;
 }
 
 // ─── Executor factory ────────────────────────────────────────────────────────
+
+/** Build the config proxy subset consumed by assembleSecurityContext. */
+function buildSecurityConfigProxy(
+  ctx: SimulateToolContext,
+): OrchestratorConfig {
+  // assembleSecurityContext only reads these optional fields; cast is safe
+  return {
+    pathClassifier: ctx.pathClassifier,
+    domainClassifier: ctx.domainClassifier,
+    toolFloorRegistry: ctx.toolFloorRegistry,
+    isOwnerSession: ctx.isOwner,
+    isTriggerSession: ctx.isTrigger,
+    getNonOwnerCeiling: ctx.getNonOwnerCeiling,
+    getWorkspacePath: ctx.getWorkspacePath,
+  } as unknown as OrchestratorConfig;
+}
 
 /** Run the full simulation pipeline and return the result. */
 function executeSimulation(
@@ -167,20 +223,18 @@ function executeSimulation(
 ): SimulationResult {
   const currentTaint = ctx.getSessionTaint();
   const fakeCall = { name: toolName, args: toolArgs };
-  const configProxy = {
-    pathClassifier: ctx.pathClassifier,
-    domainClassifier: ctx.domainClassifier,
-    toolFloorRegistry: ctx.toolFloorRegistry,
-    isOwnerSession: ctx.isOwner,
-    isTriggerSession: ctx.isTrigger,
-    getNonOwnerCeiling: ctx.getNonOwnerCeiling,
-    getWorkspacePath: ctx.getWorkspacePath,
-  };
 
   const { input: hookInput, ctx: secCtx } = assembleSecurityContext(
     fakeCall,
-    configProxy as unknown as OrchestratorConfig,
+    buildSecurityConfigProxy(ctx),
   );
+  log.debug("Simulation security context assembled", {
+    operation: "assembleSecurityContext",
+    toolName,
+    resourceClassification: secCtx.resourceClassification,
+    toolFloor: secCtx.toolFloor,
+    currentTaint,
+  });
 
   const resultingTaint = computeSimulatedTaint(
     currentTaint,
@@ -188,18 +242,23 @@ function executeSimulation(
     toolName,
     ctx.toolClassifications,
   );
-
-  // Use resultingTaint for tool floor check (mirrors pre-escalation in dispatch)
-  // but use currentTaint for write-down check (mirrors pre-escalation timing)
-  const taintForViolations = resultingTaint;
-  hookInput.session_taint = taintForViolations;
+  hookInput.session_taint = resultingTaint;
 
   const { blocked, reason } = evaluateSimulatedBlocked(
     hookInput,
-    taintForViolations,
+    resultingTaint,
     toolName,
     ctx.integrationClassifications,
   );
+  log.info("Simulation evaluation complete", {
+    operation: "evaluateSimulatedBlocked",
+    toolName,
+    currentTaint,
+    resultingTaint,
+    escalation: resultingTaint !== currentTaint,
+    blocked,
+    blockReason: reason,
+  });
 
   return {
     currentTaint,
