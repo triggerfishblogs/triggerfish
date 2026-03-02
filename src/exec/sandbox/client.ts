@@ -1,14 +1,9 @@
 /**
  * Parent-side filesystem sandbox client.
  *
- * Manages the lifecycle of a sandboxed Deno subprocess and routes
- * NDJSON requests/responses over stdin/stdout. Follows the StdioTransport
- * pattern from `src/mcp/client/transport.ts`.
- *
- * The worker's Deno permissions (`--allow-read`, `--allow-write`) are
- * scoped to the taint-appropriate workspace subdirectory. When the
- * session taint escalates, the worker is automatically killed and
- * respawned with updated OS-level permissions.
+ * Manages a sandboxed Deno subprocess with NDJSON over stdin/stdout.
+ * Permissions are scoped to the taint-appropriate workspace subdirectory;
+ * worker is respawned automatically on taint escalation.
  *
  * @module
  */
@@ -31,12 +26,7 @@ export interface FilesystemSandbox {
 
 /** Options for creating a filesystem sandbox. */
 export interface FilesystemSandboxOptions {
-  /**
-   * Returns the absolute path to the allowed workspace directory for
-   * the current taint level. Called on every request; when the returned
-   * path differs from the running worker's path, the worker is killed
-   * and respawned with new OS-level permissions.
-   */
+  /** Resolves the taint-appropriate workspace path. Worker respawns on change. */
   readonly resolveWorkspacePath: () => string;
   /** Request timeout in milliseconds (default: 30000). */
   readonly timeoutMs?: number;
@@ -50,34 +40,22 @@ interface PendingRequest {
 }
 
 /**
- * Extract the worker script to a real filesystem path.
+ * Extract the worker script to a real temp file for subprocess execution.
  *
- * In a compiled binary (`deno compile`), `import.meta.dirname` points to a
- * virtual directory that Deno's own FS APIs can read, but a child `deno run`
- * subprocess cannot — the file doesn't physically exist on disk. So we
- * always read the source (works in both dev and compiled mode) and write it
- * to a temp file that any process can execute.
+ * Needed because `deno compile` embeds sources in a virtual FS that child
+ * `deno run` processes cannot access.
  */
 function extractWorkerToTempFile(): string {
-  const workerSourcePath = import.meta.dirname + "/worker.ts";
-  const source = Deno.readTextFileSync(workerSourcePath);
+  const source = Deno.readTextFileSync(import.meta.dirname + "/worker.ts");
   const tmpPath = Deno.makeTempFileSync({ suffix: "_sandbox_worker.ts" });
   Deno.writeTextFileSync(tmpPath, source);
-  log.debug("Extracted sandbox worker to temp file", {
-    source: workerSourcePath,
-    dest: tmpPath,
-  });
+  log.debug("Extracted sandbox worker to temp file", { dest: tmpPath });
   return tmpPath;
 }
 
 /**
  * Create a filesystem sandbox backed by a restricted Deno subprocess.
- *
- * The worker subprocess is spawned lazily on first request and restarted
- * automatically if it crashes or the workspace path changes (taint
- * escalation). All filesystem operations are constrained by Deno's
- * `--allow-read` and `--allow-write` permission flags scoped to the
- * taint-appropriate workspace subdirectory.
+ * Spawned lazily on first request, restarted on crash or taint change.
  */
 export function createFilesystemSandbox(
   opts: FilesystemSandboxOptions,
@@ -132,7 +110,6 @@ export function createFilesystemSandbox(
     const reader = proc.stdout.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-
     (async () => {
       try {
         while (true) {
@@ -178,7 +155,6 @@ export function createFilesystemSandbox(
   function startStderrDrain(proc: Deno.ChildProcess): void {
     const reader = proc.stderr.getReader();
     const decoder = new TextDecoder();
-
     (async () => {
       try {
         while (true) {
@@ -189,8 +165,8 @@ export function createFilesystemSandbox(
             log.debug("Sandbox worker stderr", { output: text });
           }
         }
-      } catch {
-        // stderr closed — expected on shutdown
+      } catch (err) {
+        log.debug("Sandbox worker stderr stream closed", { err });
       }
     })();
   }
@@ -218,27 +194,6 @@ export function createFilesystemSandbox(
     pending.clear();
   }
 
-  /** Kill the running worker synchronously (best-effort). */
-  function teardownWorker(): void {
-    if (stdinWriter) {
-      try {
-        stdinWriter.close();
-      } catch {
-        // already closed
-      }
-      stdinWriter = null;
-    }
-    if (process) {
-      try {
-        process.kill();
-      } catch {
-        // already dead
-      }
-      process = null;
-    }
-    activeWorkspacePath = null;
-  }
-
   /**
    * Ensure the worker is running with the correct workspace path.
    * If the taint-resolved path differs from the active worker's path,
@@ -259,7 +214,15 @@ export function createFilesystemSandbox(
         current: requiredPath,
       });
       rejectAllPending("Sandbox workspace path changed (taint escalation)");
-      teardownWorker();
+      try { stdinWriter?.close(); } catch (err) {
+        log.debug("Sandbox stdin close during respawn", { err });
+      }
+      try { process.kill(); } catch (err) {
+        log.debug("Sandbox kill during respawn", { err });
+      }
+      stdinWriter = null;
+      process = null;
+      activeWorkspacePath = null;
     }
     spawnWorker(requiredPath);
   }
@@ -289,6 +252,7 @@ export function createFilesystemSandbox(
         stdinWriter!.write(payload).catch((err: unknown) => {
           pending.delete(id);
           clearTimeout(timer);
+          log.debug("Sandbox stdin write failed", { err, id, op: req.op });
           reject(
             new Error(
               `Sandbox stdin write failed: ${
@@ -307,35 +271,27 @@ export function createFilesystemSandbox(
     },
   };
 
-  /** Kill the worker process and clean up (async version for shutdown). */
+  /** Kill the worker process and clean up. */
   async function killWorker(): Promise<void> {
     if (stdinWriter) {
-      try {
-        await stdinWriter.close();
-      } catch {
-        // already closed
+      try { await stdinWriter.close(); } catch (err) {
+        log.debug("Sandbox stdin already closed during kill", { err });
       }
       stdinWriter = null;
     }
     if (process) {
-      try {
-        process.kill();
-      } catch {
-        // already dead
+      try { process.kill(); } catch (err) {
+        log.debug("Sandbox worker already dead during kill", { err });
       }
-      try {
-        await process.status;
-      } catch {
-        // already resolved
+      try { await process.status; } catch (err) {
+        log.debug("Sandbox worker status already resolved", { err });
       }
       process = null;
     }
     activeWorkspacePath = null;
     if (workerTempPath) {
-      try {
-        Deno.removeSync(workerTempPath);
-      } catch {
-        // temp file already gone
+      try { Deno.removeSync(workerTempPath); } catch (err) {
+        log.debug("Sandbox temp file already removed", { err });
       }
       workerTempPath = null;
     }
