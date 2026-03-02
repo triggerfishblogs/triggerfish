@@ -8,8 +8,6 @@ description: >
   interfaces, factory patterns, registration, and security requirements.
   Use when building new integrations or extending existing ones.
 classification_ceiling: INTERNAL
-requires_tools: []
-network_domains: []
 ---
 
 # Building Triggerfish Integrations

@@ -58,8 +58,8 @@ Deno.test("read_skill: reads a bundled skill successfully", async () => {
   assertEquals(parsed.source, "bundled");
   assertStringIncludes(parsed.content, "tdd");
   assertEquals(typeof parsed.classification_ceiling, "string");
-  assertEquals(Array.isArray(parsed.requires_tools), true);
-  assertEquals(Array.isArray(parsed.network_domains), true);
+  assertEquals(parsed.requires_tools === null || Array.isArray(parsed.requires_tools), true);
+  assertEquals(parsed.network_domains === null || Array.isArray(parsed.network_domains), true);
 });
 
 Deno.test("read_skill: not found returns available skill list", async () => {

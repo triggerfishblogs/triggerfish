@@ -8,8 +8,6 @@ description: >
   concepts. Use when the user asks about Triggerfish commands, configuration,
   channels, logs, diagnostics, or how the platform works.
 classification_ceiling: INTERNAL
-requires_tools: []
-network_domains: []
 ---
 
 # Triggerfish — Platform Reference

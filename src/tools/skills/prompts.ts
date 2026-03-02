@@ -41,7 +41,7 @@ Skipping \`read_skill\` means you won't have the API endpoints, parameters, or s
 |-------|-------------|------|
 ${formatSkillTableRows(skills)}
 
-**Rule:** Whenever a user's request matches a skill above, call \`read_skill\` first — before taking any other action.
+Only read a skill when you need its specific instructions to complete the current task. Do NOT read multiple skills speculatively. Most requests do not require any skill — use your standard tools first.
 
 ${buildSkillPriorityNote()}`;
 }

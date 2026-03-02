@@ -7,8 +7,6 @@ description: >
   and @std/assert. Use when writing new features, fixing bugs, or
   refactoring existing code in Triggerfish.
 classification_ceiling: INTERNAL
-requires_tools: []
-network_domains: []
 ---
 
 # Test-Driven Development with Deno

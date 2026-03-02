@@ -6,8 +6,6 @@ description: >
   fields, security metadata, the three-tier hierarchy, approval workflow,
   triggers, and best practices. Use when creating new skills for an agent.
 classification_ceiling: INTERNAL
-requires_tools: []
-network_domains: []
 ---
 
 # Building Triggerfish Skills

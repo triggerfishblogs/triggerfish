@@ -7,8 +7,6 @@ description: >
   classification, async patterns, and pure-Python alternatives to
   native libraries. Use when writing Python plugins for Triggerfish.
 classification_ceiling: INTERNAL
-requires_tools: []
-network_domains: []
 ---
 
 # Mastering Python for Triggerfish Plugins

@@ -7,8 +7,6 @@ description: >
   immutable interfaces, deno.json configuration, and @std/ library usage.
   Use when writing or reviewing TypeScript code in this project.
 classification_ceiling: INTERNAL
-requires_tools: []
-network_domains: []
 ---
 
 # Mastering TypeScript for Deno and Triggerfish
