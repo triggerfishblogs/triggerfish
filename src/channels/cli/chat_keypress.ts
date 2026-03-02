@@ -56,6 +56,7 @@ export function handleCtrlCKeypress(
   deps: ChatReplDeps,
   cleanup: () => void,
 ): "exit" | "continue" {
+  rs.isPasting = false;
   if (!deps.state.isProcessing) {
     cleanup();
     return "exit";
@@ -131,11 +132,24 @@ export async function routeInputKeypress(
 ): Promise<"exit" | void> {
   const { key, char } = keypress;
   switch (key) {
+    case "paste_start":
+      rs.isPasting = true;
+      break;
+
+    case "paste_end":
+      rs.isPasting = false;
+      deps.screen.redrawInput(rs.editor);
+      break;
+
     case "shift+enter":
       handleShiftEnter(rs, deps.screen);
       break;
 
     case "enter": {
+      if (rs.isPasting) {
+        handleShiftEnter(rs, deps.screen);
+        break;
+      }
       const result = handleEnterKeypress(rs, deps, {
         config: loopOpts.config,
         messageQueue: loopOpts.messageQueue,
@@ -212,6 +226,7 @@ export async function routeInputKeypress(
       break;
 
     case "esc":
+      rs.isPasting = false;
       break;
 
     default:

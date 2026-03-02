@@ -135,6 +135,16 @@ function matchTildeSequence(
         key: { key: "end", char: null, ctrl: false },
         nextIndex: endIndex + 1,
       };
+    case 200:
+      return {
+        key: { key: "paste_start", char: null, ctrl: false },
+        nextIndex: endIndex + 1,
+      };
+    case 201:
+      return {
+        key: { key: "paste_end", char: null, ctrl: false },
+        nextIndex: endIndex + 1,
+      };
     default:
       return {
         key: { key: `unknown_csi_${paramStr}`, char: null, ctrl: false },

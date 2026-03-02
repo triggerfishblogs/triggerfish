@@ -82,6 +82,27 @@ export function renderToolResult(
 }
 
 /**
+ * Format an in-progress compact tool call line shown immediately on tool_call.
+ *
+ * Example:
+ *   ● Run(ls -la)
+ *   │  ↻ running…
+ */
+export function formatToolCompactInProgress(
+  name: string,
+  args: Record<string, unknown>,
+): string {
+  const displayName = TOOL_DISPLAY_NAMES[name] ?? name;
+  const primary = extractLeadToolArgument(args);
+  const argStr = primary.length > 0
+    ? (name === "web_search"
+      ? `${DIM}("${truncate(primary, 60)}")${RESET}`
+      : `${DIM}(${truncate(primary, 60)})${RESET}`)
+    : "";
+  return `  ${YELLOW}\u25cf${RESET} ${BOLD}${displayName}${RESET}${argStr}\n  ${DIM}\u2502${RESET}  ${DIM}\u21bb running\u2026${RESET}`;
+}
+
+/**
  * Format a compact one-line tool call + result.
  *
  * Example: `  ⚡ list_directory .  ✓  12 entries`
@@ -200,6 +221,50 @@ export function formatToolCompact(
 
   const meta = formatResultMeta(name, result);
   return `  ${CYAN}\u25cf${RESET} ${BOLD}${displayName}${RESET}${argStr}\n  ${DIM}\u2502${RESET}  ${DIM}${meta}${RESET}`;
+}
+
+/** Cap diff lines: show head + "... N more" + tail when over limit. */
+function capDiffLines(
+  lines: readonly string[],
+  prefix: string,
+  color: string,
+): string[] {
+  const HEAD = 5;
+  const TAIL = 2;
+  const MAX = HEAD + TAIL + 1;
+  if (lines.length <= MAX) {
+    return lines.map((l) => `  ${color}${prefix} ${l}${RESET}`);
+  }
+  const head = lines.slice(0, HEAD).map((l) =>
+    `  ${color}${prefix} ${l}${RESET}`
+  );
+  const omitted = lines.length - HEAD - TAIL;
+  head.push(`  ${DIM}  ... ${omitted} more line${omitted !== 1 ? "s" : ""}${RESET}`);
+  const tail = lines.slice(-TAIL).map((l) =>
+    `  ${color}${prefix} ${l}${RESET}`
+  );
+  return [...head, ...tail];
+}
+
+/**
+ * Format a colored diff for edit_file tool results.
+ *
+ * Shows removed lines in red with `-` prefix and added lines in green
+ * with `+` prefix. Caps each side at ~10 displayed lines.
+ */
+export function formatEditFileDiff(
+  oldText: string,
+  newText: string,
+  resultLine: string,
+): string {
+  const oldLines = oldText.split("\n");
+  const newLines = newText.split("\n");
+  const parts: string[] = [];
+  parts.push(`  ${CYAN}\u25cf${RESET} ${BOLD}Edit${RESET}`);
+  parts.push(...capDiffLines(oldLines, "-", RED));
+  parts.push(...capDiffLines(newLines, "+", GREEN));
+  parts.push(`  ${DIM}\u2502${RESET}  ${DIM}${resultLine}${RESET}`);
+  return parts.join("\n");
 }
 
 /** Extract the markdown body from a plan_exit tool result. */

@@ -155,6 +155,48 @@ Deno.test("parseKeypresses: newline (0x0A) treated as enter", () => {
   assertEquals(keys[0].key, "enter");
 });
 
+Deno.test("parseKeypresses: bracketed paste start (ESC[200~)", () => {
+  // ESC [ 2 0 0 ~
+  const bytes = new Uint8Array([0x1B, 0x5B, 0x32, 0x30, 0x30, 0x7E]);
+  const keys = parseKeypresses(bytes);
+  assertEquals(keys.length, 1);
+  assertEquals(keys[0].key, "paste_start");
+  assertEquals(keys[0].char, null);
+  assertEquals(keys[0].ctrl, false);
+});
+
+Deno.test("parseKeypresses: bracketed paste end (ESC[201~)", () => {
+  // ESC [ 2 0 1 ~
+  const bytes = new Uint8Array([0x1B, 0x5B, 0x32, 0x30, 0x31, 0x7E]);
+  const keys = parseKeypresses(bytes);
+  assertEquals(keys.length, 1);
+  assertEquals(keys[0].key, "paste_end");
+  assertEquals(keys[0].char, null);
+  assertEquals(keys[0].ctrl, false);
+});
+
+Deno.test("parseKeypresses: paste_start + text + newline + paste_end", () => {
+  const enc = new TextEncoder();
+  const pasteStart = new Uint8Array([0x1B, 0x5B, 0x32, 0x30, 0x30, 0x7E]);
+  const text = enc.encode("line1");
+  const newline = new Uint8Array([0x0A]);
+  const text2 = enc.encode("line2");
+  const pasteEnd = new Uint8Array([0x1B, 0x5B, 0x32, 0x30, 0x31, 0x7E]);
+  const combined = new Uint8Array([
+    ...pasteStart,
+    ...text,
+    ...newline,
+    ...text2,
+    ...pasteEnd,
+  ]);
+  const keys = parseKeypresses(combined);
+  assertEquals(keys[0].key, "paste_start");
+  assertEquals(keys[keys.length - 1].key, "paste_end");
+  // The newline between lines is parsed as "enter"
+  const enterKeys = keys.filter((k) => k.key === "enter");
+  assertEquals(enterKeys.length, 1);
+});
+
 // ─── Line editor ────────────────────────────────────────────────
 
 Deno.test("LineEditor: starts empty", () => {

@@ -10,6 +10,8 @@
 import type { Keypress } from "./keypress.ts";
 import { parseKeypresses } from "./keypress.ts";
 
+const enc = new TextEncoder();
+
 // ─── Types ──────────────────────────────────────────────────────
 
 /** Async keypress reader that yields parsed keypresses from raw stdin. */
@@ -108,12 +110,18 @@ export function createKeypressReader(): KeypressReader {
     start() {
       if (state.running) return;
       state.running = true;
-      if (Deno.stdin.isTerminal()) Deno.stdin.setRaw(true);
+      if (Deno.stdin.isTerminal()) {
+        Deno.stdin.setRaw(true);
+        Deno.stdout.writeSync(enc.encode("\x1b[?2004h"));
+      }
       runStdinReadLoop(state);
     },
     stop() {
       state.running = false;
-      if (Deno.stdin.isTerminal()) Deno.stdin.setRaw(false);
+      if (Deno.stdin.isTerminal()) {
+        Deno.stdout.writeSync(enc.encode("\x1b[?2004l"));
+        Deno.stdin.setRaw(false);
+      }
       signalReaderDone(state);
     },
     [Symbol.asyncIterator](): AsyncIterableIterator<Keypress> {

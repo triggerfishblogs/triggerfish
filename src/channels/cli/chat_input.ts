@@ -32,6 +32,7 @@ export interface ChatReplState {
   stashedInput: string;
   pendingImages: ImageContentBlock[];
   lastCtrlCTime: number;
+  isPasting: boolean;
   inputHistory: import("../../cli/chat/history.ts").InputHistory;
 }
 
