@@ -92,6 +92,7 @@ export function buildGitHubClientConfig(
 export async function buildGitHubExecutor(
   config: TriggerFishConfig,
   session: ReturnType<typeof createSession>,
+  opts?: { readonly workspacePath?: string },
 ) {
   const keychain = createKeychain();
   const tokenResult = await resolveGitHubToken({ secretStore: keychain });
@@ -103,6 +104,7 @@ export async function buildGitHubExecutor(
         ),
         sessionTaint: session.taint,
         sourceSessionId: session.id,
+        workspacePath: opts?.workspacePath,
       }
       : undefined,
   );

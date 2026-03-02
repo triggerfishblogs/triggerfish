@@ -91,6 +91,7 @@ export async function buildSchedulerGitHubExecutor(opts: {
   readonly config: TriggerFishConfig;
   readonly sessionTaint: ClassificationLevel;
   readonly sourceSessionId: SessionId;
+  readonly workspacePath?: string;
 }) {
   const tokenResult = await resolveGitHubToken({
     secretStore: opts.keychain,
@@ -112,6 +113,7 @@ export async function buildSchedulerGitHubExecutor(opts: {
         }),
         sessionTaint: opts.sessionTaint,
         sourceSessionId: opts.sourceSessionId,
+        workspacePath: opts.workspacePath,
       }
       : undefined,
   );

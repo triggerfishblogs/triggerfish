@@ -1,9 +1,11 @@
 /**
  * Execution tools for the agent workspace.
  *
- * Provides file I/O, command execution, and workspace listing
- * within the agent's isolated workspace directory. All file operations
- * are sandboxed to the workspace — path traversal is blocked.
+ * Provides file I/O and workspace listing within the agent's
+ * isolated workspace directory. All file operations are sandboxed
+ * to the workspace — path traversal is blocked.
+ *
+ * Command execution lives in `command.ts`.
  *
  * @module
  */
@@ -12,8 +14,8 @@ import type { Result } from "../core/types/classification.ts";
 import type { Workspace } from "./workspace.ts";
 import { join, resolve } from "@std/path";
 import { isWithinJail } from "../core/security/path_jail.ts";
-import { buildSafeEnv } from "./sanitize.ts";
 import { createLogger } from "../core/logger/logger.ts";
+import { runShellCommand } from "./command.ts";
 
 const log = createLogger("exec");
 
@@ -133,81 +135,6 @@ async function readFile(
     return {
       ok: false,
       error: `Failed to read "${path}": ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    };
-  }
-}
-
-/** Resolve the effective cwd from options, supporting both static and dynamic overrides. */
-function resolveCwd(workspace: Workspace, options?: ExecToolsOptions): string {
-  const override = options?.cwdOverride;
-  if (typeof override === "function") return override();
-  return override ?? workspace.path;
-}
-
-/** Resolve a per-call cwd within the workspace, returning null if it escapes. */
-function resolvePerCallCwd(
-  workspace: Workspace,
-  cwd: string,
-): string | null {
-  const resolved = resolve(join(workspace.path, cwd));
-  if (!isWithinJail(resolved, workspace.path)) return null;
-  return resolved;
-}
-
-async function runShellCommand(
-  workspace: Workspace,
-  command: string,
-  options?: ExecToolsOptions,
-  perCallCwd?: string,
-): Promise<Result<RunResult, string>> {
-  let effectiveCwd: string;
-  if (perCallCwd !== undefined) {
-    const resolved = resolvePerCallCwd(workspace, perCallCwd);
-    if (resolved === null) {
-      log.warn("Working directory path escapes workspace jail", {
-        operation: "runShellCommand",
-        cwd: perCallCwd,
-        workspace: workspace.path,
-      });
-      return {
-        ok: false,
-        error: `Working directory "${perCallCwd}" escapes the workspace`,
-      };
-    }
-    effectiveCwd = resolved;
-  } else {
-    effectiveCwd = resolveCwd(workspace, options);
-  }
-
-  try {
-    const start = performance.now();
-    const proc = new Deno.Command("/bin/sh", {
-      args: ["-c", command],
-      cwd: effectiveCwd,
-      stdout: "piped",
-      stderr: "piped",
-      env: buildSafeEnv({ workspaceHome: workspace.path }),
-      clearEnv: true,
-    });
-    const output = await proc.output();
-    const duration = performance.now() - start;
-
-    const decoder = new TextDecoder();
-    return {
-      ok: true,
-      value: {
-        stdout: decoder.decode(output.stdout),
-        stderr: decoder.decode(output.stderr),
-        exitCode: output.code,
-        duration,
-      },
-    };
-  } catch (err) {
-    return {
-      ok: false,
-      error: `Failed to run command: ${
         err instanceof Error ? err.message : String(err)
       }`,
     };

@@ -212,6 +212,7 @@ export function createOrchestratorFactory(
         config,
         sessionTaint: session.taint,
         sourceSessionId: session.id,
+        workspacePath: workspace.path,
       });
 
       const skillContextTracker = createSkillContextTracker();

@@ -18,6 +18,8 @@ export interface GitHubToolContext {
   readonly client: GitHubClient;
   readonly sessionTaint: ClassificationLevel;
   readonly sourceSessionId: SessionId;
+  /** Workspace root for resolving local paths in clone/pull operations. */
+  readonly workspacePath?: string;
 }
 
 // ─── Repo Parsing ────────────────────────────────────────────────────────────

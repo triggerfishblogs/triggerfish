@@ -80,10 +80,12 @@ export async function buildExternalServiceExecutors(
   state: MainSessionState,
   toolClassifications: Map<string, ClassificationLevel>,
   integrationClassifications: Map<string, ClassificationLevel>,
+  opts?: { readonly workspacePath?: string },
 ) {
   const { executor: githubExecutor, keychain } = await buildGitHubExecutor(
     config,
     state.session,
+    { workspacePath: opts?.workspacePath },
   );
   const caldavExecutor = await buildCalDavExecutor(
     config.caldav as CalDavConfig | undefined,
@@ -213,6 +215,7 @@ export async function buildIntegrationExecutors(
     state,
     toolInfra.toolClassifications,
     toolInfra.integrationClassifications,
+    { workspacePath: mainWorkspace.path },
   );
   const skillAndAgent = await buildSkillAndAgentExecutors(
     bootstrap,

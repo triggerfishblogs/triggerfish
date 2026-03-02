@@ -9,6 +9,7 @@
  * @module
  */
 
+import { join } from "@std/path";
 import type { GitHubToolContext } from "./tools_shared.ts";
 import {
   executeCloneRepo,
@@ -92,6 +93,23 @@ const TOOL_HANDLERS: Readonly<Record<string, ToolHandler>> = {
   github_search_issues: executeSearchIssues,
 };
 
+// ─── Path Resolution ─────────────────────────────────────────────────────────
+
+/** Tools whose `path` input refers to a local filesystem location. */
+const LOCAL_PATH_TOOLS = new Set(["github_clone_repo", "github_pull"]);
+
+/** Resolve local path inputs to absolute workspace paths for clone/pull tools. */
+function resolveLocalPathInput(
+  toolName: string,
+  input: Record<string, unknown>,
+  workspacePath: string,
+): Record<string, unknown> {
+  if (!LOCAL_PATH_TOOLS.has(toolName)) return input;
+  const path = input.path;
+  if (typeof path !== "string" || path.length === 0) return input;
+  return { ...input, path: join(workspacePath, path) };
+}
+
 // ─── Executor ────────────────────────────────────────────────────────────────
 
 /**
@@ -121,6 +139,10 @@ export function createGitHubToolExecutor(
       return null;
     }
 
-    return handler(ctx.client, input);
+    const resolvedInput = ctx.workspacePath
+      ? resolveLocalPathInput(name, input, ctx.workspacePath)
+      : input;
+
+    return handler(ctx.client, resolvedInput);
   };
 }
