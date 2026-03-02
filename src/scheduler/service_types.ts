@@ -12,6 +12,7 @@ import type { ClassificationLevel, Result } from "../core/types/classification.t
 import type { UserId } from "../core/types/session.ts";
 import type { Orchestrator } from "../core/types/orchestrator.ts";
 import type { SessionState } from "../core/types/session.ts";
+import type { ToolExecutor } from "../core/types/tool.ts";
 import type { NotificationService } from "../core/types/notification.ts";
 import type { CronManager } from "./cron/parser.ts";
 import type { WebhookHandler } from "./webhooks/webhooks.ts";
@@ -41,10 +42,11 @@ export interface OrchestratorCreateOptions {
  * and orchestrator for each call.
  */
 export interface OrchestratorFactory {
-  /** Create a new orchestrator and session for a scheduled task. */
+  /** Create a new orchestrator, session, and tool executor for a scheduled task. */
   create(channelId: string, options?: OrchestratorCreateOptions): Promise<{
     readonly orchestrator: Orchestrator;
     readonly session: SessionState;
+    readonly toolExecutor: ToolExecutor;
   }>;
 }
 

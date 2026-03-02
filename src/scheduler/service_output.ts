@@ -93,7 +93,7 @@ export async function deliverSchedulerOutput(options: DeliverOutputOptions): Pro
     return;
   }
   const outputOpts: SourcedOutputOptions = { config, source, text, classification: sessionTaint };
-  if (text.trim() === "NO_ACTION") {
+  if (text.trim().startsWith("NO_ACTION")) {
     log.debug(`[${source}] LLM returned NO_ACTION — nothing to report`);
     await persistTriggerResult(outputOpts);
     return;

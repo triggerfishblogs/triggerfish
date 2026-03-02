@@ -30,6 +30,7 @@ export type {
 export {
   canOutput,
   createSession,
+  OWNER_MEMORY_AGENT_ID,
   resetSession,
   updateTaint,
 } from "./session.ts";

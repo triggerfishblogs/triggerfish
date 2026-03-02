@@ -14,6 +14,14 @@ import { createLogger } from "../logger/logger.ts";
 
 const log = createLogger("session");
 
+/**
+ * Stable memory namespace for the owner's agent.
+ *
+ * Trigger sessions share this namespace so they can read/write
+ * the same memories as the main interactive session.
+ */
+export const OWNER_MEMORY_AGENT_ID = "main-session";
+
 /** Branded type for session identifiers. */
 export type SessionId = string & { readonly __brand: unique symbol };
 

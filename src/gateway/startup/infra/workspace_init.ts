@@ -12,6 +12,9 @@ import type { ClassificationLevel } from "../../../core/types/classification.ts"
 import { createWorkspace } from "../../../exec/workspace.ts";
 import { createPathClassifier } from "../../../core/security/path_classification.ts";
 import { createSqliteStorage } from "../../../core/storage/sqlite.ts";
+import {
+  OWNER_MEMORY_AGENT_ID,
+} from "../../../core/types/session.ts";
 import type { createSession } from "../../../core/types/session.ts";
 import {
   createFts5SearchProvider,
@@ -25,7 +28,7 @@ export async function initializeMainWorkspace(
 ) {
   const spinePath = join(baseDir, "SPINE.md");
   const mainWorkspace = await createWorkspace({
-    agentId: "main-session",
+    agentId: OWNER_MEMORY_AGENT_ID,
     basePath: join(baseDir, "workspaces"),
   });
   try {
@@ -73,7 +76,7 @@ export async function initializeMemorySystem(
   const memoryExecutor = createMemoryToolExecutor({
     store: memoryStore,
     searchProvider: memorySearchProvider,
-    agentId: "main-session",
+    agentId: OWNER_MEMORY_AGENT_ID,
     sessionTaint: session.taint,
     sourceSessionId: session.id,
   });
