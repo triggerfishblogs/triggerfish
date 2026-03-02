@@ -217,7 +217,7 @@ export default defineConfig({
     footer: {
       message:
         'Released under the Apache 2.0 License. | <a href="/privacy-policy">Privacy Policy</a> | <a href="/cookie-policy">Cookie Policy</a> | <a href="/terms-of-service">Terms of Service</a>',
-      copyright: "Copyright 2026 Triggerfish Contributors",
+      copyright: "Copyright 2026 Triggerfish, Inc.",
     },
 
     search: {
