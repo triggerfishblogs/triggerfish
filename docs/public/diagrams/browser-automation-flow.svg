@@ -1,92 +1,359 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" font-family="system-ui, sans-serif">
-  <rect width="960" height="400" fill="#ffffff" rx="0"/>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 960 400"
+  width="960"
+  height="400"
+  font-family="system-ui, sans-serif"
+>
+  <rect width="960" height="400" fill="#ffffff" rx="0" />
 
   <defs>
-    <marker id="ba-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-      <path d="M0,0 L8,3 L0,6 Z" fill="#374151"/>
+    <marker
+      id="ba-arrow"
+      markerWidth="8"
+      markerHeight="6"
+      refX="8"
+      refY="3"
+      orient="auto"
+    >
+      <path d="M0,0 L8,3 L0,6 Z" fill="#374151" />
     </marker>
-    <marker id="ba-arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-      <path d="M0,0 L8,3 L0,6 Z" fill="#16a34a"/>
+    <marker
+      id="ba-arrow-green"
+      markerWidth="8"
+      markerHeight="6"
+      refX="8"
+      refY="3"
+      orient="auto"
+    >
+      <path d="M0,0 L8,3 L0,6 Z" fill="#16a34a" />
     </marker>
   </defs>
 
   <!-- Title -->
-  <text x="480" y="36" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e40af">Browser Automation — Policy-Enforced Pipeline</text>
+  <text
+    x="480"
+    y="36"
+    text-anchor="middle"
+    font-size="16"
+    font-weight="bold"
+    fill="#1e40af"
+  >Browser Automation — Policy-Enforced Pipeline</text>
 
   <!-- Agent box -->
-  <rect x="30" y="80" width="120" height="70" rx="8" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
-  <text x="90" y="112" text-anchor="middle" font-size="14" font-weight="600" fill="#ffffff">Agent</text>
-  <text x="90" y="130" text-anchor="middle" font-size="11" fill="#bfdbfe">LLM</text>
+  <rect
+    x="30"
+    y="80"
+    width="120"
+    height="70"
+    rx="8"
+    fill="#2563eb"
+    stroke="#1e40af"
+    stroke-width="1.5"
+  />
+  <text
+    x="90"
+    y="112"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="600"
+    fill="#ffffff"
+  >Agent</text>
+  <text x="90" y="130" text-anchor="middle" font-size="11" fill="#bfdbfe"
+  >LLM</text>
 
   <!-- Arrow 1 -->
-  <line x1="150" y1="115" x2="195" y2="115" stroke="#374151" stroke-width="1.5" marker-end="url(#ba-arrow)"/>
+  <line
+    x1="150"
+    y1="115"
+    x2="195"
+    y2="115"
+    stroke="#374151"
+    stroke-width="1.5"
+    marker-end="url(#ba-arrow)"
+  />
 
   <!-- Browser Tool box -->
-  <rect x="200" y="80" width="130" height="70" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
-  <text x="265" y="107" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">Browser Tool</text>
-  <text x="265" y="125" text-anchor="middle" font-size="11" fill="#6b7280">navigate, click,</text>
-  <text x="265" y="139" text-anchor="middle" font-size="11" fill="#6b7280">extract, screenshot</text>
+  <rect
+    x="200"
+    y="80"
+    width="130"
+    height="70"
+    rx="8"
+    fill="#eff6ff"
+    stroke="#2563eb"
+    stroke-width="1.5"
+  />
+  <text
+    x="265"
+    y="107"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#1e40af"
+  >Browser Tool</text>
+  <text x="265" y="125" text-anchor="middle" font-size="11" fill="#6b7280"
+  >navigate, click,</text>
+  <text x="265" y="139" text-anchor="middle" font-size="11" fill="#6b7280"
+  >extract, screenshot</text>
 
   <!-- Arrow 2 -->
-  <line x1="330" y1="115" x2="375" y2="115" stroke="#374151" stroke-width="1.5" marker-end="url(#ba-arrow)"/>
+  <line
+    x1="330"
+    y1="115"
+    x2="375"
+    y2="115"
+    stroke="#374151"
+    stroke-width="1.5"
+    marker-end="url(#ba-arrow)"
+  />
 
   <!-- Policy Layer (highlighted) -->
-  <rect x="380" y="55" width="250" height="230" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="2.5"/>
-  <rect x="380" y="55" width="250" height="36" rx="8" fill="#dc2626"/>
-  <rect x="380" y="73" width="250" height="18" fill="#dc2626"/>
-  <text x="505" y="80" text-anchor="middle" font-size="14" font-weight="bold" fill="#ffffff">Policy Layer</text>
+  <rect
+    x="380"
+    y="55"
+    width="250"
+    height="230"
+    rx="8"
+    fill="#fef2f2"
+    stroke="#dc2626"
+    stroke-width="2.5"
+  />
+  <rect x="380" y="55" width="250" height="36" rx="8" fill="#dc2626" />
+  <rect x="380" y="73" width="250" height="18" fill="#dc2626" />
+  <text
+    x="505"
+    y="80"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="bold"
+    fill="#ffffff"
+  >Policy Layer</text>
 
   <!-- Policy items -->
   <g font-size="12">
-    <rect x="398" y="102" width="214" height="28" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="1"/>
-    <text x="410" y="121" font-weight="500" fill="#374151">SSRF prevention (IP denylist)</text>
+    <rect
+      x="398"
+      y="102"
+      width="214"
+      height="28"
+      rx="6"
+      fill="#ffffff"
+      stroke="#fca5a5"
+      stroke-width="1"
+    />
+    <text x="410" y="121" font-weight="500" fill="#374151"
+    >SSRF prevention (IP denylist)</text>
 
-    <rect x="398" y="137" width="214" height="28" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="1"/>
-    <text x="410" y="156" font-weight="500" fill="#374151">URL allow/deny list</text>
+    <rect
+      x="398"
+      y="137"
+      width="214"
+      height="28"
+      rx="6"
+      fill="#ffffff"
+      stroke="#fca5a5"
+      stroke-width="1"
+    />
+    <text x="410" y="156" font-weight="500" fill="#374151"
+    >URL allow/deny list</text>
 
-    <rect x="398" y="172" width="214" height="28" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="1"/>
-    <text x="410" y="191" font-weight="500" fill="#374151">Domain classification</text>
+    <rect
+      x="398"
+      y="172"
+      width="214"
+      height="28"
+      rx="6"
+      fill="#ffffff"
+      stroke="#fca5a5"
+      stroke-width="1"
+    />
+    <text x="410" y="191" font-weight="500" fill="#374151"
+    >Domain classification</text>
 
-    <rect x="398" y="207" width="214" height="28" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="1"/>
+    <rect
+      x="398"
+      y="207"
+      width="214"
+      height="28"
+      rx="6"
+      fill="#ffffff"
+      stroke="#fca5a5"
+      stroke-width="1"
+    />
     <text x="410" y="226" font-weight="500" fill="#374151">Taint tracking</text>
 
-    <rect x="398" y="242" width="214" height="28" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="1"/>
+    <rect
+      x="398"
+      y="242"
+      width="214"
+      height="28"
+      rx="6"
+      fill="#ffffff"
+      stroke="#fca5a5"
+      stroke-width="1"
+    />
     <text x="410" y="261" font-weight="500" fill="#374151">Audit logging</text>
   </g>
 
   <!-- Arrow 3 (green = allowed) -->
-  <line x1="630" y1="115" x2="675" y2="115" stroke="#16a34a" stroke-width="1.5" marker-end="url(#ba-arrow-green)"/>
-  <text x="653" y="105" text-anchor="middle" font-size="10" fill="#16a34a" font-weight="500">allow</text>
+  <line
+    x1="630"
+    y1="115"
+    x2="675"
+    y2="115"
+    stroke="#16a34a"
+    stroke-width="1.5"
+    marker-end="url(#ba-arrow-green)"
+  />
+  <text
+    x="653"
+    y="105"
+    text-anchor="middle"
+    font-size="10"
+    fill="#16a34a"
+    font-weight="500"
+  >allow</text>
 
   <!-- CDP box -->
-  <rect x="680" y="80" width="80" height="70" rx="8" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1.5"/>
-  <text x="720" y="112" text-anchor="middle" font-size="13" font-weight="600" fill="#374151">CDP</text>
-  <text x="720" y="130" text-anchor="middle" font-size="11" fill="#6b7280">DevTools</text>
-  <text x="720" y="143" text-anchor="middle" font-size="11" fill="#6b7280">Protocol</text>
+  <rect
+    x="680"
+    y="80"
+    width="80"
+    height="70"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#9ca3af"
+    stroke-width="1.5"
+  />
+  <text
+    x="720"
+    y="112"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#374151"
+  >CDP</text>
+  <text x="720" y="130" text-anchor="middle" font-size="11" fill="#6b7280"
+  >DevTools</text>
+  <text x="720" y="143" text-anchor="middle" font-size="11" fill="#6b7280"
+  >Protocol</text>
 
   <!-- Arrow 4 -->
-  <line x1="760" y1="115" x2="805" y2="115" stroke="#374151" stroke-width="1.5" marker-end="url(#ba-arrow)"/>
+  <line
+    x1="760"
+    y1="115"
+    x2="805"
+    y2="115"
+    stroke="#374151"
+    stroke-width="1.5"
+    marker-end="url(#ba-arrow)"
+  />
 
   <!-- Chromium box -->
-  <rect x="810" y="72" width="130" height="86" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-  <text x="875" y="100" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">Managed</text>
-  <text x="875" y="118" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">Chromium</text>
-  <text x="875" y="142" text-anchor="middle" font-size="11" fill="#6b7280">Isolated profile</text>
+  <rect
+    x="810"
+    y="72"
+    width="130"
+    height="86"
+    rx="8"
+    fill="#eff6ff"
+    stroke="#2563eb"
+    stroke-width="2"
+  />
+  <text
+    x="875"
+    y="100"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#1e40af"
+  >Managed</text>
+  <text
+    x="875"
+    y="118"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#1e40af"
+  >Chromium</text>
+  <text x="875" y="142" text-anchor="middle" font-size="11" fill="#6b7280"
+  >Isolated profile</text>
 
   <!-- Deny path from policy -->
-  <line x1="505" y1="285" x2="505" y2="310" stroke="#dc2626" stroke-width="1.5" marker-end="url(#ba-arrow)"/>
-  <rect x="440" y="312" width="130" height="30" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
-  <text x="505" y="332" text-anchor="middle" font-size="12" font-weight="600" fill="#dc2626">BLOCKED</text>
+  <line
+    x1="505"
+    y1="285"
+    x2="505"
+    y2="310"
+    stroke="#dc2626"
+    stroke-width="1.5"
+    marker-end="url(#ba-arrow)"
+  />
+  <rect
+    x="440"
+    y="312"
+    width="130"
+    height="30"
+    rx="6"
+    fill="#fee2e2"
+    stroke="#dc2626"
+    stroke-width="1.5"
+  />
+  <text
+    x="505"
+    y="332"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="600"
+    fill="#dc2626"
+  >BLOCKED</text>
 
   <!-- Profile watermark note -->
-  <rect x="55" y="310" width="330" height="70" rx="8" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1"/>
-  <text x="220" y="332" text-anchor="middle" font-size="12" font-weight="600" fill="#374151">Profile Watermarking</text>
-  <text x="220" y="350" text-anchor="middle" font-size="11" fill="#6b7280">Highest classification tracked per profile.</text>
-  <text x="220" y="366" text-anchor="middle" font-size="11" fill="#6b7280">Lower sessions blocked from higher-watermarked profiles.</text>
+  <rect
+    x="55"
+    y="310"
+    width="330"
+    height="70"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1"
+  />
+  <text
+    x="220"
+    y="332"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="600"
+    fill="#374151"
+  >Profile Watermarking</text>
+  <text x="220" y="350" text-anchor="middle" font-size="11" fill="#6b7280"
+  >Highest classification tracked per profile.</text>
+  <text x="220" y="366" text-anchor="middle" font-size="11" fill="#6b7280"
+  >Lower sessions blocked from higher-watermarked profiles.</text>
 
   <!-- Isolation note -->
-  <rect x="620" y="310" width="310" height="70" rx="8" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1"/>
-  <text x="775" y="332" text-anchor="middle" font-size="12" font-weight="600" fill="#374151">Browser Isolation</text>
-  <text x="775" y="350" text-anchor="middle" font-size="11" fill="#6b7280">No shared cookies or localStorage.</text>
-  <text x="775" y="366" text-anchor="middle" font-size="11" fill="#6b7280">Each agent has a separate browser profile.</text>
+  <rect
+    x="620"
+    y="310"
+    width="310"
+    height="70"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1"
+  />
+  <text
+    x="775"
+    y="332"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="600"
+    fill="#374151"
+  >Browser Isolation</text>
+  <text x="775" y="350" text-anchor="middle" font-size="11" fill="#6b7280"
+  >No shared cookies or localStorage.</text>
+  <text x="775" y="366" text-anchor="middle" font-size="11" fill="#6b7280"
+  >Each agent has a separate browser profile.</text>
 </svg>

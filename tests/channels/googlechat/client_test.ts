@@ -14,7 +14,10 @@ import {
   parseGoogleChatEventData,
   sendGoogleChatMessage,
 } from "../../../src/channels/googlechat/client.ts";
-import type { GoogleChatConfig, GoogleChatEvent } from "../../../src/channels/googlechat/types.ts";
+import type {
+  GoogleChatConfig,
+  GoogleChatEvent,
+} from "../../../src/channels/googlechat/types.ts";
 
 // ─── Test helpers ───────────────────────────────────────────────────────────
 
@@ -31,8 +34,8 @@ function createMockFetchWithResponse(
     const url = typeof input === "string"
       ? input
       : input instanceof URL
-        ? input.toString()
-        : input.url;
+      ? input.toString()
+      : input.url;
     calls.push({ url, init: init ?? {} });
     return Promise.resolve(
       new Response(JSON.stringify(responseBody), {

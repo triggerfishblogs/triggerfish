@@ -12,11 +12,14 @@ network_domains: []
 
 # Building Triggerfish Skills
 
-A skill is a folder with a `SKILL.md` file that teaches the agent how to do something. Skills are how the agent learns new capabilities without writing plugins or custom code.
+A skill is a folder with a `SKILL.md` file that teaches the agent how to do
+something. Skills are how the agent learns new capabilities without writing
+plugins or custom code.
 
 ## Skill Structure
 
-A skill is a directory containing `SKILL.md` at its root. Optional supporting files can live alongside it:
+A skill is a directory containing `SKILL.md` at its root. Optional supporting
+files can live alongside it:
 
 ```
 morning-briefing/
@@ -29,7 +32,8 @@ The folder name should match the `name` field in the frontmatter.
 
 ## SKILL.md Format
 
-The file has two parts: YAML frontmatter (between `---` delimiters) and a markdown body.
+The file has two parts: YAML frontmatter (between `---` delimiters) and a
+markdown body.
 
 ### Frontmatter
 
@@ -51,32 +55,36 @@ network_domains:
 
 ### Frontmatter Fields
 
-| Field | Required | Description |
-|-------|:--------:|-------------|
-| `name` | Yes | Unique identifier. Lowercase with hyphens: `my-skill-name` |
-| `description` | Yes | What the skill does and when to activate it. 1-3 sentences. |
-| `classification_ceiling` | No | Maximum data sensitivity level. Default: `PUBLIC` |
-| `requires_tools` | No | Tools the skill needs (e.g., `browser`, `exec`, `read_file`) |
-| `network_domains` | No | External domains the skill accesses |
+| Field                    | Required | Description                                                  |
+| ------------------------ | :------: | ------------------------------------------------------------ |
+| `name`                   |   Yes    | Unique identifier. Lowercase with hyphens: `my-skill-name`   |
+| `description`            |   Yes    | What the skill does and when to activate it. 1-3 sentences.  |
+| `classification_ceiling` |    No    | Maximum data sensitivity level. Default: `PUBLIC`            |
+| `requires_tools`         |    No    | Tools the skill needs (e.g., `browser`, `exec`, `read_file`) |
+| `network_domains`        |    No    | External domains the skill accesses                          |
 
-The skill loader (`src/skills/loader.ts`) parses these exact fields. Unknown fields are silently ignored, so you can add `version`, `category`, `tags`, or `triggers` for documentation purposes.
+The skill loader (`src/skills/loader.ts`) parses these exact fields. Unknown
+fields are silently ignored, so you can add `version`, `category`, `tags`, or
+`triggers` for documentation purposes.
 
 ### Markdown Body
 
-The body after the closing `---` contains the instructions the agent reads. This is the actual "skill" -- the knowledge that teaches the agent what to do.
+The body after the closing `---` contains the instructions the agent reads. This
+is the actual "skill" -- the knowledge that teaches the agent what to do.
 
 ## Classification Ceiling
 
 Every skill declares the maximum data sensitivity it can handle:
 
-| Level | When to Use |
-|-------|-------------|
-| `PUBLIC` | Skill works only with publicly available data (web search, public APIs, open-source docs) |
-| `INTERNAL` | Skill works with internal project code, configs, documentation. Most development skills use this. |
-| `CONFIDENTIAL` | Skill handles user PII, private messages, API credentials, personal data |
-| `RESTRICTED` | Skill accesses highly sensitive data (encryption keys, security audit results, compliance data) |
+| Level          | When to Use                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------- |
+| `PUBLIC`       | Skill works only with publicly available data (web search, public APIs, open-source docs)         |
+| `INTERNAL`     | Skill works with internal project code, configs, documentation. Most development skills use this. |
+| `CONFIDENTIAL` | Skill handles user PII, private messages, API credentials, personal data                          |
+| `RESTRICTED`   | Skill accesses highly sensitive data (encryption keys, security audit results, compliance data)   |
 
-If omitted, defaults to `PUBLIC`. Choose the lowest level that covers what the skill actually does.
+If omitted, defaults to `PUBLIC`. Choose the lowest level that covers what the
+skill actually does.
 
 ## Three-Tier Skill Hierarchy
 
@@ -88,17 +96,22 @@ Priority:  Workspace (highest)  >  Managed  >  Bundled (lowest)
 
 ### Bundled Skills
 
-Ship with Triggerfish. Located in `skills/bundled/`. Cannot be modified by the agent. Always available.
+Ship with Triggerfish. Located in `skills/bundled/`. Cannot be modified by the
+agent. Always available.
 
 ### Managed Skills
 
-Installed from The Reef marketplace. Downloaded to `~/.triggerfish/skills/`. Updated via `triggerfish skill update`.
+Installed from The Reef marketplace. Downloaded to `~/.triggerfish/skills/`.
+Updated via `triggerfish skill update`.
 
 ### Workspace Skills
 
-Created by the user or authored by the agent. Located in the agent's workspace: `~/.triggerfish/workspace/<agent-id>/skills/`.
+Created by the user or authored by the agent. Located in the agent's workspace:
+`~/.triggerfish/workspace/<agent-id>/skills/`.
 
-**Priority matters**: If a workspace skill has the same `name` as a bundled skill, the workspace version wins. This lets agents customize or replace any skill.
+**Priority matters**: If a workspace skill has the same `name` as a bundled
+skill, the workspace version wins. This lets agents customize or replace any
+skill.
 
 ## Self-Authoring Workflow
 
@@ -110,8 +123,8 @@ The agent can create new skills using the `SkillAuthor` API:
 import { createSkillAuthor } from "../skills/mod.ts";
 
 const author = createSkillAuthor({
-  skillsDir: workspace.skillsPath,  // e.g., ~/.triggerfish/workspace/agent-1/skills
-  userCeiling: "CONFIDENTIAL",      // max classification the user allows
+  skillsDir: workspace.skillsPath, // e.g., ~/.triggerfish/workspace/agent-1/skills
+  userCeiling: "CONFIDENTIAL", // max classification the user allows
 });
 ```
 
@@ -135,9 +148,11 @@ if (result.ok) {
 
 ### Step 3: Owner approval
 
-The skill starts in `PENDING_APPROVAL` status. It cannot be used until the owner reviews and approves it. The agent cannot self-approve.
+The skill starts in `PENDING_APPROVAL` status. It cannot be used until the owner
+reviews and approves it. The agent cannot self-approve.
 
 Approval statuses:
+
 - `PENDING_APPROVAL` -- Created, waiting for review
 - `APPROVED` -- Owner approved, skill is active
 - `REJECTED` -- Owner rejected, skill is inactive
@@ -145,12 +160,14 @@ Approval statuses:
 ### Constraints enforced by the author
 
 - Classification ceiling cannot exceed the user's configured ceiling
-- If you request `RESTRICTED` but the user ceiling is `CONFIDENTIAL`, creation fails with an error Result
+- If you request `RESTRICTED` but the user ceiling is `CONFIDENTIAL`, creation
+  fails with an error Result
 - Skills directory is created automatically if it doesn't exist
 
 ## Security Scanning
 
-Before activation, skills are scanned for malicious patterns. The scanner (`src/skills/scanner.ts`) checks for:
+Before activation, skills are scanned for malicious patterns. The scanner
+(`src/skills/scanner.ts`) checks for:
 
 1. "ignore all previous instructions" -- prompt injection
 2. "system prompt override" -- identity hijacking
@@ -161,20 +178,26 @@ Before activation, skills are scanned for malicious patterns. The scanner (`src/
 7. "bypass security/policy/classification" -- security circumvention
 8. "sudo/admin/god mode" -- privilege escalation
 
-A clean scan returns `{ ok: true, warnings: [] }`. Flagged content returns warnings that the owner must review.
+A clean scan returns `{ ok: true, warnings: [] }`. Flagged content returns
+warnings that the owner must review.
 
 ## Tool and Network Gating
 
 Skills declare what they need, but the policy engine enforces it:
 
-- `requires_tools: [browser]` -- The skill needs the browser tool. If browser access is blocked by policy, the skill cannot use it regardless of what it declares.
-- `network_domains: [api.example.com]` -- The skill declares it will access this domain. If the domain is not in the allow list, the request is blocked.
+- `requires_tools: [browser]` -- The skill needs the browser tool. If browser
+  access is blocked by policy, the skill cannot use it regardless of what it
+  declares.
+- `network_domains: [api.example.com]` -- The skill declares it will access this
+  domain. If the domain is not in the allow list, the request is blocked.
 
-Declarations are honest advertisements of intent. Policy enforcement is the actual gate.
+Declarations are honest advertisements of intent. Policy enforcement is the
+actual gate.
 
 ## Trigger-Aware Skills
 
-Skills can be wired to automatic triggers. Add trigger information to the frontmatter (not parsed by the current loader, but used by the scheduler):
+Skills can be wired to automatic triggers. Add trigger information to the
+frontmatter (not parsed by the current loader, but used by the scheduler):
 
 ```yaml
 ---
@@ -189,10 +212,13 @@ triggers:
 ```
 
 Trigger types:
-- **Cron**: Periodic execution on a schedule (uses standard cron syntax)
-- **Event**: Reactive execution when something happens (new message, webhook, etc.)
 
-The scheduler reads trigger definitions and wakes the agent at the appropriate time.
+- **Cron**: Periodic execution on a schedule (uses standard cron syntax)
+- **Event**: Reactive execution when something happens (new message, webhook,
+  etc.)
+
+The scheduler reads trigger definitions and wakes the agent at the appropriate
+time.
 
 ## Writing Effective Skill Instructions
 
@@ -230,24 +256,22 @@ Compile a concise daily summary of calendar events, unread emails, and weather.
 
 ### Use code examples
 
-```markdown
+````markdown
 ## API Call Pattern
 
-\```typescript
-const events = await fetch("https://www.googleapis.com/calendar/v3/...", {
-  headers: { Authorization: `Bearer ${token}` },
-});
-\```
-```
+\```typescript const events = await
+fetch("https://www.googleapis.com/calendar/v3/...", { headers: { Authorization:
+`Bearer ${token}` }, }); \```
+````
 
 ### Include tables for quick reference
 
 ```markdown
-| Source | API Endpoint | Data Needed |
-|--------|-------------|-------------|
-| Calendar | googleapis.com/calendar/v3 | Today's events |
-| Email | gmail API | Unread from last 12h |
-| Weather | openweathermap.org | Forecast for location |
+| Source   | API Endpoint               | Data Needed           |
+| -------- | -------------------------- | --------------------- |
+| Calendar | googleapis.com/calendar/v3 | Today's events        |
+| Email    | gmail API                  | Unread from last 12h  |
+| Weather  | openweathermap.org         | Forecast for location |
 ```
 
 ### Add a "Common Mistakes" section
@@ -264,7 +288,8 @@ const events = await fetch("https://www.googleapis.com/calendar/v3/...", {
 
 **1. Create the skill directory:**
 
-The agent creates `~/.triggerfish/workspace/agent-1/skills/github-triage/SKILL.md`
+The agent creates
+`~/.triggerfish/workspace/agent-1/skills/github-triage/SKILL.md`
 
 **2. Write the SKILL.md:**
 

@@ -41,14 +41,12 @@ export function getReleaseNotesToolDefinitions(): readonly ToolDefinition[] {
   return [
     {
       name: "release_notes",
-      description:
-        "Fetch Triggerfish release notes between two versions. " +
+      description: "Fetch Triggerfish release notes between two versions. " +
         "Returns formatted release notes for summarization or display.",
       parameters: {
         from_version: {
           type: "string",
-          description:
-            "Start version (exclusive), e.g. 'v0.2.16' or '0.2.16'",
+          description: "Start version (exclusive), e.g. 'v0.2.16' or '0.2.16'",
           required: true,
         },
         to_version: {
@@ -85,7 +83,9 @@ function formatReleaseNotesMarkdown(range: ReleaseNoteRange): string {
     const title = release.name !== release.tag
       ? `${release.tag}: ${release.name}`
       : release.tag;
-    sections.push(`### ${title}${date}\n\n${release.body.trim() || "_No release notes._"}`);
+    sections.push(
+      `### ${title}${date}\n\n${release.body.trim() || "_No release notes._"}`,
+    );
   }
   return sections.join("\n\n---\n\n");
 }

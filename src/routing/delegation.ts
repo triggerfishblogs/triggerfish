@@ -9,10 +9,7 @@
 
 import type { Result } from "../core/types/classification.ts";
 import type { StorageProvider } from "../core/storage/provider.ts";
-import type {
-  DelegationChain,
-  DelegationService,
-} from "./delegation_types.ts";
+import type { DelegationChain, DelegationService } from "./delegation_types.ts";
 import {
   generateDelegationKeypair,
   signDelegationCertificate,

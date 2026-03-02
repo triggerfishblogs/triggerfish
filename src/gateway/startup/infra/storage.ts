@@ -16,9 +16,7 @@ import { createEnhancedSessionManager } from "../../sessions.ts";
 import { createNotificationService } from "../../notifications/notifications.ts";
 import { createTriggerStore } from "../../../scheduler/triggers/store.ts";
 import { createProviderRegistry } from "../../../agent/llm.ts";
-import {
-  loadProvidersFromConfig,
-} from "../../../agent/providers/config.ts";
+import { loadProvidersFromConfig } from "../../../agent/providers/config.ts";
 import type { ModelsConfig } from "../../../agent/providers/config.ts";
 import { createPolicyEngine } from "../../../core/policy/engine.ts";
 import {

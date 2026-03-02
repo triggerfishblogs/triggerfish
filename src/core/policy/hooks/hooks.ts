@@ -12,8 +12,8 @@
 
 export type {
   HookContext,
-  HookLogger,
   HookLogEntry,
+  HookLogger,
   HookResult,
   HookRunner,
   HookRunnerOptions,

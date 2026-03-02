@@ -59,7 +59,8 @@ export function createCloudflaredService(
       if (!result.success) {
         return {
           ok: false,
-          error: `cloudflared tunnel failed (code ${result.code}): ${result.stderr}`,
+          error:
+            `cloudflared tunnel failed (code ${result.code}): ${result.stderr}`,
         };
       }
 
@@ -80,7 +81,8 @@ export function createCloudflaredService(
       if (!result.success && result.code !== 1) {
         return {
           ok: false,
-          error: `pkill cloudflared failed (code ${result.code}): ${result.stderr}`,
+          error:
+            `pkill cloudflared failed (code ${result.code}): ${result.stderr}`,
         };
       }
       return { ok: true, value: undefined };

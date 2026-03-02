@@ -1,558 +1,649 @@
 <script>
-(function() {
-  var messages = document.getElementById("messages");
-  var input = document.getElementById("input");
-  var sendBtn = document.getElementById("send");
-  var dot = document.getElementById("dot");
-  var providerInfo = document.getElementById("provider-info");
+  (function () {
+    var messages = document.getElementById("messages");
+    var input = document.getElementById("input");
+    var sendBtn = document.getElementById("send");
+    var dot = document.getElementById("dot");
+    var providerInfo = document.getElementById("provider-info");
 
-  var pasteIndicator = document.getElementById("paste-indicator");
-  var pasteText = document.getElementById("paste-text");
-  var pasteDismiss = document.getElementById("paste-dismiss");
-  var taintBadge = document.getElementById("taint-badge");
-  var inputBar = document.getElementById("input-bar");
+    var pasteIndicator = document.getElementById("paste-indicator");
+    var pasteText = document.getElementById("paste-text");
+    var pasteDismiss = document.getElementById("paste-dismiss");
+    var taintBadge = document.getElementById("taint-badge");
+    var inputBar = document.getElementById("input-bar");
 
-  var TAINT_COLORS = { PUBLIC: "var(--green)", INTERNAL: "var(--yellow)", CONFIDENTIAL: "var(--orange)", RESTRICTED: "var(--red)" };
-  var currentTaint = "PUBLIC";
-
-  function updateTaint(level) {
-    currentTaint = level;
-    taintBadge.textContent = level;
-    taintBadge.className = "taint-badge " + level.toLowerCase();
-    inputBar.style.borderTopColor = TAINT_COLORS[level] || "var(--border)";
-  }
-
-  var ws = null;
-  var processing = false;
-  var currentAssistantEl = null;
-  var currentAssistantText = "";
-  var reconnectDelay = 1000;
-  var pendingImages = [];
-
-  function connect() {
-    var proto = location.protocol === "https:" ? "wss:" : "ws:";
-    ws = new WebSocket(proto + "//" + location.host);
-    dot.className = "dot connecting";
-
-    ws.onopen = function() {
-      dot.className = "dot connected";
-      sendBtn.disabled = false;
-      reconnectDelay = 1000;
+    var TAINT_COLORS = {
+      PUBLIC: "var(--green)",
+      INTERNAL: "var(--yellow)",
+      CONFIDENTIAL: "var(--orange)",
+      RESTRICTED: "var(--red)",
     };
+    var currentTaint = "PUBLIC";
 
-    ws.onclose = function() {
-      dot.className = "dot disconnected";
-      sendBtn.disabled = true;
-      processing = false;
-      setTimeout(connect, reconnectDelay);
-      reconnectDelay = Math.min(reconnectDelay * 2, 30000);
-    };
-
-    ws.onerror = function() {
-      dot.className = "dot disconnected";
-    };
-
-    ws.onmessage = function(e) {
-      try {
-        var evt = JSON.parse(e.data);
-        handleEvent(evt);
-      } catch(err) {
-        console.error("Parse error:", err);
-      }
-    };
-  }
-
-  function handleEvent(evt) {
-    switch(evt.type) {
-      case "connected":
-        providerInfo.textContent = evt.provider + ":" + evt.model;
-        if (evt.taint) updateTaint(evt.taint);
-        break;
-      case "taint_changed":
-        updateTaint(evt.level);
-        break;
-      case "llm_start":
-        if (!currentAssistantEl) {
-          currentAssistantEl = addMessage("assistant", "");
-          currentAssistantEl.classList.add("thinking", "taint-" + currentTaint.toLowerCase());
-          currentAssistantEl.innerHTML = '<span class="thinking-label"><span class="thinking-spinner"></span> Thinking\u2026</span>';
-          currentAssistantText = "";
-        }
-        break;
-      case "tool_call":
-        addTool(evt.name, evt.args);
-        break;
-      case "tool_result":
-        finishTool(evt.name, evt.result);
-        break;
-      case "response":
-        if (currentAssistantEl) {
-          currentAssistantEl.classList.remove("thinking");
-          // Update taint border to current level — escalation may have
-          // occurred mid-turn via tool results.
-          currentAssistantEl.className = currentAssistantEl.className.replace(/\btaint-\w+/g, "");
-          currentAssistantEl.classList.add("taint-" + currentTaint.toLowerCase());
-          currentAssistantText = evt.text;
-          currentAssistantEl.innerHTML = renderMarkdown(evt.text);
-        } else {
-          var fallbackEl = addMessage("assistant", evt.text);
-          fallbackEl.classList.add("taint-" + currentTaint.toLowerCase());
-        }
-        currentAssistantEl = null;
-        currentAssistantText = "";
-        todoListEl = null;
-        processing = false;
-        sendBtn.textContent = "Send";
-        sendBtn.disabled = false;
-        input.focus();
-        break;
-      case "vision_start":
-        if (!currentAssistantEl) {
-          currentAssistantEl = addMessage("assistant", "");
-          currentAssistantText = "";
-        }
-        currentAssistantEl.classList.add("thinking");
-        currentAssistantEl.innerHTML = '<span class="thinking-label"><span class="thinking-spinner"></span> Analyzing ' +
-          (evt.imageCount === 1 ? 'image' : evt.imageCount + ' images') + '\u2026</span>';
-        break;
-      case "vision_complete":
-        break;
-      case "cancelled":
-        if (currentAssistantEl) currentAssistantEl.classList.remove("thinking");
-        currentAssistantEl = null;
-        currentAssistantText = "";
-        todoListEl = null;
-        processing = false;
-        sendBtn.textContent = "Send";
-        sendBtn.disabled = false;
-        input.focus();
-        break;
-      case "error":
-        if (currentAssistantEl) currentAssistantEl.classList.remove("thinking");
-        addMessage("error", evt.message);
-        currentAssistantEl = null;
-        currentAssistantText = "";
-        todoListEl = null;
-        processing = false;
-        sendBtn.textContent = "Send";
-        sendBtn.disabled = false;
-        input.focus();
-        break;
-
-      // Canvas events — insert render label in chat + delegate to canvas module
-      case "canvas_render_component":
-      case "canvas_render_html":
-      case "canvas_render_file":
-        addRenderLabel(evt);
-        if (window.tidepoolCanvas) {
-          window.tidepoolCanvas.render(evt);
-          window.tidepoolCanvas.show();
-        }
-        break;
-      case "canvas_update":
-        if (window.tidepoolCanvas) {
-          window.tidepoolCanvas.renderUpdate(evt);
-        }
-        break;
-      case "canvas_clear":
-        if (window.tidepoolCanvas) {
-          window.tidepoolCanvas.clear();
-        }
-        break;
-
-      case "mcp_status": {
-        var mcpEl = document.getElementById("mcp-status");
-        if (!mcpEl) break;
-        var mcpConfigured = evt.configured;
-        var mcpConnected = evt.connected;
-        if (mcpConfigured === 0) { mcpEl.style.display = "none"; break; }
-        mcpEl.style.display = "";
-        mcpEl.textContent = "MCP " + mcpConnected + "/" + mcpConfigured;
-        mcpEl.className = "mcp-status " + (
-          mcpConnected === mcpConfigured ? "green" :
-          mcpConnected === 0 ? "red" : "yellow"
-        );
-        break;
-      }
-      case "secret_prompt":
-        handleSecretPrompt(evt.nonce, evt.name, evt.hint);
-        break;
-      case "credential_prompt":
-        handleCredentialPrompt(evt.nonce, evt.name, evt.hint);
-        break;
+    function updateTaint(level) {
+      currentTaint = level;
+      taintBadge.textContent = level;
+      taintBadge.className = "taint-badge " + level.toLowerCase();
+      inputBar.style.borderTopColor = TAINT_COLORS[level] ||
+        "var(--border)";
     }
-  }
 
-  function handleSecretPrompt(nonce, name, hint) {
-    var overlay = document.getElementById("secret-prompt-overlay");
-    var title = document.getElementById("secret-prompt-title");
-    var desc = document.getElementById("secret-prompt-hint");
-    var valueInput = document.getElementById("secret-prompt-value");
-    var submitBtn = document.getElementById("secret-prompt-submit");
-    var cancelBtn = document.getElementById("secret-prompt-cancel");
+    var ws = null;
+    var processing = false;
+    var currentAssistantEl = null;
+    var currentAssistantText = "";
+    var reconnectDelay = 1000;
+    var pendingImages = [];
 
-    if (!overlay || !title || !valueInput || !submitBtn || !cancelBtn) return;
+    function connect() {
+      var proto = location.protocol === "https:" ? "wss:" : "ws:";
+      ws = new WebSocket(proto + "//" + location.host);
+      dot.className = "dot connecting";
 
-    title.textContent = "Enter secret: " + name;
-    if (desc) desc.textContent = hint || "";
-    valueInput.value = "";
-    overlay.style.display = "flex";
-    setTimeout(function() { valueInput.focus(); }, 50);
+      ws.onopen = function () {
+        dot.className = "dot connected";
+        sendBtn.disabled = false;
+        reconnectDelay = 1000;
+      };
 
-    function cleanup() {
-      overlay.style.display = "none";
+      ws.onclose = function () {
+        dot.className = "dot disconnected";
+        sendBtn.disabled = true;
+        processing = false;
+        setTimeout(connect, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+      };
+
+      ws.onerror = function () {
+        dot.className = "dot disconnected";
+      };
+
+      ws.onmessage = function (e) {
+        try {
+          var evt = JSON.parse(e.data);
+          handleEvent(evt);
+        } catch (err) {
+          console.error("Parse error:", err);
+        }
+      };
+    }
+
+    function handleEvent(evt) {
+      switch (evt.type) {
+        case "connected":
+          providerInfo.textContent = evt.provider + ":" + evt.model;
+          if (evt.taint) updateTaint(evt.taint);
+          break;
+        case "taint_changed":
+          updateTaint(evt.level);
+          break;
+        case "llm_start":
+          if (!currentAssistantEl) {
+            currentAssistantEl = addMessage("assistant", "");
+            currentAssistantEl.classList.add(
+              "thinking",
+              "taint-" + currentTaint.toLowerCase(),
+            );
+            currentAssistantEl.innerHTML =
+              '<span class="thinking-label"><span class="thinking-spinner"></span> Thinking\u2026</span>';
+            currentAssistantText = "";
+          }
+          break;
+        case "tool_call":
+          addTool(evt.name, evt.args);
+          break;
+        case "tool_result":
+          finishTool(evt.name, evt.result);
+          break;
+        case "response":
+          if (currentAssistantEl) {
+            currentAssistantEl.classList.remove("thinking");
+            // Update taint border to current level — escalation may have
+            // occurred mid-turn via tool results.
+            currentAssistantEl.className = currentAssistantEl.className
+              .replace(/\btaint-\w+/g, "");
+            currentAssistantEl.classList.add(
+              "taint-" + currentTaint.toLowerCase(),
+            );
+            currentAssistantText = evt.text;
+            currentAssistantEl.innerHTML = renderMarkdown(evt.text);
+          } else {
+            var fallbackEl = addMessage("assistant", evt.text);
+            fallbackEl.classList.add("taint-" + currentTaint.toLowerCase());
+          }
+          currentAssistantEl = null;
+          currentAssistantText = "";
+          todoListEl = null;
+          processing = false;
+          sendBtn.textContent = "Send";
+          sendBtn.disabled = false;
+          input.focus();
+          break;
+        case "vision_start":
+          if (!currentAssistantEl) {
+            currentAssistantEl = addMessage("assistant", "");
+            currentAssistantText = "";
+          }
+          currentAssistantEl.classList.add("thinking");
+          currentAssistantEl.innerHTML =
+            '<span class="thinking-label"><span class="thinking-spinner"></span> Analyzing ' +
+            (evt.imageCount === 1 ? "image" : evt.imageCount + " images") +
+            "\u2026</span>";
+          break;
+        case "vision_complete":
+          break;
+        case "cancelled":
+          if (currentAssistantEl) {
+            currentAssistantEl.classList.remove("thinking");
+          }
+          currentAssistantEl = null;
+          currentAssistantText = "";
+          todoListEl = null;
+          processing = false;
+          sendBtn.textContent = "Send";
+          sendBtn.disabled = false;
+          input.focus();
+          break;
+        case "error":
+          if (currentAssistantEl) {
+            currentAssistantEl.classList.remove("thinking");
+          }
+          addMessage("error", evt.message);
+          currentAssistantEl = null;
+          currentAssistantText = "";
+          todoListEl = null;
+          processing = false;
+          sendBtn.textContent = "Send";
+          sendBtn.disabled = false;
+          input.focus();
+          break;
+
+        // Canvas events — insert render label in chat + delegate to canvas module
+        case "canvas_render_component":
+        case "canvas_render_html":
+        case "canvas_render_file":
+          addRenderLabel(evt);
+          if (window.tidepoolCanvas) {
+            window.tidepoolCanvas.render(evt);
+            window.tidepoolCanvas.show();
+          }
+          break;
+        case "canvas_update":
+          if (window.tidepoolCanvas) {
+            window.tidepoolCanvas.renderUpdate(evt);
+          }
+          break;
+        case "canvas_clear":
+          if (window.tidepoolCanvas) {
+            window.tidepoolCanvas.clear();
+          }
+          break;
+
+        case "mcp_status": {
+          var mcpEl = document.getElementById("mcp-status");
+          if (!mcpEl) break;
+          var mcpConfigured = evt.configured;
+          var mcpConnected = evt.connected;
+          if (mcpConfigured === 0) {
+            mcpEl.style.display = "none";
+            break;
+          }
+          mcpEl.style.display = "";
+          mcpEl.textContent = "MCP " + mcpConnected + "/" + mcpConfigured;
+          mcpEl.className = "mcp-status " + (
+            mcpConnected === mcpConfigured
+              ? "green"
+              : mcpConnected === 0
+              ? "red"
+              : "yellow"
+          );
+          break;
+        }
+        case "secret_prompt":
+          handleSecretPrompt(evt.nonce, evt.name, evt.hint);
+          break;
+        case "credential_prompt":
+          handleCredentialPrompt(evt.nonce, evt.name, evt.hint);
+          break;
+      }
+    }
+
+    function handleSecretPrompt(nonce, name, hint) {
+      var overlay = document.getElementById("secret-prompt-overlay");
+      var title = document.getElementById("secret-prompt-title");
+      var desc = document.getElementById("secret-prompt-hint");
+      var valueInput = document.getElementById("secret-prompt-value");
+      var submitBtn = document.getElementById("secret-prompt-submit");
+      var cancelBtn = document.getElementById("secret-prompt-cancel");
+
+      if (!overlay || !title || !valueInput || !submitBtn || !cancelBtn) {
+        return;
+      }
+
+      title.textContent = "Enter secret: " + name;
+      if (desc) desc.textContent = hint || "";
       valueInput.value = "";
-      submitBtn.removeEventListener("click", onSubmit);
-      cancelBtn.removeEventListener("click", onCancel);
-      valueInput.removeEventListener("keydown", onKeydown);
-    }
+      overlay.style.display = "flex";
+      setTimeout(function () {
+        valueInput.focus();
+      }, 50);
 
-    function onSubmit() {
-      var val = valueInput.value;
-      cleanup();
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "secret_prompt_response", nonce: nonce, value: val || null }));
+      function cleanup() {
+        overlay.style.display = "none";
+        valueInput.value = "";
+        submitBtn.removeEventListener("click", onSubmit);
+        cancelBtn.removeEventListener("click", onCancel);
+        valueInput.removeEventListener("keydown", onKeydown);
       }
-    }
 
-    function onCancel() {
-      cleanup();
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "secret_prompt_response", nonce: nonce, value: null }));
+      function onSubmit() {
+        var val = valueInput.value;
+        cleanup();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(
+            JSON.stringify({
+              type: "secret_prompt_response",
+              nonce: nonce,
+              value: val || null,
+            }),
+          );
+        }
       }
+
+      function onCancel() {
+        cleanup();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(
+            JSON.stringify({
+              type: "secret_prompt_response",
+              nonce: nonce,
+              value: null,
+            }),
+          );
+        }
+      }
+
+      function onKeydown(e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onSubmit();
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onCancel();
+        }
+      }
+
+      submitBtn.addEventListener("click", onSubmit);
+      cancelBtn.addEventListener("click", onCancel);
+      valueInput.addEventListener("keydown", onKeydown);
     }
 
-    function onKeydown(e) {
-      if (e.key === "Enter") { e.preventDefault(); onSubmit(); }
-      if (e.key === "Escape") { e.preventDefault(); onCancel(); }
-    }
+    function handleCredentialPrompt(nonce, name, hint) {
+      var overlay = document.getElementById("credential-prompt-overlay");
+      var title = document.getElementById("credential-prompt-title");
+      var desc = document.getElementById("credential-prompt-hint");
+      var usernameInput = document.getElementById(
+        "credential-prompt-username",
+      );
+      var passwordInput = document.getElementById(
+        "credential-prompt-password",
+      );
+      var submitBtn = document.getElementById("credential-prompt-submit");
+      var cancelBtn = document.getElementById("credential-prompt-cancel");
 
-    submitBtn.addEventListener("click", onSubmit);
-    cancelBtn.addEventListener("click", onCancel);
-    valueInput.addEventListener("keydown", onKeydown);
-  }
+      if (
+        !overlay || !title || !usernameInput || !passwordInput ||
+        !submitBtn || !cancelBtn
+      ) return;
 
-  function handleCredentialPrompt(nonce, name, hint) {
-    var overlay = document.getElementById("credential-prompt-overlay");
-    var title = document.getElementById("credential-prompt-title");
-    var desc = document.getElementById("credential-prompt-hint");
-    var usernameInput = document.getElementById("credential-prompt-username");
-    var passwordInput = document.getElementById("credential-prompt-password");
-    var submitBtn = document.getElementById("credential-prompt-submit");
-    var cancelBtn = document.getElementById("credential-prompt-cancel");
-
-    if (!overlay || !title || !usernameInput || !passwordInput || !submitBtn || !cancelBtn) return;
-
-    title.textContent = "Enter credentials: " + name;
-    if (desc) desc.textContent = hint || "";
-    usernameInput.value = "";
-    passwordInput.value = "";
-    overlay.style.display = "flex";
-    setTimeout(function() { usernameInput.focus(); }, 50);
-
-    function cleanup() {
-      overlay.style.display = "none";
+      title.textContent = "Enter credentials: " + name;
+      if (desc) desc.textContent = hint || "";
       usernameInput.value = "";
       passwordInput.value = "";
-      submitBtn.removeEventListener("click", onSubmit);
-      cancelBtn.removeEventListener("click", onCancel);
-      passwordInput.removeEventListener("keydown", onKeydown);
-      usernameInput.removeEventListener("keydown", onTabToPassword);
-    }
+      overlay.style.display = "flex";
+      setTimeout(function () {
+        usernameInput.focus();
+      }, 50);
 
-    function onSubmit() {
-      var user = usernameInput.value;
-      var pass = passwordInput.value;
-      cleanup();
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: "credential_prompt_response",
-          nonce: nonce,
-          username: user || null,
-          password: pass || null
-        }));
+      function cleanup() {
+        overlay.style.display = "none";
+        usernameInput.value = "";
+        passwordInput.value = "";
+        submitBtn.removeEventListener("click", onSubmit);
+        cancelBtn.removeEventListener("click", onCancel);
+        passwordInput.removeEventListener("keydown", onKeydown);
+        usernameInput.removeEventListener("keydown", onTabToPassword);
       }
-    }
 
-    function onCancel() {
-      cleanup();
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: "credential_prompt_response",
-          nonce: nonce,
-          username: null,
-          password: null
-        }));
-      }
-    }
-
-    function onKeydown(e) {
-      if (e.key === "Enter") { e.preventDefault(); onSubmit(); }
-      if (e.key === "Escape") { e.preventDefault(); onCancel(); }
-    }
-
-    function onTabToPassword(e) {
-      if (e.key === "Enter") { e.preventDefault(); passwordInput.focus(); }
-      if (e.key === "Escape") { e.preventDefault(); onCancel(); }
-    }
-
-    submitBtn.addEventListener("click", onSubmit);
-    cancelBtn.addEventListener("click", onCancel);
-    passwordInput.addEventListener("keydown", onKeydown);
-    usernameInput.addEventListener("keydown", onTabToPassword);
-  }
-
-  function addRenderLabel(evt) {
-    var el = document.createElement("div");
-    el.className = "render-label";
-    var icon = evt.type === "canvas_render_file" ? "\u{1F4C4}" : "\u{1F3A8}";
-    el.innerHTML = '<span class="render-icon">' + icon + '</span>'
-      + '<span class="render-text">' + escapeHtml(evt.label) + '</span>'
-      + '<span class="render-view" data-render-id="' + escapeHtml(evt.id) + '">View</span>';
-    var viewBtn = el.querySelector(".render-view");
-    viewBtn.addEventListener("click", function() {
-      if (window.tidepoolCanvas) {
-        window.tidepoolCanvas.showRenderId(evt.id);
-        window.tidepoolCanvas.show();
-      }
-    });
-    messages.appendChild(el);
-    messages.scrollTop = messages.scrollHeight;
-  }
-
-  function addMessage(role, text) {
-    var el = document.createElement("div");
-    el.className = "msg " + role;
-    el.innerHTML = renderMarkdown(text);
-    messages.appendChild(el);
-    messages.scrollTop = messages.scrollHeight;
-    return el;
-  }
-
-  var activeTools = {};
-  var pendingTodoArgs = null;
-  var todoListEl = null;
-
-  function isTodoTool(name) {
-    return name === "todo_read" || name === "todo_write";
-  }
-
-  function isWebTool(name) {
-    return name === "web_search" || name === "web_fetch";
-  }
-
-  var WEB_TOOL_NAMES = { web_search: "Web Search", web_fetch: "Fetch" };
-
-  function addTool(name, args) {
-    if (isTodoTool(name)) {
-      pendingTodoArgs = args;
-      return;
-    }
-    var el = document.createElement("div");
-
-    if (isWebTool(name)) {
-      el.className = "tool-web";
-      var displayName = WEB_TOOL_NAMES[name] || name;
-      var argStr = name === "web_search"
-        ? '("' + escapeHtml(String(args.query || "")).slice(0, 60) + '")'
-        : "(" + escapeHtml(String(args.url || "").slice(0, 60)) + ")";
-      el.innerHTML = '<span class="tool-icon">\u25cf</span>'
-        + '<span class="tool-name">' + escapeHtml(displayName) + '</span> '
-        + '<span class="tool-arg">' + argStr + '</span>'
-        + '<div class="tool-meta"><span class="spinner"></span> Loading\u2026</div>';
-    } else {
-      el.className = "tool";
-      var argValues = Object.keys(args || {}).map(function(k) { return args[k]; }).join(" ");
-      el.innerHTML = '<span class="spinner"></span> ' + escapeHtml(name) + " " + escapeHtml(argValues.slice(0, 60));
-    }
-
-    messages.appendChild(el);
-    messages.scrollTop = messages.scrollHeight;
-    activeTools[name] = el;
-  }
-
-  function finishTool(name, result) {
-    if (isTodoTool(name)) {
-      var todos = extractTodos(name, pendingTodoArgs, result);
-      pendingTodoArgs = null;
-      if (todos && todos.length > 0) {
-        renderTodoList(todos);
-      }
-      return;
-    }
-    if (activeTools[name]) {
-      if (isWebTool(name)) {
-        var metaEl = activeTools[name].querySelector(".tool-meta");
-        if (metaEl) {
-          if (name === "web_search") {
-            var count = (result.match(/^\d+\.\s/gm) || []).length;
-            metaEl.textContent = count > 0 ? count + " result" + (count !== 1 ? "s" : "") : "no results";
-          } else {
-            var kb = (new TextEncoder().encode(result).length / 1024).toFixed(1);
-            metaEl.textContent = "Received " + kb + "KB";
-          }
+      function onSubmit() {
+        var user = usernameInput.value;
+        var pass = passwordInput.value;
+        cleanup();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: "credential_prompt_response",
+            nonce: nonce,
+            username: user || null,
+            password: pass || null,
+          }));
         }
-        activeTools[name].className = "tool-web done";
+      }
+
+      function onCancel() {
+        cleanup();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: "credential_prompt_response",
+            nonce: nonce,
+            username: null,
+            password: null,
+          }));
+        }
+      }
+
+      function onKeydown(e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onSubmit();
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onCancel();
+        }
+      }
+
+      function onTabToPassword(e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          passwordInput.focus();
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onCancel();
+        }
+      }
+
+      submitBtn.addEventListener("click", onSubmit);
+      cancelBtn.addEventListener("click", onCancel);
+      passwordInput.addEventListener("keydown", onKeydown);
+      usernameInput.addEventListener("keydown", onTabToPassword);
+    }
+
+    function addRenderLabel(evt) {
+      var el = document.createElement("div");
+      el.className = "render-label";
+      var icon = evt.type === "canvas_render_file"
+        ? "\u{1F4C4}"
+        : "\u{1F3A8}";
+      el.innerHTML = '<span class="render-icon">' + icon + "</span>" +
+        '<span class="render-text">' + escapeHtml(evt.label) + "</span>" +
+        '<span class="render-view" data-render-id="' + escapeHtml(evt.id) +
+        '">View</span>';
+      var viewBtn = el.querySelector(".render-view");
+      viewBtn.addEventListener("click", function () {
+        if (window.tidepoolCanvas) {
+          window.tidepoolCanvas.showRenderId(evt.id);
+          window.tidepoolCanvas.show();
+        }
+      });
+      messages.appendChild(el);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function addMessage(role, text) {
+      var el = document.createElement("div");
+      el.className = "msg " + role;
+      el.innerHTML = renderMarkdown(text);
+      messages.appendChild(el);
+      messages.scrollTop = messages.scrollHeight;
+      return el;
+    }
+
+    var activeTools = {};
+    var pendingTodoArgs = null;
+    var todoListEl = null;
+
+    function isTodoTool(name) {
+      return name === "todo_read" || name === "todo_write";
+    }
+
+    function isWebTool(name) {
+      return name === "web_search" || name === "web_fetch";
+    }
+
+    var WEB_TOOL_NAMES = { web_search: "Web Search", web_fetch: "Fetch" };
+
+    function addTool(name, args) {
+      if (isTodoTool(name)) {
+        pendingTodoArgs = args;
+        return;
+      }
+      var el = document.createElement("div");
+
+      if (isWebTool(name)) {
+        el.className = "tool-web";
+        var displayName = WEB_TOOL_NAMES[name] || name;
+        var argStr = name === "web_search"
+          ? '("' + escapeHtml(String(args.query || "")).slice(0, 60) + '")'
+          : "(" + escapeHtml(String(args.url || "").slice(0, 60)) + ")";
+        el.innerHTML = '<span class="tool-icon">\u25cf</span>' +
+          '<span class="tool-name">' + escapeHtml(displayName) +
+          "</span> " +
+          '<span class="tool-arg">' + argStr + "</span>" +
+          '<div class="tool-meta"><span class="spinner"></span> Loading\u2026</div>';
       } else {
-        activeTools[name].className = "tool done";
+        el.className = "tool";
+        var argValues = Object.keys(args || {}).map(function (k) {
+          return args[k];
+        }).join(" ");
+        el.innerHTML = '<span class="spinner"></span> ' + escapeHtml(name) +
+          " " + escapeHtml(argValues.slice(0, 60));
       }
-      delete activeTools[name];
-    }
-  }
 
-  function extractTodos(name, args, result) {
-    if (result) {
-      try {
-        var parsed = JSON.parse(result);
-        if (parsed.todos && Array.isArray(parsed.todos)) return parsed.todos;
-      } catch(e) { /* ignore */ }
+      messages.appendChild(el);
+      messages.scrollTop = messages.scrollHeight;
+      activeTools[name] = el;
     }
-    if (name === "todo_write" && args && Array.isArray(args.todos)) {
-      return args.todos;
-    }
-    return null;
-  }
 
-  function renderTodoList(todos) {
-    var html = '<div class="todo-header">\u{1F4CB} Tasks</div>';
-    for (var i = 0; i < todos.length; i++) {
-      var t = todos[i];
-      var content = escapeHtml(t.content || "");
-      if (t.status === "completed") {
-        html += '<div class="todo-item todo-done"><span class="todo-check">\u2713</span> <s>' + content + '</s></div>';
-      } else if (t.status === "in_progress") {
-        html += '<div class="todo-item todo-active"><span class="todo-arrow">\u25B6</span> ' + content + '</div>';
+    function finishTool(name, result) {
+      if (isTodoTool(name)) {
+        var todos = extractTodos(name, pendingTodoArgs, result);
+        pendingTodoArgs = null;
+        if (todos && todos.length > 0) {
+          renderTodoList(todos);
+        }
+        return;
+      }
+      if (activeTools[name]) {
+        if (isWebTool(name)) {
+          var metaEl = activeTools[name].querySelector(".tool-meta");
+          if (metaEl) {
+            if (name === "web_search") {
+              var count = (result.match(/^\d+\.\s/gm) || []).length;
+              metaEl.textContent = count > 0
+                ? count + " result" + (count !== 1 ? "s" : "")
+                : "no results";
+            } else {
+              var kb = (new TextEncoder().encode(result).length / 1024)
+                .toFixed(1);
+              metaEl.textContent = "Received " + kb + "KB";
+            }
+          }
+          activeTools[name].className = "tool-web done";
+        } else {
+          activeTools[name].className = "tool done";
+        }
+        delete activeTools[name];
+      }
+    }
+
+    function extractTodos(name, args, result) {
+      if (result) {
+        try {
+          var parsed = JSON.parse(result);
+          if (parsed.todos && Array.isArray(parsed.todos)) {
+            return parsed.todos;
+          }
+        } catch (e) { /* ignore */ }
+      }
+      if (name === "todo_write" && args && Array.isArray(args.todos)) {
+        return args.todos;
+      }
+      return null;
+    }
+
+    function renderTodoList(todos) {
+      var html = '<div class="todo-header">\u{1F4CB} Tasks</div>';
+      for (var i = 0; i < todos.length; i++) {
+        var t = todos[i];
+        var content = escapeHtml(t.content || "");
+        if (t.status === "completed") {
+          html +=
+            '<div class="todo-item todo-done"><span class="todo-check">\u2713</span> <s>' +
+            content + "</s></div>";
+        } else if (t.status === "in_progress") {
+          html +=
+            '<div class="todo-item todo-active"><span class="todo-arrow">\u25B6</span> ' +
+            content + "</div>";
+        } else {
+          html +=
+            '<div class="todo-item todo-pending"><span class="todo-circle">\u25CB</span> ' +
+            content + "</div>";
+        }
+      }
+      if (todoListEl) {
+        todoListEl.innerHTML = html;
       } else {
-        html += '<div class="todo-item todo-pending"><span class="todo-circle">\u25CB</span> ' + content + '</div>';
+        todoListEl = document.createElement("div");
+        todoListEl.className = "todo-list";
+        todoListEl.innerHTML = html;
+        messages.appendChild(todoListEl);
       }
+      messages.scrollTop = messages.scrollHeight;
     }
-    if (todoListEl) {
-      todoListEl.innerHTML = html;
-    } else {
-      todoListEl = document.createElement("div");
-      todoListEl.className = "todo-list";
-      todoListEl.innerHTML = html;
-      messages.appendChild(todoListEl);
+
+    function renderMarkdown(text) {
+      if (!text) return "";
+      var cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
+      cleaned = cleaned.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "");
+      cleaned = cleaned.replace(/<think(?:ing)?>[\s\S]*$/gi, "");
+      cleaned = cleaned.replace(/^[\s\S]*?<\/think(?:ing)?>/gi, "");
+      cleaned = cleaned.trim();
+      var html = escapeHtml(cleaned);
+      html = html.replace(
+        /```(\w*)?\n([\s\S]*?)```/g,
+        "<pre><code>$2</code></pre>",
+      );
+      html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+      html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      html = html.replace(/\n/g, "<br>");
+      return html;
     }
-    messages.scrollTop = messages.scrollHeight;
-  }
 
-  function renderMarkdown(text) {
-    if (!text) return "";
-    var cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
-    cleaned = cleaned.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "");
-    cleaned = cleaned.replace(/<think(?:ing)?>[\s\S]*$/gi, "");
-    cleaned = cleaned.replace(/^[\s\S]*?<\/think(?:ing)?>/gi, "");
-    cleaned = cleaned.trim();
-    var html = escapeHtml(cleaned);
-    html = html.replace(/```(\w*)?\n([\s\S]*?)```/g, "<pre><code>$2</code></pre>");
-    html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
-    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    html = html.replace(/\n/g, "<br>");
-    return html;
-  }
+    function escapeHtml(s) {
+      var d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
 
-  function escapeHtml(s) {
-    var d = document.createElement("div");
-    d.textContent = s;
-    return d.innerHTML;
-  }
-
-  function sendMessage() {
-    var text = input.value.trim();
-    if (!text || !ws || ws.readyState !== WebSocket.OPEN || processing) return;
-
-    // Client-side slash commands
-    if (text === "/clear") {
-      ws.send(JSON.stringify({ type: "clear" }));
-      messages.innerHTML = "";
-      currentAssistantEl = null;
-      currentAssistantText = "";
-      todoListEl = null;
-      activeTools = {};
-      updateTaint("PUBLIC");
-      if (window.tidepoolCanvas) {
-        window.tidepoolCanvas.clear();
-        window.tidepoolCanvas.hide();
+    function sendMessage() {
+      var text = input.value.trim();
+      if (!text || !ws || ws.readyState !== WebSocket.OPEN || processing) {
+        return;
       }
+
+      // Client-side slash commands
+      if (text === "/clear") {
+        ws.send(JSON.stringify({ type: "clear" }));
+        messages.innerHTML = "";
+        currentAssistantEl = null;
+        currentAssistantText = "";
+        todoListEl = null;
+        activeTools = {};
+        updateTaint("PUBLIC");
+        if (window.tidepoolCanvas) {
+          window.tidepoolCanvas.clear();
+          window.tidepoolCanvas.hide();
+        }
+        input.value = "";
+        input.style.height = "auto";
+        return;
+      }
+
+      var userEl = addMessage("user", text);
+      userEl.classList.add("taint-" + currentTaint.toLowerCase());
+      var content;
+      if (pendingImages.length > 0) {
+        content = pendingImages.concat([{ type: "text", text: text }]);
+        pendingImages = [];
+        pasteIndicator.className = "";
+      } else {
+        content = text;
+      }
+      ws.send(JSON.stringify({ type: "message", content: content }));
       input.value = "";
       input.style.height = "auto";
-      return;
+      processing = true;
+      sendBtn.textContent = "Stop";
+      sendBtn.disabled = false;
     }
 
-    var userEl = addMessage("user", text);
-    userEl.classList.add("taint-" + currentTaint.toLowerCase());
-    var content;
-    if (pendingImages.length > 0) {
-      content = pendingImages.concat([{ type: "text", text: text }]);
+    sendBtn.addEventListener("click", function () {
+      if (processing) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "cancel" }));
+        }
+        return;
+      }
+      sendMessage();
+    });
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    input.addEventListener("input", function () {
+      this.style.height = "auto";
+      this.style.height = Math.min(this.scrollHeight, 120) + "px";
+    });
+
+    input.addEventListener("paste", function (e) {
+      var items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          e.preventDefault();
+          var blob = items[i].getAsFile();
+          var reader = new FileReader();
+          reader.onload = function (ev) {
+            var dataUrl = ev.target.result;
+            var parts = dataUrl.split(",");
+            var mimeMatch = parts[0].match(/:(.*?);/);
+            var mime = mimeMatch ? mimeMatch[1] : "image/png";
+            var base64 = parts[1];
+            pendingImages.push({
+              type: "image",
+              source: { type: "base64", media_type: mime, data: base64 },
+            });
+            var count = pendingImages.length;
+            pasteText.textContent = count === 1
+              ? "Image pasted \u2014 will send with next message"
+              : count + " images pasted \u2014 will send with next message";
+            pasteIndicator.className = "visible";
+          };
+          reader.readAsDataURL(blob);
+          break;
+        }
+      }
+    });
+
+    pasteDismiss.addEventListener("click", function () {
       pendingImages = [];
       pasteIndicator.className = "";
-    } else {
-      content = text;
-    }
-    ws.send(JSON.stringify({ type: "message", content: content }));
-    input.value = "";
-    input.style.height = "auto";
-    processing = true;
-    sendBtn.textContent = "Stop";
-    sendBtn.disabled = false;
-  }
+    });
 
-  sendBtn.addEventListener("click", function() {
-    if (processing) {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "cancel" }));
-      }
-      return;
-    }
-    sendMessage();
-  });
-  input.addEventListener("keydown", function(e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-  input.addEventListener("input", function() {
-    this.style.height = "auto";
-    this.style.height = Math.min(this.scrollHeight, 120) + "px";
-  });
-
-  input.addEventListener("paste", function(e) {
-    var items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    for (var i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf("image") !== -1) {
-        e.preventDefault();
-        var blob = items[i].getAsFile();
-        var reader = new FileReader();
-        reader.onload = function(ev) {
-          var dataUrl = ev.target.result;
-          var parts = dataUrl.split(",");
-          var mimeMatch = parts[0].match(/:(.*?);/);
-          var mime = mimeMatch ? mimeMatch[1] : "image/png";
-          var base64 = parts[1];
-          pendingImages.push({
-            type: "image",
-            source: { type: "base64", media_type: mime, data: base64 }
-          });
-          var count = pendingImages.length;
-          pasteText.textContent = count === 1
-            ? "Image pasted \u2014 will send with next message"
-            : count + " images pasted \u2014 will send with next message";
-          pasteIndicator.className = "visible";
-        };
-        reader.readAsDataURL(blob);
-        break;
-      }
-    }
-  });
-
-  pasteDismiss.addEventListener("click", function() {
-    pendingImages = [];
-    pasteIndicator.className = "";
-  });
-
-  connect();
-})();
+    connect();
+  })();
 </script>

@@ -6,9 +6,9 @@
  */
 import { assertEquals } from "@std/assert";
 import {
-  filterToolsForActiveSkill,
-  checkSkillNetworkDomain,
   checkSkillClassificationCeiling,
+  checkSkillNetworkDomain,
+  filterToolsForActiveSkill,
 } from "../../../src/tools/skills/enforcer.ts";
 import type { Skill } from "../../../src/tools/skills/loader.ts";
 import type { ToolDefinition } from "../../../src/core/types/tool.ts";
@@ -117,19 +117,28 @@ Deno.test("checkSkillNetworkDomain: blocks undeclared subdomain", () => {
 
 Deno.test("checkSkillClassificationCeiling: allows equal taint (PUBLIC session -> PUBLIC ceiling)", () => {
   const skill = makeTestSkill({ classificationCeiling: "PUBLIC" });
-  const result = checkSkillClassificationCeiling("PUBLIC" as ClassificationLevel, skill);
+  const result = checkSkillClassificationCeiling(
+    "PUBLIC" as ClassificationLevel,
+    skill,
+  );
   assertEquals(result, null);
 });
 
 Deno.test("checkSkillClassificationCeiling: allows lower taint (PUBLIC session -> INTERNAL ceiling)", () => {
   const skill = makeTestSkill({ classificationCeiling: "INTERNAL" });
-  const result = checkSkillClassificationCeiling("PUBLIC" as ClassificationLevel, skill);
+  const result = checkSkillClassificationCeiling(
+    "PUBLIC" as ClassificationLevel,
+    skill,
+  );
   assertEquals(result, null);
 });
 
 Deno.test("checkSkillClassificationCeiling: blocks higher taint (CONFIDENTIAL session -> PUBLIC ceiling)", () => {
   const skill = makeTestSkill({ classificationCeiling: "PUBLIC" });
-  const result = checkSkillClassificationCeiling("CONFIDENTIAL" as ClassificationLevel, skill);
+  const result = checkSkillClassificationCeiling(
+    "CONFIDENTIAL" as ClassificationLevel,
+    skill,
+  );
   assertEquals(typeof result, "string");
   assertEquals(result!.includes("CONFIDENTIAL"), true);
   assertEquals(result!.includes("PUBLIC"), true);
@@ -137,7 +146,10 @@ Deno.test("checkSkillClassificationCeiling: blocks higher taint (CONFIDENTIAL se
 
 Deno.test("checkSkillClassificationCeiling: blocks RESTRICTED session -> INTERNAL ceiling", () => {
   const skill = makeTestSkill({ classificationCeiling: "INTERNAL" });
-  const result = checkSkillClassificationCeiling("RESTRICTED" as ClassificationLevel, skill);
+  const result = checkSkillClassificationCeiling(
+    "RESTRICTED" as ClassificationLevel,
+    skill,
+  );
   assertEquals(typeof result, "string");
   assertEquals(result!.includes("write-down"), true);
 });

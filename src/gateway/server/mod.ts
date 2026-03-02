@@ -5,7 +5,11 @@
  */
 
 export { createGatewayServer } from "./server.ts";
-export type { GatewayServer, GatewayServerOptions, GatewayAddr } from "./server.ts";
+export type {
+  GatewayAddr,
+  GatewayServer,
+  GatewayServerOptions,
+} from "./server.ts";
 
 export {
   dispatchJsonRpc,

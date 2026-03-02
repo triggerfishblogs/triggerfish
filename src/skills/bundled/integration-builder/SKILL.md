@@ -25,7 +25,8 @@ Triggerfish has six integration patterns. All share the same principles:
 
 ## Pattern 1: Channel Adapter
 
-A channel adapter connects Triggerfish to a messaging platform (Telegram, Slack, Discord, WhatsApp, Email, WebChat, CLI).
+A channel adapter connects Triggerfish to a messaging platform (Telegram, Slack,
+Discord, WhatsApp, Email, WebChat, CLI).
 
 ### Interface
 
@@ -73,7 +74,8 @@ export interface MatrixConfig {
 
 ```typescript
 export function createMatrixChannel(config: MatrixConfig): ChannelAdapter {
-  const classification = (config.classification ?? "INTERNAL") as ClassificationLevel;
+  const classification =
+    (config.classification ?? "INTERNAL") as ClassificationLevel;
   let connected = false;
   let handler: MessageHandler | null = null;
 
@@ -109,10 +111,14 @@ export function createMatrixChannel(config: MatrixConfig): ChannelAdapter {
 
 **3. Key implementation details:**
 
-- **Session ID derivation**: Create from platform-specific identifiers: `matrix-${roomId}`
-- **Owner detection**: Check per-message, not just at connect time. Compare sender ID to `config.ownerId`
-- **Message chunking**: Platforms have message length limits. Split long messages. Reference `chunkMessage()` in `src/channels/telegram/adapter.ts`
-- **Classification**: Non-owner messages should set `sessionTaint: "PUBLIC"` to prevent taint escalation from untrusted senders
+- **Session ID derivation**: Create from platform-specific identifiers:
+  `matrix-${roomId}`
+- **Owner detection**: Check per-message, not just at connect time. Compare
+  sender ID to `config.ownerId`
+- **Message chunking**: Platforms have message length limits. Split long
+  messages. Reference `chunkMessage()` in `src/channels/telegram/adapter.ts`
+- **Classification**: Non-owner messages should set `sessionTaint: "PUBLIC"` to
+  prevent taint escalation from untrusted senders
 
 ### Registration
 
@@ -139,7 +145,8 @@ tests/channels/matrix_test.ts
 
 ## Pattern 2: LLM Provider
 
-An LLM provider connects to an AI model API (Anthropic, OpenAI, Google, Local/Ollama, OpenRouter).
+An LLM provider connects to an AI model API (Anthropic, OpenAI, Google,
+Local/Ollama, OpenRouter).
 
 ### Interface
 
@@ -205,9 +212,11 @@ export function createMistralProvider(config: MistralConfig = {}): LlmProvider {
       const c = getClient();
 
       // Normalize messages to Mistral format
-      const mistralMessages = messages.map(m => ({
+      const mistralMessages = messages.map((m) => ({
         role: m.role,
-        content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+        content: typeof m.content === "string"
+          ? m.content
+          : JSON.stringify(m.content),
       }));
 
       const response = await c.chat({
@@ -230,9 +239,13 @@ export function createMistralProvider(config: MistralConfig = {}): LlmProvider {
 ```
 
 **Key details:**
-- **Deferred client creation**: Don't throw during registration. Resolve credentials on first `complete()` call
-- **Environment variable fallback**: `config.apiKey ?? Deno.env.get("MISTRAL_API_KEY")`
-- **Message normalization**: Each API has its own format. Normalize from `LlmMessage` on every call
+
+- **Deferred client creation**: Don't throw during registration. Resolve
+  credentials on first `complete()` call
+- **Environment variable fallback**:
+  `config.apiKey ?? Deno.env.get("MISTRAL_API_KEY")`
+- **Message normalization**: Each API has its own format. Normalize from
+  `LlmMessage` on every call
 - **Usage tracking**: Always return token counts for cost tracking
 
 ### Registration
@@ -255,7 +268,8 @@ tests/agent/providers_test.ts   # add test cases
 
 ## Pattern 3: MCP Server
 
-An MCP server exposes tools to the agent through the Model Context Protocol. The MCP Gateway enforces policy before tool calls reach the server.
+An MCP server exposes tools to the agent through the Model Context Protocol. The
+MCP Gateway enforces policy before tool calls reach the server.
 
 ### Interface
 
@@ -312,7 +326,9 @@ export function createDatabaseServer(
           } catch (err) {
             return {
               ok: false,
-              error: `Query failed: ${err instanceof Error ? err.message : String(err)}`,
+              error: `Query failed: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
             };
           }
         }
@@ -325,10 +341,16 @@ export function createDatabaseServer(
 ```
 
 **Key details:**
-- **Classification on every response**: The `McpServerToolResult` always carries a `classification` field. The gateway uses this to escalate session taint
-- **Input validation**: Validate all arguments. Return error Results, never throw
-- **Tool routing**: Use a `switch` on the tool name. Return error for unknown tools
-- **Path sandboxing**: If the server accesses the filesystem, use `resolve()` and check that paths don't escape the allowed directory (see `src/exec/tools.ts` for the pattern)
+
+- **Classification on every response**: The `McpServerToolResult` always carries
+  a `classification` field. The gateway uses this to escalate session taint
+- **Input validation**: Validate all arguments. Return error Results, never
+  throw
+- **Tool routing**: Use a `switch` on the tool name. Return error for unknown
+  tools
+- **Path sandboxing**: If the server accesses the filesystem, use `resolve()`
+  and check that paths don't escape the allowed directory (see
+  `src/exec/tools.ts` for the pattern)
 
 ### Gateway Registration
 
@@ -353,13 +375,15 @@ const result = await gateway.callTool({
 });
 ```
 
-The gateway fires `MCP_TOOL_CALL` hooks before executing, rejects UNTRUSTED/BLOCKED servers, and tracks lineage.
+The gateway fires `MCP_TOOL_CALL` hooks before executing, rejects
+UNTRUSTED/BLOCKED servers, and tracks lineage.
 
 ---
 
 ## Pattern 4: Storage Provider
 
-A storage provider is a key-value persistence interface. All Triggerfish state flows through it.
+A storage provider is a key-value persistence interface. All Triggerfish state
+flows through it.
 
 ### Interface
 
@@ -421,17 +445,24 @@ export function createRedisStorage(redisUrl: string): StorageProvider {
 ```
 
 **Key details:**
-- **String keys, string values**: Everything is serialized as strings. Complex data is JSON-stringified
-- **Key namespacing**: Keys are namespaced by convention: `sessions:sess_123`, `taint:sess_123`, `lineage:rec_456`
-- **Null for missing**: `get()` returns `null` when the key doesn't exist, not `undefined`
-- **Close releases resources**: Database handles, file descriptors, network connections
-- **Existing implementations**: `createMemoryStorage()` (tests) and `createSqliteStorage()` (production) in `src/core/storage/`
+
+- **String keys, string values**: Everything is serialized as strings. Complex
+  data is JSON-stringified
+- **Key namespacing**: Keys are namespaced by convention: `sessions:sess_123`,
+  `taint:sess_123`, `lineage:rec_456`
+- **Null for missing**: `get()` returns `null` when the key doesn't exist, not
+  `undefined`
+- **Close releases resources**: Database handles, file descriptors, network
+  connections
+- **Existing implementations**: `createMemoryStorage()` (tests) and
+  `createSqliteStorage()` (production) in `src/core/storage/`
 
 ---
 
 ## Pattern 5: Exec Tools
 
-Exec tools provide file I/O and command execution within the agent's isolated workspace.
+Exec tools provide file I/O and command execution within the agent's isolated
+workspace.
 
 ### Interface
 
@@ -469,7 +500,10 @@ interface FileEntry {
 Exec tools are created from a `Workspace`:
 
 ```typescript
-const workspace = await createWorkspace({ agentId: "agent-1", basePath: "~/.triggerfish/workspace" });
+const workspace = await createWorkspace({
+  agentId: "agent-1",
+  basePath: "~/.triggerfish/workspace",
+});
 const tools = createExecTools(workspace);
 
 const writeResult = await tools.write("hello.ts", 'console.log("hello");');
@@ -477,15 +511,21 @@ const runResult = await tools.run("deno run hello.ts");
 ```
 
 **Key details:**
-- **Path sandboxing**: All paths are resolved relative to the workspace root. Traversal attempts (`../../etc/passwd`) return error Results
-- **Workspace isolation**: Each agent gets its own workspace with `scratch/`, `integrations/`, and `skills/` subdirectories
-- **Commands run in workspace dir**: `run()` executes shell commands with `cwd` set to the workspace path
+
+- **Path sandboxing**: All paths are resolved relative to the workspace root.
+  Traversal attempts (`../../etc/passwd`) return error Results
+- **Workspace isolation**: Each agent gets its own workspace with `scratch/`,
+  `integrations/`, and `skills/` subdirectories
+- **Commands run in workspace dir**: `run()` executes shell commands with `cwd`
+  set to the workspace path
 
 ---
 
 ## Pattern 6: Plugin (TypeScript or Python)
 
-Plugins extend the agent with custom code that runs in a double sandbox (Deno + WASM). TypeScript plugins run directly in the Deno sandbox. Python plugins run in Pyodide (WASM Python) inside the Deno sandbox.
+Plugins extend the agent with custom code that runs in a double sandbox (Deno +
+WASM). TypeScript plugins run directly in the Deno sandbox. Python plugins run
+in Pyodide (WASM Python) inside the Deno sandbox.
 
 ### Interfaces
 
@@ -511,7 +551,7 @@ interface PluginSdk {
 
 interface EmitDataPayload {
   readonly content?: string;
-  readonly classification?: ClassificationLevel;  // REQUIRED
+  readonly classification?: ClassificationLevel; // REQUIRED
 }
 
 interface QueryResult {
@@ -523,7 +563,7 @@ interface QueryResult {
 ### How to Build a TypeScript Plugin
 
 ```typescript
-import type { PluginSdk, PluginResult } from "triggerfish/plugin";
+import type { PluginResult, PluginSdk } from "triggerfish/plugin";
 
 export async function execute(sdk: PluginSdk): Promise<PluginResult> {
   if (!await sdk.has_user_connection("acme-api")) {
@@ -569,12 +609,18 @@ async def execute(sdk):
 
 ### Key Details
 
-- **Double sandbox**: Plugin code cannot access the host filesystem, make undeclared network calls, or escape isolation
-- **Network allowlist**: Only endpoints declared in `declaredEndpoints` are reachable. All others are blocked at the fetch level
-- **Classification enforcement**: `emitData()` rejects data without a classification label and data that exceeds the plugin's ceiling
-- **Auto-taint**: `queryAsUser()` returns data tagged with the plugin's classification level. Session taint escalates automatically
-- **Python constraints**: No native C extensions (psycopg2, mysqlclient). Use HTTP-based database APIs instead. See the `mastering-python` skill for details
-- **Plugin lifecycle**: Created → UNTRUSTED → owner review → CLASSIFIED (active). Plugins cannot self-activate
+- **Double sandbox**: Plugin code cannot access the host filesystem, make
+  undeclared network calls, or escape isolation
+- **Network allowlist**: Only endpoints declared in `declaredEndpoints` are
+  reachable. All others are blocked at the fetch level
+- **Classification enforcement**: `emitData()` rejects data without a
+  classification label and data that exceeds the plugin's ceiling
+- **Auto-taint**: `queryAsUser()` returns data tagged with the plugin's
+  classification level. Session taint escalates automatically
+- **Python constraints**: No native C extensions (psycopg2, mysqlclient). Use
+  HTTP-based database APIs instead. See the `mastering-python` skill for details
+- **Plugin lifecycle**: Created → UNTRUSTED → owner review → CLASSIFIED
+  (active). Plugins cannot self-activate
 
 ### Sandbox Creation and Execution
 
@@ -618,33 +664,36 @@ All integrations that handle data flow interact with the hook system.
 
 ### Hook Types
 
-| Hook | When It Fires | Used By |
-|------|--------------|---------|
-| `PRE_CONTEXT_INJECTION` | Before user input enters the LLM context | Channel adapters (inbound messages) |
-| `PRE_TOOL_CALL` | Before a tool is called | Exec tools, generic tool calls |
-| `POST_TOOL_RESPONSE` | After a tool returns data | Tool result processing |
-| `PRE_OUTPUT` | Before the LLM response is sent to the user | Channel adapters (outbound messages) |
-| `MCP_TOOL_CALL` | Before an MCP server tool is called | MCP Gateway |
-| `SECRET_ACCESS` | When a secret/credential is accessed | Credential retrieval |
-| `SESSION_RESET` | When a session is reset | Session manager |
-| `AGENT_INVOCATION` | When a sub-agent is spawned | Orchestrator |
+| Hook                    | When It Fires                               | Used By                              |
+| ----------------------- | ------------------------------------------- | ------------------------------------ |
+| `PRE_CONTEXT_INJECTION` | Before user input enters the LLM context    | Channel adapters (inbound messages)  |
+| `PRE_TOOL_CALL`         | Before a tool is called                     | Exec tools, generic tool calls       |
+| `POST_TOOL_RESPONSE`    | After a tool returns data                   | Tool result processing               |
+| `PRE_OUTPUT`            | Before the LLM response is sent to the user | Channel adapters (outbound messages) |
+| `MCP_TOOL_CALL`         | Before an MCP server tool is called         | MCP Gateway                          |
+| `SECRET_ACCESS`         | When a secret/credential is accessed        | Credential retrieval                 |
+| `SESSION_RESET`         | When a session is reset                     | Session manager                      |
+| `AGENT_INVOCATION`      | When a sub-agent is spawned                 | Orchestrator                         |
 
 ### Policy Actions
 
 Hooks return one of:
 
-| Action | Effect |
-|--------|--------|
-| `ALLOW` | Operation proceeds normally |
-| `BLOCK` | Operation is rejected with a reason |
-| `REDACT` | Data is sanitized before proceeding |
+| Action             | Effect                              |
+| ------------------ | ----------------------------------- |
+| `ALLOW`            | Operation proceeds normally         |
+| `BLOCK`            | Operation is rejected with a reason |
+| `REDACT`           | Data is sanitized before proceeding |
 | `REQUIRE_APPROVAL` | Operation pauses for owner approval |
 
 ### Example: Hook integration in a channel adapter
 
 The router fires hooks on message flow:
-- Inbound: `PRE_CONTEXT_INJECTION` checks if the message classification is compatible with the session
-- Outbound: `PRE_OUTPUT` enforces the no-write-down rule (CONFIDENTIAL data cannot flow to a PUBLIC channel)
+
+- Inbound: `PRE_CONTEXT_INJECTION` checks if the message classification is
+  compatible with the session
+- Outbound: `PRE_OUTPUT` enforces the no-write-down rule (CONFIDENTIAL data
+  cannot flow to a PUBLIC channel)
 
 ---
 
@@ -652,15 +701,18 @@ The router fires hooks on message flow:
 
 Every integration must carry classification metadata:
 
-- **Channel adapters** have a `classification` property (the channel's sensitivity level)
+- **Channel adapters** have a `classification` property (the channel's
+  sensitivity level)
 - **MCP server results** include `classification` on every response
-- **Session taint** escalates automatically when classified data is accessed (taint only goes up, never down)
+- **Session taint** escalates automatically when classified data is accessed
+  (taint only goes up, never down)
 
 ```
 RESTRICTED (4) > CONFIDENTIAL (3) > INTERNAL (2) > PUBLIC (1)
 ```
 
-The no-write-down rule: `canFlowTo(source, target)` returns `true` only if `target >= source`.
+The no-write-down rule: `canFlowTo(source, target)` returns `true` only if
+`target >= source`.
 
 ---
 
@@ -703,7 +755,9 @@ function createMockAdapter(
     async disconnect() {},
     async send(_msg: ChannelMessage) {},
     onMessage(_handler: MessageHandler) {},
-    status() { return { connected: true, channelType }; },
+    status() {
+      return { connected: true, channelType };
+    },
   };
 }
 ```
@@ -742,7 +796,8 @@ Deno.test("MatrixAdapter: sends message to channel", async () => {
 });
 ```
 
-For integrations that write to disk, use `Deno.makeTempDir()` with try/finally cleanup.
+For integrations that write to disk, use `Deno.makeTempDir()` with try/finally
+cleanup.
 
 ---
 
@@ -751,14 +806,21 @@ For integrations that write to disk, use `Deno.makeTempDir()` with try/finally c
 Building a hypothetical Signal adapter from scratch:
 
 **1. Create files:**
+
 ```
 src/channels/signal/adapter.ts
 tests/channels/signal_test.ts
 ```
 
 **2. Define config interface** (`src/channels/signal/adapter.ts`):
+
 ```typescript
-import type { ChannelAdapter, ChannelMessage, ChannelStatus, MessageHandler } from "../types.ts";
+import type {
+  ChannelAdapter,
+  ChannelMessage,
+  ChannelStatus,
+  MessageHandler,
+} from "../types.ts";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 
 export interface SignalConfig {
@@ -770,9 +832,11 @@ export interface SignalConfig {
 ```
 
 **3. Write factory function:**
+
 ```typescript
 export function createSignalChannel(config: SignalConfig): ChannelAdapter {
-  const classification = (config.classification ?? "CONFIDENTIAL") as ClassificationLevel;
+  const classification =
+    (config.classification ?? "CONFIDENTIAL") as ClassificationLevel;
   let connected = false;
   let handler: MessageHandler | null = null;
 
@@ -808,6 +872,7 @@ export function createSignalChannel(config: SignalConfig): ChannelAdapter {
 ```
 
 **4. Write tests** (`tests/channels/signal_test.ts`):
+
 ```typescript
 import { assertEquals } from "jsr:@std/assert";
 import { createSignalChannel } from "../../src/channels/signal/adapter.ts";
@@ -834,16 +899,19 @@ Deno.test("SignalAdapter: respects custom classification", () => {
 ```
 
 **5. Add barrel export** (`src/channels/mod.ts`):
+
 ```typescript
 export { createSignalChannel } from "./signal/adapter.ts";
 ```
 
 **6. Run tests:**
+
 ```bash
 deno task test tests/channels/signal_test.ts
 ```
 
 **7. Register in the application:**
+
 ```typescript
 router.register("signal-main", createSignalChannel(signalConfig));
 ```

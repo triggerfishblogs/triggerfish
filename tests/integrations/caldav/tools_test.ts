@@ -8,9 +8,9 @@
  */
 import { assertEquals } from "@std/assert";
 import {
-  getCalDavToolDefinitions,
-  createCalDavToolExecutor,
   CALDAV_SYSTEM_PROMPT,
+  createCalDavToolExecutor,
+  getCalDavToolDefinitions,
 } from "../../../src/integrations/caldav/tools.ts";
 import type { CalDavToolContext } from "../../../src/integrations/caldav/types.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
@@ -26,7 +26,11 @@ Deno.test("getCalDavToolDefinitions: returns 7 tool definitions", () => {
 Deno.test("getCalDavToolDefinitions: all tools have caldav_ prefix", () => {
   const defs = getCalDavToolDefinitions();
   for (const def of defs) {
-    assertEquals(def.name.startsWith("caldav_"), true, `${def.name} missing caldav_ prefix`);
+    assertEquals(
+      def.name.startsWith("caldav_"),
+      true,
+      `${def.name} missing caldav_ prefix`,
+    );
   }
 });
 
@@ -34,7 +38,11 @@ Deno.test("getCalDavToolDefinitions: all tools have descriptions", () => {
   const defs = getCalDavToolDefinitions();
   for (const def of defs) {
     assertEquals(typeof def.description, "string");
-    assertEquals(def.description.length > 0, true, `${def.name} has empty description`);
+    assertEquals(
+      def.description.length > 0,
+      true,
+      `${def.name} has empty description`,
+    );
   }
 });
 
@@ -102,7 +110,9 @@ Deno.test("createCalDavToolExecutor: returns error when not configured", async (
 Deno.test("executor: caldav_events_list requires time_min", async () => {
   const ctx = createMockContext();
   const executor = createCalDavToolExecutor(ctx);
-  const result = await executor("caldav_events_list", { time_max: "2025-03-31" });
+  const result = await executor("caldav_events_list", {
+    time_max: "2025-03-31",
+  });
   assertEquals(result!.includes("Error"), true);
   assertEquals(result!.includes("time_min"), true);
 });
@@ -110,7 +120,9 @@ Deno.test("executor: caldav_events_list requires time_min", async () => {
 Deno.test("executor: caldav_events_list requires time_max", async () => {
   const ctx = createMockContext();
   const executor = createCalDavToolExecutor(ctx);
-  const result = await executor("caldav_events_list", { time_min: "2025-03-01" });
+  const result = await executor("caldav_events_list", {
+    time_min: "2025-03-01",
+  });
   assertEquals(result!.includes("Error"), true);
   assertEquals(result!.includes("time_max"), true);
 });

@@ -7,10 +7,7 @@
  * @module
  */
 
-import type {
-  ChatReplDeps,
-  TriggerPromptModeState,
-} from "./chat_ws_types.ts";
+import type { ChatReplDeps, TriggerPromptModeState } from "./chat_ws_types.ts";
 
 /**
  * Route a keypress while trigger-prompt mode is active.

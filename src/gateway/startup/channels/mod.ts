@@ -11,10 +11,13 @@ export { wireTelegramChannel } from "./channels_telegram.ts";
 export type { DiscordChannelConfig } from "./channels_discord.ts";
 export { wireDiscordChannel } from "./channels_discord.ts";
 export type {
-  WhatsAppChannelConfig,
   ValidatedWhatsAppConfig,
+  WhatsAppChannelConfig,
 } from "./channels_whatsapp.ts";
-export { wireWhatsAppChannel, isValidatedWhatsAppConfig } from "./channels_whatsapp.ts";
+export {
+  isValidatedWhatsAppConfig,
+  wireWhatsAppChannel,
+} from "./channels_whatsapp.ts";
 export type {
   SignalChannelConfig,
   SignalDaemonState,

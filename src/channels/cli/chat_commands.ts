@@ -83,7 +83,11 @@ function handleClearCommand(
   screen.cleanup();
   screen.init();
   screen.writeOutput(
-    formatBanner(state.providerName, config.models.primary.model, state.workspacePath),
+    formatBanner(
+      state.providerName,
+      config.models.primary.model,
+      state.workspacePath,
+    ),
   );
   screen.redrawInput(deps.getEditor());
   return { handled: true, shouldExit: false };

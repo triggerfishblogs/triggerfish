@@ -37,7 +37,10 @@ export interface JsonRpcResponse {
 // ─── JSON-RPC helpers ─────────────────────────────────────────────────────────
 
 /** Build a successful JSON-RPC 2.0 response. */
-export function rpcSuccess(id: number | string, result: unknown): JsonRpcResponse {
+export function rpcSuccess(
+  id: number | string,
+  result: unknown,
+): JsonRpcResponse {
   return { jsonrpc: "2.0", id, result };
 }
 
@@ -272,10 +275,20 @@ export async function dispatchJsonRpc(
   const params = request.params ?? {};
 
   try {
-    const sessionResult = await trySessionDispatch(method, params, sessions, id);
+    const sessionResult = await trySessionDispatch(
+      method,
+      params,
+      sessions,
+      id,
+    );
     if (sessionResult) return sessionResult;
 
-    const notifResult = await tryNotificationDispatch(method, params, notifications, id);
+    const notifResult = await tryNotificationDispatch(
+      method,
+      params,
+      notifications,
+      id,
+    );
     if (notifResult) return notifResult;
 
     return rpcError(id, -32601, `Method not found: ${method}`);

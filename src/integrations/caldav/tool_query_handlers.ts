@@ -7,25 +7,25 @@
  * @module
  */
 
-import type {
-  CalDavToolContext,
-  CalDavCalendar,
-} from "./types.ts";
-import { parseVEvent, parseVEvents, parseFreeBusy } from "./ical.ts";
+import type { CalDavCalendar, CalDavToolContext } from "./types.ts";
+import { parseFreeBusy, parseVEvent, parseVEvents } from "./ical.ts";
 import { listCalendars } from "./discovery.ts";
 import {
   buildCalendarQueryReport,
-  buildMultigetReport,
   buildFreeBusyReport,
-  formatEventSummary,
+  buildMultigetReport,
   formatEventDetail,
+  formatEventSummary,
 } from "./tool_reports.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("caldav:tools");
 
 /** Resolve the calendar URL from input or default. */
-export function resolveCalendarUrl(ctx: CalDavToolContext, input: Record<string, unknown>): string {
+export function resolveCalendarUrl(
+  ctx: CalDavToolContext,
+  input: Record<string, unknown>,
+): string {
   const calendarId = input.calendar_id;
   if (typeof calendarId === "string" && calendarId.length > 0) {
     return calendarId;
@@ -78,7 +78,9 @@ export async function executeEventsList(
   }
 
   const calendarUrl = resolveCalendarUrl(ctx, input);
-  const maxResults = typeof input.max_results === "number" ? input.max_results : 50;
+  const maxResults = typeof input.max_results === "number"
+    ? input.max_results
+    : 50;
 
   log.info("Executing caldav_events_list", {
     operation: "executeEventsList",
@@ -105,7 +107,11 @@ export async function executeEventsList(
 
 /** Collect parsed events from REPORT resources, up to maxResults. */
 function collectEvents(
-  resources: readonly { readonly href: string; readonly etag: string; readonly calendarData: string }[],
+  resources: readonly {
+    readonly href: string;
+    readonly etag: string;
+    readonly calendarData: string;
+  }[],
   maxResults: number,
   ctx: CalDavToolContext,
 ): Record<string, unknown>[] {

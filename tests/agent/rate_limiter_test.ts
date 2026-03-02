@@ -6,10 +6,15 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import {
-  createRateLimiter,
   createRateLimitedProvider,
+  createRateLimiter,
 } from "../../src/agent/rate_limiter/rate_limiter.ts";
-import type { LlmProvider, LlmMessage, LlmCompletionResult, LlmStreamChunk } from "../../src/agent/llm.ts";
+import type {
+  LlmCompletionResult,
+  LlmMessage,
+  LlmProvider,
+  LlmStreamChunk,
+} from "../../src/agent/llm.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -181,7 +186,11 @@ Deno.test("createRateLimitedProvider — provider without stream has no stream m
     name: "no-stream",
     supportsStreaming: false,
     complete(): Promise<LlmCompletionResult> {
-      return Promise.resolve({ content: "", toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } });
+      return Promise.resolve({
+        content: "",
+        toolCalls: [],
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
     },
   };
   const limiter = createRateLimiter({ tpm: 1000, rpm: 10 });
@@ -261,12 +270,28 @@ Deno.test("openai_limits — o1 free maps to tier1", async () => {
 
 Deno.test("openai_limits — all tier constants are readonly and non-zero", async () => {
   const {
-    GPT4O_TIER1, GPT4O_TIER2, GPT4O_TIER3, GPT4O_TIER4, GPT4O_TIER5,
-    GPT4O_MINI_TIER1, O1_TIER1, O3_MINI_TIER1,
+    GPT4O_TIER1,
+    GPT4O_TIER2,
+    GPT4O_TIER3,
+    GPT4O_TIER4,
+    GPT4O_TIER5,
+    GPT4O_MINI_TIER1,
+    O1_TIER1,
+    O3_MINI_TIER1,
   } = await import("../../src/agent/providers/openai_limits.ts");
 
-  for (const c of [GPT4O_TIER1, GPT4O_TIER2, GPT4O_TIER3, GPT4O_TIER4, GPT4O_TIER5,
-    GPT4O_MINI_TIER1, O1_TIER1, O3_MINI_TIER1]) {
+  for (
+    const c of [
+      GPT4O_TIER1,
+      GPT4O_TIER2,
+      GPT4O_TIER3,
+      GPT4O_TIER4,
+      GPT4O_TIER5,
+      GPT4O_MINI_TIER1,
+      O1_TIER1,
+      O3_MINI_TIER1,
+    ]
+  ) {
     assertEquals(typeof c.tpm, "number");
     assertEquals(typeof c.rpm, "number");
     assertEquals(typeof c.tpd, "number");

@@ -6,6 +6,7 @@
 
 export type {
   ClassificationMapConfig,
+  CompactResult,
   HistoryEntry,
   Orchestrator,
   OrchestratorConfig,
@@ -16,7 +17,6 @@ export type {
   ProcessMessageResult,
   ToolDefinition,
   ToolExecutor,
-  CompactResult,
 } from "./orchestrator_types.ts";
 
 export {
@@ -27,13 +27,10 @@ export {
   SOFT_LIMIT_ITERATIONS,
 } from "./orchestrator_types.ts";
 
-export type {
-  TokenAccumulator,
-  OrchestratorState,
-} from "./orchestrator.ts";
+export type { OrchestratorState, TokenAccumulator } from "./orchestrator.ts";
 
 export { createOrchestrator } from "./orchestrator.ts";
 
-export { readSpineFromDisk, buildFullSystemPrompt } from "./system_prompt.ts";
+export { buildFullSystemPrompt, readSpineFromDisk } from "./system_prompt.ts";
 
 export { processVisionFallback } from "./vision_fallback.ts";

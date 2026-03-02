@@ -14,7 +14,11 @@ function createMockFetch(
   handler: (url: string, init: RequestInit) => Response,
 ): typeof fetch {
   return ((url: string | URL | Request, init?: RequestInit) => {
-    const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+    const urlStr = typeof url === "string"
+      ? url
+      : url instanceof URL
+      ? url.toString()
+      : url.url;
     return Promise.resolve(handler(urlStr, init ?? {}));
   }) as typeof fetch;
 }
@@ -50,8 +54,12 @@ Deno.test("client: PUT sends iCal data with If-None-Match for create", async () 
     fetchFn: mockFetch,
   });
 
-  const icalData = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
-  const result = await client.put("/calendars/user/default/event.ics", icalData);
+  const icalData =
+    "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+  const result = await client.put(
+    "/calendars/user/default/event.ics",
+    icalData,
+  );
 
   assertEquals(capturedHeaders["Content-Type"], "text/calendar; charset=utf-8");
   assertEquals(capturedHeaders["If-None-Match"], "*");
@@ -152,7 +160,9 @@ Deno.test("client: DELETE handles error response", async () => {
     fetchFn: mockFetch,
   });
 
-  const result = await client.deleteResource("/calendars/user/default/missing.ics");
+  const result = await client.deleteResource(
+    "/calendars/user/default/missing.ics",
+  );
   assertEquals(result.ok, false);
   if (!result.ok) {
     assertEquals(result.error.status, 404);
@@ -166,7 +176,9 @@ Deno.test("client: resolves relative URLs against base", async () => {
 
   const mockFetch = createMockFetch((url) => {
     capturedUrl = url;
-    return multiStatusResponse("<d:multistatus xmlns:d='DAV:'></d:multistatus>");
+    return multiStatusResponse(
+      "<d:multistatus xmlns:d='DAV:'></d:multistatus>",
+    );
   });
 
   const client = createCalDavClient({
@@ -184,7 +196,9 @@ Deno.test("client: passes through absolute URLs", async () => {
 
   const mockFetch = createMockFetch((url) => {
     capturedUrl = url;
-    return multiStatusResponse("<d:multistatus xmlns:d='DAV:'></d:multistatus>");
+    return multiStatusResponse(
+      "<d:multistatus xmlns:d='DAV:'></d:multistatus>",
+    );
   });
 
   const client = createCalDavClient({

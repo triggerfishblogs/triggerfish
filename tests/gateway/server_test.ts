@@ -2,13 +2,13 @@
  * Phase 14: Gateway WebSocket, Session Manager & Notifications
  * Tests MUST FAIL until gateway server, enhanced sessions, and notifications are implemented.
  */
-import { assertEquals, assertExists, assert } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import { createGatewayServer } from "../../src/gateway/server/server.ts";
 import { createEnhancedSessionManager } from "../../src/gateway/sessions.ts";
 import { createNotificationService } from "../../src/gateway/notifications/notifications.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import { createSessionManager } from "../../src/core/session/manager.ts";
-import type { UserId, ChannelId } from "../../src/core/types/session.ts";
+import type { ChannelId, UserId } from "../../src/core/types/session.ts";
 
 // --- Gateway server ---
 
@@ -45,16 +45,29 @@ Deno.test("GatewayServer: POST /debug/run-triggers fires trigger when scheduler 
   const mockScheduler = {
     start() {},
     stop() {},
-    cronManager: { list: () => [], create: () => ({ ok: true as const, value: {} as never }), delete: () => ({ ok: true as const, value: undefined }), history: () => [], recordExecution: () => {} },
+    cronManager: {
+      list: () => [],
+      create: () => ({ ok: true as const, value: {} as never }),
+      delete: () => ({ ok: true as const, value: undefined }),
+      history: () => [],
+      recordExecution: () => {},
+    },
     webhookHandler: { on: () => {}, handle: async () => {} },
     // deno-lint-ignore require-await
-    async handleWebhookRequest() { return { ok: false as const, error: "unused" }; },
+    async handleWebhookRequest() {
+      return { ok: false as const, error: "unused" };
+    },
     // deno-lint-ignore require-await
-    async runTrigger() { runTriggerCalled = true; },
+    async runTrigger() {
+      runTriggerCalled = true;
+    },
   };
 
   // deno-lint-ignore no-explicit-any
-  const server = createGatewayServer({ port: 0, schedulerService: mockScheduler as any });
+  const server = createGatewayServer({
+    port: 0,
+    schedulerService: mockScheduler as any,
+  });
   try {
     const addr = await server.start();
     const response = await fetch(
@@ -87,7 +100,10 @@ Deno.test("EnhancedSessionManager: sessions_spawn creates background session wit
   const storage = createMemoryStorage();
   const baseMgr = await createSessionManager(storage);
   const mgr = createEnhancedSessionManager(baseMgr);
-  const parent = await mgr.create({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const parent = await mgr.create({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const spawned = await mgr.sessionsSpawn(parent.id, "background task");
   assertEquals(spawned.taint, "PUBLIC");
 });
@@ -96,11 +112,22 @@ Deno.test("EnhancedSessionManager: sessions_send blocks write-down", async () =>
   const storage = createMemoryStorage();
   const baseMgr = await createSessionManager(storage);
   const mgr = createEnhancedSessionManager(baseMgr);
-  const confidential = await mgr.create({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const confidential = await mgr.create({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   await mgr.updateTaint(confidential.id, "CONFIDENTIAL", "secret");
-  const publicSession = await mgr.create({ userId: "u" as UserId, channelId: "pub" as ChannelId });
+  const publicSession = await mgr.create({
+    userId: "u" as UserId,
+    channelId: "pub" as ChannelId,
+  });
   // CONFIDENTIAL -> PUBLIC session should be blocked
-  const result = await mgr.sessionsSend(confidential.id, publicSession.id, "secret data", "PUBLIC");
+  const result = await mgr.sessionsSend(
+    confidential.id,
+    publicSession.id,
+    "secret data",
+    "PUBLIC",
+  );
   assertEquals(result.ok, false);
 });
 
@@ -156,7 +183,9 @@ Deno.test("GatewayServer: JSON-RPC WebSocket rejects messages exceeding 1MB", as
   const addr = await server.start();
   try {
     const ws = new WebSocket(`ws://127.0.0.1:${addr.port}`);
-    await new Promise<void>((resolve) => ws.addEventListener("open", () => resolve()));
+    await new Promise<void>((resolve) =>
+      ws.addEventListener("open", () => resolve())
+    );
 
     ws.send(
       JSON.stringify({
@@ -199,7 +228,10 @@ Deno.test("GatewayServer: webhook rejects body exceeding 1MB", async () => {
   };
 
   // deno-lint-ignore no-explicit-any
-  const server = createGatewayServer({ port: 0, schedulerService: mockScheduler as any });
+  const server = createGatewayServer({
+    port: 0,
+    schedulerService: mockScheduler as any,
+  });
   const addr = await server.start();
   try {
     const response = await fetch(
@@ -225,8 +257,8 @@ Deno.test("GatewayServer: chat WebSocket rejects messages exceeding 256KB", asyn
     clear() {},
     async compact() {},
     handleSecretPromptResponse(_nonce: string, _value: string | null) {},
-    createTidepoolSecretPrompt: () =>
-      (_name: string) => Promise.resolve(null as string | null),
+    createTidepoolSecretPrompt: () => (_name: string) =>
+      Promise.resolve(null as string | null),
     async executeAgentTurn() {},
     async registerChannel() {},
     async handleChannelMessage() {},

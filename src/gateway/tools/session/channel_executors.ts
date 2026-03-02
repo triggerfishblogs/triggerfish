@@ -7,7 +7,10 @@
  * @module
  */
 
-import { canFlowTo, type ClassificationLevel } from "../../../core/types/classification.ts";
+import {
+  canFlowTo,
+  type ClassificationLevel,
+} from "../../../core/types/classification.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 
 import type { SessionToolContext } from "./session_tools_defs.ts";
@@ -109,7 +112,9 @@ async function executeMessage(
       text_length: text.length,
     });
   } catch (err) {
-    return `Error sending message: ${err instanceof Error ? err.message : String(err)}`;
+    return `Error sending message: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   }
 }
 

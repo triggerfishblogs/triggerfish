@@ -20,7 +20,11 @@ Deno.test("install.sh downloads from GitHub Releases (no git clone)", async () =
   const content = await Deno.readTextFile(INSTALL_SH_PATH);
   assertStringIncludes(content, "github.com");
   assertStringIncludes(content, "releases/download");
-  assertEquals(content.includes("git clone"), false, "Should not use git clone");
+  assertEquals(
+    content.includes("git clone"),
+    false,
+    "Should not use git clone",
+  );
 });
 
 Deno.test("install.sh verifies SHA256 checksum", async () => {
@@ -51,7 +55,11 @@ Deno.test("install.ps1 downloads from GitHub Releases (no git clone)", async () 
   const content = await Deno.readTextFile(INSTALL_PS1_PATH);
   assertStringIncludes(content, "github.com");
   assertStringIncludes(content, "releases");
-  assertEquals(content.includes("git clone"), false, "Should not use git clone");
+  assertEquals(
+    content.includes("git clone"),
+    false,
+    "Should not use git clone",
+  );
 });
 
 Deno.test("install.ps1 verifies checksum via Get-FileHash", async () => {

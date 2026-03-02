@@ -12,9 +12,7 @@ import type { ClassificationLevel } from "../../../core/types/classification.ts"
 import { createWorkspace } from "../../../exec/workspace.ts";
 import { createPathClassifier } from "../../../core/security/path_classification.ts";
 import { createSqliteStorage } from "../../../core/storage/sqlite.ts";
-import {
-  OWNER_MEMORY_AGENT_ID,
-} from "../../../core/types/session.ts";
+import { OWNER_MEMORY_AGENT_ID } from "../../../core/types/session.ts";
 import type { createSession } from "../../../core/types/session.ts";
 import {
   createFts5SearchProvider,
@@ -46,6 +44,7 @@ export function buildMainPathClassifier(
   fsPathMap: Map<string, ClassificationLevel>,
   fsDefault: ClassificationLevel,
   mainWorkspace: Awaited<ReturnType<typeof createWorkspace>>,
+  opts?: { readonly resolveCwd?: () => string },
 ) {
   return createPathClassifier(
     { paths: fsPathMap, defaultClassification: fsDefault },
@@ -56,6 +55,7 @@ export function buildMainPathClassifier(
       confidentialPath: mainWorkspace.confidentialPath,
       restrictedPath: mainWorkspace.restrictedPath,
     },
+    opts?.resolveCwd ? { resolveCwd: opts.resolveCwd } : undefined,
   );
 }
 

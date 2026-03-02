@@ -5,11 +5,7 @@
  * Tests the full pipeline: external data tagged with «» provenance delimiters
  * at write time → sanitized and stripped at read time by readLogsForLlm().
  */
-import {
-  assertEquals,
-  assertStringIncludes,
-  assert,
-} from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
 import { formatTaggedEntry } from "../../src/core/logger/sanitizer.ts";
 import { readLogsForLlm } from "../../src/tools/log_reader.ts";
@@ -41,7 +37,10 @@ Deno.test("E2E: formatTaggedEntry + readLogsForLlm round-trip strips injection",
     const result = await readLogsForLlm({ logDir });
 
     // Injection must be stripped
-    assert(result.injectionCount > 0, "should detect injection in external region");
+    assert(
+      result.injectionCount > 0,
+      "should detect injection in external region",
+    );
     assert(
       !result.content.includes("ignore all previous instructions"),
       "injection payload must be stripped",
@@ -93,8 +92,14 @@ Deno.test("E2E: audit.log exclusion — injected content in audit never leaks to
 
     const result = await readLogsForLlm({ logDir });
 
-    assert(!result.content.includes("sudo mode bypass attempt"), "audit content must not leak");
-    assert(!result.content.includes("[injection_attempt]"), "audit content must not leak");
+    assert(
+      !result.content.includes("sudo mode bypass attempt"),
+      "audit content must not leak",
+    );
+    assert(
+      !result.content.includes("[injection_attempt]"),
+      "audit content must not leak",
+    );
     assertStringIncludes(result.content, "server started");
   } finally {
     await Deno.remove(logDir, { recursive: true });
@@ -114,9 +119,18 @@ Deno.test("E2E: multiple injection patterns across lines — all stripped", asyn
 
     const result = await readLogsForLlm({ logDir });
 
-    assert(result.injectionCount >= 2, `expected >= 2 injections, got ${result.injectionCount}`);
-    assert(!result.content.includes("ignore all previous instructions"), "first injection stripped");
-    assert(!result.content.includes("bypass security controls"), "second injection stripped");
+    assert(
+      result.injectionCount >= 2,
+      `expected >= 2 injections, got ${result.injectionCount}`,
+    );
+    assert(
+      !result.content.includes("ignore all previous instructions"),
+      "first injection stripped",
+    );
+    assert(
+      !result.content.includes("bypass security controls"),
+      "second injection stripped",
+    );
     assertStringIncludes(result.content, "msg1");
     assertStringIncludes(result.content, "msg2");
   } finally {

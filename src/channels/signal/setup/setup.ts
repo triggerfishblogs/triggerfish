@@ -38,10 +38,7 @@ export {
 } from "../install/setup_signal_cli.ts";
 
 // ─── Link: device linking + QR ──────────────────────────────────
-export {
-  renderQrCode,
-  startLinkProcess,
-} from "./setup_link.ts";
+export { renderQrCode, startLinkProcess } from "./setup_link.ts";
 
 // ─── Daemon: TCP + Unix socket lifecycle ────────────────────────
 export {

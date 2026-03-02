@@ -8,21 +8,18 @@
  */
 
 export {
-  unfoldLines,
   parsePropertyLine,
   parseRRule,
-  unescapeIcalText,
   parseVEvent,
   parseVEvents,
+  unescapeIcalText,
+  unfoldLines,
 } from "./ical_parse.ts";
 
 export {
-  generateVEvent,
-  formatRRule,
   formatIcalDateTime,
+  formatRRule,
+  generateVEvent,
 } from "./ical_generate.ts";
 
-export {
-  parseFreeBusy,
-  expandRecurrence,
-} from "./ical_freebusy.ts";
+export { expandRecurrence, parseFreeBusy } from "./ical_freebusy.ts";

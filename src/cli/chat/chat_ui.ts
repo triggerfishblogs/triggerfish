@@ -13,7 +13,7 @@
 export type { ToolDisplayMode } from "./render/ansi.ts";
 
 // ─── Banner ──────────────────────────────────────────────────────
-export { printBanner, formatBanner } from "./render/banner.ts";
+export { formatBanner, printBanner } from "./render/banner.ts";
 
 // ─── Spinner ─────────────────────────────────────────────────────
 export type { Spinner } from "./render/spinner.ts";
@@ -21,21 +21,21 @@ export { createSpinner } from "./render/spinner.ts";
 
 // ─── Formatting ──────────────────────────────────────────────────
 export {
-  renderResponse,
+  formatError,
   formatResponse,
   renderError,
-  formatError,
   renderPrompt,
+  renderResponse,
 } from "./render/format.ts";
 
 // ─── Tool display ────────────────────────────────────────────────
 export {
-  renderToolCall,
-  renderToolResult,
   formatToolCallCompact,
   formatToolCallExpanded,
-  formatToolResultExpanded,
   formatToolCompact,
+  formatToolResultExpanded,
+  renderToolCall,
+  renderToolResult,
 } from "./render/tool_display.ts";
 export type { EventCallback } from "./render/tool_display.ts";
 

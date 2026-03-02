@@ -9,7 +9,10 @@
 
 import { assertEquals } from "@std/assert";
 import { createGmailService } from "../../../src/integrations/google/gmail/gmail.ts";
-import type { GoogleApiClient, GoogleApiResult } from "../../../src/integrations/google/types.ts";
+import type {
+  GoogleApiClient,
+  GoogleApiResult,
+} from "../../../src/integrations/google/types.ts";
 
 // ─── Mock Client ────────────────────────────────────────────────────────────
 
@@ -20,11 +23,17 @@ function createMockClient(
     for (const [key, value] of Object.entries(responses)) {
       if (url.includes(key)) return value;
     }
-    return { ok: false, error: { code: "NOT_FOUND", message: `No mock for: ${url}` } };
+    return {
+      ok: false,
+      error: { code: "NOT_FOUND", message: `No mock for: ${url}` },
+    };
   }
 
   return {
-    get<T>(url: string, _params?: Record<string, string>): Promise<GoogleApiResult<T>> {
+    get<T>(
+      url: string,
+      _params?: Record<string, string>,
+    ): Promise<GoogleApiResult<T>> {
       return Promise.resolve(findResponse(url) as GoogleApiResult<T>);
     },
     post<T>(url: string, _body: unknown): Promise<GoogleApiResult<T>> {
@@ -101,7 +110,9 @@ Deno.test("GmailService.read: parses message with headers", async () => {
             { name: "Subject", value: "Test Email" },
             { name: "Date", value: "Mon, 15 Jan 2025 10:00:00 +0000" },
           ],
-          body: { data: btoa("Hello World").replace(/\+/g, "-").replace(/\//g, "_") },
+          body: {
+            data: btoa("Hello World").replace(/\+/g, "-").replace(/\//g, "_"),
+          },
         },
       },
     },

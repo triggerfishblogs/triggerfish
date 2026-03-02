@@ -25,7 +25,10 @@ Deno.test({
   sanitizeOps: false,
   async fn() {
     const port = BASE_PORT + 30;
-    const adapter = createWhatsAppChannel({ ...buildTestConfig(30), webhookPort: port });
+    const adapter = createWhatsAppChannel({
+      ...buildTestConfig(30),
+      webhookPort: port,
+    });
     assertEquals(adapter.status().connected, false);
     await adapter.connect();
     try {
@@ -42,7 +45,10 @@ Deno.test({
   sanitizeOps: false,
   async fn() {
     const port = BASE_PORT + 31;
-    const adapter = createWhatsAppChannel({ ...buildTestConfig(31), webhookPort: port });
+    const adapter = createWhatsAppChannel({
+      ...buildTestConfig(31),
+      webhookPort: port,
+    });
     await adapter.connect();
     assertEquals(adapter.status().connected, true);
     await adapter.disconnect();

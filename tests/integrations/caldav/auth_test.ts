@@ -7,10 +7,13 @@
  */
 import { assertEquals } from "@std/assert";
 import {
-  resolveCalDavCredentials,
   buildAuthHeaders,
+  resolveCalDavCredentials,
 } from "../../../src/integrations/caldav/auth.ts";
-import type { CalDavConfig, CalDavCredentials } from "../../../src/integrations/caldav/types.ts";
+import type {
+  CalDavConfig,
+  CalDavCredentials,
+} from "../../../src/integrations/caldav/types.ts";
 import type { SecretStore } from "../../../src/core/secrets/keychain/keychain.ts";
 
 // ─── Mock SecretStore ─────────────────────────────────────────────────────────
@@ -29,7 +32,8 @@ function createMockSecretStore(
         error: `Secret "${key}" not found`,
       });
     },
-    setSecret: () => Promise.resolve({ ok: true as const, value: true as const }),
+    setSecret: () =>
+      Promise.resolve({ ok: true as const, value: true as const }),
     deleteSecret: () =>
       Promise.resolve({ ok: true as const, value: true as const }),
     listSecrets: () =>

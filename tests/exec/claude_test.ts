@@ -14,10 +14,10 @@ import {
 } from "@std/assert";
 import { join } from "@std/path";
 import {
+  CLAUDE_SESSION_SYSTEM_PROMPT,
   createClaudeSessionManager,
   createClaudeToolExecutor,
   getClaudeToolDefinitions,
-  CLAUDE_SESSION_SYSTEM_PROMPT,
 } from "../../src/exec/claude.ts";
 import { HARDCODED_TOOL_FLOORS } from "../../src/core/security/constants.ts";
 

@@ -4,7 +4,7 @@
  * Unit tests for all provider factory functions and config loader.
  * Integration tests (real API calls) run only when credentials are set.
  */
-import { assertEquals, assertExists, assert, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertExists, assertRejects } from "@std/assert";
 import {
   createProviderRegistry,
   type LlmProvider,
@@ -167,7 +167,10 @@ Deno.test("loadProvidersFromConfig: resolves openrouter as default", () => {
   loadProvidersFromConfig({
     primary: { provider: "openrouter", model: "anthropic/claude-3.5-sonnet" },
     providers: {
-      openrouter: { model: "anthropic/claude-3.5-sonnet", apiKey: "sk-or-test-key" },
+      openrouter: {
+        model: "anthropic/claude-3.5-sonnet",
+        apiKey: "sk-or-test-key",
+      },
     },
   }, registry);
 
@@ -211,7 +214,10 @@ Deno.test("loadProvidersFromConfig: sets zai as default with different model", (
 Deno.test("loadProvidersFromConfig: registers lmstudio provider", () => {
   const registry = createProviderRegistry();
   loadProvidersFromConfig({
-    primary: { provider: "lmstudio", model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF" },
+    primary: {
+      provider: "lmstudio",
+      model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+    },
     providers: {
       lmstudio: { model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF" },
     },
@@ -262,9 +268,15 @@ Deno.test("loadProvidersFromConfig: registers zenmux provider", () => {
 Deno.test("loadProvidersFromConfig: registers fireworks provider and sets default", () => {
   const registry = createProviderRegistry();
   loadProvidersFromConfig({
-    primary: { provider: "fireworks", model: "accounts/fireworks/models/llama-v3p1-70b-instruct" },
+    primary: {
+      provider: "fireworks",
+      model: "accounts/fireworks/models/llama-v3p1-70b-instruct",
+    },
     providers: {
-      fireworks: { model: "accounts/fireworks/models/llama-v3p1-70b-instruct", apiKey: "fw-test-key" },
+      fireworks: {
+        model: "accounts/fireworks/models/llama-v3p1-70b-instruct",
+        apiKey: "fw-test-key",
+      },
     },
   }, registry);
 

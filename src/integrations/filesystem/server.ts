@@ -8,8 +8,11 @@
  * @module
  */
 
-import { resolve, normalize } from "@std/path";
-import type { Result, ClassificationLevel } from "../../core/types/classification.ts";
+import { normalize, resolve } from "@std/path";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../core/types/classification.ts";
 import { isWithinJail } from "../../core/security/path_jail.ts";
 
 /** A directory entry returned by list_directory. */

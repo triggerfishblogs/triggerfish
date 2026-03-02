@@ -18,8 +18,7 @@ function buildCalendarListParams(): ToolDefinition["parameters"] {
     },
     time_max: {
       type: "string",
-      description:
-        "End of time range (ISO 8601). Defaults to 7 days from now.",
+      description: "End of time range (ISO 8601). Defaults to 7 days from now.",
       required: false,
     },
     max_results: {
@@ -54,8 +53,7 @@ function buildCalendarCreateRequiredParams(): ToolDefinition["parameters"] {
     },
     start: {
       type: "string",
-      description:
-        "Start time (ISO 8601, e.g. '2025-01-15T14:00:00-05:00')",
+      description: "Start time (ISO 8601, e.g. '2025-01-15T14:00:00-05:00')",
       required: true,
     },
     end: {
@@ -142,8 +140,7 @@ function buildCalendarUpdateDetailParams(): ToolDefinition["parameters"] {
     },
     attendees: {
       type: "string",
-      description:
-        "New comma-separated attendee emails (replaces existing)",
+      description: "New comma-separated attendee emails (replaces existing)",
       required: false,
     },
     calendar_id: {

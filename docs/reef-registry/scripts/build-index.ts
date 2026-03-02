@@ -122,7 +122,9 @@ async function scanSkills(skillsDir: string): Promise<CatalogEntry[]> {
 }
 
 /** Build the tag index from catalog entries. */
-function buildTagIndex(entries: readonly CatalogEntry[]): Record<string, string[]> {
+function buildTagIndex(
+  entries: readonly CatalogEntry[],
+): Record<string, string[]> {
   const tags: Record<string, string[]> = {};
   for (const entry of entries) {
     for (const tag of entry.tags) {
@@ -136,7 +138,9 @@ function buildTagIndex(entries: readonly CatalogEntry[]): Record<string, string[
 }
 
 /** Build the category index from catalog entries. */
-function buildCategoryIndex(entries: readonly CatalogEntry[]): Record<string, string[]> {
+function buildCategoryIndex(
+  entries: readonly CatalogEntry[],
+): Record<string, string[]> {
   const categories: Record<string, string[]> = {};
   for (const entry of entries) {
     const cat = entry.category;
@@ -185,5 +189,7 @@ if (import.meta.main) {
   console.log("Index files generated:");
   console.log(`  catalog.json:    ${entries.length} entries`);
   console.log(`  tags.json:       ${Object.keys(tags).length} tags`);
-  console.log(`  categories.json: ${Object.keys(categories).length} categories`);
+  console.log(
+    `  categories.json: ${Object.keys(categories).length} categories`,
+  );
 }

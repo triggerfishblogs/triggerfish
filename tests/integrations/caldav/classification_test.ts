@@ -169,7 +169,11 @@ Deno.test("classification: taint getter called on each tool response", async () 
     end: "20250315T110000Z",
   });
 
-  assertEquals(taintCallCount > 0, true, "Session taint getter should be called");
+  assertEquals(
+    taintCallCount > 0,
+    true,
+    "Session taint getter should be called",
+  );
 });
 
 Deno.test("classification: dynamic taint reflected in output", async () => {

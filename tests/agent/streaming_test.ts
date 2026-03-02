@@ -1,7 +1,7 @@
 /**
  * Tests for LLM streaming interface and SSE parsing.
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import type { LlmStreamChunk } from "../../src/agent/llm.ts";
 import { parseSseStream } from "../../src/agent/providers/sse.ts";
 
@@ -64,7 +64,9 @@ Deno.test("parseSseStream: handles fragmented SSE data", async () => {
     start(controller) {
       // Fragment across two chunks
       controller.enqueue(encoder.encode('data: {"choices":[{"del'));
-      controller.enqueue(encoder.encode('ta":{"content":"frag"}}]}\n\ndata: [DONE]\n\n'));
+      controller.enqueue(
+        encoder.encode('ta":{"content":"frag"}}]}\n\ndata: [DONE]\n\n'),
+      );
       controller.close();
     },
   });

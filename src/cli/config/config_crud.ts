@@ -45,7 +45,10 @@ export async function promptDaemonRestart(): Promise<void> {
 async function restartDaemonProcess(): Promise<void> {
   const stopResult = await stopDaemon();
   if (!stopResult.ok) {
-    log.warn("Daemon stop failed during restart", { operation: "restartDaemon", message: stopResult.message });
+    log.warn("Daemon stop failed during restart", {
+      operation: "restartDaemon",
+      message: stopResult.message,
+    });
     console.log(`\u2717 Failed to stop daemon: ${stopResult.message}`);
     return;
   }
@@ -53,7 +56,10 @@ async function restartDaemonProcess(): Promise<void> {
   if (startResult.ok) {
     console.log("\u2713 Daemon restarted");
   } else {
-    log.warn("Daemon start failed during restart", { operation: "restartDaemon", message: startResult.message });
+    log.warn("Daemon start failed during restart", {
+      operation: "restartDaemon",
+      message: startResult.message,
+    });
     console.log(`\u2717 ${startResult.message}`);
   }
 }
@@ -86,7 +92,11 @@ function readConfigYaml(configPath: string): Record<string, unknown> {
   try {
     rawYaml = Deno.readTextFileSync(configPath);
   } catch (err: unknown) {
-    log.error("Configuration file not found", { operation: "readConfigYaml", configPath, err });
+    log.error("Configuration file not found", {
+      operation: "readConfigYaml",
+      configPath,
+      err,
+    });
     console.error(`Config not found at ${configPath}`);
     console.error("Run 'triggerfish dive' to create initial config.");
     Deno.exit(1);
@@ -159,7 +169,10 @@ function parseYamlOrExit(rawYaml: string): Record<string, unknown> {
   try {
     parsed = parseYaml(rawYaml);
   } catch (err) {
-    log.error("Configuration YAML parse failed", { operation: "parseConfig", err });
+    log.error("Configuration YAML parse failed", {
+      operation: "parseConfig",
+      err,
+    });
     console.error(
       `\n  YAML parse error: ${
         err instanceof Error ? err.message : String(err)
@@ -169,7 +182,9 @@ function parseYamlOrExit(rawYaml: string): Record<string, unknown> {
   }
 
   if (typeof parsed !== "object" || parsed === null) {
-    log.error("Configuration file did not parse to an object", { operation: "parseConfig" });
+    log.error("Configuration file did not parse to an object", {
+      operation: "parseConfig",
+    });
     console.error("\n  Config file did not parse to an object.\n");
     Deno.exit(1);
   }
@@ -186,7 +201,10 @@ function parseAndValidateConfigYaml(
 
   const result = validateConfig(parsed);
   if (!result.ok) {
-    log.warn("Configuration validation failed", { operation: "validateConfig", error: result.error });
+    log.warn("Configuration validation failed", {
+      operation: "validateConfig",
+      error: result.error,
+    });
     console.error(`\n  Validation error: ${result.error}\n`);
     Deno.exit(1);
   }

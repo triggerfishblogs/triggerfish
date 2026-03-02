@@ -9,10 +9,7 @@ import type { Result } from "../core/types/classification.ts";
 import type { CronJob } from "./cron/parser.ts";
 import type { CronManager } from "./cron/parser.ts";
 import type { SchedulerServiceConfig } from "./service_types.ts";
-import {
-  matchesNow,
-  parseCronExpression,
-} from "./cron/cron.ts";
+import { matchesNow, parseCronExpression } from "./cron/cron.ts";
 import { createLogger } from "../core/logger/mod.ts";
 import { deliverSchedulerOutput } from "./service_output.ts";
 
@@ -88,16 +85,27 @@ async function executeCronJob(ctx: CronJobContext): Promise<void> {
   const { config, cronManager, job } = ctx;
   log.info(`Executing cron job: ${job.id}`);
   const startTime = performance.now();
-  const recordOpts: CronRecordOptions = { cronManager, jobId: job.id, startTime };
+  const recordOpts: CronRecordOptions = {
+    cronManager,
+    jobId: job.id,
+    startTime,
+  };
   try {
-    const { orchestrator, session } = await config.orchestratorFactory.create("cron");
+    const { orchestrator, session } = await config.orchestratorFactory.create(
+      "cron",
+    );
     const result = await orchestrator.executeAgentTurn({
       session,
       message: job.task,
       targetClassification: job.classificationCeiling,
     });
     logSchedulerTokenUsage(`cron:${job.id}`, result);
-    await deliverSchedulerOutput({ config, result, sessionTaint: session.taint, source: `cron:${job.id}` });
+    await deliverSchedulerOutput({
+      config,
+      result,
+      sessionTaint: session.taint,
+      source: `cron:${job.id}`,
+    });
     recordCronExecution(recordOpts, result);
   } catch (err) {
     recordCronFailure(recordOpts, err);

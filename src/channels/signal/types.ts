@@ -7,7 +7,10 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../core/types/classification.ts";
 
 /** Configuration for the Signal channel adapter. */
 export interface SignalConfig {
@@ -119,9 +122,15 @@ export interface SignalClientInterface {
   /** Disconnect from signal-cli daemon. */
   disconnect(): Promise<void>;
   /** Send a text message to a recipient phone number. */
-  sendMessage(recipient: string, message: string): Promise<Result<{ readonly timestamp: number }, string>>;
+  sendMessage(
+    recipient: string,
+    message: string,
+  ): Promise<Result<{ readonly timestamp: number }, string>>;
   /** Send a text message to a group. */
-  sendGroupMessage(groupId: string, message: string): Promise<Result<{ readonly timestamp: number }, string>>;
+  sendGroupMessage(
+    groupId: string,
+    message: string,
+  ): Promise<Result<{ readonly timestamp: number }, string>>;
   /** Send typing indicator to a recipient. */
   sendTyping(recipient: string): Promise<Result<void, string>>;
   /** Stop typing indicator to a recipient. */

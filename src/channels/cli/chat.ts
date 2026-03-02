@@ -35,12 +35,22 @@ import { loadInputHistory, saveInputHistory } from "../../cli/chat/history.ts";
 import { createScreenManager } from "../../cli/terminal/screen.ts";
 import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
 import type { ChatReplDeps, WsRouterState } from "./chat_ws_types.ts";
-import { loadChatConfig, openChatWebSocket, awaitDaemonConnection } from "./chat_connection.ts";
+import {
+  awaitDaemonConnection,
+  loadChatConfig,
+  openChatWebSocket,
+} from "./chat_connection.ts";
 import { runSimpleWsRepl } from "./chat_simple_repl.ts";
-import { routePasswordKeypress, routeCredentialKeypress } from "./chat_password.ts";
+import {
+  routeCredentialKeypress,
+  routePasswordKeypress,
+} from "./chat_password.ts";
 import { routeTriggerPromptKeypress } from "./chat_trigger_prompt.ts";
 import { handleCtrlCKeypress, handleEscInterrupt } from "./chat_keypress.ts";
-import { installChatSignalHandlers, routeInputKeypress } from "./chat_keypress.ts";
+import {
+  installChatSignalHandlers,
+  routeInputKeypress,
+} from "./chat_keypress.ts";
 import type { ChatReplState } from "./chat_input.ts";
 
 // Re-export for external importers
@@ -96,7 +106,11 @@ export async function runChat(): Promise<void> {
   });
 
   if (!isTty) {
-    printBanner(state.providerName, config.models.primary.model, state.workspacePath);
+    printBanner(
+      state.providerName,
+      config.models.primary.model,
+      state.workspacePath,
+    );
     await runSimpleWsRepl(ws, {
       providerName: state.providerName,
       config,
@@ -139,7 +153,11 @@ async function runTtyKeypressLoop(
 
   deps.screen.init();
   deps.screen.writeOutput(
-    formatBanner(deps.state.providerName, opts.config.models.primary.model, deps.state.workspacePath),
+    formatBanner(
+      deps.state.providerName,
+      opts.config.models.primary.model,
+      deps.state.workspacePath,
+    ),
   );
 
   const cleanup = () =>

@@ -3,7 +3,7 @@
  * Tests MUST FAIL until lineage.ts is implemented.
  * Tests record creation, forward/backward trace, export.
  */
-import { assertEquals, assertExists, assert } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import { createLineageStore } from "../../src/core/session/lineage.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import type { SessionId } from "../../src/core/types/session.ts";
@@ -56,19 +56,37 @@ Deno.test("LineageStore: getBySession returns records for session", async () => 
   const sid = "session-abc" as SessionId;
   await store.create({
     content: "a",
-    origin: { source_type: "x", source_name: "y", accessed_at: "", accessed_by: "", access_method: "" },
+    origin: {
+      source_type: "x",
+      source_name: "y",
+      accessed_at: "",
+      accessed_by: "",
+      access_method: "",
+    },
     classification: { level: "PUBLIC", reason: "" },
     sessionId: sid,
   });
   await store.create({
     content: "b",
-    origin: { source_type: "x", source_name: "y", accessed_at: "", accessed_by: "", access_method: "" },
+    origin: {
+      source_type: "x",
+      source_name: "y",
+      accessed_at: "",
+      accessed_by: "",
+      access_method: "",
+    },
     classification: { level: "INTERNAL", reason: "" },
     sessionId: sid,
   });
   await store.create({
     content: "c",
-    origin: { source_type: "x", source_name: "y", accessed_at: "", accessed_by: "", access_method: "" },
+    origin: {
+      source_type: "x",
+      source_name: "y",
+      accessed_at: "",
+      accessed_by: "",
+      access_method: "",
+    },
     classification: { level: "PUBLIC", reason: "" },
     sessionId: "other-session" as SessionId,
   });
@@ -80,13 +98,25 @@ Deno.test("LineageStore: trace_forward shows what happened to data", async () =>
   const store = await makeStore();
   const original = await store.create({
     content: "raw data",
-    origin: { source_type: "api", source_name: "crm", accessed_at: "", accessed_by: "", access_method: "" },
+    origin: {
+      source_type: "api",
+      source_name: "crm",
+      accessed_at: "",
+      accessed_by: "",
+      access_method: "",
+    },
     classification: { level: "CONFIDENTIAL", reason: "crm" },
     sessionId: "s" as SessionId,
   });
   const derived = await store.create({
     content: "summarized",
-    origin: { source_type: "llm", source_name: "claude", accessed_at: "", accessed_by: "", access_method: "" },
+    origin: {
+      source_type: "llm",
+      source_name: "claude",
+      accessed_at: "",
+      accessed_by: "",
+      access_method: "",
+    },
     classification: { level: "CONFIDENTIAL", reason: "derived from crm" },
     sessionId: "s" as SessionId,
     inputLineageIds: [original.lineage_id],
@@ -100,19 +130,37 @@ Deno.test("LineageStore: trace_backward shows sources", async () => {
   const store = await makeStore();
   const source1 = await store.create({
     content: "source a",
-    origin: { source_type: "api", source_name: "a", accessed_at: "", accessed_by: "", access_method: "" },
+    origin: {
+      source_type: "api",
+      source_name: "a",
+      accessed_at: "",
+      accessed_by: "",
+      access_method: "",
+    },
     classification: { level: "INTERNAL", reason: "" },
     sessionId: "s" as SessionId,
   });
   const source2 = await store.create({
     content: "source b",
-    origin: { source_type: "api", source_name: "b", accessed_at: "", accessed_by: "", access_method: "" },
+    origin: {
+      source_type: "api",
+      source_name: "b",
+      accessed_at: "",
+      accessed_by: "",
+      access_method: "",
+    },
     classification: { level: "CONFIDENTIAL", reason: "" },
     sessionId: "s" as SessionId,
   });
   const merged = await store.create({
     content: "combined",
-    origin: { source_type: "llm", source_name: "claude", accessed_at: "", accessed_by: "", access_method: "" },
+    origin: {
+      source_type: "llm",
+      source_name: "claude",
+      accessed_at: "",
+      accessed_by: "",
+      access_method: "",
+    },
     classification: { level: "CONFIDENTIAL", reason: "max of inputs" },
     sessionId: "s" as SessionId,
     inputLineageIds: [source1.lineage_id, source2.lineage_id],
@@ -126,7 +174,13 @@ Deno.test("LineageStore: export produces full chain for session", async () => {
   const sid = "export-session" as SessionId;
   await store.create({
     content: "record 1",
-    origin: { source_type: "x", source_name: "y", accessed_at: "", accessed_by: "", access_method: "" },
+    origin: {
+      source_type: "x",
+      source_name: "y",
+      accessed_at: "",
+      accessed_by: "",
+      access_method: "",
+    },
     classification: { level: "PUBLIC", reason: "" },
     sessionId: sid,
   });

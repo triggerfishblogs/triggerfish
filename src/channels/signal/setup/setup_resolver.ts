@@ -10,7 +10,12 @@ import { resolveBaseDir } from "../../../cli/config/paths.ts";
 import { resolveJavaHome as resolveJavaHomeImpl } from "../install/setup_java.ts";
 
 // ─── Re-exports from install/setup_java.ts ──────────────────────
-export { checkJava, javaHomeBin, resolveJavaHome, tryJava } from "../install/setup_java.ts";
+export {
+  checkJava,
+  javaHomeBin,
+  resolveJavaHome,
+  tryJava,
+} from "../install/setup_java.ts";
 
 const log = createLogger("signal");
 
@@ -58,7 +63,11 @@ export function warnIfOldVersion(versionOutput: string): void {
     const inst = installed[i] ?? 0;
     const know = known[i] ?? 0;
     if (inst < know) {
-      log.warn("Signal CLI version older than known-good", { operation: "resolveSignalCli", installed: match[1], knownGood: SIGNAL_CLI_KNOWN_GOOD_VERSION });
+      log.warn("Signal CLI version older than known-good", {
+        operation: "resolveSignalCli",
+        installed: match[1],
+        knownGood: SIGNAL_CLI_KNOWN_GOOD_VERSION,
+      });
       console.warn(
         `\u26a0 signal-cli ${
           match[1]

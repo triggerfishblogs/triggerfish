@@ -6,7 +6,10 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { createMockImapClient, type ImapMessage } from "../../../src/channels/email/imap.ts";
+import {
+  createMockImapClient,
+  type ImapMessage,
+} from "../../../src/channels/email/imap.ts";
 import { createEmailChannel } from "../../../src/channels/email/adapter.ts";
 import type { ChannelMessage } from "../../../src/channels/types.ts";
 
@@ -16,8 +19,20 @@ import type { ChannelMessage } from "../../../src/channels/types.ts";
 
 Deno.test("mock IMAP: fetchUnseen returns configured messages", async () => {
   const messages: ImapMessage[] = [
-    { uid: 1, from: "alice@example.com", subject: "Hello", body: "Hi there", date: new Date("2025-01-15") },
-    { uid: 2, from: "bob@test.com", subject: "Question", body: "How are you?", date: new Date("2025-01-16") },
+    {
+      uid: 1,
+      from: "alice@example.com",
+      subject: "Hello",
+      body: "Hi there",
+      date: new Date("2025-01-15"),
+    },
+    {
+      uid: 2,
+      from: "bob@test.com",
+      subject: "Question",
+      body: "How are you?",
+      date: new Date("2025-01-16"),
+    },
   ];
 
   const client = createMockImapClient(messages);
@@ -33,7 +48,13 @@ Deno.test("mock IMAP: fetchUnseen returns configured messages", async () => {
 
 Deno.test("mock IMAP: second fetch returns empty (messages marked read)", async () => {
   const messages: ImapMessage[] = [
-    { uid: 1, from: "alice@example.com", subject: "Hello", body: "Hi", date: new Date() },
+    {
+      uid: 1,
+      from: "alice@example.com",
+      subject: "Hello",
+      body: "Hi",
+      date: new Date(),
+    },
   ];
 
   const client = createMockImapClient(messages);
@@ -81,7 +102,13 @@ Deno.test({
   sanitizeOps: false,
   fn: async () => {
     const messages: ImapMessage[] = [
-      { uid: 1, from: "sender@test.com", subject: "Test Email", body: "Hello from email", date: new Date() },
+      {
+        uid: 1,
+        from: "sender@test.com",
+        subject: "Test Email",
+        body: "Hello from email",
+        date: new Date(),
+      },
     ];
 
     const mockImap = createMockImapClient(messages);
@@ -121,8 +148,20 @@ Deno.test({
   sanitizeOps: false,
   fn: async () => {
     const messages: ImapMessage[] = [
-      { uid: 1, from: "alice@example.com", subject: "A", body: "msg1", date: new Date() },
-      { uid: 2, from: "bob@example.com", subject: "B", body: "msg2", date: new Date() },
+      {
+        uid: 1,
+        from: "alice@example.com",
+        subject: "A",
+        body: "msg1",
+        date: new Date(),
+      },
+      {
+        uid: 2,
+        from: "bob@example.com",
+        subject: "B",
+        body: "msg2",
+        date: new Date(),
+      },
     ];
 
     const channel = createEmailChannel({

@@ -28,7 +28,14 @@ export type ProviderChoice =
 export type ToneChoice = "professional" | "casual" | "terse" | "custom";
 
 /** Channel choice for setup. */
-export type ChannelChoice = "cli" | "webchat" | "telegram" | "discord" | "signal" | "googlechat" | "skip";
+export type ChannelChoice =
+  | "cli"
+  | "webchat"
+  | "telegram"
+  | "discord"
+  | "signal"
+  | "googlechat"
+  | "skip";
 
 /** Search provider choice. */
 export type SearchProviderChoice = "brave" | "searxng" | "skip";

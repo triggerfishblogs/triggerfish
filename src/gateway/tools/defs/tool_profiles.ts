@@ -37,7 +37,8 @@ export type ToolProfile = readonly ToolGroupName[];
 export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
   /** Tidepool web UI — full tool access including canvas. */
   tidepool: [
-    "exec",
+    "exec_file",
+    "exec_command",
     "todo",
     "memory",
     "secrets",
@@ -65,7 +66,8 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
   ],
   /** CLI chat — everything except tidepool canvas tools. */
   cli: [
-    "exec",
+    "exec_file",
+    "exec_command",
     "todo",
     "memory",
     "secrets",
@@ -90,9 +92,9 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "agents",
     "cron",
   ],
-  /** Trigger sessions — tools with wired executors, no interactive tools. */
+  /** Trigger sessions — sandboxed file tools only, no run_command. */
   triggerSession: [
-    "exec",
+    "exec_file",
     "todo",
     "memory",
     "web",
@@ -106,9 +108,9 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "skills",
     "cron",
   ],
-  /** Cron jobs — same scope as trigger minus trigger-specific tools. */
+  /** Cron jobs — sandboxed file tools only, no run_command. */
   cronJob: [
-    "exec",
+    "exec_file",
     "todo",
     "memory",
     "web",
@@ -121,9 +123,9 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "skills",
     "cron",
   ],
-  /** Subagents — lightweight, focused. */
+  /** Subagents — sandboxed file tools only, no run_command. */
   subagent: [
-    "exec",
+    "exec_file",
     "todo",
     "memory",
     "web",

@@ -97,7 +97,13 @@ export function createMcpServerAdapter(
 ): McpServer {
   return {
     callTool: (name: string, args: Record<string, unknown>) =>
-      invokeMcpTool({ client, classification, classificationCeiling, name, args }),
+      invokeMcpTool({
+        client,
+        classification,
+        classificationCeiling,
+        name,
+        args,
+      }),
   };
 }
 
@@ -113,11 +119,18 @@ async function invokeMcpTool(
     const declaredClassification: ClassificationLevel =
       invocation.classification ?? ("PUBLIC" as ClassificationLevel);
     const effectiveClassification = invocation.classificationCeiling
-      ? minClassification(declaredClassification, invocation.classificationCeiling)
+      ? minClassification(
+        declaredClassification,
+        invocation.classificationCeiling,
+      )
       : declaredClassification;
     createLogger("mcp").debug(
       `MCP tool '${invocation.name}': classification decision`,
-      { declaredClassification, classificationCeiling: invocation.classificationCeiling ?? null, effectiveClassification },
+      {
+        declaredClassification,
+        classificationCeiling: invocation.classificationCeiling ?? null,
+        effectiveClassification,
+      },
     );
     return {
       ok: true,

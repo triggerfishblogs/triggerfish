@@ -4,7 +4,7 @@
  * Verifies tool definitions, executor behavior with mock fetcher,
  * and error handling.
  */
-import { assertEquals, assert, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import {
   createReleaseNotesToolExecutor,
   getReleaseNotesToolDefinitions,
@@ -78,7 +78,9 @@ Deno.test("release_notes executor: uses current version as default to_version", 
   let capturedTo = "";
   const fetcher = (_from: string, to: string) => {
     capturedTo = to;
-    return Promise.resolve({ ok: true, value: MOCK_RANGE } as ReleaseNotesResult);
+    return Promise.resolve(
+      { ok: true, value: MOCK_RANGE } as ReleaseNotesResult,
+    );
   };
   const executor = createReleaseNotesToolExecutor(fetcher, "v0.5.0");
   await executor("release_notes", { from_version: "v0.3.0" });
@@ -89,7 +91,9 @@ Deno.test("release_notes executor: uses explicit to_version when provided", asyn
   let capturedTo = "";
   const fetcher = (_from: string, to: string) => {
     capturedTo = to;
-    return Promise.resolve({ ok: true, value: MOCK_RANGE } as ReleaseNotesResult);
+    return Promise.resolve(
+      { ok: true, value: MOCK_RANGE } as ReleaseNotesResult,
+    );
   };
   const executor = createReleaseNotesToolExecutor(fetcher, "v0.5.0");
   await executor("release_notes", {

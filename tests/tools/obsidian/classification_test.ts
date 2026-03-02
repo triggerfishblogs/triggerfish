@@ -9,7 +9,7 @@
  * - Lineage records are created for operations
  */
 
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
   createVaultContext,
   getClassificationForPath,
@@ -25,10 +25,16 @@ import type { VaultContext } from "../../../src/tools/obsidian/vault.ts";
 import type { ClassificationLevel } from "../../../src/core/types/classification.ts";
 import { maxClassification } from "../../../src/core/types/classification.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
-import type { LineageStore, LineageRecord, LineageCreateInput } from "../../../src/core/session/lineage.ts";
+import type {
+  LineageCreateInput,
+  LineageRecord,
+  LineageStore,
+} from "../../../src/core/session/lineage.ts";
 
 /** Create a temp vault with classification-gated folders. */
-async function makeClassifiedVault(): Promise<{ ctx: VaultContext; path: string }> {
+async function makeClassifiedVault(): Promise<
+  { ctx: VaultContext; path: string }
+> {
   const dir = await Deno.makeTempDir({ prefix: "obsidian_class_" });
   await Deno.mkdir(`${dir}/.obsidian`);
   await Deno.mkdir(`${dir}/public`);
@@ -36,10 +42,22 @@ async function makeClassifiedVault(): Promise<{ ctx: VaultContext; path: string 
   await Deno.mkdir(`${dir}/restricted`);
   await Deno.mkdir(`${dir}/internal`);
 
-  await Deno.writeTextFile(`${dir}/public/readme.md`, "# Public Note\n\nPublic content.");
-  await Deno.writeTextFile(`${dir}/confidential/secret.md`, "# Secret\n\nConfidential data.");
-  await Deno.writeTextFile(`${dir}/restricted/top-secret.md`, "# Top Secret\n\nRestricted data.");
-  await Deno.writeTextFile(`${dir}/internal/work.md`, "# Work\n\nInternal content.");
+  await Deno.writeTextFile(
+    `${dir}/public/readme.md`,
+    "# Public Note\n\nPublic content.",
+  );
+  await Deno.writeTextFile(
+    `${dir}/confidential/secret.md`,
+    "# Secret\n\nConfidential data.",
+  );
+  await Deno.writeTextFile(
+    `${dir}/restricted/top-secret.md`,
+    "# Top Secret\n\nRestricted data.",
+  );
+  await Deno.writeTextFile(
+    `${dir}/internal/work.md`,
+    "# Work\n\nInternal content.",
+  );
 
   const result = await createVaultContext({
     vaultPath: dir,
@@ -56,7 +74,10 @@ async function makeClassifiedVault(): Promise<{ ctx: VaultContext; path: string 
 }
 
 /** Create a mock lineage store that records calls. */
-function createMockLineageStore(): { store: LineageStore; records: LineageRecord[] } {
+function createMockLineageStore(): {
+  store: LineageStore;
+  records: LineageRecord[];
+} {
   const records: LineageRecord[] = [];
   let nextId = 1;
 
@@ -75,11 +96,21 @@ function createMockLineageStore(): { store: LineageStore; records: LineageRecord
       records.push(record);
       return Promise.resolve(record);
     },
-    get(_id: string): Promise<LineageRecord | null> { return Promise.resolve(null); },
-    getBySession(_sid: SessionId): Promise<LineageRecord[]> { return Promise.resolve([]); },
-    trace_forward(_id: string): Promise<LineageRecord[]> { return Promise.resolve([]); },
-    trace_backward(_id: string): Promise<LineageRecord[]> { return Promise.resolve([]); },
-    export(_sid: SessionId): Promise<LineageRecord[]> { return Promise.resolve([]); },
+    get(_id: string): Promise<LineageRecord | null> {
+      return Promise.resolve(null);
+    },
+    getBySession(_sid: SessionId): Promise<LineageRecord[]> {
+      return Promise.resolve([]);
+    },
+    trace_forward(_id: string): Promise<LineageRecord[]> {
+      return Promise.resolve([]);
+    },
+    trace_backward(_id: string): Promise<LineageRecord[]> {
+      return Promise.resolve([]);
+    },
+    export(_sid: SessionId): Promise<LineageRecord[]> {
+      return Promise.resolve([]);
+    },
   };
 
   return { store, records };
@@ -110,7 +141,9 @@ Deno.test("Classification: PUBLIC session blocked from reading CONFIDENTIAL note
   try {
     const toolCtx = buildToolCtx(ctx, "PUBLIC");
     const executor = createObsidianToolExecutor(toolCtx);
-    const result = await executor("obsidian_read", { name: "confidential/secret.md" });
+    const result = await executor("obsidian_read", {
+      name: "confidential/secret.md",
+    });
     assert(result !== null);
     assert(result!.includes("Access denied"));
     assert(result!.includes("CONFIDENTIAL"));
@@ -124,7 +157,9 @@ Deno.test("Classification: CONFIDENTIAL session can read CONFIDENTIAL note", asy
   try {
     const toolCtx = buildToolCtx(ctx, "CONFIDENTIAL");
     const executor = createObsidianToolExecutor(toolCtx);
-    const result = await executor("obsidian_read", { name: "confidential/secret.md" });
+    const result = await executor("obsidian_read", {
+      name: "confidential/secret.md",
+    });
     assert(result !== null);
     assert(!result!.includes("Error"));
     const parsed = JSON.parse(result!);
@@ -140,7 +175,14 @@ Deno.test("Classification: RESTRICTED session can read all classification levels
     const toolCtx = buildToolCtx(ctx, "RESTRICTED");
     const executor = createObsidianToolExecutor(toolCtx);
 
-    for (const notePath of ["public/readme.md", "internal/work.md", "confidential/secret.md", "restricted/top-secret.md"]) {
+    for (
+      const notePath of [
+        "public/readme.md",
+        "internal/work.md",
+        "confidential/secret.md",
+        "restricted/top-secret.md",
+      ]
+    ) {
       const result = await executor("obsidian_read", { name: notePath });
       assert(result !== null);
       assert(!result!.includes("Error"), `Should be able to read ${notePath}`);
@@ -157,12 +199,20 @@ Deno.test("Classification: PUBLIC session can only read PUBLIC notes", async () 
     const executor = createObsidianToolExecutor(toolCtx);
 
     // Should succeed
-    const publicResult = await executor("obsidian_read", { name: "public/readme.md" });
+    const publicResult = await executor("obsidian_read", {
+      name: "public/readme.md",
+    });
     assert(publicResult !== null);
     assert(!publicResult!.includes("Error"));
 
     // Should fail
-    for (const notePath of ["internal/work.md", "confidential/secret.md", "restricted/top-secret.md"]) {
+    for (
+      const notePath of [
+        "internal/work.md",
+        "confidential/secret.md",
+        "restricted/top-secret.md",
+      ]
+    ) {
       const result = await executor("obsidian_read", { name: notePath });
       assert(result !== null);
       assert(result!.includes("Access denied"), `Should not read ${notePath}`);
@@ -249,10 +299,19 @@ Deno.test("Classification: per-folder override takes precedence", async () => {
   try {
     // The vault default is INTERNAL, but "public" folder is overridden to PUBLIC
     assertEquals(getClassificationForPath(ctx, "public/anything.md"), "PUBLIC");
-    assertEquals(getClassificationForPath(ctx, "confidential/anything.md"), "CONFIDENTIAL");
-    assertEquals(getClassificationForPath(ctx, "restricted/anything.md"), "RESTRICTED");
+    assertEquals(
+      getClassificationForPath(ctx, "confidential/anything.md"),
+      "CONFIDENTIAL",
+    );
+    assertEquals(
+      getClassificationForPath(ctx, "restricted/anything.md"),
+      "RESTRICTED",
+    );
     // Unmapped folder falls back to vault default
-    assertEquals(getClassificationForPath(ctx, "unmapped/anything.md"), "INTERNAL");
+    assertEquals(
+      getClassificationForPath(ctx, "unmapped/anything.md"),
+      "INTERNAL",
+    );
   } finally {
     await Deno.remove(path, { recursive: true });
   }
@@ -270,7 +329,11 @@ Deno.test("Classification: search filters out inaccessible notes", async () => {
     assert(result !== null);
     const parsed = JSON.parse(result!);
     // Only the PUBLIC note should be returned
-    assert(parsed.results.every((r: { path: string }) => r.path.startsWith("public/")));
+    assert(
+      parsed.results.every((r: { path: string }) =>
+        r.path.startsWith("public/")
+      ),
+    );
   } finally {
     await Deno.remove(path, { recursive: true });
   }
@@ -327,9 +390,14 @@ Deno.test("Executor escalation: PUBLIC session escalated to INTERNAL sees INTERN
     const toolCtx = buildToolCtx(ctx, taint);
     const executor = createObsidianToolExecutor(toolCtx);
 
-    const result = await executor("obsidian_read", { name: "internal/work.md" });
+    const result = await executor("obsidian_read", {
+      name: "internal/work.md",
+    });
     assert(result !== null);
-    assert(!result!.includes("Error"), "Read should succeed after executor escalation");
+    assert(
+      !result!.includes("Error"),
+      "Read should succeed after executor escalation",
+    );
     const parsed = JSON.parse(result!);
     assertEquals(parsed.name, "work");
   } finally {
@@ -351,7 +419,10 @@ Deno.test("Executor escalation: write-down still prevented after escalation", as
       content: "Should be blocked",
     });
     assert(result !== null);
-    assert(result!.includes("Write-down prevented"), "Write-down should still be blocked");
+    assert(
+      result!.includes("Write-down prevented"),
+      "Write-down should still be blocked",
+    );
   } finally {
     await Deno.remove(path, { recursive: true });
   }
@@ -370,10 +441,22 @@ Deno.test("Executor escalation: search at INTERNAL sees PUBLIC + INTERNAL, not C
     assert(result !== null);
     const parsed = JSON.parse(result!);
     const paths = parsed.results.map((r: { path: string }) => r.path);
-    assert(paths.some((p: string) => p.startsWith("public/")), "Should include public notes");
-    assert(paths.some((p: string) => p.startsWith("internal/")), "Should include internal notes");
-    assert(!paths.some((p: string) => p.startsWith("confidential/")), "Should not include confidential notes");
-    assert(!paths.some((p: string) => p.startsWith("restricted/")), "Should not include restricted notes");
+    assert(
+      paths.some((p: string) => p.startsWith("public/")),
+      "Should include public notes",
+    );
+    assert(
+      paths.some((p: string) => p.startsWith("internal/")),
+      "Should include internal notes",
+    );
+    assert(
+      !paths.some((p: string) => p.startsWith("confidential/")),
+      "Should not include confidential notes",
+    );
+    assert(
+      !paths.some((p: string) => p.startsWith("restricted/")),
+      "Should not include restricted notes",
+    );
   } finally {
     await Deno.remove(path, { recursive: true });
   }

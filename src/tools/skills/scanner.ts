@@ -57,7 +57,8 @@ export const INJECTION_PATTERNS: readonly ScanPattern[] = [
     weight: 3,
   },
   {
-    pattern: /reveal\s+(all\s+)?(your\s+)?(secrets|credentials|keys|passwords)/i,
+    pattern:
+      /reveal\s+(all\s+)?(your\s+)?(secrets|credentials|keys|passwords)/i,
     message: "Prompt injection: attempts to extract secrets",
     weight: 3,
   },

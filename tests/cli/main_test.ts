@@ -3,7 +3,12 @@
  * Tests MUST FAIL until cli/main.ts, cli/daemon.ts, and build system are implemented.
  * Aligned with design doc Section 29: standalone binary, OS-native daemons.
  */
-import { assertEquals, assertExists, assert, assertStringIncludes } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertExists,
+  assertStringIncludes,
+} from "@std/assert";
 
 // --- Command parsing ---
 
@@ -174,7 +179,9 @@ Deno.test("CLI: 'connect' without subcommand has no subcommand", async () => {
 Deno.test("Config: loads valid triggerfish.yaml", async () => {
   const { loadConfig } = await import("../../src/core/config.ts");
   const tmpDir = await Deno.makeTempDir();
-  await Deno.writeTextFile(`${tmpDir}/triggerfish.yaml`, `
+  await Deno.writeTextFile(
+    `${tmpDir}/triggerfish.yaml`,
+    `
 models:
   primary:
     provider: anthropic
@@ -185,7 +192,8 @@ models:
 channels: {}
 classification:
   mode: standard
-`);
+`,
+  );
   const result = loadConfig(`${tmpDir}/triggerfish.yaml`);
   assertEquals(result.ok, true);
   if (result.ok) {
@@ -213,22 +221,34 @@ Deno.test("Config: validates required fields", async () => {
 // --- Daemon management ---
 
 Deno.test("Daemon: detects current OS", async () => {
-  const { detectDaemonManager } = await import("../../src/cli/daemon/daemon.ts");
+  const { detectDaemonManager } = await import(
+    "../../src/cli/daemon/daemon.ts"
+  );
   const manager = detectDaemonManager();
-  assert(["launchd", "systemd", "windows-service", "unsupported"].includes(manager));
+  assert(
+    ["launchd", "systemd", "windows-service", "unsupported"].includes(manager),
+  );
 });
 
 Deno.test("Daemon: generates launchd plist content", async () => {
-  const { generateLaunchdPlist } = await import("../../src/cli/daemon/daemon.ts");
-  const plist = generateLaunchdPlist({ binaryPath: "/usr/local/bin/triggerfish" });
+  const { generateLaunchdPlist } = await import(
+    "../../src/cli/daemon/daemon.ts"
+  );
+  const plist = generateLaunchdPlist({
+    binaryPath: "/usr/local/bin/triggerfish",
+  });
   assertStringIncludes(plist, "dev.triggerfish.agent");
   assertStringIncludes(plist, "/usr/local/bin/triggerfish");
   assertStringIncludes(plist, "RunAtLoad");
 });
 
 Deno.test("Daemon: generates systemd unit content", async () => {
-  const { generateSystemdUnit } = await import("../../src/cli/daemon/daemon.ts");
-  const unit = generateSystemdUnit({ binaryPath: "/usr/local/bin/triggerfish" });
+  const { generateSystemdUnit } = await import(
+    "../../src/cli/daemon/daemon.ts"
+  );
+  const unit = generateSystemdUnit({
+    binaryPath: "/usr/local/bin/triggerfish",
+  });
   assertStringIncludes(unit, "[Service]");
   assertStringIncludes(unit, "/usr/local/bin/triggerfish");
   assertStringIncludes(unit, "Restart=");
@@ -237,7 +257,10 @@ Deno.test("Daemon: generates systemd unit content", async () => {
 Deno.test("Daemon: logDir does not contain undefined", async () => {
   const { logDir } = await import("../../src/cli/daemon/daemon.ts");
   const dir = logDir();
-  assert(!dir.includes("undefined"), `logDir() should not contain 'undefined', got: ${dir}`);
+  assert(
+    !dir.includes("undefined"),
+    `logDir() should not contain 'undefined', got: ${dir}`,
+  );
 });
 
 // --- Binary compilation (compile target exists) ---

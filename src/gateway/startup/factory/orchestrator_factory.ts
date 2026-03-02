@@ -250,6 +250,10 @@ export function createOrchestratorFactory(
           fsPathMap,
           fsDefault,
           workspace,
+          {
+            resolveCwd: () =>
+              resolveWorkspacePathForTaint(session.taint, workspacePaths),
+          },
         ),
         getWorkspacePath: () =>
           resolveWorkspacePathForTaint(session.taint, workspacePaths),

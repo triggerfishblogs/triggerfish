@@ -7,7 +7,18 @@ import { assertEquals } from "@std/assert";
 import { detectImageType } from "../../src/tools/image/clipboard.ts";
 
 Deno.test("detectImageType — PNG magic bytes", () => {
-  const pngData = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00]);
+  const pngData = new Uint8Array([
+    0x89,
+    0x50,
+    0x4E,
+    0x47,
+    0x0D,
+    0x0A,
+    0x1A,
+    0x0A,
+    0x00,
+    0x00,
+  ]);
   assertEquals(detectImageType(pngData), "image/png");
 });
 
@@ -38,6 +49,15 @@ Deno.test("detectImageType — non-image data returns null", () => {
 });
 
 Deno.test("detectImageType — random bytes returns null", () => {
-  const random = new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
+  const random = new Uint8Array([
+    0x01,
+    0x02,
+    0x03,
+    0x04,
+    0x05,
+    0x06,
+    0x07,
+    0x08,
+  ]);
   assertEquals(detectImageType(random), null);
 });

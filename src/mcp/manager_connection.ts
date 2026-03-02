@@ -14,7 +14,7 @@ import type { Transport } from "./client/transport.ts";
 import { SSETransport, StdioTransport } from "./client/transport.ts";
 import { createMcpClient } from "./client/protocol.ts";
 import type { McpClient } from "./client/protocol.ts";
-import { resolveEnvVars, createMcpServerAdapter } from "./manager_env.ts";
+import { createMcpServerAdapter, resolveEnvVars } from "./manager_env.ts";
 import type {
   ConnectedMcpServer,
   McpServerConfig,
@@ -54,7 +54,12 @@ export function buildMcpManagerState(): McpManagerState {
 
 /** Commands permitted to run as MCP stdio servers by default. */
 export const DEFAULT_ALLOWED_MCP_COMMANDS: ReadonlySet<string> = new Set([
-  "npx", "node", "python3", "python", "deno", "uvx",
+  "npx",
+  "node",
+  "python3",
+  "python",
+  "deno",
+  "uvx",
 ]);
 
 /**
@@ -74,7 +79,9 @@ export function enforceCommandAllowlist(
   if (!allowed.has(baseName)) {
     return {
       ok: false,
-      error: `MCP command not in allowlist: "${baseName}". Allowed: ${[...allowed].join(", ")}`,
+      error: `MCP command not in allowlist: "${baseName}". Allowed: ${
+        [...allowed].join(", ")
+      }`,
     };
   }
   return { ok: true, value: command };
@@ -103,7 +110,11 @@ function assembleConnectedServer(
     id: cfg.id,
     classification: cfg.classification,
     tools: [],
-    server: createMcpServerAdapter(client, cfg.classification, cfg.classificationCeiling),
+    server: createMcpServerAdapter(
+      client,
+      cfg.classification,
+      cfg.classificationCeiling,
+    ),
     client,
     transport,
   };
@@ -115,12 +126,22 @@ export async function connectOneMcpServer(
   ctx: McpConnectionContext,
 ): Promise<ConnectedMcpServer> {
   if (cfg.command) {
-    const validation = enforceCommandAllowlist(cfg.command, cfg.allowedCommands);
+    const validation = enforceCommandAllowlist(
+      cfg.command,
+      cfg.allowedCommands,
+    );
     if (!validation.ok) {
-      const allowlistKind = cfg.allowedCommands?.length ? "per-server" : "default";
+      const allowlistKind = cfg.allowedCommands?.length
+        ? "per-server"
+        : "default";
       ctx.mcpLog.warn(
         `MCP server '${cfg.id}': command rejected by ${allowlistKind} allowlist`,
-        { serverId: cfg.id, command: cfg.command, allowlistKind, reason: validation.error },
+        {
+          serverId: cfg.id,
+          command: cfg.command,
+          allowlistKind,
+          reason: validation.error,
+        },
       );
       throw new Error(`MCP server '${cfg.id}': ${validation.error}`);
     }
@@ -166,7 +187,9 @@ export async function connectAllMcpServers(
       results.push(await connectOneMcpServer(cfg, ctx));
     } catch (err: unknown) {
       ctx.mcpLog.warn(
-        `MCP server '${cfg.id}' failed to connect: ${formatMcpConnectionError(err)}`,
+        `MCP server '${cfg.id}' failed to connect: ${
+          formatMcpConnectionError(err)
+        }`,
       );
     }
   }

@@ -7,7 +7,6 @@ import { createLogger } from "../../../core/logger/logger.ts";
 import type { Result } from "../../../core/types/classification.ts";
 import { createDaemonStderrCollector } from "./setup_daemon_stderr.ts";
 
-
 const log = createLogger("signal");
 
 /** Normalize "localhost" to "127.0.0.1" — signal-cli binds IPv4 only. */

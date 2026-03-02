@@ -26,9 +26,21 @@ export function getLlmTaskToolDefinitions(): readonly ToolDefinition[] {
       description:
         "Run a one-shot LLM prompt for isolated reasoning (summarization, classification, data extraction). Does not pollute main conversation context.",
       parameters: {
-        prompt: { type: "string", description: "The prompt to send", required: true },
-        system: { type: "string", description: "Optional system prompt", required: false },
-        model: { type: "string", description: "Optional model/provider name override", required: false },
+        prompt: {
+          type: "string",
+          description: "The prompt to send",
+          required: true,
+        },
+        system: {
+          type: "string",
+          description: "Optional system prompt",
+          required: false,
+        },
+        model: {
+          type: "string",
+          description: "Optional model/provider name override",
+          required: false,
+        },
       },
     },
   ];
@@ -55,7 +67,10 @@ The result is returned as text. If you need structured data, ask for JSON in the
 export function createLlmTaskToolExecutor(
   registry: LlmProviderRegistry,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
-  return async (name: string, input: Record<string, unknown>): Promise<string | null> => {
+  return async (
+    name: string,
+    input: Record<string, unknown>,
+  ): Promise<string | null> => {
     if (name !== "llm_task") return null;
 
     const taskInput = input as unknown as LlmTaskInput;
@@ -64,7 +79,9 @@ export function createLlmTaskToolExecutor(
       return "Error: llm_task requires a non-empty 'prompt' argument (string).";
     }
 
-    const modelName = typeof taskInput.model === "string" ? taskInput.model : undefined;
+    const modelName = typeof taskInput.model === "string"
+      ? taskInput.model
+      : undefined;
     const provider = modelName
       ? registry.get(modelName) ?? registry.getDefault()
       : registry.getDefault();
@@ -83,7 +100,9 @@ export function createLlmTaskToolExecutor(
       const result = await provider.complete(messages, [], {});
       return result.content;
     } catch (err) {
-      return `Error in llm_task: ${err instanceof Error ? err.message : String(err)}`;
+      return `Error in llm_task: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
     }
   };
 }

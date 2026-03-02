@@ -42,7 +42,9 @@ function makeWorkspacePaths(basePath: string): WorkspacePaths {
 Deno.test("path classification: triggerfish.yaml is RESTRICTED (hardcoded)", () => {
   const classifier = createPathClassifier(makeConfig());
   const home = resolveHome();
-  const result = classifier.classify(join(home, ".triggerfish", "config", "triggerfish.yaml"));
+  const result = classifier.classify(
+    join(home, ".triggerfish", "config", "triggerfish.yaml"),
+  );
   assertEquals(result.classification, "RESTRICTED");
   assertEquals(result.source, "hardcoded");
 });
@@ -64,7 +66,9 @@ Deno.test("path classification: TRIGGER.md is RESTRICTED regardless of location"
 Deno.test("path classification: ~/.triggerfish/config/ dir is RESTRICTED", () => {
   const classifier = createPathClassifier(makeConfig());
   const home = resolveHome();
-  const result = classifier.classify(join(home, ".triggerfish", "config", "some-file.json"));
+  const result = classifier.classify(
+    join(home, ".triggerfish", "config", "some-file.json"),
+  );
   assertEquals(result.classification, "RESTRICTED");
   assertEquals(result.source, "hardcoded");
 });
@@ -72,7 +76,9 @@ Deno.test("path classification: ~/.triggerfish/config/ dir is RESTRICTED", () =>
 Deno.test("path classification: ~/.triggerfish/data/ is RESTRICTED", () => {
   const classifier = createPathClassifier(makeConfig());
   const home = resolveHome();
-  const result = classifier.classify(join(home, ".triggerfish", "data", "triggerfish.db"));
+  const result = classifier.classify(
+    join(home, ".triggerfish", "data", "triggerfish.db"),
+  );
   assertEquals(result.classification, "RESTRICTED");
   assertEquals(result.source, "hardcoded");
 });
@@ -80,7 +86,9 @@ Deno.test("path classification: ~/.triggerfish/data/ is RESTRICTED", () => {
 Deno.test("path classification: ~/.triggerfish/logs/ is RESTRICTED", () => {
   const classifier = createPathClassifier(makeConfig());
   const home = resolveHome();
-  const result = classifier.classify(join(home, ".triggerfish", "logs", "audit.log"));
+  const result = classifier.classify(
+    join(home, ".triggerfish", "logs", "audit.log"),
+  );
   assertEquals(result.classification, "RESTRICTED");
   assertEquals(result.source, "hardcoded");
 });
@@ -112,7 +120,9 @@ Deno.test("path classification: workspace confidential/ returns CONFIDENTIAL", (
   const basePath = "/tmp/workspaces/agent-1";
   const ws = makeWorkspacePaths(basePath);
   const classifier = createPathClassifier(makeConfig(), ws);
-  const result = classifier.classify(join(basePath, "confidential", "report.txt"));
+  const result = classifier.classify(
+    join(basePath, "confidential", "report.txt"),
+  );
   assertEquals(result.classification, "CONFIDENTIAL");
   assertEquals(result.source, "workspace");
 });
@@ -121,7 +131,9 @@ Deno.test("path classification: workspace restricted/ returns RESTRICTED", () =>
   const basePath = "/tmp/workspaces/agent-1";
   const ws = makeWorkspacePaths(basePath);
   const classifier = createPathClassifier(makeConfig(), ws);
-  const result = classifier.classify(join(basePath, "restricted", "secrets.txt"));
+  const result = classifier.classify(
+    join(basePath, "restricted", "secrets.txt"),
+  );
   assertEquals(result.classification, "RESTRICTED");
   assertEquals(result.source, "workspace");
 });
@@ -134,7 +146,9 @@ Deno.test("path classification: workspace path takes precedence over configured"
     makeConfig({ "/tmp/workspaces/*": "PUBLIC" }),
     ws,
   );
-  const result = classifier.classify(join(basePath, "confidential", "file.txt"));
+  const result = classifier.classify(
+    join(basePath, "confidential", "file.txt"),
+  );
   assertEquals(result.classification, "CONFIDENTIAL");
   assertEquals(result.source, "workspace");
 });
@@ -146,7 +160,9 @@ Deno.test("path classification: configured path mapping matches", () => {
   const classifier = createPathClassifier(
     makeConfig({ "~/Documents/finance/*": "CONFIDENTIAL" }),
   );
-  const result = classifier.classify(join(home, "Documents", "finance", "q4.xlsx"));
+  const result = classifier.classify(
+    join(home, "Documents", "finance", "q4.xlsx"),
+  );
   assertEquals(result.classification, "CONFIDENTIAL");
   assertEquals(result.source, "configured");
   assertEquals(result.matchedPattern, "~/Documents/finance/*");
@@ -161,7 +177,9 @@ Deno.test("path classification: first configured match wins", () => {
     }),
   );
   // The first pattern "~/Documents/*" matches first
-  const result = classifier.classify(join(home, "Documents", "finance", "q4.xlsx"));
+  const result = classifier.classify(
+    join(home, "Documents", "finance", "q4.xlsx"),
+  );
   assertEquals(result.classification, "INTERNAL");
   assertEquals(result.source, "configured");
 });
@@ -171,7 +189,9 @@ Deno.test("path classification: configured PUBLIC mapping allows low classificat
   const classifier = createPathClassifier(
     makeConfig({ "~/Projects/public-oss/*": "PUBLIC" }),
   );
-  const result = classifier.classify(join(home, "Projects", "public-oss", "README.md"));
+  const result = classifier.classify(
+    join(home, "Projects", "public-oss", "README.md"),
+  );
   assertEquals(result.classification, "PUBLIC");
   assertEquals(result.source, "configured");
 });
@@ -239,7 +259,9 @@ Deno.test("path classification: hardcoded > workspace > configured > default", (
   );
 
   // triggerfish.yaml in workspace → hardcoded RESTRICTED (basename match)
-  const r1 = classifier.classify(join(basePath, "internal", "triggerfish.yaml"));
+  const r1 = classifier.classify(
+    join(basePath, "internal", "triggerfish.yaml"),
+  );
   assertEquals(r1.classification, "RESTRICTED");
   assertEquals(r1.source, "hardcoded");
 

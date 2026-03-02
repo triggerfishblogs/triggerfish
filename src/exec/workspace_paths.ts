@@ -62,8 +62,13 @@ export function getReadableLevels(
     "CONFIDENTIAL",
     "INTERNAL",
   ];
-  const readableLevels = allLevels.filter((level) => canFlowTo(level, sessionTaint));
-  log.debug("Computed readable classification levels", { sessionTaint, readableLevels });
+  const readableLevels = allLevels.filter((level) =>
+    canFlowTo(level, sessionTaint)
+  );
+  log.debug("Computed readable classification levels", {
+    sessionTaint,
+    readableLevels,
+  });
   return readableLevels;
 }
 
@@ -81,7 +86,11 @@ export function validatePathInWorkspace(
   relativePath: string,
 ): Result<true, string> {
   if (!isWithinJail(absPath, workspacePath)) {
-    log.warn("Workspace path escape detected", { absPath, workspacePath, relativePath });
+    log.warn("Workspace path escape detected", {
+      absPath,
+      workspacePath,
+      relativePath,
+    });
     return {
       ok: false,
       error: `Path "${relativePath}" escapes the workspace directory`,
@@ -139,7 +148,12 @@ export function resolveExplicitClassifiedPath(
         `Write-down: ${sessionTaint} session cannot write to ${level} directory`,
     };
   }
-  log.debug("Workspace classified path resolved", { path: relativePath, level, sessionTaint, operation });
+  log.debug("Workspace classified path resolved", {
+    path: relativePath,
+    level,
+    sessionTaint,
+    operation,
+  });
   return { ok: true, value: { absolutePath: absPath, classification: level } };
 }
 
@@ -167,7 +181,11 @@ export function searchReadableLevelsForFile(
         value: { absolutePath: absPath, classification: level },
       };
     } catch (err) {
-      log.debug("Classified path stat failed, trying next level", { level, absPath, err });
+      log.debug("Classified path stat failed, trying next level", {
+        level,
+        absPath,
+        err,
+      });
     }
   }
   const fallbackPath = resolve(

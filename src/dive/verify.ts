@@ -38,7 +38,9 @@ const PROVIDER_ENDPOINTS: Readonly<Record<ProviderChoice, ProviderEndpoint>> = {
   },
   google: {
     url: (apiKey) =>
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${
+        encodeURIComponent(apiKey)
+      }`,
     headers: () => ({}),
   },
   ollama: {
@@ -89,7 +91,9 @@ function extractModelIds(
     const g = body as { models?: ReadonlyArray<{ name?: string }> };
     if (!Array.isArray(g.models)) return [];
     return g.models
-      .map((m) => typeof m.name === "string" ? m.name.replace(/^models\//, "") : "")
+      .map((m) =>
+        typeof m.name === "string" ? m.name.replace(/^models\//, "") : ""
+      )
       .filter((id) => id.length > 0);
   }
 
@@ -198,13 +202,17 @@ export async function verifyProvider(
     if (ids.length > 0 && !modelInList(model, ids, provider)) {
       return {
         ok: false,
-        error: `Model "${model}" was not found. Available models include: ${ids.slice(0, 5).join(", ")}${ids.length > 5 ? ", ..." : ""}.`,
+        error: `Model "${model}" was not found. Available models include: ${
+          ids.slice(0, 5).join(", ")
+        }${ids.length > 5 ? ", ..." : ""}.`,
       };
     }
 
     return { ok: true };
   } catch (err: unknown) {
-    const displayUrl = provider === "ollama" || provider === "lmstudio" ? (endpoint ?? url) : url;
+    const displayUrl = provider === "ollama" || provider === "lmstudio"
+      ? (endpoint ?? url)
+      : url;
 
     if (err instanceof DOMException && err.name === "TimeoutError") {
       return {

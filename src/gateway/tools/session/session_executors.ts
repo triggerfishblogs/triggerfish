@@ -70,15 +70,15 @@ function requireStringArg(
 async function executeSessionsList(ctx: SessionToolContext): Promise<string> {
   try {
     const sessions = await ctx.sessionManager.sessionsList();
-    const visible = sessions.filter((s) =>
-      canFlowTo(s.taint, ctx.callerTaint)
-    );
+    const visible = sessions.filter((s) => canFlowTo(s.taint, ctx.callerTaint));
     if (visible.length === 0) {
       return "No active sessions visible at your classification level.";
     }
     return visible.map(formatSessionSummary).join("\n\n");
   } catch (err) {
-    return `Error listing sessions: ${err instanceof Error ? err.message : String(err)}`;
+    return `Error listing sessions: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   }
 }
 
@@ -105,7 +105,9 @@ async function executeSessionsHistory(
     }
     return serializeSessionMeta(session);
   } catch (err) {
-    return `Error reading session: ${err instanceof Error ? err.message : String(err)}`;
+    return `Error reading session: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   }
 }
 
@@ -134,7 +136,9 @@ async function executeSessionsSend(
     if (!result.ok) return `Write-down blocked: ${result.error}`;
     return `Message delivered to session ${sessionId}.`;
   } catch (err) {
-    return `Error sending to session: ${err instanceof Error ? err.message : String(err)}`;
+    return `Error sending to session: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   }
 }
 
@@ -159,7 +163,9 @@ async function executeSessionsSpawn(
       task,
     });
   } catch (err) {
-    return `Error spawning session: ${err instanceof Error ? err.message : String(err)}`;
+    return `Error spawning session: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   }
 }
 
@@ -181,7 +187,9 @@ async function executeSessionStatus(
     }
     return serializeSessionMeta(session);
   } catch (err) {
-    return `Error reading session: ${err instanceof Error ? err.message : String(err)}`;
+    return `Error reading session: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   }
 }
 

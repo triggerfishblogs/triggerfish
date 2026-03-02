@@ -1,10 +1,13 @@
 # Building Skills
 
-This guide walks through creating a Triggerfish skill from scratch -- from writing the `SKILL.md` file to testing it and getting it approved.
+This guide walks through creating a Triggerfish skill from scratch -- from
+writing the `SKILL.md` file to testing it and getting it approved.
 
 ## What You Will Build
 
-A skill is a folder containing a `SKILL.md` file that teaches the agent how to do something. By the end of this guide, you will have a working skill that the agent can discover and use.
+A skill is a folder containing a `SKILL.md` file that teaches the agent how to
+do something. By the end of this guide, you will have a working skill that the
+agent can discover and use.
 
 ## Skill Anatomy
 
@@ -24,7 +27,8 @@ The `SKILL.md` file has two parts:
 
 ## Step 1: Write the Frontmatter
 
-The frontmatter declares what the skill does, what it needs, and what security constraints apply.
+The frontmatter declares what the skill does, what it needs, and what security
+constraints apply.
 
 ```yaml
 ---
@@ -42,39 +46,42 @@ network_domains:
 
 ### Required Fields
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| `name` | Unique identifier. Lowercase, hyphens for spaces. | `github-triage` |
-| `description` | What the skill does and when to use it. 1-3 sentences. | See above |
+| Field         | Description                                            | Example         |
+| ------------- | ------------------------------------------------------ | --------------- |
+| `name`        | Unique identifier. Lowercase, hyphens for spaces.      | `github-triage` |
+| `description` | What the skill does and when to use it. 1-3 sentences. | See above       |
 
 ### Optional Fields
 
-| Field | Description | Default |
-|-------|-------------|---------|
-| `classification_ceiling` | Maximum data sensitivity level | `PUBLIC` |
-| `requires_tools` | Tools the skill needs access to | `[]` |
-| `network_domains` | External domains the skill accesses | `[]` |
+| Field                    | Description                         | Default  |
+| ------------------------ | ----------------------------------- | -------- |
+| `classification_ceiling` | Maximum data sensitivity level      | `PUBLIC` |
+| `requires_tools`         | Tools the skill needs access to     | `[]`     |
+| `network_domains`        | External domains the skill accesses | `[]`     |
 
-Additional fields like `version`, `category`, `tags`, and `triggers` can be included for documentation and future use. The skill loader will silently ignore fields it does not recognize.
+Additional fields like `version`, `category`, `tags`, and `triggers` can be
+included for documentation and future use. The skill loader will silently ignore
+fields it does not recognize.
 
 ### Choosing a Classification Ceiling
 
-The classification ceiling is the maximum data sensitivity your skill will handle. Choose the lowest level that works:
+The classification ceiling is the maximum data sensitivity your skill will
+handle. Choose the lowest level that works:
 
-| Level | When to Use | Examples |
-|-------|-------------|---------|
-| `PUBLIC` | Only uses publicly available data | Web search, public API docs, weather |
-| `INTERNAL` | Works with internal project data | Code analysis, config review, internal docs |
-| `CONFIDENTIAL` | Handles personal or private data | Email summary, GitHub notifications, CRM queries |
-| `RESTRICTED` | Accesses highly sensitive data | Key management, security audits, compliance |
+| Level          | When to Use                       | Examples                                         |
+| -------------- | --------------------------------- | ------------------------------------------------ |
+| `PUBLIC`       | Only uses publicly available data | Web search, public API docs, weather             |
+| `INTERNAL`     | Works with internal project data  | Code analysis, config review, internal docs      |
+| `CONFIDENTIAL` | Handles personal or private data  | Email summary, GitHub notifications, CRM queries |
+| `RESTRICTED`   | Accesses highly sensitive data    | Key management, security audits, compliance      |
 
-::: warning
-If your skill's ceiling exceeds the user's configured ceiling, the skill author API will reject it. Always use the minimum level necessary.
-:::
+::: warning If your skill's ceiling exceeds the user's configured ceiling, the
+skill author API will reject it. Always use the minimum level necessary. :::
 
 ## Step 2: Write the Instructions
 
-The markdown body is what the agent reads to learn how to execute the skill. Make it actionable and specific.
+The markdown body is what the agent reads to learn how to execute the skill.
+Make it actionable and specific.
 
 ### Structure Template
 
@@ -110,15 +117,18 @@ Describe how results should be formatted.
 
 - **Start with purpose**: One sentence explaining what the skill does
 - **Include "When to Use"**: Helps the agent decide when to activate the skill
-- **Be specific**: "Fetch the last 24 hours of unread emails" is better than "Get emails"
+- **Be specific**: "Fetch the last 24 hours of unread emails" is better than
+  "Get emails"
 - **Use code examples**: Show exact API calls, data formats, command patterns
 - **Add tables**: Quick reference for options, endpoints, parameters
-- **Include error handling**: What to do when an API call fails or data is missing
+- **Include error handling**: What to do when an API call fails or data is
+  missing
 - **End with "Common Mistakes"**: Prevents the agent from repeating known issues
 
 ## Step 3: Test Discovery
 
-Verify your skill is discoverable by the skill loader. If you placed it in the bundled directory:
+Verify your skill is discoverable by the skill loader. If you placed it in the
+bundled directory:
 
 ```typescript
 import { createSkillLoader } from "../src/skills/loader.ts";
@@ -129,12 +139,13 @@ const loader = createSkillLoader({
 });
 
 const skills = await loader.discover();
-const mySkill = skills.find(s => s.name === "github-triage");
+const mySkill = skills.find((s) => s.name === "github-triage");
 console.log(mySkill);
 // { name: "github-triage", classificationCeiling: "CONFIDENTIAL", ... }
 ```
 
 Check that:
+
 - The skill appears in the discovered list
 - `name` matches the frontmatter
 - `classificationCeiling` is correct
@@ -142,7 +153,8 @@ Check that:
 
 ## Agent Self-Authoring
 
-The agent can create skills programmatically using the `SkillAuthor` API. This is how the agent extends itself when asked to do something new.
+The agent can create skills programmatically using the `SkillAuthor` API. This
+is how the agent extends itself when asked to do something new.
 
 ### The Workflow
 
@@ -196,19 +208,20 @@ if (result.ok) {
 
 ### Approval Statuses
 
-| Status | Meaning |
-|--------|---------|
+| Status             | Meaning                           |
+| ------------------ | --------------------------------- |
 | `PENDING_APPROVAL` | Created, waiting for owner review |
-| `APPROVED` | Owner approved, skill is active |
-| `REJECTED` | Owner rejected, skill is inactive |
+| `APPROVED`         | Owner approved, skill is active   |
+| `REJECTED`         | Owner rejected, skill is inactive |
 
-::: warning SECURITY
-The agent cannot approve its own skills. This is enforced at the API level. All agent-authored skills require explicit owner confirmation before activation.
-:::
+::: warning SECURITY The agent cannot approve its own skills. This is enforced
+at the API level. All agent-authored skills require explicit owner confirmation
+before activation. :::
 
 ## Security Scanning
 
-Before activation, skills pass through a security scanner that checks for prompt injection patterns:
+Before activation, skills pass through a security scanner that checks for prompt
+injection patterns:
 
 - "Ignore all previous instructions" -- prompt injection
 - "You are now a..." -- identity redefinition
@@ -216,7 +229,8 @@ Before activation, skills pass through a security scanner that checks for prompt
 - "Bypass security/policy" -- security circumvention
 - "Sudo/admin/god mode" -- privilege escalation
 
-Skills flagged by the scanner include warnings that the owner must review before approval.
+Skills flagged by the scanner include warnings that the owner must review before
+approval.
 
 ## Triggers
 
@@ -224,11 +238,13 @@ Skills can define automatic triggers in their frontmatter:
 
 ```yaml
 triggers:
-  - cron: "0 7 * * *"      # Every day at 7 AM
-  - cron: "*/30 * * * *"   # Every 30 minutes
+  - cron: "0 7 * * *" # Every day at 7 AM
+  - cron: "*/30 * * * *" # Every 30 minutes
 ```
 
-The scheduler reads these definitions and wakes the agent at the specified times to execute the skill. You can combine triggers with quiet hours in `triggerfish.yaml` to prevent execution during certain periods.
+The scheduler reads these definitions and wakes the agent at the specified times
+to execute the skill. You can combine triggers with quiet hours in
+`triggerfish.yaml` to prevent execution during certain periods.
 
 ## Complete Example
 

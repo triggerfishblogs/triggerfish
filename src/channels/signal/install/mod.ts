@@ -15,10 +15,7 @@ export {
 
 export { downloadJre } from "./setup_jre.ts";
 
-export {
-  downloadSignalCli,
-  fetchLatestVersion,
-} from "./setup_signal_cli.ts";
+export { downloadSignalCli, fetchLatestVersion } from "./setup_signal_cli.ts";
 export type { SignalCliInstall } from "./setup_signal_cli.ts";
 
 export {

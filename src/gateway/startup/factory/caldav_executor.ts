@@ -12,11 +12,11 @@ import type { ClassificationLevel } from "../../../core/types/classification.ts"
 import type { SessionId } from "../../../core/types/session.ts";
 import type { CalDavConfig } from "../../../integrations/caldav/mod.ts";
 import {
-  resolveCalDavCredentials,
   buildAuthHeaders,
   createCalDavClient,
-  discoverCalDavEndpoint,
   createCalDavToolExecutor,
+  discoverCalDavEndpoint,
+  resolveCalDavCredentials,
 } from "../../../integrations/caldav/mod.ts";
 import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
 import { parseClassification } from "../../../core/types/classification.ts";
@@ -80,7 +80,10 @@ export async function buildCalDavExecutor(
 
     const classificationFloor = config.classification
       ? parseClassification(config.classification).ok
-        ? (parseClassification(config.classification) as { ok: true; value: ClassificationLevel }).value
+        ? (parseClassification(config.classification) as {
+          ok: true;
+          value: ClassificationLevel;
+        }).value
         : undefined
       : undefined;
 

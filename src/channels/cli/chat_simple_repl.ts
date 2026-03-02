@@ -45,9 +45,16 @@ async function handleSecretPromptEvent(
       nonce: evt.nonce,
       value: value && value.length > 0 ? value : null,
     }));
-    ctx.log.debug("Secret prompt response sent", { operation: "handleSecretPromptEvent", nonce: evt.nonce, hasValue: value !== null && value.length > 0 });
+    ctx.log.debug("Secret prompt response sent", {
+      operation: "handleSecretPromptEvent",
+      nonce: evt.nonce,
+      hasValue: value !== null && value.length > 0,
+    });
   } catch (err: unknown) {
-    ctx.log.debug("WebSocket secret send failed", { operation: "handleSecretPromptEvent", err });
+    ctx.log.debug("WebSocket secret send failed", {
+      operation: "handleSecretPromptEvent",
+      err,
+    });
   }
 }
 
@@ -77,9 +84,15 @@ async function handleCredentialPromptEvent(
         username: null,
         password: null,
       }));
-      ctx.log.debug("Credential prompt cancelled (empty username)", { operation: "handleCredentialPromptEvent", nonce: evt.nonce });
+      ctx.log.debug("Credential prompt cancelled (empty username)", {
+        operation: "handleCredentialPromptEvent",
+        nonce: evt.nonce,
+      });
     } catch (err: unknown) {
-      ctx.log.debug("WebSocket credential cancel send failed", { operation: "handleCredentialPromptEvent", err });
+      ctx.log.debug("WebSocket credential cancel send failed", {
+        operation: "handleCredentialPromptEvent",
+        err,
+      });
     }
     return;
   }
@@ -100,9 +113,15 @@ async function handleCredentialPromptEvent(
       username,
       password: password && password.length > 0 ? password : null,
     }));
-    ctx.log.debug("Credential prompt response sent", { operation: "handleCredentialPromptEvent", nonce: evt.nonce });
+    ctx.log.debug("Credential prompt response sent", {
+      operation: "handleCredentialPromptEvent",
+      nonce: evt.nonce,
+    });
   } catch (err: unknown) {
-    ctx.log.debug("WebSocket credential send failed", { operation: "handleCredentialPromptEvent", err });
+    ctx.log.debug("WebSocket credential send failed", {
+      operation: "handleCredentialPromptEvent",
+      err,
+    });
   }
 }
 
@@ -118,7 +137,11 @@ function dispatchSlashCommand(
   if (line === "/clear") {
     ctx.ws.send(JSON.stringify({ type: "clear" }));
     console.log("\x1b[2J\x1b[H");
-    printBanner(ctx.providerName, ctx.config.models.primary.model, ctx.workspace);
+    printBanner(
+      ctx.providerName,
+      ctx.config.models.primary.model,
+      ctx.workspace,
+    );
     return "handled";
   }
   if (line === "/compact") {

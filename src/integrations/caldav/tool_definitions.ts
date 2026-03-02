@@ -208,7 +208,8 @@ function buildEventsDeleteDef(): ToolDefinition {
       },
       etag: {
         type: "string",
-        description: "Current ETag of the event. Required for conflict detection.",
+        description:
+          "Current ETag of the event. Required for conflict detection.",
         required: true,
       },
       calendar_id: {

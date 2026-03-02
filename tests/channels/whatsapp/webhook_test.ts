@@ -26,10 +26,14 @@ Deno.test({
   sanitizeOps: false,
   async fn() {
     const port = BASE_PORT + 10;
-    const adapter = createWhatsAppChannel({ ...buildTestConfig(10), webhookPort: port });
+    const adapter = createWhatsAppChannel({
+      ...buildTestConfig(10),
+      webhookPort: port,
+    });
     await adapter.connect();
     try {
-      const url = `http://127.0.0.1:${port}/webhook?hub.mode=subscribe&hub.verify_token=test-verify-token&hub.challenge=test_challenge_123`;
+      const url =
+        `http://127.0.0.1:${port}/webhook?hub.mode=subscribe&hub.verify_token=test-verify-token&hub.challenge=test_challenge_123`;
       const resp = await fetch(url);
       assertEquals(resp.status, 200);
       const text = await resp.text();
@@ -46,10 +50,14 @@ Deno.test({
   sanitizeOps: false,
   async fn() {
     const port = BASE_PORT + 11;
-    const adapter = createWhatsAppChannel({ ...buildTestConfig(11), webhookPort: port });
+    const adapter = createWhatsAppChannel({
+      ...buildTestConfig(11),
+      webhookPort: port,
+    });
     await adapter.connect();
     try {
-      const url = `http://127.0.0.1:${port}/webhook?hub.mode=subscribe&hub.verify_token=wrong-token&hub.challenge=abc`;
+      const url =
+        `http://127.0.0.1:${port}/webhook?hub.mode=subscribe&hub.verify_token=wrong-token&hub.challenge=abc`;
       const resp = await fetch(url);
       assertEquals(resp.status, 403);
       await resp.body?.cancel();
@@ -65,7 +73,10 @@ Deno.test({
   sanitizeOps: false,
   async fn() {
     const port = BASE_PORT + 12;
-    const adapter = createWhatsAppChannel({ ...buildTestConfig(12), webhookPort: port });
+    const adapter = createWhatsAppChannel({
+      ...buildTestConfig(12),
+      webhookPort: port,
+    });
     await adapter.connect();
     try {
       const url = `http://127.0.0.1:${port}/webhook`;
@@ -84,7 +95,10 @@ Deno.test({
   sanitizeOps: false,
   async fn() {
     const port = BASE_PORT + 13;
-    const adapter = createWhatsAppChannel({ ...buildTestConfig(13), webhookPort: port });
+    const adapter = createWhatsAppChannel({
+      ...buildTestConfig(13),
+      webhookPort: port,
+    });
     await adapter.connect();
     try {
       const resp = await fetch(`http://127.0.0.1:${port}/other`);

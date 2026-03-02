@@ -12,7 +12,8 @@ import {
   getSkillToolDefinitions,
 } from "../../../src/tools/skills/tools.ts";
 
-const bundledDir = new URL("../../../src/skills/bundled", import.meta.url).pathname;
+const bundledDir =
+  new URL("../../../src/skills/bundled", import.meta.url).pathname;
 
 function makeBundledLoader() {
   return createSkillLoader({
@@ -31,7 +32,9 @@ Deno.test("getSkillToolDefinitions: returns read_skill definition", () => {
 });
 
 Deno.test("read_skill: returns null for unknown tool names", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("some_other_tool", {
     type: "BUNDLED",
     skill_name: "weather",
@@ -40,7 +43,9 @@ Deno.test("read_skill: returns null for unknown tool names", async () => {
 });
 
 Deno.test("read_skill: reads a bundled skill successfully", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("read_skill", {
     type: "BUNDLED",
     skill_name: "weather",
@@ -58,7 +63,9 @@ Deno.test("read_skill: reads a bundled skill successfully", async () => {
 });
 
 Deno.test("read_skill: not found returns available skill list", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("read_skill", {
     type: "BUNDLED",
     skill_name: "nonexistent-skill",
@@ -72,7 +79,9 @@ Deno.test("read_skill: not found returns available skill list", async () => {
 });
 
 Deno.test("read_skill: invalid type returns error message", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("read_skill", {
     type: "INVALID",
     skill_name: "weather",
@@ -83,7 +92,9 @@ Deno.test("read_skill: invalid type returns error message", async () => {
 });
 
 Deno.test("read_skill: empty skill_name returns error message", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("read_skill", {
     type: "BUNDLED",
     skill_name: "",
@@ -93,7 +104,9 @@ Deno.test("read_skill: empty skill_name returns error message", async () => {
 });
 
 Deno.test("read_skill: missing skill_name returns error message", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("read_skill", { type: "BUNDLED" });
   assertStringIncludes(result!, "Error:");
   assertStringIncludes(result!, "skill_name");
@@ -182,7 +195,9 @@ Deno.test(
 );
 
 Deno.test("read_skill: skill_name is trimmed before lookup", async () => {
-  const executor = createSkillToolExecutor({ skillLoader: makeBundledLoader() });
+  const executor = createSkillToolExecutor({
+    skillLoader: makeBundledLoader(),
+  });
   const result = await executor("read_skill", {
     type: "BUNDLED",
     skill_name: "  weather  ",

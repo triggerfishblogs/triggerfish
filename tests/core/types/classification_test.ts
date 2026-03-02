@@ -5,8 +5,8 @@
  */
 import { assertEquals } from "@std/assert";
 import {
-  CLASSIFICATION_ORDER,
   canFlowTo,
+  CLASSIFICATION_ORDER,
   compareClassification,
   maxClassification,
   parseClassification,

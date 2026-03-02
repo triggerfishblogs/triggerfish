@@ -10,11 +10,25 @@
  */
 
 // keychain/ — OS keychain integration
-export { createKeychain, createLinuxKeychain, createMacKeychain, runCommand } from "./keychain/mod.ts";
+export {
+  createKeychain,
+  createLinuxKeychain,
+  createMacKeychain,
+  runCommand,
+} from "./keychain/mod.ts";
 
 // backends/ — storage backends and interfaces
-export { createMemorySecretStore, createFileSecretStore, loadOrCreateMachineKey, SECRET_SERVICE_NAME } from "./backends/mod.ts";
-export type { SecretStore, FileSecretStoreOptions, MachineKeyOptions } from "./backends/mod.ts";
+export {
+  createFileSecretStore,
+  createMemorySecretStore,
+  loadOrCreateMachineKey,
+  SECRET_SERVICE_NAME,
+} from "./backends/mod.ts";
+export type {
+  FileSecretStoreOptions,
+  MachineKeyOptions,
+  SecretStore,
+} from "./backends/mod.ts";
 
 // encrypted/ — AES-256-GCM encrypted file store
 export { createEncryptedFileSecretStore } from "./encrypted/mod.ts";

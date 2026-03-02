@@ -20,11 +20,7 @@ import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("dive");
 
-import type {
-  DiveResult,
-  ToneChoice,
-  WizardAnswers,
-} from "./wizard_types.ts";
+import type { DiveResult, ToneChoice, WizardAnswers } from "./wizard_types.ts";
 
 import type { LlmProviderResult } from "./wizard_llm.ts";
 import { promptLlmProviderStep } from "./wizard_llm.ts";
@@ -133,7 +129,10 @@ async function promptAgentIdentityStep(
 /** Abort if stdin is not an interactive terminal. */
 function enforceTerminalRequirement(): void {
   if (!Deno.stdin.isTerminal()) {
-    log.error("Terminal requirement not met", { operation: "enforceTerminalRequirement", reason: "stdin is not a TTY" });
+    log.error("Terminal requirement not met", {
+      operation: "enforceTerminalRequirement",
+      reason: "stdin is not a TTY",
+    });
     console.error("");
     console.error(
       "  Error: the dive wizard requires an interactive terminal.",

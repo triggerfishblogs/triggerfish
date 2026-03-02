@@ -14,7 +14,10 @@ import {
 Deno.test("FilesystemServer: read_file within root succeeds", async () => {
   const root = await Deno.makeTempDir();
   await Deno.writeTextFile(`${root}/hello.txt`, "hello world");
-  const server = createFilesystemServer({ rootPath: root, classification: "INTERNAL" });
+  const server = createFilesystemServer({
+    rootPath: root,
+    classification: "INTERNAL",
+  });
   try {
     const result = await server.callTool("read_file", { path: "hello.txt" });
     assertEquals(result.ok, true);
@@ -29,7 +32,10 @@ Deno.test("FilesystemServer: read_file within root succeeds", async () => {
 
 Deno.test("FilesystemServer: write_file within root succeeds", async () => {
   const root = await Deno.makeTempDir();
-  const server = createFilesystemServer({ rootPath: root, classification: "INTERNAL" });
+  const server = createFilesystemServer({
+    rootPath: root,
+    classification: "INTERNAL",
+  });
   try {
     const result = await server.callTool("write_file", {
       path: "output.txt",
@@ -47,7 +53,10 @@ Deno.test("FilesystemServer: list_directory within root succeeds", async () => {
   const root = await Deno.makeTempDir();
   await Deno.writeTextFile(`${root}/a.txt`, "a");
   await Deno.writeTextFile(`${root}/b.txt`, "b");
-  const server = createFilesystemServer({ rootPath: root, classification: "INTERNAL" });
+  const server = createFilesystemServer({
+    rootPath: root,
+    classification: "INTERNAL",
+  });
   try {
     const result = await server.callTool("list_directory", { path: "." });
     assertEquals(result.ok, true);
@@ -65,9 +74,14 @@ Deno.test("FilesystemServer: list_directory within root succeeds", async () => {
 
 Deno.test("FilesystemServer: read_file with ../ is blocked", async () => {
   const root = await Deno.makeTempDir();
-  const server = createFilesystemServer({ rootPath: root, classification: "INTERNAL" });
+  const server = createFilesystemServer({
+    rootPath: root,
+    classification: "INTERNAL",
+  });
   try {
-    const result = await server.callTool("read_file", { path: "../escape.txt" });
+    const result = await server.callTool("read_file", {
+      path: "../escape.txt",
+    });
     assertEquals(result.ok, false);
   } finally {
     await Deno.remove(root, { recursive: true });
@@ -76,7 +90,10 @@ Deno.test("FilesystemServer: read_file with ../ is blocked", async () => {
 
 Deno.test("FilesystemServer: read_file with ../../etc/passwd is blocked", async () => {
   const root = await Deno.makeTempDir();
-  const server = createFilesystemServer({ rootPath: root, classification: "INTERNAL" });
+  const server = createFilesystemServer({
+    rootPath: root,
+    classification: "INTERNAL",
+  });
   try {
     const result = await server.callTool("read_file", {
       path: "../../etc/passwd",
@@ -89,7 +106,10 @@ Deno.test("FilesystemServer: read_file with ../../etc/passwd is blocked", async 
 
 Deno.test("FilesystemServer: write_file with ../ is blocked", async () => {
   const root = await Deno.makeTempDir();
-  const server = createFilesystemServer({ rootPath: root, classification: "INTERNAL" });
+  const server = createFilesystemServer({
+    rootPath: root,
+    classification: "INTERNAL",
+  });
   try {
     const result = await server.callTool("write_file", {
       path: "../evil.txt",
@@ -103,7 +123,10 @@ Deno.test("FilesystemServer: write_file with ../ is blocked", async () => {
 
 Deno.test("FilesystemServer: list_directory with ../ is blocked", async () => {
   const root = await Deno.makeTempDir();
-  const server = createFilesystemServer({ rootPath: root, classification: "INTERNAL" });
+  const server = createFilesystemServer({
+    rootPath: root,
+    classification: "INTERNAL",
+  });
   try {
     const result = await server.callTool("list_directory", { path: "../" });
     assertEquals(result.ok, false);
@@ -118,7 +141,10 @@ Deno.test("FilesystemServer: sibling path with shared prefix is blocked (prefix-
   const sibling = root + "malicious";
   await Deno.mkdir(sibling, { recursive: true });
   await Deno.writeTextFile(`${sibling}/secret.txt`, "sensitive");
-  const server = createFilesystemServer({ rootPath: root, classification: "INTERNAL" });
+  const server = createFilesystemServer({
+    rootPath: root,
+    classification: "INTERNAL",
+  });
   try {
     // Attempt to escape via absolute path that shares root's prefix
     const result = await server.callTool("read_file", {

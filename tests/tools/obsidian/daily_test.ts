@@ -2,7 +2,7 @@
  * Daily note tests — create, read, append, recent listing.
  */
 
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { createVaultContext } from "../../../src/tools/obsidian/vault.ts";
 import { createNoteStore } from "../../../src/tools/obsidian/notes/notes.ts";
 import { createDailyNoteManager } from "../../../src/tools/obsidian/daily.ts";
@@ -52,7 +52,10 @@ Deno.test("DailyNoteManager.getOrCreate: reads existing note", async () => {
   const { ctx, store, path } = await makeDailyCtx();
   try {
     await Deno.mkdir(`${path}/daily`, { recursive: true });
-    await Deno.writeTextFile(`${path}/daily/2025-03-15.md`, "# Existing Daily\n\nHello!");
+    await Deno.writeTextFile(
+      `${path}/daily/2025-03-15.md`,
+      "# Existing Daily\n\nHello!",
+    );
     const mgr = createDailyNoteManager(ctx, store);
     const result = await mgr.getOrCreate("2025-03-15");
     assert(result.ok);
@@ -95,7 +98,10 @@ Deno.test("DailyNoteManager.getOrCreate: applies template for new note", async (
   const { ctx, store, path } = await makeDailyCtx();
   try {
     await Deno.mkdir(`${path}/templates`, { recursive: true });
-    await Deno.writeTextFile(`${path}/templates/daily.md`, "---\ntype: daily\n---\n# Daily Template\n\n");
+    await Deno.writeTextFile(
+      `${path}/templates/daily.md`,
+      "---\ntype: daily\n---\n# Daily Template\n\n",
+    );
     const mgr = createDailyNoteManager(ctx, store);
     const result = await mgr.getOrCreate("2025-06-01", "templates/daily.md");
     assert(result.ok);
@@ -111,7 +117,10 @@ Deno.test("DailyNoteManager.append: appends to existing daily note", async () =>
   const { ctx, store, path } = await makeDailyCtx();
   try {
     await Deno.mkdir(`${path}/daily`, { recursive: true });
-    await Deno.writeTextFile(`${path}/daily/2025-03-15.md`, "# 2025-03-15\n\nFirst entry.");
+    await Deno.writeTextFile(
+      `${path}/daily/2025-03-15.md`,
+      "# 2025-03-15\n\nFirst entry.",
+    );
     const mgr = createDailyNoteManager(ctx, store);
     const result = await mgr.append("Second entry.", "2025-03-15");
     assert(result.ok);

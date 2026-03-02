@@ -46,12 +46,18 @@ export function dispatchClientChatMessage(
     return;
   }
   if (msg.type === "secret_prompt_response") {
-    log.debug("Dispatching secret prompt response", { operation: "dispatchClientChatMessage", nonce: msg.nonce });
+    log.debug("Dispatching secret prompt response", {
+      operation: "dispatchClientChatMessage",
+      nonce: msg.nonce,
+    });
     ctx.chatSession.handleSecretPromptResponse(msg.nonce, msg.value);
     return;
   }
   if (msg.type === "credential_prompt_response") {
-    log.debug("Dispatching credential prompt response", { operation: "dispatchClientChatMessage", nonce: msg.nonce });
+    log.debug("Dispatching credential prompt response", {
+      operation: "dispatchClientChatMessage",
+      nonce: msg.nonce,
+    });
     ctx.chatSession.handleCredentialPromptResponse(
       msg.nonce,
       msg.username,

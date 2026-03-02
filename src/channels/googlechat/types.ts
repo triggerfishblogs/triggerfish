@@ -147,4 +147,3 @@ export interface GoogleChatEvent {
   /** The user who triggered the event. */
   readonly user?: GoogleChatSender;
 }
-

@@ -27,6 +27,7 @@ Check if `node_modules/pdf-parse` exists before reinstalling.
 ## Extract Text
 
 1. Write extraction script:
+
 ```
 write_file: {
   path: "{workspace}/extract-pdf.mjs",
@@ -35,6 +36,7 @@ write_file: {
 ```
 
 2. Run on target PDF:
+
 ```
 run_command: { command: "node extract-pdf.mjs /path/to/document.pdf", cwd: "{workspace}" }
 ```
@@ -44,6 +46,7 @@ run_command: { command: "node extract-pdf.mjs /path/to/document.pdf", cwd: "{wor
 Split by form feed (`\f`) and select ranges for large PDFs.
 
 ## Key Behaviors
+
 - Check if pdf-parse installed before using
 - PDF content inherits session classification — may be sensitive
 - For 100+ page PDFs, extract specific ranges

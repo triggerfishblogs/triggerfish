@@ -7,7 +7,11 @@
  * @module
  */
 
-import type { PropfindResource, ReportResource, CalDavClientResult } from "./types.ts";
+import type {
+  CalDavClientResult,
+  PropfindResource,
+  ReportResource,
+} from "./types.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("caldav:client");
@@ -17,7 +21,8 @@ const log = createLogger("caldav:client");
 /** Parse PROPFIND multistatus XML response. */
 export function parsePropfindXml(xml: string): PropfindResource[] {
   const resources: PropfindResource[] = [];
-  const responseRegex = /<(?:d:|D:|DAV:)?response>([\s\S]*?)<\/(?:d:|D:|DAV:)?response>/gi;
+  const responseRegex =
+    /<(?:d:|D:|DAV:)?response>([\s\S]*?)<\/(?:d:|D:|DAV:)?response>/gi;
   let responseMatch: RegExpExecArray | null;
 
   while ((responseMatch = responseRegex.exec(xml)) !== null) {
@@ -55,8 +60,13 @@ function extractStandardProperties(
   const getetag = extractTagValue(block, "getetag");
   if (getetag) properties["getetag"] = getetag;
 
-  const currentUserPrincipal = extractHrefFromTag(block, "current-user-principal");
-  if (currentUserPrincipal) properties["current-user-principal"] = currentUserPrincipal;
+  const currentUserPrincipal = extractHrefFromTag(
+    block,
+    "current-user-principal",
+  );
+  if (currentUserPrincipal) {
+    properties["current-user-principal"] = currentUserPrincipal;
+  }
 }
 
 /** Extract CalDAV-specific properties. */
@@ -68,7 +78,9 @@ function extractCalendarProperties(
   if (calendarColor) properties["calendar-color"] = calendarColor;
 
   const calendarDescription = extractTagValue(block, "calendar-description");
-  if (calendarDescription) properties["calendar-description"] = calendarDescription;
+  if (calendarDescription) {
+    properties["calendar-description"] = calendarDescription;
+  }
 
   const getctag = extractTagValue(block, "getctag");
   if (getctag) properties["getctag"] = getctag;
@@ -77,7 +89,8 @@ function extractCalendarProperties(
   if (calendarHomeSet) properties["calendar-home-set"] = calendarHomeSet;
 
   const resourcetype = block.includes("calendar")
-    ? (block.includes("<c:calendar") || block.includes("<cal:calendar") || block.match(/<[^>]*calendar[^>]*\/>/i))
+    ? (block.includes("<c:calendar") || block.includes("<cal:calendar") ||
+        block.match(/<[^>]*calendar[^>]*\/>/i))
       ? "calendar"
       : ""
     : "";
@@ -89,7 +102,8 @@ function extractCalendarProperties(
 /** Parse REPORT multistatus XML response. */
 export function parseReportXml(xml: string): ReportResource[] {
   const resources: ReportResource[] = [];
-  const responseRegex = /<(?:d:|D:|DAV:)?response>([\s\S]*?)<\/(?:d:|D:|DAV:)?response>/gi;
+  const responseRegex =
+    /<(?:d:|D:|DAV:)?response>([\s\S]*?)<\/(?:d:|D:|DAV:)?response>/gi;
   let responseMatch: RegExpExecArray | null;
 
   while ((responseMatch = responseRegex.exec(xml)) !== null) {
@@ -146,7 +160,9 @@ export async function buildErrorResult<T>(
   method: string,
 ): Promise<CalDavClientResult<T>> {
   const text = await response.text().catch(() => "");
-  const message = `${method} failed with status ${response.status}: ${text.substring(0, 200)}`;
+  const message = `${method} failed with status ${response.status}: ${
+    text.substring(0, 200)
+  }`;
   log.warn(`CalDAV ${method} error`, {
     operation: method.toLowerCase(),
     status: response.status,

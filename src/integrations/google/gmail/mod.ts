@@ -7,25 +7,25 @@
  */
 
 export type {
+  GmailLabelOptions,
   GmailMessage,
   GmailSearchOptions,
   GmailSendOptions,
-  GmailLabelOptions,
   GmailService,
 } from "./types_gmail.ts";
 
 export { createGmailService } from "./gmail.ts";
 
 export {
-  buildGmailSearchDef,
-  buildGmailReadDef,
-  buildGmailSendDef,
   buildGmailLabelDef,
+  buildGmailReadDef,
+  buildGmailSearchDef,
+  buildGmailSendDef,
 } from "./tools_defs_gmail.ts";
 
 export {
-  executeGmailSearch,
-  executeGmailRead,
-  executeGmailSend,
   executeGmailLabel,
+  executeGmailRead,
+  executeGmailSearch,
+  executeGmailSend,
 } from "./tools_exec_gmail.ts";

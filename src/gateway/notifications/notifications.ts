@@ -13,18 +13,18 @@ import type { ClassificationLevel } from "../../core/types/classification.ts";
 import type { StorageProvider } from "../../core/storage/provider.ts";
 
 export type {
-  NotificationPriority,
-  Notification,
   DeliverOptions,
   DeliveryChannel,
+  Notification,
+  NotificationPriority,
   NotificationService,
 } from "../../core/types/notification.ts";
 
 import type {
-  NotificationPriority,
-  Notification,
   DeliverOptions,
   DeliveryChannel,
+  Notification,
+  NotificationPriority,
   NotificationService,
 } from "../../core/types/notification.ts";
 

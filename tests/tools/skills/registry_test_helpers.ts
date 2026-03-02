@@ -4,9 +4,7 @@
  * Shared fixtures and utilities for Reef registry tests.
  * Provides mock fetch, test catalog builder, and test registry factory.
  */
-import {
-  createReefRegistry,
-} from "../../../src/tools/skills/registry.ts";
+import { createReefRegistry } from "../../../src/tools/skills/registry.ts";
 import type {
   ReefCatalog,
   ReefRegistryOptions,

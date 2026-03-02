@@ -1,10 +1,15 @@
 # Config Schema
 
-Triggerfish is configured through `triggerfish.yaml`, located at `~/.triggerfish/triggerfish.yaml` after running `triggerfish dive`. This page documents every configuration section.
+Triggerfish is configured through `triggerfish.yaml`, located at
+`~/.triggerfish/triggerfish.yaml` after running `triggerfish dive`. This page
+documents every configuration section.
 
-::: info Secret References
-Any string value in this file can use the `secret:` prefix to reference a credential stored in the OS keychain. For example, `apiKey: "secret:provider:anthropic:apiKey"` resolves the value from the keychain at startup. See [Secrets Management](/security/secrets#secret-references-in-configuration) for details.
-:::
+::: info Secret References Any string value in this file can use the `secret:`
+prefix to reference a credential stored in the OS keychain. For example,
+`apiKey: "secret:provider:anthropic:apiKey"` resolves the value from the
+keychain at startup. See
+[Secrets Management](/security/secrets#secret-references-in-configuration) for
+details. :::
 
 ## Full Annotated Example
 
@@ -63,24 +68,24 @@ models:
 
   # Ordered failover chain -- tried in sequence when primary fails
   failover:
-    - claude-haiku-4-5         # First fallback
-    - gpt-4o                    # Second fallback
-    - ollama/llama3             # Local fallback (no internet required)
+    - claude-haiku-4-5 # First fallback
+    - gpt-4o # Second fallback
+    - ollama/llama3 # Local fallback (no internet required)
 
   # Failover behavior
   failover_config:
-    max_retries: 3              # Retries per provider before moving to next
-    retry_delay_ms: 1000        # Delay between retries
-    conditions:                 # What triggers failover
-      - rate_limited            # Provider returned 429
-      - server_error            # Provider returned 5xx
-      - timeout                 # Request exceeded timeout
+    max_retries: 3 # Retries per provider before moving to next
+    retry_delay_ms: 1000 # Delay between retries
+    conditions: # What triggers failover
+      - rate_limited # Provider returned 429
+      - server_error # Provider returned 5xx
+      - timeout # Request exceeded timeout
 
 # ---------------------------------------------------------------------------
 # Logging: Structured log output
 # ---------------------------------------------------------------------------
 logging:
-  level: normal                        # quiet | normal | verbose | debug
+  level: normal # quiet | normal | verbose | debug
 
 # ---------------------------------------------------------------------------
 # Channels: Messaging platform connections
@@ -90,33 +95,33 @@ logging:
 # Only non-secret configuration appears here.
 channels:
   telegram:
-    ownerId: 123456789                       # Your Telegram numeric user ID
-    classification: INTERNAL                 # Default: INTERNAL
+    ownerId: 123456789 # Your Telegram numeric user ID
+    classification: INTERNAL # Default: INTERNAL
 
   signal:
-    endpoint: "tcp://127.0.0.1:7583"        # signal-cli daemon endpoint
-    account: "+14155552671"                  # Your Signal phone number (E.164)
-    classification: PUBLIC                   # Default: PUBLIC
-    defaultGroupMode: mentioned-only         # always | mentioned-only | owner-only
+    endpoint: "tcp://127.0.0.1:7583" # signal-cli daemon endpoint
+    account: "+14155552671" # Your Signal phone number (E.164)
+    classification: PUBLIC # Default: PUBLIC
+    defaultGroupMode: mentioned-only # always | mentioned-only | owner-only
     groups:
       "group-id-here":
         mode: always
         classification: INTERNAL
 
   slack:
-    classification: PUBLIC                   # Default: PUBLIC
+    classification: PUBLIC # Default: PUBLIC
 
   discord:
-    ownerId: "your-discord-user-id"          # Your Discord user ID
-    classification: PUBLIC                   # Default: PUBLIC
+    ownerId: "your-discord-user-id" # Your Discord user ID
+    classification: PUBLIC # Default: PUBLIC
 
   whatsapp:
-    phoneNumberId: "your-phone-number-id"    # From Meta Business Dashboard
-    classification: PUBLIC                   # Default: PUBLIC
+    phoneNumberId: "your-phone-number-id" # From Meta Business Dashboard
+    classification: PUBLIC # Default: PUBLIC
 
   webchat:
-    port: 8080                               # WebSocket port for web client
-    classification: PUBLIC                   # Default: PUBLIC (visitors)
+    port: 8080 # WebSocket port for web client
+    classification: PUBLIC # Default: PUBLIC (visitors)
 
   email:
     smtpApiUrl: "https://api.sendgrid.com/v3/mail/send"
@@ -125,14 +130,14 @@ channels:
     imapUser: "you@gmail.com"
     fromAddress: "bot@example.com"
     ownerEmail: "you@gmail.com"
-    classification: CONFIDENTIAL             # Default: CONFIDENTIAL
+    classification: CONFIDENTIAL # Default: CONFIDENTIAL
 
 # ---------------------------------------------------------------------------
 # Classification: Data sensitivity model
 # ---------------------------------------------------------------------------
 classification:
-  mode: personal                 # "personal" or "enterprise" (coming soon)
-  # Levels: RESTRICTED > CONFIDENTIAL > INTERNAL > PUBLIC
+  mode: personal # "personal" or "enterprise" (coming soon)
+# Levels: RESTRICTED > CONFIDENTIAL > INTERNAL > PUBLIC
 
 # ---------------------------------------------------------------------------
 # Policy: Custom enforcement rules (enterprise escape hatch)
@@ -146,7 +151,7 @@ policy:
         - type: recipient_is
           value: EXTERNAL
         - type: content_matches
-          pattern: "\\b\\d{3}-\\d{2}-\\d{4}\\b"   # SSN pattern
+          pattern: "\\b\\d{3}-\\d{2}-\\d{4}\\b" # SSN pattern
       action: REDACT
       message: "PII redacted for external recipient"
 
@@ -186,40 +191,40 @@ scheduler:
   cron:
     jobs:
       - id: morning-briefing
-        schedule: "0 7 * * *"              # 7 AM daily
+        schedule: "0 7 * * *" # 7 AM daily
         task: "Prepare morning briefing with calendar, unread emails, and weather"
         channel: telegram
         classification: INTERNAL
 
       - id: pipeline-check
-        schedule: "0 */4 * * *"            # Every 4 hours
+        schedule: "0 */4 * * *" # Every 4 hours
         task: "Check Salesforce pipeline for changes and notify if significant"
         channel: slack
         classification: CONFIDENTIAL
 
       - id: pr-review-check
-        schedule: "*/15 * * * *"           # Every 15 minutes
+        schedule: "*/15 * * * *" # Every 15 minutes
         task: "Check open PR tracking files and query GitHub for new reviews"
         classification: INTERNAL
 
   trigger:
-    interval: 30m                           # Check every 30 minutes
-    classification: INTERNAL                # Max taint ceiling for triggers
-    quiet_hours: "22:00-07:00"             # Suppress during these hours
+    interval: 30m # Check every 30 minutes
+    classification: INTERNAL # Max taint ceiling for triggers
+    quiet_hours: "22:00-07:00" # Suppress during these hours
 
 # ---------------------------------------------------------------------------
 # Notifications: Delivery preferences
 # ---------------------------------------------------------------------------
 notifications:
-  preferred_channel: telegram               # Default delivery channel
-  quiet_hours: "22:00-07:00"               # Suppress normal/low priority
-  batch_interval: 15m                       # Batch low-priority notifications
+  preferred_channel: telegram # Default delivery channel
+  quiet_hours: "22:00-07:00" # Suppress normal/low priority
+  batch_interval: 15m # Batch low-priority notifications
 
 # ---------------------------------------------------------------------------
 # Agents: Multi-agent routing (optional)
 # ---------------------------------------------------------------------------
 agents:
-  default: personal                         # Fallback agent
+  default: personal # Fallback agent
   list:
     - id: personal
       name: "Personal Assistant"
@@ -243,10 +248,10 @@ agents:
 # ---------------------------------------------------------------------------
 voice:
   stt:
-    provider: whisper                       # whisper | deepgram | openai
-    model: base                             # Whisper model size
+    provider: whisper # whisper | deepgram | openai
+    model: base # Whisper model size
   tts:
-    provider: elevenlabs                    # elevenlabs | openai | system
+    provider: elevenlabs # elevenlabs | openai | system
     voice_id: "your-voice-id"
   wake_word: "triggerfish"
   push_to_talk:
@@ -279,7 +284,7 @@ webhooks:
 # GitHub: GitHub integration settings (optional)
 # ---------------------------------------------------------------------------
 github:
-  auto_merge: false              # Default: false. Set true to auto-merge approved PRs.
+  auto_merge: false # Default: false. Set true to auto-merge approved PRs.
 
 # ---------------------------------------------------------------------------
 # Groups: Group chat behavior (optional)
@@ -299,8 +304,8 @@ groups:
 # ---------------------------------------------------------------------------
 web:
   search:
-    provider: brave                        # Search backend (brave is the default)
-    # API key is stored in the OS keychain
+    provider: brave # Search backend (brave is the default)
+# API key is stored in the OS keychain
 
 # ---------------------------------------------------------------------------
 # Remote: Remote access (optional)
@@ -312,77 +317,85 @@ remote:
       enabled: true
       paths: ["/webhook/*"]
   auth:
-    # Auth token is stored in the OS keychain
+# Auth token is stored in the OS keychain
 ```
 
 ## Section Reference
 
 ### `models`
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `primary` | object | Primary model reference with `provider` and `model` fields |
-| `primary.provider` | string | Provider name (`anthropic`, `openai`, `google`, `ollama`, `lmstudio`, `openrouter`, `zenmux`, `zai`) |
-| `primary.model` | string | Model identifier used for agent completions |
-| `vision` | string | Optional vision model for automatic image description (see [Image and Vision](/features/image-vision)) |
-| `streaming` | boolean | Enable streaming responses (default: `true`) |
-| `providers` | object | Provider-specific configuration (see below) |
-| `failover` | string[] | Ordered list of fallback models |
-| `failover_config.max_retries` | number | Retries per provider before failover |
-| `failover_config.retry_delay_ms` | number | Delay between retries in milliseconds |
-| `failover_config.conditions` | string[] | Conditions that trigger failover |
+| Key                              | Type     | Description                                                                                            |
+| -------------------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `primary`                        | object   | Primary model reference with `provider` and `model` fields                                             |
+| `primary.provider`               | string   | Provider name (`anthropic`, `openai`, `google`, `ollama`, `lmstudio`, `openrouter`, `zenmux`, `zai`)   |
+| `primary.model`                  | string   | Model identifier used for agent completions                                                            |
+| `vision`                         | string   | Optional vision model for automatic image description (see [Image and Vision](/features/image-vision)) |
+| `streaming`                      | boolean  | Enable streaming responses (default: `true`)                                                           |
+| `providers`                      | object   | Provider-specific configuration (see below)                                                            |
+| `failover`                       | string[] | Ordered list of fallback models                                                                        |
+| `failover_config.max_retries`    | number   | Retries per provider before failover                                                                   |
+| `failover_config.retry_delay_ms` | number   | Delay between retries in milliseconds                                                                  |
+| `failover_config.conditions`     | string[] | Conditions that trigger failover                                                                       |
 
 ### `channels`
 
-Each channel key is the channel type. All channel types support a `classification` field to override the default classification level.
+Each channel key is the channel type. All channel types support a
+`classification` field to override the default classification level.
 
-::: info
-All secrets (tokens, API keys, passwords) are stored in the OS keychain, not in this file. Run `triggerfish config add-channel <name>` to enter credentials securely.
-:::
+::: info All secrets (tokens, API keys, passwords) are stored in the OS
+keychain, not in this file. Run `triggerfish config add-channel <name>` to enter
+credentials securely. :::
 
 ### `classification`
 
-| Key | Type | Description |
-|-----|------|-------------|
+| Key    | Type                           | Description                                                                       |
+| ------ | ------------------------------ | --------------------------------------------------------------------------------- |
 | `mode` | `"personal"` or `"enterprise"` | Deployment mode (coming soon — currently both use the same classification levels) |
 
 ### `policy`
 
-Custom rules evaluated during hook execution. Each rule specifies a hook type, priority, conditions, and action. Higher priority numbers are evaluated first.
+Custom rules evaluated during hook execution. Each rule specifies a hook type,
+priority, conditions, and action. Higher priority numbers are evaluated first.
 
 ### `mcp_servers`
 
-External MCP tool servers. Each server specifies a command to launch it, optional environment variables, a classification level, and per-tool permissions.
+External MCP tool servers. Each server specifies a command to launch it,
+optional environment variables, a classification level, and per-tool
+permissions.
 
 ### `scheduler`
 
-Cron job definitions and trigger timing. See [Cron and Triggers](/features/cron-and-triggers) for details.
+Cron job definitions and trigger timing. See
+[Cron and Triggers](/features/cron-and-triggers) for details.
 
 ### `notifications`
 
-Notification delivery preferences. See [Notifications](/features/notifications) for details.
+Notification delivery preferences. See [Notifications](/features/notifications)
+for details.
 
 ### `web`
 
-| Key | Type | Description |
-|-----|------|-------------|
+| Key                   | Type   | Description                                               |
+| --------------------- | ------ | --------------------------------------------------------- |
 | `web.search.provider` | string | Search backend for `web_search` tool (currently: `brave`) |
-| `web.search.provider` | string | Search backend (currently: `brave`) |
+| `web.search.provider` | string | Search backend (currently: `brave`)                       |
 
 See [Web Search and Fetch](/features/web-search) for details.
 
 ### `logging`
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
+| Key     | Type   | Default    | Description                                                                               |
+| ------- | ------ | ---------- | ----------------------------------------------------------------------------------------- |
 | `level` | string | `"normal"` | Log verbosity: `quiet` (errors only), `normal` (info), `verbose` (debug), `debug` (trace) |
 
-See [Structured Logging](/features/logging) for details on log output, file rotation, and the log-analyst skill.
+See [Structured Logging](/features/logging) for details on log output, file
+rotation, and the log-analyst skill.
 
 ### `github`
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
+| Key          | Type    | Default | Description                                                                                                                                                                   |
+| ------------ | ------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `auto_merge` | boolean | `false` | When `true`, the agent auto-merges PRs after receiving an approving review. When `false` (default), the agent notifies the owner and waits for an explicit merge instruction. |
 
-See the [GitHub Integration](/integrations/github) guide for full setup instructions.
+See the [GitHub Integration](/integrations/github) guide for full setup
+instructions.

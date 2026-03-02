@@ -19,14 +19,11 @@ import type {
 } from "../types.ts";
 import type { VaultContext } from "../vault.ts";
 import {
-  readNoteFromVault,
   createNoteInVault,
+  readNoteFromVault,
   updateNoteInVault,
 } from "./note_crud.ts";
-import {
-  searchNotesInVault,
-  listNotesInVault,
-} from "./note_query.ts";
+import { listNotesInVault, searchNotesInVault } from "./note_query.ts";
 
 /** Interface for note CRUD operations. */
 export interface NoteStore {

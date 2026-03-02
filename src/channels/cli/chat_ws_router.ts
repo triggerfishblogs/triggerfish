@@ -23,7 +23,13 @@ import type { WsRouterDeps, WsRouterState } from "./chat_ws_types.ts";
 import type { TriggerPromptModeState } from "./chat_ws_types.ts";
 import { sendNextQueuedMessage } from "./chat_ws_types.ts";
 
-export type { PasswordModeState, CredentialModeState, TriggerPromptModeState, WsRouterState, WsRouterDeps } from "./chat_ws_types.ts";
+export type {
+  CredentialModeState,
+  PasswordModeState,
+  TriggerPromptModeState,
+  WsRouterDeps,
+  WsRouterState,
+} from "./chat_ws_types.ts";
 export { sendNextQueuedMessage } from "./chat_ws_types.ts";
 
 const log = createLogger("cli");
@@ -90,7 +96,11 @@ function routeSecretPromptEvent(
   ctx: RouterContext,
 ): void {
   if (!ctx.isTty) return;
-  log.info("Secret prompt received", { operation: "routeSecretPromptEvent", secretName: evt.name, nonce: evt.nonce });
+  log.info("Secret prompt received", {
+    operation: "routeSecretPromptEvent",
+    secretName: evt.name,
+    nonce: evt.nonce,
+  });
   ctx.state.passwordMode = {
     nonce: evt.nonce,
     name: evt.name,
@@ -113,7 +123,11 @@ function routeCredentialPromptEvent(
   ctx: RouterContext,
 ): void {
   if (!ctx.isTty) return;
-  log.info("Credential prompt received", { operation: "routeCredentialPromptEvent", credentialName: evt.name, nonce: evt.nonce });
+  log.info("Credential prompt received", {
+    operation: "routeCredentialPromptEvent",
+    credentialName: evt.name,
+    nonce: evt.nonce,
+  });
   ctx.state.credentialMode = {
     nonce: evt.nonce,
     name: evt.name,
@@ -142,7 +156,8 @@ function describeTriggerConsequence(
   if (isWriteDown) {
     return "Your context will be reset to incorporate this result.";
   }
-  const addedMsg = "This result will be added to your current conversation context.";
+  const addedMsg =
+    "This result will be added to your current conversation context.";
   if (sessionTaint === triggerClassification) {
     return addedMsg;
   }

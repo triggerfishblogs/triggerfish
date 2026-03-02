@@ -20,7 +20,9 @@ export interface ObsidianVaultConfig {
   /** Folders to exclude from all operations. */
   readonly excludeFolders?: readonly string[];
   /** Per-folder classification overrides (most specific wins). */
-  readonly folderClassifications?: Readonly<Record<string, ClassificationLevel>>;
+  readonly folderClassifications?: Readonly<
+    Record<string, ClassificationLevel>
+  >;
 }
 
 /** Configuration for daily notes. */

@@ -29,10 +29,10 @@ import { extractKeywords } from "./compactor_keywords.ts";
 
 // Re-export token utilities for backward compatibility
 export {
-  countTokens,
-  estimateTokens,
   countContentTokens,
+  countTokens,
   estimateHistoryTokens,
+  estimateTokens,
 } from "./compactor_tokens.ts";
 
 /** Configuration for the conversation compactor. */

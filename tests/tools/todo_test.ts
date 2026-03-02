@@ -5,7 +5,7 @@
  * persistence across sessions via StorageProvider, per-agent isolation,
  * validation of malformed input, and tool executor integration.
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import {
   createTodoManager,
@@ -47,8 +47,18 @@ Deno.test("TodoManager: write and read round-trip", async () => {
   const manager = createTodoManager({ storage, agentId: "agent-1" });
 
   const todos: TodoItem[] = [
-    makeTodo({ id: "t1", content: "First task", status: "pending", priority: "high" }),
-    makeTodo({ id: "t2", content: "Second task", status: "in_progress", priority: "low" }),
+    makeTodo({
+      id: "t1",
+      content: "First task",
+      status: "pending",
+      priority: "high",
+    }),
+    makeTodo({
+      id: "t2",
+      content: "Second task",
+      status: "in_progress",
+      priority: "low",
+    }),
   ];
 
   await manager.write(todos);
@@ -159,10 +169,38 @@ Deno.test("TodoManager: filters out invalid items on write", async () => {
 
   const items = [
     makeTodo({ id: "valid", content: "Good task" }),
-    { id: "", content: "Missing id", status: "pending", priority: "low", created_at: "x", updated_at: "x" },
-    { id: "no-content", content: "", status: "pending", priority: "low", created_at: "x", updated_at: "x" },
-    { id: "bad-status", content: "Task", status: "unknown", priority: "low", created_at: "x", updated_at: "x" },
-    { id: "bad-priority", content: "Task", status: "pending", priority: "urgent", created_at: "x", updated_at: "x" },
+    {
+      id: "",
+      content: "Missing id",
+      status: "pending",
+      priority: "low",
+      created_at: "x",
+      updated_at: "x",
+    },
+    {
+      id: "no-content",
+      content: "",
+      status: "pending",
+      priority: "low",
+      created_at: "x",
+      updated_at: "x",
+    },
+    {
+      id: "bad-status",
+      content: "Task",
+      status: "unknown",
+      priority: "low",
+      created_at: "x",
+      updated_at: "x",
+    },
+    {
+      id: "bad-priority",
+      content: "Task",
+      status: "pending",
+      priority: "urgent",
+      created_at: "x",
+      updated_at: "x",
+    },
     null,
     42,
     "string-item",
@@ -218,8 +256,18 @@ Deno.test("TodoToolExecutor: todo_write returns JSON of merged list", async () =
 
   const writeResult = await executor("todo_write", {
     todos: [
-      makeTodo({ id: "t1", content: "Write code", status: "in_progress", priority: "high" }),
-      makeTodo({ id: "t2", content: "Run tests", status: "pending", priority: "medium" }),
+      makeTodo({
+        id: "t1",
+        content: "Write code",
+        status: "in_progress",
+        priority: "high",
+      }),
+      makeTodo({
+        id: "t2",
+        content: "Run tests",
+        status: "pending",
+        priority: "medium",
+      }),
     ],
   });
 
@@ -373,7 +421,11 @@ Deno.test("formatTodoListHtml: renders in_progress items as active", () => {
 
 Deno.test("formatTodoListHtml: escapes HTML in content", () => {
   const result = formatTodoListHtml([
-    makeTodo({ id: "t1", content: "<script>alert('xss')</script>", status: "pending" }),
+    makeTodo({
+      id: "t1",
+      content: "<script>alert('xss')</script>",
+      status: "pending",
+    }),
   ]);
   assert(!result.includes("<script>"));
   assert(result.includes("&lt;script&gt;"));

@@ -16,6 +16,7 @@ network_domains:
 # Maps & Directions
 
 Use this skill for tasks like:
+
 - "Get directions from A to B"
 - "How far is X from Y?" / "Distance between two cities/addresses/ZIP codes"
 - "What are the coordinates of [address]?"
@@ -27,14 +28,18 @@ All API calls return JSON — use `mode: "raw"` with `web_fetch`.
 ## Geocoding
 
 ### Forward (Address / City / ZIP → Coordinates)
+
 ```
 web_fetch: { url: "https://nominatim.openstreetmap.org/search?q=1600+Pennsylvania+Ave+Washington+DC&format=json&limit=3", mode: "raw" }
 ```
-Returns JSON array. Each result has `lat`, `lon`, `display_name`. Use the first result or ask the user if ambiguous.
+
+Returns JSON array. Each result has `lat`, `lon`, `display_name`. Use the first
+result or ask the user if ambiguous.
 
 URL-encode the address: replace spaces with `+`, commas with `%2C`.
 
 ### Reverse (Coordinates → Address)
+
 ```
 web_fetch: { url: "https://nominatim.openstreetmap.org/reverse?lat=38.8977&lon=-77.0365&format=json", mode: "raw" }
 ```
@@ -49,15 +54,18 @@ web_fetch: { url: "https://router.project-osrm.org/route/v1/driving/{lon1},{lat1
 
 **Important:** OSRM uses `{longitude},{latitude}` order (lon first, lat second).
 
-Format: `/route/v1/{mode}/{lon1},{lat1};{lon2},{lat2}`
-Modes: `driving`, `walking`, `cycling`
+Format: `/route/v1/{mode}/{lon1},{lat1};{lon2},{lat2}` Modes: `driving`,
+`walking`, `cycling`
 
 Response fields:
-- `routes[0].distance` — total distance in **meters** → convert to miles (÷ 1609.34) or km (÷ 1000)
+
+- `routes[0].distance` — total distance in **meters** → convert to miles (÷
+  1609.34) or km (÷ 1000)
 - `routes[0].duration` — total time in **seconds** → convert to minutes/hours
 - `routes[0].legs[0].steps` — turn-by-turn directions
 
-Multi-stop route: chain coordinates with `;` — e.g. `lon1,lat1;lon2,lat2;lon3,lat3`
+Multi-stop route: chain coordinates with `;` — e.g.
+`lon1,lat1;lon2,lat2;lon3,lat3`
 
 ## Step-by-Step Workflow
 
@@ -68,6 +76,7 @@ Multi-stop route: chain coordinates with `;` — e.g. `lon1,lat1;lon2,lat2;lon3,
 5. Present result to user (e.g. "142 miles, ~2 hr 18 min driving")
 
 ## Key Behaviors
+
 - Always geocode first, then route
 - Convert meters→miles/km and seconds→minutes/hours
 - If location is ambiguous (multiple results), show top 3 and ask the user

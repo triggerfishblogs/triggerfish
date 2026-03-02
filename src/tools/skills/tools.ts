@@ -183,7 +183,9 @@ export function createSkillToolExecutor(
           skillName: skill.name,
           warnings: scanResult.warnings,
         });
-        return `Error: Skill "${skill.name}" failed security scan: ${scanResult.warnings.join("; ")}`;
+        return `Error: Skill "${skill.name}" failed security scan: ${
+          scanResult.warnings.join("; ")
+        }`;
       }
     }
 

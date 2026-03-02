@@ -3,15 +3,15 @@
  * All pure function tests.
  */
 
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
+  buildNote,
+  extractHeadings,
+  extractTags,
+  extractWikilinks,
+  mergeFrontmatter,
   parseFrontmatter,
   serializeFrontmatter,
-  mergeFrontmatter,
-  extractWikilinks,
-  extractTags,
-  extractHeadings,
-  buildNote,
 } from "../../../src/tools/obsidian/markdown.ts";
 
 // --- Frontmatter parsing ---

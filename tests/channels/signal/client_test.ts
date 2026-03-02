@@ -3,7 +3,7 @@
  *
  * Tests the low-level signal-cli JSON-RPC client using mock connections.
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { createSignalClient } from "../../../src/channels/signal/protocol/client.ts";
 import type { SignalNotification } from "../../../src/channels/signal/types.ts";
 
@@ -54,15 +54,25 @@ function createMockConn(): {
       closed = true;
       reader.cancel();
     },
-    localAddr: { transport: "tcp", hostname: "127.0.0.1", port: 12345 } as Deno.Addr,
-    remoteAddr: { transport: "tcp", hostname: "127.0.0.1", port: 7583 } as Deno.Addr,
+    localAddr: {
+      transport: "tcp",
+      hostname: "127.0.0.1",
+      port: 12345,
+    } as Deno.Addr,
+    remoteAddr: {
+      transport: "tcp",
+      hostname: "127.0.0.1",
+      port: 7583,
+    } as Deno.Addr,
     rid: 0,
     readable: new ReadableStream(),
     writable: new WritableStream(),
     ref(): void {},
     unref(): void {},
     [Symbol.dispose](): void {},
-    closeWrite(): Promise<void> { return Promise.resolve(); },
+    closeWrite(): Promise<void> {
+      return Promise.resolve();
+    },
   } as unknown as Deno.Conn;
 
   return {
@@ -93,13 +103,18 @@ Deno.test("SignalClient: createSignalClient returns client with tcp endpoint", (
 });
 
 Deno.test("SignalClient: createSignalClient returns client with unix endpoint", () => {
-  const client = createSignalClient({ endpoint: "unix:///tmp/signal-cli.sock" });
+  const client = createSignalClient({
+    endpoint: "unix:///tmp/signal-cli.sock",
+  });
   assertEquals(typeof client.connect, "function");
 });
 
 Deno.test("SignalClient: connect succeeds with injected connection", async () => {
   const { conn } = createMockConn();
-  const client = createSignalClient({ endpoint: "tcp://localhost:7583", _conn: conn });
+  const client = createSignalClient({
+    endpoint: "tcp://localhost:7583",
+    _conn: conn,
+  });
 
   const result = await client.connect();
   assertEquals(result.ok, true);
@@ -109,7 +124,10 @@ Deno.test("SignalClient: connect succeeds with injected connection", async () =>
 
 Deno.test("SignalClient: sendMessage formats correct JSON-RPC request", async () => {
   const { conn, written, feedResponse } = createMockConn();
-  const client = createSignalClient({ endpoint: "tcp://localhost:7583", _conn: conn });
+  const client = createSignalClient({
+    endpoint: "tcp://localhost:7583",
+    _conn: conn,
+  });
 
   await client.connect();
 
@@ -131,11 +149,13 @@ Deno.test("SignalClient: sendMessage formats correct JSON-RPC request", async ()
   assert(typeof parsed.id === "string");
 
   // Feed matching response
-  feedResponse(JSON.stringify({
-    jsonrpc: "2.0",
-    result: { timestamp: 1234567890 },
-    id: parsed.id,
-  }) + "\n");
+  feedResponse(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      result: { timestamp: 1234567890 },
+      id: parsed.id,
+    }) + "\n",
+  );
 
   const result = await sendPromise;
   assertEquals(result.ok, true);
@@ -148,7 +168,10 @@ Deno.test("SignalClient: sendMessage formats correct JSON-RPC request", async ()
 
 Deno.test("SignalClient: response matching dispatches by id", async () => {
   const { conn, feedResponse } = createMockConn();
-  const client = createSignalClient({ endpoint: "tcp://localhost:7583", _conn: conn });
+  const client = createSignalClient({
+    endpoint: "tcp://localhost:7583",
+    _conn: conn,
+  });
 
   await client.connect();
 
@@ -159,17 +182,21 @@ Deno.test("SignalClient: response matching dispatches by id", async () => {
   await new Promise((r) => setTimeout(r, 10));
 
   // Respond to second first, then first
-  feedResponse(JSON.stringify({
-    jsonrpc: "2.0",
-    result: { timestamp: 2000 },
-    id: "req-2",
-  }) + "\n");
+  feedResponse(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      result: { timestamp: 2000 },
+      id: "req-2",
+    }) + "\n",
+  );
 
-  feedResponse(JSON.stringify({
-    jsonrpc: "2.0",
-    result: { timestamp: 1000 },
-    id: "req-1",
-  }) + "\n");
+  feedResponse(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      result: { timestamp: 1000 },
+      id: "req-1",
+    }) + "\n",
+  );
 
   const result1 = await promise1;
   const result2 = await promise2;
@@ -184,7 +211,10 @@ Deno.test("SignalClient: response matching dispatches by id", async () => {
 
 Deno.test("SignalClient: notification dispatches to handler", async () => {
   const { conn, feedResponse } = createMockConn();
-  const client = createSignalClient({ endpoint: "tcp://localhost:7583", _conn: conn });
+  const client = createSignalClient({
+    endpoint: "tcp://localhost:7583",
+    _conn: conn,
+  });
 
   await client.connect();
 
@@ -194,22 +224,24 @@ Deno.test("SignalClient: notification dispatches to handler", async () => {
   });
 
   // Feed a receive notification (no id field = notification)
-  feedResponse(JSON.stringify({
-    jsonrpc: "2.0",
-    method: "receive",
-    params: {
-      envelope: {
-        source: "+15559876543",
-        sourceDevice: 1,
-        timestamp: 1234567891,
-        dataMessage: {
-          message: "Hi there",
+  feedResponse(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      method: "receive",
+      params: {
+        envelope: {
+          source: "+15559876543",
+          sourceDevice: 1,
           timestamp: 1234567891,
-          groupInfo: null,
+          dataMessage: {
+            message: "Hi there",
+            timestamp: 1234567891,
+            groupInfo: null,
+          },
         },
       },
-    },
-  }) + "\n");
+    }) + "\n",
+  );
 
   // Wait for dispatch
   await new Promise((r) => setTimeout(r, 50));
@@ -223,18 +255,23 @@ Deno.test("SignalClient: notification dispatches to handler", async () => {
 
 Deno.test("SignalClient: ping returns ok on success", async () => {
   const { conn, feedResponse } = createMockConn();
-  const client = createSignalClient({ endpoint: "tcp://localhost:7583", _conn: conn });
+  const client = createSignalClient({
+    endpoint: "tcp://localhost:7583",
+    _conn: conn,
+  });
 
   await client.connect();
 
   const pingPromise = client.ping();
   await new Promise((r) => setTimeout(r, 10));
 
-  feedResponse(JSON.stringify({
-    jsonrpc: "2.0",
-    result: [{ number: "+15551234567" }],
-    id: "req-1",
-  }) + "\n");
+  feedResponse(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      result: [{ number: "+15551234567" }],
+      id: "req-1",
+    }) + "\n",
+  );
 
   const result = await pingPromise;
   assertEquals(result.ok, true);
@@ -244,7 +281,10 @@ Deno.test("SignalClient: ping returns ok on success", async () => {
 
 Deno.test("SignalClient: disconnect closes connection", async () => {
   const { conn } = createMockConn();
-  const client = createSignalClient({ endpoint: "tcp://localhost:7583", _conn: conn });
+  const client = createSignalClient({
+    endpoint: "tcp://localhost:7583",
+    _conn: conn,
+  });
 
   await client.connect();
   await client.disconnect();
@@ -256,7 +296,10 @@ Deno.test("SignalClient: disconnect closes connection", async () => {
 
 Deno.test("SignalClient: sendTyping sends correct method", async () => {
   const { conn, written, feedResponse } = createMockConn();
-  const client = createSignalClient({ endpoint: "tcp://localhost:7583", _conn: conn });
+  const client = createSignalClient({
+    endpoint: "tcp://localhost:7583",
+    _conn: conn,
+  });
 
   await client.connect();
 
@@ -270,11 +313,13 @@ Deno.test("SignalClient: sendTyping sends correct method", async () => {
   assertEquals(parsed.method, "sendTyping");
   assertEquals(parsed.params.recipient, "+15559876543");
 
-  feedResponse(JSON.stringify({
-    jsonrpc: "2.0",
-    result: {},
-    id: parsed.id,
-  }) + "\n");
+  feedResponse(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      result: {},
+      id: parsed.id,
+    }) + "\n",
+  );
 
   const result = await typingPromise;
   assertEquals(result.ok, true);
@@ -284,7 +329,10 @@ Deno.test("SignalClient: sendTyping sends correct method", async () => {
 
 Deno.test("SignalClient: sendTypingStop sends stop flag", async () => {
   const { conn, written, feedResponse } = createMockConn();
-  const client = createSignalClient({ endpoint: "tcp://localhost:7583", _conn: conn });
+  const client = createSignalClient({
+    endpoint: "tcp://localhost:7583",
+    _conn: conn,
+  });
 
   await client.connect();
 
@@ -299,11 +347,13 @@ Deno.test("SignalClient: sendTypingStop sends stop flag", async () => {
   assertEquals(parsed.params.recipient, "+15559876543");
   assertEquals(parsed.params.stop, true);
 
-  feedResponse(JSON.stringify({
-    jsonrpc: "2.0",
-    result: {},
-    id: parsed.id,
-  }) + "\n");
+  feedResponse(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      result: {},
+      id: parsed.id,
+    }) + "\n",
+  );
 
   const result = await stopPromise;
   assertEquals(result.ok, true);
@@ -325,7 +375,10 @@ Deno.test("SignalClient: disconnect sets destroyed flag, prevents reconnect", as
   await client.disconnect();
 
   // After disconnect, sendMessage should fail (not connected)
-  const result = await client.sendMessage("+15551234567", "test after disconnect");
+  const result = await client.sendMessage(
+    "+15551234567",
+    "test after disconnect",
+  );
   assertEquals(result.ok, false);
 });
 
@@ -342,15 +395,25 @@ Deno.test("SignalClient: reconnection triggers after EOF on read loop", async ()
       return Promise.resolve(data.length);
     },
     close(): void {},
-    localAddr: { transport: "tcp", hostname: "127.0.0.1", port: 12345 } as Deno.Addr,
-    remoteAddr: { transport: "tcp", hostname: "127.0.0.1", port: 7583 } as Deno.Addr,
+    localAddr: {
+      transport: "tcp",
+      hostname: "127.0.0.1",
+      port: 12345,
+    } as Deno.Addr,
+    remoteAddr: {
+      transport: "tcp",
+      hostname: "127.0.0.1",
+      port: 7583,
+    } as Deno.Addr,
     rid: 0,
     readable: new ReadableStream(),
     writable: new WritableStream(),
     ref(): void {},
     unref(): void {},
     [Symbol.dispose](): void {},
-    closeWrite(): Promise<void> { return Promise.resolve(); },
+    closeWrite(): Promise<void> {
+      return Promise.resolve();
+    },
   } as unknown as Deno.Conn;
 
   const client = createSignalClient({

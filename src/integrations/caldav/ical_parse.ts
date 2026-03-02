@@ -8,11 +8,7 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
-import type {
-  CalDavAttendee,
-  CalDavEvent,
-  CalDavRecurrence,
-} from "./types.ts";
+import type { CalDavAttendee, CalDavEvent, CalDavRecurrence } from "./types.ts";
 
 /** Unfold continued lines (RFC 5545 §3.1). */
 export function unfoldLines(text: string): readonly string[] {
@@ -90,9 +86,7 @@ export function parseRRule(value: string): CalDavRecurrence | undefined {
 
   const result: CalDavRecurrence = {
     frequency: freq as CalDavRecurrence["frequency"],
-    ...(map["INTERVAL"]
-      ? { interval: parseInt(map["INTERVAL"], 10) }
-      : {}),
+    ...(map["INTERVAL"] ? { interval: parseInt(map["INTERVAL"], 10) } : {}),
     ...(map["COUNT"] ? { count: parseInt(map["COUNT"], 10) } : {}),
     ...(map["UNTIL"] ? { until: map["UNTIL"] } : {}),
     ...(map["BYDAY"] ? { byDay: map["BYDAY"].split(",") } : {}),
@@ -101,9 +95,7 @@ export function parseRRule(value: string): CalDavRecurrence | undefined {
       : {}),
     ...(map["BYMONTHDAY"]
       ? {
-        byMonthDay: map["BYMONTHDAY"].split(",").map((d) =>
-          parseInt(d, 10)
-        ),
+        byMonthDay: map["BYMONTHDAY"].split(",").map((d) => parseInt(d, 10)),
       }
       : {}),
   };
@@ -282,9 +274,7 @@ function buildEventFromState(
       ? { description: state.description }
       : {}),
     ...(state.recurrence ? { recurrence: state.recurrence } : {}),
-    ...(state.organizer !== undefined
-      ? { organizer: state.organizer }
-      : {}),
+    ...(state.organizer !== undefined ? { organizer: state.organizer } : {}),
     ...(state.status !== undefined ? { status: state.status } : {}),
     ...(state.created !== undefined ? { created: state.created } : {}),
     ...(state.lastModified !== undefined

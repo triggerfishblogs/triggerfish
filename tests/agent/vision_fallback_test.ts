@@ -8,22 +8,28 @@
  * @module
  */
 
-import { assertEquals, assert, assertExists } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import type { LlmProvider } from "../../src/agent/llm.ts";
 import { createProviderRegistry } from "../../src/agent/llm.ts";
 import { createOrchestrator } from "../../src/agent/orchestrator/orchestrator.ts";
 import type { OrchestratorEvent } from "../../src/agent/orchestrator/orchestrator_types.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
-import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks/hooks.ts";
+import {
+  createDefaultRules,
+  createHookRunner,
+} from "../../src/core/policy/hooks/hooks.ts";
 import { createSession } from "../../src/core/types/session.ts";
-import type { UserId, ChannelId } from "../../src/core/types/session.ts";
+import type { ChannelId, UserId } from "../../src/core/types/session.ts";
 import type { ContentBlock } from "../../src/core/image/content.ts";
 import { resolveVisionProvider } from "../../src/agent/providers/config.ts";
 import type { ModelsConfig } from "../../src/agent/providers/config.ts";
 
 // --- Helpers ---
 
-function createMockProvider(name: string, response = "mock response"): LlmProvider {
+function createMockProvider(
+  name: string,
+  response = "mock response",
+): LlmProvider {
   return {
     name,
     supportsStreaming: false,
@@ -53,7 +59,10 @@ function makeSession() {
 
 function makeImageMessage(text = "What is this?"): readonly ContentBlock[] {
   return [
-    { type: "image", source: { type: "base64", media_type: "image/png", data: "abc123" } },
+    {
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: "abc123" },
+    },
     { type: "text", text },
   ];
 }
@@ -108,9 +117,14 @@ Deno.test("Vision fallback: describes images when visionProvider is configured",
 
   assertEquals(result.ok, true);
   // Primary should receive text-only content with the image description
-  assert(typeof primaryReceivedContent === "string", "Primary should receive text-only content");
   assert(
-    (primaryReceivedContent as string).includes("A red car parked on a street."),
+    typeof primaryReceivedContent === "string",
+    "Primary should receive text-only content",
+  );
+  assert(
+    (primaryReceivedContent as string).includes(
+      "A red car parked on a street.",
+    ),
     "Should include image description",
   );
   assert(
@@ -154,7 +168,10 @@ Deno.test("Vision fallback: no fallback when visionProvider not configured", asy
 
   assertEquals(result.ok, true);
   // Without vision fallback, content should remain as ContentBlock[]
-  assert(typeof primaryReceivedContent !== "string", "Should pass through image blocks");
+  assert(
+    typeof primaryReceivedContent !== "string",
+    "Should pass through image blocks",
+  );
 });
 
 Deno.test("Vision fallback: emits vision_start and vision_complete events", async () => {
@@ -163,7 +180,11 @@ Deno.test("Vision fallback: emits vision_start and vision_complete events", asyn
     supportsStreaming: false,
     // deno-lint-ignore require-await
     async complete() {
-      return { content: "description", toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 } };
+      return {
+        content: "description",
+        toolCalls: [],
+        usage: { inputTokens: 0, outputTokens: 0 },
+      };
     },
   };
 
@@ -205,7 +226,11 @@ Deno.test("Vision fallback: reports correct imageCount", async () => {
     supportsStreaming: false,
     // deno-lint-ignore require-await
     async complete() {
-      return { content: "image desc", toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 } };
+      return {
+        content: "image desc",
+        toolCalls: [],
+        usage: { inputTokens: 0, outputTokens: 0 },
+      };
     },
   };
 
@@ -223,8 +248,14 @@ Deno.test("Vision fallback: reports correct imageCount", async () => {
 
   // Message with 2 images
   const twoImageMessage: readonly ContentBlock[] = [
-    { type: "image", source: { type: "base64", media_type: "image/png", data: "img1" } },
-    { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "img2" } },
+    {
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: "img1" },
+    },
+    {
+      type: "image",
+      source: { type: "base64", media_type: "image/jpeg", data: "img2" },
+    },
     { type: "text", text: "Compare these" },
   ];
 
@@ -279,7 +310,11 @@ Deno.test("Vision fallback: skips for string-only messages", async () => {
     // deno-lint-ignore require-await
     async complete() {
       visionCalled = true;
-      return { content: "desc", toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 } };
+      return {
+        content: "desc",
+        toolCalls: [],
+        usage: { inputTokens: 0, outputTokens: 0 },
+      };
     },
   };
 
@@ -299,7 +334,11 @@ Deno.test("Vision fallback: skips for string-only messages", async () => {
     targetClassification: "INTERNAL",
   });
 
-  assertEquals(visionCalled, false, "Vision provider should not be called for text-only messages");
+  assertEquals(
+    visionCalled,
+    false,
+    "Vision provider should not be called for text-only messages",
+  );
 });
 
 Deno.test("Vision fallback: skips for text-only content blocks", async () => {
@@ -310,7 +349,11 @@ Deno.test("Vision fallback: skips for text-only content blocks", async () => {
     // deno-lint-ignore require-await
     async complete() {
       visionCalled = true;
-      return { content: "desc", toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 } };
+      return {
+        content: "desc",
+        toolCalls: [],
+        usage: { inputTokens: 0, outputTokens: 0 },
+      };
     },
   };
 
@@ -335,7 +378,11 @@ Deno.test("Vision fallback: skips for text-only content blocks", async () => {
     targetClassification: "INTERNAL",
   });
 
-  assertEquals(visionCalled, false, "Vision provider should not be called when no images present");
+  assertEquals(
+    visionCalled,
+    false,
+    "Vision provider should not be called when no images present",
+  );
 });
 
 // --- Config Tests ---

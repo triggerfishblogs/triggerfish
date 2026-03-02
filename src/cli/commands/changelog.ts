@@ -41,7 +41,10 @@ EXAMPLES:
 async function showLatestReleases(count: number): Promise<void> {
   const result = await fetchAllReleases();
   if (!result.ok) {
-    log.warn("Changelog fetch failed", { operation: "showLatestReleases", error: result.error });
+    log.warn("Changelog fetch failed", {
+      operation: "showLatestReleases",
+      error: result.error,
+    });
     console.log(`✗ ${result.error}`);
     Deno.exit(1);
   }
@@ -68,7 +71,12 @@ async function showChangelogRange(
   console.log(`Fetching release notes from ${from} to ${to}...\n`);
   const result = await fetchChangelogRange(from, to);
   if (!result.ok) {
-    log.warn("Changelog range fetch failed", { operation: "showChangelogRange", from, to, error: result.error });
+    log.warn("Changelog range fetch failed", {
+      operation: "showChangelogRange",
+      from,
+      to,
+      error: result.error,
+    });
     console.log(`✗ ${result.error}`);
     Deno.exit(1);
   }
@@ -91,7 +99,10 @@ export async function runChangelog(
       ? parseInt(flags.latest, 10)
       : 5;
     if (isNaN(count) || count < 1) {
-      log.warn("Changelog --latest flag invalid", { operation: "runChangelog", latest: flags.latest });
+      log.warn("Changelog --latest flag invalid", {
+        operation: "runChangelog",
+        latest: flags.latest,
+      });
       console.log("✗ --latest requires a positive number.");
       Deno.exit(1);
     }
@@ -128,7 +139,11 @@ export async function runChangelog(
   if (to === "latest") {
     const allResult = await fetchAllReleases();
     if (!allResult.ok) {
-      log.warn("Changelog fetch failed for latest lookup", { operation: "runChangelog", from, error: allResult.error });
+      log.warn("Changelog fetch failed for latest lookup", {
+        operation: "runChangelog",
+        from,
+        error: allResult.error,
+      });
       console.log(`✗ ${allResult.error}`);
       Deno.exit(1);
     }

@@ -17,8 +17,8 @@ import type {
 import { getModelInfo } from "../../models.ts";
 import { parseSseStream } from "../sse.ts";
 import {
-  OPENROUTER_API_URL,
   formatDataPolicyHint,
+  OPENROUTER_API_URL,
 } from "./openrouter_types.ts";
 import {
   buildOpenRouterHeaders,

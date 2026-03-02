@@ -174,7 +174,6 @@ export function getSecretToolDefinitions(): readonly ToolDefinition[] {
   ];
 }
 
-
 /**
  * Create a tool executor for secret management tools.
  *
@@ -197,7 +196,11 @@ export function createSecretToolExecutor(
         return await executeSecretSave(store, prompt, input);
 
       case "secret_save_credential":
-        return await executeSecretSaveCredential(store, credentialPrompt, input);
+        return await executeSecretSaveCredential(
+          store,
+          credentialPrompt,
+          input,
+        );
 
       case "secret_list":
         return await executeSecretList(store);
@@ -223,9 +226,7 @@ async function executeSecretSave(
   }
   const trimmedName = secretName.trim();
   log.warn("Secret save requested via LLM tool", { name: trimmedName });
-  const hint = typeof input.hint === "string"
-    ? input.hint.trim()
-    : undefined;
+  const hint = typeof input.hint === "string" ? input.hint.trim() : undefined;
 
   const value = await prompt(trimmedName, hint);
   if (value === null) {
@@ -264,9 +265,7 @@ async function executeSecretSaveCredential(
     return "Error: Credential prompting is not available in this environment.";
   }
 
-  const hint = typeof input.hint === "string"
-    ? input.hint.trim()
-    : undefined;
+  const hint = typeof input.hint === "string" ? input.hint.trim() : undefined;
 
   const credential = await credentialPrompt(trimmedName, hint);
   if (credential === null) {
@@ -282,12 +281,18 @@ async function executeSecretSaveCredential(
   const usernameKey = `${trimmedName}:username`;
   const passwordKey = `${trimmedName}:password`;
 
-  const usernameResult = await store.setSecret(usernameKey, credential.username);
+  const usernameResult = await store.setSecret(
+    usernameKey,
+    credential.username,
+  );
   if (!usernameResult.ok) {
     return `Error saving credential username '${usernameKey}': ${usernameResult.error}`;
   }
 
-  const passwordResult = await store.setSecret(passwordKey, credential.password);
+  const passwordResult = await store.setSecret(
+    passwordKey,
+    credential.password,
+  );
   if (!passwordResult.ok) {
     return `Error saving credential password '${passwordKey}': ${passwordResult.error}`;
   }

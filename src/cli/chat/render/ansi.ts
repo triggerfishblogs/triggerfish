@@ -12,7 +12,18 @@ export const YELLOW = "\x1b[33m";
 export const RED = "\x1b[31m";
 export const BLUE = "\x1b[34m";
 
-export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+export const SPINNER_FRAMES = [
+  "⠋",
+  "⠙",
+  "⠹",
+  "⠸",
+  "⠼",
+  "⠴",
+  "⠦",
+  "⠧",
+  "⠇",
+  "⠏",
+];
 
 export const enc = new TextEncoder();
 

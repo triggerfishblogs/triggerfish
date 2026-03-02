@@ -8,13 +8,16 @@
  * @module
  */
 
-import type { ClaudeSessionConfig, ClaudeSessionManager } from "./session_types.ts";
+import type {
+  ClaudeSessionConfig,
+  ClaudeSessionManager,
+} from "./session_types.ts";
 
 // ─── Barrel re-exports from claude_tools_defs.ts ────────────────
 
 export {
-  getClaudeToolDefinitions,
   CLAUDE_SESSION_SYSTEM_PROMPT,
+  getClaudeToolDefinitions,
 } from "./claude_tools_defs.ts";
 
 // ─── Executor Helpers ──────────────────────────────────────────────────────────

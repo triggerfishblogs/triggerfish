@@ -31,7 +31,9 @@ interface SourcedOutputOptions {
 }
 
 /** Persist a scheduler result to the trigger store. */
-async function persistTriggerResult(options: SourcedOutputOptions): Promise<void> {
+async function persistTriggerResult(
+  options: SourcedOutputOptions,
+): Promise<void> {
   const { config, source, text, classification } = options;
   if (!config.triggerStore) return;
   try {
@@ -54,14 +56,23 @@ function emitTriggerPrompt(options: SourcedOutputOptions): void {
   const { config, source, text, classification } = options;
   if (!config.onTriggerOutput) return;
   const preview = text.length > 200 ? text.slice(0, 200) + "..." : text;
-  config.onTriggerOutput(source, classification, preview, new Date().toISOString());
+  config.onTriggerOutput(
+    source,
+    classification,
+    preview,
+    new Date().toISOString(),
+  );
 }
 
 /** Deliver a notification to the owner via NotificationService. */
-async function deliverSchedulerNotification(options: SourcedOutputOptions): Promise<void> {
+async function deliverSchedulerNotification(
+  options: SourcedOutputOptions,
+): Promise<void> {
   const { config, source, text, classification } = options;
   if (!config.notificationService || !config.ownerId) {
-    log.warn(`[${source}] No notification service or ownerId — output not delivered`);
+    log.warn(
+      `[${source}] No notification service or ownerId — output not delivered`,
+    );
     return;
   }
   try {
@@ -85,14 +96,21 @@ async function deliverSchedulerNotification(options: SourcedOutputOptions): Prom
  * If the LLM returned NO_ACTION, the result is persisted but no
  * notification is sent.
  */
-export async function deliverSchedulerOutput(options: DeliverOutputOptions): Promise<void> {
+export async function deliverSchedulerOutput(
+  options: DeliverOutputOptions,
+): Promise<void> {
   const { config, result, sessionTaint, source } = options;
   const text = result.ok ? result.value.response : result.error;
   if (!text || text.trim().length === 0) {
     log.debug(`[${source}] No output to deliver (empty response)`);
     return;
   }
-  const outputOpts: SourcedOutputOptions = { config, source, text, classification: sessionTaint };
+  const outputOpts: SourcedOutputOptions = {
+    config,
+    source,
+    text,
+    classification: sessionTaint,
+  };
   if (text.trim().startsWith("NO_ACTION")) {
     log.debug(`[${source}] LLM returned NO_ACTION — nothing to report`);
     await persistTriggerResult(outputOpts);

@@ -43,10 +43,13 @@ export { wireSignalChannel } from "./channels_signal.ts";
 export type { GoogleChatChannelConfig } from "./channels_googlechat.ts";
 export { wireGoogleChatChannel } from "./channels_googlechat.ts";
 export type {
-  WhatsAppChannelConfig,
   ValidatedWhatsAppConfig,
+  WhatsAppChannelConfig,
 } from "./channels_whatsapp.ts";
-export { wireWhatsAppChannel, isValidatedWhatsAppConfig } from "./channels_whatsapp.ts";
+export {
+  isValidatedWhatsAppConfig,
+  wireWhatsAppChannel,
+} from "./channels_whatsapp.ts";
 
 // ─── Orchestrator ────────────────────────────────────────────────────────────
 
@@ -97,7 +100,9 @@ export async function wireChannels(
           operation: "wireChannels",
           err: result.error,
         });
-        throw new Error(`Google Chat credential resolution failed: ${result.error}`);
+        throw new Error(
+          `Google Chat credential resolution failed: ${result.error}`,
+        );
       }
       return result.value as string;
     };

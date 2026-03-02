@@ -94,9 +94,15 @@ Deno.test("RippleManager: offTyping removes callback", () => {
 
 Deno.test("GroupManager: mentioned-only mode filters messages", () => {
   const groups = createGroupManager();
-  groups.configure("group-1", { mode: "mentioned-only", botName: "triggerfish" });
+  groups.configure("group-1", {
+    mode: "mentioned-only",
+    botName: "triggerfish",
+  });
   assertEquals(groups.shouldRespond("group-1", "hey everyone"), false);
-  assertEquals(groups.shouldRespond("group-1", "hey @triggerfish help me"), true);
+  assertEquals(
+    groups.shouldRespond("group-1", "hey @triggerfish help me"),
+    true,
+  );
 });
 
 Deno.test("GroupManager: owner-only commands rejected from non-owners", () => {

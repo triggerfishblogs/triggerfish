@@ -27,7 +27,8 @@ const LENGTH_INSTRUCTIONS: Readonly<Record<SummarizeLength, string>> = {
 /** Style instruction templates. */
 const STYLE_INSTRUCTIONS: Readonly<Record<SummarizeStyle, string>> = {
   neutral: "Use a neutral, informative tone.",
-  executive: "Write for a busy executive — lead with the conclusion, focus on impact and decisions.",
+  executive:
+    "Write for a busy executive — lead with the conclusion, focus on impact and decisions.",
   technical: "Preserve technical detail and terminology.",
 };
 
@@ -36,8 +37,13 @@ const STYLE_INSTRUCTIONS: Readonly<Record<SummarizeStyle, string>> = {
  *
  * Exported for testing — allows tests to verify prompt construction.
  */
-export function buildSummarizePrompt(text: string, length: SummarizeLength, style: SummarizeStyle): string {
-  const lengthInstr = LENGTH_INSTRUCTIONS[length] ?? LENGTH_INSTRUCTIONS.standard;
+export function buildSummarizePrompt(
+  text: string,
+  length: SummarizeLength,
+  style: SummarizeStyle,
+): string {
+  const lengthInstr = LENGTH_INSTRUCTIONS[length] ??
+    LENGTH_INSTRUCTIONS.standard;
   const styleInstr = STYLE_INSTRUCTIONS[style] ?? STYLE_INSTRUCTIONS.neutral;
   return `${lengthInstr} ${styleInstr}\n\nText to summarize:\n${text}`;
 }
@@ -49,15 +55,21 @@ export function getSummarizeToolDefinitions(): readonly ToolDefinition[] {
       name: "summarize",
       description: "Summarize text content with configurable length and style.",
       parameters: {
-        text: { type: "string", description: "The text to summarize", required: true },
+        text: {
+          type: "string",
+          description: "The text to summarize",
+          required: true,
+        },
         length: {
           type: "string",
-          description: "brief (1-2 sentences), standard (1 paragraph), detailed (3-5 paragraphs). Default: standard",
+          description:
+            "brief (1-2 sentences), standard (1 paragraph), detailed (3-5 paragraphs). Default: standard",
           required: false,
         },
         style: {
           type: "string",
-          description: "neutral, executive (conclusion-first), technical (preserves terminology). Default: neutral",
+          description:
+            "neutral, executive (conclusion-first), technical (preserves terminology). Default: neutral",
           required: false,
         },
       },
@@ -81,7 +93,10 @@ Default is standard length, neutral style.`;
 export function createSummarizeToolExecutor(
   registry: LlmProviderRegistry,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
-  return async (name: string, input: Record<string, unknown>): Promise<string | null> => {
+  return async (
+    name: string,
+    input: Record<string, unknown>,
+  ): Promise<string | null> => {
     if (name !== "summarize") return null;
 
     const text = input.text;
@@ -90,7 +105,11 @@ export function createSummarizeToolExecutor(
     }
 
     const VALID_LENGTHS: readonly string[] = ["brief", "standard", "detailed"];
-    const VALID_STYLES: readonly string[] = ["neutral", "executive", "technical"];
+    const VALID_STYLES: readonly string[] = [
+      "neutral",
+      "executive",
+      "technical",
+    ];
 
     const length: SummarizeLength = (
       typeof input.length === "string" && VALID_LENGTHS.includes(input.length)
@@ -119,7 +138,9 @@ export function createSummarizeToolExecutor(
       );
       return result.content;
     } catch (err) {
-      return `Error in summarize: ${err instanceof Error ? err.message : String(err)}`;
+      return `Error in summarize: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
     }
   };
 }

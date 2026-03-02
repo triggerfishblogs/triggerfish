@@ -115,11 +115,17 @@ function buildInMemoryProviderMethods(
       upsertMemoryRecord(records, record);
       return Promise.resolve();
     },
-    remove(agentId: string, cl: ClassificationLevel, key: string): Promise<void> {
+    remove(
+      agentId: string,
+      cl: ClassificationLevel,
+      key: string,
+    ): Promise<void> {
       removeMemoryRecord(records, agentId, cl, key);
       return Promise.resolve();
     },
-    search(options: MemorySearchOptions): Promise<readonly MemorySearchResult[]> {
+    search(
+      options: MemorySearchOptions,
+    ): Promise<readonly MemorySearchResult[]> {
       return Promise.resolve(searchMemoryRecords(records, options));
     },
     close(): Promise<void> {

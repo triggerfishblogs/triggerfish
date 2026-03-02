@@ -8,12 +8,12 @@
  */
 
 export type {
-  LlmMessage,
-  LlmUsage,
   LlmCompletionResult,
-  LlmStreamChunk,
+  LlmMessage,
   LlmProvider,
   LlmProviderRegistry,
+  LlmStreamChunk,
+  LlmUsage,
 } from "../core/types/llm.ts";
 
 import type { LlmProvider, LlmProviderRegistry } from "../core/types/llm.ts";

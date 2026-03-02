@@ -9,7 +9,11 @@
 import type { CalendarService } from "../types.ts";
 
 /** Validate that a value is a non-empty string. */
-function requireNonEmptyString(value: unknown, field: string, tool: string): string | null {
+function requireNonEmptyString(
+  value: unknown,
+  field: string,
+  tool: string,
+): string | null {
   if (typeof value !== "string" || value.trim().length === 0) {
     return `Error: ${tool} requires a non-empty '${field}' argument.`;
   }
@@ -79,12 +83,24 @@ export async function executeCalendarCreate(
   calendar: CalendarService,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const sumErr = requireNonEmptyString(input.summary, "summary", "calendar_create");
+  const sumErr = requireNonEmptyString(
+    input.summary,
+    "summary",
+    "calendar_create",
+  );
   if (sumErr) return sumErr;
-  const startErr = requireNonEmptyString(input.start, "start", "calendar_create");
-  if (startErr) return `Error: calendar_create requires a 'start' argument (ISO 8601).`;
+  const startErr = requireNonEmptyString(
+    input.start,
+    "start",
+    "calendar_create",
+  );
+  if (startErr) {
+    return `Error: calendar_create requires a 'start' argument (ISO 8601).`;
+  }
   const endErr = requireNonEmptyString(input.end, "end", "calendar_create");
-  if (endErr) return `Error: calendar_create requires an 'end' argument (ISO 8601).`;
+  if (endErr) {
+    return `Error: calendar_create requires an 'end' argument (ISO 8601).`;
+  }
 
   const result = await calendar.create({
     summary: input.summary as string,
@@ -112,7 +128,11 @@ export async function executeCalendarUpdate(
   calendar: CalendarService,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const err = requireNonEmptyString(input.event_id, "event_id", "calendar_update");
+  const err = requireNonEmptyString(
+    input.event_id,
+    "event_id",
+    "calendar_update",
+  );
   if (err) return err;
 
   const result = await calendar.update({

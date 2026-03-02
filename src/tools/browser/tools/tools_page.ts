@@ -47,13 +47,17 @@ function collectRawLinks(
   return page.evaluate(
     (cap: number) => {
       // deno-lint-ignore no-explicit-any
-      const anchors = (globalThis as any).document?.querySelectorAll("a[href]") ?? [];
+      const anchors =
+        (globalThis as any).document?.querySelectorAll("a[href]") ?? [];
       const results: Array<{ text: string; href: string }> = [];
       for (const a of anchors) {
         if (results.length >= cap) break;
         const text = ((a.textContent ?? "").trim()).slice(0, 100);
         const href = a.href as string;
-        if (text.length > 0 && (href.startsWith("http://") || href.startsWith("https://"))) {
+        if (
+          text.length > 0 &&
+          (href.startsWith("http://") || href.startsWith("https://"))
+        ) {
           results.push({ text, href });
         }
       }
@@ -68,7 +72,10 @@ async function extractPageLinks(page: Page): Promise<readonly PageLink[]> {
   try {
     return await collectRawLinks(page, MAX_SNAPSHOT_LINKS);
   } catch (err) {
-    log.warn("extractPageLinks failed — returning empty link list", { operation: "extractPageLinks", err });
+    log.warn("extractPageLinks failed — returning empty link list", {
+      operation: "extractPageLinks",
+      err,
+    });
     return [];
   }
 }

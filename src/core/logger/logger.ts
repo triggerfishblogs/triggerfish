@@ -37,7 +37,11 @@ export interface Logger {
    * @example
    * log.ext("DEBUG", "WS upgrade", { origin: req.headers.get("origin") ?? "" })
    */
-  ext(level: LogLevel, msg: string, externalFields: Record<string, string>): void;
+  ext(
+    level: LogLevel,
+    msg: string,
+    externalFields: Record<string, string>,
+  ): void;
 }
 
 /** Configuration for the global logger. */
@@ -144,7 +148,12 @@ function buildLoggerMethods(component: string): Logger {
       dispatchLogLine("TRACE", component, msg, args);
     },
     ext(level: LogLevel, msg: string, externalFields: Record<string, string>) {
-      dispatchLogLine(level, component, formatTaggedEntry(msg, externalFields), []);
+      dispatchLogLine(
+        level,
+        component,
+        formatTaggedEntry(msg, externalFields),
+        [],
+      );
     },
   };
 }

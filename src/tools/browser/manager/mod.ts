@@ -8,10 +8,10 @@
 export {
   applyStealthPatches,
   baseChromeArgs,
-  createBrowserManager,
   type BrowserInstance,
   type BrowserManager,
   type BrowserManagerConfig,
+  createBrowserManager,
   detectChrome,
   findFreePort,
   pollCdpReady,

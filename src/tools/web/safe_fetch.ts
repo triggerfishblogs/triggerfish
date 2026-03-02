@@ -57,7 +57,9 @@ export async function safeFetch(
   } catch (err) {
     return {
       ok: false,
-      error: `Fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+      error: `Fetch failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
     };
   }
 }

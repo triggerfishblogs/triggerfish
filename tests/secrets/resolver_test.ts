@@ -301,7 +301,10 @@ Deno.test("resolveSecretRefs — substitutes multiple secrets", async () => {
   const result = await resolveSecretRefs(input, store);
   assertEquals(result.ok, true);
   if (!result.ok) return;
-  assertEquals(result.value.resolved, { username: "admin", password: "hunter2" });
+  assertEquals(result.value.resolved, {
+    username: "admin",
+    password: "hunter2",
+  });
   assertEquals(result.value.missing, []);
 });
 
@@ -318,7 +321,9 @@ Deno.test("resolveSecretRefs — handles nested objects", async () => {
   const result = await resolveSecretRefs(input, store);
   assertEquals(result.ok, true);
   if (!result.ok) return;
-  const resolved = result.value.resolved as { database: { host: string; password: string } };
+  const resolved = result.value.resolved as {
+    database: { host: string; password: string };
+  };
   assertEquals(resolved.database.password, "s3cr3t");
   assertEquals(resolved.database.host, "localhost");
 });
@@ -327,7 +332,12 @@ Deno.test("resolveSecretRefs — handles arrays", async () => {
   const store = createMemorySecretStore();
   await store.setSecret("token", "tok123");
 
-  const input = { headers: ["Content-Type: application/json", "Authorization: Bearer {{secret:token}}"] };
+  const input = {
+    headers: [
+      "Content-Type: application/json",
+      "Authorization: Bearer {{secret:token}}",
+    ],
+  };
   const result = await resolveSecretRefs(input, store);
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -339,7 +349,11 @@ Deno.test("resolveSecretRefs — deduplicated lookup for repeated references", a
   const store = createMemorySecretStore();
   await store.setSecret("key", "value");
 
-  const input = { a: "{{secret:key}}", b: "{{secret:key}}", c: "prefix-{{secret:key}}-suffix" };
+  const input = {
+    a: "{{secret:key}}",
+    b: "{{secret:key}}",
+    c: "prefix-{{secret:key}}-suffix",
+  };
   const result = await resolveSecretRefs(input, store);
   assertEquals(result.ok, true);
   if (!result.ok) return;

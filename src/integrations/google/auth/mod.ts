@@ -7,13 +7,13 @@
  */
 
 export type {
+  GoogleApiClient,
+  GoogleApiError,
+  GoogleApiResult,
   GoogleAuthConfig,
   GoogleAuthManager,
   GoogleAuthResult,
   GoogleTokens,
-  GoogleApiClient,
-  GoogleApiResult,
-  GoogleApiError,
 } from "./types_auth.ts";
 
 export type { GoogleToolContext } from "./types_context.ts";

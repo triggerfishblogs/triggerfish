@@ -102,7 +102,8 @@ export function imageBlock(
   if (data.length > MAX_IMAGE_BYTES) {
     return {
       ok: false,
-      error: `Image too large: ${data.length} bytes exceeds ${MAX_IMAGE_BYTES} byte limit`,
+      error:
+        `Image too large: ${data.length} bytes exceeds ${MAX_IMAGE_BYTES} byte limit`,
     };
   }
   // Encode in chunks to avoid call stack overflow on large images

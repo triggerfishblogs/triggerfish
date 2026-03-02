@@ -7,9 +7,7 @@
  * @module
  */
 
-export type {
-  GoogleChatChannelAdapter,
-} from "./adapter.ts";
+export type { GoogleChatChannelAdapter } from "./adapter.ts";
 export { createGoogleChatChannel } from "./adapter.ts";
 
 export type {

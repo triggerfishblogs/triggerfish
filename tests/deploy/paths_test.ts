@@ -6,7 +6,10 @@
 
 import { assertEquals } from "@std/assert";
 import { isDockerEnvironment } from "../../src/core/env.ts";
-import { resolveBaseDir, resolveConfigPath } from "../../src/cli/config/paths.ts";
+import {
+  resolveBaseDir,
+  resolveConfigPath,
+} from "../../src/cli/config/paths.ts";
 
 // Helper to temporarily set/unset env vars for testing
 function withEnv(
@@ -65,28 +68,40 @@ Deno.test("isDockerEnvironment returns false when TRIGGERFISH_DOCKER=false", () 
 // --- resolveBaseDir ---
 
 Deno.test("resolveBaseDir returns $HOME/.triggerfish by default", () => {
-  withEnv({ TRIGGERFISH_DATA_DIR: undefined, TRIGGERFISH_DOCKER: undefined }, () => {
-    const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".";
-    assertEquals(resolveBaseDir(), `${home}/.triggerfish`);
-  });
+  withEnv(
+    { TRIGGERFISH_DATA_DIR: undefined, TRIGGERFISH_DOCKER: undefined },
+    () => {
+      const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".";
+      assertEquals(resolveBaseDir(), `${home}/.triggerfish`);
+    },
+  );
 });
 
 Deno.test("resolveBaseDir uses TRIGGERFISH_DATA_DIR when set", () => {
-  withEnv({ TRIGGERFISH_DATA_DIR: "/custom/path", TRIGGERFISH_DOCKER: undefined }, () => {
+  withEnv({
+    TRIGGERFISH_DATA_DIR: "/custom/path",
+    TRIGGERFISH_DOCKER: undefined,
+  }, () => {
     assertEquals(resolveBaseDir(), "/custom/path");
   });
 });
 
 Deno.test("resolveBaseDir returns /data when TRIGGERFISH_DOCKER=true", () => {
-  withEnv({ TRIGGERFISH_DATA_DIR: undefined, TRIGGERFISH_DOCKER: "true" }, () => {
-    assertEquals(resolveBaseDir(), "/data");
-  });
+  withEnv(
+    { TRIGGERFISH_DATA_DIR: undefined, TRIGGERFISH_DOCKER: "true" },
+    () => {
+      assertEquals(resolveBaseDir(), "/data");
+    },
+  );
 });
 
 Deno.test("resolveBaseDir: TRIGGERFISH_DATA_DIR takes precedence over Docker", () => {
-  withEnv({ TRIGGERFISH_DATA_DIR: "/override", TRIGGERFISH_DOCKER: "true" }, () => {
-    assertEquals(resolveBaseDir(), "/override");
-  });
+  withEnv(
+    { TRIGGERFISH_DATA_DIR: "/override", TRIGGERFISH_DOCKER: "true" },
+    () => {
+      assertEquals(resolveBaseDir(), "/override");
+    },
+  );
 });
 
 // --- resolveConfigPath ---
@@ -96,7 +111,10 @@ Deno.test("resolveConfigPath appends /triggerfish.yaml", () => {
 });
 
 Deno.test("resolveConfigPath defaults to resolveBaseDir()", () => {
-  withEnv({ TRIGGERFISH_DATA_DIR: "/test/base", TRIGGERFISH_DOCKER: undefined }, () => {
-    assertEquals(resolveConfigPath(), "/test/base/triggerfish.yaml");
-  });
+  withEnv(
+    { TRIGGERFISH_DATA_DIR: "/test/base", TRIGGERFISH_DOCKER: undefined },
+    () => {
+      assertEquals(resolveConfigPath(), "/test/base/triggerfish.yaml");
+    },
+  );
 });

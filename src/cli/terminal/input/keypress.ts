@@ -79,17 +79,35 @@ function matchSimpleCSIFinal(
 ): CSIParseResult | null {
   switch (byte) {
     case 0x41: // A = Up
-      return { key: { key: "up", char: null, ctrl: false }, nextIndex: start + 1 };
+      return {
+        key: { key: "up", char: null, ctrl: false },
+        nextIndex: start + 1,
+      };
     case 0x42: // B = Down
-      return { key: { key: "down", char: null, ctrl: false }, nextIndex: start + 1 };
+      return {
+        key: { key: "down", char: null, ctrl: false },
+        nextIndex: start + 1,
+      };
     case 0x43: // C = Right
-      return { key: { key: "right", char: null, ctrl: false }, nextIndex: start + 1 };
+      return {
+        key: { key: "right", char: null, ctrl: false },
+        nextIndex: start + 1,
+      };
     case 0x44: // D = Left
-      return { key: { key: "left", char: null, ctrl: false }, nextIndex: start + 1 };
+      return {
+        key: { key: "left", char: null, ctrl: false },
+        nextIndex: start + 1,
+      };
     case 0x48: // H = Home
-      return { key: { key: "home", char: null, ctrl: false }, nextIndex: start + 1 };
+      return {
+        key: { key: "home", char: null, ctrl: false },
+        nextIndex: start + 1,
+      };
     case 0x46: // F = End
-      return { key: { key: "end", char: null, ctrl: false }, nextIndex: start + 1 };
+      return {
+        key: { key: "end", char: null, ctrl: false },
+        nextIndex: start + 1,
+      };
     default:
       return null;
   }
@@ -103,11 +121,20 @@ function matchTildeSequence(
   const num = parseInt(paramStr, 10);
   switch (num) {
     case 1:
-      return { key: { key: "home", char: null, ctrl: false }, nextIndex: endIndex + 1 };
+      return {
+        key: { key: "home", char: null, ctrl: false },
+        nextIndex: endIndex + 1,
+      };
     case 3:
-      return { key: { key: "delete", char: null, ctrl: false }, nextIndex: endIndex + 1 };
+      return {
+        key: { key: "delete", char: null, ctrl: false },
+        nextIndex: endIndex + 1,
+      };
     case 4:
-      return { key: { key: "end", char: null, ctrl: false }, nextIndex: endIndex + 1 };
+      return {
+        key: { key: "end", char: null, ctrl: false },
+        nextIndex: endIndex + 1,
+      };
     default:
       return {
         key: { key: `unknown_csi_${paramStr}`, char: null, ctrl: false },

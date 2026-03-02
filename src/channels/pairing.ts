@@ -187,11 +187,14 @@ export function createPairingService(
         linkedAt,
       };
       const linkedKey = `${LINKED_PREFIX}${channelType}:${platformUserId}`;
-      await storage.set(linkedKey, JSON.stringify({
-        channelType: pairingResult.channelType,
-        platformUserId: pairingResult.platformUserId,
-        linkedAt: pairingResult.linkedAt.toISOString(),
-      }));
+      await storage.set(
+        linkedKey,
+        JSON.stringify({
+          channelType: pairingResult.channelType,
+          platformUserId: pairingResult.platformUserId,
+          linkedAt: pairingResult.linkedAt.toISOString(),
+        }),
+      );
 
       return { ok: true, value: pairingResult };
     },
@@ -199,7 +202,9 @@ export function createPairingService(
     async getLinkedUsers(channelType: string): Promise<string[]> {
       const prefix = `${LINKED_PREFIX}${channelType}:`;
       const keys = await storage.list(prefix);
-      return keys.map((key) => key.slice(prefix.length)).filter((id) => id.length > 0);
+      return keys.map((key) => key.slice(prefix.length)).filter((id) =>
+        id.length > 0
+      );
     },
 
     async getPending(channelType: string): Promise<PairingCode | null> {

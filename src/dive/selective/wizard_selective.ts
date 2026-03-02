@@ -94,7 +94,10 @@ async function promptSectionSelection(): Promise<WizardSection[]> {
       { name: "LLM Provider (model, API key)", value: "llm" },
       { name: "Per-Classification Models", value: "classification_models" },
       { name: "Agent Name & Personality (SPINE.md)", value: "agent" },
-      { name: "Channels (Telegram, Discord, Signal, WebChat)", value: "channels" },
+      {
+        name: "Channels (Telegram, Discord, Signal, WebChat)",
+        value: "channels",
+      },
       { name: "Plugins (Obsidian)", value: "plugins" },
       { name: "Google Workspace", value: "google" },
       { name: "GitHub", value: "github" },
@@ -113,7 +116,9 @@ async function applyLlmSection(state: SelectiveWizardState): Promise<void> {
 }
 
 /** Apply the classification models reconfiguration if selected. */
-async function applyClassificationModelsSection(state: SelectiveWizardState): Promise<void> {
+async function applyClassificationModelsSection(
+  state: SelectiveWizardState,
+): Promise<void> {
   if (!state.sections.includes("classification_models")) return;
   const models = state.config["models"] as Record<string, unknown> | undefined;
   if (!models) return;
@@ -132,7 +137,9 @@ async function applyAgentSection(state: SelectiveWizardState): Promise<void> {
 }
 
 /** Apply the channel reconfiguration if selected. */
-async function applyChannelsSection(state: SelectiveWizardState): Promise<void> {
+async function applyChannelsSection(
+  state: SelectiveWizardState,
+): Promise<void> {
   if (!state.sections.includes("channels")) return;
   state.config["channels"] = await reconfigureChannels(
     state.existingConfig,
@@ -157,8 +164,13 @@ async function applyGoogleSection(state: SelectiveWizardState): Promise<void> {
   console.log("");
   console.log("  Google Workspace");
   console.log("");
-  const connect = await Confirm.prompt({ message: "Connect a Google account?", default: false });
-  console.log(connect ? "\n  Run: triggerfish connect google" : "  \u2192 Skipped.");
+  const connect = await Confirm.prompt({
+    message: "Connect a Google account?",
+    default: false,
+  });
+  console.log(
+    connect ? "\n  Run: triggerfish connect google" : "  \u2192 Skipped.",
+  );
 }
 
 /** Prompt for GitHub reconnection if selected. */
@@ -167,8 +179,13 @@ async function applyGitHubSection(state: SelectiveWizardState): Promise<void> {
   console.log("");
   console.log("  GitHub");
   console.log("");
-  const connect = await Confirm.prompt({ message: "Connect a GitHub account?", default: false });
-  console.log(connect ? "\n  Run: triggerfish connect github" : "  \u2192 Skipped.");
+  const connect = await Confirm.prompt({
+    message: "Connect a GitHub account?",
+    default: false,
+  });
+  console.log(
+    connect ? "\n  Run: triggerfish connect github" : "  \u2192 Skipped.",
+  );
 }
 
 /** Apply the search provider reconfiguration if selected. */
@@ -221,7 +238,10 @@ function ensureClassificationDefaults(config: Record<string, unknown>): void {
 // ── Public entry point ────────────────────────────────────────────────────────
 
 /** Build the unchanged-config result when no sections are selected. */
-function buildUnchangedResult(configPath: string, spinePath: string): DiveResult {
+function buildUnchangedResult(
+  configPath: string,
+  spinePath: string,
+): DiveResult {
   console.log("");
   console.log("  No sections selected \u2014 config unchanged.");
   console.log("");
@@ -231,7 +251,10 @@ function buildUnchangedResult(configPath: string, spinePath: string): DiveResult
 /** Enforce that stdin is an interactive terminal. */
 function enforceTerminalRequirement(): void {
   if (!Deno.stdin.isTerminal()) {
-    log.error("Terminal requirement not met", { operation: "enforceTerminalRequirement", reason: "stdin is not a TTY" });
+    log.error("Terminal requirement not met", {
+      operation: "enforceTerminalRequirement",
+      reason: "stdin is not a TTY",
+    });
     console.error("");
     console.error("  Error: the dive wizard requires an interactive terminal.");
     console.error("");
@@ -287,7 +310,12 @@ export async function runWizardSelective(baseDir: string): Promise<DiveResult> {
   const sections = await promptSectionSelection();
   if (sections.length === 0) return buildUnchangedResult(configPath, spinePath);
 
-  const state = createWizardState({ sections, existingConfig, existingSpine, spinePath });
+  const state = createWizardState({
+    sections,
+    existingConfig,
+    existingSpine,
+    spinePath,
+  });
   await applyAllSections(state);
   ensureClassificationDefaults(state.config);
   await writeUpdatedConfig(configPath, state.config);

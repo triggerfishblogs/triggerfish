@@ -6,7 +6,11 @@
 import { assertEquals, assertExists, assertNotEquals } from "@std/assert";
 import { createSessionManager } from "../../src/core/session/manager.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
-import type { UserId, ChannelId, SessionId } from "../../src/core/types/session.ts";
+import type {
+  ChannelId,
+  SessionId,
+  UserId,
+} from "../../src/core/types/session.ts";
 
 function makeManager() {
   const storage = createMemoryStorage();
@@ -15,14 +19,20 @@ function makeManager() {
 
 Deno.test("SessionManager: create returns session with PUBLIC taint", async () => {
   const mgr = await makeManager();
-  const session = await mgr.create({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = await mgr.create({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   assertEquals(session.taint, "PUBLIC");
   assertExists(session.id);
 });
 
 Deno.test("SessionManager: get retrieves created session", async () => {
   const mgr = await makeManager();
-  const created = await mgr.create({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const created = await mgr.create({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const fetched = await mgr.get(created.id);
   assertExists(fetched);
   assertEquals(fetched!.id, created.id);
@@ -44,15 +54,25 @@ Deno.test("SessionManager: list returns all sessions", async () => {
 
 Deno.test("SessionManager: delete removes session", async () => {
   const mgr = await makeManager();
-  const session = await mgr.create({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = await mgr.create({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   await mgr.delete(session.id);
   assertEquals(await mgr.get(session.id), null);
 });
 
 Deno.test("SessionManager: taint update escalates only", async () => {
   const mgr = await makeManager();
-  const session = await mgr.create({ userId: "u" as UserId, channelId: "c" as ChannelId });
-  const updated = await mgr.updateTaint(session.id, "CONFIDENTIAL", "accessed CRM");
+  const session = await mgr.create({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
+  const updated = await mgr.updateTaint(
+    session.id,
+    "CONFIDENTIAL",
+    "accessed CRM",
+  );
   assertEquals(updated.taint, "CONFIDENTIAL");
   // Try to downgrade — should remain CONFIDENTIAL
   const noDowngrade = await mgr.updateTaint(session.id, "PUBLIC", "attempt");
@@ -61,7 +81,10 @@ Deno.test("SessionManager: taint update escalates only", async () => {
 
 Deno.test("SessionManager: reset clears taint and history", async () => {
   const mgr = await makeManager();
-  const session = await mgr.create({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = await mgr.create({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   await mgr.updateTaint(session.id, "RESTRICTED", "secret doc");
   const reset = await mgr.reset(session.id);
   assertEquals(reset.taint, "PUBLIC");

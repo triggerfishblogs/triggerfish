@@ -105,8 +105,11 @@ export function recordStepCompletion(options: RecordStepOptions): string {
   const newCompleted = [...ap.completedSteps, stepId];
   const nextStepId = applyStepCompletion(ctx, newCompleted);
   return buildCompletionResponse({
-    ap, stepId, verificationResult,
-    completedCount: newCompleted.length, nextStepId,
+    ap,
+    stepId,
+    verificationResult,
+    completedCount: newCompleted.length,
+    nextStepId,
   });
 }
 

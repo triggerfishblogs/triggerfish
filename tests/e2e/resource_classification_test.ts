@@ -8,15 +8,15 @@
  * - Non-owner ceiling enforcement for URLs
  * - Collapsed code paths (single security + execution path)
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { createOrchestrator } from "../../src/agent/orchestrator/orchestrator.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
 import {
-  createHookRunner,
   createDefaultRules,
+  createHookRunner,
 } from "../../src/core/policy/hooks/hooks.ts";
 import { createSession, updateTaint } from "../../src/core/types/session.ts";
-import type { UserId, ChannelId } from "../../src/core/types/session.ts";
+import type { ChannelId, UserId } from "../../src/core/types/session.ts";
 import type { ClassificationLevel } from "../../src/core/types/classification.ts";
 import type { LlmProvider } from "../../src/agent/llm.ts";
 import { createProviderRegistry } from "../../src/agent/llm.ts";
@@ -123,7 +123,10 @@ function createTwoToolProvider(
           content: "",
           toolCalls: [{
             type: "function",
-            function: { name: tool1.name, arguments: JSON.stringify(tool1.args) },
+            function: {
+              name: tool1.name,
+              arguments: JSON.stringify(tool1.args),
+            },
           }],
           usage: { inputTokens: 10, outputTokens: 5 },
         };
@@ -133,7 +136,10 @@ function createTwoToolProvider(
           content: "",
           toolCalls: [{
             type: "function",
-            function: { name: tool2.name, arguments: JSON.stringify(tool2.args) },
+            function: {
+              name: tool2.name,
+              arguments: JSON.stringify(tool2.args),
+            },
           }],
           usage: { inputTokens: 10, outputTokens: 5 },
         };
@@ -148,18 +154,88 @@ function createTwoToolProvider(
 }
 
 const TOOL_DEFS = [
-  { name: "read_file", description: "Read", parameters: { path: { type: "string", description: "p", required: true } } },
-  { name: "edit_file", description: "Edit", parameters: { path: { type: "string", description: "p", required: true }, content: { type: "string", description: "c", required: true } } },
-  { name: "write_file", description: "Write", parameters: { path: { type: "string", description: "p", required: true }, content: { type: "string", description: "c", required: true } } },
-  { name: "list_directory", description: "List", parameters: { path: { type: "string", description: "p", required: true } } },
-  { name: "search_files", description: "Search", parameters: { search_path: { type: "string", description: "p", required: true }, pattern: { type: "string", description: "pat", required: true } } },
-  { name: "web_fetch", description: "Fetch", parameters: { url: { type: "string", description: "u", required: true } } },
-  { name: "browser_navigate", description: "Navigate", parameters: { url: { type: "string", description: "u", required: true } } },
-  { name: "browser_type", description: "Type", parameters: { url: { type: "string", description: "u", required: true }, text: { type: "string", description: "t", required: true } } },
-  { name: "memory_save", description: "Save memory", parameters: { key: { type: "string", description: "k", required: true }, value: { type: "string", description: "v", required: true } } },
-  { name: "memory_search", description: "Search memory", parameters: { query: { type: "string", description: "q", required: true } } },
-  { name: "secret_save", description: "Save secret", parameters: { name: { type: "string", description: "n", required: true }, value: { type: "string", description: "v", required: true } } },
-  { name: "gmail_send", description: "Send email", parameters: { to: { type: "string", description: "to", required: true }, subject: { type: "string", description: "s", required: true }, body: { type: "string", description: "b", required: true } } },
+  {
+    name: "read_file",
+    description: "Read",
+    parameters: { path: { type: "string", description: "p", required: true } },
+  },
+  {
+    name: "edit_file",
+    description: "Edit",
+    parameters: {
+      path: { type: "string", description: "p", required: true },
+      content: { type: "string", description: "c", required: true },
+    },
+  },
+  {
+    name: "write_file",
+    description: "Write",
+    parameters: {
+      path: { type: "string", description: "p", required: true },
+      content: { type: "string", description: "c", required: true },
+    },
+  },
+  {
+    name: "list_directory",
+    description: "List",
+    parameters: { path: { type: "string", description: "p", required: true } },
+  },
+  {
+    name: "search_files",
+    description: "Search",
+    parameters: {
+      search_path: { type: "string", description: "p", required: true },
+      pattern: { type: "string", description: "pat", required: true },
+    },
+  },
+  {
+    name: "web_fetch",
+    description: "Fetch",
+    parameters: { url: { type: "string", description: "u", required: true } },
+  },
+  {
+    name: "browser_navigate",
+    description: "Navigate",
+    parameters: { url: { type: "string", description: "u", required: true } },
+  },
+  {
+    name: "browser_type",
+    description: "Type",
+    parameters: {
+      url: { type: "string", description: "u", required: true },
+      text: { type: "string", description: "t", required: true },
+    },
+  },
+  {
+    name: "memory_save",
+    description: "Save memory",
+    parameters: {
+      key: { type: "string", description: "k", required: true },
+      value: { type: "string", description: "v", required: true },
+    },
+  },
+  {
+    name: "memory_search",
+    description: "Search memory",
+    parameters: { query: { type: "string", description: "q", required: true } },
+  },
+  {
+    name: "secret_save",
+    description: "Save secret",
+    parameters: {
+      name: { type: "string", description: "n", required: true },
+      value: { type: "string", description: "v", required: true },
+    },
+  },
+  {
+    name: "gmail_send",
+    description: "Send email",
+    parameters: {
+      to: { type: "string", description: "to", required: true },
+      subject: { type: "string", description: "s", required: true },
+      body: { type: "string", description: "b", required: true },
+    },
+  },
 ];
 
 // --- Test 1: Filesystem read escalates taint (Bug 2 fix) ---
@@ -176,7 +252,10 @@ Deno.test("resource-classification: filesystem read escalates taint then blocks 
   const registry = createProviderRegistry();
   registry.register(createTwoToolProvider(
     { name: "read_file", args: { path: "~/Documents/finance/q4.xlsx" } },
-    { name: "write_file", args: { path: "internal/notes.txt", content: "data" } },
+    {
+      name: "write_file",
+      args: { path: "internal/notes.txt", content: "data" },
+    },
   ));
   registry.setDefault("mock-two-tool");
 
@@ -193,7 +272,12 @@ Deno.test("resource-classification: filesystem read escalates taint then blocks 
     escalateTaint: (level: ClassificationLevel, reason: string) => {
       escalations.push({ level, reason });
       // Simulate maxClassification logic: only escalate upward
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -206,7 +290,10 @@ Deno.test("resource-classification: filesystem read escalates taint then blocks 
     },
   });
 
-  let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  let session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   session = updateTaint(session, "INTERNAL", "initial");
 
   const result = await orchestrator.executeAgentTurn({
@@ -218,11 +305,18 @@ Deno.test("resource-classification: filesystem read escalates taint then blocks 
   // First tool (read_file) should have escalated taint to CONFIDENTIAL
   assert(escalations.length >= 1, "Should have at least one escalation");
   assertEquals(escalations[0].level, "CONFIDENTIAL");
-  assert(escalations[0].reason.includes("read_file"), "Escalation reason should mention tool name");
+  assert(
+    escalations[0].reason.includes("read_file"),
+    "Escalation reason should mention tool name",
+  );
 
   // Second tool (write_file to INTERNAL) should be blocked (write-down: CONFIDENTIAL → INTERNAL)
   assertEquals(toolResults.length, 2);
-  assertEquals(toolResults[1].blocked, true, "Write to INTERNAL path should be blocked after CONFIDENTIAL escalation");
+  assertEquals(
+    toolResults[1].blocked,
+    true,
+    "Write to INTERNAL path should be blocked after CONFIDENTIAL escalation",
+  );
 
   assertEquals(result.ok, true);
 });
@@ -240,8 +334,14 @@ Deno.test("resource-classification: web_fetch escalates taint via domain classif
 
   const registry = createProviderRegistry();
   registry.register(createTwoToolProvider(
-    { name: "web_fetch", args: { url: "https://intranet.corp/confidential-report" } },
-    { name: "write_file", args: { path: "internal/notes.txt", content: "data" } },
+    {
+      name: "web_fetch",
+      args: { url: "https://intranet.corp/confidential-report" },
+    },
+    {
+      name: "write_file",
+      args: { path: "internal/notes.txt", content: "data" },
+    },
   ));
   registry.setDefault("mock-two-tool");
 
@@ -258,7 +358,12 @@ Deno.test("resource-classification: web_fetch escalates taint via domain classif
     getSessionTaint: () => sessionTaint,
     escalateTaint: (level: ClassificationLevel, reason: string) => {
       escalations.push({ level, reason });
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -271,7 +376,10 @@ Deno.test("resource-classification: web_fetch escalates taint via domain classif
     },
   });
 
-  let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  let session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   session = updateTaint(session, "INTERNAL", "initial");
 
   const result = await orchestrator.executeAgentTurn({
@@ -283,11 +391,18 @@ Deno.test("resource-classification: web_fetch escalates taint via domain classif
   // web_fetch should have escalated taint to CONFIDENTIAL
   assert(escalations.length >= 1, "Should have at least one escalation");
   assertEquals(escalations[0].level, "CONFIDENTIAL");
-  assert(escalations[0].reason.includes("web_fetch"), "Escalation reason should mention web_fetch");
+  assert(
+    escalations[0].reason.includes("web_fetch"),
+    "Escalation reason should mention web_fetch",
+  );
 
   // write_file to INTERNAL should be blocked (write-down: CONFIDENTIAL → INTERNAL)
   assertEquals(toolResults.length, 2);
-  assertEquals(toolResults[1].blocked, true, "Write to INTERNAL path should be blocked after CONFIDENTIAL escalation via URL");
+  assertEquals(
+    toolResults[1].blocked,
+    true,
+    "Write to INTERNAL path should be blocked after CONFIDENTIAL escalation via URL",
+  );
 
   assertEquals(result.ok, true);
 });
@@ -299,14 +414,20 @@ Deno.test("resource-classification: hook evaluates domain classification for web
 
   // Directly test the hook with resource_classification set (simulates what
   // buildSecurityHookInput now produces for URL tools)
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const updatedSession = updateTaint(session, "RESTRICTED", "setup");
 
   // Write-down: RESTRICTED session writing to PUBLIC domain
   const result = await hookRunner.evaluateHook("PRE_TOOL_CALL", {
     session: updatedSession,
     input: {
-      tool_call: { name: "browser_type", args: { url: "https://public-forum.com/post", text: "secret" } },
+      tool_call: {
+        name: "browser_type",
+        args: { url: "https://public-forum.com/post", text: "secret" },
+      },
       resource_classification: "PUBLIC" as ClassificationLevel,
       operation_type: "write",
       is_owner: true,
@@ -322,13 +443,19 @@ Deno.test("resource-classification: hook evaluates domain classification for web
 Deno.test("resource-classification: non-owner blocked when URL domain exceeds ceiling", async () => {
   const hookRunner = makeHookRunner();
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const updatedSession = updateTaint(session, "INTERNAL", "setup");
 
   const result = await hookRunner.evaluateHook("PRE_TOOL_CALL", {
     session: updatedSession,
     input: {
-      tool_call: { name: "web_fetch", args: { url: "https://intranet.corp/confidential" } },
+      tool_call: {
+        name: "web_fetch",
+        args: { url: "https://intranet.corp/confidential" },
+      },
       resource_classification: "CONFIDENTIAL" as ClassificationLevel,
       operation_type: "read",
       is_owner: false,
@@ -345,13 +472,19 @@ Deno.test("resource-classification: non-owner blocked when URL domain exceeds ce
 Deno.test("resource-classification: write-down blocked on URL domain", async () => {
   const hookRunner = makeHookRunner();
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const updatedSession = updateTaint(session, "RESTRICTED", "setup");
 
   const result = await hookRunner.evaluateHook("PRE_TOOL_CALL", {
     session: updatedSession,
     input: {
-      tool_call: { name: "browser_type", args: { url: "https://public-forum.com/post", text: "secret data" } },
+      tool_call: {
+        name: "browser_type",
+        args: { url: "https://public-forum.com/post", text: "secret data" },
+      },
       resource_classification: "PUBLIC" as ClassificationLevel,
       operation_type: "write",
       is_owner: true,
@@ -376,8 +509,14 @@ Deno.test("resource-classification: write to higher-classified path escalates ta
 
   const registry = createProviderRegistry();
   registry.register(createTwoToolProvider(
-    { name: "write_file", args: { path: "confidential/report.txt", content: "report" } },
-    { name: "write_file", args: { path: "internal/notes.txt", content: "notes" } },
+    {
+      name: "write_file",
+      args: { path: "confidential/report.txt", content: "report" },
+    },
+    {
+      name: "write_file",
+      args: { path: "internal/notes.txt", content: "notes" },
+    },
   ));
   registry.setDefault("mock-two-tool");
 
@@ -393,7 +532,12 @@ Deno.test("resource-classification: write to higher-classified path escalates ta
     getSessionTaint: () => sessionTaint,
     escalateTaint: (level: ClassificationLevel, reason: string) => {
       escalations.push({ level, reason });
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -406,7 +550,10 @@ Deno.test("resource-classification: write to higher-classified path escalates ta
     },
   });
 
-  let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  let session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   session = updateTaint(session, "INTERNAL", "initial");
 
   const result = await orchestrator.executeAgentTurn({
@@ -418,11 +565,18 @@ Deno.test("resource-classification: write to higher-classified path escalates ta
   // First write (to CONFIDENTIAL path) should escalate taint
   assert(escalations.length >= 1, "Should have at least one escalation");
   assertEquals(escalations[0].level, "CONFIDENTIAL");
-  assert(escalations[0].reason.includes("write_file"), "Reason should mention write_file");
+  assert(
+    escalations[0].reason.includes("write_file"),
+    "Reason should mention write_file",
+  );
 
   // Second write (to INTERNAL path) should be blocked (write-down: CONFIDENTIAL → INTERNAL)
   assertEquals(toolResults.length, 2);
-  assertEquals(toolResults[1].blocked, true, "Write to INTERNAL should be blocked after CONFIDENTIAL escalation");
+  assertEquals(
+    toolResults[1].blocked,
+    true,
+    "Write to INTERNAL should be blocked after CONFIDENTIAL escalation",
+  );
 
   assertEquals(result.ok, true);
 });
@@ -454,7 +608,12 @@ Deno.test("resource-classification: unmapped URL uses default domain classificat
     getSessionTaint: () => sessionTaint,
     escalateTaint: (level: ClassificationLevel, reason: string) => {
       escalations.push({ level, reason });
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -462,7 +621,10 @@ Deno.test("resource-classification: unmapped URL uses default domain classificat
     isOwnerSession: () => true,
   });
 
-  let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  let session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   session = updateTaint(session, "INTERNAL", "initial");
 
   await orchestrator.executeAgentTurn({
@@ -472,9 +634,16 @@ Deno.test("resource-classification: unmapped URL uses default domain classificat
   });
 
   // Default is CONFIDENTIAL, session was INTERNAL → should escalate
-  assert(escalations.length >= 1, "Should escalate when default is higher than session taint");
+  assert(
+    escalations.length >= 1,
+    "Should escalate when default is higher than session taint",
+  );
   assertEquals(escalations[0].level, "CONFIDENTIAL");
-  assertEquals(sessionTaint, "CONFIDENTIAL", "Session taint should be CONFIDENTIAL after accessing unmapped domain with CONFIDENTIAL default");
+  assertEquals(
+    sessionTaint,
+    "CONFIDENTIAL",
+    "Session taint should be CONFIDENTIAL after accessing unmapped domain with CONFIDENTIAL default",
+  );
 });
 
 // --- Test: Collapsed code paths (Bug 3) - plan mode + security in single path ---
@@ -485,7 +654,9 @@ Deno.test("resource-classification: plan tool handled without security path, non
   const hookRunner = makeHookRunner();
 
   const registry = createProviderRegistry();
-  registry.register(createToolCallingProvider("read_file", { path: "/tmp/test.txt" }));
+  registry.register(
+    createToolCallingProvider("read_file", { path: "/tmp/test.txt" }),
+  );
   registry.setDefault("mock-tool-caller");
 
   let executedTool = "";
@@ -494,10 +665,16 @@ Deno.test("resource-classification: plan tool handled without security path, non
     providerRegistry: registry,
     tools: TOOL_DEFS,
     // deno-lint-ignore require-await
-    toolExecutor: async (name, _input) => { executedTool = name; return "content"; },
+    toolExecutor: async (name, _input) => {
+      executedTool = name;
+      return "content";
+    },
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const result = await orchestrator.executeAgentTurn({
     session,
     message: "read file",
@@ -505,7 +682,11 @@ Deno.test("resource-classification: plan tool handled without security path, non
   });
 
   assertEquals(result.ok, true);
-  assertEquals(executedTool, "read_file", "Tool should execute through the universal security path");
+  assertEquals(
+    executedTool,
+    "read_file",
+    "Tool should execute through the universal security path",
+  );
 });
 
 // --- Test: URL domain classification does not override filesystem classification ---
@@ -521,7 +702,11 @@ Deno.test("resource-classification: filesystem classification takes precedence o
   const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
 
   const registry = createProviderRegistry();
-  registry.register(createToolCallingProvider("read_file", { path: "/home/user/finance/q4.xlsx" }));
+  registry.register(
+    createToolCallingProvider("read_file", {
+      path: "/home/user/finance/q4.xlsx",
+    }),
+  );
   registry.setDefault("mock-tool-caller");
 
   const orchestrator = createOrchestrator({
@@ -535,7 +720,12 @@ Deno.test("resource-classification: filesystem classification takes precedence o
     getSessionTaint: () => sessionTaint,
     escalateTaint: (level: ClassificationLevel, reason: string) => {
       escalations.push({ level, reason });
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -543,7 +733,10 @@ Deno.test("resource-classification: filesystem classification takes precedence o
     isOwnerSession: () => true,
   });
 
-  let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  let session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   session = updateTaint(session, "INTERNAL", "initial");
 
   await orchestrator.executeAgentTurn({
@@ -553,7 +746,10 @@ Deno.test("resource-classification: filesystem classification takes precedence o
   });
 
   // Should escalate to RESTRICTED (from path classifier), not PUBLIC (from domain classifier)
-  assert(escalations.length >= 1, "Should have escalation from path classifier");
+  assert(
+    escalations.length >= 1,
+    "Should have escalation from path classifier",
+  );
   assertEquals(escalations[0].level, "RESTRICTED");
 });
 
@@ -561,14 +757,21 @@ Deno.test("resource-classification: filesystem classification takes precedence o
 
 Deno.test("resource-classification: read_file on PUBLIC path does not escalate taint", async () => {
   const hookRunner = makeHookRunner();
-  const pathClassifier = createMockPathClassifier({ "public-area": "PUBLIC" }, "INTERNAL");
+  const pathClassifier = createMockPathClassifier(
+    { "public-area": "PUBLIC" },
+    "INTERNAL",
+  );
   const { all: toolClassifications } = mapToolPrefixClassifications({});
 
   let sessionTaint: ClassificationLevel = "PUBLIC";
   const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
 
   const registry = createProviderRegistry();
-  registry.register(createToolCallingProvider("read_file", { path: "/workspace/public-area/readme.txt" }));
+  registry.register(
+    createToolCallingProvider("read_file", {
+      path: "/workspace/public-area/readme.txt",
+    }),
+  );
   registry.setDefault("mock-tool-caller");
 
   const orchestrator = createOrchestrator({
@@ -582,7 +785,12 @@ Deno.test("resource-classification: read_file on PUBLIC path does not escalate t
     getSessionTaint: () => sessionTaint,
     escalateTaint: (level: ClassificationLevel, reason: string) => {
       escalations.push({ level, reason });
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -590,7 +798,10 @@ Deno.test("resource-classification: read_file on PUBLIC path does not escalate t
     isOwnerSession: () => true,
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const result = await orchestrator.executeAgentTurn({
     session,
     message: "Read the readme",
@@ -600,21 +811,33 @@ Deno.test("resource-classification: read_file on PUBLIC path does not escalate t
   assertEquals(result.ok, true);
   // Session should remain PUBLIC — read_file prefix classification (INTERNAL)
   // must NOT override the resource classification (PUBLIC)
-  assertEquals(sessionTaint, "PUBLIC", "Session taint should remain PUBLIC after reading a PUBLIC-classified file");
+  assertEquals(
+    sessionTaint,
+    "PUBLIC",
+    "Session taint should remain PUBLIC after reading a PUBLIC-classified file",
+  );
 });
 
 // --- Test: edit_file on PUBLIC path does NOT escalate (Issue #119 fix) ---
 
 Deno.test("resource-classification: edit_file on PUBLIC path does not escalate taint", async () => {
   const hookRunner = makeHookRunner();
-  const pathClassifier = createMockPathClassifier({ "public-area": "PUBLIC" }, "INTERNAL");
+  const pathClassifier = createMockPathClassifier(
+    { "public-area": "PUBLIC" },
+    "INTERNAL",
+  );
   const { all: toolClassifications } = mapToolPrefixClassifications({});
 
   let sessionTaint: ClassificationLevel = "PUBLIC";
   const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
 
   const registry = createProviderRegistry();
-  registry.register(createToolCallingProvider("edit_file", { path: "/workspace/public-area/readme.txt", content: "updated" }));
+  registry.register(
+    createToolCallingProvider("edit_file", {
+      path: "/workspace/public-area/readme.txt",
+      content: "updated",
+    }),
+  );
   registry.setDefault("mock-tool-caller");
 
   const orchestrator = createOrchestrator({
@@ -628,7 +851,12 @@ Deno.test("resource-classification: edit_file on PUBLIC path does not escalate t
     getSessionTaint: () => sessionTaint,
     escalateTaint: (level: ClassificationLevel, reason: string) => {
       escalations.push({ level, reason });
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -636,7 +864,10 @@ Deno.test("resource-classification: edit_file on PUBLIC path does not escalate t
     isOwnerSession: () => true,
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const result = await orchestrator.executeAgentTurn({
     session,
     message: "Edit the readme",
@@ -646,7 +877,11 @@ Deno.test("resource-classification: edit_file on PUBLIC path does not escalate t
   assertEquals(result.ok, true);
   // Session should remain PUBLIC — edit_file prefix classification (RESTRICTED)
   // must NOT override the resource classification (PUBLIC)
-  assertEquals(sessionTaint, "PUBLIC", "Session taint should remain PUBLIC after editing a PUBLIC-classified file");
+  assertEquals(
+    sessionTaint,
+    "PUBLIC",
+    "Session taint should remain PUBLIC after editing a PUBLIC-classified file",
+  );
 });
 
 // --- Test: read_file on INTERNAL path escalates to INTERNAL from resource, not prefix ---
@@ -660,7 +895,11 @@ Deno.test("resource-classification: read_file on INTERNAL path escalates via res
   const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
 
   const registry = createProviderRegistry();
-  registry.register(createToolCallingProvider("read_file", { path: "/workspace/docs/notes.txt" }));
+  registry.register(
+    createToolCallingProvider("read_file", {
+      path: "/workspace/docs/notes.txt",
+    }),
+  );
   registry.setDefault("mock-tool-caller");
 
   const orchestrator = createOrchestrator({
@@ -674,7 +913,12 @@ Deno.test("resource-classification: read_file on INTERNAL path escalates via res
     getSessionTaint: () => sessionTaint,
     escalateTaint: (level: ClassificationLevel, reason: string) => {
       escalations.push({ level, reason });
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -682,7 +926,10 @@ Deno.test("resource-classification: read_file on INTERNAL path escalates via res
     isOwnerSession: () => true,
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const result = await orchestrator.executeAgentTurn({
     session,
     message: "Read the notes",
@@ -690,10 +937,17 @@ Deno.test("resource-classification: read_file on INTERNAL path escalates via res
   });
 
   assertEquals(result.ok, true);
-  assertEquals(sessionTaint, "INTERNAL", "Session taint should escalate to INTERNAL from resource classification");
+  assertEquals(
+    sessionTaint,
+    "INTERNAL",
+    "Session taint should escalate to INTERNAL from resource classification",
+  );
   // Escalation reason should reference the tool and path, not just "Tool call:"
   assert(escalations.length >= 1, "Should have at least one escalation");
-  assert(escalations[0].reason.includes("read_file"), "Escalation reason should mention read_file");
+  assert(
+    escalations[0].reason.includes("read_file"),
+    "Escalation reason should mention read_file",
+  );
 });
 
 // --- Test: memory_save does NOT escalate taint (operates at session taint) ---
@@ -706,7 +960,9 @@ Deno.test("resource-classification: memory_save does not escalate session taint"
   const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
 
   const registry = createProviderRegistry();
-  registry.register(createToolCallingProvider("memory_save", { key: "test", value: "data" }));
+  registry.register(
+    createToolCallingProvider("memory_save", { key: "test", value: "data" }),
+  );
   registry.setDefault("mock-tool-caller");
 
   const orchestrator = createOrchestrator({
@@ -719,7 +975,12 @@ Deno.test("resource-classification: memory_save does not escalate session taint"
     getSessionTaint: () => sessionTaint,
     escalateTaint: (level: ClassificationLevel, reason: string) => {
       escalations.push({ level, reason });
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -727,7 +988,10 @@ Deno.test("resource-classification: memory_save does not escalate session taint"
     isOwnerSession: () => true,
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const result = await orchestrator.executeAgentTurn({
     session,
     message: "Save to memory",
@@ -737,22 +1001,37 @@ Deno.test("resource-classification: memory_save does not escalate session taint"
   assertEquals(result.ok, true);
   // memory_save is intentionally absent from BUILTIN_TOOL_CLASSIFICATIONS —
   // it operates at the current session taint level and must not escalate.
-  assertEquals(sessionTaint, "PUBLIC", "Session taint must remain PUBLIC — memory_save does not escalate");
-  assertEquals(escalations.length, 0, "No taint escalations should occur for memory_save");
+  assertEquals(
+    sessionTaint,
+    "PUBLIC",
+    "Session taint must remain PUBLIC — memory_save does not escalate",
+  );
+  assertEquals(
+    escalations.length,
+    0,
+    "No taint escalations should occur for memory_save",
+  );
 });
 
 // --- Test: list_directory and search_files on PUBLIC path do NOT escalate ---
 
 Deno.test("resource-classification: list_directory on PUBLIC path does not escalate taint", async () => {
   const hookRunner = makeHookRunner();
-  const pathClassifier = createMockPathClassifier({ "public-area": "PUBLIC" }, "INTERNAL");
+  const pathClassifier = createMockPathClassifier(
+    { "public-area": "PUBLIC" },
+    "INTERNAL",
+  );
   const { all: toolClassifications } = mapToolPrefixClassifications({});
 
   let sessionTaint: ClassificationLevel = "PUBLIC";
   const escalations: Array<{ level: ClassificationLevel; reason: string }> = [];
 
   const registry = createProviderRegistry();
-  registry.register(createToolCallingProvider("list_directory", { path: "/workspace/public-area" }));
+  registry.register(
+    createToolCallingProvider("list_directory", {
+      path: "/workspace/public-area",
+    }),
+  );
   registry.setDefault("mock-tool-caller");
 
   const orchestrator = createOrchestrator({
@@ -766,7 +1045,12 @@ Deno.test("resource-classification: list_directory on PUBLIC path does not escal
     getSessionTaint: () => sessionTaint,
     escalateTaint: (level: ClassificationLevel, reason: string) => {
       escalations.push({ level, reason });
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -774,7 +1058,10 @@ Deno.test("resource-classification: list_directory on PUBLIC path does not escal
     isOwnerSession: () => true,
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   const result = await orchestrator.executeAgentTurn({
     session,
     message: "List the directory",
@@ -782,20 +1069,30 @@ Deno.test("resource-classification: list_directory on PUBLIC path does not escal
   });
 
   assertEquals(result.ok, true);
-  assertEquals(sessionTaint, "PUBLIC", "Session taint should remain PUBLIC after listing a PUBLIC-classified directory");
+  assertEquals(
+    sessionTaint,
+    "PUBLIC",
+    "Session taint should remain PUBLIC after listing a PUBLIC-classified directory",
+  );
 });
 
 // --- Integration write-down tests (checkIntegrationWriteDown fix) ---
 
 Deno.test("integration-write-down: secret_save from CONFIDENTIAL session is NOT blocked", async () => {
   const hookRunner = makeHookRunner();
-  const { all: toolClassifications, integrations: integrationClassifications } = mapToolPrefixClassifications({});
+  const { all: toolClassifications, integrations: integrationClassifications } =
+    mapToolPrefixClassifications({});
 
   let sessionTaint: ClassificationLevel = "CONFIDENTIAL";
   let executedTool = "";
 
   const registry = createProviderRegistry();
-  registry.register(createToolCallingProvider("secret_save", { name: "api_key", value: "sk-123" }));
+  registry.register(
+    createToolCallingProvider("secret_save", {
+      name: "api_key",
+      value: "sk-123",
+    }),
+  );
   registry.setDefault("mock-tool-caller");
 
   const toolResults: Array<{ name: string; blocked: boolean }> = [];
@@ -805,12 +1102,20 @@ Deno.test("integration-write-down: secret_save from CONFIDENTIAL session is NOT 
     providerRegistry: registry,
     tools: TOOL_DEFS,
     // deno-lint-ignore require-await
-    toolExecutor: async (name, _input) => { executedTool = name; return "saved"; },
+    toolExecutor: async (name, _input) => {
+      executedTool = name;
+      return "saved";
+    },
     toolClassifications,
     integrationClassifications,
     getSessionTaint: () => sessionTaint,
     escalateTaint: (level: ClassificationLevel, _reason: string) => {
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -823,7 +1128,10 @@ Deno.test("integration-write-down: secret_save from CONFIDENTIAL session is NOT 
     },
   });
 
-  let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  let session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   session = updateTaint(session, "CONFIDENTIAL", "accessed classified data");
 
   const result = await orchestrator.executeAgentTurn({
@@ -833,20 +1141,31 @@ Deno.test("integration-write-down: secret_save from CONFIDENTIAL session is NOT 
   });
 
   assertEquals(result.ok, true);
-  assertEquals(executedTool, "secret_save", "secret_save should execute successfully");
+  assertEquals(
+    executedTool,
+    "secret_save",
+    "secret_save should execute successfully",
+  );
   assertEquals(toolResults.length, 1);
-  assertEquals(toolResults[0].blocked, false, "secret_save must NOT be blocked by integration write-down check");
+  assertEquals(
+    toolResults[0].blocked,
+    false,
+    "secret_save must NOT be blocked by integration write-down check",
+  );
 });
 
 Deno.test("integration-write-down: memory_search from CONFIDENTIAL session is NOT blocked", async () => {
   const hookRunner = makeHookRunner();
-  const { all: toolClassifications, integrations: integrationClassifications } = mapToolPrefixClassifications({});
+  const { all: toolClassifications, integrations: integrationClassifications } =
+    mapToolPrefixClassifications({});
 
   let sessionTaint: ClassificationLevel = "CONFIDENTIAL";
   let executedTool = "";
 
   const registry = createProviderRegistry();
-  registry.register(createToolCallingProvider("memory_search", { query: "api keys" }));
+  registry.register(
+    createToolCallingProvider("memory_search", { query: "api keys" }),
+  );
   registry.setDefault("mock-tool-caller");
 
   const toolResults: Array<{ name: string; blocked: boolean }> = [];
@@ -856,12 +1175,20 @@ Deno.test("integration-write-down: memory_search from CONFIDENTIAL session is NO
     providerRegistry: registry,
     tools: TOOL_DEFS,
     // deno-lint-ignore require-await
-    toolExecutor: async (name, _input) => { executedTool = name; return "results"; },
+    toolExecutor: async (name, _input) => {
+      executedTool = name;
+      return "results";
+    },
     toolClassifications,
     integrationClassifications,
     getSessionTaint: () => sessionTaint,
     escalateTaint: (level: ClassificationLevel, _reason: string) => {
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -874,7 +1201,10 @@ Deno.test("integration-write-down: memory_search from CONFIDENTIAL session is NO
     },
   });
 
-  let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  let session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   session = updateTaint(session, "CONFIDENTIAL", "accessed classified data");
 
   const result = await orchestrator.executeAgentTurn({
@@ -884,20 +1214,35 @@ Deno.test("integration-write-down: memory_search from CONFIDENTIAL session is NO
   });
 
   assertEquals(result.ok, true);
-  assertEquals(executedTool, "memory_search", "memory_search should execute successfully");
+  assertEquals(
+    executedTool,
+    "memory_search",
+    "memory_search should execute successfully",
+  );
   assertEquals(toolResults.length, 1);
-  assertEquals(toolResults[0].blocked, false, "memory_search must NOT be blocked by integration write-down check");
+  assertEquals(
+    toolResults[0].blocked,
+    false,
+    "memory_search must NOT be blocked by integration write-down check",
+  );
 });
 
 Deno.test("integration-write-down: gmail_send from CONFIDENTIAL session IS blocked", async () => {
   const hookRunner = makeHookRunner();
   // Gmail default classification is PUBLIC
-  const { all: toolClassifications, integrations: integrationClassifications } = mapToolPrefixClassifications({});
+  const { all: toolClassifications, integrations: integrationClassifications } =
+    mapToolPrefixClassifications({});
 
   let sessionTaint: ClassificationLevel = "CONFIDENTIAL";
 
   const registry = createProviderRegistry();
-  registry.register(createToolCallingProvider("gmail_send", { to: "test@example.com", subject: "Secret", body: "classified data" }));
+  registry.register(
+    createToolCallingProvider("gmail_send", {
+      to: "test@example.com",
+      subject: "Secret",
+      body: "classified data",
+    }),
+  );
   registry.setDefault("mock-tool-caller");
 
   const toolResults: Array<{ name: string; blocked: boolean }> = [];
@@ -912,7 +1257,12 @@ Deno.test("integration-write-down: gmail_send from CONFIDENTIAL session IS block
     integrationClassifications,
     getSessionTaint: () => sessionTaint,
     escalateTaint: (level: ClassificationLevel, _reason: string) => {
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -925,7 +1275,10 @@ Deno.test("integration-write-down: gmail_send from CONFIDENTIAL session IS block
     },
   });
 
-  let session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  let session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   session = updateTaint(session, "CONFIDENTIAL", "accessed classified data");
 
   const result = await orchestrator.executeAgentTurn({
@@ -936,18 +1289,29 @@ Deno.test("integration-write-down: gmail_send from CONFIDENTIAL session IS block
 
   assertEquals(result.ok, true);
   assertEquals(toolResults.length, 1);
-  assertEquals(toolResults[0].blocked, true, "gmail_send must be BLOCKED — CONFIDENTIAL cannot flow to PUBLIC gmail");
+  assertEquals(
+    toolResults[0].blocked,
+    true,
+    "gmail_send must be BLOCKED — CONFIDENTIAL cannot flow to PUBLIC gmail",
+  );
 });
 
 Deno.test("integration-write-down: gmail_send from PUBLIC session is NOT blocked", async () => {
   const hookRunner = makeHookRunner();
-  const { all: toolClassifications, integrations: integrationClassifications } = mapToolPrefixClassifications({});
+  const { all: toolClassifications, integrations: integrationClassifications } =
+    mapToolPrefixClassifications({});
 
   let sessionTaint: ClassificationLevel = "PUBLIC";
   let executedTool = "";
 
   const registry = createProviderRegistry();
-  registry.register(createToolCallingProvider("gmail_send", { to: "test@example.com", subject: "Hello", body: "public data" }));
+  registry.register(
+    createToolCallingProvider("gmail_send", {
+      to: "test@example.com",
+      subject: "Hello",
+      body: "public data",
+    }),
+  );
   registry.setDefault("mock-tool-caller");
 
   const toolResults: Array<{ name: string; blocked: boolean }> = [];
@@ -957,12 +1321,20 @@ Deno.test("integration-write-down: gmail_send from PUBLIC session is NOT blocked
     providerRegistry: registry,
     tools: TOOL_DEFS,
     // deno-lint-ignore require-await
-    toolExecutor: async (name, _input) => { executedTool = name; return "sent"; },
+    toolExecutor: async (name, _input) => {
+      executedTool = name;
+      return "sent";
+    },
     toolClassifications,
     integrationClassifications,
     getSessionTaint: () => sessionTaint,
     escalateTaint: (level: ClassificationLevel, _reason: string) => {
-      const order: Record<string, number> = { PUBLIC: 0, INTERNAL: 1, CONFIDENTIAL: 2, RESTRICTED: 3 };
+      const order: Record<string, number> = {
+        PUBLIC: 0,
+        INTERNAL: 1,
+        CONFIDENTIAL: 2,
+        RESTRICTED: 3,
+      };
       if (order[level] > order[sessionTaint]) {
         sessionTaint = level;
       }
@@ -975,7 +1347,10 @@ Deno.test("integration-write-down: gmail_send from PUBLIC session is NOT blocked
     },
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
 
   const result = await orchestrator.executeAgentTurn({
     session,
@@ -984,7 +1359,15 @@ Deno.test("integration-write-down: gmail_send from PUBLIC session is NOT blocked
   });
 
   assertEquals(result.ok, true);
-  assertEquals(executedTool, "gmail_send", "gmail_send should execute successfully");
+  assertEquals(
+    executedTool,
+    "gmail_send",
+    "gmail_send should execute successfully",
+  );
   assertEquals(toolResults.length, 1);
-  assertEquals(toolResults[0].blocked, false, "gmail_send from PUBLIC session must NOT be blocked");
+  assertEquals(
+    toolResults[0].blocked,
+    false,
+    "gmail_send from PUBLIC session must NOT be blocked",
+  );
 });

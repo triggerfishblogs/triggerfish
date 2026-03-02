@@ -77,13 +77,14 @@ export interface CronManager {
 // ─── Parser ──────────────────────────────────────────────────────────────────
 
 /** Valid ranges for each cron field. */
-const FIELD_RANGES: readonly { readonly min: number; readonly max: number }[] = [
-  { min: 0, max: 59 },  // minute
-  { min: 0, max: 23 },  // hour
-  { min: 1, max: 31 },  // day of month
-  { min: 1, max: 12 },  // month
-  { min: 0, max: 6 },   // day of week
-];
+const FIELD_RANGES: readonly { readonly min: number; readonly max: number }[] =
+  [
+    { min: 0, max: 59 }, // minute
+    { min: 0, max: 23 }, // hour
+    { min: 1, max: 31 }, // day of month
+    { min: 1, max: 12 }, // month
+    { min: 0, max: 6 }, // day of week
+  ];
 
 /**
  * Parse a single cron field (e.g., step, range, list, wildcard, or value).
@@ -164,7 +165,10 @@ function parseCronField(
   // Single value
   const val = parseInt(field, 10);
   if (isNaN(val) || val < min || val > max) {
-    return { ok: false, error: `Invalid value: ${field} (expected ${min}-${max})` };
+    return {
+      ok: false,
+      error: `Invalid value: ${field} (expected ${min}-${max})`,
+    };
   }
   return { ok: true, value: { type: "value", values: [val] } };
 }

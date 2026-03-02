@@ -2,14 +2,18 @@
 
 ## Project Overview
 
-Triggerfish is a secure, multi-channel AI agent platform with deterministic policy enforcement below the LLM layer. It combines the integration breadth of a personal AI assistant (voice, browser, cron, skills, multi-channel messaging) with enterprise-grade security controls that the LLM cannot circumvent.
+Triggerfish is a secure, multi-channel AI agent platform with deterministic
+policy enforcement below the LLM layer. It combines the integration breadth of a
+personal AI assistant (voice, browser, cron, skills, multi-channel messaging)
+with enterprise-grade security controls that the LLM cannot circumvent.
 
 ## Technology Stack
 
 - Runtime: Deno 2.x (TypeScript strict mode)
 - Python plugins: Pyodide (WASM)
 - Testing: Deno's built-in test runner
-- Channel libraries: Baileys (WhatsApp), grammY (Telegram), Bolt (Slack), discord.js (Discord)
+- Channel libraries: Baileys (WhatsApp), grammY (Telegram), Bolt (Slack),
+  discord.js (Discord)
 - Browser automation: puppeteer-core (CDP)
 - Web content extraction: Mozilla Readability (npm: specifier)
 - Memory search: SQLite FTS5 full-text search
@@ -50,6 +54,7 @@ src/
 ## MCP Servers for Development
 
 When using Claude Code on this project, configure these MCP servers:
+
 - desktop-commander — file and process operations
 - context7 — documentation lookup
 - ESLint — linting integration
@@ -57,6 +62,7 @@ When using Claude Code on this project, configure these MCP servers:
 
 ## Rules
 
-Domain-specific rules, coding standards, security invariants, and testing guidelines
-are in `.claude/rules/`. Path-scoped rules load automatically when working in their
-matched directories. Universal rules (no `paths` frontmatter) always load.
+Domain-specific rules, coding standards, security invariants, and testing
+guidelines are in `.claude/rules/`. Path-scoped rules load automatically when
+working in their matched directories. Universal rules (no `paths` frontmatter)
+always load.

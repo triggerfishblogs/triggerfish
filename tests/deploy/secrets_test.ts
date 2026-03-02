@@ -59,14 +59,17 @@ Deno.test("FileSecretStore: reads JSON secrets file", async () => {
 Deno.test("FileSecretStore: reads .env format", async () => {
   const tmpFile = await Deno.makeTempFile({ suffix: ".env" });
   try {
-    await Deno.writeTextFile(tmpFile, [
-      "# Comment line",
-      "",
-      "API_KEY=secret-abc",
-      'QUOTED_VALUE="hello world"',
-      "SINGLE_QUOTED='test'",
-      "PLAIN=value",
-    ].join("\n"));
+    await Deno.writeTextFile(
+      tmpFile,
+      [
+        "# Comment line",
+        "",
+        "API_KEY=secret-abc",
+        'QUOTED_VALUE="hello world"',
+        "SINGLE_QUOTED='test'",
+        "PLAIN=value",
+      ].join("\n"),
+    );
 
     const store = createFileSecretStore({ path: tmpFile });
 
@@ -108,7 +111,10 @@ Deno.test("FileSecretStore: setSecret writes to JSON file", async () => {
 Deno.test("FileSecretStore: deleteSecret removes key", async () => {
   const tmpFile = await Deno.makeTempFile({ suffix: ".json" });
   try {
-    await Deno.writeTextFile(tmpFile, JSON.stringify({ keep: "a", remove: "b" }));
+    await Deno.writeTextFile(
+      tmpFile,
+      JSON.stringify({ keep: "a", remove: "b" }),
+    );
     const store = createFileSecretStore({ path: tmpFile });
 
     const delResult = await store.deleteSecret("remove");
@@ -127,7 +133,10 @@ Deno.test("FileSecretStore: deleteSecret removes key", async () => {
 Deno.test("FileSecretStore: listSecrets returns all keys", async () => {
   const tmpFile = await Deno.makeTempFile({ suffix: ".json" });
   try {
-    await Deno.writeTextFile(tmpFile, JSON.stringify({ a: "1", b: "2", c: "3" }));
+    await Deno.writeTextFile(
+      tmpFile,
+      JSON.stringify({ a: "1", b: "2", c: "3" }),
+    );
     const store = createFileSecretStore({ path: tmpFile });
 
     const result = await store.listSecrets();
@@ -141,7 +150,9 @@ Deno.test("FileSecretStore: listSecrets returns all keys", async () => {
 });
 
 Deno.test("FileSecretStore: handles missing file gracefully", async () => {
-  const store = createFileSecretStore({ path: "/tmp/nonexistent-secret-file.json" });
+  const store = createFileSecretStore({
+    path: "/tmp/nonexistent-secret-file.json",
+  });
   const result = await store.getSecret("anything");
   assertEquals(result.ok, false);
 });
@@ -149,7 +160,9 @@ Deno.test("FileSecretStore: handles missing file gracefully", async () => {
 // --- Auto-detection: Docker → file store ---
 
 Deno.test("createKeychain returns file store in Docker environment", async () => {
-  const { createKeychain } = await import("../../src/core/secrets/keychain/keychain.ts");
+  const { createKeychain } = await import(
+    "../../src/core/secrets/keychain/keychain.ts"
+  );
 
   withEnv({ TRIGGERFISH_DOCKER: "true" }, async () => {
     const store = createKeychain();

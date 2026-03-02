@@ -7,15 +7,15 @@
  */
 
 export {
-  resolveCalendarUrl,
   executeCalendarsList,
-  executeEventsList,
   executeEventsGet,
+  executeEventsList,
   executeFreeBusy,
+  resolveCalendarUrl,
 } from "./tool_query_handlers.ts";
 
 export {
   executeEventsCreate,
-  executeEventsUpdate,
   executeEventsDelete,
+  executeEventsUpdate,
 } from "./tool_mutation_handlers.ts";

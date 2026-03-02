@@ -19,7 +19,9 @@ const chatLog = createLogger("chat");
 /** Internal per-channel state used by access control checks. */
 export interface AccessControlChannelState {
   readonly userSessions: UserSessionManager;
-  readonly adapter: { send(msg: { content: string; sessionId?: string }): Promise<void> };
+  readonly adapter: {
+    send(msg: { content: string; sessionId?: string }): Promise<void>;
+  };
   readonly pairingClassification: ClassificationLevel;
   readonly pairing: boolean;
   readonly respondToUnclassified: boolean;

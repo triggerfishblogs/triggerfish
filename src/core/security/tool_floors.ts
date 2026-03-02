@@ -9,7 +9,10 @@
  */
 
 import type { ClassificationLevel } from "../types/classification.ts";
-import { CLASSIFICATION_ORDER, maxClassification } from "../types/classification.ts";
+import {
+  CLASSIFICATION_ORDER,
+  maxClassification,
+} from "../types/classification.ts";
 import { HARDCODED_TOOL_FLOORS } from "./constants.ts";
 import { createLogger } from "../logger/logger.ts";
 

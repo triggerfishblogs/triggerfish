@@ -9,7 +9,10 @@
  */
 
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
-import { canFlowTo, maxClassification } from "../../../core/types/classification.ts";
+import {
+  canFlowTo,
+  maxClassification,
+} from "../../../core/types/classification.ts";
 import type { StorageProvider } from "../../../core/storage/provider.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 

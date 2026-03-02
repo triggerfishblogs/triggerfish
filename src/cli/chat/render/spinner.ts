@@ -3,7 +3,7 @@
  * @module
  */
 
-import { RESET, DIM, CYAN, write, SPINNER_FRAMES } from "./ansi.ts";
+import { CYAN, DIM, RESET, SPINNER_FRAMES, write } from "./ansi.ts";
 
 /** An animated terminal spinner. */
 export interface Spinner {

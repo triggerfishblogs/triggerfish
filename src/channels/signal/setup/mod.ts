@@ -24,10 +24,7 @@ export {
 } from "./setup_resolver.ts";
 export type { GitHubRelease, SignalSetupResult } from "./setup_resolver.ts";
 
-export {
-  renderQrCode,
-  startLinkProcess,
-} from "./setup_link.ts";
+export { renderQrCode, startLinkProcess } from "./setup_link.ts";
 
 export {
   isDaemonHealthy,

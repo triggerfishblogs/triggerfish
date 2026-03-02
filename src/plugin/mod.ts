@@ -9,7 +9,7 @@
  * @module
  */
 
-export { createSandbox, createPythonSandbox } from "./sandbox.ts";
+export { createPythonSandbox, createSandbox } from "./sandbox.ts";
 export type {
   PyodideInstance,
   PyodideLoader,

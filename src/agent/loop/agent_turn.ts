@@ -80,7 +80,9 @@ function alignCompactorBudgetToSession(state: OrchestratorState): void {
 /** Auto-compact history if approaching context limits. */
 function autoCompactHistory(
   history: HistoryEntry[],
-  compactor: { compact(h: HistoryEntry[], t?: number): readonly HistoryEntry[] },
+  compactor: {
+    compact(h: HistoryEntry[], t?: number): readonly HistoryEntry[];
+  },
   systemPromptTokens: number,
 ): void {
   const compacted = compactor.compact(history, systemPromptTokens);

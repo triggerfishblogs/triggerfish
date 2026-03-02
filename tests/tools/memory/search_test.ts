@@ -22,7 +22,8 @@ const AGENT = "search-agent";
 function makeRecord(
   key: string,
   content: string,
-  classification: "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED" = "PUBLIC",
+  classification: "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED" =
+    "PUBLIC",
   tags: string[] = [],
 ): MemoryRecord {
   return {
@@ -83,7 +84,9 @@ Deno.test("FTS5 — classification gating on search results", async () => {
   const provider = createFts5SearchProvider(db);
 
   await provider.index(makeRecord("pub", "Public data about cats", "PUBLIC"));
-  await provider.index(makeRecord("conf", "Confidential data about cats", "CONFIDENTIAL"));
+  await provider.index(
+    makeRecord("conf", "Confidential data about cats", "CONFIDENTIAL"),
+  );
 
   // PUBLIC session should only see PUBLIC results
   const pubResults = await provider.search({
@@ -114,7 +117,9 @@ Deno.test("FTS5 — shadowing in search results", async () => {
 
   // Same key at two levels
   await provider.index(makeRecord("pet", "I have a public cat", "PUBLIC"));
-  await provider.index(makeRecord("pet", "I have a confidential cat", "CONFIDENTIAL"));
+  await provider.index(
+    makeRecord("pet", "I have a confidential cat", "CONFIDENTIAL"),
+  );
 
   // CONFIDENTIAL session sees only the CONFIDENTIAL version (shadowing)
   const results = await provider.search({
@@ -135,7 +140,9 @@ Deno.test("FTS5 — maxResults limiting", async () => {
   const provider = createFts5SearchProvider(db);
 
   for (let i = 0; i < 10; i++) {
-    await provider.index(makeRecord(`item-${i}`, `Searchable item number ${i}`));
+    await provider.index(
+      makeRecord(`item-${i}`, `Searchable item number ${i}`),
+    );
   }
 
   const results = await provider.search({
@@ -252,7 +259,9 @@ Deno.test("InMemory — classification gating", async () => {
   const provider = createInMemorySearchProvider();
 
   await provider.index(makeRecord("pub", "cats are great", "PUBLIC"));
-  await provider.index(makeRecord("conf", "cats are confidential", "CONFIDENTIAL"));
+  await provider.index(
+    makeRecord("conf", "cats are confidential", "CONFIDENTIAL"),
+  );
 
   const pubResults = await provider.search({
     agentId: AGENT,

@@ -3,7 +3,7 @@
  *
  * Tests the config generation functions with classification model overrides.
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { parse as parseYaml } from "@std/yaml";
 
 import { generateConfig } from "../../src/dive/wizard/wizard_generators.ts";
@@ -64,7 +64,10 @@ Deno.test("Wizard: generateConfig includes classification_models when set", () =
   const models = parsed.models as Record<string, unknown>;
 
   assert(models.classification_models !== undefined);
-  const classModels = models.classification_models as Record<string, Record<string, string>>;
+  const classModels = models.classification_models as Record<
+    string,
+    Record<string, string>
+  >;
   assertEquals(classModels.CONFIDENTIAL.provider, "ollama");
   assertEquals(classModels.CONFIDENTIAL.model, "llama3");
   assertEquals(classModels.RESTRICTED.provider, "ollama");
@@ -103,7 +106,10 @@ Deno.test("Wizard: generateConfig does not duplicate provider in providers block
   const providers = models.providers as Record<string, Record<string, string>>;
 
   // Only one anthropic entry
-  assertEquals(Object.keys(providers).filter((k) => k === "anthropic").length, 1);
+  assertEquals(
+    Object.keys(providers).filter((k) => k === "anthropic").length,
+    1,
+  );
 });
 
 Deno.test("Wizard: generateConfig classification_models single level", () => {
@@ -115,7 +121,10 @@ Deno.test("Wizard: generateConfig classification_models single level", () => {
   const yaml = generateConfig(answers);
   const parsed = parseYaml(yaml) as Record<string, unknown>;
   const models = parsed.models as Record<string, unknown>;
-  const classModels = models.classification_models as Record<string, Record<string, string>>;
+  const classModels = models.classification_models as Record<
+    string,
+    Record<string, string>
+  >;
 
   assertEquals(classModels.RESTRICTED.provider, "openai");
   assertEquals(classModels.RESTRICTED.model, "gpt-4o");

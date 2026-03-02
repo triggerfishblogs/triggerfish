@@ -16,6 +16,7 @@ import type { createProviderRegistry } from "../../../agent/llm.ts";
 import type { resolveVisionProvider } from "../../../agent/providers/config.ts";
 import type { createWorkspace } from "../../../exec/workspace.ts";
 import { createExecTools } from "../../../exec/tools.ts";
+import { createFilesystemSandbox } from "../../../exec/sandbox/mod.ts";
 import { createPathClassifier } from "../../../core/security/path_classification.ts";
 import {
   createHealthcheckToolExecutor,
@@ -139,6 +140,7 @@ export function buildSchedulerPathClassifier(
   fsPathMap: ReadonlyMap<string, ClassificationLevel> | undefined,
   fsDefault: ClassificationLevel | undefined,
   workspace: Awaited<ReturnType<typeof createWorkspace>>,
+  opts?: { readonly resolveCwd?: () => string },
 ) {
   if (!fsPathMap) return undefined;
   return createPathClassifier(
@@ -153,6 +155,7 @@ export function buildSchedulerPathClassifier(
       confidentialPath: workspace.confidentialPath,
       restrictedPath: workspace.restrictedPath,
     },
+    opts?.resolveCwd ? { resolveCwd: opts.resolveCwd } : undefined,
   );
 }
 
@@ -199,12 +202,17 @@ export function assembleSchedulerToolExecutor(opts: {
     restrictedPath: workspace.restrictedPath,
   };
   const getTaint = opts.getSessionTaint ?? (() => session.taint);
+  const filesystemSandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () =>
+      resolveWorkspacePathForTaint(getTaint(), workspacePaths),
+  });
 
   return createToolExecutor({
     execTools: createExecTools(workspace, {
       cwdOverride: () =>
         resolveWorkspacePathForTaint(getTaint(), workspacePaths),
     }),
+    filesystemSandbox,
     cronManager: opts.cronManager,
     todoManager: storage ? createTodoManager({ storage, agentId }) : undefined,
     searchProvider: infra.searchProvider,

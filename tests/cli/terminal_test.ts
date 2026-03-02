@@ -8,9 +8,9 @@
 
 import { assertEquals } from "@std/assert";
 import {
-  parseKeypresses,
   createLineEditor,
   createSuggestionEngine,
+  parseKeypresses,
 } from "../../src/cli/terminal/terminal.ts";
 
 // ─── Keypress parsing ──────────────────────────────────────────

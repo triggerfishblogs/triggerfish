@@ -24,9 +24,7 @@ Deno.test("ReefRegistry.install: installs skill to target directory", async () =
   const fixedCatalog: ReefCatalog = {
     ...catalog,
     entries: catalog.entries.map((e) =>
-      e.name === "weather" && e.version === "1.1.0"
-        ? { ...e, checksum }
-        : e
+      e.name === "weather" && e.version === "1.1.0" ? { ...e, checksum } : e
     ),
   };
 

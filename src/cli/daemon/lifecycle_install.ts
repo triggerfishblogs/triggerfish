@@ -56,7 +56,10 @@ async function installSystemdDaemon(
     Deno.env.get("USER") ?? "",
   ]);
   if (!lingerResult.success) {
-    log.warn("Linger enable failed", { operation: "installDaemon", stderr: lingerResult.stderr });
+    log.warn("Linger enable failed", {
+      operation: "installDaemon",
+      stderr: lingerResult.stderr,
+    });
     console.log(
       "  \u26a0 Could not enable linger (daemon will stop on logout):",
       lingerResult.stderr,

@@ -11,9 +11,12 @@
  * @module
  */
 
-import { SESSION_MANAGEMENT_TOOLS, dispatchSessionTool } from "./session_executors.ts";
+import {
+  dispatchSessionTool,
+  SESSION_MANAGEMENT_TOOLS,
+} from "./session_executors.ts";
 import { CHANNEL_TOOLS, dispatchChannelTool } from "./channel_executors.ts";
-import { SIGNAL_TOOLS, dispatchSignalTool } from "./signal_executors.ts";
+import { dispatchSignalTool, SIGNAL_TOOLS } from "./signal_executors.ts";
 
 import type { SessionToolContext } from "./session_tools_defs.ts";
 
@@ -59,8 +62,8 @@ export function createSessionToolExecutor(
 
     return (
       (await dispatchSessionTool(ctx, name, input)) ??
-      (await dispatchChannelTool(ctx, name, input)) ??
-      (await dispatchSignalTool(ctx, name, input))
+        (await dispatchChannelTool(ctx, name, input)) ??
+        (await dispatchSignalTool(ctx, name, input))
     );
   };
 }

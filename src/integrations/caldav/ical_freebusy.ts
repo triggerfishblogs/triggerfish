@@ -9,7 +9,7 @@
 
 import type { Result } from "../../core/types/classification.ts";
 import type { CalDavFreeBusy, CalDavRecurrence } from "./types.ts";
-import { unfoldLines, parsePropertyLine } from "./ical_parse.ts";
+import { parsePropertyLine, unfoldLines } from "./ical_parse.ts";
 import { formatIcalDateTime } from "./ical_generate.ts";
 
 // ─── VFREEBUSY Parsing ────────────────────────────────────────────────────────

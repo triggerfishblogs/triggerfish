@@ -56,8 +56,7 @@ export function createPubSubPuller(config: GoogleChatConfig): PubSubPullFn {
     subscription: string,
     maxMessages: number,
   ): Promise<PubSubPullResponse> => {
-    const url =
-      `https://pubsub.googleapis.com/v1/${subscription}:pull`;
+    const url = `https://pubsub.googleapis.com/v1/${subscription}:pull`;
     const authorization = await resolveAuthHeader(config.getAccessToken);
     const response = await fetchFn(url, {
       method: "POST",
@@ -99,8 +98,7 @@ export function createPubSubAcknowledger(
   ): Promise<void> => {
     if (ackIds.length === 0) return;
 
-    const url =
-      `https://pubsub.googleapis.com/v1/${subscription}:acknowledge`;
+    const url = `https://pubsub.googleapis.com/v1/${subscription}:acknowledge`;
     const authorization = await resolveAuthHeader(config.getAccessToken);
     const response = await fetchFn(url, {
       method: "POST",

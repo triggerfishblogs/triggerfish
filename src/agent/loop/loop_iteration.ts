@@ -9,7 +9,10 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
-import { convertToolsToNativeFormat, parseNativeToolCalls } from "../dispatch/tool_format.ts";
+import {
+  convertToolsToNativeFormat,
+  parseNativeToolCalls,
+} from "../dispatch/tool_format.ts";
 import { processToolCallBatch } from "../dispatch/tool_dispatch.ts";
 import {
   buildRecoveryNudge,
@@ -107,9 +110,10 @@ async function runLlmProviderCall(
   iterations: number,
 ) {
   const taint = ctx.state.config.getSessionTaint?.() ?? "PUBLIC";
-  const classificationProvider = ctx.state.config.providerRegistry.getForClassification(taint);
-  const provider = classificationProvider
-    ?? ctx.state.config.providerRegistry.getDefault()!;
+  const classificationProvider = ctx.state.config.providerRegistry
+    .getForClassification(taint);
+  const provider = classificationProvider ??
+    ctx.state.config.providerRegistry.getDefault()!;
   ctx.state.orchLog.debug("Provider selected for LLM call", {
     operation: "runLlmProviderCall",
     iteration: iterations,
@@ -118,12 +122,14 @@ async function runLlmProviderCall(
     usedClassificationOverride: classificationProvider !== undefined,
   });
   traceLog(
-    ctx.state, `iter${iterations} provider`,
+    ctx.state,
+    `iter${iterations} provider`,
     `taint=${taint} provider=${provider.name}`,
   );
   const messages = buildLlmMessages(ctx.systemPrompt, ctx.history);
   traceLog(
-    ctx.state, `iter${iterations} sending`,
+    ctx.state,
+    `iter${iterations} sending`,
     `${messages.length} msgs, sysPrompt=${ctx.systemPrompt.length}chars, history=${ctx.history.length} entries`,
   );
   if (iterations === 1) {
@@ -183,20 +189,43 @@ async function handleNoToolCallsIteration(
   iter: IterationData & { hasTools: boolean },
 ): Promise<IterationOutcome> {
   const finalText = iter.completion.content.trim();
-  traceLog(ctx.state, `iter${iter.iteration} finalText`, finalText || "(EMPTY)");
+  traceLog(
+    ctx.state,
+    `iter${iter.iteration} finalText`,
+    finalText || "(EMPTY)",
+  );
 
-  const { isEmptyOrJunk, isLeakedIntent } = classifyResponseQuality(finalText, iter.hasTools);
-  if ((isEmptyOrJunk || isLeakedIntent) && iter.iteration < MAX_TOOL_ITERATIONS) {
-    const nudgeResult = attemptRecoveryNudge(ctx, iter.completion, isLeakedIntent);
+  const { isEmptyOrJunk, isLeakedIntent } = classifyResponseQuality(
+    finalText,
+    iter.hasTools,
+  );
+  if (
+    (isEmptyOrJunk || isLeakedIntent) && iter.iteration < MAX_TOOL_ITERATIONS
+  ) {
+    const nudgeResult = attemptRecoveryNudge(
+      ctx,
+      iter.completion,
+      isLeakedIntent,
+    );
     if (nudgeResult) return nudgeResult;
   }
 
   const result = await handleFinalResponse(
-    finalText, iter.completion, iter.hasTools, ctx.nudge.count,
-    ctx.state, ctx.session, ctx.history, ctx.targetClassification, ctx.tokens,
+    finalText,
+    iter.completion,
+    iter.hasTools,
+    ctx.nudge.count,
+    ctx.state,
+    ctx.session,
+    ctx.history,
+    ctx.targetClassification,
+    ctx.tokens,
   );
   if (result) return { action: "return", result };
-  return { action: "return", result: { ok: false, error: "No response generated" } };
+  return {
+    action: "return",
+    result: { ok: false, error: "No response generated" },
+  };
 }
 
 // ─── Tool-call iteration ────────────────────────────────────────────────────
@@ -213,7 +242,11 @@ async function handleToolCallsIteration(
   injectSoftLimitWarning(ctx.history, iter.iteration);
 
   const batchResult = await processToolCallBatch(
-    iter.parsedCalls, ctx.state, ctx.session, ctx.sessionKey, ctx.signal,
+    iter.parsedCalls,
+    ctx.state,
+    ctx.session,
+    ctx.sessionKey,
+    ctx.signal,
   );
   if (!batchResult.ok) return batchResult;
   ctx.history.push({ role: "user", content: batchResult.value.join("\n\n") });
@@ -242,7 +275,9 @@ export async function dispatchIterationOutcome(
   iter: IterationData,
 ): Promise<IterationOutcome> {
   const { parsedCalls, hasTools } = parseCompletionToolCalls(
-    iter.completion, iter.tools, ctx.state,
+    iter.completion,
+    iter.tools,
+    ctx.state,
   );
   emitToolCallParseResult(ctx, parsedCalls, iter.iteration);
 
@@ -250,7 +285,10 @@ export async function dispatchIterationOutcome(
     return await handleNoToolCallsIteration(ctx, { ...iter, hasTools });
   }
 
-  const toolResult = await handleToolCallsIteration(ctx, { ...iter, parsedCalls });
+  const toolResult = await handleToolCallsIteration(ctx, {
+    ...iter,
+    parsedCalls,
+  });
   if (!toolResult.ok) return { action: "return", result: toolResult };
   return { action: "continue" };
 }

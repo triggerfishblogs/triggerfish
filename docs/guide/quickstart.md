@@ -1,10 +1,12 @@
 # Quick Start
 
-This guide walks you through your first 5 minutes with Triggerfish -- from running the setup wizard to having a working AI agent you can chat with.
+This guide walks you through your first 5 minutes with Triggerfish -- from
+running the setup wizard to having a working AI agent you can chat with.
 
 ## Run the Setup Wizard
 
-If you used the one-command installer, the wizard already ran during installation. To run it again or start fresh:
+If you used the one-command installer, the wizard already ran during
+installation. To run it again or start fresh:
 
 ```bash
 triggerfish dive
@@ -23,8 +25,8 @@ Step 1/9: Choose your LLM provider
     OpenRouter
 ```
 
-Select a provider and enter your credentials. Triggerfish supports multiple providers with automatic failover.
-
+Select a provider and enter your credentials. Triggerfish supports multiple
+providers with automatic failover.
 
 ### Step 2: Name Your Agent
 
@@ -35,7 +37,8 @@ Step 2/9: Name your agent and set its personality
   Tone: > Professional  Casual  Terse  Custom
 ```
 
-This generates your `SPINE.md` file -- the foundation of your agent's system prompt. You can edit it anytime at `~/.triggerfish/SPINE.md`.
+This generates your `SPINE.md` file -- the foundation of your agent's system
+prompt. You can edit it anytime at `~/.triggerfish/SPINE.md`.
 
 ### Step 3: Connect a Channel
 
@@ -48,7 +51,8 @@ Step 3/9: Connect your first channel
     Skip for now
 ```
 
-Pick a messaging platform or skip this step to start with just the CLI. You can add channels later in your `triggerfish.yaml`.
+Pick a messaging platform or skip this step to start with just the CLI. You can
+add channels later in your `triggerfish.yaml`.
 
 ### Step 4: Set Classification Mode
 
@@ -59,7 +63,8 @@ Step 4/9: Set your classification preference
     Custom
 ```
 
-This controls how Triggerfish classifies and protects your data. Standard mode works well for most users, providing four levels from PUBLIC up to RESTRICTED.
+This controls how Triggerfish classifies and protects your data. Standard mode
+works well for most users, providing four levels from PUBLIC up to RESTRICTED.
 
 ### Step 5: Install Starter Skills
 
@@ -71,19 +76,24 @@ Step 5/9: Install recommended skills
     Skip
 ```
 
-Skills give your agent new capabilities. You can install more later from The Reef marketplace.
+Skills give your agent new capabilities. You can install more later from The
+Reef marketplace.
 
 ### Step 6: Connect Google Workspace (optional)
 
-Connect your Google account for Gmail, Calendar, Tasks, Drive, and Sheets via OAuth2. You can skip this and connect later with `triggerfish connect google`.
+Connect your Google account for Gmail, Calendar, Tasks, Drive, and Sheets via
+OAuth2. You can skip this and connect later with `triggerfish connect google`.
 
 ### Step 7: Connect GitHub (optional)
 
-Connect GitHub by pasting a Personal Access Token. Gives the agent tools for repos, PRs, issues, and Actions. You can skip this and connect later with `triggerfish connect github`.
+Connect GitHub by pasting a Personal Access Token. Gives the agent tools for
+repos, PRs, issues, and Actions. You can skip this and connect later with
+`triggerfish connect github`.
 
 ### Step 8: Set Up Web Search
 
-Choose a search engine (Brave Search or self-hosted SearXNG) for your agent to use, or skip for now.
+Choose a search engine (Brave Search or self-hosted SearXNG) for your agent to
+use, or skip for now.
 
 ### Step 9: Start the Daemon
 
@@ -158,8 +168,14 @@ Overall: HEALTHY
 
 ## What to Do Next
 
-- **Customize your agent** -- edit `~/.triggerfish/SPINE.md` to refine your agent's personality and capabilities. See [SPINE and Triggers](./spine-and-triggers).
-- **Add more channels** -- connect Telegram, Slack, Discord, or WhatsApp in your `triggerfish.yaml`. See [Configuration](./configuration).
-- **Connect integrations** -- `triggerfish connect google` for Google Workspace, `triggerfish connect github` for GitHub. See [Integrations](/integrations/).
-- **Set up proactive behavior** -- create a `~/.triggerfish/TRIGGER.md` to tell your agent what to monitor. See [SPINE and Triggers](./spine-and-triggers).
-- **Explore commands** -- learn all available CLI and in-chat commands. See [CLI Commands](./commands).
+- **Customize your agent** -- edit `~/.triggerfish/SPINE.md` to refine your
+  agent's personality and capabilities. See
+  [SPINE and Triggers](./spine-and-triggers).
+- **Add more channels** -- connect Telegram, Slack, Discord, or WhatsApp in your
+  `triggerfish.yaml`. See [Configuration](./configuration).
+- **Connect integrations** -- `triggerfish connect google` for Google Workspace,
+  `triggerfish connect github` for GitHub. See [Integrations](/integrations/).
+- **Set up proactive behavior** -- create a `~/.triggerfish/TRIGGER.md` to tell
+  your agent what to monitor. See [SPINE and Triggers](./spine-and-triggers).
+- **Explore commands** -- learn all available CLI and in-chat commands. See
+  [CLI Commands](./commands).

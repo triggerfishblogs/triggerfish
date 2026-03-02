@@ -13,17 +13,29 @@
  */
 
 // Component tree types and helper constructors
-export type { ComponentType, A2UIComponent, ComponentTree } from "./components.ts";
-export { card, table, chart, form, image, markdown, layout } from "./components.ts";
+export type {
+  A2UIComponent,
+  ComponentTree,
+  ComponentType,
+} from "./components.ts";
+export {
+  card,
+  chart,
+  form,
+  image,
+  layout,
+  markdown,
+  table,
+} from "./components.ts";
 
 // Canvas protocol types
 export type {
+  CanvasClearMessage,
   CanvasMessage,
   CanvasRenderComponentMessage,
-  CanvasRenderHtmlMessage,
   CanvasRenderFileMessage,
+  CanvasRenderHtmlMessage,
   CanvasUpdateMessage,
-  CanvasClearMessage,
 } from "./canvas_protocol.ts";
 export { generateRenderId } from "./canvas_protocol.ts";
 
@@ -35,11 +47,14 @@ export { createA2UIHost } from "./host/mod.ts";
 export { buildTidepoolHtml, TIDEPOOL_HTML } from "./ui.ts";
 
 // A2UI canvas tools (Result-based)
-export type { TidePoolTools, RenderFileOptions } from "./tools/mod.ts";
+export type { RenderFileOptions, TidePoolTools } from "./tools/mod.ts";
 export { createTidePoolTools } from "./tools/mod.ts";
 
 // Tool definitions and system prompt
-export { getTidepoolToolDefinitions, TIDEPOOL_SYSTEM_PROMPT } from "./tools/mod.ts";
+export {
+  getTidepoolToolDefinitions,
+  TIDEPOOL_SYSTEM_PROMPT,
+} from "./tools/mod.ts";
 
 // Executor
 export { createTidepoolToolExecutor } from "./tools/mod.ts";

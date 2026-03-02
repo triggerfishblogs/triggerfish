@@ -17,19 +17,19 @@ Inspect the health of Triggerfish's own runtime components.
 
 ## Tool
 
-| Tool | Purpose |
-|------|---------|
+| Tool          | Purpose                                |
+| ------------- | -------------------------------------- |
 | `healthcheck` | Check status of one or more components |
 
 ## Components
 
-| Component | What It Checks |
-|-----------|---------------|
+| Component   | What It Checks                                                          |
+| ----------- | ----------------------------------------------------------------------- |
 | `providers` | LLM provider registry — is a default provider configured and reachable? |
-| `storage` | SQLite storage — can it read/write? |
-| `skills` | Skill loader — how many skills were discovered? |
-| `config` | Configuration — is triggerfish.yaml valid and loaded? |
-| `all` | Run all checks (default) |
+| `storage`   | SQLite storage — can it read/write?                                     |
+| `skills`    | Skill loader — how many skills were discovered?                         |
+| `config`    | Configuration — is triggerfish.yaml valid and loaded?                   |
+| `all`       | Run all checks (default)                                                |
 
 ## Usage
 

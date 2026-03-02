@@ -17,7 +17,7 @@ Deno.test("Sandbox: executes plugin code and returns result", async () => {
     maxClassification: "INTERNAL",
   });
   try {
-    const result = await sandbox.executePluginCode('return 2 + 2');
+    const result = await sandbox.executePluginCode("return 2 + 2");
     assertEquals(result, 4);
   } finally {
     await sandbox.destroy();
@@ -34,7 +34,7 @@ Deno.test("Sandbox: blocks undeclared network access", async () => {
   try {
     // Attempting to access an undeclared endpoint should fail
     const result = await sandbox.executePluginCode(
-      'try { await fetch("https://api.forbidden.com"); return "escaped" } catch { return "blocked" }'
+      'try { await fetch("https://api.forbidden.com"); return "escaped" } catch { return "blocked" }',
     );
     assertEquals(result, "blocked");
   } finally {
@@ -51,7 +51,7 @@ Deno.test("Sandbox: cannot access host filesystem", async () => {
   });
   try {
     const result = await sandbox.executePluginCode(
-      'try { Deno.readTextFileSync("/etc/passwd"); return "escaped" } catch { return "blocked" }'
+      'try { Deno.readTextFileSync("/etc/passwd"); return "escaped" } catch { return "blocked" }',
     );
     assertEquals(result, "blocked");
   } finally {

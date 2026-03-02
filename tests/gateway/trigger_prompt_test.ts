@@ -14,12 +14,18 @@ import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import { createTriggerStore } from "../../src/scheduler/triggers/store.ts";
 import type { TriggerResult } from "../../src/scheduler/triggers/store.ts";
 import type { ClassificationLevel } from "../../src/core/types/classification.ts";
-import type { ChatEvent, ChatEventSender } from "../../src/core/types/chat_event.ts";
+import type {
+  ChatEvent,
+  ChatEventSender,
+} from "../../src/core/types/chat_event.ts";
 import { createChatSession } from "../../src/gateway/chat.ts";
 import type { ChatSessionConfig } from "../../src/gateway/chat_types.ts";
 import { createSession } from "../../src/core/types/session.ts";
 import type { ChannelId, UserId } from "../../src/core/types/session.ts";
-import type { LlmProviderRegistry, LlmProvider } from "../../src/core/types/llm.ts";
+import type {
+  LlmProvider,
+  LlmProviderRegistry,
+} from "../../src/core/types/llm.ts";
 import { createHookRunner } from "../../src/core/policy/hooks/hooks.ts";
 import type { PolicyRule } from "../../src/core/types/policy.ts";
 
@@ -267,10 +273,17 @@ Deno.test("trigger prompt: accept with valid result attempts agent turn", async 
   const chat = createChatSession(config);
   const collector = createEventCollector();
 
-  await chat.handleTriggerPromptResponse("cron:daily-check", true, collector.sender);
+  await chat.handleTriggerPromptResponse(
+    "cron:daily-check",
+    true,
+    collector.sender,
+  );
 
   // The agent turn was attempted — we expect at least one event
   // (response, response_chunk, error, or llm_start depending on hook policy)
-  assertEquals(collector.events.length >= 1, true,
-    "Expected at least one event from agent turn attempt");
+  assertEquals(
+    collector.events.length >= 1,
+    true,
+    "Expected at least one event from agent turn attempt",
+  );
 });

@@ -6,7 +6,12 @@
 
 export { createEncryptedFileSecretStore } from "./encrypted_file_provider.ts";
 export type { EncryptedFileSecretStoreOptions } from "./encrypted_file_types.ts";
-export { encryptSecretValue, decryptSecretEntry, toBase64, fromBase64 } from "./encrypted_file_crypto.ts";
+export {
+  decryptSecretEntry,
+  encryptSecretValue,
+  fromBase64,
+  toBase64,
+} from "./encrypted_file_crypto.ts";
 export type {
   EncryptedEntry,
   EncryptedSecretsFile,

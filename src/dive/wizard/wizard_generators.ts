@@ -9,7 +9,11 @@
 import { join } from "@std/path";
 import { stringify as stringifyYaml } from "@std/yaml";
 
-import type { ClassificationModelEntry, ToneChoice, WizardAnswers } from "./wizard_types.ts";
+import type {
+  ClassificationModelEntry,
+  ToneChoice,
+  WizardAnswers,
+} from "./wizard_types.ts";
 
 // ─── Config section builders ─────────────────────────────────────────────────
 
@@ -87,7 +91,9 @@ function buildChannelConfigSection(
         classification: "INTERNAL",
         ownerPhone: answers.signalPhoneNumber,
       };
-    } else if (ch === "googlechat" && answers.googlechatCredentialsRef.length > 0) {
+    } else if (
+      ch === "googlechat" && answers.googlechatCredentialsRef.length > 0
+    ) {
       const cfg: Record<string, unknown> = {
         enabled: true,
         credentials_ref: `secret:googlechat:credentials`,
@@ -123,8 +129,10 @@ function buildClassificationModelsSection(
   answers: WizardAnswers,
 ): Record<string, { provider: string; model: string }> | undefined {
   if (!answers.classificationModels) return undefined;
-  const entries = Object.entries(answers.classificationModels) as
-    [string, ClassificationModelEntry | undefined][];
+  const entries = Object.entries(answers.classificationModels) as [
+    string,
+    ClassificationModelEntry | undefined,
+  ][];
   const result: Record<string, { provider: string; model: string }> = {};
   for (const [level, entry] of entries) {
     if (!entry) continue;

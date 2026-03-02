@@ -31,7 +31,11 @@ async function reportTriggerGatewayError(response: Response): Promise<never> {
   } catch {
     // ignore
   }
-  log.error("Trigger gateway request failed", { operation: "runTriggers", status: response.status, body });
+  log.error("Trigger gateway request failed", {
+    operation: "runTriggers",
+    status: response.status,
+    body,
+  });
   console.log(
     `Error: Gateway returned ${response.status}${body ? ` — ${body}` : ""}`,
   );

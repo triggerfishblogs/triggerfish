@@ -3,7 +3,7 @@
  * Tests MUST FAIL until channel types and CLI adapter are implemented.
  * Tests ChannelAdapter interface, message routing, taint display.
  */
-import { assertEquals, assertExists, assert } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import type { ChannelMessage } from "../../src/channels/types.ts";
 import { createCliChannel } from "../../src/channels/cli/channel.ts";
 
@@ -54,7 +54,9 @@ Deno.test("CLI channel: send formats message to output", async () => {
 Deno.test("CLI channel: onMessage registers handler", () => {
   const cli = createCliChannel({ interactive: false });
   let received: ChannelMessage | null = null;
-  cli.onMessage((msg) => { received = msg; });
+  cli.onMessage((msg) => {
+    received = msg;
+  });
   // Simulate input
   cli.simulateInput("test message");
   assertExists(received);

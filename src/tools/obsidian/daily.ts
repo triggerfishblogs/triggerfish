@@ -8,7 +8,7 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
-import type { ObsidianNote, DailyNotesConfig } from "./types.ts";
+import type { DailyNotesConfig, ObsidianNote } from "./types.ts";
 import type { VaultContext } from "./vault.ts";
 import type { NoteStore } from "./notes/mod.ts";
 
@@ -21,7 +21,10 @@ const DEFAULT_DAILY_CONFIG: DailyNotesConfig = {
 /** Interface for daily note operations. */
 export interface DailyNoteManager {
   /** Get or create a daily note for the given date. */
-  getOrCreate(date?: string, template?: string): Promise<Result<ObsidianNote, string>>;
+  getOrCreate(
+    date?: string,
+    template?: string,
+  ): Promise<Result<ObsidianNote, string>>;
   /** Get recent daily notes (most recent first). */
   getRecent(count?: number): Promise<Result<readonly ObsidianNote[], string>>;
   /** Append text to a daily note (creates if missing). */
@@ -38,7 +41,10 @@ export function createDailyNoteManager(
   const dailyConfig = ctx.config.dailyNotes ?? DEFAULT_DAILY_CONFIG;
 
   return {
-    async getOrCreate(date?: string, template?: string): Promise<Result<ObsidianNote, string>> {
+    async getOrCreate(
+      date?: string,
+      template?: string,
+    ): Promise<Result<ObsidianNote, string>> {
       const dateStr = date ?? todayString();
       const parseResult = parseDate(dateStr);
       if (!parseResult.ok) return parseResult;
@@ -59,7 +65,9 @@ export function createDailyNoteManager(
       });
     },
 
-    async getRecent(count?: number): Promise<Result<readonly ObsidianNote[], string>> {
+    async getRecent(
+      count?: number,
+    ): Promise<Result<readonly ObsidianNote[], string>> {
       const max = count ?? 7;
       const result = await noteStore.list({
         folder: dailyConfig.folder,
@@ -69,7 +77,10 @@ export function createDailyNoteManager(
       return result;
     },
 
-    async append(text: string, date?: string): Promise<Result<ObsidianNote, string>> {
+    async append(
+      text: string,
+      date?: string,
+    ): Promise<Result<ObsidianNote, string>> {
       const dateStr = date ?? todayString();
       const parseResult = parseDate(dateStr);
       if (!parseResult.ok) return parseResult;
@@ -117,7 +128,10 @@ function todayString(): string {
 function parseDate(dateStr: string): Result<DateParts, string> {
   const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) {
-    return { ok: false, error: `Invalid date format (expected YYYY-MM-DD): ${dateStr}` };
+    return {
+      ok: false,
+      error: `Invalid date format (expected YYYY-MM-DD): ${dateStr}`,
+    };
   }
   return {
     ok: true,

@@ -19,17 +19,19 @@ network_domains:
 
 # Signal
 
-You operate as the owner's assistant on their Signal phone number. People who message the owner on Signal are routed to you. Each Signal contact gets their own session with independent taint tracking.
+You operate as the owner's assistant on their Signal phone number. People who
+message the owner on Signal are routed to you. Each Signal contact gets their
+own session with independent taint tracking.
 
 ## Tools
 
-| Tool | Purpose |
-|------|---------|
-| `signal_list_groups` | List all Signal groups (names, IDs, member counts) |
-| `signal_list_contacts` | List known Signal contacts (names, phone numbers) |
-| `signal_generate_pairing` | Generate a 6-digit pairing code for authorization |
-| `message` | Send a message to a contact or group (channel="signal") |
-| `channels_list` | Discover connected channels and classification levels |
+| Tool                      | Purpose                                                 |
+| ------------------------- | ------------------------------------------------------- |
+| `signal_list_groups`      | List all Signal groups (names, IDs, member counts)      |
+| `signal_list_contacts`    | List known Signal contacts (names, phone numbers)       |
+| `signal_generate_pairing` | Generate a 6-digit pairing code for authorization       |
+| `message`                 | Send a message to a contact or group (channel="signal") |
+| `channels_list`           | Discover connected channels and classification levels   |
 
 ## Sending Messages
 
@@ -49,11 +51,16 @@ You will never see messages from unpaired senders.
 
 ### Pairing Flow
 
-1. The owner asks you to generate a pairing code → use `signal_generate_pairing`.
+1. The owner asks you to generate a pairing code → use
+   `signal_generate_pairing`.
 2. The owner gives the code to the person (verbally, via another channel, etc.).
 3. The person sends the 6-digit code as a DM to the owner's Signal number.
-4. If valid, they're paired and can chat (DMs and groups). On success they get a confirmation message.
-5. ALL unpaired messages are silently ignored — no response, no indication of the agent's presence. The owner is also a linked device on this Signal account, so unpaired people are just having normal conversations with the owner. Triggerfish stays invisible until someone pairs.
+4. If valid, they're paired and can chat (DMs and groups). On success they get a
+   confirmation message.
+5. ALL unpaired messages are silently ignored — no response, no indication of
+   the agent's presence. The owner is also a linked device on this Signal
+   account, so unpaired people are just having normal conversations with the
+   owner. Triggerfish stays invisible until someone pairs.
 
 ## Session Management
 

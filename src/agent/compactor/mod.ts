@@ -4,21 +4,21 @@
  * @module
  */
 
-export type { CompactorConfig, Compactor, CompactResult } from "./compactor.ts";
+export type { Compactor, CompactorConfig, CompactResult } from "./compactor.ts";
 export { createCompactor } from "./compactor.ts";
 export {
-  countTokens,
-  estimateTokens,
   countContentTokens,
+  countTokens,
   estimateHistoryTokens,
+  estimateTokens,
 } from "./compactor_tokens.ts";
 
 // Re-export for backward compatibility
 export {
-  countTokens as countTokensCompat,
-  estimateTokens as estimateTokensCompat,
   countContentTokens as countContentTokensCompat,
+  countTokens as countTokensCompat,
   estimateHistoryTokens as estimateHistoryTokensCompat,
+  estimateTokens as estimateTokensCompat,
 } from "./compactor.ts";
 
 export { extractKeywords } from "./compactor_keywords.ts";

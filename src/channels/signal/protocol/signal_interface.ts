@@ -21,7 +21,10 @@ import {
   parseSignalEndpoint,
 } from "./signal_endpoint.ts";
 import { formatSignalError } from "./signal_rpc.ts";
-import { type ClientState, destroySignalConnection } from "./signal_connection.ts";
+import {
+  type ClientState,
+  destroySignalConnection,
+} from "./signal_connection.ts";
 import {
   marshalSignalContactEntry,
   marshalSignalGroupEntry,
@@ -41,7 +44,9 @@ export interface SignalInterfaceDeps {
 }
 
 /** Build the connect method. */
-function buildConnect(deps: SignalInterfaceDeps): SignalClientInterface["connect"] {
+function buildConnect(
+  deps: SignalInterfaceDeps,
+): SignalClientInterface["connect"] {
   return async (): Promise<Result<void, string>> => {
     try {
       if (!deps.state.conn) {
@@ -60,7 +65,9 @@ function buildConnect(deps: SignalInterfaceDeps): SignalClientInterface["connect
 }
 
 /** Build the disconnect method. */
-function buildDisconnect(deps: SignalInterfaceDeps): SignalClientInterface["disconnect"] {
+function buildDisconnect(
+  deps: SignalInterfaceDeps,
+): SignalClientInterface["disconnect"] {
   return (): Promise<void> => {
     destroySignalConnection(deps.state, deps.log);
     return Promise.resolve();
@@ -154,8 +161,8 @@ export function buildSignalClientInterface(
         if (response.error) {
           return { ok: false, error: response.error.message };
         }
-        const groups =
-          response.result as readonly Record<string, unknown>[] ?? [];
+        const groups = response.result as readonly Record<string, unknown>[] ??
+          [];
         return { ok: true, value: groups.map(marshalSignalGroupEntry) };
       } catch (err) {
         return { ok: false, error: formatSignalError(err) };

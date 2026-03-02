@@ -4,7 +4,7 @@
  * Tests content extraction (Readability + raw), SSRF prevention,
  * domain policy enforcement, content truncation, and timeout.
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { createWebFetcher } from "../../../src/tools/web/fetch.ts";
 import type { DnsChecker } from "../../../src/tools/web/fetch.ts";
 import { createDomainPolicy } from "../../../src/tools/web/domains.ts";

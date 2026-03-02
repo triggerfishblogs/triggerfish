@@ -10,27 +10,27 @@
 import type { ToolDefinition } from "../../core/types/tool.ts";
 
 import {
-  buildGmailSearchDef,
-  buildGmailReadDef,
-  buildGmailSendDef,
   buildGmailLabelDef,
+  buildGmailReadDef,
+  buildGmailSearchDef,
+  buildGmailSendDef,
 } from "./gmail/tools_defs_gmail.ts";
 
 import {
-  buildCalendarListDef,
   buildCalendarCreateDef,
+  buildCalendarListDef,
   buildCalendarUpdateDef,
 } from "./calendar/tools_defs_calendar.ts";
 
 import {
-  buildTasksListDef,
-  buildTasksCreateDef,
   buildTasksCompleteDef,
+  buildTasksCreateDef,
+  buildTasksListDef,
 } from "./tasks/tools_defs_tasks.ts";
 
 import {
-  buildDriveSearchDef,
   buildDriveReadDef,
+  buildDriveSearchDef,
 } from "./drive/tools_defs_drive.ts";
 
 import {

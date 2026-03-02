@@ -10,45 +10,60 @@
   --vp-c-bg-elv: #1a1a1a;
   --vp-c-bg-soft: #1a1a1a;
 
-  --vp-c-brand-1: #4ADE80;
-  --vp-c-brand-2: #22C55E;
-  --vp-c-brand-3: #86EFAC;
+  --vp-c-brand-1: #4ade80;
+  --vp-c-brand-2: #22c55e;
+  --vp-c-brand-3: #86efac;
   --vp-c-brand-soft: rgba(74, 222, 128, 0.16);
 
   --coming-soon-bg: #0a1a0f;
   --coming-soon-border: #1a3a25;
-  --coming-soon-text: #86EFAC;
-  --coming-soon-strong: #4ADE80;
+  --coming-soon-text: #86efac;
+  --coming-soon-strong: #4ade80;
 
   --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: linear-gradient(135deg, #166534 0%, #22C55E 40%, #4ADE80 100%);
+  --vp-home-hero-name-background: linear-gradient(
+    135deg,
+    #166534 0%,
+    #22c55e 40%,
+    #4ade80 100%
+  );
 
-  --vp-home-hero-image-background-image: linear-gradient(135deg, #052e16 0%, #14532d 50%, #166534 100%);
+  --vp-home-hero-image-background-image: linear-gradient(
+    135deg,
+    #052e16 0%,
+    #14532d 50%,
+    #166534 100%
+  );
   --vp-home-hero-image-filter: blur(56px);
 }
 
 .dark {
-  --vp-c-brand-1: #4ADE80;
-  --vp-c-brand-2: #22C55E;
-  --vp-c-brand-3: #86EFAC;
+  --vp-c-brand-1: #4ade80;
+  --vp-c-brand-2: #22c55e;
+  --vp-c-brand-3: #86efac;
   --vp-c-brand-soft: rgba(74, 222, 128, 0.16);
 
   --coming-soon-bg: #0a1a0f;
   --coming-soon-border: #1a3a25;
-  --coming-soon-text: #86EFAC;
-  --coming-soon-strong: #4ADE80;
+  --coming-soon-text: #86efac;
+  --coming-soon-strong: #4ade80;
 
-  --vp-home-hero-image-background-image: linear-gradient(135deg, #052e16 0%, #14532d 50%, #166534 100%);
+  --vp-home-hero-image-background-image: linear-gradient(
+    135deg,
+    #052e16 0%,
+    #14532d 50%,
+    #166534 100%
+  );
 }
 
 /* Brand button — deeper green so white text is legible */
 .VPButton.brand {
-  background-color: #16A34A !important;
-  border-color: #16A34A !important;
+  background-color: #16a34a !important;
+  border-color: #16a34a !important;
 }
 .VPButton.brand:hover {
-  background-color: #15803D !important;
-  border-color: #15803D !important;
+  background-color: #15803d !important;
+  border-color: #15803d !important;
 }
 
 /* Hero logo — remove background glow, let the PNG breathe on dark bg */

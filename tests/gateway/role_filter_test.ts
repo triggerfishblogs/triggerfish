@@ -31,7 +31,13 @@ Deno.test("filterToolsForRole: owner receives full tool list (no filtering)", ()
   assertEquals(result.length, 5, "Owner should see all 5 tools");
   assertEquals(
     result.map((t) => t.name),
-    ["run_command", "write_file", "web_search", "memory_search", "browser_navigate"],
+    [
+      "run_command",
+      "write_file",
+      "web_search",
+      "memory_search",
+      "browser_navigate",
+    ],
   );
 });
 
@@ -112,7 +118,11 @@ Deno.test("filterToolsForRole: non-owner never receives claude_start", () => {
 });
 
 Deno.test("filterToolsForRole: non-owner never receives sessions_send", () => {
-  const tools = [stubTool("sessions_send"), stubTool("sessions_spawn"), stubTool("memory_get")];
+  const tools = [
+    stubTool("sessions_send"),
+    stubTool("sessions_spawn"),
+    stubTool("memory_get"),
+  ];
   const result = filterToolsForRole(tools, false);
   assertEquals(result.length, 1);
   assertEquals(result[0].name, "memory_get");
@@ -173,16 +183,29 @@ Deno.test("filterToolsForRole: empty tool list returns empty for both owner and 
 Deno.test("filterToolsForRole: all owner-only tools are in the OWNER_ONLY_TOOLS set", () => {
   // Verify that all critical owner-only tool names are actually in the set
   const criticalOwnerTools = [
-    "write_file", "edit_file", "run_command",
-    "browser_navigate", "browser_click", "browser_type",
-    "memory_save", "memory_delete",
-    "secret_save", "secret_save_credential", "secret_delete",
-    "cron_create", "cron_delete",
-    "subagent", "agents_list",
-    "claude_start", "claude_send",
-    "sessions_send", "sessions_spawn",
-    "plan_enter", "plan_exit",
-    "tidepool_render_component", "tidepool_render_html",
+    "write_file",
+    "edit_file",
+    "run_command",
+    "browser_navigate",
+    "browser_click",
+    "browser_type",
+    "memory_save",
+    "memory_delete",
+    "secret_save",
+    "secret_save_credential",
+    "secret_delete",
+    "cron_create",
+    "cron_delete",
+    "subagent",
+    "agents_list",
+    "claude_start",
+    "claude_send",
+    "sessions_send",
+    "sessions_spawn",
+    "plan_enter",
+    "plan_exit",
+    "tidepool_render_component",
+    "tidepool_render_html",
   ];
   for (const name of criticalOwnerTools) {
     assertEquals(

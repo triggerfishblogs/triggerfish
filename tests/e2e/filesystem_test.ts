@@ -3,22 +3,28 @@
  * Tests MUST FAIL until filesystem server and e2e pipeline are implemented.
  * Tests full flow: CLI -> agent -> MCP Gateway -> filesystem -> response with classification & lineage.
  */
-import { assertEquals, assertExists, assert } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import { createFilesystemServer } from "../../src/integrations/filesystem/server.ts";
 import { createMcpGateway } from "../../src/mcp/gateway/gateway.ts";
 import { createPolicyEngine } from "../../src/core/policy/engine.ts";
-import { createHookRunner, createDefaultRules } from "../../src/core/policy/hooks/hooks.ts";
+import {
+  createDefaultRules,
+  createHookRunner,
+} from "../../src/core/policy/hooks/hooks.ts";
 import { createSession, updateTaint } from "../../src/core/types/session.ts";
 import { createLineageStore } from "../../src/core/session/lineage.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
-import type { UserId, ChannelId } from "../../src/core/types/session.ts";
+import type { ChannelId, UserId } from "../../src/core/types/session.ts";
 
 // --- Filesystem MCP Server ---
 
 Deno.test("FilesystemServer: read_file returns file contents", async () => {
   const tmpDir = await Deno.makeTempDir();
   await Deno.writeTextFile(`${tmpDir}/test.txt`, "hello world");
-  const server = createFilesystemServer({ rootPath: tmpDir, classification: "INTERNAL" });
+  const server = createFilesystemServer({
+    rootPath: tmpDir,
+    classification: "INTERNAL",
+  });
   try {
     const result = await server.callTool("read_file", { path: "test.txt" });
     assertEquals(result.ok, true);
@@ -33,9 +39,15 @@ Deno.test("FilesystemServer: read_file returns file contents", async () => {
 
 Deno.test("FilesystemServer: write_file creates file", async () => {
   const tmpDir = await Deno.makeTempDir();
-  const server = createFilesystemServer({ rootPath: tmpDir, classification: "INTERNAL" });
+  const server = createFilesystemServer({
+    rootPath: tmpDir,
+    classification: "INTERNAL",
+  });
   try {
-    const result = await server.callTool("write_file", { path: "new.txt", content: "created" });
+    const result = await server.callTool("write_file", {
+      path: "new.txt",
+      content: "created",
+    });
     assertEquals(result.ok, true);
     const content = await Deno.readTextFile(`${tmpDir}/new.txt`);
     assertEquals(content, "created");
@@ -48,7 +60,10 @@ Deno.test("FilesystemServer: list_directory returns entries", async () => {
   const tmpDir = await Deno.makeTempDir();
   await Deno.writeTextFile(`${tmpDir}/a.txt`, "a");
   await Deno.writeTextFile(`${tmpDir}/b.txt`, "b");
-  const server = createFilesystemServer({ rootPath: tmpDir, classification: "INTERNAL" });
+  const server = createFilesystemServer({
+    rootPath: tmpDir,
+    classification: "INTERNAL",
+  });
   try {
     const result = await server.callTool("list_directory", { path: "." });
     assertEquals(result.ok, true);
@@ -62,9 +77,14 @@ Deno.test("FilesystemServer: list_directory returns entries", async () => {
 
 Deno.test("FilesystemServer: blocks path traversal", async () => {
   const tmpDir = await Deno.makeTempDir();
-  const server = createFilesystemServer({ rootPath: tmpDir, classification: "INTERNAL" });
+  const server = createFilesystemServer({
+    rootPath: tmpDir,
+    classification: "INTERNAL",
+  });
   try {
-    const result = await server.callTool("read_file", { path: "../../etc/passwd" });
+    const result = await server.callTool("read_file", {
+      path: "../../etc/passwd",
+    });
     assertEquals(result.ok, false);
   } finally {
     await Deno.remove(tmpDir, { recursive: true });
@@ -100,7 +120,10 @@ Deno.test("E2E: file access propagates taint to session", async () => {
     classification: "CONFIDENTIAL",
   });
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
 
   // Call through gateway — should taint session
   const result = await gateway.callTool({
@@ -130,7 +153,10 @@ Deno.test("E2E: write-down blocked after taint escalation", async () => {
   for (const r of createDefaultRules()) engine.addRule(r);
   const runner = createHookRunner(engine);
 
-  const session = createSession({ userId: "u" as UserId, channelId: "c" as ChannelId });
+  const session = createSession({
+    userId: "u" as UserId,
+    channelId: "c" as ChannelId,
+  });
   // Taint the session to CONFIDENTIAL
   const tainted = updateTaint(session, "CONFIDENTIAL", "read secret file");
 

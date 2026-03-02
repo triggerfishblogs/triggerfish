@@ -3,11 +3,7 @@
  *
  * Tests the pure generation functions, not the interactive prompts.
  */
-import {
-  assert,
-  assertEquals,
-  assertStringIncludes,
-} from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { parse as parseYaml } from "@std/yaml";
 
 import {
@@ -130,7 +126,10 @@ Deno.test("Wizard: generateConfig sets endpoint for LM Studio provider", () => {
   const models = parsed.models as Record<string, unknown>;
   const providers = models.providers as Record<string, Record<string, string>>;
   assertEquals(providers.lmstudio.endpoint, "http://localhost:1234");
-  assertEquals(providers.lmstudio.model, "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF");
+  assertEquals(
+    providers.lmstudio.model,
+    "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+  );
 });
 
 Deno.test("Wizard: generateConfig uses localEndpoint for LM Studio provider", () => {
@@ -144,7 +143,10 @@ Deno.test("Wizard: generateConfig uses localEndpoint for LM Studio provider", ()
   const models = parsed.models as Record<string, unknown>;
   const providers = models.providers as Record<string, Record<string, string>>;
   assertEquals(providers.lmstudio.endpoint, "http://192.168.1.50:1234");
-  assertEquals(providers.lmstudio.model, "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF");
+  assertEquals(
+    providers.lmstudio.model,
+    "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+  );
 });
 
 Deno.test("Wizard: generateConfig includes webchat channel config", () => {
@@ -200,8 +202,14 @@ Deno.test("Wizard: generateConfig includes googlechat channel config with secret
   const parsed = parseYaml(yaml) as Record<string, unknown>;
   const channels = parsed.channels as Record<string, Record<string, unknown>>;
   assertEquals(channels.googlechat.enabled, true);
-  assertEquals(channels.googlechat.credentials_ref, "secret:googlechat:credentials");
-  assertEquals(channels.googlechat.pubsub_subscription, "projects/myproj/subscriptions/chat-sub");
+  assertEquals(
+    channels.googlechat.credentials_ref,
+    "secret:googlechat:credentials",
+  );
+  assertEquals(
+    channels.googlechat.pubsub_subscription,
+    "projects/myproj/subscriptions/chat-sub",
+  );
   assertEquals(channels.googlechat.owner_email, "admin@company.com");
   assertEquals(channels.googlechat.classification, "INTERNAL");
 });
@@ -368,14 +376,18 @@ Deno.test("Wizard: generateSpine includes security boundaries", () => {
 
 // ─── Config validation integration ───────────────────────────────────────────
 
-Deno.test({ name: "Wizard: generated config passes validateConfig", sanitizeResources: false, fn: async () => {
-  const { validateConfig } = await import("../../src/cli/main.ts");
-  const answers = makeAnswers();
-  const yaml = generateConfig(answers);
-  const parsed = parseYaml(yaml) as Record<string, unknown>;
-  const result = validateConfig(parsed);
-  assertEquals(result.ok, true);
-}});
+Deno.test({
+  name: "Wizard: generated config passes validateConfig",
+  sanitizeResources: false,
+  fn: async () => {
+    const { validateConfig } = await import("../../src/cli/main.ts");
+    const answers = makeAnswers();
+    const yaml = generateConfig(answers);
+    const parsed = parseYaml(yaml) as Record<string, unknown>;
+    const result = validateConfig(parsed);
+    assertEquals(result.ok, true);
+  },
+});
 
 Deno.test("Wizard: generated config loads via loadConfig", async () => {
   const { loadConfig } = await import("../../src/cli/main.ts");
@@ -542,7 +554,11 @@ Deno.test("Wizard: storeWizardSecrets does not store keys for local providers (o
 
 Deno.test("Wizard: storeWizardSecrets returns empty array when no secrets provided", async () => {
   const store = createMemorySecretStore();
-  const answers = makeAnswers({ apiKey: "", telegramBotToken: "", searchApiKey: "" });
+  const answers = makeAnswers({
+    apiKey: "",
+    telegramBotToken: "",
+    searchApiKey: "",
+  });
 
   const stored = await storeWizardSecrets(answers, store);
   assertEquals(stored, []);

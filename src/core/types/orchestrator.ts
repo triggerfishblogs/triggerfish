@@ -7,8 +7,8 @@
  * @module
  */
 
-import type { Result, ClassificationLevel } from "./classification.ts";
-import type { SessionState, SessionId } from "./session.ts";
+import type { ClassificationLevel, Result } from "./classification.ts";
+import type { SessionId, SessionState } from "./session.ts";
 import type { MessageContent } from "../image/content.ts";
 
 /** Options for processing a single message. */

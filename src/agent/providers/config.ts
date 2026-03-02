@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { LlmProviderRegistry, LlmProvider } from "../llm.ts";
+import type { LlmProvider, LlmProviderRegistry } from "../llm.ts";
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 import { createAnthropicProvider } from "./anthropic.ts";
@@ -145,17 +145,25 @@ export function loadProvidersFromConfig(
   const defaultProvider = modelsConfig.primary.provider;
   if (defaultProvider && registry.get(defaultProvider)) {
     registry.setDefault(defaultProvider);
-    log.info("Primary provider set", { provider: defaultProvider, model: modelsConfig.primary.model });
+    log.info("Primary provider set", {
+      provider: defaultProvider,
+      model: modelsConfig.primary.model,
+    });
   } else {
-    log.warn("Primary provider not found in registry", { provider: defaultProvider });
+    log.warn("Primary provider not found in registry", {
+      provider: defaultProvider,
+    });
   }
 
   // Register per-classification provider overrides
   if (modelsConfig.classification_models) {
-    for (const [level, ref] of Object.entries(modelsConfig.classification_models)) {
+    for (
+      const [level, ref] of Object.entries(modelsConfig.classification_models)
+    ) {
       if (!ref) continue;
       const providerConfig = providers[ref.provider as keyof ProvidersConfig] as
-        Readonly<Record<string, unknown>> | undefined;
+        | Readonly<Record<string, unknown>>
+        | undefined;
       if (!providerConfig) {
         log.warn("Classification model provider not configured", {
           operation: "loadClassificationOverride",
@@ -164,9 +172,16 @@ export function loadProvidersFromConfig(
         });
         continue;
       }
-      const overrideProvider = createProviderByName(ref.provider, providerConfig, ref.model);
+      const overrideProvider = createProviderByName(
+        ref.provider,
+        providerConfig,
+        ref.model,
+      );
       if (overrideProvider) {
-        registry.registerClassificationOverride(level as ClassificationLevel, overrideProvider);
+        registry.registerClassificationOverride(
+          level as ClassificationLevel,
+          overrideProvider,
+        );
         log.info("Classification model override registered", {
           operation: "loadClassificationOverride",
           level,
@@ -219,7 +234,8 @@ function createProviderByName(
       return createLocalProvider({
         name: "lmstudio",
         model,
-        endpoint: providerConfig.endpoint as string | undefined ?? "http://localhost:1234",
+        endpoint: providerConfig.endpoint as string | undefined ??
+          "http://localhost:1234",
       });
     case "fireworks":
       return createFireworksProvider({ model, apiKey });

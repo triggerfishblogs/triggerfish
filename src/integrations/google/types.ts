@@ -8,36 +8,36 @@
  */
 
 export type {
+  GoogleApiClient,
+  GoogleApiError,
+  GoogleApiResult,
   GoogleAuthConfig,
   GoogleAuthManager,
   GoogleAuthResult,
   GoogleTokens,
-  GoogleApiClient,
-  GoogleApiResult,
-  GoogleApiError,
 } from "./auth/types_auth.ts";
 
 export type {
+  GmailLabelOptions,
   GmailMessage,
   GmailSearchOptions,
   GmailSendOptions,
-  GmailLabelOptions,
   GmailService,
 } from "./gmail/types_gmail.ts";
 
 export type {
   Attendee,
+  CalendarCreateOptions,
   CalendarEvent,
   CalendarListOptions,
-  CalendarCreateOptions,
-  CalendarUpdateOptions,
   CalendarService,
+  CalendarUpdateOptions,
 } from "./calendar/types_calendar.ts";
 
 export type {
+  TaskCreateOptions,
   TaskItem,
   TaskListOptions,
-  TaskCreateOptions,
   TasksService,
 } from "./tasks/types_tasks.ts";
 
@@ -49,8 +49,8 @@ export type {
 
 export type {
   SheetRange,
-  SheetWriteOptions,
   SheetsService,
+  SheetWriteOptions,
 } from "./sheets/types_sheets.ts";
 
 export type { GoogleToolContext } from "./auth/types_context.ts";

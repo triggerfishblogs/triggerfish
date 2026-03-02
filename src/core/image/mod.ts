@@ -7,16 +7,16 @@
  */
 
 export type {
-  TextContentBlock,
-  ImageContentBlock,
   ContentBlock,
+  ImageContentBlock,
   MessageContent,
+  TextContentBlock,
 } from "./content.ts";
 
 export {
-  MAX_IMAGE_BYTES,
-  normalizeContent,
   extractText,
   hasImages,
   imageBlock,
+  MAX_IMAGE_BYTES,
+  normalizeContent,
 } from "./content.ts";

@@ -4,11 +4,7 @@
  * All tests use a mock CommandRunner so no real Tailscale, WireGuard,
  * or cloudflared binaries are required.
  */
-import {
-  assert,
-  assertEquals,
-  assertStringIncludes,
-} from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { createTunnelService } from "../../../src/integrations/remote/tunnel.ts";
 import type {
   CommandResult,
@@ -22,7 +18,9 @@ import type {
 
 interface MockCommandRunner extends CommandRunner {
   /** All calls recorded during the test. */
-  readonly calls: Array<{ readonly cmd: string; readonly args: readonly string[] }>;
+  readonly calls: Array<
+    { readonly cmd: string; readonly args: readonly string[] }
+  >;
 }
 
 /**
@@ -41,7 +39,10 @@ function createMockCommandRunner(
       return calls;
     },
     // deno-lint-ignore require-await
-    async runCommand(cmd: string, args: readonly string[]): Promise<CommandResult> {
+    async runCommand(
+      cmd: string,
+      args: readonly string[],
+    ): Promise<CommandResult> {
       calls.push({ cmd, args });
       const key = [cmd, ...args].join(" ");
 
@@ -336,7 +337,10 @@ Deno.test("WireGuard status: parses endpoint IP from wg show", async () => {
 
 Deno.test("WireGuard status not active: returns connected=false", async () => {
   const responses = new Map<string, CommandResult>([
-    ["wg show wg-triggerfish", fail("Unable to access interface: No such device")],
+    [
+      "wg show wg-triggerfish",
+      fail("Unable to access interface: No such device"),
+    ],
   ]);
   const runner = createMockCommandRunner(responses);
   const config: TunnelConfig = { provider: "wireguard", gatewayPort: 8080 };
@@ -351,7 +355,10 @@ Deno.test("WireGuard status not active: returns connected=false", async () => {
 
 Deno.test("WireGuard enable failure: returns error when wg-quick fails", async () => {
   const responses = new Map<string, CommandResult>([
-    ["wg-quick up wg-triggerfish", fail("RTNETLINK answers: Operation not permitted")],
+    [
+      "wg-quick up wg-triggerfish",
+      fail("RTNETLINK answers: Operation not permitted"),
+    ],
   ]);
   const runner = createMockCommandRunner(responses);
   const config: TunnelConfig = { provider: "wireguard", gatewayPort: 8080 };
@@ -480,7 +487,12 @@ Deno.test("Tailscale status: returns error on invalid JSON", async () => {
 Deno.test("Cloudflared disable: no process is not an error (exit code 1)", async () => {
   // pkill returns exit code 1 when no process matched -- this should not be an error
   const responses = new Map<string, CommandResult>([
-    ["pkill -f cloudflared", { success: false, stdout: "", stderr: "", code: 1 }],
+    ["pkill -f cloudflared", {
+      success: false,
+      stdout: "",
+      stderr: "",
+      code: 1,
+    }],
   ]);
   const runner = createMockCommandRunner(responses);
   const config: TunnelConfig = { provider: "cloudflared", gatewayPort: 8080 };

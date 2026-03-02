@@ -10,8 +10,8 @@
 import { Confirm } from "@cliffy/prompt";
 import {
   bundleLogs,
-  installAndStartDaemon,
   getDaemonStatus,
+  installAndStartDaemon,
   stopDaemon,
   tailLogs,
   updateTriggerfish,
@@ -51,7 +51,10 @@ export async function runDaemonStart(): Promise<void> {
       `  Tidepool: http://127.0.0.1:${TIDEPOOL_PORT} (available once daemon is ready)`,
     );
   } else {
-    log.error("Daemon start failed", { operation: "startDaemon", message: result.message });
+    log.error("Daemon start failed", {
+      operation: "startDaemon",
+      message: result.message,
+    });
     console.log(`✗ ${result.message}`);
     Deno.exit(1);
   }
@@ -63,7 +66,10 @@ export async function runDaemonStop(): Promise<void> {
   if (result.ok) {
     console.log("✓ Daemon stopped");
   } else {
-    log.error("Daemon stop failed", { operation: "stopDaemon", message: result.message });
+    log.error("Daemon stop failed", {
+      operation: "stopDaemon",
+      message: result.message,
+    });
     console.log(`✗ ${result.message}`);
     Deno.exit(1);
   }
@@ -118,7 +124,10 @@ async function displayPostUpdateChangelog(
     }
   } catch (err) {
     // Non-critical: log but don't disrupt update flow
-    log.warn("Changelog fetch failed after update", { operation: "displayPostUpdateChangelog", err });
+    log.warn("Changelog fetch failed after update", {
+      operation: "displayPostUpdateChangelog",
+      err,
+    });
   }
 }
 
@@ -154,7 +163,10 @@ export async function runUpdate(): Promise<void> {
   if (result.ok) {
     await handleUpdateSuccess(result);
   } else {
-    log.error("Triggerfish self-update failed", { operation: "updateTriggerfish", message: result.message });
+    log.error("Triggerfish self-update failed", {
+      operation: "updateTriggerfish",
+      message: result.message,
+    });
     console.log("✗", result.message);
     Deno.exit(1);
   }

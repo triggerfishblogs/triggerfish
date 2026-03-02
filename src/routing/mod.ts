@@ -8,9 +8,9 @@
  */
 
 export {
-  createAgentRouter,
   type AgentRouter,
   type AgentRouterConfig,
+  createAgentRouter,
   type RouteRule,
 } from "./router.ts";
 

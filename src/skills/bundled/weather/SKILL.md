@@ -19,21 +19,28 @@ Fetch weather using `web_fetch`. No special tools needed.
 ## wttr.in (Default, No API Key)
 
 ### Current Weather (JSON)
+
 ```
 web_fetch: { url: "https://wttr.in/Austin,Texas?format=j1" }
 ```
+
 Returns JSON: current conditions, 3-day forecast, location info.
 
 ### Compact Format
+
 ```
 web_fetch: { url: "https://wttr.in/Austin,Texas?format=%C+%t+%h+%w" }
 ```
+
 Returns: "Sunny +72°F 45% →11mph"
 
 ### Format Codes
-- `%C` condition, `%t` temp, `%f` feels-like, `%h` humidity, `%w` wind, `%p` precip, `%P` pressure
+
+- `%C` condition, `%t` temp, `%f` feels-like, `%h` humidity, `%w` wind, `%p`
+  precip, `%P` pressure
 
 ### Location Formats
+
 - City: `wttr.in/London`
 - City,Country: `wttr.in/Paris,France`
 - Airport: `wttr.in/JFK`
@@ -49,6 +56,7 @@ web_fetch: { url: "https://api.openweathermap.org/data/2.5/weather?q=Austin,Texa
 ```
 
 ## Key Behaviors
+
 - Default to wttr.in (no API key needed)
 - Imperial for US, metric elsewhere
 - If no location specified, ask the user

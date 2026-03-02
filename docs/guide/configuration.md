@@ -1,6 +1,8 @@
 # Configuration
 
-Triggerfish is configured through a single YAML file at `~/.triggerfish/triggerfish.yaml`. The setup wizard (`triggerfish dive`) creates this file for you, but you can edit it manually at any time.
+Triggerfish is configured through a single YAML file at
+`~/.triggerfish/triggerfish.yaml`. The setup wizard (`triggerfish dive`) creates
+this file for you, but you can edit it manually at any time.
 
 ## Config File Location
 
@@ -53,11 +55,11 @@ models:
 
     ollama:
       model: llama3
-      endpoint: "http://localhost:11434"    # Ollama default
+      endpoint: "http://localhost:11434" # Ollama default
 
     lmstudio:
       model: lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF
-      endpoint: "http://localhost:1234"     # LM Studio default
+      endpoint: "http://localhost:1234" # LM Studio default
 
     openrouter:
       model: anthropic/claude-sonnet-4-5
@@ -74,11 +76,14 @@ models:
     - google
 ```
 
-API keys are stored in the OS keychain, not in this file. The setup wizard (`triggerfish dive`) prompts for your API key and stores it securely. Ollama and LM Studio are local and require no authentication.
+API keys are stored in the OS keychain, not in this file. The setup wizard
+(`triggerfish dive`) prompts for your API key and stores it securely. Ollama and
+LM Studio are local and require no authentication.
 
 ## Channels
 
-The `channels` section defines which messaging platforms your agent connects to and the classification level for each.
+The `channels` section defines which messaging platforms your agent connects to
+and the classification level for each.
 
 ```yaml
 channels:
@@ -127,43 +132,47 @@ channels:
     classification: CONFIDENTIAL
 ```
 
-Tokens, passwords, and API keys for each channel are stored in the OS keychain. Run `triggerfish config add-channel <name>` to enter credentials interactively -- they are saved to the keychain, never to this file.
+Tokens, passwords, and API keys for each channel are stored in the OS keychain.
+Run `triggerfish config add-channel <name>` to enter credentials interactively
+-- they are saved to the keychain, never to this file.
 
 ### Channel Configuration Keys
 
 Non-secret configuration in `triggerfish.yaml`:
 
-| Channel | Config Keys | Optional Keys |
-|---------|------------|---------------|
-| CLI | `enabled` | `classification` |
-| Telegram | `enabled`, `ownerId` | `classification` |
-| Signal | `enabled`, `endpoint`, `account` | `classification`, `defaultGroupMode`, `groups`, `ownerPhone`, `pairing` |
-| Slack | `enabled` | `classification`, `ownerId` |
-| Discord | `enabled`, `ownerId` | `classification` |
-| WhatsApp | `enabled`, `phoneNumberId` | `classification`, `ownerPhone`, `webhookPort` |
-| WebChat | `enabled` | `classification`, `port`, `allowedOrigins` |
-| Email | `enabled`, `smtpApiUrl`, `imapHost`, `imapUser`, `fromAddress` | `classification`, `ownerEmail`, `imapPort`, `pollInterval` |
+| Channel  | Config Keys                                                    | Optional Keys                                                           |
+| -------- | -------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| CLI      | `enabled`                                                      | `classification`                                                        |
+| Telegram | `enabled`, `ownerId`                                           | `classification`                                                        |
+| Signal   | `enabled`, `endpoint`, `account`                               | `classification`, `defaultGroupMode`, `groups`, `ownerPhone`, `pairing` |
+| Slack    | `enabled`                                                      | `classification`, `ownerId`                                             |
+| Discord  | `enabled`, `ownerId`                                           | `classification`                                                        |
+| WhatsApp | `enabled`, `phoneNumberId`                                     | `classification`, `ownerPhone`, `webhookPort`                           |
+| WebChat  | `enabled`                                                      | `classification`, `port`, `allowedOrigins`                              |
+| Email    | `enabled`, `smtpApiUrl`, `imapHost`, `imapUser`, `fromAddress` | `classification`, `ownerEmail`, `imapPort`, `pollInterval`              |
 
-Secrets (bot tokens, API keys, passwords, signing secrets) are entered during channel setup and stored in the OS keychain.
+Secrets (bot tokens, API keys, passwords, signing secrets) are entered during
+channel setup and stored in the OS keychain.
 
 ### Default Classification Levels
 
-| Channel | Default |
-|---------|---------|
-| CLI | `INTERNAL` |
-| Telegram | `INTERNAL` |
-| Signal | `PUBLIC` |
-| Slack | `PUBLIC` |
-| Discord | `PUBLIC` |
-| WhatsApp | `PUBLIC` |
-| WebChat | `PUBLIC` |
-| Email | `CONFIDENTIAL` |
+| Channel  | Default        |
+| -------- | -------------- |
+| CLI      | `INTERNAL`     |
+| Telegram | `INTERNAL`     |
+| Signal   | `PUBLIC`       |
+| Slack    | `PUBLIC`       |
+| Discord  | `PUBLIC`       |
+| WhatsApp | `PUBLIC`       |
+| WebChat  | `PUBLIC`       |
+| Email    | `CONFIDENTIAL` |
 
 All defaults are configurable. Set any channel to any classification level.
 
 ## MCP Servers
 
-Connect external MCP servers to give your agent access to additional tools. See [MCP Gateway](/integrations/mcp-gateway) for the full security model.
+Connect external MCP servers to give your agent access to additional tools. See
+[MCP Gateway](/integrations/mcp-gateway) for the full security model.
 
 ```yaml
 mcp_servers:
@@ -180,33 +189,41 @@ mcp_servers:
     classification: INTERNAL
 ```
 
-Each server must have a `classification` level or it will be rejected (default deny). Use `command` + `args` for local servers (spawned as subprocesses) or `url` for remote servers (HTTP SSE). Environment values prefixed with `keychain:` are resolved from the OS keychain.
+Each server must have a `classification` level or it will be rejected (default
+deny). Use `command` + `args` for local servers (spawned as subprocesses) or
+`url` for remote servers (HTTP SSE). Environment values prefixed with
+`keychain:` are resolved from the OS keychain.
 
-For help choosing classification levels, see the [Classification Guide](./classification-guide).
+For help choosing classification levels, see the
+[Classification Guide](./classification-guide).
 
 ## Classification
 
-The `classification` section controls how Triggerfish classifies and protects data.
+The `classification` section controls how Triggerfish classifies and protects
+data.
 
 ```yaml
 classification:
-  mode: personal                 # "personal" or "enterprise" (coming soon)
+  mode: personal # "personal" or "enterprise" (coming soon)
 ```
 
 **Classification levels:**
 
-| Level | Description | Examples |
-|-------|-------------|---------|
-| `RESTRICTED` | Most sensitive | M&A documents, PII, bank accounts, medical records |
-| `CONFIDENTIAL` | Sensitive | CRM data, financials, contracts, tax records |
-| `INTERNAL` | Internal only | Internal wikis, personal notes, contacts |
-| `PUBLIC` | Safe for anyone | Marketing materials, public info, general web content |
+| Level          | Description     | Examples                                              |
+| -------------- | --------------- | ----------------------------------------------------- |
+| `RESTRICTED`   | Most sensitive  | M&A documents, PII, bank accounts, medical records    |
+| `CONFIDENTIAL` | Sensitive       | CRM data, financials, contracts, tax records          |
+| `INTERNAL`     | Internal only   | Internal wikis, personal notes, contacts              |
+| `PUBLIC`       | Safe for anyone | Marketing materials, public info, general web content |
 
-For detailed guidance on choosing the right level for your integrations, channels, and MCP servers, see the [Classification Guide](./classification-guide).
+For detailed guidance on choosing the right level for your integrations,
+channels, and MCP servers, see the
+[Classification Guide](./classification-guide).
 
 ## Policy
 
-The `policy` section configures custom enforcement rules beyond the built-in protections.
+The `policy` section configures custom enforcement rules beyond the built-in
+protections.
 
 ```yaml
 policy:
@@ -232,29 +249,30 @@ policy:
       action: BLOCK
 ```
 
-::: info
-The core security rules -- no write-down, session taint escalation, audit logging -- are always enforced and cannot be disabled. Custom policy rules add additional controls on top of these fixed protections.
-:::
+::: info The core security rules -- no write-down, session taint escalation,
+audit logging -- are always enforced and cannot be disabled. Custom policy rules
+add additional controls on top of these fixed protections. :::
 
 ## Web Search & Fetch
 
-The `web` section configures web search and content fetching, including domain security controls.
+The `web` section configures web search and content fetching, including domain
+security controls.
 
 ```yaml
 web:
   search:
-    provider: brave        # Search backend (brave is currently supported)
+    provider: brave # Search backend (brave is currently supported)
     max_results: 10
-    safe_search: moderate  # off, moderate, strict
+    safe_search: moderate # off, moderate, strict
   fetch:
-    rate_limit: 10         # Requests per minute
+    rate_limit: 10 # Requests per minute
     max_content_length: 50000
     timeout: 30000
-    default_mode: readability  # readability or raw
+    default_mode: readability # readability or raw
   domains:
     denylist:
       - "*.malware-site.com"
-    allowlist: []          # Empty = allow all (minus denylist)
+    allowlist: [] # Empty = allow all (minus denylist)
     classifications:
       - pattern: "*.internal.corp"
         classification: CONFIDENTIAL
@@ -266,11 +284,12 @@ Set up search from the command line:
 triggerfish config set web.search.provider brave
 ```
 
-The Brave API key is entered during `triggerfish dive` and stored in the OS keychain.
+The Brave API key is entered during `triggerfish dive` and stored in the OS
+keychain.
 
-::: tip
-Get a Brave Search API key at [brave.com/search/api](https://brave.com/search/api/). The free tier includes 2,000 queries/month.
-:::
+::: tip Get a Brave Search API key at
+[brave.com/search/api](https://brave.com/search/api/). The free tier includes
+2,000 queries/month. :::
 
 ## Cron Jobs
 
@@ -280,19 +299,20 @@ Schedule recurring tasks for your agent:
 cron:
   jobs:
     - id: morning-briefing
-      schedule: "0 7 * * *"           # 7 AM daily
+      schedule: "0 7 * * *" # 7 AM daily
       task: "Prepare morning briefing with calendar, unread emails, and weather"
-      channel: telegram                # Where to deliver results
-      classification: INTERNAL         # Max taint ceiling for this job
+      channel: telegram # Where to deliver results
+      classification: INTERNAL # Max taint ceiling for this job
 
     - id: pipeline-check
-      schedule: "0 */4 * * *"         # Every 4 hours
+      schedule: "0 */4 * * *" # Every 4 hours
       task: "Check Salesforce pipeline for changes"
       channel: slack
       classification: CONFIDENTIAL
 ```
 
-Each cron job runs in its own isolated session with a classification ceiling. All cron actions pass through the normal policy hooks.
+Each cron job runs in its own isolated session with a classification ceiling.
+All cron actions pass through the normal policy hooks.
 
 ## Trigger Timing
 
@@ -300,12 +320,14 @@ Configure how often your agent performs proactive check-ins:
 
 ```yaml
 trigger:
-  interval: 30m                # Check every 30 minutes
-  classification: INTERNAL     # Max taint ceiling for trigger sessions
-  quiet_hours: "22:00-07:00"   # Don't trigger during quiet hours
+  interval: 30m # Check every 30 minutes
+  classification: INTERNAL # Max taint ceiling for trigger sessions
+  quiet_hours: "22:00-07:00" # Don't trigger during quiet hours
 ```
 
-The trigger system reads your `~/.triggerfish/TRIGGER.md` file to decide what to check on each wakeup. See [SPINE and Triggers](./spine-and-triggers) for details on writing your TRIGGER.md.
+The trigger system reads your `~/.triggerfish/TRIGGER.md` file to decide what to
+check on each wakeup. See [SPINE and Triggers](./spine-and-triggers) for details
+on writing your TRIGGER.md.
 
 ## Webhooks
 

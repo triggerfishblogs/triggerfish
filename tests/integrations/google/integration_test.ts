@@ -17,94 +17,139 @@ import { createDriveService } from "../../../src/integrations/google/drive/drive
 import { createGoogleToolExecutor } from "../../../src/integrations/google/tools.ts";
 import { createTasksService } from "../../../src/integrations/google/tasks/tasks.ts";
 import { createSheetsService } from "../../../src/integrations/google/sheets/sheets.ts";
-import type { GoogleAuthConfig, GoogleTokens } from "../../../src/integrations/google/types.ts";
+import type {
+  GoogleAuthConfig,
+  GoogleTokens,
+} from "../../../src/integrations/google/types.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 import type { ClassificationLevel } from "../../../src/core/types/classification.ts";
 
 // ─── Mock Google Server ─────────────────────────────────────────────────────
 
 /** Create a mock Google API server on a random port. */
-function createMockGoogleServer(): { server: Deno.HttpServer; baseUrl: string } {
-  const server = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, (req) => {
-    const url = new URL(req.url);
-    const path = url.pathname;
+function createMockGoogleServer(): {
+  server: Deno.HttpServer;
+  baseUrl: string;
+} {
+  const server = Deno.serve(
+    { hostname: "127.0.0.1", port: 0, onListen() {} },
+    (req) => {
+      const url = new URL(req.url);
+      const path = url.pathname;
 
-    // OAuth token endpoint
-    if (path === "/token" && req.method === "POST") {
-      return new Response(JSON.stringify({
-        access_token: "mock_access_token",
-        refresh_token: "mock_refresh_token",
-        expires_in: 3600,
-        scope: "email",
-        token_type: "Bearer",
-      }), { headers: { "Content-Type": "application/json" } });
-    }
+      // OAuth token endpoint
+      if (path === "/token" && req.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            access_token: "mock_access_token",
+            refresh_token: "mock_refresh_token",
+            expires_in: 3600,
+            scope: "email",
+            token_type: "Bearer",
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
 
-    // Gmail: list messages
-    if (path.includes("/gmail/v1/users/me/messages") && !path.includes("/messages/msg")) {
-      return new Response(JSON.stringify({
-        messages: [{ id: "msg1" }, { id: "msg2" }],
-      }), { headers: { "Content-Type": "application/json" } });
-    }
+      // Gmail: list messages
+      if (
+        path.includes("/gmail/v1/users/me/messages") &&
+        !path.includes("/messages/msg")
+      ) {
+        return new Response(
+          JSON.stringify({
+            messages: [{ id: "msg1" }, { id: "msg2" }],
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
 
-    // Gmail: get message
-    if (path.includes("/gmail/v1/users/me/messages/msg")) {
-      const msgId = path.split("/").pop()!;
-      return new Response(JSON.stringify({
-        id: msgId,
-        threadId: "t1",
-        snippet: "Hello from integration test",
-        labelIds: ["INBOX"],
-        payload: {
-          headers: [
-            { name: "From", value: "alice@example.com" },
-            { name: "To", value: "bob@example.com" },
-            { name: "Subject", value: "Integration Test Email" },
-            { name: "Date", value: "2025-01-20T10:00:00Z" },
-          ],
-          body: { data: btoa("This is the email body").replace(/\+/g, "-").replace(/\//g, "_") },
-        },
-      }), { headers: { "Content-Type": "application/json" } });
-    }
+      // Gmail: get message
+      if (path.includes("/gmail/v1/users/me/messages/msg")) {
+        const msgId = path.split("/").pop()!;
+        return new Response(
+          JSON.stringify({
+            id: msgId,
+            threadId: "t1",
+            snippet: "Hello from integration test",
+            labelIds: ["INBOX"],
+            payload: {
+              headers: [
+                { name: "From", value: "alice@example.com" },
+                { name: "To", value: "bob@example.com" },
+                { name: "Subject", value: "Integration Test Email" },
+                { name: "Date", value: "2025-01-20T10:00:00Z" },
+              ],
+              body: {
+                data: btoa("This is the email body").replace(/\+/g, "-")
+                  .replace(/\//g, "_"),
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
 
-    // Calendar: create event
-    if (path.includes("/calendar/v3/calendars/primary/events") && req.method === "POST") {
-      return new Response(JSON.stringify({
-        id: "evt_integration",
-        summary: "Integration Meeting",
-        start: { dateTime: "2025-01-20T14:00:00Z" },
-        end: { dateTime: "2025-01-20T15:00:00Z" },
-        htmlLink: "https://calendar.google.com/event/evt_integration",
-      }), { headers: { "Content-Type": "application/json" } });
-    }
+      // Calendar: create event
+      if (
+        path.includes("/calendar/v3/calendars/primary/events") &&
+        req.method === "POST"
+      ) {
+        return new Response(
+          JSON.stringify({
+            id: "evt_integration",
+            summary: "Integration Meeting",
+            start: { dateTime: "2025-01-20T14:00:00Z" },
+            end: { dateTime: "2025-01-20T15:00:00Z" },
+            htmlLink: "https://calendar.google.com/event/evt_integration",
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
 
-    // Drive: get file metadata (Google Doc)
-    if (path.match(/\/drive\/v3\/files\/doc1$/) && !url.searchParams.has("alt")) {
-      return new Response(JSON.stringify({
-        id: "doc1",
-        name: "Integration Doc",
-        mimeType: "application/vnd.google-apps.document",
-      }), { headers: { "Content-Type": "application/json" } });
-    }
+      // Drive: get file metadata (Google Doc)
+      if (
+        path.match(/\/drive\/v3\/files\/doc1$/) && !url.searchParams.has("alt")
+      ) {
+        return new Response(
+          JSON.stringify({
+            id: "doc1",
+            name: "Integration Doc",
+            mimeType: "application/vnd.google-apps.document",
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
 
-    // Drive: export Google Doc
-    if (path.includes("/drive/v3/files/doc1/export")) {
-      return new Response(JSON.stringify("Exported integration document content"), {
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+      // Drive: export Google Doc
+      if (path.includes("/drive/v3/files/doc1/export")) {
+        return new Response(
+          JSON.stringify("Exported integration document content"),
+          {
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
 
-    // Drive: search files
-    if (path.includes("/drive/v3/files") && !path.includes("doc1")) {
-      return new Response(JSON.stringify({
-        files: [
-          { id: "doc1", name: "Integration Doc", mimeType: "application/vnd.google-apps.document" },
-        ],
-      }), { headers: { "Content-Type": "application/json" } });
-    }
+      // Drive: search files
+      if (path.includes("/drive/v3/files") && !path.includes("doc1")) {
+        return new Response(
+          JSON.stringify({
+            files: [
+              {
+                id: "doc1",
+                name: "Integration Doc",
+                mimeType: "application/vnd.google-apps.document",
+              },
+            ],
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
 
-    return new Response("Not Found", { status: 404 });
-  });
+      return new Response("Not Found", { status: 404 });
+    },
+  );
 
   const addr = server.addr as Deno.NetAddr;
   return { server, baseUrl: `http://127.0.0.1:${addr.port}` };
@@ -113,7 +158,11 @@ function createMockGoogleServer(): { server: Deno.HttpServer; baseUrl: string } 
 /** Create a fetch function that rewrites Google API URLs to the mock server. */
 function createMockFetch(baseUrl: string): typeof globalThis.fetch {
   return (input: string | URL | Request, init?: RequestInit) => {
-    let url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    let url = typeof input === "string"
+      ? input
+      : input instanceof URL
+      ? input.href
+      : input.url;
 
     // Rewrite Google API URLs to mock server
     url = url.replace("https://oauth2.googleapis.com", baseUrl);
@@ -144,7 +193,10 @@ Deno.test("integration: connect → gmail_search → disconnect", async () => {
     const authManager = createGoogleAuthManager(secretStore, mockFetch);
 
     // Connect: exchange code for tokens
-    const exchangeResult = await authManager.exchangeCode("fake-auth-code", TEST_CONFIG);
+    const exchangeResult = await authManager.exchangeCode(
+      "fake-auth-code",
+      TEST_CONFIG,
+    );
     assertEquals(exchangeResult.ok, true);
 
     // Verify tokens are stored with client credentials
@@ -199,7 +251,10 @@ Deno.test("integration: calendar_create returns event with link", async () => {
     if (result.ok) {
       assertEquals(result.value.id, "evt_integration");
       assertEquals(result.value.summary, "Integration Meeting");
-      assertEquals(result.value.htmlLink, "https://calendar.google.com/event/evt_integration");
+      assertEquals(
+        result.value.htmlLink,
+        "https://calendar.google.com/event/evt_integration",
+      );
     }
   } finally {
     await server.shutdown();
@@ -231,8 +286,15 @@ Deno.test("integration: drive_read exports Google Doc", async () => {
 Deno.test("integration: expired token triggers refresh using stored client creds", async () => {
   const { server, baseUrl } = createMockGoogleServer();
   let capturedRefreshBody = "";
-  const interceptFetch = (input: string | URL | Request, init?: RequestInit) => {
-    let url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const interceptFetch = (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => {
+    let url = typeof input === "string"
+      ? input
+      : input instanceof URL
+      ? input.href
+      : input.url;
     url = url.replace("https://oauth2.googleapis.com", baseUrl);
     url = url.replace("https://gmail.googleapis.com", baseUrl);
     url = url.replace("https://www.googleapis.com", baseUrl);

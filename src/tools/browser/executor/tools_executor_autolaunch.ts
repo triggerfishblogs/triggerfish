@@ -15,8 +15,8 @@ import type { BrowserManager } from "../manager/manager.ts";
 import type { BrowserTools } from "../tools/tools.ts";
 import { createBrowserTools } from "../tools/tools.ts";
 import {
-  createBrowserToolExecutor,
   type BrowserToolExecutorFn,
+  createBrowserToolExecutor,
 } from "./tools_executor_dispatch.ts";
 
 // ─── Types ──────────────────────────────────────────────────────────────────

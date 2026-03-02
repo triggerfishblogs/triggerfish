@@ -2,7 +2,7 @@
  * Note CRUD tests — read, create, update, search, list.
  */
 
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { createVaultContext } from "../../../src/tools/obsidian/vault.ts";
 import { createNoteStore } from "../../../src/tools/obsidian/notes/notes.ts";
 import type { ObsidianVaultConfig } from "../../../src/tools/obsidian/types.ts";
@@ -155,7 +155,10 @@ Deno.test("NoteStore.create: applies template", async () => {
   const { ctx, path } = await makeTempVaultCtx();
   try {
     await Deno.mkdir(`${path}/templates`);
-    await Deno.writeTextFile(`${path}/templates/daily.md`, "---\ntype: daily\n---\n# {{date}}\n\n");
+    await Deno.writeTextFile(
+      `${path}/templates/daily.md`,
+      "---\ntype: daily\n---\n# {{date}}\n\n",
+    );
     const store = createNoteStore(ctx);
     const result = await store.create({
       path: "from-template.md",
@@ -229,7 +232,10 @@ Deno.test("NoteStore.update: prepends text", async () => {
 Deno.test("NoteStore.update: merges frontmatter preserving existing keys", async () => {
   const { ctx, path } = await makeTempVaultCtx();
   try {
-    await Deno.writeTextFile(`${path}/fm-merge.md`, "---\ntitle: Original\nauthor: Alice\n---\nBody");
+    await Deno.writeTextFile(
+      `${path}/fm-merge.md`,
+      "---\ntitle: Original\nauthor: Alice\n---\nBody",
+    );
     const store = createNoteStore(ctx);
     const result = await store.update({
       path: "fm-merge.md",
@@ -251,7 +257,10 @@ Deno.test("NoteStore.update: merges frontmatter preserving existing keys", async
 Deno.test("NoteStore.search: finds notes by content", async () => {
   const { ctx, path } = await makeTempVaultCtx();
   try {
-    await Deno.writeTextFile(`${path}/alpha.md`, "# Alpha\n\nContains unique-keyword here.");
+    await Deno.writeTextFile(
+      `${path}/alpha.md`,
+      "# Alpha\n\nContains unique-keyword here.",
+    );
     await Deno.writeTextFile(`${path}/beta.md`, "# Beta\n\nNo match here.");
     const store = createNoteStore(ctx);
     const result = await store.search({ query: "unique-keyword" });
@@ -268,7 +277,10 @@ Deno.test("NoteStore.search: finds notes by content", async () => {
 Deno.test("NoteStore.search: finds notes by filename", async () => {
   const { ctx, path } = await makeTempVaultCtx();
   try {
-    await Deno.writeTextFile(`${path}/meeting-notes.md`, "# Meeting\n\nGeneric content.");
+    await Deno.writeTextFile(
+      `${path}/meeting-notes.md`,
+      "# Meeting\n\nGeneric content.",
+    );
     await Deno.writeTextFile(`${path}/todo.md`, "# Todo\n\nMore content.");
     const store = createNoteStore(ctx);
     const result = await store.search({ query: "meeting" });
@@ -284,7 +296,10 @@ Deno.test("NoteStore.search: finds notes by filename", async () => {
 Deno.test("NoteStore.search: case-insensitive matching", async () => {
   const { ctx, path } = await makeTempVaultCtx();
   try {
-    await Deno.writeTextFile(`${path}/note.md`, "Contains UPPERCASE and lowercase.");
+    await Deno.writeTextFile(
+      `${path}/note.md`,
+      "Contains UPPERCASE and lowercase.",
+    );
     const store = createNoteStore(ctx);
     const result = await store.search({ query: "uppercase" });
     assert(result.ok);
@@ -391,7 +406,10 @@ Deno.test("NoteStore.list: respects maxResults", async () => {
 Deno.test("NoteStore.list: filters by tags", async () => {
   const { ctx, path } = await makeTempVaultCtx();
   try {
-    await Deno.writeTextFile(`${path}/tagged.md`, "---\ntags:\n  - project\n---\n# Tagged");
+    await Deno.writeTextFile(
+      `${path}/tagged.md`,
+      "---\ntags:\n  - project\n---\n# Tagged",
+    );
     await Deno.writeTextFile(`${path}/untagged.md`, "# Untagged");
     const store = createNoteStore(ctx);
     const result = await store.list({ tags: ["project"] });

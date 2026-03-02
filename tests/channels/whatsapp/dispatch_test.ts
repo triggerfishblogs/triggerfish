@@ -35,7 +35,10 @@ function buildWebhookPayload(
       changes: [{
         value: {
           messaging_product: "whatsapp",
-          metadata: { display_phone_number: "15550001111", phone_number_id: "123456789" },
+          metadata: {
+            display_phone_number: "15550001111",
+            phone_number_id: "123456789",
+          },
           messages: [{
             from,
             id: "wamid.test123",
@@ -56,7 +59,10 @@ Deno.test({
   sanitizeOps: false,
   async fn() {
     const port = BASE_PORT + 20;
-    const adapter = createWhatsAppChannel({ ...buildTestConfig(20), webhookPort: port });
+    const adapter = createWhatsAppChannel({
+      ...buildTestConfig(20),
+      webhookPort: port,
+    });
     const received: ChannelMessage[] = [];
     adapter.onMessage((msg) => received.push(msg));
     await adapter.connect();
@@ -127,7 +133,9 @@ Deno.test({
       const resp = await fetch(`http://127.0.0.1:${port}/webhook`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildWebhookPayload("15559999999", "Stranger msg")),
+        body: JSON.stringify(
+          buildWebhookPayload("15559999999", "Stranger msg"),
+        ),
       });
       await resp.body?.cancel();
       assertEquals(received.length, 1);
@@ -173,7 +181,10 @@ Deno.test({
   sanitizeOps: false,
   async fn() {
     const port = BASE_PORT + 24;
-    const adapter = createWhatsAppChannel({ ...buildTestConfig(24), webhookPort: port });
+    const adapter = createWhatsAppChannel({
+      ...buildTestConfig(24),
+      webhookPort: port,
+    });
     const received: ChannelMessage[] = [];
     adapter.onMessage((msg) => received.push(msg));
     await adapter.connect();
@@ -197,7 +208,10 @@ Deno.test({
   sanitizeOps: false,
   async fn() {
     const port = BASE_PORT + 25;
-    const adapter = createWhatsAppChannel({ ...buildTestConfig(25), webhookPort: port });
+    const adapter = createWhatsAppChannel({
+      ...buildTestConfig(25),
+      webhookPort: port,
+    });
     const received: ChannelMessage[] = [];
     adapter.onMessage((msg) => received.push(msg));
     await adapter.connect();

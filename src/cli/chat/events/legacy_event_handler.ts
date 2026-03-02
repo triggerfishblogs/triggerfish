@@ -8,7 +8,10 @@
  */
 
 import type { OrchestratorEvent } from "../../../agent/orchestrator/orchestrator_types.ts";
-import { extractTodosFromEvent, formatTodoListAnsi } from "../../../tools/todo.ts";
+import {
+  extractTodosFromEvent,
+  formatTodoListAnsi,
+} from "../../../tools/todo.ts";
 import { writeln } from "../render/ansi.ts";
 import { renderResponse } from "../render/format.ts";
 import { renderToolResult } from "../render/tool_display.ts";
@@ -84,7 +87,10 @@ export function createEventHandler(): EventCallback {
         break;
 
       case "llm_complete":
-        if (spinner) { spinner.stop(); spinner = null; }
+        if (spinner) {
+          spinner.stop();
+          spinner = null;
+        }
         break;
 
       case "tool_call":
@@ -106,7 +112,10 @@ export function createEventHandler(): EventCallback {
         break;
 
       case "vision_complete":
-        if (spinner) { spinner.stop(); spinner = null; }
+        if (spinner) {
+          spinner.stop();
+          spinner = null;
+        }
         break;
 
       case "response":
@@ -127,12 +136,20 @@ function startLegacyVisionSpinner(imageCount: number): Spinner {
 
 /** Dispatch tool_result to the appropriate renderer. */
 function handleLegacyToolResult(
-  event: { readonly name: string; readonly result: string; readonly blocked: boolean },
+  event: {
+    readonly name: string;
+    readonly result: string;
+    readonly blocked: boolean;
+  },
   pendingTodoArgs: Record<string, unknown> | null,
   pendingTool: { name: string; args: Record<string, unknown> } | null,
 ): void {
   if (isTodoTool(event.name)) {
-    renderLegacyTodoResult(event.name, event.result, pendingTodoArgs ?? undefined);
+    renderLegacyTodoResult(
+      event.name,
+      event.result,
+      pendingTodoArgs ?? undefined,
+    );
   } else if (pendingTool) {
     renderLegacyPendingToolResult(pendingTool, event.result, event.blocked);
   } else {

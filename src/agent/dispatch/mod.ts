@@ -12,10 +12,10 @@ export {
 } from "./tool_format.ts";
 
 export {
-  enforceTriggerToolCeiling,
   enforceNonOwnerToolCeiling,
-  escalateToolPrefixTaint,
+  enforceTriggerToolCeiling,
   escalateResponseClassification,
+  escalateToolPrefixTaint,
   wrapToolExecutorWithEnforcement,
 } from "./access_control.ts";
 
@@ -26,10 +26,10 @@ export {
 } from "./security_context.ts";
 
 export {
-  classifyResponseQuality,
   buildRecoveryNudge,
+  classifyResponseQuality,
   detectRepetition,
-  FALLBACK_RESPONSE,
   evaluatePreOutputHook,
+  FALLBACK_RESPONSE,
   handleFinalResponse,
 } from "./response_handling.ts";

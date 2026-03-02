@@ -1,10 +1,16 @@
 # SPINE and Triggers
 
-Triggerfish uses two markdown files to define your agent's behavior: **SPINE.md** controls who your agent is, and **TRIGGER.md** controls what your agent does proactively. Both are freeform markdown -- you write them in plain English.
+Triggerfish uses two markdown files to define your agent's behavior:
+**SPINE.md** controls who your agent is, and **TRIGGER.md** controls what your
+agent does proactively. Both are freeform markdown -- you write them in plain
+English.
 
 ## SPINE.md -- Agent Identity
 
-`SPINE.md` is the foundation of your agent's system prompt. It defines the agent's name, personality, mission, knowledge domains, and boundaries. Triggerfish loads this file every time it processes a message, so changes take effect immediately.
+`SPINE.md` is the foundation of your agent's system prompt. It defines the
+agent's name, personality, mission, knowledge domains, and boundaries.
+Triggerfish loads this file every time it processes a message, so changes take
+effect immediately.
 
 ### File Location
 
@@ -20,11 +26,13 @@ For multi-agent setups, each agent has its own SPINE.md:
 
 ### Getting Started
 
-The setup wizard (`triggerfish dive`) generates a starter SPINE.md based on your answers. You can edit it freely at any time -- it is just markdown.
+The setup wizard (`triggerfish dive`) generates a starter SPINE.md based on your
+answers. You can edit it freely at any time -- it is just markdown.
 
 ### Writing an Effective SPINE.md
 
-A good SPINE.md is specific. The more concrete you are about your agent's role, the better it performs. Here is a recommended structure:
+A good SPINE.md is specific. The more concrete you are about your agent's role,
+the better it performs. Here is a recommended structure:
 
 ```markdown
 # Identity
@@ -33,16 +41,15 @@ You are Reef, a personal AI assistant for Sarah.
 
 # Mission
 
-Help Sarah stay organized, informed, and productive. Prioritize
-calendar management, email triage, and task tracking.
+Help Sarah stay organized, informed, and productive. Prioritize calendar
+management, email triage, and task tracking.
 
 # Communication Style
 
 - Be concise and direct. No filler.
 - Use bullet points for lists of 3+ items.
 - When uncertain, say so rather than guessing.
-- Match the formality of the channel: casual on WhatsApp,
-  professional on Slack.
+- Match the formality of the channel: casual on WhatsApp, professional on Slack.
 
 # Domain Knowledge
 
@@ -56,8 +63,8 @@ calendar management, email triage, and task tracking.
 - Never send messages to external contacts without explicit approval.
 - Never make financial transactions.
 - Always confirm before deleting or modifying calendar events.
-- When discussing work topics on personal channels, remind Sarah
-  about classification boundaries.
+- When discussing work topics on personal channels, remind Sarah about
+  classification boundaries.
 
 # Response Preferences
 
@@ -68,25 +75,27 @@ calendar management, email triage, and task tracking.
 
 ### Best Practices
 
-::: tip
-**Be specific about personality.** Instead of "be helpful," write "be concise, direct, and use bullet points for clarity."
-:::
+::: tip **Be specific about personality.** Instead of "be helpful," write "be
+concise, direct, and use bullet points for clarity." :::
 
-::: tip
-**Include context about the owner.** The agent performs better when it knows your role, tools, and priorities.
-:::
+::: tip **Include context about the owner.** The agent performs better when it
+knows your role, tools, and priorities. :::
 
-::: tip
-**Set explicit boundaries.** Define what the agent should never do. This supplements (but does not replace) the policy engine's deterministic enforcement.
-:::
+::: tip **Set explicit boundaries.** Define what the agent should never do. This
+supplements (but does not replace) the policy engine's deterministic
+enforcement. :::
 
-::: warning
-SPINE.md instructions guide the LLM's behavior but are not security controls. For enforceable restrictions, use the policy engine in `triggerfish.yaml`. The policy engine is deterministic and cannot be bypassed -- SPINE.md instructions can be.
-:::
+::: warning SPINE.md instructions guide the LLM's behavior but are not security
+controls. For enforceable restrictions, use the policy engine in
+`triggerfish.yaml`. The policy engine is deterministic and cannot be bypassed --
+SPINE.md instructions can be. :::
 
 ## TRIGGER.md -- Proactive Behavior
 
-`TRIGGER.md` defines what your agent should check, monitor, and act on during periodic wakeups. Unlike cron jobs (which execute fixed tasks on a schedule), triggers give the agent discretion to evaluate conditions and decide whether action is needed.
+`TRIGGER.md` defines what your agent should check, monitor, and act on during
+periodic wakeups. Unlike cron jobs (which execute fixed tasks on a schedule),
+triggers give the agent discretion to evaluate conditions and decide whether
+action is needed.
 
 ### File Location
 
@@ -102,11 +111,13 @@ For multi-agent setups:
 
 ### How Triggers Work
 
-1. The trigger loop wakes the agent at a configured interval (set in `triggerfish.yaml`)
+1. The trigger loop wakes the agent at a configured interval (set in
+   `triggerfish.yaml`)
 2. Triggerfish loads your TRIGGER.md and presents it to the agent
 3. The agent evaluates each item and takes action if needed
 4. All trigger actions pass through the normal policy hooks
-5. The trigger session runs with a classification ceiling (also configured in YAML)
+5. The trigger session runs with a classification ceiling (also configured in
+   YAML)
 6. Quiet hours are respected -- no triggers fire during those times
 
 ### Trigger Configuration in YAML
@@ -115,39 +126,36 @@ Set the timing and constraints in your `triggerfish.yaml`:
 
 ```yaml
 trigger:
-  interval: 30m              # Check every 30 minutes
-  classification: INTERNAL   # Max taint ceiling for trigger sessions
+  interval: 30m # Check every 30 minutes
+  classification: INTERNAL # Max taint ceiling for trigger sessions
   quiet_hours: "22:00-07:00" # No wakeups during these hours
 ```
 
 ### Writing TRIGGER.md
 
-Organize your triggers by priority. Be specific about what counts as actionable and what the agent should do about it.
+Organize your triggers by priority. Be specific about what counts as actionable
+and what the agent should do about it.
 
 ```markdown
 # Priority Checks
 
-- Unread messages across all channels older than 1 hour --
-  summarize and notify on primary channel.
-- Calendar conflicts in the next 24 hours --
-  flag and suggest resolution.
-- Overdue tasks in Linear --
-  list them with days overdue.
+- Unread messages across all channels older than 1 hour -- summarize and notify
+  on primary channel.
+- Calendar conflicts in the next 24 hours -- flag and suggest resolution.
+- Overdue tasks in Linear -- list them with days overdue.
 
 # Monitoring
 
 - GitHub: PRs awaiting my review -- notify if older than 4 hours.
-- Email: anything from VIP contacts (David Chen, Maria Lopez) --
-  flag for immediate notification regardless of quiet hours.
-- Slack: mentions in #incidents channel --
-  summarize and escalate if unresolved.
+- Email: anything from VIP contacts (David Chen, Maria Lopez) -- flag for
+  immediate notification regardless of quiet hours.
+- Slack: mentions in #incidents channel -- summarize and escalate if unresolved.
 
 # Proactive
 
-- If morning (7-9am), prepare daily briefing with calendar,
-  weather, and top 3 priorities.
-- If Friday afternoon, draft weekly summary of completed tasks
-  and open items.
+- If morning (7-9am), prepare daily briefing with calendar, weather, and top 3
+  priorities.
+- If Friday afternoon, draft weekly summary of completed tasks and open items.
 - If inbox count exceeds 50 unread, offer to batch-triage.
 ```
 
@@ -186,28 +194,32 @@ If you want a simple starting point:
 
 ### Triggers and the Policy Engine
 
-All trigger actions are subject to the same policy enforcement as interactive conversations:
+All trigger actions are subject to the same policy enforcement as interactive
+conversations:
 
 - Each trigger wakeup spawns an isolated session with its own taint tracking
-- The classification ceiling in your YAML config limits what data the trigger can access
-- The no write-down rule applies -- if a trigger accesses confidential data, it cannot send results to a public channel
+- The classification ceiling in your YAML config limits what data the trigger
+  can access
+- The no write-down rule applies -- if a trigger accesses confidential data, it
+  cannot send results to a public channel
 - All trigger actions are logged in the audit trail
 
-::: info
-If TRIGGER.md is absent, trigger wakeups still occur at the configured interval. The agent uses its general knowledge and SPINE.md to decide what needs attention. For best results, write a TRIGGER.md.
-:::
+::: info If TRIGGER.md is absent, trigger wakeups still occur at the configured
+interval. The agent uses its general knowledge and SPINE.md to decide what needs
+attention. For best results, write a TRIGGER.md. :::
 
 ## SPINE.md vs TRIGGER.md
 
-| Aspect | SPINE.md | TRIGGER.md |
-|--------|----------|------------|
-| Purpose | Define who the agent is | Define what the agent monitors |
-| Loaded | Every message | Each trigger wakeup |
-| Scope | All conversations | Trigger sessions only |
-| Affects | Personality, knowledge, boundaries | Proactive checks and actions |
-| Required | Yes (generated by dive wizard) | No (but recommended) |
+| Aspect   | SPINE.md                           | TRIGGER.md                     |
+| -------- | ---------------------------------- | ------------------------------ |
+| Purpose  | Define who the agent is            | Define what the agent monitors |
+| Loaded   | Every message                      | Each trigger wakeup            |
+| Scope    | All conversations                  | Trigger sessions only          |
+| Affects  | Personality, knowledge, boundaries | Proactive checks and actions   |
+| Required | Yes (generated by dive wizard)     | No (but recommended)           |
 
 ## Next Steps
 
-- Configure trigger timing and cron jobs in your [triggerfish.yaml](./configuration)
+- Configure trigger timing and cron jobs in your
+  [triggerfish.yaml](./configuration)
 - Learn about all available CLI commands in the [Commands reference](./commands)

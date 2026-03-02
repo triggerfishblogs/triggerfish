@@ -133,7 +133,11 @@ export async function fetchAllReleases(): Promise<
 
       if (items.length < 30) break;
     } catch (err) {
-      log.warn("GitHub releases fetch failed", { operation: "fetchAllReleases", page, err });
+      log.warn("GitHub releases fetch failed", {
+        operation: "fetchAllReleases",
+        page,
+        err,
+      });
       return {
         ok: false,
         error: `Failed to fetch releases: ${

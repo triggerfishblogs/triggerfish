@@ -10,15 +10,18 @@
 import type { CalDavToolContext } from "./types.ts";
 import {
   executeCalendarsList,
-  executeEventsList,
-  executeEventsGet,
   executeEventsCreate,
-  executeEventsUpdate,
   executeEventsDelete,
+  executeEventsGet,
+  executeEventsList,
+  executeEventsUpdate,
   executeFreeBusy,
 } from "./tool_handlers.ts";
 
-export { getCalDavToolDefinitions, CALDAV_SYSTEM_PROMPT } from "./tool_definitions.ts";
+export {
+  CALDAV_SYSTEM_PROMPT,
+  getCalDavToolDefinitions,
+} from "./tool_definitions.ts";
 
 // ─── Tool Dispatch ────────────────────────────────────────────────────────────
 

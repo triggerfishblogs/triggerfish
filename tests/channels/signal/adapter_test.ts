@@ -4,9 +4,12 @@
  * Tests the Signal adapter factory, message handling, DM policy,
  * group mode filtering, and typing indicators using a mock SignalClient.
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { createSignalChannel } from "../../../src/channels/signal/adapter.ts";
-import type { SignalClientInterface, SignalNotification } from "../../../src/channels/signal/types.ts";
+import type {
+  SignalClientInterface,
+  SignalNotification,
+} from "../../../src/channels/signal/types.ts";
 import type { Result } from "../../../src/core/types/classification.ts";
 import type { ChannelMessage } from "../../../src/channels/types.ts";
 
@@ -17,7 +20,8 @@ function createMockClient(): {
   feedNotification: (notification: SignalNotification) => void;
 } {
   const calls: Array<{ method: string; args: unknown[] }> = [];
-  let notificationHandler: ((notification: SignalNotification) => void) | null = null;
+  let notificationHandler: ((notification: SignalNotification) => void) | null =
+    null;
 
   const client: SignalClientInterface = {
     connect(): Promise<Result<void, string>> {
@@ -28,11 +32,17 @@ function createMockClient(): {
       calls.push({ method: "disconnect", args: [] });
       return Promise.resolve();
     },
-    sendMessage(recipient: string, message: string): Promise<Result<{ readonly timestamp: number }, string>> {
+    sendMessage(
+      recipient: string,
+      message: string,
+    ): Promise<Result<{ readonly timestamp: number }, string>> {
       calls.push({ method: "sendMessage", args: [recipient, message] });
       return Promise.resolve({ ok: true, value: { timestamp: Date.now() } });
     },
-    sendGroupMessage(groupId: string, message: string): Promise<Result<{ readonly timestamp: number }, string>> {
+    sendGroupMessage(
+      groupId: string,
+      message: string,
+    ): Promise<Result<{ readonly timestamp: number }, string>> {
       calls.push({ method: "sendGroupMessage", args: [groupId, message] });
       return Promise.resolve({ ok: true, value: { timestamp: Date.now() } });
     },
@@ -69,7 +79,9 @@ function makeNotification(opts: {
   source: string;
   message: string;
   groupId?: string;
-  mentions?: ReadonlyArray<{ readonly start: number; readonly length: number; readonly uuid: string }>;
+  mentions?: ReadonlyArray<
+    { readonly start: number; readonly length: number; readonly uuid: string }
+  >;
 }): SignalNotification {
   return {
     envelope: {
@@ -136,7 +148,9 @@ Deno.test("Signal: registers message handler", () => {
     _client: client,
   });
   let called = false;
-  adapter.onMessage(() => { called = true; });
+  adapter.onMessage(() => {
+    called = true;
+  });
   // Handler registered but won't fire without notifications
   assertEquals(called, false);
 });
@@ -171,7 +185,10 @@ Deno.test("Signal: send auto-chunks at 4000 chars", async () => {
   await adapter.send({ content: longText, sessionId: "signal-+15559876543" });
 
   const sendCalls = calls.filter((c) => c.method === "sendMessage");
-  assert(sendCalls.length >= 2, `Should chunk into at least 2 messages, got ${sendCalls.length}`);
+  assert(
+    sendCalls.length >= 2,
+    `Should chunk into at least 2 messages, got ${sendCalls.length}`,
+  );
 
   await adapter.disconnect();
 });
@@ -185,7 +202,9 @@ Deno.test("Signal: inbound DM creates correct ChannelMessage", async () => {
   });
 
   let received: ChannelMessage | null = null;
-  adapter.onMessage((msg) => { received = msg; });
+  adapter.onMessage((msg) => {
+    received = msg;
+  });
   await adapter.connect();
 
   feedNotification(makeNotification({
@@ -212,7 +231,9 @@ Deno.test("Signal: inbound group message creates correct sessionId", async () =>
   });
 
   let received: ChannelMessage | null = null;
-  adapter.onMessage((msg) => { received = msg; });
+  adapter.onMessage((msg) => {
+    received = msg;
+  });
   await adapter.connect();
 
   feedNotification(makeNotification({
@@ -237,14 +258,26 @@ Deno.test("Signal: DMs from any sender are forwarded unconditionally", async () 
   });
 
   const messages: ChannelMessage[] = [];
-  adapter.onMessage((msg) => { messages.push(msg); });
+  adapter.onMessage((msg) => {
+    messages.push(msg);
+  });
   await adapter.connect();
 
-  feedNotification(makeNotification({ source: "+15551111111", message: "One" }));
-  feedNotification(makeNotification({ source: "+15552222222", message: "Two" }));
-  feedNotification(makeNotification({ source: "+15553333333", message: "Three" }));
+  feedNotification(
+    makeNotification({ source: "+15551111111", message: "One" }),
+  );
+  feedNotification(
+    makeNotification({ source: "+15552222222", message: "Two" }),
+  );
+  feedNotification(
+    makeNotification({ source: "+15553333333", message: "Three" }),
+  );
 
-  assertEquals(messages.length, 3, "All DMs should be forwarded regardless of sender");
+  assertEquals(
+    messages.length,
+    3,
+    "All DMs should be forwarded regardless of sender",
+  );
   assertEquals(messages[0].senderId, "+15551111111");
   assertEquals(messages[1].senderId, "+15552222222");
   assertEquals(messages[2].senderId, "+15553333333");
@@ -262,7 +295,9 @@ Deno.test("Signal: group mentioned-only filters unmentioned messages", async () 
   });
 
   let received: ChannelMessage | null = null;
-  adapter.onMessage((msg) => { received = msg; });
+  adapter.onMessage((msg) => {
+    received = msg;
+  });
   await adapter.connect();
 
   // Message without mention — should be filtered
@@ -272,7 +307,11 @@ Deno.test("Signal: group mentioned-only filters unmentioned messages", async () 
     groupId: "group1",
   }));
 
-  assertEquals(received, null, "Handler should NOT be called for unmentioned group message");
+  assertEquals(
+    received,
+    null,
+    "Handler should NOT be called for unmentioned group message",
+  );
 
   await adapter.disconnect();
 });
@@ -287,7 +326,9 @@ Deno.test("Signal: group mentioned-only allows mentioned messages", async () => 
   });
 
   let received: ChannelMessage | null = null;
-  adapter.onMessage((msg) => { received = msg; });
+  adapter.onMessage((msg) => {
+    received = msg;
+  });
   await adapter.connect();
 
   // Message with mention data
@@ -298,7 +339,10 @@ Deno.test("Signal: group mentioned-only allows mentioned messages", async () => 
     mentions: [{ start: 4, length: 4, uuid: "bot-uuid" }],
   }));
 
-  assert(received !== null, "Handler should be called for mentioned group message");
+  assert(
+    received !== null,
+    "Handler should be called for mentioned group message",
+  );
 
   await adapter.disconnect();
 });
@@ -343,15 +387,25 @@ Deno.test("Signal: send to group uses sendGroupMessage", async () => {
   });
   await adapter.connect();
 
-  await adapter.send({ content: "Group msg", sessionId: "signal-group-abc123" });
+  await adapter.send({
+    content: "Group msg",
+    sessionId: "signal-group-abc123",
+  });
 
   const groupCalls = calls.filter((c) => c.method === "sendGroupMessage");
-  assert(groupCalls.length >= 1, "Should use sendGroupMessage for group sessions");
+  assert(
+    groupCalls.length >= 1,
+    "Should use sendGroupMessage for group sessions",
+  );
   assertEquals(groupCalls[0].args[0], "abc123");
 
   // No typing for groups (only for DMs)
   const typingCalls = calls.filter((c) => c.method === "sendTyping");
-  assertEquals(typingCalls.length, 0, "No typing indicators for group messages");
+  assertEquals(
+    typingCalls.length,
+    0,
+    "No typing indicators for group messages",
+  );
 
   await adapter.disconnect();
 });

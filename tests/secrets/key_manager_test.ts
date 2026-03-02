@@ -152,8 +152,16 @@ Deno.test(
         const iv = crypto.getRandomValues(new Uint8Array(12));
         const data = new TextEncoder().encode("hello secrets");
 
-        const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data);
-        const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+        const ct = await crypto.subtle.encrypt(
+          { name: "AES-GCM", iv },
+          key,
+          data,
+        );
+        const pt = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv },
+          key,
+          ct,
+        );
 
         assertEquals(new TextDecoder().decode(pt), "hello secrets");
       }

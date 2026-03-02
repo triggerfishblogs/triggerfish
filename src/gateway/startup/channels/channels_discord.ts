@@ -37,9 +37,7 @@ function handleDiscordClearCommand(
       "Session cleared. Your context and taint level have been reset to PUBLIC.\n\nWhat would you like to do?",
     sessionId: sessionId,
   }).then(() => notificationService.flushPending("owner" as UserId))
-    .catch((err) =>
-      log.error("Discord /clear session reset send failed", err)
-    );
+    .catch((err) => log.error("Discord /clear session reset send failed", err));
 }
 
 /** Handle incoming Discord messages, dispatching commands and chat. */

@@ -28,7 +28,9 @@ export interface CalDavOAuth2Credentials {
 }
 
 /** Discriminated union of credential types. */
-export type CalDavCredentials = CalDavBasicCredentials | CalDavOAuth2Credentials;
+export type CalDavCredentials =
+  | CalDavBasicCredentials
+  | CalDavOAuth2Credentials;
 
 /** A CalDAV calendar resource. */
 export interface CalDavCalendar {

@@ -19,13 +19,20 @@ network_domains:
 
 # Git Branch Management
 
-Manage git branches, commits, PRs, and code review feedback when doing development work in the exec environment. Git operations use `exec.run`. When the `github` skill is also active, prefer the native GitHub tools (`github_create_pull`, `github_get_pull`, `github_list_comments`, `github_add_comment`, `github_create_branch`, `github_delete_branch`) over shelling out to `gh` CLI via `exec.run`.
+Manage git branches, commits, PRs, and code review feedback when doing
+development work in the exec environment. Git operations use `exec.run`. When
+the `github` skill is also active, prefer the native GitHub tools
+(`github_create_pull`, `github_get_pull`, `github_list_comments`,
+`github_add_comment`, `github_create_branch`, `github_delete_branch`) over
+shelling out to `gh` CLI via `exec.run`.
 
 ## When to Use
 
 - Any development task that modifies code in a git repository
 - Bug fixes, feature work, refactoring, dependency updates
-- When a webhook delivers a `pull_request_review`, `pull_request_review_comment`, `issue_comment`, or `pull_request.closed` event for a tracked PR
+- When a webhook delivers a `pull_request_review`,
+  `pull_request_review_comment`, `issue_comment`, or `pull_request.closed` event
+  for a tracked PR
 - During trigger wakeups: scan tracked PRs for new reviews via `gh pr view`
 
 ## Branch Workflow
@@ -39,7 +46,8 @@ exec.run("git status")
 exec.run("git branch --show-current")
 ```
 
-If you are on `main` or `master`, create a new branch. If you are already on a feature branch for the current task, continue on it.
+If you are on `main` or `master`, create a new branch. If you are already on a
+feature branch for the current task, continue on it.
 
 ### 2. Create a feature branch
 
@@ -50,6 +58,7 @@ triggerfish/<agent-id>/<short-description>
 ```
 
 Examples:
+
 - `triggerfish/agent-1/fix-auth-timeout`
 - `triggerfish/agent-1/add-retry-logic`
 - `triggerfish/agent-1/update-deps`
@@ -68,11 +77,13 @@ exec.run("git checkout -b triggerfish/<agent-id>/<short-description>")
 
 ### 3. Keep the description short
 
-Use 2-4 words separated by hyphens. Lowercase. No special characters. The branch name should describe the intent, not the implementation.
+Use 2-4 words separated by hyphens. Lowercase. No special characters. The branch
+name should describe the intent, not the implementation.
 
 ## Atomic Commits
 
-Commit after each logical unit of work. Do not accumulate all changes into one giant commit at the end.
+Commit after each logical unit of work. Do not accumulate all changes into one
+giant commit at the end.
 
 ### What counts as a logical unit
 
@@ -93,6 +104,7 @@ Commit after each logical unit of work. Do not accumulate all changes into one g
 Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 
 Examples:
+
 ```
 feat: add retry logic to webhook handler
 fix: prevent nil pointer in session lookup
@@ -108,7 +120,8 @@ exec.run("git add <specific-files>")
 exec.run('git commit -m "feat: add retry logic to webhook handler"')
 ```
 
-Prefer adding specific files over `git add .` to avoid committing unintended changes. Never commit secrets, credentials, `.env` files, or large binaries.
+Prefer adding specific files over `git add .` to avoid committing unintended
+changes. Never commit secrets, credentials, `.env` files, or large binaries.
 
 ## Running Tests
 
@@ -118,7 +131,8 @@ Before opening a PR, run the project's test suite:
 exec.run("deno task test")
 ```
 
-If tests fail, fix the failures and commit the fix as a separate commit. Do not amend the previous commit -- keep the history clean and traceable.
+If tests fail, fix the failures and commit the fix as a separate commit. Do not
+amend the previous commit -- keep the history clean and traceable.
 
 ## Opening a Pull Request
 
@@ -140,15 +154,16 @@ exec.run('gh pr create --title "<concise title>" --body "## What Changed\n\n- <b
 
 The PR description must include:
 
-| Section | Content |
-|---------|---------|
-| **What Changed** | Bullet points describing the changes |
-| **How It Was Tested** | What tests were run, what was verified |
-| **Limitations** | Known limitations, edge cases, follow-up work needed |
+| Section               | Content                                              |
+| --------------------- | ---------------------------------------------------- |
+| **What Changed**      | Bullet points describing the changes                 |
+| **How It Was Tested** | What tests were run, what was verified               |
+| **Limitations**       | Known limitations, edge cases, follow-up work needed |
 
 ### Capture the PR details
 
-After `gh pr create`, parse the output to extract the PR number and URL. The `gh` CLI prints the PR URL on success.
+After `gh pr create`, parse the output to extract the PR number and URL. The
+`gh` CLI prints the PR URL on success.
 
 ```
 exec.run("gh pr view --json number,url")
@@ -156,7 +171,8 @@ exec.run("gh pr view --json number,url")
 
 ## PR Tracking
 
-After opening a PR, write a tracking file so future sessions can recover context -- whether triggered by a webhook event or a scheduled polling check.
+After opening a PR, write a tracking file so future sessions can recover context
+-- whether triggered by a webhook event or a scheduled polling check.
 
 ### Tracking file location
 
@@ -165,6 +181,7 @@ After opening a PR, write a tracking file so future sessions can recover context
 ```
 
 Replace `/` in the branch name with `--` for the filename:
+
 - Branch: `triggerfish/agent-1/fix-auth-timeout`
 - File: `triggerfish--agent-1--fix-auth-timeout.json`
 
@@ -200,13 +217,13 @@ Or use `exec.write` if available.
 
 ### Status values
 
-| Status | Meaning |
-|--------|---------|
-| `open` | PR is open, waiting for review |
-| `changes_requested` | Reviewer requested changes |
-| `approved` | Review approved, awaiting merge decision |
-| `merged` | PR was merged |
-| `closed` | PR was closed without merging |
+| Status              | Meaning                                  |
+| ------------------- | ---------------------------------------- |
+| `open`              | PR is open, waiting for review           |
+| `changes_requested` | Reviewer requested changes               |
+| `approved`          | Review approved, awaiting merge decision |
+| `merged`            | PR was merged                            |
+| `closed`            | PR was closed without merging            |
 
 ## After Opening the PR
 
@@ -214,8 +231,12 @@ Or use `exec.write` if available.
 
 Review feedback is delivered via one of two mechanisms:
 
-- **Webhooks (instant):** If the owner has configured GitHub webhooks pointing to the Triggerfish gateway, review events arrive immediately as new sessions. This requires the gateway to be reachable from the internet.
-- **Trigger-based polling (works behind firewalls):** A cron job periodically checks all open tracked PRs for new activity via `gh pr view`. No inbound connectivity required -- the agent reaches out to GitHub.
+- **Webhooks (instant):** If the owner has configured GitHub webhooks pointing
+  to the Triggerfish gateway, review events arrive immediately as new sessions.
+  This requires the gateway to be reachable from the internet.
+- **Trigger-based polling (works behind firewalls):** A cron job periodically
+  checks all open tracked PRs for new activity via `gh pr view`. No inbound
+  connectivity required -- the agent reaches out to GitHub.
 
 Both paths use the same tracking files and the same handling process below.
 
@@ -229,7 +250,8 @@ During a trigger wakeup or cron job, scan all open tracking files:
 exec.run("ls ~/.triggerfish/workspace/<agent-id>/scratch/pr-tracking/")
 ```
 
-Skip files in the `completed/` subdirectory. For each `.json` file, read it and check `status`. Only process PRs with status `open` or `changes_requested`.
+Skip files in the `completed/` subdirectory. For each `.json` file, read it and
+check `status`. Only process PRs with status `open` or `changes_requested`.
 
 ### 2. Query GitHub for new activity
 
@@ -237,30 +259,35 @@ Skip files in the `completed/` subdirectory. For each `.json` file, read it and 
 exec.run("gh pr view <pr-number> --json state,reviews,comments,mergedAt,closedAt")
 ```
 
-Compare review data against `lastCheckedAt` and `lastReviewId` in the tracking file. If there are new reviews or comments, the PR needs attention -- proceed to "Handling Review Feedback" below.
+Compare review data against `lastCheckedAt` and `lastReviewId` in the tracking
+file. If there are new reviews or comments, the PR needs attention -- proceed to
+"Handling Review Feedback" below.
 
 ### 3. Detect state changes
 
-| GitHub state | Action |
-|-------------|--------|
-| New review with `CHANGES_REQUESTED` | Address the feedback (see below) |
-| New review with `APPROVED` | Update status to `approved`, notify owner (see "Merge Policy") |
-| New comments since `lastCheckedAt` | Read and address if actionable |
-| PR state is `MERGED` | Run cleanup (see "Cleanup After Merge") |
-| PR state is `CLOSED` (not merged) | Archive tracking file, notify owner |
-| No new activity | Update `lastCheckedAt`, move on |
+| GitHub state                        | Action                                                         |
+| ----------------------------------- | -------------------------------------------------------------- |
+| New review with `CHANGES_REQUESTED` | Address the feedback (see below)                               |
+| New review with `APPROVED`          | Update status to `approved`, notify owner (see "Merge Policy") |
+| New comments since `lastCheckedAt`  | Read and address if actionable                                 |
+| PR state is `MERGED`                | Run cleanup (see "Cleanup After Merge")                        |
+| PR state is `CLOSED` (not merged)   | Archive tracking file, notify owner                            |
+| No new activity                     | Update `lastCheckedAt`, move on                                |
 
 ### 4. Update the tracking file
 
-After checking, always update `lastCheckedAt` to the current timestamp. If reviews were found, update `lastReviewId` to the most recent review ID.
+After checking, always update `lastCheckedAt` to the current timestamp. If
+reviews were found, update `lastReviewId` to the most recent review ID.
 
 ## Handling Review Feedback (Webhook Path)
 
-When a webhook delivers a review event (`pull_request_review`, `pull_request_review_comment`, or `issue_comment`), follow this process:
+When a webhook delivers a review event (`pull_request_review`,
+`pull_request_review_comment`, or `issue_comment`), follow this process:
 
 ### 1. Identify the PR
 
-Extract the PR number from the webhook payload. The payload includes `pull_request.number` or `issue.number`.
+Extract the PR number from the webhook payload. The payload includes
+`pull_request.number` or `issue.number`.
 
 ### 2. Find the tracking file
 
@@ -268,7 +295,8 @@ Extract the PR number from the webhook payload. The payload includes `pull_reque
 exec.run("ls ~/.triggerfish/workspace/<agent-id>/scratch/pr-tracking/")
 ```
 
-Read each tracking file and match by `prNumber`. If no tracking file is found, this PR was not created by this agent -- skip it or notify the owner.
+Read each tracking file and match by `prNumber`. If no tracking file is found,
+this PR was not created by this agent -- skip it or notify the owner.
 
 ### 3. Check out the branch
 
@@ -293,7 +321,8 @@ exec.run("gh api repos/<owner>/<repo>/pulls/<pr-number>/comments")
 
 ### 5. Make requested changes
 
-Address each review comment. Commit each logical fix separately with a clear message referencing the feedback:
+Address each review comment. Commit each logical fix separately with a clear
+message referencing the feedback:
 
 ```
 exec.run('git commit -m "fix: address review - handle nil case in parser"')
@@ -315,11 +344,13 @@ exec.run('gh pr comment <pr-number> --body "Addressed the review feedback:\n- Fi
 
 ### 8. Update the tracking file
 
-Update `status` to `changes_requested` or back to `open` after addressing feedback. Update `updatedAt`, `lastCheckedAt`, and append to `commits`.
+Update `status` to `changes_requested` or back to `open` after addressing
+feedback. Update `updatedAt`, `lastCheckedAt`, and append to `commits`.
 
 ### 9. Repeat
 
-Continue until the review is approved. Each review event (webhook) or trigger check (polling) spawns a new session -- the tracking file provides continuity.
+Continue until the review is approved. Each review event (webhook) or trigger
+check (polling) spawns a new session -- the tracking file provides continuity.
 
 ## Merge Policy
 
@@ -344,7 +375,8 @@ Then proceed to cleanup.
 
 ## Cleanup After Merge
 
-When a `pull_request.closed` event arrives with `merged: true`, or when `gh pr view` reports the PR as merged, or after an explicit merge:
+When a `pull_request.closed` event arrives with `merged: true`, or when
+`gh pr view` reports the PR as merged, or after an explicit merge:
 
 ### 1. Delete the remote branch (if not already deleted)
 
@@ -352,7 +384,8 @@ When a `pull_request.closed` event arrives with `merged: true`, or when `gh pr v
 exec.run("git push origin --delete <branch-name>")
 ```
 
-The `--delete-branch` flag on `gh pr merge` handles this automatically. If the branch still exists, delete it manually.
+The `--delete-branch` flag on `gh pr merge` handles this automatically. If the
+branch still exists, delete it manually.
 
 ### 2. Clean up local
 
@@ -373,7 +406,8 @@ Update the tracking file's `status` to `merged` before archiving.
 
 ### 4. Closed without merge
 
-If the PR was closed without merging (`merged: false` in the event payload), update tracking status to `closed`, archive the file, and notify the owner.
+If the PR was closed without merging (`merged: false` in the event payload),
+update tracking status to `closed`, archive the file, and notify the owner.
 
 ## Webhook Configuration
 
@@ -397,11 +431,13 @@ scheduler:
         classification: INTERNAL
 ```
 
-Or add "check open PRs for review feedback" to the agent's TRIGGER.md for execution during the regular trigger wakeup cycle.
+Or add "check open PRs for review feedback" to the agent's TRIGGER.md for
+execution during the regular trigger wakeup cycle.
 
 ### Option B: Webhooks (instant, requires public endpoint)
 
-If the gateway is reachable from the internet (e.g. via Tailscale Funnel, reverse proxy, or tunnel), configure GitHub webhooks for instant delivery:
+If the gateway is reachable from the internet (e.g. via Tailscale Funnel,
+reverse proxy, or tunnel), configure GitHub webhooks for instant delivery:
 
 ```yaml
 webhooks:
@@ -436,6 +472,7 @@ webhooks:
 ```
 
 The GitHub webhook must be configured to send these event types:
+
 - `Pull requests` (covers `pull_request.closed`)
 - `Pull request reviews` (covers `pull_request_review`)
 - `Pull request review comments` (covers `pull_request_review_comment`)
@@ -443,13 +480,13 @@ The GitHub webhook must be configured to send these event types:
 
 ## Common Mistakes
 
-| Mistake | Why It's Wrong | Fix |
-|---------|---------------|-----|
-| Working on main | Risk of pushing directly to production branch | Always create a feature branch first |
-| One giant commit | Hard to review, hard to revert, loses history | Commit after each logical unit of work |
-| Forgetting to push | PR has no changes, reviewer sees stale code | Push after every commit batch |
-| Spin-looping for reviews | Blocks the agent, wastes resources | Write tracking file and stop; let triggers or webhooks handle it |
-| Not writing tracking file | Cannot recover context when review arrives | Always write tracking file after opening PR |
-| Auto-merging without permission | Owner may want to review before merge | Default to notify-only; respect `github.auto_merge` config |
-| Committing secrets | Credentials exposed in git history | Never `git add .env` or credential files |
-| Amending published commits | Force-push required, loses reviewer context | Create new commits for review fixes |
+| Mistake                         | Why It's Wrong                                | Fix                                                              |
+| ------------------------------- | --------------------------------------------- | ---------------------------------------------------------------- |
+| Working on main                 | Risk of pushing directly to production branch | Always create a feature branch first                             |
+| One giant commit                | Hard to review, hard to revert, loses history | Commit after each logical unit of work                           |
+| Forgetting to push              | PR has no changes, reviewer sees stale code   | Push after every commit batch                                    |
+| Spin-looping for reviews        | Blocks the agent, wastes resources            | Write tracking file and stop; let triggers or webhooks handle it |
+| Not writing tracking file       | Cannot recover context when review arrives    | Always write tracking file after opening PR                      |
+| Auto-merging without permission | Owner may want to review before merge         | Default to notify-only; respect `github.auto_merge` config       |
+| Committing secrets              | Credentials exposed in git history            | Never `git add .env` or credential files                         |
+| Amending published commits      | Force-push required, loses reviewer context   | Create new commits for review fixes                              |

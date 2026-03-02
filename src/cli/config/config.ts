@@ -7,7 +7,11 @@
  * @module
  */
 
-import { runConfigGet, runConfigSet, runConfigValidate } from "./config_crud.ts";
+import {
+  runConfigGet,
+  runConfigSet,
+  runConfigValidate,
+} from "./config_crud.ts";
 
 // ─── Re-exports (preserve public API) ──────────────────────────
 
@@ -25,7 +29,10 @@ export {
   runConfigValidate,
 } from "./config_crud.ts";
 
-export { promptChannelConfig, promptPluginConfig } from "./prompts/channel_prompts.ts";
+export {
+  promptChannelConfig,
+  promptPluginConfig,
+} from "./prompts/channel_prompts.ts";
 export {
   runConfigAddChannel,
   runConfigAddPlugin,
@@ -133,8 +140,16 @@ async function dispatchSecretSubcommand(
 
 // ─── Dispatcher ─────────────────────────────────────────────────
 
-const CHANNEL_SUBCOMMANDS = new Set(["add-channel", "remove-channel", "add-plugin"]);
-const SECRET_SUBCOMMANDS = new Set(["set-secret", "get-secret", "migrate-secrets"]);
+const CHANNEL_SUBCOMMANDS = new Set([
+  "add-channel",
+  "remove-channel",
+  "add-plugin",
+]);
+const SECRET_SUBCOMMANDS = new Set([
+  "set-secret",
+  "get-secret",
+  "migrate-secrets",
+]);
 
 /**
  * Config command dispatcher.

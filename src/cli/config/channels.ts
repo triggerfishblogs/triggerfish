@@ -8,7 +8,10 @@ import { Confirm, Select } from "@cliffy/prompt";
 import { backupConfig, resolveConfigPath } from "./paths.ts";
 import { CHANNEL_TYPES, PLUGIN_TYPES } from "./yaml_paths.ts";
 import { promptDaemonRestart } from "./config_crud.ts";
-import { promptChannelConfig, promptPluginConfig } from "./prompts/channel_prompts.ts";
+import {
+  promptChannelConfig,
+  promptPluginConfig,
+} from "./prompts/channel_prompts.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("cli.config");
@@ -24,7 +27,11 @@ async function loadConfigYamlFile(
   try {
     rawYaml = await Deno.readTextFile(configPath);
   } catch (err: unknown) {
-    log.error("Configuration file not found", { operation: "loadChannelConfig", configPath, err });
+    log.error("Configuration file not found", {
+      operation: "loadChannelConfig",
+      configPath,
+      err,
+    });
     console.error(`Config not found at ${configPath}`);
     console.error("Run 'triggerfish dive' to create initial config.");
     Deno.exit(1);

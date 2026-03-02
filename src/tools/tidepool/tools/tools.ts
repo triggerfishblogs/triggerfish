@@ -13,10 +13,13 @@
 // Legacy tools
 export type { TidepoolTools } from "./tools_legacy.ts";
 export { createTidepoolTools } from "./tools_legacy.ts";
-export { getTidepoolToolDefinitions, TIDEPOOL_SYSTEM_PROMPT } from "./tools_legacy.ts";
+export {
+  getTidepoolToolDefinitions,
+  TIDEPOOL_SYSTEM_PROMPT,
+} from "./tools_legacy.ts";
 
 // A2UI canvas tools
-export type { TidePoolTools, RenderFileOptions } from "./tools_canvas.ts";
+export type { RenderFileOptions, TidePoolTools } from "./tools_canvas.ts";
 export { createTidePoolTools } from "./tools_canvas.ts";
 
 // Executor

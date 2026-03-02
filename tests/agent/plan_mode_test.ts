@@ -4,7 +4,7 @@
  * Tests PlanManager state transitions and verifies that the orchestrator
  * correctly injects plan mode context into the system prompt.
  */
-import { assertEquals, assert, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { createPlanManager } from "../../src/agent/plan/plan.ts";
 import type { PlanManager } from "../../src/agent/plan/plan.ts";
 import type { ImplementationPlan } from "../../src/agent/plan/types.ts";

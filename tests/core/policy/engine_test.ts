@@ -4,9 +4,9 @@
  */
 import { assertEquals, assertExists } from "@std/assert";
 import {
-  type PolicyAction,
-  type HookType,
   createPolicyEngine,
+  type HookType,
+  type PolicyAction,
 } from "../../src/core/policy/mod.ts";
 
 Deno.test("createPolicyEngine: returns engine with evaluate method", () => {
@@ -19,7 +19,9 @@ Deno.test("createPolicyEngine: returns engine with evaluate method", () => {
 
 Deno.test("evaluate: returns ALLOW when no rules match", () => {
   const engine = createPolicyEngine();
-  const result = engine.evaluate("PRE_OUTPUT" as HookType, { session_taint: "PUBLIC" });
+  const result = engine.evaluate("PRE_OUTPUT" as HookType, {
+    session_taint: "PUBLIC",
+  });
   assertEquals(result.action, "ALLOW" as PolicyAction);
 });
 
@@ -75,8 +77,14 @@ Deno.test("evaluate: conditions use correct operators", () => {
     conditions: [{ field: "count", operator: "gt", value: 5 }],
     action: "BLOCK" as PolicyAction,
   });
-  assertEquals(engine.evaluate("PRE_OUTPUT" as HookType, { count: 10 }).action, "BLOCK");
-  assertEquals(engine.evaluate("PRE_OUTPUT" as HookType, { count: 3 }).action, "ALLOW");
+  assertEquals(
+    engine.evaluate("PRE_OUTPUT" as HookType, { count: 10 }).action,
+    "BLOCK",
+  );
+  assertEquals(
+    engine.evaluate("PRE_OUTPUT" as HookType, { count: 3 }).action,
+    "ALLOW",
+  );
 });
 
 Deno.test("getRules: returns rules for specific hook only", () => {

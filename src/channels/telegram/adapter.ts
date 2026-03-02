@@ -166,7 +166,8 @@ export function createTelegramChannel(
       if (!message.sessionId) return;
 
       // Extract chat ID from session ID (handles both telegram- and telegram-group- prefixes)
-      const chatIdStr = message.sessionId.replace("telegram-group-", "").replace("telegram-", "");
+      const chatIdStr = message.sessionId.replace("telegram-group-", "")
+        .replace("telegram-", "");
       const chatId = parseInt(chatIdStr, 10);
       if (isNaN(chatId)) return;
 
@@ -191,14 +192,20 @@ export function createTelegramChannel(
 
     async sendTyping(sessionId: string): Promise<void> {
       if (!sessionId) return;
-      const chatId = parseInt(sessionId.replace("telegram-group-", "").replace("telegram-", ""), 10);
+      const chatId = parseInt(
+        sessionId.replace("telegram-group-", "").replace("telegram-", ""),
+        10,
+      );
       if (isNaN(chatId)) return;
       await bot.api.sendChatAction(chatId, "typing");
     },
 
     async clearChat(sessionId: string): Promise<void> {
       if (!sessionId) return;
-      const chatId = parseInt(sessionId.replace("telegram-group-", "").replace("telegram-", ""), 10);
+      const chatId = parseInt(
+        sessionId.replace("telegram-group-", "").replace("telegram-", ""),
+        10,
+      );
       if (isNaN(chatId)) return;
 
       const ids = chatMessageIds.get(chatId);

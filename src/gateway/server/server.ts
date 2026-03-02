@@ -131,7 +131,10 @@ export function createGatewayServer(
             ws.send(json);
           }
         } catch (err) {
-          log.warn("Failed to send chat event to socket, removing stale connection", { err });
+          log.warn(
+            "Failed to send chat event to socket, removing stale connection",
+            { err },
+          );
           chatSockets.delete(ws);
         }
       }
@@ -145,7 +148,10 @@ export function createGatewayServer(
             ws.send(json);
           }
         } catch (err) {
-          log.warn("Failed to send notification to socket, removing stale connection", { err });
+          log.warn(
+            "Failed to send notification to socket, removing stale connection",
+            { err },
+          );
           chatSockets.delete(ws);
         }
       }
@@ -180,7 +186,9 @@ export function createGatewayServer(
             if (rejection) {
               log.warn("WebSocket upgrade rejected", {
                 status: rejection.status,
-                reason: rejection.status === 401 ? "invalid_token" : "origin_mismatch",
+                reason: rejection.status === 401
+                  ? "invalid_token"
+                  : "origin_mismatch",
                 origin: request.headers.get("origin") ?? "(none)",
               });
               return rejection;
@@ -209,15 +217,21 @@ export function createGatewayServer(
                   : new TextDecoder().decode(event.data as ArrayBuffer);
 
                 if (data.length > MAX_JSONRPC_MESSAGE_BYTES) {
-                  log.warn("JSON-RPC WebSocket message rejected: exceeds size limit", {
-                    operation: "handleJsonRpcSocketMessage",
-                    byteLength: data.length,
-                    limitBytes: MAX_JSONRPC_MESSAGE_BYTES,
-                  });
+                  log.warn(
+                    "JSON-RPC WebSocket message rejected: exceeds size limit",
+                    {
+                      operation: "handleJsonRpcSocketMessage",
+                      byteLength: data.length,
+                      limitBytes: MAX_JSONRPC_MESSAGE_BYTES,
+                    },
+                  );
                   socket.send(JSON.stringify({
                     jsonrpc: "2.0",
                     id: null,
-                    error: { code: -32600, message: "Message too large: exceeds 1MB limit" },
+                    error: {
+                      code: -32600,
+                      message: "Message too large: exceeds 1MB limit",
+                    },
                   }));
                   return;
                 }
@@ -228,7 +242,10 @@ export function createGatewayServer(
                   socket.send(JSON.stringify({
                     jsonrpc: "2.0",
                     id: rpcRequest.id ?? null,
-                    error: { code: -32600, message: "Invalid JSON-RPC request" },
+                    error: {
+                      code: -32600,
+                      message: "Invalid JSON-RPC request",
+                    },
                   }));
                   return;
                 }
@@ -240,7 +257,10 @@ export function createGatewayServer(
                 );
                 socket.send(JSON.stringify(rpcResponse));
               } catch (err) {
-                log.warn("JSON-RPC dispatch or JSON parse failed on WebSocket message", { err });
+                log.warn(
+                  "JSON-RPC dispatch or JSON parse failed on WebSocket message",
+                  { err },
+                );
                 socket.send(JSON.stringify({
                   jsonrpc: "2.0",
                   id: null,
@@ -286,11 +306,17 @@ export function createGatewayServer(
             if (!schedulerService) {
               return new Response(
                 JSON.stringify({ error: "Scheduler not configured" }),
-                { status: 503, headers: { "content-type": "application/json" } },
+                {
+                  status: 503,
+                  headers: { "content-type": "application/json" },
+                },
               );
             }
             schedulerService.runTrigger().catch((err: unknown) => {
-              log.warn("Scheduled trigger execution failed via debug endpoint", { err });
+              log.warn(
+                "Scheduled trigger execution failed via debug endpoint",
+                { err },
+              );
             });
             return new Response(
               JSON.stringify({ ok: true, message: "Trigger fired" }),

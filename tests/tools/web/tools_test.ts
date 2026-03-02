@@ -9,8 +9,11 @@ import {
   createWebToolExecutor,
   getWebToolDefinitions,
 } from "../../../src/tools/web/tools.ts";
-import type { SearchProvider, SearchResult } from "../../../src/tools/web/search.ts";
-import type { WebFetcher, FetchResult } from "../../../src/tools/web/fetch.ts";
+import type {
+  SearchProvider,
+  SearchResult,
+} from "../../../src/tools/web/search.ts";
+import type { FetchResult, WebFetcher } from "../../../src/tools/web/fetch.ts";
 import type { Result } from "../../../src/core/types/classification.ts";
 
 // ─── Tool Definitions ───────────────────────────────────────────────────────

@@ -5,16 +5,12 @@
  */
 
 export { createAuditChain, verifyAuditChain } from "./audit.ts";
-export type {
-  AuditEntry,
-  ChainedAuditEntry,
-  AuditChain,
-} from "./audit.ts";
+export type { AuditChain, AuditEntry, ChainedAuditEntry } from "./audit.ts";
 
 export {
+  bufferToHex,
+  canonicalize,
+  computeHmac,
   GENESIS_HASH,
   importHmacKey,
-  canonicalize,
-  bufferToHex,
-  computeHmac,
 } from "./audit_hmac.ts";

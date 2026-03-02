@@ -8,16 +8,13 @@ export type { NoteStore } from "./notes.ts";
 export { createNoteStore } from "./notes.ts";
 
 export {
-  readNoteFromVault,
-  createNoteInVault,
-  updateNoteInVault,
-  ensureMdExtension,
   applyNoteContentUpdates,
+  createNoteInVault,
+  ensureMdExtension,
+  readNoteFromVault,
+  updateNoteInVault,
 } from "./note_crud.ts";
 
-export {
-  searchNotesInVault,
-  listNotesInVault,
-} from "./note_query.ts";
+export { listNotesInVault, searchNotesInVault } from "./note_query.ts";
 
 export { walkNotes } from "./note_walker.ts";

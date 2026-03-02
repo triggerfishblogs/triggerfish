@@ -160,11 +160,15 @@ export class SSETransport implements Transport {
           url: this.#url,
           reason: result.error,
         });
-        throw new Error(`SSE connection blocked by SSRF policy: ${result.error}`);
+        throw new Error(
+          `SSE connection blocked by SSRF policy: ${result.error}`,
+        );
       }
       log.debug("MCP SSE SSRF check passed", { url: this.#url });
     } else {
-      log.debug("MCP SSE connecting without SSRF validation", { url: this.#url });
+      log.debug("MCP SSE connecting without SSRF validation", {
+        url: this.#url,
+      });
     }
     // SSE connection for receiving messages
     this.#eventSource = new EventSource(this.#url);

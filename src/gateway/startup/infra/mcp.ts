@@ -68,14 +68,16 @@ export interface McpWiringResult {
  * @returns MCP wiring result with manager, executor, and live getters
  */
 export function wireMcpServers(
-  mcpServersConfig: Readonly<Record<string, {
-    readonly command?: string;
-    readonly args?: readonly string[];
-    readonly env?: Readonly<Record<string, string>>;
-    readonly url?: string;
-    readonly classification?: string;
-    readonly enabled?: boolean;
-  }>>,
+  mcpServersConfig: Readonly<
+    Record<string, {
+      readonly command?: string;
+      readonly args?: readonly string[];
+      readonly env?: Readonly<Record<string, string>>;
+      readonly url?: string;
+      readonly classification?: string;
+      readonly enabled?: boolean;
+    }>
+  >,
   hookRunner: HookRunner,
   getSession: () => SessionState,
   toolClassifications: Map<string, ClassificationLevel>,
@@ -161,7 +163,10 @@ export function wireMcpServers(
       });
     }
     if (broadcastRefs.tidepoolHost !== null) {
-      broadcastRefs.tidepoolHost.broadcastMcpStatus(mcpConnected, mcpConfigured);
+      broadcastRefs.tidepoolHost.broadcastMcpStatus(
+        mcpConnected,
+        mcpConfigured,
+      );
     }
   });
 
@@ -173,7 +178,9 @@ export function wireMcpServers(
     manager: mcpManager,
     executor,
     getToolDefinitions: () =>
-      getMcpToolDefinitions(mcpManager.getConnected()) as readonly ToolDefinition[],
+      getMcpToolDefinitions(
+        mcpManager.getConnected(),
+      ) as readonly ToolDefinition[],
     getSystemPrompt: () => buildMcpSystemPrompt(mcpManager.getConnected()),
   };
 }

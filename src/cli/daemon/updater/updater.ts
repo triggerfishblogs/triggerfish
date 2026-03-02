@@ -46,12 +46,18 @@ async function performBinarySwap(
   binaryPath: string,
   wasRunning: boolean,
 ): Promise<string | null> {
-  log.info("Replacing binary", { operation: "applyUpdate", step: "replaceBinary" });
+  log.info("Replacing binary", {
+    operation: "applyUpdate",
+    step: "replaceBinary",
+  });
   console.log("  Replacing binary...");
   try {
     await replaceBinary(tmpPath, binaryPath);
   } catch (e) {
-    log.error("Binary replacement failed", { operation: "applyUpdate", err: e });
+    log.error("Binary replacement failed", {
+      operation: "applyUpdate",
+      err: e,
+    });
     if (wasRunning) {
       console.log("  Restarting daemon with old binary...");
       await installAndStartDaemon(binaryPath);
@@ -76,7 +82,10 @@ async function stopAndSwapBinary(tmpPath: string): Promise<{
   const binaryPath = await findInstalledBinary();
   const wasRunning = (await getDaemonStatus()).running;
   if (wasRunning) {
-    log.info("Stopping daemon for update", { operation: "applyUpdate", step: "stopDaemon" });
+    log.info("Stopping daemon for update", {
+      operation: "applyUpdate",
+      step: "stopDaemon",
+    });
     console.log("  Stopping daemon...");
     await stopDaemon();
   }

@@ -15,11 +15,11 @@ import type {
   ReportResponse,
 } from "./types.ts";
 import {
-  parsePropfindXml,
-  parseReportXml,
-  isMultiStatus,
   buildErrorResult,
   errorMessage,
+  isMultiStatus,
+  parsePropfindXml,
+  parseReportXml,
 } from "./client_xml.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
@@ -47,13 +47,35 @@ export function createCalDavClient(
 
   return {
     propfind: (url, depth, properties) =>
-      executePropfind(doFetch, baseHeaders, resolveUrl(options.baseUrl, url), depth, properties),
+      executePropfind(
+        doFetch,
+        baseHeaders,
+        resolveUrl(options.baseUrl, url),
+        depth,
+        properties,
+      ),
     report: (url, body) =>
-      executeReport(doFetch, baseHeaders, resolveUrl(options.baseUrl, url), body),
+      executeReport(
+        doFetch,
+        baseHeaders,
+        resolveUrl(options.baseUrl, url),
+        body,
+      ),
     put: (url, icalData, etag) =>
-      executePut(doFetch, baseHeaders, resolveUrl(options.baseUrl, url), icalData, etag),
+      executePut(
+        doFetch,
+        baseHeaders,
+        resolveUrl(options.baseUrl, url),
+        icalData,
+        etag,
+      ),
     deleteResource: (url, etag) =>
-      executeDelete(doFetch, baseHeaders, resolveUrl(options.baseUrl, url), etag),
+      executeDelete(
+        doFetch,
+        baseHeaders,
+        resolveUrl(options.baseUrl, url),
+        etag,
+      ),
   };
 }
 
@@ -119,7 +141,10 @@ async function executePropfind(
     log.error("CalDAV PROPFIND failed", { operation: "propfind", url, err });
     return {
       ok: false,
-      error: { status: 0, message: `PROPFIND network error: ${errorMessage(err)}` },
+      error: {
+        status: 0,
+        message: `PROPFIND network error: ${errorMessage(err)}`,
+      },
     };
   }
 }
@@ -157,7 +182,10 @@ async function executeReport(
     log.error("CalDAV REPORT failed", { operation: "report", url, err });
     return {
       ok: false,
-      error: { status: 0, message: `REPORT network error: ${errorMessage(err)}` },
+      error: {
+        status: 0,
+        message: `REPORT network error: ${errorMessage(err)}`,
+      },
     };
   }
 }
@@ -241,10 +269,17 @@ async function executeDelete(
 
     return { ok: true, value: undefined };
   } catch (err) {
-    log.error("CalDAV DELETE failed", { operation: "deleteResource", url, err });
+    log.error("CalDAV DELETE failed", {
+      operation: "deleteResource",
+      url,
+      err,
+    });
     return {
       ok: false,
-      error: { status: 0, message: `DELETE network error: ${errorMessage(err)}` },
+      error: {
+        status: 0,
+        message: `DELETE network error: ${errorMessage(err)}`,
+      },
     };
   }
 }

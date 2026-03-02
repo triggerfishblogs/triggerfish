@@ -5,6 +5,7 @@
  */
 
 import { createExecTools } from "../../../exec/tools.ts";
+import type { FilesystemSandbox } from "../../../exec/sandbox/mod.ts";
 import type { TodoManager } from "../../../tools/mod.ts";
 import type { SearchProvider, WebFetcher } from "../../../tools/web/mod.ts";
 import type { LlmProviderRegistry } from "../../../core/types/llm.ts";
@@ -20,6 +21,13 @@ export type SubsystemExecutor = (
 /** Options for creating a tool executor. */
 export interface ToolExecutorOptions {
   readonly execTools: ReturnType<typeof createExecTools>;
+  /**
+   * Sandboxed Deno subprocess for filesystem operations.
+   * When provided, read/write/list/search/edit are routed through the
+   * subprocess (OS-level permission enforcement). When absent, handlers
+   * fall back to direct Deno API calls (backward compat for tests).
+   */
+  readonly filesystemSandbox?: FilesystemSandbox;
   readonly cronManager?: CronManager;
   readonly todoManager?: TodoManager;
   readonly searchProvider?: SearchProvider;

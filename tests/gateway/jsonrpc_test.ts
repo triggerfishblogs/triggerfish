@@ -1,13 +1,13 @@
 /**
  * Tests for Gateway JSON-RPC 2.0 handler.
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { createGatewayServer } from "../../src/gateway/server/server.ts";
 import { createEnhancedSessionManager } from "../../src/gateway/sessions.ts";
 import { createNotificationService } from "../../src/gateway/notifications/notifications.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
 import { createSessionManager } from "../../src/core/session/manager.ts";
-import type { UserId, ChannelId } from "../../src/core/types/session.ts";
+import type { ChannelId, UserId } from "../../src/core/types/session.ts";
 
 /** Helper: send a JSON-RPC request over WebSocket and get the response. */
 async function rpcCall(
@@ -47,7 +47,10 @@ Deno.test({
     const storage = createMemoryStorage();
     const baseMgr = await createSessionManager(storage);
     const sessions = createEnhancedSessionManager(baseMgr);
-    await sessions.create({ userId: "u1" as UserId, channelId: "c1" as ChannelId });
+    await sessions.create({
+      userId: "u1" as UserId,
+      channelId: "c1" as ChannelId,
+    });
 
     const server = createGatewayServer({ port: 0, sessionManager: sessions });
     const addr = await server.start();
@@ -71,7 +74,10 @@ Deno.test({
     const storage = createMemoryStorage();
     const baseMgr = await createSessionManager(storage);
     const sessions = createEnhancedSessionManager(baseMgr);
-    const created = await sessions.create({ userId: "u1" as UserId, channelId: "c1" as ChannelId });
+    const created = await sessions.create({
+      userId: "u1" as UserId,
+      channelId: "c1" as ChannelId,
+    });
 
     const server = createGatewayServer({ port: 0, sessionManager: sessions });
     const addr = await server.start();
@@ -122,9 +128,15 @@ Deno.test({
     const storage = createMemoryStorage();
     const baseMgr = await createSessionManager(storage);
     const sessions = createEnhancedSessionManager(baseMgr);
-    const confidential = await sessions.create({ userId: "u" as UserId, channelId: "c" as ChannelId });
+    const confidential = await sessions.create({
+      userId: "u" as UserId,
+      channelId: "c" as ChannelId,
+    });
     await sessions.updateTaint(confidential.id, "CONFIDENTIAL", "secret");
-    const pub = await sessions.create({ userId: "u" as UserId, channelId: "pub" as ChannelId });
+    const pub = await sessions.create({
+      userId: "u" as UserId,
+      channelId: "pub" as ChannelId,
+    });
 
     const server = createGatewayServer({ port: 0, sessionManager: sessions });
     const addr = await server.start();
@@ -138,7 +150,11 @@ Deno.test({
       });
       assertEquals(res.jsonrpc, "2.0");
       assert(res.error);
-      assert((res.error as Record<string, unknown>).message?.toString().includes("Write-down blocked"));
+      assert(
+        (res.error as Record<string, unknown>).message?.toString().includes(
+          "Write-down blocked",
+        ),
+      );
     } finally {
       await server.stop();
     }
@@ -158,11 +174,16 @@ Deno.test({
       priority: "normal",
     });
 
-    const server = createGatewayServer({ port: 0, notificationService: notifications });
+    const server = createGatewayServer({
+      port: 0,
+      notificationService: notifications,
+    });
     const addr = await server.start();
 
     try {
-      const res = await rpcCall(addr.port, "notifications.list", { userId: "u1" });
+      const res = await rpcCall(addr.port, "notifications.list", {
+        userId: "u1",
+      });
       assertEquals(res.jsonrpc, "2.0");
       assert(Array.isArray(res.result));
       assert((res.result as unknown[]).length >= 1);

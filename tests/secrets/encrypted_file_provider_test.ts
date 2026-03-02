@@ -156,14 +156,22 @@ Deno.test("two different setSecret calls produce different ciphertexts (IV fresh
 
     // Write the same value twice (to same key — overwrite)
     await store.setSecret("KEY", "same-value");
-    const rawFirst = JSON.parse(await Deno.readTextFile(storeOpts(dir).secretsPath));
+    const rawFirst = JSON.parse(
+      await Deno.readTextFile(storeOpts(dir).secretsPath),
+    );
 
     await store.setSecret("KEY", "same-value");
-    const rawSecond = JSON.parse(await Deno.readTextFile(storeOpts(dir).secretsPath));
+    const rawSecond = JSON.parse(
+      await Deno.readTextFile(storeOpts(dir).secretsPath),
+    );
 
     // The IV should differ on each write
-    const ivFirst = (rawFirst as { entries: Record<string, { iv: string }> }).entries["KEY"].iv;
-    const ivSecond = (rawSecond as { entries: Record<string, { iv: string }> }).entries["KEY"].iv;
+    const ivFirst =
+      (rawFirst as { entries: Record<string, { iv: string }> }).entries["KEY"]
+        .iv;
+    const ivSecond =
+      (rawSecond as { entries: Record<string, { iv: string }> }).entries["KEY"]
+        .iv;
     assertEquals(ivFirst !== ivSecond, true);
   });
 });

@@ -9,7 +9,11 @@
 import type { DriveService } from "../types.ts";
 
 /** Validate that a value is a non-empty string. */
-function requireNonEmptyString(value: unknown, field: string, tool: string): string | null {
+function requireNonEmptyString(
+  value: unknown,
+  field: string,
+  tool: string,
+): string | null {
   if (typeof value !== "string" || value.trim().length === 0) {
     return `Error: ${tool} requires a non-empty '${field}' argument.`;
   }
@@ -45,8 +49,13 @@ export async function executeDriveSearch(
   const err = requireNonEmptyString(input.query, "query", "drive_search");
   if (err) return err;
 
-  const maxResults = typeof input.max_results === "number" ? input.max_results : 10;
-  const result = await drive.search({ query: input.query as string, maxResults });
+  const maxResults = typeof input.max_results === "number"
+    ? input.max_results
+    : 10;
+  const result = await drive.search({
+    query: input.query as string,
+    maxResults,
+  });
   if (!result.ok) return `Error: ${result.error.message}`;
 
   if (result.value.length === 0) {

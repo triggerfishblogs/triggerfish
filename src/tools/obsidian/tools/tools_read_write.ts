@@ -9,7 +9,10 @@
 
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import { canFlowTo } from "../../../core/types/classification.ts";
-import type { LineageOrigin, LineageClassification } from "../../../core/session/lineage.ts";
+import type {
+  LineageClassification,
+  LineageOrigin,
+} from "../../../core/session/lineage.ts";
 import { getClassificationForPath } from "../vault.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 import type { ObsidianToolContext } from "./tools_defs.ts";
@@ -69,7 +72,10 @@ export async function executeObsidianRead(
 
   const notePath = resolveNotePath(noteName);
 
-  const noteClassification = getClassificationForPath(ctx.vaultContext, notePath);
+  const noteClassification = getClassificationForPath(
+    ctx.vaultContext,
+    notePath,
+  );
   if (!canFlowTo(noteClassification, ctx.getSessionTaint())) {
     log.warn("Obsidian read blocked: classification exceeds session taint", {
       notePath,
@@ -112,7 +118,10 @@ export async function executeObsidianWrite(
     ? `${folder}/${resolveNotePath(noteName)}`
     : resolveNotePath(noteName);
 
-  const folderClassification = getClassificationForPath(ctx.vaultContext, notePath);
+  const folderClassification = getClassificationForPath(
+    ctx.vaultContext,
+    notePath,
+  );
   if (!canFlowTo(ctx.getSessionTaint(), folderClassification)) {
     log.warn("Obsidian write-down blocked", {
       notePath,
@@ -125,10 +134,14 @@ export async function executeObsidianWrite(
   const content = typeof input.content === "string" ? input.content : undefined;
   const append = typeof input.append === "string" ? input.append : undefined;
   const prepend = typeof input.prepend === "string" ? input.prepend : undefined;
-  const template = typeof input.template === "string" ? input.template : undefined;
-  const frontmatter = (input.frontmatter && typeof input.frontmatter === "object" && !Array.isArray(input.frontmatter))
-    ? input.frontmatter as Record<string, unknown>
+  const template = typeof input.template === "string"
+    ? input.template
     : undefined;
+  const frontmatter =
+    (input.frontmatter && typeof input.frontmatter === "object" &&
+        !Array.isArray(input.frontmatter))
+      ? input.frontmatter as Record<string, unknown>
+      : undefined;
 
   const existing = await ctx.noteStore.read(notePath);
   let result;

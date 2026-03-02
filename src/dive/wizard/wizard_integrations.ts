@@ -284,7 +284,9 @@ async function collectSearxngConfig(): Promise<string> {
 }
 
 /** Run the search provider selection wizard step (Step 7/8). */
-export async function promptSearchProviderStep(): Promise<SearchProviderResult> {
+export async function promptSearchProviderStep(): Promise<
+  SearchProviderResult
+> {
   console.log("  Step 7/8: Set up web search");
   console.log("");
   const searchProvider = await selectSearchProvider();

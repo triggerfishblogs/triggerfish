@@ -171,7 +171,10 @@ export async function performGoogleOAuth(
       );
       return true;
     } else {
-      log.error("Google OAuth token exchange failed", { operation: "connectGoogle", err: result.error });
+      log.error("Google OAuth token exchange failed", {
+        operation: "connectGoogle",
+        err: result.error,
+      });
       console.log(`\nFailed to connect: ${result.error.message}`);
       console.log(
         "Please verify your Client ID and Client Secret, then try again.",
