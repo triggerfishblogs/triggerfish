@@ -166,9 +166,10 @@ export function readMoreFromCache(
   }
 
   const rawEnd = startOffset + entry.budget;
+  const lineEnd = truncateAtLineBoundary(entry.fullText, rawEnd);
   const effectiveEnd = rawEnd >= entry.fullText.length
     ? entry.fullText.length
-    : truncateAtLineBoundary(entry.fullText, rawEnd);
+    : (lineEnd > startOffset ? lineEnd : rawEnd);
   const chunk = entry.fullText.slice(startOffset, effectiveEnd);
   const remaining = entry.fullText.length - effectiveEnd;
 

@@ -214,8 +214,12 @@ async function dispatchSingleToolCall(
   sessionKey: string,
 ): Promise<{ resultText: string; blocked: boolean }> {
   if (call.name === "read_more") {
-    const cacheId = call.args.cache_id as string | undefined;
-    const offset = call.args.offset as number | undefined;
+    const cacheId = typeof call.args.cache_id === "string"
+      ? call.args.cache_id
+      : undefined;
+    const offset = typeof call.args.offset === "number"
+      ? call.args.offset
+      : undefined;
     if (!cacheId) {
       return { resultText: "Error: cache_id is required", blocked: false };
     }

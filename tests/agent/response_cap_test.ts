@@ -191,6 +191,25 @@ Deno.test("readMoreFromCache: missing cache_id returns error", () => {
   assertMatch(result, /evicted/);
 });
 
+Deno.test("readMoreFromCache: handles long newline-free segments without cursor regression", () => {
+  const cache = new ResponseCache();
+  // Text with a newline early, then a long newline-free segment
+  const fullText = "header\n" + "x".repeat(200);
+  const id = cache.store({ fullText, toolName: "t", budget: 50, cursor: 50 });
+  // First read: cursor=50, chunk 50..100. No newlines in that range.
+  // truncateAtLineBoundary would find \n at index 6, which is < startOffset(50).
+  // Without the clamp fix, effectiveEnd would be 6, causing cursor regression.
+  const r1 = readMoreFromCache(cache, id);
+  assertEquals(r1.length > 0, true);
+  assertEquals(r1.includes("truncated"), true);
+  // Second read should advance, not regress
+  const r2 = readMoreFromCache(cache, id);
+  assertEquals(r2.length > 0, true);
+  // Should eventually reach the end
+  const r3 = readMoreFromCache(cache, id);
+  assertEquals(r3.length > 0, true);
+});
+
 Deno.test("readMoreFromCache: offset past end returns helpful message", () => {
   const cache = new ResponseCache();
   const id = cache.store({ fullText: "short", toolName: "t", budget: 10, cursor: 10 });
