@@ -21,8 +21,8 @@ const log = createLogger("scheduler");
 /** Memory key used to persist trigger run history. */
 const TRIGGER_HISTORY_MEMORY_KEY = "trigger:run-history";
 
-/** Maximum number of prior results to keep in memory. */
-const MAX_HISTORY_ENTRIES = 2;
+/** Maximum character length for injected history (roughly ~375 tokens). */
+const MAX_HISTORY_CHARS = 1500;
 
 /** Load TRIGGER.md content, returning null if not found. */
 async function loadTriggerMd(path: string): Promise<string | null> {
@@ -57,41 +57,33 @@ async function loadTriggerHistory(
 
 /** Build a history block to inject into the trigger prompt. */
 function buildHistoryContext(historyContent: string): string {
+  const capped = truncateToCharBudget(historyContent, MAX_HISTORY_CHARS);
   return `## Prior Trigger Results
 
-The following are your most recent trigger run results. Do NOT repeat findings that are already listed here. Only report NEW or CHANGED information.
+Do NOT repeat findings listed below. Only report NEW or CHANGED information.
 
-${historyContent}
+${capped}
 
 ---
 `;
 }
 
-/** Persist the trigger result to memory, rolling off old entries. */
+/** Truncate text to a character budget, appending an ellipsis marker. */
+function truncateToCharBudget(text: string, budget: number): string {
+  if (text.length <= budget) return text;
+  return text.slice(0, budget) + "\n… (truncated)";
+}
+
+/** Persist the latest trigger result to memory (1 entry, char-capped). */
 async function persistTriggerHistory(
   toolExecutor: ToolExecutor,
   resultText: string,
-  existingHistory: string | null,
 ): Promise<void> {
   const timestamp = new Date().toISOString();
-  const newEntry = `### Run at ${timestamp}\n${resultText}`;
-
-  let entries: string[];
-  if (existingHistory) {
-    entries = existingHistory
-      .split(/^### Run at /m)
-      .filter((e) => e.trim().length > 0)
-      .map((e) => `### Run at ${e}`);
-  } else {
-    entries = [];
-  }
-
-  entries.push(newEntry);
-  if (entries.length > MAX_HISTORY_ENTRIES) {
-    entries = entries.slice(entries.length - MAX_HISTORY_ENTRIES);
-  }
-
-  const content = entries.join("\n\n");
+  const content = truncateToCharBudget(
+    `### Run at ${timestamp}\n${resultText}`,
+    MAX_HISTORY_CHARS,
+  );
   try {
     await toolExecutor("memory_save", {
       key: TRIGGER_HISTORY_MEMORY_KEY,
@@ -100,7 +92,7 @@ async function persistTriggerHistory(
     });
     log.info("Trigger history persisted to memory", {
       operation: "persistTriggerHistory",
-      entryCount: entries.length,
+      contentLength: content.length,
     });
   } catch (err) {
     log.error("Trigger history memory_save failed", {
@@ -144,7 +136,7 @@ async function executeTriggerSession(
 
   const resultText = result.ok ? result.value.response : result.error;
   if (resultText && resultText.trim().length > 0) {
-    await persistTriggerHistory(toolExecutor, resultText, existingHistory);
+    await persistTriggerHistory(toolExecutor, resultText);
   }
 
   await deliverSchedulerOutput({
