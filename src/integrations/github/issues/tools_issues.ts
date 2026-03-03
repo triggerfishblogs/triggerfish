@@ -29,10 +29,16 @@ export async function executeListIssues(
   const perPage = typeof input.per_page === "number"
     ? input.per_page
     : undefined;
+  const sort = typeof input.sort === "string" ? input.sort : undefined;
+  const direction = input.direction === "asc" || input.direction === "desc"
+    ? input.direction
+    : undefined;
   const result = await client.listIssues(repoResult.owner, repoResult.name, {
     state,
     labels,
     perPage,
+    sort,
+    direction,
   });
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({

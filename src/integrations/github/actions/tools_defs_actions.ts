@@ -127,6 +127,17 @@ export function buildSearchIssuesDef(): ToolDefinition {
         type: "number",
         description: "Number of results to return (default: 10)",
       },
+      sort: {
+        type: "string",
+        description:
+          'Sort by: "comments", "reactions", "created", "updated" (default: best match)',
+        enum: ["comments", "reactions", "created", "updated"],
+      },
+      order: {
+        type: "string",
+        description: 'Sort order: "asc" or "desc" (default: "desc")',
+        enum: ["asc", "desc"],
+      },
     },
   };
 }

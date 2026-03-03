@@ -169,11 +169,18 @@ export async function fetchRepoPulls(
   classifyRepo: ClassifyRepoFn,
   owner: string,
   repo: string,
-  opts?: { readonly state?: string; readonly perPage?: number },
+  opts?: {
+    readonly state?: string;
+    readonly perPage?: number;
+    readonly sort?: string;
+    readonly direction?: "asc" | "desc";
+  },
 ): Promise<Result<readonly GitHubPull[], GitHubError>> {
   const params = new URLSearchParams();
   params.set("state", opts?.state ?? "open");
   params.set("per_page", String(opts?.perPage ?? 20));
+  if (opts?.sort) params.set("sort", opts.sort);
+  if (opts?.direction) params.set("direction", opts.direction);
 
   const result = await apiRequest<readonly RawPull[]>(
     `${buildRepoPath(owner, repo)}/pulls?${params.toString()}`,

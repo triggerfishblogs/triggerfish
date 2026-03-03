@@ -157,12 +157,16 @@ export async function fetchRepoIssues(
     readonly state?: string;
     readonly labels?: string;
     readonly perPage?: number;
+    readonly sort?: string;
+    readonly direction?: "asc" | "desc";
   },
 ): Promise<Result<readonly GitHubIssue[], GitHubError>> {
   const params = new URLSearchParams();
   params.set("state", opts?.state ?? "open");
   if (opts?.labels) params.set("labels", opts.labels);
   params.set("per_page", String(opts?.perPage ?? 20));
+  if (opts?.sort) params.set("sort", opts.sort);
+  if (opts?.direction) params.set("direction", opts.direction);
 
   const result = await apiRequest<readonly RawIssue[]>(
     `${buildRepoPath(owner, repo)}/issues?${params.toString()}`,

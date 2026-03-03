@@ -29,6 +29,18 @@ export function buildListPullsDef(): ToolDefinition {
         type: "number",
         description: "Number of PRs to return (default: 20)",
       },
+      sort: {
+        type: "string",
+        description:
+          'Sort by: "created", "updated", "popularity", or "long-running" (default: "created")',
+        enum: ["created", "updated", "popularity", "long-running"],
+      },
+      direction: {
+        type: "string",
+        description:
+          'Sort direction: "asc" or "desc" (default: "desc"). Use "desc" with per_page=1 to get only the latest PR.',
+        enum: ["asc", "desc"],
+      },
     },
   };
 }

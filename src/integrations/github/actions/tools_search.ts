@@ -51,7 +51,11 @@ export async function executeSearchIssues(
   const perPage = typeof input.per_page === "number"
     ? input.per_page
     : undefined;
-  const result = await client.searchIssues(query, { perPage });
+  const sort = typeof input.sort === "string" ? input.sort : undefined;
+  const order = input.order === "asc" || input.order === "desc"
+    ? input.order
+    : undefined;
+  const result = await client.searchIssues(query, { perPage, sort, order });
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({
     results: result.value.map((item) => ({

@@ -241,11 +241,17 @@ export async function searchGitHubIssues(
   classifyRepo: ClassifyRepoFn,
   baseUrl: string,
   query: string,
-  opts?: { readonly perPage?: number },
+  opts?: {
+    readonly perPage?: number;
+    readonly sort?: string;
+    readonly order?: "asc" | "desc";
+  },
 ): Promise<Result<readonly GitHubIssueSearchItem[], GitHubError>> {
   const params = new URLSearchParams();
   params.set("q", query);
   params.set("per_page", String(opts?.perPage ?? 10));
+  if (opts?.sort) params.set("sort", opts.sort);
+  if (opts?.order) params.set("order", opts.order);
 
   const result = await apiRequest<
     { items: readonly RawIssueSearchItem[] }

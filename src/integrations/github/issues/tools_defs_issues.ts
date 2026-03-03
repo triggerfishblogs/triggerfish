@@ -29,6 +29,18 @@ function buildIssuesListParams(): ToolDefinition["parameters"] {
       type: "number",
       description: "Number of issues to return (default: 20)",
     },
+    sort: {
+      type: "string",
+      description:
+        'Sort by: "created", "updated", or "comments" (default: "created")',
+      enum: ["created", "updated", "comments"],
+    },
+    direction: {
+      type: "string",
+      description:
+        'Sort direction: "asc" (oldest first) or "desc" (newest first, default). Use "desc" with per_page=1 to get only the latest issue.',
+      enum: ["asc", "desc"],
+    },
   };
 }
 

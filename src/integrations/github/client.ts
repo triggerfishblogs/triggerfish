@@ -131,7 +131,12 @@ export interface GitHubClient {
   readonly listPulls: (
     owner: string,
     repo: string,
-    opts?: { readonly state?: string; readonly perPage?: number },
+    opts?: {
+      readonly state?: string;
+      readonly perPage?: number;
+      readonly sort?: string;
+      readonly direction?: "asc" | "desc";
+    },
   ) => Promise<Result<readonly GitHubPull[], GitHubError>>;
   readonly createPull: (
     owner: string,
@@ -201,6 +206,8 @@ export interface GitHubClient {
       readonly state?: string;
       readonly labels?: string;
       readonly perPage?: number;
+      readonly sort?: string;
+      readonly direction?: "asc" | "desc";
     },
   ) => Promise<Result<readonly GitHubIssue[], GitHubError>>;
   readonly createIssue: (
@@ -291,7 +298,11 @@ export interface GitHubClient {
   ) => Promise<Result<readonly GitHubCodeSearchItem[], GitHubError>>;
   readonly searchIssues: (
     query: string,
-    opts?: { readonly perPage?: number },
+    opts?: {
+      readonly perPage?: number;
+      readonly sort?: string;
+      readonly order?: "asc" | "desc";
+    },
   ) => Promise<Result<readonly GitHubIssueSearchItem[], GitHubError>>;
   readonly cloneRepo: (
     owner: string,
