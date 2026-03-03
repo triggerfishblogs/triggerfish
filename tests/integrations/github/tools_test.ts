@@ -1,7 +1,7 @@
 /**
  * GitHub tools tests.
  *
- * Tests all 26 tool definitions, parameter validation,
+ * Tests all 27 tool definitions, parameter validation,
  * response formatting, null fallthrough, and graceful error handling.
  */
 import { assertEquals } from "@std/assert";
@@ -17,9 +17,9 @@ import type { Result } from "../../../src/core/types/classification.ts";
 
 // ─── Tool Definitions ────────────────────────────────────────────────────────
 
-Deno.test("getGitHubToolDefinitions: returns 26 tool definitions", () => {
+Deno.test("getGitHubToolDefinitions: returns 27 tool definitions", () => {
   const defs = getGitHubToolDefinitions();
-  assertEquals(defs.length, 26);
+  assertEquals(defs.length, 27);
 });
 
 Deno.test("getGitHubToolDefinitions: all tools have github_ prefix", () => {
@@ -61,6 +61,7 @@ Deno.test("getGitHubToolDefinitions: all tool names follow verb-first pattern", 
     "add",
     "search",
     "clone",
+    "pull",
   ];
   for (const def of defs) {
     const afterPrefix = def.name.replace("github_", "");
