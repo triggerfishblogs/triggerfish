@@ -246,7 +246,7 @@ export interface GitHubClient {
     owner: string,
     repo: string,
     issueNumber: number,
-    opts?: { readonly perPage?: number },
+    opts?: { readonly perPage?: number; readonly direction?: "asc" | "desc" },
   ) => Promise<Result<readonly GitHubComment[], GitHubError>>;
   readonly listWorkflowRuns: (
     owner: string,

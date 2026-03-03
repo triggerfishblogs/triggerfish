@@ -249,6 +249,7 @@ export function createOrchestratorFactory(
         providerRegistry: infra.registry,
         spinePath: infra.spinePath,
         maxIterations: options?.maxIterations,
+        maxToolResponseChars: isTrigger ? 8_000 : undefined,
         tools: resolveToolsForProfile(toolProfile),
         toolExecutor,
         systemPromptSections: [

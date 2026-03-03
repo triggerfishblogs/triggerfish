@@ -122,10 +122,11 @@ export async function fetchIssueComments(
   owner: string,
   repo: string,
   issueNumber: number,
-  opts?: { readonly perPage?: number },
+  opts?: { readonly perPage?: number; readonly direction?: "asc" | "desc" },
 ): Promise<Result<readonly GitHubComment[], GitHubError>> {
   const params = new URLSearchParams();
   params.set("per_page", String(opts?.perPage ?? 30));
+  if (opts?.direction) params.set("direction", opts.direction);
 
   const result = await apiRequest<readonly RawComment[]>(
     `${

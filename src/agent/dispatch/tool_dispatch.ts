@@ -25,6 +25,7 @@ import {
 } from "./security_context.ts";
 import type { SecurityContext } from "./security_context.ts";
 import { escalateToolPrefixTaint } from "./access_control.ts";
+import { capToolResponse, readMoreFromCache } from "./response_cap.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("tool-dispatch");
@@ -212,6 +213,22 @@ async function dispatchSingleToolCall(
   session: SessionState,
   sessionKey: string,
 ): Promise<{ resultText: string; blocked: boolean }> {
+  if (call.name === "read_more") {
+    const cacheId = call.args.cache_id as string | undefined;
+    const offset = call.args.offset as number | undefined;
+    if (!cacheId) {
+      return { resultText: "Error: cache_id is required", blocked: false };
+    }
+    return {
+      resultText: readMoreFromCache(
+        orchestratorState.responseCache,
+        cacheId,
+        offset,
+      ),
+      blocked: false,
+    };
+  }
+
   if (orchestratorState.planManager) {
     const planResult = await executePlanModeToolCall(
       orchestratorState.planManager,
@@ -250,13 +267,21 @@ async function executeAndFormatToolCall(
     session,
     sessionKey,
   );
+  const cappedText = (blocked || call.name === "read_more")
+    ? resultText
+    : capToolResponse(
+      call.name,
+      resultText,
+      orchestratorState.responseCache,
+      orchestratorState.config.maxToolResponseChars,
+    );
   orchestratorState.emit({
     type: "tool_result",
     name: call.name,
-    result: resultText,
+    result: cappedText,
     blocked,
   });
-  return `[TOOL_RESULT name="${call.name}"]\n${resultText}\n[/TOOL_RESULT]`;
+  return `[TOOL_RESULT name="${call.name}"]\n${cappedText}\n[/TOOL_RESULT]`;
 }
 
 /** Process all tool calls for one iteration and return result parts. */

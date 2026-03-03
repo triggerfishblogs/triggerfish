@@ -141,6 +141,12 @@ export function buildListCommentsDef(): ToolDefinition {
         type: "number",
         description: "Number of comments to return (default: 30)",
       },
+      direction: {
+        type: "string",
+        description:
+          'Sort direction: "asc" (oldest first, default) or "desc" (newest first). Use "desc" when you only need the latest comments.',
+        enum: ["asc", "desc"],
+      },
     },
   };
 }

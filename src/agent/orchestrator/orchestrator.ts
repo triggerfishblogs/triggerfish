@@ -26,6 +26,10 @@ import { createCompactor } from "../compactor/compactor.ts";
 import type { Compactor } from "../compactor/compactor.ts";
 import type { PlanManager } from "../plan/plan.ts";
 import { wrapToolExecutorWithEnforcement } from "../dispatch/access_control.ts";
+import {
+  getReadMoreToolDefinition,
+  ResponseCache,
+} from "../dispatch/response_cap.ts";
 import { runAgentTurn } from "../loop/agent_turn.ts";
 import { compactSessionHistory } from "../compactor/history_compaction.ts";
 import type {
@@ -87,6 +91,8 @@ export interface OrchestratorState {
   readonly toolExecutor: ToolExecutor | undefined;
   /** Returns the currently active skill context for tool filtering. */
   readonly getActiveSkillContext: (() => ActiveSkillContext | null) | undefined;
+  /** Per-session cache for truncated tool responses (read_more pagination). */
+  readonly responseCache: ResponseCache;
 }
 
 // ─── Orchestrator factory ────────────────────────────────────────────────────
@@ -114,9 +120,11 @@ function buildOrchestratorState(
   compactor: Compactor,
   histories: Map<string, HistoryEntry[]>,
 ): OrchestratorState {
+  const responseCache = new ResponseCache();
+  const readMoreTool = getReadMoreToolDefinition();
   return {
     config,
-    baseTools: config.tools ?? [],
+    baseTools: [...(config.tools ?? []), readMoreTool],
     getExtraTools: config.getExtraTools,
     getExtraSystemPromptSections: config.getExtraSystemPromptSections,
     baseSystemPromptSections: config.systemPromptSections ?? [],
@@ -131,6 +139,7 @@ function buildOrchestratorState(
       ? wrapToolExecutorWithEnforcement(config.toolExecutor, config)
       : undefined,
     getActiveSkillContext: config.getActiveSkillContext,
+    responseCache,
   };
 }
 

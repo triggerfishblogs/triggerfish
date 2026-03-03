@@ -191,12 +191,13 @@ export async function executeListComments(
   const perPage = typeof input.per_page === "number"
     ? input.per_page
     : undefined;
+  const direction = input.direction === "desc" ? "desc" as const : undefined;
 
   const result = await client.listComments(
     repoResult.owner,
     repoResult.name,
     number,
-    { perPage },
+    { perPage, direction },
   );
   if (!result.ok) return formatGitHubError(result.error);
   return JSON.stringify({

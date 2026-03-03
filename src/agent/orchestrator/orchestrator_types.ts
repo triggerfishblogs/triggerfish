@@ -107,6 +107,12 @@ export interface OrchestratorConfig {
    * the foundation — these sections layer platform behaviour on top.
    */
   readonly systemPromptSections?: readonly string[];
+  /**
+   * Maximum character budget for tool responses.
+   * Overrides the global default (12,000) for tools without per-tool overrides.
+   * Use lower values for background/trigger sessions to reduce token usage.
+   */
+  readonly maxToolResponseChars?: number;
   /** Plan manager for plan mode state tracking and tool execution. */
   readonly planManager?: PlanManager;
   /** Enable streaming responses from the LLM provider. Default: true. */
