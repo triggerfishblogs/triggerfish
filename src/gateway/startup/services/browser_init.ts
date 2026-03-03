@@ -136,22 +136,9 @@ export function initializeMcpServers(
   return { mcpExecutor: mcpWiring.executor, mcpWiring };
 }
 
-/** Build explore executor with LLM summarization callback. */
+/** Build explore executor backed by a single subagent. */
 export function buildExploreExecutor(
   subagentFactory: ReturnType<typeof buildSubagentFactory>,
-  registry: ReturnType<typeof createProviderRegistry>,
 ) {
-  return createExploreToolExecutor(
-    subagentFactory,
-    async (prompt: string) => {
-      const provider = registry.getDefault();
-      if (!provider) return prompt;
-      const result = await provider.complete(
-        [{ role: "user", content: prompt }],
-        [],
-        {},
-      );
-      return result.content;
-    },
-  );
+  return createExploreToolExecutor(subagentFactory);
 }

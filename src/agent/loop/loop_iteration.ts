@@ -25,10 +25,7 @@ import type {
   ParsedToolCall,
   ToolDefinition,
 } from "../orchestrator/orchestrator_types.ts";
-import {
-  MAX_TOOL_ITERATIONS,
-  SOFT_LIMIT_ITERATIONS,
-} from "../orchestrator/orchestrator_types.ts";
+import { MAX_TOOL_ITERATIONS } from "../orchestrator/orchestrator_types.ts";
 import type { OrchestratorState } from "../orchestrator/orchestrator.ts";
 import type {
   AgentLoopContext,
@@ -55,17 +52,23 @@ interface IterationData {
 
 // ─── Token and soft-limit helpers ────────────────────────────────────────────
 
+/** Compute the soft limit iteration from max iterations (80% of max). */
+function computeSoftLimit(maxIter: number): number {
+  return Math.floor(maxIter * 0.8);
+}
+
 /** Inject soft limit warning into history when approaching max iterations. */
 function injectSoftLimitWarning(
   history: HistoryEntry[],
   iterations: number,
+  maxIter: number,
 ): void {
-  if (iterations !== SOFT_LIMIT_ITERATIONS) return;
+  if (iterations !== computeSoftLimit(maxIter)) return;
   history.push({
     role: "user",
     content:
-      `[SYSTEM] You have used many tool calls (${iterations}/${MAX_TOOL_ITERATIONS}). ` +
-      `You have ${MAX_TOOL_ITERATIONS - iterations} remaining iterations. ` +
+      `[SYSTEM] You have used many tool calls (${iterations}/${maxIter}). ` +
+      `You have ${maxIter - iterations} remaining iterations. ` +
       "Please provide your best answer now based on the information gathered so far. " +
       "If you cannot find what you're looking for, say so rather than continuing to search.",
   });
@@ -153,10 +156,11 @@ export async function callLlmAndRecordUsage(
   ctx: AgentLoopContext,
   iterations: number,
 ): Promise<LlmCallOutcome> {
+  const maxIter = ctx.state.config.maxIterations ?? MAX_TOOL_ITERATIONS;
   ctx.state.emit({
     type: "llm_start",
     iteration: iterations,
-    maxIterations: MAX_TOOL_ITERATIONS,
+    maxIterations: maxIter,
   });
   const { completion, tools } = await runLlmProviderCall(ctx, iterations);
   accumulateTokenUsage(ctx, completion, iterations);
@@ -200,7 +204,8 @@ async function handleNoToolCallsIteration(
   const quality = classifyResponseQuality(finalText, iter.hasTools);
   const needsRecovery = quality.isEmptyOrJunk || quality.isLeakedIntent ||
     quality.hasTrailingIntent;
-  if (needsRecovery && iter.iteration < MAX_TOOL_ITERATIONS) {
+  const maxIter = ctx.state.config.maxIterations ?? MAX_TOOL_ITERATIONS;
+  if (needsRecovery && iter.iteration < maxIter) {
     const nudgeResult = attemptRecoveryNudge(ctx, iter.completion, quality);
     if (nudgeResult) return nudgeResult;
   }
@@ -234,7 +239,8 @@ async function handleToolCallsIteration(
     ? iter.completion.content
     : `(${iter.parsedCalls.length} tool call(s) executed — see results below)`;
   ctx.history.push({ role: "assistant", content: assistantContent });
-  injectSoftLimitWarning(ctx.history, iter.iteration);
+  const maxIter = ctx.state.config.maxIterations ?? MAX_TOOL_ITERATIONS;
+  injectSoftLimitWarning(ctx.history, iter.iteration, maxIter);
 
   const batchResult = await processToolCallBatch(
     iter.parsedCalls,

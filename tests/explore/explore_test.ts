@@ -1,19 +1,17 @@
 /**
- * Tests for the explore tool — structured codebase understanding.
+ * Tests for the explore tool — single-agent codebase exploration.
  *
  * Covers: tool definitions, executor chain behavior, depth levels,
- * result assembly, token budget truncation, focus parameter handling,
- * LLM summary vs template fallback, and plan mode integration.
+ * prompt construction, focus parameter handling, error handling,
+ * and plan mode integration.
  */
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import {
-  assembleResult,
-  buildAgentTasks,
+  buildExplorePrompt,
   createExploreToolExecutor,
   EXPLORE_SYSTEM_PROMPT,
   getExploreToolDefinitions,
 } from "../../src/tools/explore/mod.ts";
-import type { ExploreResult } from "../../src/tools/explore/mod.ts";
 import { PLAN_ALLOWED_TOOLS } from "../../src/agent/plan/types.ts";
 
 // ─── Tool definitions ──────────────────────────────────────────
@@ -66,279 +64,120 @@ Deno.test("Executor validates empty path parameter", async () => {
   assertStringIncludes(result!, "Error");
 });
 
-Deno.test("Executor defaults depth to standard when not provided", async () => {
-  const calls: string[] = [];
-  // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async (task) => {
-    calls.push(task);
-    return "agent response";
-  });
-  const result = await executor("explore", { path: "/tmp/test" });
-  assert(result !== null);
-  const parsed = JSON.parse(result!) as ExploreResult;
-  assertEquals(parsed.depth, "standard");
-});
+// ─── Single agent spawning ─────────────────────────────────────
 
-// ─── Agent task counts by depth ────────────────────────────────
-
-Deno.test("Shallow depth spawns 2 sub-agents", async () => {
+Deno.test("Executor spawns exactly one subagent per call", async () => {
   let callCount = 0;
   // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => {
     callCount++;
-    return "response";
+    return "exploration results";
   });
-  await executor("explore", { path: "/tmp", depth: "shallow" });
-  assertEquals(callCount, 2);
+  await executor("explore", { path: "/tmp/test" });
+  assertEquals(callCount, 1);
 });
 
-Deno.test("Standard depth spawns 3 sub-agents (no focus)", async () => {
+Deno.test("Executor spawns one subagent regardless of depth", async () => {
+  for (const depth of ["shallow", "standard", "deep"]) {
+    let callCount = 0;
+    // deno-lint-ignore require-await
+    const executor = createExploreToolExecutor(async () => {
+      callCount++;
+      return "results";
+    });
+    await executor("explore", { path: "/tmp", depth });
+    assertEquals(callCount, 1, `depth=${depth} should spawn exactly 1 agent`);
+  }
+});
+
+Deno.test("Executor spawns one subagent with focus parameter", async () => {
   let callCount = 0;
   // deno-lint-ignore require-await
   const executor = createExploreToolExecutor(async () => {
     callCount++;
-    return "response";
-  });
-  await executor("explore", { path: "/tmp", depth: "standard" });
-  assertEquals(callCount, 3);
-});
-
-Deno.test("Standard depth spawns 4 sub-agents (with focus)", async () => {
-  let callCount = 0;
-  // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async () => {
-    callCount++;
-    return "response";
+    return "focus results";
   });
   await executor("explore", {
     path: "/tmp",
     depth: "standard",
     focus: "auth patterns",
   });
-  assertEquals(callCount, 4);
+  assertEquals(callCount, 1);
 });
 
-Deno.test("Deep depth spawns 5 sub-agents (no focus)", async () => {
-  let callCount = 0;
+// ─── Agent response passthrough ────────────────────────────────
+
+Deno.test("Executor returns agent response directly", async () => {
+  const agentResponse = "## Directory Structure\nsrc/\n├── core/\n└── agent/";
   // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async () => {
-    callCount++;
+  const executor = createExploreToolExecutor(async () => agentResponse);
+  const result = await executor("explore", { path: "/tmp" });
+  assertEquals(result, agentResponse);
+});
+
+Deno.test("Invalid depth defaults to standard", async () => {
+  let receivedPrompt = "";
+  // deno-lint-ignore require-await
+  const executor = createExploreToolExecutor(async (prompt) => {
+    receivedPrompt = prompt;
     return "response";
   });
-  await executor("explore", { path: "/tmp", depth: "deep" });
-  assertEquals(callCount, 5);
+  await executor("explore", { path: "/tmp", depth: "ultra_deep" });
+  // Standard depth includes pattern detection instructions
+  assertStringIncludes(receivedPrompt, "Detect coding patterns");
 });
 
-Deno.test("Deep depth spawns 6 sub-agents (with focus)", async () => {
-  let callCount = 0;
-  // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async () => {
-    callCount++;
-    return "response";
-  });
-  await executor("explore", {
-    path: "/tmp",
-    depth: "deep",
-    focus: "test structure",
-  });
-  assertEquals(callCount, 6);
+// ─── buildExplorePrompt ────────────────────────────────────────
+
+Deno.test("Shallow prompt includes path and tree instructions", () => {
+  const prompt = buildExplorePrompt("/project", "shallow");
+  assertStringIncludes(prompt, "/project");
+  assertStringIncludes(prompt, "directory structure");
+  assertStringIncludes(prompt, "## Directory Structure");
+  assertStringIncludes(prompt, "## Key Files");
 });
 
-// ─── buildAgentTasks ───────────────────────────────────────────
-
-Deno.test("buildAgentTasks returns correct task names for each depth", () => {
-  const shallow = buildAgentTasks("/tmp", "shallow");
-  assertEquals(shallow.map((t) => t.name), ["tree", "manifest"]);
-
-  const standard = buildAgentTasks("/tmp", "standard");
-  assertEquals(standard.map((t) => t.name), ["tree", "manifest", "pattern"]);
-
-  const standardFocus = buildAgentTasks("/tmp", "standard", "auth");
-  assertEquals(standardFocus.map((t) => t.name), [
-    "tree",
-    "manifest",
-    "pattern",
-    "focus",
-  ]);
-
-  const deep = buildAgentTasks("/tmp", "deep");
-  assertEquals(deep.map((t) => t.name), [
-    "tree",
-    "manifest",
-    "pattern",
-    "import",
-    "git",
-  ]);
-
-  const deepFocus = buildAgentTasks("/tmp", "deep", "testing");
-  assertEquals(deepFocus.map((t) => t.name), [
-    "tree",
-    "manifest",
-    "pattern",
-    "focus",
-    "import",
-    "git",
-  ]);
+Deno.test("Shallow prompt excludes standard-depth sections", () => {
+  const prompt = buildExplorePrompt("/project", "shallow");
+  assert(!prompt.includes("## Dependencies"));
+  assert(!prompt.includes("## Patterns"));
+  assert(!prompt.includes("Detect coding patterns"));
 });
 
-// ─── Focus parameter in prompts ────────────────────────────────
-
-Deno.test("Focus parameter appears in agent prompts when provided", () => {
-  const tasks = buildAgentTasks("/src", "standard", "how auth works");
-  const focusTask = tasks.find((t) => t.name === "focus");
-  assert(focusTask !== undefined);
-  assertStringIncludes(focusTask!.prompt, "how auth works");
+Deno.test("Standard prompt includes patterns and dependencies", () => {
+  const prompt = buildExplorePrompt("/project", "standard");
+  assertStringIncludes(prompt, "Detect coding patterns");
+  assertStringIncludes(prompt, "## Dependencies");
+  assertStringIncludes(prompt, "## Patterns & Conventions");
 });
 
-Deno.test("No focus agent when focus not provided", () => {
-  const tasks = buildAgentTasks("/src", "standard");
-  const focusTask = tasks.find((t) => t.name === "focus");
-  assertEquals(focusTask, undefined);
+Deno.test("Standard prompt excludes deep-only sections", () => {
+  const prompt = buildExplorePrompt("/project", "standard");
+  assert(!prompt.includes("## Module Dependencies"));
+  assert(!prompt.includes("## Git Status"));
+  assert(!prompt.includes("git log"));
 });
 
-// ─── Result assembly ───────────────────────────────────────────
-
-Deno.test("assembleResult produces valid structure", () => {
-  const results = new Map<string, string>();
-  results.set(
-    "tree",
-    `src/
-├── mod.ts  # Barrel export
-├── core/   # Core types
-└── agent/  # LLM stuff`,
-  );
-  results.set(
-    "manifest",
-    `## Dependencies
-- \`@std/assert\` v1.0
-
-## Entry Points
-- \`src/main.ts\` — CLI entry`,
-  );
-  results.set(
-    "pattern",
-    `**Error handling**: Uses Result<T,E> pattern throughout. Example: \`src/core/types/result.ts\`
-
-**Module structure**: One concept per file with barrel exports via mod.ts. Example: \`src/core/mod.ts\``,
-  );
-
-  const result = assembleResult("/project", "standard", results);
-
-  assertEquals(result.path, "/project");
-  assertEquals(result.depth, "standard");
-  assert(result.tree.length > 0);
-  assert(result.key_files.length > 0);
-  assert(result.patterns.length > 0);
-  assertEquals(result.focus_findings, "");
+Deno.test("Deep prompt includes all sections", () => {
+  const prompt = buildExplorePrompt("/project", "deep");
+  assertStringIncludes(prompt, "## Directory Structure");
+  assertStringIncludes(prompt, "## Dependencies");
+  assertStringIncludes(prompt, "## Patterns & Conventions");
+  assertStringIncludes(prompt, "## Module Dependencies");
+  assertStringIncludes(prompt, "## Git Status");
+  assertStringIncludes(prompt, "git log");
+  assertStringIncludes(prompt, "Trace imports");
 });
 
-Deno.test("assembleResult includes focus findings", () => {
-  const results = new Map<string, string>();
-  results.set("tree", "src/");
-  results.set("manifest", "");
-  results.set("pattern", "");
-  results.set("focus", "Found auth patterns in src/auth/middleware.ts");
-
-  const result = assembleResult("/project", "standard", results);
-  assertStringIncludes(result.focus_findings, "auth patterns");
+Deno.test("Focus parameter appears in prompt when provided", () => {
+  const prompt = buildExplorePrompt("/src", "standard", "how auth works");
+  assertStringIncludes(prompt, "how auth works");
+  assertStringIncludes(prompt, "Priority focus");
 });
 
-Deno.test("assembleResult includes git info in tree for deep exploration", () => {
-  const results = new Map<string, string>();
-  results.set("tree", "src/");
-  results.set("manifest", "");
-  results.set("git", "## Recent Commits\n- abc123 feat: add auth");
-
-  const result = assembleResult("/project", "deep", results);
-  assertStringIncludes(result.tree, "Git Status");
-  assertStringIncludes(result.tree, "abc123");
-});
-
-// ─── Token budget truncation ───────────────────────────────────
-
-Deno.test("key_files capped at 20", () => {
-  const results = new Map<string, string>();
-  // Generate tree with many key files
-  const lines: string[] = [];
-  for (let i = 0; i < 30; i++) {
-    lines.push(`- \`file${i}.ts\` — Role ${i}`);
-  }
-  results.set("tree", lines.join("\n"));
-  results.set("manifest", "");
-
-  const result = assembleResult("/project", "standard", results);
-  assert(result.key_files.length <= 20);
-});
-
-Deno.test("patterns capped at 8", () => {
-  const results = new Map<string, string>();
-  results.set("tree", "");
-  results.set("manifest", "");
-  // Generate many patterns
-  const patternLines: string[] = [];
-  for (let i = 0; i < 15; i++) {
-    patternLines.push(
-      `**Pattern${i}**: Description of pattern ${i}. Example: \`src/p${i}.ts\``,
-    );
-  }
-  results.set("pattern", patternLines.join("\n\n"));
-
-  const result = assembleResult("/project", "standard", results);
-  assert(result.patterns.length <= 8);
-});
-
-Deno.test("tree truncated when too long", () => {
-  const results = new Map<string, string>();
-  const longTree = Array.from({ length: 300 }, (_, i) => `line ${i}`).join(
-    "\n",
-  );
-  results.set("tree", longTree);
-  results.set("manifest", "");
-
-  const result = assembleResult("/project", "shallow", results);
-  assertStringIncludes(result.tree, "truncated");
-});
-
-// ─── Summary generation ────────────────────────────────────────
-
-Deno.test("llmTask used for summary when available", async () => {
-  const executor = createExploreToolExecutor(
-    // deno-lint-ignore require-await
-    async () => "agent response",
-    // deno-lint-ignore require-await
-    async (_prompt: string) => "LLM-generated summary of the codebase.",
-  );
-
-  const result = await executor("explore", { path: "/tmp" });
-  assert(result !== null);
-  const parsed = JSON.parse(result!) as ExploreResult;
-  assertEquals(parsed.summary, "LLM-generated summary of the codebase.");
-});
-
-Deno.test("Template fallback when llmTask not provided", async () => {
-  // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async () => "agent response");
-  const result = await executor("explore", { path: "/tmp" });
-  assert(result !== null);
-  const parsed = JSON.parse(result!) as ExploreResult;
-  assertStringIncludes(parsed.summary, "Explored /tmp");
-  assertStringIncludes(parsed.summary, "standard depth");
-});
-
-Deno.test("Template fallback when llmTask throws", async () => {
-  const executor = createExploreToolExecutor(
-    // deno-lint-ignore require-await
-    async () => "agent response",
-    // deno-lint-ignore require-await
-    async () => {
-      throw new Error("LLM unavailable");
-    },
-  );
-
-  const result = await executor("explore", { path: "/tmp" });
-  assert(result !== null);
-  const parsed = JSON.parse(result!) as ExploreResult;
-  assertStringIncludes(parsed.summary, "Explored /tmp");
+Deno.test("No focus instructions when focus not provided", () => {
+  const prompt = buildExplorePrompt("/src", "standard");
+  assert(!prompt.includes("Priority focus"));
 });
 
 // ─── Error handling ────────────────────────────────────────────
@@ -350,9 +189,8 @@ Deno.test("Executor handles sub-agent errors gracefully", async () => {
   });
   const result = await executor("explore", { path: "/tmp" });
   assert(result !== null);
-  // Should still produce valid JSON even with error responses
-  const parsed = JSON.parse(result!) as ExploreResult;
-  assertEquals(parsed.path, "/tmp");
+  assertStringIncludes(result!, "Explore agent error");
+  assertStringIncludes(result!, "spawn failed");
 });
 
 // ─── Plan mode integration ─────────────────────────────────────
@@ -368,22 +206,26 @@ Deno.test("EXPLORE_SYSTEM_PROMPT is non-empty and mentions explore", () => {
   assertStringIncludes(EXPLORE_SYSTEM_PROMPT, "explore");
 });
 
-// ─── Invalid depth handled ─────────────────────────────────────
+// ─── Prompt passes path to agent ───────────────────────────────
 
-Deno.test("Invalid depth defaults to standard", async () => {
-  let callCount = 0;
+Deno.test("Subagent receives prompt containing the target path", async () => {
+  let receivedPrompt = "";
   // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async () => {
-    callCount++;
-    return "response";
+  const executor = createExploreToolExecutor(async (prompt) => {
+    receivedPrompt = prompt;
+    return "results";
   });
-  const result = await executor("explore", {
-    path: "/tmp",
-    depth: "ultra_deep",
+  await executor("explore", { path: "/var/project/src" });
+  assertStringIncludes(receivedPrompt, "/var/project/src");
+});
+
+Deno.test("Subagent prompt instructs read-only tool usage", async () => {
+  let receivedPrompt = "";
+  // deno-lint-ignore require-await
+  const executor = createExploreToolExecutor(async (prompt) => {
+    receivedPrompt = prompt;
+    return "results";
   });
-  assert(result !== null);
-  const parsed = JSON.parse(result!) as ExploreResult;
-  assertEquals(parsed.depth, "standard");
-  // standard without focus = 3 agents
-  assertEquals(callCount, 3);
+  await executor("explore", { path: "/tmp" });
+  assertStringIncludes(receivedPrompt, "read-only tools");
 });

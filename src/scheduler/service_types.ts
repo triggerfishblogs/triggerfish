@@ -35,6 +35,12 @@ export interface OrchestratorCreateOptions {
    * Ignored unless isTrigger is true (owner sessions have no ceiling).
    */
   readonly ceiling?: ClassificationLevel;
+  /**
+   * Maximum agent loop iterations for this session.
+   * Defaults to MAX_TOOL_ITERATIONS (25) when not set.
+   * Use lower values for short-lived sessions (e.g. explore subagents: 5).
+   */
+  readonly maxIterations?: number;
 }
 
 /**

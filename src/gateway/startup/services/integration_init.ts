@@ -206,9 +206,11 @@ export async function buildIntegrationExecutors(
     integrationClassifications: Map<string, ClassificationLevel>;
   },
 ) {
-  const { state, factory, registry, mainWorkspace } = toolInfra;
-  const subagentFactory = buildSubagentFactory(factory);
-  const exploreExecutor = buildExploreExecutor(subagentFactory, registry);
+  const { state, factory, mainWorkspace } = toolInfra;
+  const subagentFactory = buildSubagentFactory(factory, {
+    maxIterations: 5,
+  });
+  const exploreExecutor = buildExploreExecutor(subagentFactory);
   const external = await buildExternalServiceExecutors(
     bootstrap.config,
     toolInfra.hookRunner,

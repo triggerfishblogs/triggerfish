@@ -64,12 +64,18 @@ async function executeIteration(
   return { done: true, result: outcome.result };
 }
 
+/** Resolve the effective iteration limit from orchestrator config. */
+function resolveMaxIterations(state: OrchestratorState): number {
+  return state.config.maxIterations ?? MAX_TOOL_ITERATIONS;
+}
+
 /** The main agent loop: call LLM, parse tool calls, execute, repeat. */
 export async function runAgentLoop(
   opts: AgentLoopOptions,
 ): Promise<Result<ProcessMessageResult, string>> {
   const ctx = buildAgentLoopContext(opts);
-  for (let i = 1; i <= MAX_TOOL_ITERATIONS; i++) {
+  const limit = resolveMaxIterations(opts.state);
+  for (let i = 1; i <= limit; i++) {
     if (opts.signal?.aborted) {
       return { ok: false, error: "Operation cancelled by user" };
     }

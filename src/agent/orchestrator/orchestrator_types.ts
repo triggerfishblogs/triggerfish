@@ -77,6 +77,12 @@ export interface OrchestratorConfig {
   readonly hookRunner: HookRunner;
   readonly providerRegistry: LlmProviderRegistry;
   readonly spinePath?: string;
+  /**
+   * Maximum tool call iterations before stopping the agent loop.
+   * Defaults to MAX_TOOL_ITERATIONS (25) when not set.
+   * Use lower values for short-lived sessions like explore subagents.
+   */
+  readonly maxIterations?: number;
   /** Tool definitions available to the agent. */
   readonly tools?: readonly ToolDefinition[];
   /**

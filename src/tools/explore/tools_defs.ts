@@ -1,47 +1,24 @@
 /**
- * Explore tool types, definitions, and system prompt.
+ * Explore tool definition, depth type, and system prompt.
  *
- * Defines the public result types (ExploreResult, KeyFile, Pattern),
- * the single `explore` tool schema, and the system prompt section.
+ * Defines the `explore` tool schema and the system prompt section
+ * for single-agent codebase exploration.
  *
  * @module
  */
 
 import type { ToolDefinition } from "../../core/types/tool.ts";
 
-/** A key file identified during exploration. */
-export interface KeyFile {
-  readonly path: string;
-  readonly role: string;
-}
-
-/** A pattern or convention detected in the codebase. */
-export interface Pattern {
-  readonly name: string;
-  readonly description: string;
-  readonly examples: readonly string[];
-}
-
-/** Structured result from the explore tool. */
-export interface ExploreResult {
-  readonly path: string;
-  readonly depth: ExploreDepth;
-  readonly tree: string;
-  readonly key_files: readonly KeyFile[];
-  readonly patterns: readonly Pattern[];
-  readonly dependencies: string;
-  readonly focus_findings: string;
-  readonly summary: string;
-}
-
 /** Exploration depth levels. */
 export type ExploreDepth = "shallow" | "standard" | "deep";
 
+/** Build the explore tool definition. */
 function buildExploreDef(): ToolDefinition {
   return {
     name: "explore",
     description:
-      "Explore a directory or codebase to understand structure, patterns, and conventions. Spawns parallel agents for fast, thorough understanding. Read-only.",
+      "Explore a directory or codebase to understand structure, patterns, and conventions. " +
+      "Spawns an agent for thorough read-only exploration.",
     parameters: {
       path: {
         type: "string",
@@ -56,7 +33,8 @@ function buildExploreDef(): ToolDefinition {
       },
       depth: {
         type: "string",
-        description: "How thorough: 'shallow', 'standard' (default), or 'deep'",
+        description:
+          "How thorough: 'shallow', 'standard' (default), or 'deep'",
         required: false,
       },
     },
@@ -72,7 +50,7 @@ export function getExploreToolDefinitions(): readonly ToolDefinition[] {
 export const EXPLORE_SYSTEM_PROMPT = `## Explore Tool
 
 Use \`explore\` before modifying unfamiliar code or at the start of non-trivial tasks.
-Spawns parallel agents — faster and more thorough than manually calling read_file/list_directory/search_files in sequence.
+Explores a directory using an agent with read-only tools for thorough understanding.
 
 Use the focus parameter to direct exploration:
   explore({ path: "src/auth", focus: "how tokens are validated" })

@@ -1,5 +1,5 @@
 /**
- * Explore module — structured codebase understanding via parallel sub-agents.
+ * Explore module — single-agent codebase exploration.
  *
  * @module
  */
@@ -9,18 +9,8 @@ export {
   getExploreToolDefinitions,
 } from "./tools_defs.ts";
 
-export type {
-  ExploreDepth,
-  ExploreResult,
-  KeyFile,
-  Pattern,
-} from "./tools_defs.ts";
+export type { ExploreDepth } from "./tools_defs.ts";
 
-export { buildAgentTasks } from "./prompts.ts";
-export type { AgentTask } from "./prompts.ts";
-
-export { extractKeyFiles, extractPatterns, truncateTree } from "./parsers.ts";
-
-export { assembleResult, buildTemplateSummary } from "./assembly.ts";
+export { buildExplorePrompt } from "./prompts.ts";
 
 export { createExploreToolExecutor } from "./executor.ts";

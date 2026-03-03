@@ -8,6 +8,12 @@
 
 import type { OrchestratorFactory } from "../../../scheduler/service_types.ts";
 
+/** Options for building a subagent factory. */
+export interface SubagentFactoryOptions {
+  /** Maximum agent loop iterations per subagent. Defaults to global MAX_TOOL_ITERATIONS. */
+  readonly maxIterations?: number;
+}
+
 /**
  * Build a subagent factory that uses OrchestratorFactory to spawn isolated agents.
  *
@@ -16,9 +22,12 @@ import type { OrchestratorFactory } from "../../../scheduler/service_types.ts";
  */
 export function buildSubagentFactory(
   orchFactory: OrchestratorFactory,
+  opts?: SubagentFactoryOptions,
 ): (task: string, tools?: string) => Promise<string> {
   return async (task: string, _tools?: string): Promise<string> => {
-    const { orchestrator, session } = await orchFactory.create("subagent");
+    const { orchestrator, session } = await orchFactory.create("subagent", {
+      maxIterations: opts?.maxIterations,
+    });
     const result = await orchestrator.executeAgentTurn({
       session,
       message: task,

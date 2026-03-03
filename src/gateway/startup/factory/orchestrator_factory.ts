@@ -248,6 +248,7 @@ export function createOrchestratorFactory(
         hookRunner: infra.hookRunner,
         providerRegistry: infra.registry,
         spinePath: infra.spinePath,
+        maxIterations: options?.maxIterations,
         tools: resolveToolsForProfile(toolProfile),
         toolExecutor,
         systemPromptSections: [
