@@ -139,6 +139,10 @@ export function initializeMcpServers(
 /** Build explore executor backed by a single subagent. */
 export function buildExploreExecutor(
   subagentFactory: ReturnType<typeof buildSubagentFactory>,
+  preflightListDirectory?: (path: string) => Promise<string | null>,
 ) {
-  return createExploreToolExecutor(subagentFactory);
+  return createExploreToolExecutor({
+    spawnSubagent: subagentFactory,
+    preflightListDirectory,
+  });
 }

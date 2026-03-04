@@ -43,3 +43,8 @@ export { assembleResult, buildTemplateSummary } from "./assembly.ts";
 // ─── Re-exports from executor.ts ───────────────────────────────────────────
 
 export { createExploreToolExecutor } from "./executor.ts";
+export type { ExploreExecutorOptions } from "./executor.ts";
+
+// ─── Re-exports from budget.ts ────────────────────────────────────────────
+
+export { computeExploreIterationBudget } from "./budget.ts";

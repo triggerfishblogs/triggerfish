@@ -21,19 +21,37 @@ export interface SubagentFactoryOptions {
   readonly workspace?: Workspace;
 }
 
+/** Per-call spawn options that override factory defaults. */
+export interface SubagentSpawnOptions {
+  /** Override the factory-level maxIterations for this specific spawn. */
+  readonly maxIterations?: number;
+}
+
 /**
  * Build a subagent factory that uses OrchestratorFactory to spawn isolated agents.
  *
  * Each call creates a fresh orchestrator + session and processes the task prompt,
  * returning the agent's text response.
+ *
+ * The returned function accepts an optional third argument to override factory
+ * defaults on a per-call basis (e.g. adaptive iteration budget for explore).
  */
 export function buildSubagentFactory(
   orchFactory: OrchestratorFactory,
   opts?: SubagentFactoryOptions,
-): (task: string, tools?: string) => Promise<string> {
-  return async (task: string, _tools?: string): Promise<string> => {
+): (
+  task: string,
+  tools?: string,
+  spawnOpts?: SubagentSpawnOptions,
+) => Promise<string> {
+  return async (
+    task: string,
+    _tools?: string,
+    spawnOpts?: SubagentSpawnOptions,
+  ): Promise<string> => {
+    const maxIterations = spawnOpts?.maxIterations ?? opts?.maxIterations;
     const { orchestrator, session } = await orchFactory.create("subagent", {
-      maxIterations: opts?.maxIterations,
+      maxIterations,
       workspace: opts?.workspace,
     });
     const result = await orchestrator.executeAgentTurn({

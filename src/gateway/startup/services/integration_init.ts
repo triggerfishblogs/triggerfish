@@ -211,7 +211,23 @@ export async function buildIntegrationExecutors(
     maxIterations: 5,
     workspace: mainWorkspace,
   });
-  const exploreExecutor = buildExploreExecutor(subagentFactory);
+  const preflightListDirectory = async (
+    path: string,
+  ): Promise<string | null> => {
+    try {
+      const entries: string[] = [];
+      for await (const entry of Deno.readDir(path)) {
+        entries.push(entry.name + (entry.isDirectory ? "/" : ""));
+      }
+      return entries.length > 0 ? entries.join("\n") : "(empty directory)";
+    } catch {
+      return null;
+    }
+  };
+  const exploreExecutor = buildExploreExecutor(
+    subagentFactory,
+    preflightListDirectory,
+  );
   const external = await buildExternalServiceExecutors(
     bootstrap.config,
     toolInfra.hookRunner,

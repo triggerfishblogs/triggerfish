@@ -3,11 +3,12 @@
  *
  * Covers: tool definitions, executor chain behavior, depth levels,
  * prompt construction, focus parameter handling, error handling,
- * and plan mode integration.
+ * adaptive budget computation, and plan mode integration.
  */
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import {
   buildExplorePrompt,
+  computeExploreIterationBudget,
   createExploreToolExecutor,
   EXPLORE_SYSTEM_PROMPT,
   getExploreToolDefinitions,
@@ -33,14 +34,14 @@ Deno.test("getExploreToolDefinitions returns correct tool definition", () => {
 
 Deno.test("createExploreToolExecutor returns null for non-explore tool names", async () => {
   // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async () => "");
+  const executor = createExploreToolExecutor({ spawnSubagent: async () => "" });
   const result = await executor("read_file", { path: "/tmp" });
   assertEquals(result, null);
 });
 
 Deno.test("createExploreToolExecutor returns null for unknown tool names", async () => {
   // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async () => "");
+  const executor = createExploreToolExecutor({ spawnSubagent: async () => "" });
   const result = await executor("some_other_tool", { foo: "bar" });
   assertEquals(result, null);
 });
@@ -48,8 +49,10 @@ Deno.test("createExploreToolExecutor returns null for unknown tool names", async
 // ─── Executor: validation ──────────────────────────────────────
 
 Deno.test("Executor validates required path parameter", async () => {
-  // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async () => "response");
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async () => "response",
+  });
   const result = await executor("explore", {});
   assert(result !== null);
   assertStringIncludes(result!, "Error");
@@ -57,8 +60,10 @@ Deno.test("Executor validates required path parameter", async () => {
 });
 
 Deno.test("Executor validates empty path parameter", async () => {
-  // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async () => "response");
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async () => "response",
+  });
   const result = await executor("explore", { path: "" });
   assert(result !== null);
   assertStringIncludes(result!, "Error");
@@ -68,10 +73,12 @@ Deno.test("Executor validates empty path parameter", async () => {
 
 Deno.test("Executor spawns exactly one subagent per call", async () => {
   let callCount = 0;
-  // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async () => {
-    callCount++;
-    return "exploration results";
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async () => {
+      callCount++;
+      return "exploration results";
+    },
   });
   await executor("explore", { path: "/tmp/test" });
   assertEquals(callCount, 1);
@@ -80,10 +87,12 @@ Deno.test("Executor spawns exactly one subagent per call", async () => {
 Deno.test("Executor spawns one subagent regardless of depth", async () => {
   for (const depth of ["shallow", "standard", "deep"]) {
     let callCount = 0;
-    // deno-lint-ignore require-await
-    const executor = createExploreToolExecutor(async () => {
-      callCount++;
-      return "results";
+    const executor = createExploreToolExecutor({
+      // deno-lint-ignore require-await
+      spawnSubagent: async () => {
+        callCount++;
+        return "results";
+      },
     });
     await executor("explore", { path: "/tmp", depth });
     assertEquals(callCount, 1, `depth=${depth} should spawn exactly 1 agent`);
@@ -92,10 +101,12 @@ Deno.test("Executor spawns one subagent regardless of depth", async () => {
 
 Deno.test("Executor spawns one subagent with focus parameter", async () => {
   let callCount = 0;
-  // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async () => {
-    callCount++;
-    return "focus results";
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async () => {
+      callCount++;
+      return "focus results";
+    },
   });
   await executor("explore", {
     path: "/tmp",
@@ -109,18 +120,22 @@ Deno.test("Executor spawns one subagent with focus parameter", async () => {
 
 Deno.test("Executor returns agent response directly", async () => {
   const agentResponse = "## Directory Structure\nsrc/\n├── core/\n└── agent/";
-  // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async () => agentResponse);
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async () => agentResponse,
+  });
   const result = await executor("explore", { path: "/tmp" });
   assertEquals(result, agentResponse);
 });
 
 Deno.test("Invalid depth defaults to standard", async () => {
   let receivedPrompt = "";
-  // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async (prompt) => {
-    receivedPrompt = prompt;
-    return "response";
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async (prompt) => {
+      receivedPrompt = prompt;
+      return "response";
+    },
   });
   await executor("explore", { path: "/tmp", depth: "ultra_deep" });
   // Standard depth includes pattern detection instructions
@@ -183,9 +198,11 @@ Deno.test("No focus instructions when focus not provided", () => {
 // ─── Error handling ────────────────────────────────────────────
 
 Deno.test("Executor handles sub-agent errors gracefully", async () => {
-  // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async () => {
-    throw new Error("spawn failed");
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async () => {
+      throw new Error("spawn failed");
+    },
   });
   const result = await executor("explore", { path: "/tmp" });
   assert(result !== null);
@@ -210,10 +227,12 @@ Deno.test("EXPLORE_SYSTEM_PROMPT is non-empty and mentions explore", () => {
 
 Deno.test("Subagent receives prompt containing the target path", async () => {
   let receivedPrompt = "";
-  // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async (prompt) => {
-    receivedPrompt = prompt;
-    return "results";
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async (prompt) => {
+      receivedPrompt = prompt;
+      return "results";
+    },
   });
   await executor("explore", { path: "/var/project/src" });
   assertStringIncludes(receivedPrompt, "/var/project/src");
@@ -221,11 +240,152 @@ Deno.test("Subagent receives prompt containing the target path", async () => {
 
 Deno.test("Subagent prompt instructs read-only tool usage", async () => {
   let receivedPrompt = "";
-  // deno-lint-ignore require-await
-  const executor = createExploreToolExecutor(async (prompt) => {
-    receivedPrompt = prompt;
-    return "results";
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async (prompt) => {
+      receivedPrompt = prompt;
+      return "results";
+    },
   });
   await executor("explore", { path: "/tmp" });
   assertStringIncludes(receivedPrompt, "read-only tools");
+});
+
+// ─── Adaptive budget computation ───────────────────────────────
+
+Deno.test("computeExploreIterationBudget: null entryCount returns default 5", () => {
+  assertEquals(computeExploreIterationBudget(null, "standard"), 5);
+  assertEquals(computeExploreIterationBudget(null, "shallow"), 5);
+  assertEquals(computeExploreIterationBudget(null, "deep"), 5);
+});
+
+Deno.test("computeExploreIterationBudget: shallow always returns 3", () => {
+  assertEquals(computeExploreIterationBudget(0, "shallow"), 3);
+  assertEquals(computeExploreIterationBudget(3, "shallow"), 3);
+  assertEquals(computeExploreIterationBudget(20, "shallow"), 3);
+  assertEquals(computeExploreIterationBudget(100, "shallow"), 3);
+});
+
+Deno.test("computeExploreIterationBudget: standard uses entry count brackets", () => {
+  // 0-5 entries → 3
+  assertEquals(computeExploreIterationBudget(0, "standard"), 3);
+  assertEquals(computeExploreIterationBudget(5, "standard"), 3);
+  // 6-15 entries → 5
+  assertEquals(computeExploreIterationBudget(6, "standard"), 5);
+  assertEquals(computeExploreIterationBudget(15, "standard"), 5);
+  // 16-30 entries → 7
+  assertEquals(computeExploreIterationBudget(16, "standard"), 7);
+  assertEquals(computeExploreIterationBudget(30, "standard"), 7);
+  // 31+ entries → 10
+  assertEquals(computeExploreIterationBudget(31, "standard"), 10);
+  assertEquals(computeExploreIterationBudget(200, "standard"), 10);
+});
+
+Deno.test("computeExploreIterationBudget: deep adds 3 to base, capped at 12", () => {
+  // 0-5 entries → base 3 + 3 = 6
+  assertEquals(computeExploreIterationBudget(3, "deep"), 6);
+  // 6-15 entries → base 5 + 3 = 8
+  assertEquals(computeExploreIterationBudget(10, "deep"), 8);
+  // 16-30 entries → base 7 + 3 = 10
+  assertEquals(computeExploreIterationBudget(20, "deep"), 10);
+  // 31+ entries → base 10 + 3 = 13 → capped at 12
+  assertEquals(computeExploreIterationBudget(50, "deep"), 12);
+});
+
+// ─── Preflight integration ─────────────────────────────────────
+
+Deno.test("Executor passes computed budget as maxIterations to spawnSubagent", async () => {
+  let receivedOpts: { readonly maxIterations?: number } | undefined;
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async (_task, _tools, spawnOpts) => {
+      receivedOpts = spawnOpts;
+      return "results";
+    },
+    // deno-lint-ignore require-await
+    preflightListDirectory: async () => "a.ts\nb.ts\nc.ts",
+  });
+  await executor("explore", { path: "/tmp", depth: "standard" });
+  // 3 entries + standard → budget = 3
+  assertEquals(receivedOpts?.maxIterations, 3);
+});
+
+Deno.test("Executor uses default budget when preflight returns null", async () => {
+  let receivedOpts: { readonly maxIterations?: number } | undefined;
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async (_task, _tools, spawnOpts) => {
+      receivedOpts = spawnOpts;
+      return "results";
+    },
+    // deno-lint-ignore require-await
+    preflightListDirectory: async () => null,
+  });
+  await executor("explore", { path: "/nonexistent", depth: "standard" });
+  assertEquals(receivedOpts?.maxIterations, 5);
+});
+
+Deno.test("Executor uses default budget when preflight throws", async () => {
+  let receivedOpts: { readonly maxIterations?: number } | undefined;
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async (_task, _tools, spawnOpts) => {
+      receivedOpts = spawnOpts;
+      return "results";
+    },
+    // deno-lint-ignore require-await
+    preflightListDirectory: async () => {
+      throw new Error("permission denied");
+    },
+  });
+  await executor("explore", { path: "/tmp", depth: "standard" });
+  assertEquals(receivedOpts?.maxIterations, 5);
+});
+
+Deno.test("Executor uses default budget when no preflight provided", async () => {
+  let receivedOpts: { readonly maxIterations?: number } | undefined;
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async (_task, _tools, spawnOpts) => {
+      receivedOpts = spawnOpts;
+      return "results";
+    },
+  });
+  await executor("explore", { path: "/tmp", depth: "standard" });
+  assertEquals(receivedOpts?.maxIterations, 5);
+});
+
+Deno.test("Executor computes deep budget from large directory", async () => {
+  let receivedOpts: { readonly maxIterations?: number } | undefined;
+  // 35 entries → base 10, deep +3 = 13 → capped at 12
+  const entries = Array.from({ length: 35 }, (_, i) => `file${i}.ts`).join(
+    "\n",
+  );
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async (_task, _tools, spawnOpts) => {
+      receivedOpts = spawnOpts;
+      return "results";
+    },
+    // deno-lint-ignore require-await
+    preflightListDirectory: async () => entries,
+  });
+  await executor("explore", { path: "/tmp", depth: "deep" });
+  assertEquals(receivedOpts?.maxIterations, 12);
+});
+
+Deno.test("Executor handles empty directory listing", async () => {
+  let receivedOpts: { readonly maxIterations?: number } | undefined;
+  const executor = createExploreToolExecutor({
+    // deno-lint-ignore require-await
+    spawnSubagent: async (_task, _tools, spawnOpts) => {
+      receivedOpts = spawnOpts;
+      return "results";
+    },
+    // deno-lint-ignore require-await
+    preflightListDirectory: async () => "(empty directory)",
+  });
+  await executor("explore", { path: "/tmp/empty", depth: "standard" });
+  // 0 entries → budget = 3
+  assertEquals(receivedOpts?.maxIterations, 3);
 });

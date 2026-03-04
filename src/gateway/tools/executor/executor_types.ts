@@ -49,7 +49,11 @@ export interface ToolExecutorOptions {
   readonly healthcheckExecutor?: SubsystemExecutor;
   readonly mcpExecutor?: SubsystemExecutor;
   readonly claudeExecutor?: SubsystemExecutor;
-  readonly subagentFactory?: (task: string, tools?: string) => Promise<string>;
+  readonly subagentFactory?: (
+    task: string,
+    tools?: string,
+    spawnOpts?: { readonly maxIterations?: number },
+  ) => Promise<string>;
   readonly secretExecutor?: SubsystemExecutor;
   readonly triggerExecutor?: SubsystemExecutor;
   readonly skillExecutor?: SubsystemExecutor;
