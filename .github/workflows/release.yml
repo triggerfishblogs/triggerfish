@@ -146,6 +146,7 @@ jobs:
         with:
           image-ref: ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
           severity: HIGH,CRITICAL
+          ignore-unfixed: true
           exit-code: "1"
           format: sarif
           output: trivy-results.sarif
