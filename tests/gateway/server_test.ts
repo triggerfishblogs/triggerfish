@@ -63,9 +63,9 @@ Deno.test("GatewayServer: POST /debug/run-triggers fires trigger when scheduler 
     },
   };
 
-  // deno-lint-ignore no-explicit-any
   const server = createGatewayServer({
     port: 0,
+    // deno-lint-ignore no-explicit-any
     schedulerService: mockScheduler as any,
   });
   try {
@@ -227,9 +227,9 @@ Deno.test("GatewayServer: webhook rejects body exceeding 1MB", async () => {
     async runTrigger() {},
   };
 
-  // deno-lint-ignore no-explicit-any
   const server = createGatewayServer({
     port: 0,
+    // deno-lint-ignore no-explicit-any
     schedulerService: mockScheduler as any,
   });
   const addr = await server.start();

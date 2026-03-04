@@ -47,8 +47,7 @@ function collectRawLinks(
   return page.evaluate(
     (cap: number) => {
       // deno-lint-ignore no-explicit-any
-      const anchors =
-        (globalThis as any).document?.querySelectorAll("a[href]") ?? [];
+      const anchors = (globalThis as any).document?.querySelectorAll("a[href]") ?? [];
       const results: Array<{ text: string; href: string }> = [];
       for (const a of anchors) {
         if (results.length >= cap) break;

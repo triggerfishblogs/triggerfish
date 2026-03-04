@@ -6,12 +6,19 @@
  * @module
  */
 
+import type { Workspace } from "../../../exec/workspace_types.ts";
 import type { OrchestratorFactory } from "../../../scheduler/service_types.ts";
 
 /** Options for building a subagent factory. */
 export interface SubagentFactoryOptions {
   /** Maximum agent loop iterations per subagent. Defaults to global MAX_TOOL_ITERATIONS. */
   readonly maxIterations?: number;
+  /**
+   * Parent workspace to reuse for subagent sessions.
+   * When provided, the subagent shares the parent's workspace and sandbox
+   * boundary instead of creating a fresh isolated workspace.
+   */
+  readonly workspace?: Workspace;
 }
 
 /**
@@ -27,6 +34,7 @@ export function buildSubagentFactory(
   return async (task: string, _tools?: string): Promise<string> => {
     const { orchestrator, session } = await orchFactory.create("subagent", {
       maxIterations: opts?.maxIterations,
+      workspace: opts?.workspace,
     });
     const result = await orchestrator.executeAgentTurn({
       session,

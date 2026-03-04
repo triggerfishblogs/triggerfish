@@ -209,6 +209,7 @@ export async function buildIntegrationExecutors(
   const { state, factory, mainWorkspace } = toolInfra;
   const subagentFactory = buildSubagentFactory(factory, {
     maxIterations: 5,
+    workspace: mainWorkspace,
   });
   const exploreExecutor = buildExploreExecutor(subagentFactory);
   const external = await buildExternalServiceExecutors(

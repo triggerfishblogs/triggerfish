@@ -22,7 +22,5 @@
  */
 export function sanitizePathForPrompt(path: string): string {
   // deno-lint-ignore no-control-regex
-  const unsafeCharsPattern =
-    /[\x00-\x1F\x7F-\x9F\u200B-\u200F\u2028-\u2029\u202A-\u202E\u2066-\u2069\uFEFF]/g;
-  return path.replace(unsafeCharsPattern, "");
+  return path.replace(/[\x00-\x1F\x7F-\x9F\u200B-\u200F\u2028-\u2029\u202A-\u202E\u2066-\u2069\uFEFF]/g, "");
 }

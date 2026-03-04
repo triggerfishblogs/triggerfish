@@ -196,11 +196,13 @@ export function createOrchestratorFactory(
       const triggerCeiling = options?.ceiling ?? null;
       const agentId = `scheduler-${channelId}-${Date.now()}`;
 
-      const workspace = await createWorkspace({
+      const workspace = options?.workspace ?? await createWorkspace({
         agentId,
         basePath: join(baseDir, "workspaces"),
       });
-      await symlinkSpineToWorkspace(infra.spinePath, workspace.path);
+      if (!options?.workspace) {
+        await symlinkSpineToWorkspace(infra.spinePath, workspace.path);
+      }
 
       let session = createSession({
         userId: "owner" as UserId,

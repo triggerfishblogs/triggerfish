@@ -144,16 +144,16 @@ Deno.test("deliver: fans out to multiple channels", async () => {
   const ch1: string[] = [];
   const ch2: string[] = [];
 
-  // deno-lint-ignore require-await
   svc.registerChannel({
     name: "ch1",
+    // deno-lint-ignore require-await
     send: async (msg) => {
       ch1.push(msg);
     },
   });
-  // deno-lint-ignore require-await
   svc.registerChannel({
     name: "ch2",
+    // deno-lint-ignore require-await
     send: async (msg) => {
       ch2.push(msg);
     },
@@ -204,9 +204,9 @@ Deno.test("flushPending: delivers queued notifications when channel becomes avai
 
   // Register a channel and flush
   const delivered: string[] = [];
-  // deno-lint-ignore require-await
   svc.registerChannel({
     name: "late",
+    // deno-lint-ignore require-await
     send: async (msg) => {
       delivered.push(msg);
     },

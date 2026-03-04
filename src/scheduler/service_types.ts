@@ -41,6 +41,12 @@ export interface OrchestratorCreateOptions {
    * Use lower values for short-lived sessions (e.g. explore subagents: 5).
    */
   readonly maxIterations?: number;
+  /**
+   * Existing workspace to reuse instead of creating a fresh one.
+   * Used by subagents spawned from the main session so they share
+   * the parent's workspace and sandbox boundary.
+   */
+  readonly workspace?: import("../exec/workspace_types.ts").Workspace;
 }
 
 /**

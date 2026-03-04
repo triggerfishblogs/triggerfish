@@ -92,9 +92,8 @@ export function buildWorkspacePrompt(
   return [
     "## Workspace",
     "Your working directory is the current directory (`.`).",
-    "All file paths are relative to this directory.",
-    "Use relative paths (e.g. `./myfile.txt`, `src/`) for all file operations.",
-    "Paths outside your workspace are not accessible.",
+    "All file operations are relative to your workspace.",
+    "Stay within your workspace for all file reads and writes.",
   ].join("\n");
 }
 
