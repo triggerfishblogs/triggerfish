@@ -18,7 +18,7 @@ COPY config/ config/
 # Compile with bundled config, skills, and templates
 RUN deno compile --allow-all \
     --include config/ \
-    --include src/skills/ \
+    --include skills/ \
     --include src/exec/sandbox/worker.ts \
     --include src/tools/tidepool/tmpl_base.html \
     --include src/tools/tidepool/tmpl_styles.html \
@@ -30,17 +30,16 @@ RUN deno compile --allow-all \
     src/cli/main.ts
 
 # ============================================================
-# Stage 2: Runtime — Debian Trixie for GLIBC 2.40+
-# (SQLite FFI requires GLIBC >= 2.38, Bookworm only has 2.36)
+# Stage 2: Runtime — distroless for minimal attack surface
+# Statically-linked Deno binary needs only glibc (cc variant).
 # ============================================================
-FROM docker.io/debian:trixie-slim AS production
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates tini \
-    && rm -rf /var/lib/apt/lists/*
+FROM gcr.io/distroless/cc-debian12 AS production
 
 # Copy compiled binary from builder
 COPY --from=builder /build/triggerfish /usr/local/bin/triggerfish
+
+# Pre-create /data owned by nonroot (UID 65534)
+COPY --from=builder --chown=65534:65534 /build/deno.json /data/.keep
 
 # Environment
 ENV TRIGGERFISH_DATA_DIR=/data
@@ -52,18 +51,30 @@ ENV HOME=/data
 # Ports: gateway HTTP + WebSocket
 EXPOSE 18789 18790
 
-# Data volume mount point — owned by nonroot user
-RUN mkdir -p /data && chown 65534:65534 /data
 VOLUME /data
 
-# Run as nonroot (UID 65534 = nobody in Debian, matches distroless convention)
+# distroless default user is nonroot (UID 65534)
 USER 65534:65534
 
-# Use tini for PID 1 signal handling (-s registers as subreaper)
-ENTRYPOINT ["tini", "-s", "--", "/usr/local/bin/triggerfish"]
+ENTRYPOINT ["/usr/local/bin/triggerfish"]
 CMD ["run"]
 
 # ============================================================
-# Stage 3: Debug variant (identical base, kept for CI compat)
+# Stage 3: Debug variant — distroless debug image includes a shell
 # ============================================================
-FROM production AS debug
+FROM gcr.io/distroless/cc-debian12:debug AS debug
+
+COPY --from=builder /build/triggerfish /usr/local/bin/triggerfish
+COPY --from=builder --chown=65534:65534 /build/deno.json /data/.keep
+
+ENV TRIGGERFISH_DATA_DIR=/data
+ENV TRIGGERFISH_DOCKER=true
+ENV DENO_DIR=/data/.deno
+ENV HOME=/data
+
+EXPOSE 18789 18790
+VOLUME /data
+USER 65534:65534
+
+ENTRYPOINT ["/usr/local/bin/triggerfish"]
+CMD ["run"]

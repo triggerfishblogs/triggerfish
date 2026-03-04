@@ -503,8 +503,12 @@ Deno.test("buildSendEvent: write-down blocked tool sends direct notification to 
     channelId: "telegram" as ChannelId,
   });
 
-  // gmail_ tools are classified PUBLIC; session taint is INTERNAL → write-down blocked
+  // gmail_ is an external integration classified PUBLIC;
+  // session taint is INTERNAL → write-down blocked
   const toolClassifications = new Map<string, ClassificationLevel>([
+    ["gmail_", "PUBLIC" as ClassificationLevel],
+  ]);
+  const integrationClassifications = new Map<string, ClassificationLevel>([
     ["gmail_", "PUBLIC" as ClassificationLevel],
   ]);
 
@@ -513,6 +517,7 @@ Deno.test("buildSendEvent: write-down blocked tool sends direct notification to 
     providerRegistry: registry,
     session,
     toolClassifications,
+    integrationClassifications,
     // Taint is INTERNAL — simulates owner session after reading an INTERNAL resource
     getSessionTaint: () => "INTERNAL" as ClassificationLevel,
     escalateTaint: (_level, _reason) => {/* no-op for this test */},
@@ -643,6 +648,9 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
   const toolClassifications = new Map<string, ClassificationLevel>([
     ["gmail_", "PUBLIC" as ClassificationLevel],
   ]);
+  const integrationClassifications = new Map<string, ClassificationLevel>([
+    ["gmail_", "PUBLIC" as ClassificationLevel],
+  ]);
 
   // Path classifier that classifies all paths as INTERNAL —
   // reading /data/internal.txt escalates non-owner taint to INTERNAL.
@@ -657,6 +665,7 @@ Deno.test("buildSendEvent: non-owner write-down block also notifies channel", as
     providerRegistry: registry,
     session: nonOwnerSession,
     toolClassifications,
+    integrationClassifications,
     pathClassifier,
     tools: [
       {

@@ -69,7 +69,7 @@ export function resolveBaseDir(): string {
     return "/data";
   }
 
-  const home = resolveCanonicalHome();
+  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".";
   return join(home, ".triggerfish");
 }
 

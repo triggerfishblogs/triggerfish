@@ -3,12 +3,21 @@ services:
     image: ${TRIGGERFISH_IMAGE:-ghcr.io/greghavens/triggerfish:latest}
     container_name: triggerfish
     restart: unless-stopped
-    network_mode: host
+    # init: true provides PID 1 signal forwarding (replaces tini)
+    init: true
+    ports:
+      - "18789:18789"
+      - "18790:18790"
     volumes:
       - triggerfish-data:/data
+    environment:
+      - TRIGGERFISH_DATA_DIR=/data
+      - TRIGGERFISH_CONFIG=/data/triggerfish.yaml
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     env_file:
       - path: .env
         required: false
+    # Runs as nonroot UID 65534 (distroless default)
 
 volumes:
   triggerfish-data:

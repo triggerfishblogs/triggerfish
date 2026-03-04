@@ -63,7 +63,7 @@ if (Test-Path (Join-Path $SrcDir ".git")) {
 
 Write-Host "Compiling (this may take a minute)..."
 Push-Location $SrcDir
-deno compile --allow-all --include config/ --include src/skills/ --include src/exec/sandbox/worker.ts --include src/tools/tidepool/tmpl_base.html --include src/tools/tidepool/tmpl_styles.html --include src/tools/tidepool/tmpl_chat.html --include src/tools/tidepool/tmpl_canvas.html --include src/tools/tidepool/tmpl_chat_script.html --include src/tools/tidepool/tmpl_canvas_script.html --output=triggerfish src/cli/main.ts
+deno compile --allow-all --include config/ --include skills/ --include src/exec/sandbox/worker.ts --include src/tools/tidepool/tmpl_base.html --include src/tools/tidepool/tmpl_styles.html --include src/tools/tidepool/tmpl_chat.html --include src/tools/tidepool/tmpl_canvas.html --include src/tools/tidepool/tmpl_chat_script.html --include src/tools/tidepool/tmpl_canvas_script.html --output=triggerfish src/cli/main.ts
 Pop-Location
 Write-Host "[ok] Compiled successfully" -ForegroundColor Green
 
