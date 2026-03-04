@@ -111,7 +111,8 @@ export async function deliverSchedulerOutput(
     text,
     classification: sessionTaint,
   };
-  if (text.trim().startsWith("NO_ACTION")) {
+  const trimmed = text.trim();
+  if (trimmed.startsWith("NO_ACTION") || trimmed.endsWith("NO_ACTION")) {
     log.debug(`[${source}] LLM returned NO_ACTION — nothing to report`);
     await persistTriggerResult(outputOpts);
     return;
