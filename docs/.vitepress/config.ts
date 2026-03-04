@@ -10,11 +10,6 @@ export default defineConfig({
   head: [
     ["link", { rel: "icon", type: "image/png", href: "/triggerfish.png" }],
 
-    // Termly consent banner
-    ["script", {
-      src: "https://app.termly.io/resource-blocker/00bdb41e-67d7-4026-a802-0edd02329f10?autoBlock=on",
-    }],
-
     // OpenGraph
     ["meta", {
       property: "og:title",
@@ -57,6 +52,11 @@ export default defineConfig({
     ["meta", {
       name: "twitter:image:alt",
       content: "Triggerfish — secure AI agent platform",
+    }],
+
+    // Termly consent banner (must be after meta tags to avoid blocking crawlers)
+    ["script", {
+      src: "https://app.termly.io/resource-blocker/00bdb41e-67d7-4026-a802-0edd02329f10?autoBlock=on",
     }],
   ],
 
