@@ -115,12 +115,48 @@ function sortLogFileNames(logFiles: string[]): string[] {
   });
 }
 
+/** Create a .tar.gz archive from log files (Linux/macOS). */
+async function archiveTarGz(
+  sourceDir: string,
+  fileNames: readonly string[],
+  archivePath: string,
+): Promise<boolean> {
+  const cmd = new Deno.Command("tar", {
+    args: ["-czf", archivePath, "-C", sourceDir, ...fileNames],
+    stdout: "null",
+    stderr: "piped",
+  });
+  const { success } = await cmd.output();
+  return success;
+}
+
+/** Create a .zip archive from log files (Windows). */
+async function archiveZip(
+  sourceDir: string,
+  fileNames: readonly string[],
+  archivePath: string,
+): Promise<boolean> {
+  const sourcePaths = fileNames
+    .map((n) => `'${join(sourceDir, n)}'`)
+    .join(",");
+  const psCmd =
+    `Compress-Archive -Path ${sourcePaths} -DestinationPath '${archivePath}'`;
+  const cmd = new Deno.Command("powershell", {
+    args: ["-NoProfile", "-Command", psCmd],
+    stdout: "null",
+    stderr: "piped",
+  });
+  const { success } = await cmd.output();
+  return success;
+}
+
 /**
- * Bundle all Triggerfish log files into a temporary directory.
+ * Bundle all Triggerfish log files into a compressed archive.
  *
  * Collects `triggerfish.log` and any rotated variants (`triggerfish.1.log`,
- * `triggerfish.2.log`, etc.) from the log directory and copies them to a
- * freshly-created temporary directory. Prints the bundle path to stdout.
+ * `triggerfish.2.log`, etc.) from the log directory and compresses them into
+ * a `.tar.gz` (Linux/macOS) or `.zip` (Windows) archive in the system temp
+ * directory. Prints the archive path to stdout.
  */
 export async function bundleLogs(): Promise<void> {
   const dir = logDir();
@@ -138,10 +174,24 @@ export async function bundleLogs(): Promise<void> {
   }
 
   const sorted = sortLogFileNames(logFiles);
-  const bundleDir = await Deno.makeTempDir({ prefix: "triggerfish-logs-" });
-  for (const name of sorted) {
-    await Deno.copyFile(join(dir, name), join(bundleDir, name));
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const isWindows = Deno.build.os === "windows";
+  const ext = isWindows ? "zip" : "tar.gz";
+  const tmpDir = await Deno.makeTempDir({ prefix: "triggerfish-logs-" });
+  const archivePath = join(tmpDir, `triggerfish-logs-${timestamp}.${ext}`);
+
+  const ok = isWindows
+    ? await archiveZip(dir, sorted, archivePath)
+    : await archiveTarGz(dir, sorted, archivePath);
+
+  if (!ok) {
+    console.log("Log bundle archive failed — falling back to file copy.");
+    for (const name of sorted) {
+      await Deno.copyFile(join(dir, name), join(tmpDir, name));
+    }
+    console.log(`Log files copied to: ${tmpDir}`);
+  } else {
+    console.log(`Log bundle created at: ${archivePath}`);
   }
-  console.log(`Log bundle created at: ${bundleDir}`);
   console.log(`Bundled ${sorted.length} log file(s).`);
 }

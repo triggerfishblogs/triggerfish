@@ -219,7 +219,7 @@ SKILL SUBCOMMANDS:
 
 LOGS SUBCOMMANDS:
   logs view                              View daemon logs (default, --tail to follow)
-  logs bundle                            Bundle all log files into a temporary directory
+  logs bundle                            Archive all log files (.tar.gz or .zip)
 
 TIDEPOOL SUBCOMMANDS:
   tidepool url                           Print Tidepool A2UI URL (if running)
@@ -257,7 +257,7 @@ const HELP_EXAMPLES_OPS =
   triggerfish stop                                  # Stop the daemon
   triggerfish status                                # Check daemon status
   triggerfish logs view --tail                      # Follow daemon logs
-  triggerfish logs bundle                           # Bundle logs into a temp directory
+  triggerfish logs bundle                           # Archive logs into .tar.gz or .zip
   triggerfish connect google                          # Link Google account
   triggerfish disconnect google                       # Remove Google account
   triggerfish patrol                                # Health check
