@@ -48,7 +48,7 @@ export interface LocalConfig {
   readonly endpoint?: string;
   /** Model name. e.g. "llama3", "mistral", "codellama" */
   readonly model: string;
-  /** Maximum tokens for completion. Default: 4096 */
+  /** Maximum tokens for completion. Default: model's outputLimit from registry. */
   readonly maxTokens?: number;
 }
 
@@ -82,6 +82,7 @@ function parseLocalCompletionResponse(
   const choices = data.choices as Record<string, unknown>[] | undefined;
   const message = choices?.[0]?.message as Record<string, unknown> | undefined;
   const usage = data.usage as Record<string, unknown> | undefined;
+  const finishReason = choices?.[0]?.finish_reason as string | undefined;
   return {
     content: (message?.content as string) ?? "",
     toolCalls: (message?.tool_calls as unknown[]) ?? [],
@@ -89,6 +90,7 @@ function parseLocalCompletionResponse(
       inputTokens: (usage?.prompt_tokens as number) ?? 0,
       outputTokens: (usage?.completion_tokens as number) ?? 0,
     },
+    ...(finishReason ? { finishReason } : {}),
   };
 }
 
@@ -160,7 +162,7 @@ async function* streamLocal(
 export function createLocalProvider(config: LocalConfig): LlmProvider {
   const endpoint = config.endpoint ?? "http://localhost:11434";
   const model = config.model;
-  const maxTokens = config.maxTokens ?? 4096;
+  const maxTokens = config.maxTokens ?? getModelInfo(model).outputLimit;
 
   return {
     name: config.name ?? "ollama",

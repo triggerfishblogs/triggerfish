@@ -32,7 +32,7 @@ export interface GoogleConfig {
   readonly apiKey?: string;
   /** Model to use. Default: gemini-2.0-flash */
   readonly model?: string;
-  /** Maximum tokens for completion. Default: 4096 */
+  /** Maximum tokens for completion. Default: model's outputLimit from registry. */
   readonly maxTokens?: number;
 }
 
@@ -108,6 +108,16 @@ function buildGeminiUsage(
 
 // ─── Completion execution ───────────────────────────────────────────────────
 
+/** Normalize Gemini finishReason to OpenAI-style values. */
+function normalizeGeminiFinishReason(
+  reason: string | undefined,
+): string | undefined {
+  if (!reason) return undefined;
+  if (reason === "MAX_TOKENS") return "length";
+  if (reason === "STOP") return "stop";
+  return reason.toLowerCase();
+}
+
 /** Execute a non-streaming Gemini completion. */
 async function executeGeminiCompletion(
   ctx: GoogleProviderContext,
@@ -128,10 +138,14 @@ async function executeGeminiCompletion(
     throw wrapGoogleError(err, ctx.modelName);
   }
   const response = result.response;
+  const finishReason = normalizeGeminiFinishReason(
+    response.candidates?.[0]?.finishReason,
+  );
   return {
     content: extractGeminiResponseText(response),
     toolCalls: extractGeminiFunctionCalls(response),
     usage: buildGeminiUsage(response.usageMetadata),
+    ...(finishReason ? { finishReason } : {}),
   };
 }
 
@@ -141,6 +155,9 @@ function buildFinalStreamChunk(
   finalResponse: any,
 ): LlmStreamChunk {
   const geminiFunctionCalls = extractGeminiFunctionCalls(finalResponse);
+  const finishReason = normalizeGeminiFinishReason(
+    finalResponse.candidates?.[0]?.finishReason,
+  );
   return {
     text: "",
     done: true,
@@ -148,6 +165,7 @@ function buildFinalStreamChunk(
     ...(geminiFunctionCalls.length > 0
       ? { toolCalls: geminiFunctionCalls }
       : {}),
+    ...(finishReason ? { finishReason } : {}),
   };
 }
 
@@ -197,7 +215,7 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
   const ctx: GoogleProviderContext = {
     genAI: new GoogleGenerativeAI(apiKey),
     modelName,
-    maxTokens: config.maxTokens ?? 4096,
+    maxTokens: config.maxTokens ?? getModelInfo(modelName).outputLimit,
   };
 
   return {

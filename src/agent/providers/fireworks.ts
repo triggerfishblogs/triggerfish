@@ -23,7 +23,7 @@ export interface FireworksConfig {
   readonly apiKey?: string;
   /** Model identifier (e.g. "accounts/fireworks/models/llama-v3p1-70b-instruct"). */
   readonly model: string;
-  /** Maximum tokens for completion. Default: 4096. */
+  /** Maximum tokens for completion. Default: model's outputLimit from registry. */
   readonly maxTokens?: number;
 }
 
@@ -90,6 +90,7 @@ function parseCompletionResponse(
     | Record<string, unknown>
     | undefined;
   const usage = data.usage as Record<string, unknown> | undefined;
+  const finishReason = choices?.[0]?.finish_reason as string | undefined;
   return {
     content: (message?.content as string) ?? "",
     toolCalls: (message?.tool_calls as unknown[]) ?? [],
@@ -97,6 +98,7 @@ function parseCompletionResponse(
       inputTokens: (usage?.prompt_tokens as number) ?? 0,
       outputTokens: (usage?.completion_tokens as number) ?? 0,
     },
+    ...(finishReason ? { finishReason } : {}),
   };
 }
 
@@ -174,7 +176,7 @@ async function* streamFireworks(
 export function createFireworksProvider(config: FireworksConfig): LlmProvider {
   const apiKey = config.apiKey ?? "";
   const model = config.model;
-  const maxTokens = config.maxTokens ?? 4096;
+  const maxTokens = config.maxTokens ?? getModelInfo(model).outputLimit;
 
   if (!apiKey) {
     throw new Error(

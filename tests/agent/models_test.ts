@@ -68,7 +68,7 @@ Deno.test("getModelInfo is case insensitive", () => {
 // ─── Output limits ─────────────────────────────────────────────
 
 Deno.test("getModelInfo returns correct output limits", () => {
-  assertEquals(getModelInfo("claude-opus-4-6").outputLimit, 32_000);
+  assertEquals(getModelInfo("claude-opus-4-6").outputLimit, 128_000);
   assertEquals(getModelInfo("gpt-4o").outputLimit, 16_384);
   assertEquals(getModelInfo("gpt-4").outputLimit, 4_096);
 });

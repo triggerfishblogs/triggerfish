@@ -22,7 +22,7 @@ export interface OpenAiConfig {
   readonly apiKey?: string;
   /** Model to use. Default: gpt-4o */
   readonly model?: string;
-  /** Maximum tokens for completion. Default: 4096 */
+  /** Maximum tokens for completion. Default: model's outputLimit from registry. */
   readonly maxTokens?: number;
 }
 
@@ -130,6 +130,7 @@ function parseOpenAiCompletionResponse(
   response: any,
 ): LlmCompletionResult {
   const choice = response.choices[0];
+  const finishReason = choice?.finish_reason as string | undefined;
   return {
     content: choice?.message?.content ?? "",
     toolCalls: choice?.message?.tool_calls ?? [],
@@ -137,6 +138,7 @@ function parseOpenAiCompletionResponse(
       inputTokens: response.usage?.prompt_tokens ?? 0,
       outputTokens: response.usage?.completion_tokens ?? 0,
     },
+    ...(finishReason ? { finishReason } : {}),
   };
 }
 
@@ -162,6 +164,7 @@ async function* consumeOpenAiStream(
 ): AsyncIterable<LlmStreamChunk> {
   let inputTokens = 0;
   let outputTokens = 0;
+  let finishReason: string | undefined;
   const toolCallAccum = new Map<
     number,
     { id?: string; name: string; arguments: string }
@@ -173,13 +176,21 @@ async function* consumeOpenAiStream(
     if (Array.isArray(delta?.tool_calls)) {
       accumulateOpenAiToolCallDelta(toolCallAccum, delta.tool_calls);
     }
+    if (chunk.choices?.[0]?.finish_reason) {
+      finishReason = chunk.choices[0].finish_reason as string;
+    }
     if (chunk.usage) {
       inputTokens = chunk.usage.prompt_tokens ?? 0;
       outputTokens = chunk.usage.completion_tokens ?? 0;
     }
   }
 
-  yield buildOpenAiFinalStreamChunk(inputTokens, outputTokens, toolCallAccum);
+  const final = buildOpenAiFinalStreamChunk(
+    inputTokens,
+    outputTokens,
+    toolCallAccum,
+  );
+  yield { ...final, ...(finishReason ? { finishReason } : {}) };
 }
 
 /**
@@ -190,7 +201,7 @@ async function* consumeOpenAiStream(
  */
 export function createOpenAiProvider(config: OpenAiConfig = {}): LlmProvider {
   const model = config.model ?? "gpt-4o";
-  const maxTokens = config.maxTokens ?? 4096;
+  const maxTokens = config.maxTokens ?? getModelInfo(model).outputLimit;
 
   // Defer client creation to first use — OpenAI SDK throws on instantiation
   // if no API key is available, but the provider may be registered before

@@ -133,6 +133,7 @@ export function extractOpenRouterResult(
       }`,
     );
   }
+  const finishReason = data.choices?.[0]?.finish_reason as string | undefined;
   return {
     content,
     toolCalls: data.choices?.[0]?.message?.tool_calls ?? [],
@@ -140,6 +141,7 @@ export function extractOpenRouterResult(
       inputTokens: data.usage?.prompt_tokens ?? 0,
       outputTokens: data.usage?.completion_tokens ?? 0,
     },
+    ...(finishReason ? { finishReason } : {}),
   };
 }
 

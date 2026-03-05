@@ -74,7 +74,7 @@ export async function executeWriteFile(
   }
   const result = await execTools.write(path, content);
   return result.ok
-    ? `Wrote ${result.value.bytesWritten} bytes to ${result.value.path}`
+    ? `Wrote ${result.value.bytesWritten} bytes to ${path}`
     : `Error: ${result.error}`;
 }
 
@@ -96,10 +96,13 @@ export async function executeListDirectory(
     return unpackSandboxResponse(resp);
   }
   try {
+    const prefix = path === "." || path === "./"
+      ? ""
+      : path.replace(/\/?$/, "/");
     const entries: string[] = [];
     for await (const entry of Deno.readDir(path)) {
       const suffix = entry.isDirectory ? "/" : "";
-      entries.push(`${entry.name}${suffix}`);
+      entries.push(`${prefix}${entry.name}${suffix}`);
     }
     return entries.length > 0 ? entries.join("\n") : "(empty directory)";
   } catch (err) {

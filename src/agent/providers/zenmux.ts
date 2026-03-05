@@ -41,7 +41,7 @@ export interface ZenMuxConfig {
   readonly apiKey?: string;
   /** Model identifier (e.g. "openai/gpt-5", "moonshotai/kimi-k2"). */
   readonly model: string;
-  /** Maximum tokens for completion. Default: 4096 */
+  /** Maximum tokens for completion. Default: model's outputLimit from registry. */
   readonly maxTokens?: number;
 }
 
@@ -82,6 +82,7 @@ function parseCompletionResponse(
   const choices = data.choices as Record<string, unknown>[] | undefined;
   const message = choices?.[0]?.message as Record<string, unknown> | undefined;
   const usage = data.usage as Record<string, unknown> | undefined;
+  const finishReason = choices?.[0]?.finish_reason as string | undefined;
   return {
     content: (message?.content as string) ?? "",
     toolCalls: (message?.tool_calls as unknown[]) ?? [],
@@ -89,6 +90,7 @@ function parseCompletionResponse(
       inputTokens: (usage?.prompt_tokens as number) ?? 0,
       outputTokens: (usage?.completion_tokens as number) ?? 0,
     },
+    ...(finishReason ? { finishReason } : {}),
   };
 }
 
@@ -160,7 +162,7 @@ async function* streamZenMux(
 export function createZenMuxProvider(config: ZenMuxConfig): LlmProvider {
   const apiKey = config.apiKey ?? Deno.env.get("ZENMUX_API_KEY") ?? "";
   const model = config.model;
-  const maxTokens = config.maxTokens ?? 4096;
+  const maxTokens = config.maxTokens ?? getModelInfo(model).outputLimit;
 
   if (!apiKey) {
     throw new Error(

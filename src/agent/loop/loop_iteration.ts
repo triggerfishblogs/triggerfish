@@ -9,6 +9,10 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
+import type {
+  LlmCompletionResult,
+  LlmStreamChunk,
+} from "../../core/types/llm.ts";
 import {
   convertToolsToNativeFormat,
   parseNativeToolCalls,
@@ -22,6 +26,7 @@ import {
 } from "../dispatch/response_handling.ts";
 import type {
   HistoryEntry,
+  OrchestratorEventCallback,
   ParsedToolCall,
   ToolDefinition,
 } from "../orchestrator/orchestrator_types.ts";
@@ -45,7 +50,11 @@ import {
 
 /** Data produced by a single LLM call, passed to dispatch functions. */
 interface IterationData {
-  readonly completion: { content: string; toolCalls?: readonly unknown[] };
+  readonly completion: {
+    content: string;
+    toolCalls?: readonly unknown[];
+    finishReason?: string;
+  };
   readonly tools: readonly ToolDefinition[];
   readonly iteration: number;
 }
@@ -109,6 +118,36 @@ function parseCompletionToolCalls(
 
 // ─── LLM call ────────────────────────────────────────────────────────────────
 
+/** Consume a provider stream, emitting response_chunk events, and return a completion result. */
+async function consumeProviderStream(
+  stream: AsyncIterable<LlmStreamChunk>,
+  emit: OrchestratorEventCallback,
+): Promise<LlmCompletionResult> {
+  let content = "";
+  let toolCalls: readonly unknown[] = [];
+  let usage = { inputTokens: 0, outputTokens: 0 };
+  let finishReason: string | undefined;
+
+  for await (const chunk of stream) {
+    content += chunk.text;
+    if (chunk.text) {
+      emit({ type: "response_chunk", text: chunk.text, done: false });
+    }
+    if (chunk.done) {
+      if (chunk.usage) usage = chunk.usage;
+      if (chunk.toolCalls) toolCalls = chunk.toolCalls;
+      if (chunk.finishReason) finishReason = chunk.finishReason;
+      emit({ type: "response_chunk", text: "", done: true });
+    }
+  }
+  return {
+    content,
+    toolCalls,
+    usage,
+    ...(finishReason ? { finishReason } : {}),
+  };
+}
+
 /** Run a single LLM provider call and return the raw completion. */
 async function runLlmProviderCall(
   ctx: AgentLoopContext,
@@ -144,10 +183,24 @@ async function runLlmProviderCall(
   const nativeTools = (tools.length > 0 && ctx.state.toolExecutor)
     ? convertToolsToNativeFormat(tools)
     : [];
-  const completion = await provider.complete(messages, nativeTools, {
+  const callOptions = {
     ...(ctx.signal ? { signal: ctx.signal } : {}),
     sessionId: ctx.sessionKey,
-  });
+  };
+
+  const useStreaming = ctx.state.config.enableStreaming !== false &&
+    provider.stream !== undefined;
+  if (useStreaming) {
+    const stream = provider.stream!(messages, nativeTools, callOptions);
+    const completion = await consumeProviderStream(stream, ctx.state.emit);
+    return { completion, tools };
+  }
+
+  const completion = await provider.complete(
+    messages,
+    nativeTools,
+    callOptions,
+  );
   return { completion, tools };
 }
 
@@ -200,10 +253,27 @@ async function handleNoToolCallsIteration(
     `iter${iter.iteration} finalText`,
     finalText || "(EMPTY)",
   );
+  if (iter.completion.finishReason) {
+    traceLog(
+      ctx.state,
+      `iter${iter.iteration} finishReason`,
+      iter.completion.finishReason,
+    );
+  }
 
-  const quality = classifyResponseQuality(finalText, iter.hasTools);
+  const quality = classifyResponseQuality({
+    finalText,
+    hasTools: iter.hasTools,
+    finishReason: iter.completion.finishReason,
+  });
+  if (quality.isTruncated) {
+    ctx.state.orchLog.warn(
+      `iter${iter.iteration} response truncated (finish_reason=length) — tool call lost`,
+      { operation: "handleNoToolCallsIteration", iteration: iter.iteration },
+    );
+  }
   const needsRecovery = quality.isEmptyOrJunk || quality.isLeakedIntent ||
-    quality.hasTrailingIntent;
+    quality.hasTrailingIntent || quality.isTruncated;
   const maxIter = ctx.state.config.maxIterations ?? MAX_TOOL_ITERATIONS;
   if (needsRecovery && iter.iteration < maxIter) {
     const nudgeResult = attemptRecoveryNudge(ctx, iter.completion, quality);

@@ -13,7 +13,7 @@ export interface OpenRouterConfig {
   readonly apiKey?: string;
   /** Model identifier (e.g. "anthropic/claude-3.5-sonnet", "openai/gpt-4o"). */
   readonly model: string;
-  /** Maximum tokens for completion. Default: 4096 */
+  /** Maximum tokens for completion. Default: model's outputLimit from registry. */
   readonly maxTokens?: number;
 }
 
@@ -28,6 +28,7 @@ export interface OpenRouterApiResponse {
       readonly content?: string;
       readonly tool_calls?: unknown[];
     };
+    readonly finish_reason?: string;
   }[];
   readonly usage?: {
     readonly prompt_tokens?: number;

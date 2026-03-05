@@ -92,6 +92,15 @@ function resolveSafePath(
   return { ok: true, path: abs };
 }
 
+/** Strip the workspaceRoot prefix from an absolute path, returning a workspace-relative path. */
+function toRelativePath(absPath: string): string {
+  if (absPath.startsWith(workspaceRoot + "/")) {
+    return absPath.slice(workspaceRoot.length + 1);
+  }
+  if (absPath === workspaceRoot) return ".";
+  return absPath;
+}
+
 // ─── Operation handlers ─────────────────────────────────────────────────────
 
 async function handleRead(
@@ -123,7 +132,7 @@ async function handleWrite(
   await Deno.mkdir(parentDir(resolved.path), { recursive: true });
   await Deno.writeTextFile(resolved.path, content);
   const info = await Deno.stat(resolved.path);
-  return `Wrote ${info.size} bytes to ${resolved.path}`;
+  return `Wrote ${info.size} bytes to ${toRelativePath(resolved.path)}`;
 }
 
 async function handleList(
@@ -136,10 +145,12 @@ async function handleList(
   const resolved = resolveSafePath(path);
   if (!resolved.ok) return formatError(resolved.error);
 
+  const relDir = toRelativePath(resolved.path);
+  const prefix = relDir === "." ? "" : relDir.replace(/\/?$/, "/");
   const entries: string[] = [];
   for await (const entry of Deno.readDir(resolved.path)) {
     const suffix = entry.isDirectory ? "/" : "";
-    entries.push(`${entry.name}${suffix}`);
+    entries.push(`${prefix}${entry.name}${suffix}`);
   }
   return entries.length > 0 ? entries.join("\n") : "(empty directory)";
 }
@@ -171,11 +182,11 @@ async function handleSearch(
   });
   const output = await proc.output();
   const stdout = new TextDecoder().decode(output.stdout).trim();
-  return stdout.length > 0
-    ? stdout
-    : isContentSearch
-    ? "No matches found."
-    : "No files found matching pattern.";
+  if (stdout.length === 0) {
+    return isContentSearch ? "No matches found." : "No files found matching pattern.";
+  }
+  // Strip workspace prefix from all paths in grep/find output
+  return stdout.split("\n").map((line) => toRelativePath(line)).join("\n");
 }
 
 async function handleEdit(
@@ -210,7 +221,7 @@ async function handleEdit(
   }
   const updated = content.replace(oldText, newText);
   await Deno.writeTextFile(resolved.path, updated);
-  return `Edited ${resolved.path} (${updated.length} bytes written)`;
+  return `Edited ${toRelativePath(resolved.path)} (${updated.length} bytes written)`;
 }
 
 // ─── Dispatch ───────────────────────────────────────────────────────────────

@@ -118,13 +118,33 @@ export interface ResponseQuality {
   readonly isEmptyOrJunk: boolean;
   readonly isLeakedIntent: boolean;
   readonly hasTrailingIntent: boolean;
+  /** True when the response was truncated due to output token limit. */
+  readonly isTruncated: boolean;
 }
 
-/** Detect whether the final text is empty, bare JSON junk, leaked intent, or trailing intent. */
+/** Options for classifying response quality. */
+export interface ResponseQualityOptions {
+  readonly finalText: string;
+  readonly hasTools: boolean;
+  readonly finishReason?: string;
+}
+
+/** Detect whether the final text is empty, bare JSON junk, leaked intent, trailing intent, or truncated. */
 export function classifyResponseQuality(
-  finalText: string,
-  hasTools: boolean,
+  finalTextOrOpts: string | ResponseQualityOptions,
+  hasToolsArg?: boolean,
 ): ResponseQuality {
+  const finalText = typeof finalTextOrOpts === "string"
+    ? finalTextOrOpts
+    : finalTextOrOpts.finalText;
+  const hasTools = typeof finalTextOrOpts === "string"
+    ? (hasToolsArg ?? false)
+    : finalTextOrOpts.hasTools;
+  const finishReason = typeof finalTextOrOpts === "string"
+    ? undefined
+    : finalTextOrOpts.finishReason;
+
+  const isTruncated = finishReason === "length";
   const isEmptyOrJunk = finalText.length === 0 ||
     (finalText.length < 200 && finalText.startsWith("{") &&
       finalText.endsWith("}")) ||
@@ -133,20 +153,27 @@ export function classifyResponseQuality(
     LEAKED_INTENT_PATTERN.test(finalText);
   const hasTrailingIntent = hasTools &&
     detectTrailingContinuationIntent(finalText);
-  return { isEmptyOrJunk, isLeakedIntent, hasTrailingIntent };
+  return { isEmptyOrJunk, isLeakedIntent, hasTrailingIntent, isTruncated };
 }
 
 /** Options for building a recovery nudge. */
 export interface RecoveryNudgeOptions {
   readonly isLeakedIntent: boolean;
   readonly hasTrailingIntent: boolean;
+  readonly isTruncated: boolean;
 }
 
-/** Build the nudge message for empty/junk, leaked-intent, or trailing-intent responses. */
+/** Build the nudge message for empty/junk, leaked-intent, truncated, or trailing-intent responses. */
 export function buildRecoveryNudge(
   opts: RecoveryNudgeOptions,
   nudgeCount: number,
 ): string {
+  if (opts.isTruncated) {
+    return "[SYSTEM] Your response was truncated because it exceeded the output token limit. " +
+      "Your tool call was cut off and could not be executed. " +
+      "Break the task into smaller steps: write shorter files, use fewer tool arguments, " +
+      "or split large operations across multiple tool calls.";
+  }
   if (opts.hasTrailingIntent) {
     return "[SYSTEM] You stated you would continue but stopped without using a tool. Execute the next step now.";
   }
@@ -208,11 +235,10 @@ export async function handleFinalResponse(
   targetClassification: ClassificationLevel,
   tokens: TokenAccumulator,
 ): Promise<Result<ProcessMessageResult, string> | null> {
-  const { isEmptyOrJunk, isLeakedIntent } = classifyResponseQuality(
-    finalText,
-    hasTools,
-  );
-  const isJunkFinal = finalText.length === 0 || isEmptyOrJunk || isLeakedIntent;
+  const { isEmptyOrJunk, isLeakedIntent, hasTrailingIntent } =
+    classifyResponseQuality(finalText, hasTools);
+  const isJunkFinal = finalText.length === 0 || isEmptyOrJunk ||
+    isLeakedIntent || (hasTrailingIntent && emptyNudgeCount >= 2);
 
   // Detect repetition loops (model stuck outputting the same sentence)
   const deduped = detectRepetition(finalText);

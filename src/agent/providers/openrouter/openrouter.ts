@@ -153,7 +153,7 @@ export function createOpenRouterProvider(
   const deps: OpenRouterDeps = {
     apiKey: resolveOpenRouterApiKey(config.apiKey),
     model: config.model,
-    maxTokens: config.maxTokens ?? 4096,
+    maxTokens: config.maxTokens ?? getModelInfo(config.model).outputLimit,
     orLog: createLogger("openrouter"),
   };
 

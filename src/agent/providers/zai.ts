@@ -51,7 +51,7 @@ export interface ZaiConfig {
   readonly apiKey?: string;
   /** Model identifier (e.g. "glm-4.7", "glm-4.5v", "glm-5"). */
   readonly model: string;
-  /** Maximum tokens for completion. Default: 4096 */
+  /** Maximum tokens for completion. Default: model's outputLimit from registry. */
   readonly maxTokens?: number;
 }
 
@@ -65,6 +65,7 @@ interface ZaiApiResponse {
       readonly content?: string;
       readonly tool_calls?: unknown[];
     };
+    readonly finish_reason?: string;
   }[];
   readonly usage?: {
     readonly prompt_tokens?: number;
@@ -122,6 +123,7 @@ function buildZaiHeaders(apiKey: string): Record<string, string> {
 function parseZaiCompletionResult(
   data: ZaiApiResponse,
 ): LlmCompletionResult {
+  const finishReason = data.choices?.[0]?.finish_reason;
   return {
     content: data.choices?.[0]?.message?.content ?? "",
     toolCalls: data.choices?.[0]?.message?.tool_calls ?? [],
@@ -129,6 +131,7 @@ function parseZaiCompletionResult(
       inputTokens: data.usage?.prompt_tokens ?? 0,
       outputTokens: data.usage?.completion_tokens ?? 0,
     },
+    ...(finishReason ? { finishReason } : {}),
   };
 }
 
@@ -166,7 +169,7 @@ async function fetchZaiResponse(
 export function createZaiProvider(config: ZaiConfig): LlmProvider {
   const apiKey = config.apiKey ?? Deno.env.get("ZAI_API_KEY") ?? "";
   const model = config.model;
-  const maxTokens = config.maxTokens ?? 4096;
+  const maxTokens = config.maxTokens ?? getModelInfo(model).outputLimit;
 
   if (!apiKey) {
     throw new Error(

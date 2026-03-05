@@ -25,7 +25,7 @@ export interface AnthropicConfig {
   readonly apiKey?: string;
   /** Model to use. Default: claude-sonnet-4-5-20250929 */
   readonly model?: string;
-  /** Maximum tokens for completion. Default: 4096 */
+  /** Maximum tokens for completion. Default: model's outputLimit from registry. */
   readonly maxTokens?: number;
 }
 
@@ -104,11 +104,20 @@ function buildAnthropicRequestParams(
 function parseAnthropicCompletionResponse(
   content: readonly { type: string; text?: string }[],
   usage: { readonly input_tokens: number; readonly output_tokens: number },
+  stopReason?: string,
 ): LlmCompletionResult {
   const textContent = content
     .filter((block) => block.type === "text")
     .map((block) => block.type === "text" ? (block.text ?? "") : "")
     .join("");
+  // Normalize Anthropic's stop_reason to OpenAI-style finish_reason
+  const finishReason = stopReason === "max_tokens"
+    ? "length"
+    : stopReason === "end_turn"
+    ? "stop"
+    : stopReason === "tool_use"
+    ? "tool_calls"
+    : stopReason ?? undefined;
   return {
     content: textContent,
     toolCalls: content.filter((block) => block.type === "tool_use"),
@@ -116,6 +125,7 @@ function parseAnthropicCompletionResponse(
       inputTokens: usage.input_tokens,
       outputTokens: usage.output_tokens,
     },
+    ...(finishReason ? { finishReason } : {}),
   };
 }
 
@@ -129,7 +139,7 @@ export function createAnthropicProvider(
   config: AnthropicConfig = {},
 ): LlmProvider {
   const model = config.model ?? "claude-sonnet-4-5-20250929";
-  const maxTokens = config.maxTokens ?? 4096;
+  const maxTokens = config.maxTokens ?? getModelInfo(model).outputLimit;
 
   // Defer client creation to first use — avoids throwing during
   // provider registration when credentials aren't yet available.
@@ -176,6 +186,7 @@ export function createAnthropicProvider(
       return parseAnthropicCompletionResponse(
         response.content,
         response.usage,
+        response.stop_reason ?? undefined,
       );
     },
 
@@ -208,6 +219,14 @@ export function createAnthropicProvider(
       const finalMessage = await stream.finalMessage();
       const toolUseBlocks = finalMessage.content
         .filter((block: { type: string }) => block.type === "tool_use");
+      const stopReason = finalMessage.stop_reason;
+      const finishReason = stopReason === "max_tokens"
+        ? "length"
+        : stopReason === "end_turn"
+        ? "stop"
+        : stopReason === "tool_use"
+        ? "tool_calls"
+        : stopReason ?? undefined;
       yield {
         text: "",
         done: true,
@@ -216,6 +235,7 @@ export function createAnthropicProvider(
           outputTokens: finalMessage.usage.output_tokens,
         },
         ...(toolUseBlocks.length > 0 ? { toolCalls: toolUseBlocks } : {}),
+        ...(finishReason ? { finishReason } : {}),
       };
     },
   };

@@ -178,6 +178,7 @@ export interface LlmIterationResult {
     content: string;
     toolCalls?: readonly unknown[];
     usage: { inputTokens: number; outputTokens: number };
+    finishReason?: string;
   };
   readonly tools: readonly ToolDefinition[];
 }

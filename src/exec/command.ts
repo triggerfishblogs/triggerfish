@@ -41,7 +41,9 @@ function resolvePerCallCwd(
   workspace: Workspace,
   cwd: string,
 ): string | null {
-  const resolved = resolve(join(workspace.path, cwd));
+  const resolved = cwd.startsWith("/")
+    ? resolve(cwd)
+    : resolve(join(workspace.path, cwd));
   if (!isWithinJail(resolved, workspace.path)) return null;
   return resolved;
 }
@@ -95,7 +97,7 @@ export async function runShellCommand(
     return {
       ok: false,
       error: `Working directory does not exist: ${
-        perCallCwd ?? effectiveCwd
+        perCallCwd ?? "."
       }`,
     };
   }

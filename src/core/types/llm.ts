@@ -30,6 +30,8 @@ export interface LlmCompletionResult {
   readonly content: string;
   readonly toolCalls: readonly unknown[];
   readonly usage: LlmUsage;
+  /** Provider-reported stop reason (e.g. "stop", "length", "tool_calls"). */
+  readonly finishReason?: string;
 }
 
 /** A chunk yielded during streaming. */
@@ -42,6 +44,8 @@ export interface LlmStreamChunk {
   readonly usage?: LlmUsage;
   /** Tool calls from the LLM, available on the done:true chunk. */
   readonly toolCalls?: readonly unknown[];
+  /** Provider-reported stop reason, available on the done:true chunk. */
+  readonly finishReason?: string;
 }
 
 /**

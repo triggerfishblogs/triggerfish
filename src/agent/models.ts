@@ -22,16 +22,17 @@ export interface ModelInfo {
  * Patterns are matched against the full model name string (case-insensitive).
  */
 const MODEL_REGISTRY: readonly (readonly [RegExp, ModelInfo])[] = [
-  // --- Anthropic ---
+  // --- Anthropic (per docs: opus 4.6=128K, sonnet 4.6/4.5=64K, opus 4/4.1=32K) ---
+  [/claude-opus-4-6/i, { contextWindow: 200_000, outputLimit: 128_000 }],
   [/claude-opus-4/i, { contextWindow: 200_000, outputLimit: 32_000 }],
-  [/claude-sonnet-4/i, { contextWindow: 200_000, outputLimit: 16_000 }],
-  [/claude-haiku-4/i, { contextWindow: 200_000, outputLimit: 8_192 }],
+  [/claude-sonnet-4/i, { contextWindow: 200_000, outputLimit: 64_000 }],
+  [/claude-haiku-4/i, { contextWindow: 200_000, outputLimit: 64_000 }],
   [/claude-3-5-sonnet/i, { contextWindow: 200_000, outputLimit: 8_192 }],
   [/claude-3-5-haiku/i, { contextWindow: 200_000, outputLimit: 8_192 }],
   [/claude-3-opus/i, { contextWindow: 200_000, outputLimit: 4_096 }],
   [/claude-3-sonnet/i, { contextWindow: 200_000, outputLimit: 4_096 }],
   [/claude-3-haiku/i, { contextWindow: 200_000, outputLimit: 4_096 }],
-  [/claude/i, { contextWindow: 200_000, outputLimit: 8_192 }],
+  [/claude/i, { contextWindow: 200_000, outputLimit: 16_000 }],
 
   // --- OpenAI ---
   [/gpt-4o-mini/i, { contextWindow: 128_000, outputLimit: 16_384 }],
@@ -78,6 +79,9 @@ const MODEL_REGISTRY: readonly (readonly [RegExp, ModelInfo])[] = [
   [/qwen-2\.5/i, { contextWindow: 128_000, outputLimit: 8_192 }],
   [/qwen2p5-72b/i, { contextWindow: 128_000, outputLimit: 8_192 }],
   [/qwen/i, { contextWindow: 32_000, outputLimit: 4_096 }],
+
+  // --- Moonshot / Kimi (262K context, Fireworks blog example uses 32K output) ---
+  [/kimi-k2/i, { contextWindow: 262_144, outputLimit: 32_768 }],
 
   // --- Fireworks (model names prefixed with accounts/fireworks/models/) ---
   [/llama-v3p1-405b/i, { contextWindow: 128_000, outputLimit: 4_096 }],

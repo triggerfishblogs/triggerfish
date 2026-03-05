@@ -25,6 +25,7 @@ export async function* parseSseStream(
   let buffer = "";
   let inputTokens = 0;
   let outputTokens = 0;
+  let finishReason: string | undefined;
 
   // Accumulate streaming tool call deltas keyed by index
   const toolCallAccum = new Map<
@@ -88,6 +89,9 @@ export async function* parseSseStream(
               }
             }
           }
+          if (parsed.choices?.[0]?.finish_reason) {
+            finishReason = parsed.choices[0].finish_reason as string;
+          }
           if (parsed.usage) {
             inputTokens = parsed.usage.prompt_tokens ?? 0;
             outputTokens = parsed.usage.completion_tokens ?? 0;
@@ -134,5 +138,6 @@ export async function* parseSseStream(
     done: true,
     usage: { inputTokens, outputTokens },
     ...(toolCalls.length > 0 ? { toolCalls } : {}),
+    ...(finishReason ? { finishReason } : {}),
   };
 }
