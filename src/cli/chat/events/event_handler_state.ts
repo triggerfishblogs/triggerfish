@@ -54,14 +54,23 @@ export function stopSpinnerFallback(
 
 // ─── Streaming helpers ───────────────────────────────────────────────────────
 
-/** Ensure streaming mode is active and spinner is stopped. */
+/** Ensure streaming mode is active. */
 export function ensureStreamingActive(
   state: ScreenHandlerState,
   screen: ScreenManager,
 ): void {
   if (state.isStreaming) return;
   state.isStreaming = true;
-  stopSpinnerFallback(state, screen);
+  // In TTY mode the spinner lives in the status bar, separate from the
+  // content scroll region, so we keep it running.  This provides a visual
+  // activity indicator during pauses when the model finishes text and
+  // starts generating tool-call JSON (no response_chunk events fire).
+  // In non-TTY mode the fallback spinner writes to the same stream as
+  // text, so it must be stopped to avoid garbled output.
+  if (!screen.isTty && state.spinner) {
+    state.spinner.stop();
+    state.spinner = null;
+  }
 }
 
 /** Write the triggerfish response header if not yet written. */

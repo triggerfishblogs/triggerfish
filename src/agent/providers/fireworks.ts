@@ -16,6 +16,9 @@ import type {
 import { getModelInfo } from "../models.ts";
 import { parseSseStream } from "./sse.ts";
 import type { ContentBlock } from "../../core/image/content.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("fireworks");
 
 /** Configuration for the Fireworks provider. */
 export interface FireworksConfig {
@@ -49,6 +52,52 @@ function toOpenAiContent(content: string | unknown): string | unknown[] {
   });
 }
 
+/**
+ * Frequency penalty applied to all Fireworks requests.
+ *
+ * Open-source models served by Fireworks are more prone to degenerate
+ * repetition loops than frontier models. A modest penalty (0.3 on a
+ * -2..2 scale) discourages token-level repetition without degrading
+ * code generation quality.
+ */
+const FREQUENCY_PENALTY = 0.3;
+
+/**
+ * Strip reasoning_content from message history.
+ *
+ * Fireworks injects `reasoning_content` into assistant responses when thinking
+ * is enabled. Sending it back in follow-up requests confuses the model —
+ * it tries to continue reasoning instead of acting. We keep only `role` and
+ * `content` (plus `tool_calls` / `tool_call_id` when present).
+ */
+function stripReasoningContent(
+  msg: Record<string, unknown>,
+): Record<string, unknown> {
+  const clean: Record<string, unknown> = {
+    role: msg.role,
+    content: msg.content,
+  };
+  if (msg.tool_calls) clean.tool_calls = msg.tool_calls;
+  if (msg.tool_call_id) clean.tool_call_id = msg.tool_call_id;
+  if (msg.name) clean.name = msg.name;
+  return clean;
+}
+
+/**
+ * Temperature used when tool calling is active (thinking disabled).
+ * Lower temperature for precise, deterministic tool usage.
+ */
+const TOOL_CALLING_TEMPERATURE = 0.6;
+
+/**
+ * Temperature used when thinking is active (no tools).
+ * Fireworks requires temperature = 1.0 when thinking is enabled.
+ */
+const THINKING_TEMPERATURE = 1.0;
+
+/** Budget for thinking tokens when reasoning mode is active. */
+const THINKING_BUDGET_TOKENS = 4096;
+
 function buildChatRequestBody(
   model: string,
   maxTokens: number,
@@ -56,17 +105,48 @@ function buildChatRequestBody(
   tools: readonly unknown[],
   streaming: boolean,
 ): Record<string, unknown> {
-  const openaiMessages = messages.map((m) => ({
-    role: m.role,
-    content: toOpenAiContent(m.content),
-  }));
+  const openaiMessages = messages.map((m) =>
+    stripReasoningContent({
+      role: m.role,
+      content: toOpenAiContent(m.content),
+    })
+  );
+
+  const hasTools = Array.isArray(tools) && tools.length > 0;
+
   const body: Record<string, unknown> = {
     model,
     max_tokens: maxTokens,
     messages: openaiMessages,
+    frequency_penalty: FREQUENCY_PENALTY,
   };
+
+  if (hasTools) {
+    body.tools = tools;
+    body.temperature = TOOL_CALLING_TEMPERATURE;
+    body.thinking = { type: "disabled" };
+    body.reasoning_history = "disabled";
+  } else {
+    body.temperature = THINKING_TEMPERATURE;
+    body.thinking = { type: "enabled", budget_tokens: THINKING_BUDGET_TOKENS };
+    body.reasoning_history = "interleaved";
+  }
+
   if (streaming) body.stream = true;
-  if (Array.isArray(tools) && tools.length > 0) body.tools = tools;
+
+  log.debug("Fireworks request body built", {
+    operation: "buildChatRequestBody",
+    model,
+    messageCount: openaiMessages.length,
+    hasTools,
+    toolCount: hasTools ? (tools as unknown[]).length : 0,
+    temperature: body.temperature,
+    thinking: body.thinking,
+    reasoningHistory: body.reasoning_history,
+    streaming,
+    frequencyPenalty: FREQUENCY_PENALTY,
+  });
+
   return body;
 }
 

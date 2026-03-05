@@ -89,6 +89,9 @@ function validateZaiVisionCapability(
   }
 }
 
+/** Frequency penalty applied to all Z.AI requests to discourage repetition loops. */
+const FREQUENCY_PENALTY = 0.3;
+
 /** Convert LLM messages to OpenAI format and build the JSON request body. */
 function prepareZaiPayload(
   model: string,
@@ -105,6 +108,7 @@ function prepareZaiPayload(
     model,
     max_tokens: maxTokens,
     messages: openaiMessages,
+    frequency_penalty: FREQUENCY_PENALTY,
   };
   if (options?.stream) payload.stream = true;
   if (Array.isArray(tools) && tools.length > 0) payload.tools = tools;

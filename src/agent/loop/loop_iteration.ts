@@ -21,6 +21,7 @@ import { processToolCallBatch } from "../dispatch/tool_dispatch.ts";
 import {
   buildRecoveryNudge,
   classifyResponseQuality,
+  detectRepetition,
   handleFinalResponse,
   type ResponseQuality,
 } from "../dispatch/response_handling.ts";
@@ -118,21 +119,58 @@ function parseCompletionToolCalls(
 
 // ─── LLM call ────────────────────────────────────────────────────────────────
 
+/**
+ * Characters of new content between repetition detection checks.
+ * Balances early detection (~500 chars of looping) vs. CPU cost.
+ */
+const STREAMING_REPETITION_CHECK_INTERVAL = 500;
+
+/** Options for consuming a provider stream. */
+interface ConsumeStreamOptions {
+  /** Abort signal — checked each chunk to honour ESC/Ctrl+C during streaming. */
+  readonly signal?: AbortSignal;
+}
+
 /** Consume a provider stream, emitting response_chunk events, and return a completion result. */
-async function consumeProviderStream(
+export async function consumeProviderStream(
   stream: AsyncIterable<LlmStreamChunk>,
   emit: OrchestratorEventCallback,
+  options?: ConsumeStreamOptions,
 ): Promise<LlmCompletionResult> {
   let content = "";
   let toolCalls: readonly unknown[] = [];
   let usage = { inputTokens: 0, outputTokens: 0 };
   let finishReason: string | undefined;
+  let lastRepetitionCheckLen = 0;
+  const signal = options?.signal;
 
   for await (const chunk of stream) {
+    if (signal?.aborted) {
+      finishReason = "cancelled";
+      emit({ type: "response_chunk", text: "", done: true });
+      break;
+    }
+
     content += chunk.text;
     if (chunk.text) {
       emit({ type: "response_chunk", text: chunk.text, done: false });
     }
+
+    // Detect repetition loops during streaming to abort early.
+    // Without this, the model can output the same phrase thousands of times
+    // before the post-stream detectRepetition catches it.
+    const sinceLastCheck = content.length - lastRepetitionCheckLen;
+    if (sinceLastCheck >= STREAMING_REPETITION_CHECK_INTERVAL) {
+      lastRepetitionCheckLen = content.length;
+      const deduped = detectRepetition(content);
+      if (deduped !== null) {
+        content = deduped;
+        finishReason = "repetition";
+        emit({ type: "response_chunk", text: "", done: true });
+        break;
+      }
+    }
+
     if (chunk.done) {
       if (chunk.usage) usage = chunk.usage;
       if (chunk.toolCalls) toolCalls = chunk.toolCalls;
@@ -192,7 +230,9 @@ async function runLlmProviderCall(
     provider.stream !== undefined;
   if (useStreaming) {
     const stream = provider.stream!(messages, nativeTools, callOptions);
-    const completion = await consumeProviderStream(stream, ctx.state.emit);
+    const completion = await consumeProviderStream(stream, ctx.state.emit, {
+      signal: ctx.signal,
+    });
     return { completion, tools };
   }
 
@@ -272,8 +312,15 @@ async function handleNoToolCallsIteration(
       { operation: "handleNoToolCallsIteration", iteration: iter.iteration },
     );
   }
+  if (quality.isDenseNarration) {
+    ctx.state.orchLog.warn(
+      `iter${iter.iteration} dense narration detected — model narrated without calling tools`,
+      { operation: "handleNoToolCallsIteration", iteration: iter.iteration },
+    );
+  }
   const needsRecovery = quality.isEmptyOrJunk || quality.isLeakedIntent ||
-    quality.hasTrailingIntent || quality.isTruncated;
+    quality.hasTrailingIntent || quality.isTruncated ||
+    quality.isDenseNarration;
   const maxIter = ctx.state.config.maxIterations ?? MAX_TOOL_ITERATIONS;
   if (needsRecovery && iter.iteration < maxIter) {
     const nudgeResult = attemptRecoveryNudge(ctx, iter.completion, quality);

@@ -24,7 +24,11 @@ export function getLlmTaskToolDefinitions(): readonly ToolDefinition[] {
     {
       name: "llm_task",
       description:
-        "Run a one-shot LLM prompt for isolated reasoning (summarization, classification, data extraction). Does not pollute main conversation context.",
+        "Run a one-shot LLM prompt for deep reasoning, analysis, or planning. " +
+        "Use this tool when you need to think through a complex problem, analyze code structure, " +
+        "plan a multi-step approach, summarize content, classify data, or extract structured information. " +
+        "The subtask runs in isolation — it sees only what you pass, not the full conversation. " +
+        "Get the analysis back, then act on it with tool calls.",
       parameters: {
         prompt: {
           type: "string",
@@ -47,17 +51,26 @@ export function getLlmTaskToolDefinitions(): readonly ToolDefinition[] {
 }
 
 /** Platform-level system prompt section for the llm_task tool. */
-export const LLM_TASK_SYSTEM_PROMPT = `## LLM Task Tool
+export const LLM_TASK_SYSTEM_PROMPT = `## LLM Task Tool — Your Reasoning Channel
 
-llm_task runs an isolated LLM completion — the subtask sees only what you pass it,
-not the full conversation. Use it for:
-- Summarizing fetched content
-- Extracting structured data from text
-- Classifying or categorizing content
-- Generating search queries or plans
-- Any subtask that benefits from focused context
+llm_task is your dedicated reasoning tool. When you need to think deeply about a
+problem before acting, delegate the thinking to llm_task — it runs with extended
+reasoning enabled, giving you higher-quality analysis.
 
-The result is returned as text. If you need structured data, ask for JSON in the prompt.`;
+**When to use llm_task:**
+- Planning a multi-step approach before executing tool calls
+- Analyzing code structure or debugging complex issues
+- Reasoning through edge cases or architectural trade-offs
+- Summarizing fetched content or extracting structured data
+- Classifying, categorizing, or generating search queries
+
+**How to use it effectively:**
+1. Pass the relevant context (code, error messages, requirements) as the prompt
+2. Get the analysis back as text
+3. Act on the analysis with concrete tool calls
+
+The subtask sees only what you pass it, not the full conversation.
+If you need structured data back, ask for JSON in the prompt.`;
 
 /**
  * Create a tool executor for the llm_task tool.

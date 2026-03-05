@@ -113,6 +113,32 @@ export function detectTrailingContinuationIntent(text: string): boolean {
   return TRAILING_CONTINUATION_PATTERN.test(tail);
 }
 
+/**
+ * Minimum intent-phrase count for a long response to be considered dense narration.
+ * If a response with available tools contains this many "Let me...", "I'll...",
+ * "I need to..." phrases without actually calling tools, the model is narrating
+ * what it would do instead of acting.
+ */
+const DENSE_NARRATION_THRESHOLD = 5;
+
+/**
+ * Global pattern matching intent phrases throughout a response body.
+ * Used to count occurrences for dense-narration detection on long responses
+ * where the short-response `isLeakedIntent` guard does not apply.
+ */
+const INTENT_PHRASE_GLOBAL =
+  /\b(?:Let me |I(?:'ll| will| need to| should| am going to) (?:search|fetch|look|find|check|browse|retrieve|read|verify|list|examine|explore|create|write|run|open|update|fix|use|set up|continue|also |now |next ))/gi;
+
+/** Detect whether a long response is dominated by intent narration. */
+export function detectDenseNarration(
+  text: string,
+  hasTools: boolean,
+): boolean {
+  if (!hasTools || text.length < 300) return false;
+  const matches = text.match(INTENT_PHRASE_GLOBAL);
+  return (matches?.length ?? 0) >= DENSE_NARRATION_THRESHOLD;
+}
+
 /** Response quality classification result. */
 export interface ResponseQuality {
   readonly isEmptyOrJunk: boolean;
@@ -120,6 +146,8 @@ export interface ResponseQuality {
   readonly hasTrailingIntent: boolean;
   /** True when the response was truncated due to output token limit. */
   readonly isTruncated: boolean;
+  /** True when the response is a long narration dominated by intent phrases. */
+  readonly isDenseNarration: boolean;
 }
 
 /** Options for classifying response quality. */
@@ -153,7 +181,14 @@ export function classifyResponseQuality(
     LEAKED_INTENT_PATTERN.test(finalText);
   const hasTrailingIntent = hasTools &&
     detectTrailingContinuationIntent(finalText);
-  return { isEmptyOrJunk, isLeakedIntent, hasTrailingIntent, isTruncated };
+  const isDenseNarration = detectDenseNarration(finalText, hasTools);
+  return {
+    isEmptyOrJunk,
+    isLeakedIntent,
+    hasTrailingIntent,
+    isTruncated,
+    isDenseNarration,
+  };
 }
 
 /** Options for building a recovery nudge. */
@@ -161,6 +196,7 @@ export interface RecoveryNudgeOptions {
   readonly isLeakedIntent: boolean;
   readonly hasTrailingIntent: boolean;
   readonly isTruncated: boolean;
+  readonly isDenseNarration: boolean;
 }
 
 /** Build the nudge message for empty/junk, leaked-intent, truncated, or trailing-intent responses. */
@@ -173,6 +209,10 @@ export function buildRecoveryNudge(
       "Your tool call was cut off and could not be executed. " +
       "Break the task into smaller steps: write shorter files, use fewer tool arguments, " +
       "or split large operations across multiple tool calls.";
+  }
+  if (opts.isDenseNarration) {
+    return "[SYSTEM] You wrote a long planning narrative without calling any tools. " +
+      "Stop narrating and ACT. Call one tool now.";
   }
   if (opts.hasTrailingIntent) {
     return "[SYSTEM] You stated you would continue but stopped without using a tool. Execute the next step now.";
@@ -235,10 +275,11 @@ export async function handleFinalResponse(
   targetClassification: ClassificationLevel,
   tokens: TokenAccumulator,
 ): Promise<Result<ProcessMessageResult, string> | null> {
-  const { isEmptyOrJunk, isLeakedIntent, hasTrailingIntent } =
+  const { isEmptyOrJunk, isLeakedIntent, hasTrailingIntent, isDenseNarration } =
     classifyResponseQuality(finalText, hasTools);
   const isJunkFinal = finalText.length === 0 || isEmptyOrJunk ||
-    isLeakedIntent || (hasTrailingIntent && emptyNudgeCount >= 2);
+    isLeakedIntent || isDenseNarration ||
+    (hasTrailingIntent && emptyNudgeCount >= 2);
 
   // Detect repetition loops (model stuck outputting the same sentence)
   const deduped = detectRepetition(finalText);

@@ -48,6 +48,9 @@ export interface ZenMuxConfig {
 /** ZenMux API endpoint. */
 const ZENMUX_API_URL = "https://zenmux.ai/api/v1/chat/completions";
 
+/** Frequency penalty applied to all ZenMux requests to discourage repetition loops. */
+const FREQUENCY_PENALTY = 0.3;
+
 function buildChatRequestBody(
   model: string,
   maxTokens: number,
@@ -63,6 +66,7 @@ function buildChatRequestBody(
     model,
     max_tokens: maxTokens,
     messages: openaiMessages,
+    frequency_penalty: FREQUENCY_PENALTY,
   };
   if (streaming) body.stream = true;
   if (Array.isArray(tools) && tools.length > 0) body.tools = tools;

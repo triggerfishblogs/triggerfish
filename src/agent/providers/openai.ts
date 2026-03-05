@@ -26,6 +26,9 @@ export interface OpenAiConfig {
   readonly maxTokens?: number;
 }
 
+/** Frequency penalty applied to all OpenAI requests to discourage repetition loops. */
+const FREQUENCY_PENALTY = 0.3;
+
 /** Convert content blocks to OpenAI's multimodal format. */
 function convertOpenAiContent(content: string | unknown): string | unknown[] {
   if (typeof content === "string") return content;
@@ -113,6 +116,7 @@ function buildOpenAiRequestParams(
     model,
     max_tokens: maxTokens,
     messages: convertToOpenAiMessages(messages),
+    frequency_penalty: FREQUENCY_PENALTY,
     ...buildOpenAiToolsParam(tools),
   };
 }

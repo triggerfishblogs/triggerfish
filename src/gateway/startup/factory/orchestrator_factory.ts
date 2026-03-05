@@ -57,6 +57,7 @@ import {
   filterProfileByAvailability,
   TOOL_PROFILES,
 } from "../../tools/defs/tool_profiles.ts";
+import { TOOL_BEHAVIOR_PROMPT } from "../../../agent/orchestrator/tool_behavior_prompt.ts";
 import type { ServiceAvailability } from "../../tools/defs/tool_profiles.ts";
 import { detectServiceAvailability } from "../tools/tool_infra.ts";
 import { buildWebTools } from "./web_tools.ts";
@@ -255,6 +256,7 @@ export function createOrchestratorFactory(
         tools: resolveToolsForProfile(toolProfile),
         toolExecutor,
         systemPromptSections: [
+          TOOL_BEHAVIOR_PROMPT,
           ...resolvePromptsForProfile(toolProfile),
           skillState.prompt,
           ...(isTrigger ? [TRIGGER_SESSION_SYSTEM_PROMPT] : []),

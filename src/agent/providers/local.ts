@@ -52,6 +52,12 @@ export interface LocalConfig {
   readonly maxTokens?: number;
 }
 
+/**
+ * Frequency penalty for local model requests.
+ * Local/open-source models are especially prone to repetition loops.
+ */
+const FREQUENCY_PENALTY = 0.3;
+
 function buildLocalRequestBody(
   model: string,
   maxTokens: number,
@@ -67,6 +73,7 @@ function buildLocalRequestBody(
     model,
     max_tokens: maxTokens,
     messages: openaiMessages,
+    frequency_penalty: FREQUENCY_PENALTY,
   };
   if (streaming) body.stream = true;
   if (Array.isArray(tools) && tools.length > 0) {

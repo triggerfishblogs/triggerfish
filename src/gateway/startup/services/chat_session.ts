@@ -45,6 +45,7 @@ import {
 } from "../../tools/defs/tool_profiles.ts";
 import type { ServiceAvailability } from "../../tools/defs/tool_profiles.ts";
 import type { createToolExecutor } from "../../tools/agent_tools.ts";
+import { TOOL_BEHAVIOR_PROMPT } from "../../../agent/orchestrator/tool_behavior_prompt.ts";
 import type { wireMcpServers } from "../infra/mcp.ts";
 import type { buildWebTools } from "../factory/web_tools.ts";
 import type { MainSessionState } from "../tools/tool_executor.ts";
@@ -160,6 +161,7 @@ export function buildChatSessionDynamicOptions(deps: ChatSessionDeps) {
       deps.workspacePaths,
     ),
     systemPromptSections: [
+      TOOL_BEHAVIOR_PROMPT,
       ...resolvePromptsForProfile(filteredProfile),
       deps.skillsPrompt,
       deps.triggersPrompt,

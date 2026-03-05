@@ -11,6 +11,7 @@ export { runAgentTurn } from "./agent_turn.ts";
 
 export {
   callLlmAndRecordUsage,
+  consumeProviderStream,
   dispatchIterationOutcome,
 } from "./loop_iteration.ts";
 

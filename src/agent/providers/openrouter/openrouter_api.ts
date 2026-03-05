@@ -78,6 +78,9 @@ export interface PayloadOptions {
   readonly stream?: boolean;
 }
 
+/** Frequency penalty applied to all OpenRouter requests to discourage repetition loops. */
+const FREQUENCY_PENALTY = 0.3;
+
 /** Convert LLM messages to OpenAI format and build the JSON request body. */
 export function prepareOpenRouterPayload(
   opts: PayloadOptions,
@@ -90,6 +93,7 @@ export function prepareOpenRouterPayload(
     model: opts.model,
     max_tokens: opts.maxTokens,
     messages: openaiMessages,
+    frequency_penalty: FREQUENCY_PENALTY,
   };
   if (opts.stream) payload.stream = true;
   if (Array.isArray(opts.tools) && opts.tools.length > 0) {
