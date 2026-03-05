@@ -210,16 +210,20 @@ function handleScreenToolResult(
     !event.blocked &&
     hasEditFileDiffArgs(state.pendingToolCall.args)
   ) {
-    screen.writeOutput(
-      formatEditFileDiff(
-        state.pendingToolCall.args.old_text as string,
-        state.pendingToolCall.args.new_text as string,
-        truncateResultLine(event.result),
-      ),
+    const diffDisplay = formatEditFileDiff(
+      state.pendingToolCall.args.old_text as string,
+      state.pendingToolCall.args.new_text as string,
+      truncateResultLine(event.result),
     );
+    if (getDisplayMode() === "compact") {
+      // In-progress was 2 lines; diff is taller — replaceLastOutput falls back to append
+      screen.replaceLastOutput(diffDisplay);
+    } else {
+      screen.writeOutput(diffDisplay);
+    }
     state.pendingToolCall = null;
   } else if (getDisplayMode() === "compact" && state.pendingToolCall) {
-    screen.writeOutput(
+    screen.replaceLastOutput(
       formatToolCompact(
         state.pendingToolCall.name,
         state.pendingToolCall.args,

@@ -17,21 +17,58 @@ import {
   SHOW_CURSOR,
 } from "../layout/ansi_escape.ts";
 
-/** Write complete text lines into the scroll region (auto-scrolls). */
+/** Write complete text lines into the scroll region (auto-scrolls). Returns line count. */
 export function writeLinesToScrollRegion(
   text: string,
   scrollBottom: number,
   knownCursorRow: number,
   knownCursorCol: number,
-): void {
+): number {
+  const lines = text.split("\n");
   rawWrite(HIDE_CURSOR);
   rawWrite(moveTo(scrollBottom, 1));
   rawWrite("\n");
-  for (const line of text.split("\n")) {
+  for (const line of lines) {
     rawWrite(`${line}${CLEAR_LINE}\n`);
   }
   rawWrite(moveTo(knownCursorRow, knownCursorCol));
   rawWrite(SHOW_CURSOR);
+  return lines.length;
+}
+
+/**
+ * Replace the last N lines written to the scroll region with new content.
+ *
+ * Only works when the new content has the same line count as the previous
+ * output — the lines sit at fixed positions relative to scrollBottom.
+ * Falls back to a normal scrolling write when heights differ.
+ */
+export function replaceInScrollRegion(
+  text: string,
+  previousLineCount: number,
+  scrollBottom: number,
+  knownCursorRow: number,
+  knownCursorCol: number,
+): number {
+  const newLines = text.split("\n");
+  if (previousLineCount === 0 || newLines.length !== previousLineCount) {
+    return writeLinesToScrollRegion(
+      text,
+      scrollBottom,
+      knownCursorRow,
+      knownCursorCol,
+    );
+  }
+  // Previous content occupies rows (scrollBottom - N) through (scrollBottom - 1)
+  const startRow = scrollBottom - previousLineCount;
+  rawWrite(HIDE_CURSOR);
+  for (let i = 0; i < newLines.length; i++) {
+    rawWrite(moveTo(startRow + i, 1));
+    rawWrite(`${newLines[i]}${CLEAR_LINE}`);
+  }
+  rawWrite(moveTo(knownCursorRow, knownCursorCol));
+  rawWrite(SHOW_CURSOR);
+  return newLines.length;
 }
 
 /** Options for writing a streaming text chunk. */

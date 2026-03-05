@@ -33,6 +33,7 @@ import {
 } from "./render/input_bar_render.ts";
 import { renderSpinnerStatusText } from "./render/spinner_render.ts";
 import {
+  replaceInScrollRegion,
   writeLinesToScrollRegion,
   writeStreamingChunk,
 } from "./render/scroll_output.ts";
@@ -54,6 +55,7 @@ interface TtyState {
   knownCursorCol: number;
   streamCursorRow: number;
   streamCursorCol: number;
+  lastOutputLineCount: number;
 }
 
 /** Create the initial TTY state. */
@@ -74,6 +76,7 @@ function createTtyState(): TtyState {
     knownCursorCol: 1,
     streamCursorRow: 0,
     streamCursorCol: 1,
+    lastOutputLineCount: 0,
   };
 }
 
@@ -137,8 +140,21 @@ function drawInputBar(s: TtyState, editor: LineEditor): void {
 function writeOutput(s: TtyState, text: string): void {
   s.streamCursorRow = 0;
   s.streamCursorCol = 1;
-  writeLinesToScrollRegion(
+  s.lastOutputLineCount = writeLinesToScrollRegion(
     text,
+    computeScrollBottom(s),
+    s.knownCursorRow,
+    s.knownCursorCol,
+  );
+}
+
+/** Replace the last writeOutput content in-place (same-height, else appends). */
+function replaceOutput(s: TtyState, text: string): void {
+  s.streamCursorRow = 0;
+  s.streamCursorCol = 1;
+  s.lastOutputLineCount = replaceInScrollRegion(
+    text,
+    s.lastOutputLineCount,
     computeScrollBottom(s),
     s.knownCursorRow,
     s.knownCursorCol,
@@ -255,6 +271,7 @@ export function createTtyScreenManager(): ScreenManager {
     isTty: true,
     init: () => initializeScreen(s),
     writeOutput: (text: string) => writeOutput(s, text),
+    replaceLastOutput: (text: string) => replaceOutput(s, text),
     writeChunk: (text: string) => writeChunk(s, text),
     redrawInput: (editor: LineEditor) => drawInputBar(s, editor),
     setTaint: (level: ClassificationLevel) => {

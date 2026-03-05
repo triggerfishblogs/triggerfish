@@ -109,6 +109,8 @@ export interface ScreenManager {
   init(): void;
   /** Write a line of text into the scroll region (auto-scrolls). */
   writeOutput(text: string): void;
+  /** Replace the last writeOutput content in-place (same-height only, else appends). */
+  replaceLastOutput(text: string): void;
   /**
    * Write streaming text at the current scroll position without forced newline.
    * Handles embedded newlines by scrolling as needed.
@@ -210,6 +212,9 @@ function createDumbScreenManager(): ScreenManager {
     isTty: false,
     ...buildDumbScreenNoops(),
     writeOutput(text: string): void {
+      console.log(text);
+    },
+    replaceLastOutput(text: string): void {
       console.log(text);
     },
     writeChunk(text: string): void {
