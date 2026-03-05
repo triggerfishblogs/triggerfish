@@ -18,3 +18,4 @@ export {
   executeSearchFiles,
   executeWriteFile,
 } from "./executor_filesystem.ts";
+export { createCwdTracker, type CwdTracker } from "./executor_cwd.ts";

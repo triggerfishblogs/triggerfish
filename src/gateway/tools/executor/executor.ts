@@ -33,6 +33,12 @@ import {
 } from "./executor_filesystem.ts";
 
 import { dispatchCronTool } from "./executor_cron.ts";
+import {
+  createCwdTracker,
+  type CwdTracker,
+  resolveAgainstCwd,
+  updateCwdAfterCommand,
+} from "./executor_cwd.ts";
 
 // ─── Subsystem dispatch chain ────────────────────────────────────────────────
 
@@ -146,28 +152,81 @@ function dispatchAgentTool(
   return null;
 }
 
+/** Return a copy of `input` with `pathKey` resolved against the CWD tracker. */
+function resolveFilesystemInput(
+  input: Record<string, unknown>,
+  cwdTracker: CwdTracker,
+  pathKey = "path",
+): Record<string, unknown> {
+  const raw = input[pathKey];
+  if (typeof raw !== "string" || raw.length === 0) return input;
+  const resolved = resolveAgainstCwd(cwdTracker, raw);
+  if (resolved === raw) return input;
+  return { ...input, [pathKey]: resolved };
+}
+
+/** Parse exit code from the formatted command result string. */
+function parseExitCode(result: string): number {
+  const match = result.match(/\[exit code: (\d+)/);
+  return match ? Number(match[1]) : -1;
+}
+
+/** Run a command, then update the CWD tracker if a `cd` was detected. */
+async function executeRunCommandWithCwd(
+  input: Record<string, unknown>,
+  execTools: ToolExecutorOptions["execTools"],
+  cwdTracker: CwdTracker,
+): Promise<string> {
+  const hasExplicitCwd = typeof input.cwd === "string" && input.cwd.length > 0;
+  const resolved = (!hasExplicitCwd && cwdTracker.workingDir !== ".")
+    ? { ...input, cwd: cwdTracker.workingDir }
+    : input;
+  const result = await executeRunCommand(resolved, execTools);
+  const command = (input.command ?? input.cmd) as string | undefined;
+  if (command && !hasExplicitCwd) {
+    updateCwdAfterCommand(cwdTracker, command, parseExitCode(result));
+  }
+  return result;
+}
+
 /** Dispatch filesystem tools. Returns null if not matched. */
 function dispatchFilesystemTool(
   name: string,
   input: Record<string, unknown>,
   opts: ToolExecutorOptions,
+  cwdTracker: CwdTracker,
 ): Promise<string> | null {
   const sandbox = opts.filesystemSandbox;
   switch (name) {
     case "read_file":
-      return executeReadFile(input, sandbox);
+      return executeReadFile(
+        resolveFilesystemInput(input, cwdTracker),
+        sandbox,
+      );
     case "write_file":
-      return executeWriteFile(input, opts.execTools, sandbox);
+      return executeWriteFile(
+        resolveFilesystemInput(input, cwdTracker),
+        opts.execTools,
+        sandbox,
+      );
     case "list_directory":
-      return executeListDirectory(input, sandbox);
+      return executeListDirectory(
+        resolveFilesystemInput(input, cwdTracker),
+        sandbox,
+      );
     case "run_command":
-      return executeRunCommand(input, opts.execTools);
+      return executeRunCommandWithCwd(input, opts.execTools, cwdTracker);
     case "search_files":
-      return executeSearchFiles(input, sandbox);
+      return executeSearchFiles(
+        resolveFilesystemInput(input, cwdTracker),
+        sandbox,
+      );
     case "edit_file":
-      return executeEditFile(input, sandbox);
+      return executeEditFile(
+        resolveFilesystemInput(input, cwdTracker),
+        sandbox,
+      );
     case "log_read":
-      // executeLogRead returns Promise<string | null>; null cannot occur here since name === "log_read"
       return executeLogRead(name, input).then((r) =>
         r ?? "No log files found or logs are empty."
       );
@@ -182,6 +241,7 @@ function dispatchFilesystemTool(
 interface ToolCallContext {
   readonly chain: (SubsystemExecutor | null | undefined)[];
   readonly opts: ToolExecutorOptions;
+  readonly cwdTracker: CwdTracker;
 }
 
 /** Route a single tool call through subsystems, builtins, and cron. */
@@ -193,7 +253,12 @@ async function routeToolCall(
   const subsystemResult = await dispatchToSubsystems(ctx.chain, name, input);
   if (subsystemResult !== null) return subsystemResult;
 
-  const fsResult = dispatchFilesystemTool(name, input, ctx.opts);
+  const fsResult = dispatchFilesystemTool(
+    name,
+    input,
+    ctx.opts,
+    ctx.cwdTracker,
+  );
   if (fsResult !== null) return fsResult;
 
   const agentResult = dispatchAgentTool(name, input, ctx.opts);
@@ -231,7 +296,8 @@ export function createToolExecutor(opts: ToolExecutorOptions): ToolExecutor {
     ...buildExtendedSubsystems(opts, webExecutor),
   ];
 
-  const ctx: ToolCallContext = { chain, opts };
+  const cwdTracker = createCwdTracker();
+  const ctx: ToolCallContext = { chain, opts, cwdTracker };
   return (name: string, input: Record<string, unknown>): Promise<string> =>
     routeToolCall(ctx, name, input);
 }

@@ -93,6 +93,7 @@ export function buildWorkspacePrompt(
     "## Workspace",
     "Your working directory is the current directory (`.`).",
     "All file operations are relative to your workspace.",
+    "When you use `cd <dir>` via run_command, subsequent file operations resolve relative to that directory.",
     "Stay within your workspace for all file reads and writes.",
   ].join("\n");
 }
