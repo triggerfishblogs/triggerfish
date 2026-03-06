@@ -1,83 +1,57 @@
 /**
- * Inline tool definitions for cron scheduling operations.
+ * Inline tool definition for cron scheduling operations.
  *
- * Cron create/list/delete/history are defined inline because
- * they are wired directly in the gateway executor.
+ * Consolidated 4 cron tools into 1 with action parameter dispatch.
  *
  * @module
  */
 
 import type { ToolDefinition } from "../../../core/types/tool.ts";
 
-function buildCronCreateDef(): ToolDefinition {
+function buildCronDef(): ToolDefinition {
   return {
-    name: "cron_create",
+    name: "cron",
     description:
-      "Create a scheduled cron job. The task runs on the given cron schedule.",
+      "Cron job management. Actions: create, list, delete, history.\n" +
+      "- create: create a scheduled cron job. Params: expression (required), task (required), classification?\n" +
+      "- list: list all registered cron jobs. No extra params.\n" +
+      "- delete: delete a cron job. Params: job_id (required)\n" +
+      "- history: show recent execution history. Params: job_id (required)",
     parameters: {
+      action: {
+        type: "string",
+        description: "The operation: create, list, delete, history",
+        required: true,
+      },
       expression: {
         type: "string",
-        description: "5-field cron expression (e.g. '0 9 * * *' for 9am daily)",
-        required: true,
+        description:
+          "5-field cron expression, e.g. '0 9 * * *' for 9am daily (create)",
+        required: false,
       },
       task: {
         type: "string",
-        description: "The task/prompt to execute on each trigger",
-        required: true,
+        description: "The task/prompt to execute on each trigger (create)",
+        required: false,
       },
       classification: {
         type: "string",
         description:
-          "Classification ceiling: PUBLIC, INTERNAL, CONFIDENTIAL, or RESTRICTED",
+          "Classification ceiling: PUBLIC, INTERNAL, CONFIDENTIAL, or RESTRICTED (create)",
+        required: false,
+      },
+      job_id: {
+        type: "string",
+        description: "The UUID of the cron job (delete, history)",
         required: false,
       },
     },
   };
 }
 
-function buildCronListDef(): ToolDefinition {
-  return {
-    name: "cron_list",
-    description:
-      "List all registered cron jobs with their schedules and status.",
-    parameters: {},
-  };
-}
-
-function buildCronDeleteDef(): ToolDefinition {
-  return {
-    name: "cron_delete",
-    description: "Delete a cron job by its ID.",
-    parameters: {
-      job_id: {
-        type: "string",
-        description: "The UUID of the cron job to delete",
-        required: true,
-      },
-    },
-  };
-}
-
-function buildCronHistoryDef(): ToolDefinition {
-  return {
-    name: "cron_history",
-    description: "Show recent execution history for a cron job.",
-    parameters: {
-      job_id: {
-        type: "string",
-        description: "The UUID of the cron job",
-        required: true,
-      },
-    },
-  };
-}
-
-/** Cron scheduling tools: cron_create, cron_list, cron_delete, cron_history. */
+/** Cron scheduling tool: single consolidated cron tool. */
 export function getCronInlineDefinitions(): readonly ToolDefinition[] {
   return [
-    buildCronCreateDef(),
-    buildCronListDef(),
-    buildCronDeleteDef(),
-    buildCronHistoryDef(),
+    buildCronDef(),
   ];
 }

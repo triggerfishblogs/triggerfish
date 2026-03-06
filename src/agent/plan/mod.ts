@@ -24,6 +24,7 @@ export type {
 export {
   DEFAULT_PLAN_STATE,
   PLAN_ALLOWED_TOOLS,
+  PLAN_BLOCKED_CRON_ACTIONS,
   PLAN_BLOCKED_TOOLS,
 } from "./types.ts";
 

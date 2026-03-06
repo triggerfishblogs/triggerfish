@@ -1,7 +1,9 @@
 /**
  * Google Workspace tool definitions and executor tests.
  *
- * Tests tool definition shapes, executor routing, and parameter validation.
+ * Tests tool definition shapes, executor routing, and parameter validation
+ * for the 5 consolidated tools (google_gmail, google_calendar, google_tasks,
+ * google_drive, google_sheets) with action-based dispatch.
  *
  * @module
  */
@@ -24,16 +26,16 @@ import type { SessionId } from "../../../src/core/types/session.ts";
 
 // ─── Tool Definitions ───────────────────────────────────────────────────────
 
-Deno.test("getGoogleToolDefinitions: returns 14 tools", () => {
+Deno.test("getGoogleToolDefinitions: returns 5 consolidated tools", () => {
   const defs = getGoogleToolDefinitions();
-  assertEquals(defs.length, 14);
+  assertEquals(defs.length, 5);
 });
 
 Deno.test("getGoogleToolDefinitions: all tools have unique names", () => {
   const defs = getGoogleToolDefinitions();
   const names = defs.map((d) => d.name);
   const unique = new Set(names);
-  assertEquals(unique.size, 14);
+  assertEquals(unique.size, 5);
 });
 
 Deno.test("getGoogleToolDefinitions: contains all expected tool names", () => {
@@ -41,20 +43,11 @@ Deno.test("getGoogleToolDefinitions: contains all expected tool names", () => {
   const names = new Set(defs.map((d) => d.name));
 
   const expected = [
-    "gmail_search",
-    "gmail_read",
-    "gmail_send",
-    "gmail_label",
-    "calendar_list",
-    "calendar_create",
-    "calendar_update",
-    "tasks_list",
-    "tasks_create",
-    "tasks_complete",
-    "drive_search",
-    "drive_read",
-    "sheets_read",
-    "sheets_write",
+    "google_gmail",
+    "google_calendar",
+    "google_tasks",
+    "google_drive",
+    "google_sheets",
   ];
 
   for (const name of expected) {
@@ -62,27 +55,33 @@ Deno.test("getGoogleToolDefinitions: contains all expected tool names", () => {
   }
 });
 
-Deno.test("getGoogleToolDefinitions: gmail_search has required query param", () => {
+Deno.test("getGoogleToolDefinitions: google_gmail has required action param", () => {
   const defs = getGoogleToolDefinitions();
-  const tool = defs.find((d) => d.name === "gmail_search")!;
-  assertEquals(tool.parameters.query.required, true);
+  const tool = defs.find((d) => d.name === "google_gmail")!;
+  assertEquals(tool.parameters.action.required, true);
+  assertEquals(tool.parameters.action.type, "string");
+});
+
+Deno.test("getGoogleToolDefinitions: google_gmail has query param for search", () => {
+  const defs = getGoogleToolDefinitions();
+  const tool = defs.find((d) => d.name === "google_gmail")!;
   assertEquals(tool.parameters.query.type, "string");
 });
 
-Deno.test("getGoogleToolDefinitions: gmail_send has required to, subject, body", () => {
+Deno.test("getGoogleToolDefinitions: google_gmail has send params (to, subject, body)", () => {
   const defs = getGoogleToolDefinitions();
-  const tool = defs.find((d) => d.name === "gmail_send")!;
-  assertEquals(tool.parameters.to.required, true);
-  assertEquals(tool.parameters.subject.required, true);
-  assertEquals(tool.parameters.body.required, true);
+  const tool = defs.find((d) => d.name === "google_gmail")!;
+  assertEquals(tool.parameters.to.type, "string");
+  assertEquals(tool.parameters.subject.type, "string");
+  assertEquals(tool.parameters.body.type, "string");
 });
 
-Deno.test("getGoogleToolDefinitions: sheets_write has required values param", () => {
+Deno.test("getGoogleToolDefinitions: google_sheets has values param for write", () => {
   const defs = getGoogleToolDefinitions();
-  const tool = defs.find((d) => d.name === "sheets_write")!;
-  assertEquals(tool.parameters.spreadsheet_id.required, true);
-  assertEquals(tool.parameters.range.required, true);
-  assertEquals(tool.parameters.values.required, true);
+  const tool = defs.find((d) => d.name === "google_sheets")!;
+  assertEquals(tool.parameters.spreadsheet_id.type, "string");
+  assertEquals(tool.parameters.range.type, "string");
+  assertEquals(tool.parameters.values.type, "string");
 });
 
 Deno.test("GOOGLE_TOOLS_SYSTEM_PROMPT: is a non-empty string", () => {
@@ -200,26 +199,33 @@ Deno.test("executor: returns null for unknown tool", async () => {
   assertEquals(result, null);
 });
 
-Deno.test("executor: routes gmail_search correctly", async () => {
+Deno.test("executor: routes google_gmail action:search correctly", async () => {
   const executor = createGoogleToolExecutor(createMockContext());
-  const result = await executor("gmail_search", { query: "test" });
+  const result = await executor("google_gmail", {
+    action: "search",
+    query: "test",
+  });
   assertEquals(result !== null, true);
   // Empty results from mock
   assertEquals(result!.includes("No emails found"), true);
 });
 
-Deno.test("executor: routes gmail_read correctly", async () => {
+Deno.test("executor: routes google_gmail action:read correctly", async () => {
   const executor = createGoogleToolExecutor(createMockContext());
-  const result = await executor("gmail_read", { message_id: "msg1" });
+  const result = await executor("google_gmail", {
+    action: "read",
+    message_id: "msg1",
+  });
   assertEquals(result !== null, true);
   const parsed = JSON.parse(result!);
   assertEquals(parsed.id, "msg1");
   assertEquals(parsed.subject, "Test");
 });
 
-Deno.test("executor: routes gmail_send correctly", async () => {
+Deno.test("executor: routes google_gmail action:send correctly", async () => {
   const executor = createGoogleToolExecutor(createMockContext());
-  const result = await executor("gmail_send", {
+  const result = await executor("google_gmail", {
+    action: "send",
     to: "test@example.com",
     subject: "Hi",
     body: "Hello",
@@ -228,9 +234,10 @@ Deno.test("executor: routes gmail_send correctly", async () => {
   assertEquals(parsed.sent, true);
 });
 
-Deno.test("executor: routes calendar_create correctly", async () => {
+Deno.test("executor: routes google_calendar action:create correctly", async () => {
   const executor = createGoogleToolExecutor(createMockContext());
-  const result = await executor("calendar_create", {
+  const result = await executor("google_calendar", {
+    action: "create",
     summary: "Meeting",
     start: "2025-01-15T10:00:00Z",
     end: "2025-01-15T11:00:00Z",
@@ -240,22 +247,29 @@ Deno.test("executor: routes calendar_create correctly", async () => {
   assertEquals(parsed.id, "evt1");
 });
 
-Deno.test("executor: routes tasks_create correctly", async () => {
+Deno.test("executor: routes google_tasks action:create correctly", async () => {
   const executor = createGoogleToolExecutor(createMockContext());
-  const result = await executor("tasks_create", { title: "Buy milk" });
+  const result = await executor("google_tasks", {
+    action: "create",
+    title: "Buy milk",
+  });
   const parsed = JSON.parse(result!);
   assertEquals(parsed.created, true);
 });
 
-Deno.test("executor: routes drive_read correctly", async () => {
+Deno.test("executor: routes google_drive action:read correctly", async () => {
   const executor = createGoogleToolExecutor(createMockContext());
-  const result = await executor("drive_read", { file_id: "file1" });
+  const result = await executor("google_drive", {
+    action: "read",
+    file_id: "file1",
+  });
   assertEquals(result, "File content here");
 });
 
-Deno.test("executor: routes sheets_read correctly", async () => {
+Deno.test("executor: routes google_sheets action:read correctly", async () => {
   const executor = createGoogleToolExecutor(createMockContext());
-  const result = await executor("sheets_read", {
+  const result = await executor("google_sheets", {
+    action: "read",
     spreadsheet_id: "ss1",
     range: "Sheet1!A1:B2",
   });
@@ -264,9 +278,10 @@ Deno.test("executor: routes sheets_read correctly", async () => {
   assertEquals(parsed.values.length, 2);
 });
 
-Deno.test("executor: routes sheets_write correctly", async () => {
+Deno.test("executor: routes google_sheets action:write correctly", async () => {
   const executor = createGoogleToolExecutor(createMockContext());
-  const result = await executor("sheets_write", {
+  const result = await executor("google_sheets", {
+    action: "write",
     spreadsheet_id: "ss1",
     range: "Sheet1!A1",
     values: '[["x","y"]]',
@@ -275,35 +290,57 @@ Deno.test("executor: routes sheets_write correctly", async () => {
   assertEquals(parsed.written, true);
 });
 
+// ─── Action Validation ──────────────────────────────────────────────────────
+
+Deno.test("executor: rejects missing action parameter", async () => {
+  const executor = createGoogleToolExecutor(createMockContext());
+  const result = await executor("google_gmail", { query: "test" });
+  assertEquals(result!.includes("Error"), true);
+  assertEquals(result!.includes("action"), true);
+});
+
+Deno.test("executor: rejects unknown action", async () => {
+  const executor = createGoogleToolExecutor(createMockContext());
+  const result = await executor("google_gmail", { action: "delete" });
+  assertEquals(result!.includes("Error"), true);
+  assertEquals(result!.includes("unknown action"), true);
+});
+
 // ─── Parameter Validation ───────────────────────────────────────────────────
 
-Deno.test("executor: gmail_search rejects empty query", async () => {
+Deno.test("executor: google_gmail search rejects empty query", async () => {
   const executor = createGoogleToolExecutor(createMockContext());
-  const result = await executor("gmail_search", { query: "" });
+  const result = await executor("google_gmail", {
+    action: "search",
+    query: "",
+  });
   assertEquals(result!.includes("Error"), true);
 });
 
-Deno.test("executor: gmail_send rejects missing to", async () => {
+Deno.test("executor: google_gmail send rejects missing to", async () => {
   const executor = createGoogleToolExecutor(createMockContext());
-  const result = await executor("gmail_send", {
+  const result = await executor("google_gmail", {
+    action: "send",
     subject: "Hi",
     body: "Hello",
   });
   assertEquals(result!.includes("Error"), true);
 });
 
-Deno.test("executor: calendar_create rejects missing summary", async () => {
+Deno.test("executor: google_calendar create rejects missing summary", async () => {
   const executor = createGoogleToolExecutor(createMockContext());
-  const result = await executor("calendar_create", {
+  const result = await executor("google_calendar", {
+    action: "create",
     start: "2025-01-15T10:00:00Z",
     end: "2025-01-15T11:00:00Z",
   });
   assertEquals(result!.includes("Error"), true);
 });
 
-Deno.test("executor: sheets_write rejects invalid JSON values", async () => {
+Deno.test("executor: google_sheets write rejects invalid JSON values", async () => {
   const executor = createGoogleToolExecutor(createMockContext());
-  const result = await executor("sheets_write", {
+  const result = await executor("google_sheets", {
+    action: "write",
     spreadsheet_id: "ss1",
     range: "A1",
     values: "not json",

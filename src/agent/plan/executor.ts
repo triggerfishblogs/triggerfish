@@ -2,38 +2,41 @@
  * Plan tool executor — routes plan_* tool calls to PlanManager.
  *
  * Validates untrusted LLM input for implementation plans and dispatches
- * plan_enter, plan_exit, plan_status, plan_approve, plan_reject,
- * plan_step_complete, plan_complete, and plan_modify to the PlanManager.
+ * plan_manage (with action parameter), plan_step_complete, and plan_status
+ * to the PlanManager.
  *
  * @module
  */
 
 import type { ImplementationPlan, PlanComplexity, PlanStep } from "./types.ts";
 import type { PlanManager } from "./plan_types.ts";
+import { createLogger } from "../../core/logger/mod.ts";
 
-// ─── Executor Helpers ──────────────────────────────────────────────────────────
+const log = createLogger("plan-executor");
 
-function executePlanEnter(
+// ─── Action Handlers for plan_manage ─────────────────────────────────────────
+
+function executeActionEnter(
   manager: PlanManager,
   sessionId: string,
   input: Record<string, unknown>,
 ): string {
   const goal = input.goal;
   if (typeof goal !== "string" || goal.length === 0) {
-    return "Error: plan_enter requires a 'goal' argument (string).";
+    return "Error: plan_manage(action: 'enter') requires a 'goal' argument (string).";
   }
   const scope = typeof input.scope === "string" ? input.scope : undefined;
   return manager.enter(sessionId, goal, scope);
 }
 
-async function executePlanExit(
+async function executeActionExit(
   manager: PlanManager,
   sessionId: string,
   input: Record<string, unknown>,
 ): Promise<string> {
   const planObj = input.plan;
   if (!planObj || typeof planObj !== "object") {
-    return "Error: plan_exit requires a 'plan' argument (object).";
+    return "Error: plan_manage(action: 'exit') requires a 'plan' argument (object).";
   }
   const validated = validateImplementationPlan(
     planObj as Record<string, unknown>,
@@ -53,11 +56,16 @@ async function executePlanExit(
       result.markdown
     );
   } catch (err) {
+    log.error("Plan exit failed during persistence", {
+      operation: "executeActionExit",
+      sessionId,
+      err,
+    });
     return `Error: ${err instanceof Error ? err.message : String(err)}`;
   }
 }
 
-function executePlanApprove(
+function executeActionApprove(
   manager: PlanManager,
   sessionId: string,
 ): string {
@@ -72,30 +80,14 @@ function executePlanApprove(
   });
 }
 
-function executePlanStepComplete(
-  manager: PlanManager,
-  sessionId: string,
-  input: Record<string, unknown>,
-): string {
-  const stepId = input.step_id;
-  const verificationResult = input.verification_result;
-  if (typeof stepId !== "number") {
-    return "Error: plan_step_complete requires a 'step_id' argument (number).";
-  }
-  if (typeof verificationResult !== "string") {
-    return "Error: plan_step_complete requires a 'verification_result' argument (string).";
-  }
-  return manager.stepComplete(sessionId, stepId, verificationResult);
-}
-
-function executePlanComplete(
+function executeActionComplete(
   manager: PlanManager,
   sessionId: string,
   input: Record<string, unknown>,
 ): string {
   const summary = input.summary;
   if (typeof summary !== "string" || summary.length === 0) {
-    return "Error: plan_complete requires a 'summary' argument (string).";
+    return "Error: plan_manage(action: 'complete') requires a 'summary' argument (string).";
   }
   const deviations = Array.isArray(input.deviations)
     ? (input.deviations as string[])
@@ -103,7 +95,7 @@ function executePlanComplete(
   return manager.complete(sessionId, summary, deviations);
 }
 
-function executePlanModify(
+function executeActionModify(
   manager: PlanManager,
   sessionId: string,
   input: Record<string, unknown>,
@@ -112,13 +104,13 @@ function executePlanModify(
   const reason = input.reason;
   const newDescription = input.new_description;
   if (typeof stepId !== "number") {
-    return "Error: plan_modify requires 'step_id' (number).";
+    return "Error: plan_manage(action: 'modify') requires 'step_id' (number).";
   }
   if (typeof reason !== "string") {
-    return "Error: plan_modify requires 'reason' (string).";
+    return "Error: plan_manage(action: 'modify') requires 'reason' (string).";
   }
   if (typeof newDescription !== "string") {
-    return "Error: plan_modify requires 'new_description' (string).";
+    return "Error: plan_manage(action: 'modify') requires 'new_description' (string).";
   }
   const newFiles = Array.isArray(input.new_files)
     ? (input.new_files as string[])
@@ -136,12 +128,61 @@ function executePlanModify(
   );
 }
 
+// ─── plan_manage dispatcher ──────────────────────────────────────────────────
+
+async function dispatchPlanManage(
+  manager: PlanManager,
+  sessionId: string,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const action = input.action;
+  if (typeof action !== "string" || action.length === 0) {
+    return "Error: plan_manage requires an 'action' parameter (string).";
+  }
+
+  switch (action) {
+    case "enter":
+      return executeActionEnter(manager, sessionId, input);
+    case "exit":
+      return await executeActionExit(manager, sessionId, input);
+    case "approve":
+      return executeActionApprove(manager, sessionId);
+    case "reject":
+      return manager.reject(sessionId);
+    case "complete":
+      return executeActionComplete(manager, sessionId, input);
+    case "modify":
+      return executeActionModify(manager, sessionId, input);
+    default:
+      return `Error: unknown action "${action}" for plan_manage. Valid actions: enter, exit, approve, reject, complete, modify`;
+  }
+}
+
+// ─── plan_step_complete handler ──────────────────────────────────────────────
+
+function executePlanStepComplete(
+  manager: PlanManager,
+  sessionId: string,
+  input: Record<string, unknown>,
+): string {
+  const stepId = input.step_id;
+  const verificationResult = input.verification_result;
+  if (typeof stepId !== "number") {
+    return "Error: plan_step_complete requires a 'step_id' argument (number).";
+  }
+  if (typeof verificationResult !== "string") {
+    return "Error: plan_step_complete requires a 'verification_result' argument (string).";
+  }
+  return manager.stepComplete(sessionId, stepId, verificationResult);
+}
+
+// ─── Public Executor ─────────────────────────────────────────────────────────
+
 /**
  * Create a tool executor for plan operations.
  *
  * Returns a handler that accepts tool name + args and returns a result string,
  * or `null` if the tool name is not a plan tool (so callers can fall through).
- * This follows the same pattern as `createTodoToolExecutor`.
  *
  * @param manager - The PlanManager instance
  * @param sessionId - The session to operate on
@@ -157,22 +198,12 @@ export function createPlanToolExecutor(
     input: Record<string, unknown>,
   ): Promise<string | null> => {
     switch (name) {
-      case "plan_enter":
-        return executePlanEnter(manager, sessionId, input);
-      case "plan_exit":
-        return executePlanExit(manager, sessionId, input);
-      case "plan_status":
-        return manager.status(sessionId);
-      case "plan_approve":
-        return executePlanApprove(manager, sessionId);
-      case "plan_reject":
-        return manager.reject(sessionId);
+      case "plan_manage":
+        return dispatchPlanManage(manager, sessionId, input);
       case "plan_step_complete":
         return executePlanStepComplete(manager, sessionId, input);
-      case "plan_complete":
-        return executePlanComplete(manager, sessionId, input);
-      case "plan_modify":
-        return executePlanModify(manager, sessionId, input);
+      case "plan_status":
+        return manager.status(sessionId);
       default:
         return null;
     }

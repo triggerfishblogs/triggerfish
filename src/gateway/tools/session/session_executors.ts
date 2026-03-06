@@ -1,9 +1,10 @@
 /**
  * Session management tool handlers.
  *
- * Implements sessions_list, sessions_history, sessions_send,
- * sessions_spawn, and session_status handlers. All taint decisions
- * use the injected context, not LLM arguments.
+ * Implements sessions_list (with optional session_id for status),
+ * sessions_history, sessions_send (session-to-session and channel),
+ * and sessions_spawn handlers. All taint decisions use the injected
+ * context, not LLM arguments.
  *
  * @module
  */
@@ -22,7 +23,6 @@ export const SESSION_MANAGEMENT_TOOLS = new Set([
   "sessions_history",
   "sessions_send",
   "sessions_spawn",
-  "session_status",
 ]);
 
 /** Format a session record for display. */
@@ -66,8 +66,36 @@ function requireStringArg(
   return null;
 }
 
-/** Handle sessions_list: list sessions visible at the caller's taint level. */
-async function executeSessionsList(ctx: SessionToolContext): Promise<string> {
+/**
+ * Handle sessions_list: list sessions visible at the caller's taint level.
+ *
+ * If input contains session_id, returns status for that specific session
+ * (merged session_status functionality).
+ */
+async function executeSessionsList(
+  ctx: SessionToolContext,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const sessionId = input.session_id;
+
+  // Single-session status mode (merged from session_status)
+  if (typeof sessionId === "string" && sessionId.length > 0) {
+    try {
+      const session = await ctx.sessionManager.get(sessionId as SessionId);
+      if (!session) return `Session not found: ${sessionId}`;
+
+      if (!canFlowTo(session.taint, ctx.callerTaint)) {
+        return `Access denied: session ${sessionId} is at ${session.taint}, your session is at ${ctx.callerTaint}.`;
+      }
+      return serializeSessionMeta(session);
+    } catch (err) {
+      return `Error reading session: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
+    }
+  }
+
+  // List all sessions
   try {
     const sessions = await ctx.sessionManager.sessionsList();
     const visible = sessions.filter((s) => canFlowTo(s.taint, ctx.callerTaint));
@@ -169,30 +197,6 @@ async function executeSessionsSpawn(
   }
 }
 
-/** Handle session_status: get session metadata with taint gating. */
-async function executeSessionStatus(
-  ctx: SessionToolContext,
-  input: Record<string, unknown>,
-): Promise<string> {
-  const argErr = requireStringArg(input, "session_id", "session_status");
-  if (argErr) return argErr;
-
-  const sessionId = input.session_id as string;
-  try {
-    const session = await ctx.sessionManager.get(sessionId as SessionId);
-    if (!session) return `Session not found: ${sessionId}`;
-
-    if (!canFlowTo(session.taint, ctx.callerTaint)) {
-      return `Access denied: session ${sessionId} is at ${session.taint}, your session is at ${ctx.callerTaint}.`;
-    }
-    return serializeSessionMeta(session);
-  } catch (err) {
-    return `Error reading session: ${
-      err instanceof Error ? err.message : String(err)
-    }`;
-  }
-}
-
 /**
  * Dispatch a session management tool call.
  *
@@ -206,15 +210,13 @@ export async function dispatchSessionTool(
 ): Promise<string | null> {
   switch (name) {
     case "sessions_list":
-      return executeSessionsList(ctx);
+      return executeSessionsList(ctx, input);
     case "sessions_history":
       return executeSessionsHistory(ctx, input);
     case "sessions_send":
       return executeSessionsSend(ctx, input);
     case "sessions_spawn":
       return executeSessionsSpawn(ctx, input);
-    case "session_status":
-      return executeSessionStatus(ctx, input);
     default:
       return null;
   }

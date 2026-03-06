@@ -46,11 +46,14 @@ const VALID_PLAN = {
   estimated_complexity: "small",
 };
 
-// --- plan_enter ---
+// --- plan_manage(action: "enter") ---
 
-Deno.test("plan_enter: returns status and blocked tools", async () => {
+Deno.test("plan_manage enter: returns status and blocked tools", async () => {
   const { exec } = createTestSetup();
-  const result = await exec("plan_enter", { goal: "Build auth" });
+  const result = await exec("plan_manage", {
+    action: "enter",
+    goal: "Build auth",
+  });
   assert(result !== null);
   const parsed = JSON.parse(result!);
   assertEquals(parsed.status, "entered");
@@ -58,81 +61,94 @@ Deno.test("plan_enter: returns status and blocked tools", async () => {
   assert(Array.isArray(parsed.blocked_tools));
 });
 
-Deno.test("plan_enter: with scope", async () => {
+Deno.test("plan_manage enter: with scope", async () => {
   const { exec, manager } = createTestSetup();
-  await exec("plan_enter", { goal: "Refactor", scope: "src/core/" });
+  await exec("plan_manage", {
+    action: "enter",
+    goal: "Refactor",
+    scope: "src/core/",
+  });
   assertEquals(manager.getState(SESSION).scope, "src/core/");
 });
 
-Deno.test("plan_enter: rejects missing goal", async () => {
+Deno.test("plan_manage enter: rejects missing goal", async () => {
   const { exec } = createTestSetup();
-  const result = await exec("plan_enter", {});
+  const result = await exec("plan_manage", { action: "enter" });
   assert(result !== null);
   assertStringIncludes(result!, "Error");
 });
 
-Deno.test("plan_enter: rejects when already in plan mode", async () => {
+Deno.test("plan_manage enter: rejects when already in plan mode", async () => {
   const { exec } = createTestSetup();
-  await exec("plan_enter", { goal: "First" });
-  const result = await exec("plan_enter", { goal: "Second" });
+  await exec("plan_manage", { action: "enter", goal: "First" });
+  const result = await exec("plan_manage", { action: "enter", goal: "Second" });
   assert(result !== null);
   assertStringIncludes(result!, "Already in plan mode");
 });
 
-// --- plan_exit ---
+// --- plan_manage(action: "exit") ---
 
-Deno.test("plan_exit: creates plan and returns markdown", async () => {
+Deno.test("plan_manage exit: creates plan and returns markdown", async () => {
   const { exec } = createTestSetup();
-  await exec("plan_enter", { goal: "Build auth" });
-  const result = await exec("plan_exit", { plan: VALID_PLAN });
+  await exec("plan_manage", { action: "enter", goal: "Build auth" });
+  const result = await exec("plan_manage", {
+    action: "exit",
+    plan: VALID_PLAN,
+  });
   assert(result !== null);
   assertStringIncludes(result!, "plan_presented");
   assertStringIncludes(result!, "Implementation Plan");
   assertStringIncludes(result!, "Add auth");
 });
 
-Deno.test("plan_exit: rejects missing plan object", async () => {
+Deno.test("plan_manage exit: rejects missing plan object", async () => {
   const { exec } = createTestSetup();
-  await exec("plan_enter", { goal: "Build auth" });
-  const result = await exec("plan_exit", {});
+  await exec("plan_manage", { action: "enter", goal: "Build auth" });
+  const result = await exec("plan_manage", { action: "exit" });
   assert(result !== null);
   assertStringIncludes(result!, "Error");
 });
 
-Deno.test("plan_exit: validates required plan fields", async () => {
+Deno.test("plan_manage exit: validates required plan fields", async () => {
   const { exec } = createTestSetup();
-  await exec("plan_enter", { goal: "Build auth" });
+  await exec("plan_manage", { action: "enter", goal: "Build auth" });
 
   // Missing summary
-  const result = await exec("plan_exit", {
+  const result = await exec("plan_manage", {
+    action: "exit",
     plan: { approach: "x", steps: [{ id: 1, description: "x" }] },
   });
   assert(result !== null);
   assertStringIncludes(result!, "summary");
 });
 
-Deno.test("plan_exit: validates steps are non-empty", async () => {
+Deno.test("plan_manage exit: validates steps are non-empty", async () => {
   const { exec } = createTestSetup();
-  await exec("plan_enter", { goal: "Build auth" });
-  const result = await exec("plan_exit", {
+  await exec("plan_manage", { action: "enter", goal: "Build auth" });
+  const result = await exec("plan_manage", {
+    action: "exit",
     plan: { summary: "x", approach: "y", steps: [] },
   });
   assert(result !== null);
   assertStringIncludes(result!, "steps");
 });
 
-Deno.test("plan_exit: rejects when not in plan mode", async () => {
+Deno.test("plan_manage exit: rejects when not in plan mode", async () => {
   const { exec } = createTestSetup();
-  const result = await exec("plan_exit", { plan: VALID_PLAN });
+  const result = await exec("plan_manage", {
+    action: "exit",
+    plan: VALID_PLAN,
+  });
   assert(result !== null);
   assertStringIncludes(result!, "Error");
   assertStringIncludes(result!, "Not in plan mode");
 });
 
-Deno.test("plan_exit: defaults missing optional fields", async () => {
+Deno.test("plan_manage exit: defaults missing optional fields", async () => {
   const { exec, manager } = createTestSetup();
-  await exec("plan_enter", { goal: "Build" });
-  await exec("plan_exit", {
+  await exec("plan_manage", { action: "enter", goal: "Build" });
+  await exec("plan_manage", {
+    action: "exit",
     plan: {
       summary: "Minimal plan",
       approach: "Direct",
@@ -154,7 +170,7 @@ Deno.test("plan_exit: defaults missing optional fields", async () => {
 
 Deno.test("plan_status: shows mode and goal", async () => {
   const { exec } = createTestSetup();
-  await exec("plan_enter", { goal: "Build auth" });
+  await exec("plan_manage", { action: "enter", goal: "Build auth" });
   const result = await exec("plan_status", {});
   assert(result !== null);
   const parsed = JSON.parse(result!);
@@ -162,14 +178,14 @@ Deno.test("plan_status: shows mode and goal", async () => {
   assertEquals(parsed.goal, "Build auth");
 });
 
-// --- plan_approve ---
+// --- plan_manage(action: "approve") ---
 
-Deno.test("plan_approve: transitions to normal with active plan", async () => {
+Deno.test("plan_manage approve: transitions to normal with active plan", async () => {
   const { exec, manager } = createTestSetup();
-  await exec("plan_enter", { goal: "Build" });
-  await exec("plan_exit", { plan: VALID_PLAN });
+  await exec("plan_manage", { action: "enter", goal: "Build" });
+  await exec("plan_manage", { action: "exit", plan: VALID_PLAN });
 
-  const result = await exec("plan_approve", {});
+  const result = await exec("plan_manage", { action: "approve" });
   assert(result !== null);
   const parsed = JSON.parse(result!);
   assertEquals(parsed.status, "approved");
@@ -179,20 +195,20 @@ Deno.test("plan_approve: transitions to normal with active plan", async () => {
   assert(manager.getState(SESSION).activePlan !== undefined);
 });
 
-Deno.test("plan_approve: with no pending plan returns error", async () => {
+Deno.test("plan_manage approve: with no pending plan returns error", async () => {
   const { exec } = createTestSetup();
-  const result = await exec("plan_approve", {});
+  const result = await exec("plan_manage", { action: "approve" });
   assert(result !== null);
   assertStringIncludes(result!, "No plan awaiting approval");
 });
 
-// --- plan_reject ---
+// --- plan_manage(action: "reject") ---
 
-Deno.test("plan_reject: transitions to normal", async () => {
+Deno.test("plan_manage reject: transitions to normal", async () => {
   const { exec, manager } = createTestSetup();
-  await exec("plan_enter", { goal: "Build" });
-  await exec("plan_exit", { plan: VALID_PLAN });
-  const result = await exec("plan_reject", {});
+  await exec("plan_manage", { action: "enter", goal: "Build" });
+  await exec("plan_manage", { action: "exit", plan: VALID_PLAN });
+  const result = await exec("plan_manage", { action: "reject" });
   assert(result !== null);
   const parsed = JSON.parse(result!);
   assertEquals(parsed.status, "rejected");
@@ -203,9 +219,9 @@ Deno.test("plan_reject: transitions to normal", async () => {
 
 Deno.test("plan_step_complete: marks step and advances", async () => {
   const { exec } = createTestSetup();
-  await exec("plan_enter", { goal: "Build" });
-  await exec("plan_exit", { plan: VALID_PLAN });
-  await exec("plan_approve", {});
+  await exec("plan_manage", { action: "enter", goal: "Build" });
+  await exec("plan_manage", { action: "exit", plan: VALID_PLAN });
+  await exec("plan_manage", { action: "approve" });
 
   const result = await exec("plan_step_complete", {
     step_id: 1,
@@ -219,24 +235,27 @@ Deno.test("plan_step_complete: marks step and advances", async () => {
 
 Deno.test("plan_step_complete: rejects missing args", async () => {
   const { exec } = createTestSetup();
-  await exec("plan_enter", { goal: "Build" });
-  await exec("plan_exit", { plan: VALID_PLAN });
-  await exec("plan_approve", {});
+  await exec("plan_manage", { action: "enter", goal: "Build" });
+  await exec("plan_manage", { action: "exit", plan: VALID_PLAN });
+  await exec("plan_manage", { action: "approve" });
 
-  const result = await exec("plan_step_complete", { step_id: "not a number" });
+  const result = await exec("plan_step_complete", {
+    step_id: "not a number",
+  });
   assert(result !== null);
   assertStringIncludes(result!, "Error");
 });
 
-// --- plan_complete ---
+// --- plan_manage(action: "complete") ---
 
-Deno.test("plan_complete: marks plan done", async () => {
+Deno.test("plan_manage complete: marks plan done", async () => {
   const { exec, manager } = createTestSetup();
-  await exec("plan_enter", { goal: "Build" });
-  await exec("plan_exit", { plan: VALID_PLAN });
-  await exec("plan_approve", {});
+  await exec("plan_manage", { action: "enter", goal: "Build" });
+  await exec("plan_manage", { action: "exit", plan: VALID_PLAN });
+  await exec("plan_manage", { action: "approve" });
 
-  const result = await exec("plan_complete", {
+  const result = await exec("plan_manage", {
+    action: "complete",
     summary: "Auth module complete",
   });
   assert(result !== null);
@@ -247,22 +266,23 @@ Deno.test("plan_complete: marks plan done", async () => {
   assertEquals(manager.getState(SESSION).activePlan, undefined);
 });
 
-Deno.test("plan_complete: rejects missing summary", async () => {
+Deno.test("plan_manage complete: rejects missing summary", async () => {
   const { exec } = createTestSetup();
-  const result = await exec("plan_complete", {});
+  const result = await exec("plan_manage", { action: "complete" });
   assert(result !== null);
   assertStringIncludes(result!, "Error");
 });
 
-// --- plan_modify ---
+// --- plan_manage(action: "modify") ---
 
-Deno.test("plan_modify: updates step", async () => {
+Deno.test("plan_manage modify: updates step", async () => {
   const { exec, manager } = createTestSetup();
-  await exec("plan_enter", { goal: "Build" });
-  await exec("plan_exit", { plan: VALID_PLAN });
-  await exec("plan_approve", {});
+  await exec("plan_manage", { action: "enter", goal: "Build" });
+  await exec("plan_manage", { action: "exit", plan: VALID_PLAN });
+  await exec("plan_manage", { action: "approve" });
 
-  const result = await exec("plan_modify", {
+  const result = await exec("plan_manage", {
+    action: "modify",
     step_id: 1,
     reason: "Better approach",
     new_description: "Create auth_v2 module",
@@ -277,11 +297,32 @@ Deno.test("plan_modify: updates step", async () => {
   assertEquals(step!.description, "Create auth_v2 module");
 });
 
-Deno.test("plan_modify: rejects missing required args", async () => {
+Deno.test("plan_manage modify: rejects missing required args", async () => {
   const { exec } = createTestSetup();
-  const result = await exec("plan_modify", { step_id: 1 });
+  const result = await exec("plan_manage", {
+    action: "modify",
+    step_id: 1,
+  });
   assert(result !== null);
   assertStringIncludes(result!, "Error");
+});
+
+// --- plan_manage: action validation ---
+
+Deno.test("plan_manage: rejects missing action", async () => {
+  const { exec } = createTestSetup();
+  const result = await exec("plan_manage", {});
+  assert(result !== null);
+  assertStringIncludes(result!, "Error");
+  assertStringIncludes(result!, "action");
+});
+
+Deno.test("plan_manage: rejects unknown action", async () => {
+  const { exec } = createTestSetup();
+  const result = await exec("plan_manage", { action: "frobnicate" });
+  assert(result !== null);
+  assertStringIncludes(result!, "Error");
+  assertStringIncludes(result!, "frobnicate");
 });
 
 // --- Non-plan tool fallthrough ---

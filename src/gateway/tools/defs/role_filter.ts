@@ -45,9 +45,7 @@ export const OWNER_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "secret_list",
   "secret_delete",
   // Scheduling
-  "cron_create",
-  "cron_delete",
-  "cron_history",
+  "cron",
   // Trigger management
   "trigger_add_to_context",
   // Skill management
@@ -58,24 +56,14 @@ export const OWNER_ONLY_TOOLS: ReadonlySet<string> = new Set([
   // Session management (cross-session ops)
   "sessions_send",
   "sessions_spawn",
-  "session_status",
-  "message",
   "signal_generate_pairing",
   // Claude sessions
-  "claude_start",
-  "claude_send",
+  "claude_session",
   "claude_output",
-  "claude_status",
-  "claude_stop",
   // Plan mode
-  "plan_enter",
-  "plan_exit",
-  "plan_status",
-  "plan_approve",
-  "plan_reject",
+  "plan_manage",
   "plan_step_complete",
-  "plan_complete",
-  "plan_modify",
+  "plan_status",
   // Tidepool canvas
   "tidepool_render_component",
   "tidepool_render_html",

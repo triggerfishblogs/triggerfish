@@ -1,81 +1,92 @@
 /**
  * Plan mode tool definitions.
  *
- * Defines the 8 plan tools available to the agent and the platform-level
+ * Defines the 3 plan tools available to the agent and the platform-level
  * system prompt section that introduces plan mode capabilities.
+ *
+ * Consolidated from 8 tools:
+ * - plan_manage (action: enter, exit, approve, reject, complete, modify)
+ * - plan_step_complete (kept separate — called frequently mid-plan)
+ * - plan_status (kept separate — lightweight status check)
  *
  * @module
  */
 
 import type { ToolDefinition } from "../../core/types/tool.ts";
 
-function buildPlanEnterDef(): ToolDefinition {
+function buildPlanManageDef(): ToolDefinition {
   return {
-    name: "plan_enter",
+    name: "plan_manage",
     description:
-      "Enter plan mode. Constrains the agent to read-only exploration and planning. " +
-      "write_file and cron_create/cron_delete are blocked until plan_exit is called.",
+      "Plan lifecycle management. Actions: enter, exit, approve, reject, complete, modify.\n" +
+      "- enter: enter plan mode. Params: goal (required), scope?\n" +
+      "- exit: present plan for approval. Params: plan (required, object)\n" +
+      "- approve: approve pending plan. No extra params.\n" +
+      "- reject: reject pending plan. No extra params.\n" +
+      "- complete: mark plan as complete. Params: summary (required), deviations?\n" +
+      "- modify: modify a plan step. Params: step_id (required), reason (required), new_description (required), new_files?, new_verification?",
     parameters: {
+      action: {
+        type: "string",
+        description:
+          "The operation: enter, exit, approve, reject, complete, modify",
+        required: true,
+      },
       goal: {
         type: "string",
-        description: "What the agent is planning to build/change",
-        required: true,
+        description: "What the agent is planning to build/change (enter)",
+        required: false,
       },
       scope: {
         type: "string",
         description:
-          "Optional: constrain exploration to specific directories or modules",
+          "Constrain exploration to specific directories or modules (enter)",
         required: false,
       },
-    },
-  };
-}
-
-function buildPlanExitDef(): ToolDefinition {
-  return {
-    name: "plan_exit",
-    description:
-      "Exit plan mode and present the implementation plan for user approval. " +
-      "Does NOT automatically begin execution — the user must approve first.",
-    parameters: {
       plan: {
         type: "object",
         description:
-          "The implementation plan object: { summary, approach, alternatives_considered, " +
-          "steps: [{ id, description, files, depends_on, verification }], risks, " +
-          "files_to_create, files_to_modify, tests_to_write, estimated_complexity }",
-        required: true,
+          "Implementation plan object with summary, approach, steps, etc. (exit)",
+        required: false,
+      },
+      summary: {
+        type: "string",
+        description: "What was accomplished (complete)",
+        required: false,
+      },
+      deviations: {
+        type: "array",
+        description: "Changes from the original plan (complete)",
+        required: false,
+        items: { type: "string" },
+      },
+      step_id: {
+        type: "number",
+        description: "Which step to modify (modify)",
+        required: false,
+      },
+      reason: {
+        type: "string",
+        description: "Why the change is needed (modify)",
+        required: false,
+      },
+      new_description: {
+        type: "string",
+        description: "Updated step description (modify)",
+        required: false,
+      },
+      new_files: {
+        type: "array",
+        description: "Updated file list (modify)",
+        required: false,
+        items: { type: "string" },
+      },
+      new_verification: {
+        type: "string",
+        description: "Updated verification command (modify)",
+        required: false,
       },
     },
-  };
-}
-
-function buildPlanStatusDef(): ToolDefinition {
-  return {
-    name: "plan_status",
-    description:
-      "Returns current plan mode state: mode, goal, active plan progress.",
-    parameters: {},
-  };
-}
-
-function buildPlanApproveDef(): ToolDefinition {
-  return {
-    name: "plan_approve",
-    description:
-      "Approve the pending plan and begin execution. Call this when the user " +
-      "approves the plan presented by plan_exit.",
-    parameters: {},
-  };
-}
-
-function buildPlanRejectDef(): ToolDefinition {
-  return {
-    name: "plan_reject",
-    description:
-      "Reject the pending plan and return to normal mode. Call this when " +
-      "the user rejects the plan or wants to start over.",
-    parameters: {},
   };
 }
 
@@ -99,78 +110,21 @@ function buildPlanStepCompleteDef(): ToolDefinition {
   };
 }
 
-function buildPlanCompleteDef(): ToolDefinition {
+function buildPlanStatusDef(): ToolDefinition {
   return {
-    name: "plan_complete",
+    name: "plan_status",
     description:
-      "Mark the entire plan as complete. Call when all steps are done.",
-    parameters: {
-      summary: {
-        type: "string",
-        description: "What was accomplished",
-        required: true,
-      },
-      deviations: {
-        type: "array",
-        description: "Any changes from the original plan",
-        required: false,
-        items: { type: "string" },
-      },
-    },
-  };
-}
-
-function buildPlanModifyParams(): ToolDefinition["parameters"] {
-  return {
-    step_id: {
-      type: "number",
-      description: "Which step needs changing",
-      required: true,
-    },
-    reason: {
-      type: "string",
-      description: "Why the change is needed",
-      required: true,
-    },
-    new_description: {
-      type: "string",
-      description: "Updated step description",
-      required: true,
-    },
-    new_files: {
-      type: "array",
-      description: "Updated file list (optional)",
-      required: false,
-      items: { type: "string" },
-    },
-    new_verification: {
-      type: "string",
-      description: "Updated verification command (optional)",
-      required: false,
-    },
-  };
-}
-
-function buildPlanModifyDef(): ToolDefinition {
-  return {
-    name: "plan_modify",
-    description:
-      "Request a modification to an approved plan step. Requires user approval.",
-    parameters: buildPlanModifyParams(),
+      "Returns current plan mode state: mode, goal, active plan progress.",
+    parameters: {},
   };
 }
 
 /** Tool definitions for plan mode tools. */
 export function getPlanToolDefinitions(): readonly ToolDefinition[] {
   return [
-    buildPlanEnterDef(),
-    buildPlanExitDef(),
-    buildPlanStatusDef(),
-    buildPlanApproveDef(),
-    buildPlanRejectDef(),
+    buildPlanManageDef(),
     buildPlanStepCompleteDef(),
-    buildPlanCompleteDef(),
-    buildPlanModifyDef(),
+    buildPlanStatusDef(),
   ];
 }
 
@@ -182,12 +136,15 @@ export function getPlanToolDefinitions(): readonly ToolDefinition[] {
  */
 export const PLAN_SYSTEM_PROMPT = `## Plan Mode
 
-You have access to plan mode (plan_enter, plan_exit, plan_status, plan_approve, plan_reject, plan_step_complete, plan_complete, plan_modify) for structured planning before implementation.
+You have access to plan mode tools for structured planning before implementation:
+- \`plan_manage\`: action = enter | exit | approve | reject | complete | modify
+- \`plan_step_complete\`: mark individual steps as done
+- \`plan_status\`: check current plan state
 
 When the user asks you to **build, implement, create, refactor, or redesign** code or infrastructure:
-- Consider entering plan mode first with plan_enter
+- Consider entering plan mode first with plan_manage(action: "enter", goal: "...")
 - Explore the codebase thoroughly before proposing changes
-- Present a concrete plan via plan_exit for user approval
+- Present a concrete plan via plan_manage(action: "exit", plan: {...}) for user approval
 - After approval, execute step by step, marking progress with plan_step_complete
 
 Do NOT use plan mode for: research, lookups, questions, analysis, reports, skill-driven tasks, or anything that is not code/infrastructure implementation. For simple tasks (fix a typo, add a comment, rename), skip plan mode and just do it.`;

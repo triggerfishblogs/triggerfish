@@ -63,7 +63,11 @@ export interface PlanManager {
   ): string;
 
   /** Check if a tool is blocked for a session in plan mode. */
-  isToolBlocked(sessionId: string, toolName: string): boolean;
+  isToolBlocked(
+    sessionId: string,
+    toolName: string,
+    args?: Record<string, unknown>,
+  ): boolean;
 }
 
 /** Pending plan awaiting user approval. */

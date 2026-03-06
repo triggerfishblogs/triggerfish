@@ -15,7 +15,11 @@ import {
   dispatchSessionTool,
   SESSION_MANAGEMENT_TOOLS,
 } from "./session_executors.ts";
-import { CHANNEL_TOOLS, dispatchChannelTool } from "./channel_executors.ts";
+import {
+  CHANNEL_TOOLS,
+  dispatchChannelTool,
+  isChannelSendInput,
+} from "./channel_executors.ts";
 import { dispatchSignalTool, SIGNAL_TOOLS } from "./signal_executors.ts";
 
 import type { SessionToolContext } from "./session_tools_defs.ts";
@@ -59,6 +63,11 @@ export function createSessionToolExecutor(
 
     if (!ctx) {
       return "Session management is not available in this context.";
+    }
+
+    // For sessions_send with channel params, route to channel executor first
+    if (name === "sessions_send" && isChannelSendInput(input)) {
+      return dispatchChannelTool(ctx, name, input);
     }
 
     return (

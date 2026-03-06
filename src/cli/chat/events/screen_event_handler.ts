@@ -154,7 +154,7 @@ function handleScreenToolCall(
   event: { name: string; args: Record<string, unknown> },
 ): void {
   state.pendingToolCall = { name: event.name, args: event.args };
-  if (isTodoTool(event.name) || isPlanExitTool(event.name)) {
+  if (isTodoTool(event.name) || isPlanExitTool(event.name, event.args)) {
     // stored above — no display until result arrives
   } else if (getDisplayMode() === "compact") {
     screen.writeOutput(formatToolCompactInProgress(event.name, event.args));
@@ -178,7 +178,7 @@ function handleTodoToolResult(
   if (todos) screen.writeOutput(formatTodoListAnsi(todos) + "\n");
 }
 
-/** Handle tool_result for plan_exit tool. */
+/** Handle tool_result for plan_manage(exit) tool. */
 function handlePlanExitToolResult(
   state: ScreenHandlerState,
   screen: ScreenManager,
@@ -189,7 +189,7 @@ function handlePlanExitToolResult(
     screen.writeOutput(formatPlanMarkdown(event.result));
   } else {
     screen.writeOutput(
-      `  ${YELLOW}\u26a1${RESET} plan_exit  ${RED}\u2717${RESET} ${DIM}blocked${RESET}`,
+      `  ${YELLOW}\u26a1${RESET} plan_manage(exit)  ${RED}\u2717${RESET} ${DIM}blocked${RESET}`,
     );
   }
 }
@@ -203,7 +203,7 @@ function handleScreenToolResult(
 ): void {
   if (isTodoTool(event.name)) {
     handleTodoToolResult(state, screen, event);
-  } else if (isPlanExitTool(event.name)) {
+  } else if (isPlanExitTool(event.name, state.pendingToolCall?.args)) {
     handlePlanExitToolResult(state, screen, event);
   } else if (
     state.pendingToolCall?.name === "edit_file" &&

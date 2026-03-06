@@ -25,9 +25,9 @@ export function isTodoTool(name: string): boolean {
   return name === "todo_read" || name === "todo_write";
 }
 
-/** Check whether a tool name is plan_exit (requires full display). */
-export function isPlanExitTool(name: string): boolean {
-  return name === "plan_exit";
+/** Check whether a tool call is plan exit (requires full display). */
+export function isPlanExitTool(name: string, args?: Record<string, unknown>): boolean {
+  return name === "plan_manage" && args?.action === "exit";
 }
 
 /** Human-readable display names for known tools. */
@@ -267,7 +267,7 @@ export function formatEditFileDiff(
   return parts.join("\n");
 }
 
-/** Extract the markdown body from a plan_exit tool result. */
+/** Extract the markdown body from a plan_manage(exit) tool result. */
 function extractPlanMarkdownBody(result: string): string {
   const separator = "\n\n---\n\n";
   const sepIdx = result.indexOf(separator);
@@ -295,7 +295,7 @@ function formatPlanMarkdownLine(line: string): string {
 /**
  * Format plan markdown for terminal display with ANSI colors.
  *
- * Extracts the markdown portion from a plan_exit tool result
+ * Extracts the markdown portion from a plan_manage(exit) tool result
  * (after the JSON + "---" separator) and applies ANSI formatting.
  */
 export function formatPlanMarkdown(result: string): string {

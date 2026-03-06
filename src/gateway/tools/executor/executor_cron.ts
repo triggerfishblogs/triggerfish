@@ -1,7 +1,7 @@
 /**
- * Cron tool handlers — create, list, delete, history.
+ * Cron tool handler — dispatches on action parameter.
  *
- * Each handler delegates to CronManager and formats the result
+ * Each action delegates to CronManager and formats the result
  * as a human-readable string for the agent.
  *
  * @module
@@ -10,8 +10,8 @@
 import type { CronManager } from "../../../scheduler/cron/parser.ts";
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 
-/** Handle cron_create tool call. */
-export function executeCronCreate(
+/** Handle cron create action. */
+function executeCronCreate(
   input: Record<string, unknown>,
   cronManager: CronManager,
 ): string {
@@ -35,8 +35,8 @@ export function executeCronCreate(
   ].join("\n");
 }
 
-/** Handle cron_list tool call. */
-export function executeCronList(cronManager: CronManager): string {
+/** Handle cron list action. */
+function executeCronList(cronManager: CronManager): string {
   const jobs = cronManager.list();
   if (jobs.length === 0) return "No cron jobs registered.";
   return jobs.map((j) =>
@@ -51,8 +51,8 @@ export function executeCronList(cronManager: CronManager): string {
   ).join("\n\n");
 }
 
-/** Handle cron_delete tool call. */
-export function executeCronDelete(
+/** Handle cron delete action. */
+function executeCronDelete(
   input: Record<string, unknown>,
   cronManager: CronManager,
 ): string {
@@ -61,8 +61,8 @@ export function executeCronDelete(
   return result.ok ? `Deleted cron job ${jobId}` : `Error: ${result.error}`;
 }
 
-/** Handle cron_history tool call. */
-export function executeCronHistory(
+/** Handle cron history action. */
+function executeCronHistory(
   input: Record<string, unknown>,
   cronManager: CronManager,
 ): string {
@@ -76,23 +76,32 @@ export function executeCronHistory(
   ).join("\n");
 }
 
-/** Dispatch cron tools. Returns null if not matched. */
+/** Dispatch cron tool. Returns null if not matched. */
 export function dispatchCronTool(
   name: string,
   input: Record<string, unknown>,
   cronManager: CronManager | undefined,
 ): string | null {
+  if (name !== "cron") return null;
+
   const unavailable = "Cron management is not available in this context.";
-  switch (name) {
-    case "cron_create":
-      return cronManager ? executeCronCreate(input, cronManager) : unavailable;
-    case "cron_list":
-      return cronManager ? executeCronList(cronManager) : unavailable;
-    case "cron_delete":
-      return cronManager ? executeCronDelete(input, cronManager) : unavailable;
-    case "cron_history":
-      return cronManager ? executeCronHistory(input, cronManager) : unavailable;
+  if (!cronManager) return unavailable;
+
+  const action = input.action;
+  if (typeof action !== "string" || action.length === 0) {
+    return "Error: cron requires an 'action' parameter (string).";
+  }
+
+  switch (action) {
+    case "create":
+      return executeCronCreate(input, cronManager);
+    case "list":
+      return executeCronList(cronManager);
+    case "delete":
+      return executeCronDelete(input, cronManager);
+    case "history":
+      return executeCronHistory(input, cronManager);
     default:
-      return null;
+      return `Error: unknown action "${action}" for cron. Valid actions: create, list, delete, history`;
   }
 }

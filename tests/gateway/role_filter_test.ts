@@ -89,8 +89,8 @@ Deno.test("filterToolsForRole: non-owner never receives secret_save", () => {
   assertEquals(result[0].name, "todo_write");
 });
 
-Deno.test("filterToolsForRole: non-owner never receives cron_create", () => {
-  const tools = [stubTool("cron_create"), stubTool("web_search")];
+Deno.test("filterToolsForRole: non-owner never receives cron", () => {
+  const tools = [stubTool("cron"), stubTool("web_search")];
   const result = filterToolsForRole(tools, false);
   assertEquals(result.length, 1);
   assertEquals(result[0].name, "web_search");
@@ -110,8 +110,8 @@ Deno.test("filterToolsForRole: non-owner never receives subagent", () => {
   assertEquals(result[0].name, "summarize");
 });
 
-Deno.test("filterToolsForRole: non-owner never receives claude_start", () => {
-  const tools = [stubTool("claude_start"), stubTool("explore")];
+Deno.test("filterToolsForRole: non-owner never receives claude_session", () => {
+  const tools = [stubTool("claude_session"), stubTool("explore")];
   const result = filterToolsForRole(tools, false);
   assertEquals(result.length, 1);
   assertEquals(result[0].name, "explore");
@@ -194,16 +194,13 @@ Deno.test("filterToolsForRole: all owner-only tools are in the OWNER_ONLY_TOOLS 
     "secret_save",
     "secret_save_credential",
     "secret_delete",
-    "cron_create",
-    "cron_delete",
+    "cron",
     "subagent",
     "agents_list",
-    "claude_start",
-    "claude_send",
+    "claude_session",
     "sessions_send",
     "sessions_spawn",
-    "plan_enter",
-    "plan_exit",
+    "plan_manage",
     "tidepool_render_component",
     "tidepool_render_html",
   ];

@@ -1,8 +1,9 @@
 /**
  * Channel messaging tool handlers.
  *
- * Implements the message and channels_list handlers. Write-down enforcement
- * uses the injected context taint, not LLM arguments.
+ * Implements the channel-send path of sessions_send (when channel/recipient/text
+ * params are provided) and channels_list. Write-down enforcement uses the
+ * injected context taint, not LLM arguments.
  *
  * @module
  */
@@ -19,7 +20,7 @@ const log = createLogger("security");
 
 /** Tool names handled by this executor. */
 export const CHANNEL_TOOLS = new Set([
-  "message",
+  "sessions_send",
   "channels_list",
 ]);
 
@@ -36,16 +37,18 @@ function buildChannelSessionId(opts: {
   return `${opts.channel}-${opts.recipient}`;
 }
 
-/** Validate message tool input, returning an error string or null if valid. */
-function validateMessageInput(input: Record<string, unknown>): string | null {
+/** Validate channel-send input, returning an error string or null if valid. */
+function validateChannelSendInput(
+  input: Record<string, unknown>,
+): string | null {
   if (typeof input.channel !== "string" || input.channel.length === 0) {
-    return "Error: message requires a non-empty 'channel' argument (string).";
+    return "Error: sessions_send (channel mode) requires a non-empty 'channel' argument (string).";
   }
   if (typeof input.recipient !== "string" || input.recipient.length === 0) {
-    return "Error: message requires a non-empty 'recipient' argument (string).";
+    return "Error: sessions_send (channel mode) requires a non-empty 'recipient' argument (string).";
   }
   if (typeof input.text !== "string" || input.text.length === 0) {
-    return "Error: message requires a non-empty 'text' argument (string).";
+    return "Error: sessions_send (channel mode) requires a non-empty 'text' argument (string).";
   }
   return null;
 }
@@ -67,12 +70,22 @@ function enforceMessageWriteDown(ctx: SessionToolContext, opts: {
   return null;
 }
 
-/** Handle message: send to a connected channel with write-down enforcement. */
-async function executeMessage(
+/**
+ * Check if input has channel-send params (channel + recipient + text).
+ *
+ * When sessions_send is called with these params, it routes to channel
+ * messaging instead of session-to-session send.
+ */
+export function isChannelSendInput(input: Record<string, unknown>): boolean {
+  return typeof input.channel === "string" && input.channel.length > 0;
+}
+
+/** Handle channel-send path of sessions_send. */
+async function executeChannelSend(
   ctx: SessionToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const validationErr = validateMessageInput(input);
+  const validationErr = validateChannelSendInput(input);
   if (validationErr) return validationErr;
 
   const channel = input.channel as string;
@@ -145,8 +158,12 @@ export async function dispatchChannelTool(
   input: Record<string, unknown>,
 ): Promise<string | null> {
   switch (name) {
-    case "message":
-      return executeMessage(ctx, input);
+    case "sessions_send":
+      // Only handle if input has channel params; otherwise session_executors handles it
+      if (isChannelSendInput(input)) {
+        return executeChannelSend(ctx, input);
+      }
+      return null;
     case "channels_list":
       return executeChannelsList(ctx);
     default:

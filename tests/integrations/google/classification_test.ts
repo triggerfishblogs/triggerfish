@@ -238,11 +238,14 @@ Deno.test("classification: INTERNAL data cannot flow to PUBLIC", () => {
 
 // ─── Test 4: Gmail tool returns data (executor produces output) ─────────────
 
-Deno.test("classification: gmail_search returns data at session taint level", async () => {
+Deno.test("classification: google_gmail search returns data at session taint level", async () => {
   const ctx = createContextWithTaint("CONFIDENTIAL");
   const executor = createGoogleToolExecutor(ctx);
 
-  const result = await executor("gmail_search", { query: "Q4 report" });
+  const result = await executor("google_gmail", {
+    action: "search",
+    query: "Q4 report",
+  });
   assertEquals(result !== null, true);
 
   // Data was returned — in a real system, the orchestrator would check
@@ -255,22 +258,25 @@ Deno.test("classification: gmail_search returns data at session taint level", as
 
 // ─── Test 5: Drive file read returns content ────────────────────────────────
 
-Deno.test("classification: drive_read returns file content", async () => {
+Deno.test("classification: google_drive read returns file content", async () => {
   const ctx = createContextWithTaint("INTERNAL");
   const executor = createGoogleToolExecutor(ctx);
 
-  const result = await executor("drive_read", { file_id: "file1" });
+  const result = await executor("google_drive", {
+    action: "read",
+    file_id: "file1",
+  });
   assertEquals(result !== null, true);
   assertEquals(result!.includes("Confidential roadmap"), true);
 });
 
 // ─── Test 6: Calendar with attendees returns data ───────────────────────────
 
-Deno.test("classification: calendar_list returns events with attendees", async () => {
+Deno.test("classification: google_calendar list returns events with attendees", async () => {
   const ctx = createContextWithTaint("INTERNAL");
   const executor = createGoogleToolExecutor(ctx);
 
-  const result = await executor("calendar_list", {});
+  const result = await executor("google_calendar", { action: "list" });
   assertEquals(result !== null, true);
 
   const parsed = JSON.parse(result!);
@@ -306,18 +312,22 @@ Deno.test("classification: executor surfaces API errors as strings", async () =>
   };
   const executor = createGoogleToolExecutor(ctx);
 
-  const result = await executor("gmail_search", { query: "test" });
+  const result = await executor("google_gmail", {
+    action: "search",
+    query: "test",
+  });
   assertEquals(result!.includes("Error"), true);
   assertEquals(result!.includes("Insufficient permission"), true);
 });
 
 // ─── Test 8: Sheets write validates JSON ────────────────────────────────────
 
-Deno.test("classification: sheets_write rejects non-JSON values safely", async () => {
+Deno.test("classification: google_sheets write rejects non-JSON values safely", async () => {
   const ctx = createContextWithTaint("INTERNAL");
   const executor = createGoogleToolExecutor(ctx);
 
-  const result = await executor("sheets_write", {
+  const result = await executor("google_sheets", {
+    action: "write",
     spreadsheet_id: "ss1",
     range: "A1",
     values: "this is not json",

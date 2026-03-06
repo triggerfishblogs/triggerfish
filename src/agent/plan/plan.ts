@@ -15,7 +15,11 @@
  */
 
 import type { PlanModeState } from "./types.ts";
-import { DEFAULT_PLAN_STATE, PLAN_BLOCKED_TOOLS } from "./types.ts";
+import {
+  DEFAULT_PLAN_STATE,
+  PLAN_BLOCKED_CRON_ACTIONS,
+  PLAN_BLOCKED_TOOLS,
+} from "./types.ts";
 import type {
   PendingPlan,
   PlanManager,
@@ -159,7 +163,17 @@ function assembleManagerMethods(cfg: ManagerConfig): PlanManager {
         newFiles: files,
         newVerification: verif,
       }),
-    isToolBlocked: (sid, toolName) =>
-      gs(sid).mode === "plan" && PLAN_BLOCKED_TOOLS.includes(toolName),
+    isToolBlocked: (sid, toolName, args?) => {
+      if (gs(sid).mode !== "plan") return false;
+      if (PLAN_BLOCKED_TOOLS.includes(toolName)) return true;
+      // Action-level blocking for consolidated tools
+      if (
+        toolName === "cron" && typeof args?.action === "string" &&
+        PLAN_BLOCKED_CRON_ACTIONS.includes(args.action as string)
+      ) {
+        return true;
+      }
+      return false;
+    },
   };
 }

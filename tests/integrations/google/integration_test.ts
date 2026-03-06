@@ -337,7 +337,7 @@ Deno.test("integration: expired token triggers refresh using stored client creds
   }
 });
 
-Deno.test("integration: executor routes gmail_search end-to-end", async () => {
+Deno.test("integration: executor routes google_gmail search end-to-end", async () => {
   const { server, baseUrl } = createMockGoogleServer();
   const mockFetch = createMockFetch(baseUrl);
 
@@ -357,7 +357,10 @@ Deno.test("integration: executor routes gmail_search end-to-end", async () => {
       sourceSessionId: "integration-session" as SessionId,
     });
 
-    const result = await executor("gmail_search", { query: "test" });
+    const result = await executor("google_gmail", {
+      action: "search",
+      query: "test",
+    });
     assertEquals(result !== null, true);
 
     // Should contain email data from mock
@@ -383,7 +386,10 @@ Deno.test("integration: executor returns clear error when not connected", async 
     sourceSessionId: "no-auth-session" as SessionId,
   });
 
-  const result = await executor("gmail_search", { query: "test" });
+  const result = await executor("google_gmail", {
+    action: "search",
+    query: "test",
+  });
   assertEquals(result !== null, true);
   assertStringIncludes(result!, "triggerfish connect google");
 });

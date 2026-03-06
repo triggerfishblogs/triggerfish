@@ -82,10 +82,7 @@ export const URL_WRITE_TOOLS: ReadonlySet<string> = new Set([
 export const HARDCODED_TOOL_FLOORS: ReadonlyMap<string, ClassificationLevel> =
   new Map<string, ClassificationLevel>([
     // claude_* exec tools require INTERNAL (spawning sub-agents)
-    ["claude_start", "INTERNAL"],
-    ["claude_send", "INTERNAL"],
-    ["claude_stop", "INTERNAL"],
-    ["claude_status", "INTERNAL"],
+    ["claude_session", "INTERNAL"],
     ["claude_output", "INTERNAL"],
   ]);
 

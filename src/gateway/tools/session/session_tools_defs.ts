@@ -1,9 +1,12 @@
 /**
  * Session tool types, definitions, and system prompt.
  *
- * Defines RegisteredChannel, SessionToolContext, the 10 session/channel
- * tool schemas, and the LLM system prompt section. Separated from
- * the executor in `tools.ts` for lighter type-only imports.
+ * Consolidated from 7 to 5 tools:
+ * - sessions_list (now includes session_status via optional session_id)
+ * - sessions_history
+ * - sessions_send (now includes message functionality via optional channel/recipient/text)
+ * - sessions_spawn
+ * - channels_list
  *
  * @module
  */
@@ -50,8 +53,17 @@ export interface SessionToolContext {
 function buildSessionsListDef(): ToolDefinition {
   return {
     name: "sessions_list",
-    description: "List all active sessions visible to the current session.",
-    parameters: {},
+    description:
+      "List all active sessions visible to the current session. " +
+      "If session_id is provided, returns detailed status for that specific session.",
+    parameters: {
+      session_id: {
+        type: "string",
+        description:
+          "Optional: get status for a specific session instead of listing all",
+        required: false,
+      },
+    },
   };
 }
 
@@ -72,18 +84,39 @@ function buildSessionsHistoryDef(): ToolDefinition {
 function buildSessionsSendDef(): ToolDefinition {
   return {
     name: "sessions_send",
-    description: "Send content from the current session to another session. " +
-      "Subject to write-down enforcement.",
+    description:
+      "Send content to another session or a connected channel. " +
+      "Subject to write-down enforcement.\n" +
+      "- To send to a session: provide session_id and content.\n" +
+      "- To send to a channel: provide channel, recipient, and text. " +
+      "For Signal, the recipient is a phone number (E.164 format) or a group ID prefixed with 'group-'.",
     parameters: {
       session_id: {
         type: "string",
-        description: "Target session ID to send content to",
-        required: true,
+        description: "Target session ID (session-to-session send)",
+        required: false,
       },
       content: {
         type: "string",
-        description: "The message content to send",
-        required: true,
+        description: "Message content (session-to-session send)",
+        required: false,
+      },
+      channel: {
+        type: "string",
+        description:
+          "Target channel type, e.g. 'signal', 'telegram' (channel send). Use channels_list to see connected channels.",
+        required: false,
+      },
+      recipient: {
+        type: "string",
+        description:
+          "Recipient identifier — phone number for Signal, chat ID for Telegram, etc. (channel send)",
+        required: false,
+      },
+      text: {
+        type: "string",
+        description: "Message text (channel send)",
+        required: false,
       },
     },
   };
@@ -101,54 +134,6 @@ function buildSessionsSpawnDef(): ToolDefinition {
         required: true,
       },
     },
-  };
-}
-
-function buildSessionStatusDef(): ToolDefinition {
-  return {
-    name: "session_status",
-    description: "Get metadata and status for a specific session.",
-    parameters: {
-      session_id: {
-        type: "string",
-        description: "The session ID to check",
-        required: true,
-      },
-    },
-  };
-}
-
-/** Build the parameter schema for the message tool. */
-function buildMessageParams(): ToolDefinition["parameters"] {
-  return {
-    channel: {
-      type: "string",
-      description:
-        "Target channel type (e.g. 'signal', 'telegram'). Use channels_list to see connected channels.",
-      required: true,
-    },
-    recipient: {
-      type: "string",
-      description:
-        "Recipient identifier — phone number for Signal, chat ID for Telegram, etc.",
-      required: true,
-    },
-    text: {
-      type: "string",
-      description: "Message text to send",
-      required: true,
-    },
-  };
-}
-
-function buildMessageDef(): ToolDefinition {
-  return {
-    name: "message",
-    description:
-      "Send a message to a connected channel (signal, telegram, etc.). " +
-      "Subject to write-down enforcement: your session taint must be able to flow to the channel's classification. " +
-      "For Signal, the recipient is a phone number (E.164 format, e.g. '+15551234567') or a group ID prefixed with 'group-'.",
-    parameters: buildMessageParams(),
   };
 }
 
@@ -196,8 +181,6 @@ export function getSessionToolDefinitions(): readonly ToolDefinition[] {
     buildSessionsHistoryDef(),
     buildSessionsSendDef(),
     buildSessionsSpawnDef(),
-    buildSessionStatusDef(),
-    buildMessageDef(),
     buildChannelsListDef(),
   ];
 }
@@ -217,6 +200,9 @@ export const SESSION_TOOLS_SYSTEM_PROMPT = `## Session & Channel Management
 Write-down enforcement applies to all cross-session and cross-channel communication:
 you cannot send data to a channel or session whose classification is lower than your current session taint.
 
-Use channels_list to discover connected channels before sending messages.
-Use sessions_spawn to create background sessions for autonomous tasks (starts at PUBLIC taint).
+- \`sessions_list\`: list all sessions, or pass session_id for one session's status
+- \`sessions_send\`: send to a session (session_id + content) or channel (channel + recipient + text)
+- \`sessions_spawn\`: create background sessions for autonomous tasks (starts at PUBLIC taint)
+- \`channels_list\`: discover connected channels before sending messages
+
 For Signal: use signal_list_contacts/signal_list_groups to find recipients, signal_generate_pairing to onboard new contacts.`;

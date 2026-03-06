@@ -235,7 +235,7 @@ const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<
   // Prefix-based taint escalation and write-down checks must not apply to them;
   // non-owner blocking is handled by enforceNonOwnerToolCeiling.
   ["secret_list", "PUBLIC"],
-  ["cron_", "PUBLIC"],
+  ["cron", "PUBLIC"],
   ["trigger_", "PUBLIC"],
   // Skills — read_skill is read-only, works at all classification levels
   ["read_skill", "PUBLIC"],
@@ -244,8 +244,6 @@ const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<
   ["agents_", "PUBLIC"],
   ["claude_", "PUBLIC"],
   ["sessions_", "PUBLIC"],
-  ["session_", "PUBLIC"],
-  ["message", "PUBLIC"],
   ["signal_", "PUBLIC"],
   ["channels_", "PUBLIC"],
   // Plan mode — owner-only

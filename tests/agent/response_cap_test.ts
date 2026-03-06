@@ -117,10 +117,10 @@ Deno.test("capToolResponse: truncation at line boundary", () => {
 
 Deno.test("capToolResponse: per-tool budget override takes precedence", () => {
   const cache = new ResponseCache();
-  const githubBudget = TOOL_RESPONSE_BUDGETS.get("github_list_comments")!;
+  const githubBudget = TOOL_RESPONSE_BUDGETS.get("github_issues")!;
   // Build text that exceeds the github budget but not the default
   const text = "x".repeat(githubBudget + 100);
-  const result = capToolResponse("github_list_comments", text, cache);
+  const result = capToolResponse("github_issues", text, cache);
   assertEquals(result.length < text.length, true);
   assertMatch(result, /truncated/);
 });
