@@ -174,6 +174,7 @@ export function createFilesystemSandbox(
               `Sandbox request timed out after ${timeoutMs}ms (id: ${id}, op: ${req.op})`,
             ),
           );
+          rejectAllPending("Sandbox worker timed out, terminating");
           terminateWorker();
         }, timeoutMs);
 
