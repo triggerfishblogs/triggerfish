@@ -8,6 +8,7 @@
  * @module
  */
 
+import { join } from "@std/path";
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import { createSession } from "../../../core/types/session.ts";
 import type { ChannelId, UserId } from "../../../core/types/session.ts";
@@ -61,6 +62,7 @@ import {
 import { buildIntegrationExecutors } from "../services/integration_init.ts";
 import type { SkillContextTracker } from "../../../tools/skills/mod.ts";
 import { createSimulateToolExecutor } from "../../tools/simulate/mod.ts";
+import { createTriggerManageExecutor } from "../../tools/trigger/trigger_manage_executor.ts";
 import type { ServiceAvailability } from "../../tools/defs/tool_profiles.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 
@@ -323,6 +325,7 @@ export async function initializeBaseToolDeps(
 
 /** Combine all executor outputs into the composite tool executor. */
 export function buildCompositeToolExecutor(
+  bootstrap: BootstrapResult,
   baseDeps: Awaited<ReturnType<typeof initializeBaseToolDeps>>,
   coreInfra: CoreInfraResult,
   sessionExecs: Awaited<ReturnType<typeof buildSessionScopedExecutors>>,
@@ -338,6 +341,22 @@ export function buildCompositeToolExecutor(
     domainClassifier: baseDeps.domainClassifier,
     toolFloorRegistry: coreInfra.toolFloorRegistry,
     getWorkspacePath: () => baseDeps.mainWorkspace.path,
+  });
+  const sched = bootstrap.config.scheduler?.trigger;
+  const triggerManageExecutor = createTriggerManageExecutor({
+    triggerMdPath: join(bootstrap.baseDir, "TRIGGER.md"),
+    triggerConfig: {
+      enabled: (sched?.enabled ?? true) &&
+        (sched?.interval_minutes ?? 30) !== 0,
+      intervalMinutes: sched?.interval_minutes ?? 30,
+      classificationCeiling:
+        (sched?.classification_ceiling ?? "CONFIDENTIAL") as ClassificationLevel,
+    },
+    triggerStore: coreInfra.triggerStore,
+    memoryStore: sessionExecs.memoryStore,
+    agentId: "main-session",
+    getSessionTaint: () => baseDeps.state.session.taint,
+    getSessionId: () => baseDeps.state.session.id,
   });
   return assembleMainToolExecutor({
     execTools: baseDeps.execTools,
@@ -365,6 +384,7 @@ export function buildCompositeToolExecutor(
     subagentFactory: integrations.subagentFactory,
     secretExecutor: integrations.secretExecutor,
     triggerExecutor: integrations.triggerExecutor,
+    triggerManageExecutor,
     skillExecutor: integrations.skillExecutor,
     skillContextTracker: integrations.skillContextTracker,
     simulateExecutor,
@@ -428,6 +448,7 @@ export async function initializeToolInfrastructure(
     { ...baseDeps, factory: coreInfra.factory },
   );
   const toolExecutor = buildCompositeToolExecutor(
+    bootstrap,
     baseDeps,
     coreInfra,
     sessionExecs,

@@ -32,6 +32,7 @@ import {
   getSummarizeToolDefinitions,
 } from "../../../tools/mod.ts";
 import { getTriggerToolDefinitions } from "../trigger/trigger_tools.ts";
+import { getTriggerManageToolDefinitions } from "../trigger/trigger_manage_defs.ts";
 import { getClaudeToolDefinitions } from "../../../exec/claude.ts";
 import { getSkillToolDefinitions } from "../../../tools/skills/mod.ts";
 import { getLogReaderToolDefinitions } from "../../../tools/log_reader_tool.ts";
@@ -68,6 +69,7 @@ export const TOOL_GROUPS = {
   summarize: getSummarizeToolDefinitions,
   healthcheck: getHealthcheckToolDefinitions,
   trigger: getTriggerToolDefinitions,
+  triggerManage: getTriggerManageToolDefinitions,
   claude: getClaudeToolDefinitions,
   skills: getSkillToolDefinitions,
   releaseNotes: getReleaseNotesToolDefinitions,

@@ -21,6 +21,9 @@ const log = createLogger("scheduler");
 /** Memory key used to persist trigger run history. */
 const TRIGGER_HISTORY_MEMORY_KEY = "trigger:run-history";
 
+/** Memory key for agent-managed trigger instructions (set via trigger_manage). */
+const TRIGGER_INSTRUCTIONS_MEMORY_KEY = "trigger:instructions";
+
 /** Maximum character length for injected history (roughly ~375 tokens). */
 const MAX_HISTORY_CHARS = 1500;
 
@@ -102,18 +105,14 @@ async function persistTriggerHistory(
   }
 }
 
-/** Execute the trigger orchestrator with the given TRIGGER.md content. */
-async function executeTriggerSession(
+/** Execute the trigger with a pre-created orchestrator, session, and tool executor. */
+async function executeTriggerSessionWithOrchestrator(
   config: SchedulerServiceConfig,
-  triggerMdContent: string,
+  triggerContent: string,
+  orchestrator: import("../core/types/orchestrator.ts").Orchestrator,
+  session: import("../core/types/session.ts").SessionState,
+  toolExecutor: ToolExecutor,
 ): Promise<void> {
-  log.info("Creating trigger orchestrator session");
-  const { orchestrator, session, toolExecutor } =
-    await config.orchestratorFactory.create(
-      "trigger",
-      { isTrigger: true, ceiling: config.trigger.classificationCeiling },
-    );
-
   const existingHistory = await loadTriggerHistory(toolExecutor);
   log.info("Trigger history loaded from memory", {
     operation: "executeTriggerSession",
@@ -123,7 +122,7 @@ async function executeTriggerSession(
   const historyContext = existingHistory
     ? buildHistoryContext(existingHistory)
     : "";
-  const message = historyContext + triggerMdContent;
+  const message = historyContext + triggerContent;
 
   log.info("Trigger orchestrator processing TRIGGER.md");
   const result = await orchestrator.executeAgentTurn({
@@ -147,29 +146,87 @@ async function executeTriggerSession(
   });
 }
 
+/** Load trigger instructions from memory (agent-managed override). */
+async function loadMemoryInstructions(
+  toolExecutor: ToolExecutor,
+): Promise<string | null> {
+  try {
+    const raw = await toolExecutor("memory_get", {
+      key: TRIGGER_INSTRUCTIONS_MEMORY_KEY,
+    });
+    const parsed: { found: boolean; content?: string } = JSON.parse(raw);
+    if (!parsed.found || !parsed.content || parsed.content.trim().length === 0) {
+      return null;
+    }
+    return parsed.content;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Run the trigger callback: load TRIGGER.md and send it to an
+ * Resolve trigger instructions: memory override first, then TRIGGER.md file.
+ *
+ * Memory instructions are set via the trigger_manage tool and take
+ * precedence over the file. This allows the agent to update trigger
+ * behavior without filesystem writes (which would be a write-down
+ * from classified sessions into the trigger's PUBLIC context).
+ */
+async function resolveTriggerInstructions(
+  config: SchedulerServiceConfig,
+  toolExecutor: ToolExecutor,
+): Promise<{ content: string; source: "memory" | "file" } | null> {
+  const memoryContent = await loadMemoryInstructions(toolExecutor);
+  if (memoryContent) {
+    log.info("Trigger instructions loaded from memory override", {
+      operation: "resolveTriggerInstructions",
+      contentLength: memoryContent.length,
+    });
+    return { content: memoryContent, source: "memory" };
+  }
+  const fileContent = await loadTriggerMd(config.triggerMdPath);
+  if (fileContent) {
+    return { content: fileContent, source: "file" };
+  }
+  return null;
+}
+
+/**
+ * Run the trigger callback: resolve instructions and send them to an
  * isolated orchestrator session.
  *
- * When TRIGGER.md is absent, the trigger is skipped entirely — there are
- * no instructions for the agent to follow, so running it would just cause
- * the LLM to hallucinate tasks.
+ * Instructions are resolved from memory first (agent-managed via
+ * trigger_manage), falling back to the TRIGGER.md file. When neither
+ * source has instructions, the trigger is skipped entirely.
  *
  * Safe to call directly for forced trigger runs.
  */
 export async function runTriggerCallback(
   config: SchedulerServiceConfig,
 ): Promise<void> {
-  const triggerContent = await loadTriggerMd(config.triggerMdPath);
-  if (!triggerContent) {
-    log.debug("Trigger skipped — no TRIGGER.md found", {
+  // Create a temporary orchestrator to access memory for instruction lookup
+  const { orchestrator, session, toolExecutor } =
+    await config.orchestratorFactory.create(
+      "trigger",
+      { isTrigger: true, ceiling: config.trigger.classificationCeiling },
+    );
+
+  const resolved = await resolveTriggerInstructions(config, toolExecutor);
+  if (!resolved) {
+    log.debug("Trigger skipped — no instructions found", {
       operation: "runTriggerCallback",
       path: config.triggerMdPath,
     });
     return;
   }
   try {
-    await executeTriggerSession(config, triggerContent);
+    await executeTriggerSessionWithOrchestrator(
+      config,
+      resolved.content,
+      orchestrator,
+      session,
+      toolExecutor,
+    );
   } catch (err) {
     log.error("Trigger callback failed", {
       operation: "runTriggerCallback",

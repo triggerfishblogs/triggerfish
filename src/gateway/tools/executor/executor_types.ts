@@ -56,6 +56,7 @@ export interface ToolExecutorOptions {
   ) => Promise<string>;
   readonly secretExecutor?: SubsystemExecutor;
   readonly triggerExecutor?: SubsystemExecutor;
+  readonly triggerManageExecutor?: SubsystemExecutor;
   readonly skillExecutor?: SubsystemExecutor;
   readonly releaseNotesExecutor?: SubsystemExecutor;
   /** Executor for `simulate_tool_call` — dry-run security pipeline simulation. */

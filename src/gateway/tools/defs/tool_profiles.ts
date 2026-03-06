@@ -22,6 +22,7 @@ import {
   SUMMARIZE_SYSTEM_PROMPT,
 } from "../../../tools/mod.ts";
 import { TRIGGER_TOOLS_SYSTEM_PROMPT } from "../trigger/trigger_tools.ts";
+import { TRIGGER_MANAGE_SYSTEM_PROMPT } from "../trigger/trigger_manage_defs.ts";
 import { CLAUDE_SESSION_SYSTEM_PROMPT } from "../../../exec/claude.ts";
 import { LOG_READER_SYSTEM_PROMPT } from "../../../tools/log_reader_tool.ts";
 import { GITHUB_TOOLS_SYSTEM_PROMPT } from "../../../integrations/github/mod.ts";
@@ -61,6 +62,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "summarize",
     "healthcheck",
     "trigger",
+    "triggerManage",
     "claude",
     "skills",
     "releaseNotes",
@@ -91,6 +93,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "summarize",
     "healthcheck",
     "trigger",
+    "triggerManage",
     "claude",
     "skills",
     "releaseNotes",
@@ -191,6 +194,7 @@ export const TOOL_GROUP_PROMPTS: Partial<
   claude: CLAUDE_SESSION_SYSTEM_PROMPT,
   secrets: SECRET_TOOLS_SYSTEM_PROMPT,
   trigger: TRIGGER_TOOLS_SYSTEM_PROMPT,
+  triggerManage: TRIGGER_MANAGE_SYSTEM_PROMPT,
   releaseNotes: RELEASE_NOTES_SYSTEM_PROMPT,
   logReader: LOG_READER_SYSTEM_PROMPT,
   github: GITHUB_TOOLS_SYSTEM_PROMPT,
