@@ -159,7 +159,11 @@ async function loadMemoryInstructions(
       return null;
     }
     return parsed.content;
-  } catch {
+  } catch (err) {
+    log.debug("Memory instructions lookup failed", {
+      operation: "loadMemoryInstructions",
+      err,
+    });
     return null;
   }
 }
@@ -186,6 +190,10 @@ async function resolveTriggerInstructions(
   }
   const fileContent = await loadTriggerMd(config.triggerMdPath);
   if (fileContent) {
+    log.info("Trigger instructions loaded from TRIGGER.md file", {
+      operation: "resolveTriggerInstructions",
+      contentLength: fileContent.length,
+    });
     return { content: fileContent, source: "file" };
   }
   return null;

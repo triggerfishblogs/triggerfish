@@ -60,7 +60,11 @@ async function loadMemoryInstructions(
       return null;
     }
     return record.content;
-  } catch {
+  } catch (err) {
+    log.debug("Memory instructions lookup failed", {
+      operation: "loadMemoryInstructions",
+      err,
+    });
     return null;
   }
 }
@@ -69,7 +73,15 @@ async function loadMemoryInstructions(
 async function loadFileInstructions(path: string): Promise<string | null> {
   try {
     return await Deno.readTextFile(path);
-  } catch {
+  } catch (err) {
+    if (err instanceof Deno.errors.NotFound) {
+      return null;
+    }
+    log.warn("TRIGGER.md read failed unexpectedly", {
+      operation: "loadFileInstructions",
+      path,
+      err,
+    });
     return null;
   }
 }
