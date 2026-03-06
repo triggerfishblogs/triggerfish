@@ -149,7 +149,13 @@ async function handleLegacyMigration(
   try {
     const stat = await Deno.stat(secretsPath);
     legacyFileSize = stat.size;
-  } catch { /* file may already be gone */ }
+  } catch (err) {
+    log.debug("Legacy secrets file stat failed before overwrite", {
+      operation: "handleLegacyMigration",
+      secretsPath,
+      err,
+    });
+  }
 
   const entryCount = Object.keys(parsed).length;
   log.warn("Migrating legacy plaintext secrets to encrypted format", {

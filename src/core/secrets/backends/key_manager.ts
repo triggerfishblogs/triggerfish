@@ -58,8 +58,12 @@ async function verifyKeyFilePermissions(
       }
       log.warn("Machine key file permissions too open", detail);
     }
-  } catch {
-    // stat may fail if the file was just deleted — not actionable
+  } catch (err) {
+    log.debug("Key file stat failed during permission check", {
+      operation: "verifyKeyFilePermissions",
+      keyPath,
+      err,
+    });
   }
   return undefined;
 }
@@ -119,8 +123,15 @@ export async function loadOrCreateMachineKey(
       // Verify permissions on existing key file
       const permError = await verifyKeyFilePermissions(keyPath, strictness);
       if (permError !== undefined) return { ok: false, error: permError };
-    } catch {
-      // Key file does not exist — generate a new key
+    } catch (readErr) {
+      if (!(readErr instanceof Deno.errors.NotFound)) {
+        log.warn("Machine key file read failed unexpectedly", {
+          operation: "loadOrCreateMachineKey",
+          keyPath,
+          err: readErr,
+        });
+      }
+      // Key file missing or unreadable — generate a new key
       const key = await crypto.subtle.generateKey(
         { name: "AES-GCM", length: 256 },
         true,
