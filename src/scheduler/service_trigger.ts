@@ -102,18 +102,14 @@ async function persistTriggerHistory(
   }
 }
 
-/** Execute the trigger orchestrator with the given TRIGGER.md content. */
-async function executeTriggerSession(
+/** Execute the trigger with a pre-created orchestrator, session, and tool executor. */
+async function executeTriggerSessionWithOrchestrator(
   config: SchedulerServiceConfig,
-  triggerMdContent: string,
+  triggerContent: string,
+  orchestrator: import("../core/types/orchestrator.ts").Orchestrator,
+  session: import("../core/types/session.ts").SessionState,
+  toolExecutor: ToolExecutor,
 ): Promise<void> {
-  log.info("Creating trigger orchestrator session");
-  const { orchestrator, session, toolExecutor } =
-    await config.orchestratorFactory.create(
-      "trigger",
-      { isTrigger: true, ceiling: config.trigger.classificationCeiling },
-    );
-
   const existingHistory = await loadTriggerHistory(toolExecutor);
   log.info("Trigger history loaded from memory", {
     operation: "executeTriggerSession",
@@ -123,7 +119,7 @@ async function executeTriggerSession(
   const historyContext = existingHistory
     ? buildHistoryContext(existingHistory)
     : "";
-  const message = historyContext + triggerMdContent;
+  const message = historyContext + triggerContent;
 
   log.info("Trigger orchestrator processing TRIGGER.md");
   const result = await orchestrator.executeAgentTurn({
@@ -148,28 +144,74 @@ async function executeTriggerSession(
 }
 
 /**
- * Run the trigger callback: load TRIGGER.md and send it to an
+ * Resolve trigger instructions before creating an orchestrator.
+ *
+ * Checks the TRIGGER.md file (cheap I/O) and the optional memory
+ * lookup callback. Both are lightweight — no orchestrator needed.
+ * Returns the content and source, or null if neither has instructions.
+ */
+async function resolveInstructionsBeforeSession(
+  config: SchedulerServiceConfig,
+): Promise<{ content: string; source: "memory" | "file" } | null> {
+  const memoryContent = config.checkMemoryInstructions
+    ? await config.checkMemoryInstructions()
+    : null;
+  if (memoryContent) {
+    log.info("Trigger instructions loaded from memory override", {
+      operation: "resolveInstructionsBeforeSession",
+      contentLength: memoryContent.length,
+    });
+    return { content: memoryContent, source: "memory" };
+  }
+  const fileContent = await loadTriggerMd(config.triggerMdPath);
+  if (fileContent) {
+    log.info("Trigger instructions loaded from TRIGGER.md file", {
+      operation: "resolveInstructionsBeforeSession",
+      contentLength: fileContent.length,
+    });
+    return { content: fileContent, source: "file" };
+  }
+  return null;
+}
+
+/**
+ * Run the trigger callback: resolve instructions and send them to an
  * isolated orchestrator session.
  *
- * When TRIGGER.md is absent, the trigger is skipped entirely — there are
- * no instructions for the agent to follow, so running it would just cause
- * the LLM to hallucinate tasks.
+ * Instructions are resolved before creating the orchestrator: the
+ * TRIGGER.md file is checked via cheap I/O, and a lightweight memory
+ * lookup callback (if configured) checks for agent-managed overrides.
+ * The orchestrator session is only created when instructions are
+ * confirmed to exist.
  *
  * Safe to call directly for forced trigger runs.
  */
 export async function runTriggerCallback(
   config: SchedulerServiceConfig,
 ): Promise<void> {
-  const triggerContent = await loadTriggerMd(config.triggerMdPath);
-  if (!triggerContent) {
-    log.debug("Trigger skipped — no TRIGGER.md found", {
+  const resolved = await resolveInstructionsBeforeSession(config);
+  if (!resolved) {
+    log.debug("Trigger skipped — no instructions found", {
       operation: "runTriggerCallback",
       path: config.triggerMdPath,
     });
     return;
   }
+
+  const { orchestrator, session, toolExecutor } =
+    await config.orchestratorFactory.create(
+      "trigger",
+      { isTrigger: true, ceiling: config.trigger.classificationCeiling },
+    );
+
   try {
-    await executeTriggerSession(config, triggerContent);
+    await executeTriggerSessionWithOrchestrator(
+      config,
+      resolved.content,
+      orchestrator,
+      session,
+      toolExecutor,
+    );
   } catch (err) {
     log.error("Trigger callback failed", {
       operation: "runTriggerCallback",

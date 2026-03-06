@@ -84,5 +84,26 @@ export const HARDCODED_TOOL_FLOORS: ReadonlyMap<string, ClassificationLevel> =
     ["claude_output", "INTERNAL"],
   ]);
 
+/**
+ * Basenames the agent may never write to via filesystem tools.
+ *
+ * TRIGGER.md is write-protected because the trigger session reads it
+ * starting at PUBLIC taint. Allowing a classified session to write to
+ * it would be a write-down (RESTRICTED data flowing to PUBLIC).
+ * Trigger instructions are managed via the `trigger_manage` tool instead.
+ */
+export const WRITE_PROTECTED_BASENAMES: ReadonlySet<string> = new Set([
+  "TRIGGER.md",
+]);
+
+/**
+ * Memory key for agent-managed trigger instructions.
+ *
+ * Shared between the `trigger_manage` tool (writes) and the scheduler
+ * trigger runner (reads). Lives in core/ so both `gateway/` and
+ * `scheduler/` can import it without violating layer rules.
+ */
+export const TRIGGER_INSTRUCTIONS_MEMORY_KEY = "trigger:instructions";
+
 /** Default classification for unmapped filesystem paths. */
 export const DEFAULT_PATH_CLASSIFICATION: ClassificationLevel = "CONFIDENTIAL";

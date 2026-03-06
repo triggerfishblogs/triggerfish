@@ -9,10 +9,12 @@
  * @module
  */
 
+import { basename } from "@std/path";
 import type { FilesystemSandbox } from "../../../exec/sandbox/mod.ts";
 import type { SandboxResponse } from "../../../exec/sandbox/mod.ts";
 import type { ToolExecutorOptions } from "./executor_types.ts";
 import { executeLogRead } from "../../../tools/log_reader_tool.ts";
+import { WRITE_PROTECTED_BASENAMES } from "../../../core/security/constants.ts";
 
 /** Format an error from a filesystem operation. */
 function formatFsError(prefix: string, err: unknown): string {
@@ -50,6 +52,11 @@ export async function executeReadFile(
   }
 }
 
+/** Check if a path targets a write-protected file. */
+function isWriteProtected(path: string): boolean {
+  return WRITE_PROTECTED_BASENAMES.has(basename(path));
+}
+
 /** Handle write_file tool call via sandbox or ExecTools. */
 export async function executeWriteFile(
   input: Record<string, unknown>,
@@ -63,6 +70,9 @@ export async function executeWriteFile(
   }
   if (typeof content !== "string") {
     return "Error: write_file requires a 'content' argument (string).";
+  }
+  if (isWriteProtected(path)) {
+    return `Error: ${basename(path)} is write-protected. Use the trigger_manage tool to update trigger instructions.`;
   }
   if (sandbox) {
     const resp = await sandbox.request({
@@ -250,6 +260,9 @@ export async function executeEditFile(
   const validationError = validateEditInput(input);
   if (validationError) return validationError;
   const path = input.path as string;
+  if (isWriteProtected(path)) {
+    return `Error: ${basename(path)} is write-protected. Use the trigger_manage tool to update trigger instructions.`;
+  }
   const oldText = input.old_text as string;
   const newText = input.new_text as string;
   if (sandbox) {

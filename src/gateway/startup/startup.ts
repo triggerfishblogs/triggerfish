@@ -21,6 +21,7 @@ export async function runStart(): Promise<void> {
   const bootstrap = await bootstrapConfigAndLogging();
   const coreInfra = await initializeCoreInfrastructure(bootstrap);
   const toolInfra = await initializeToolInfrastructure(bootstrap, coreInfra);
+  coreInfra.deferredMemoryCheck.bind(toolInfra.memoryStore);
   const shutdownDeps = await startServicesAndChannels(
     bootstrap,
     coreInfra,

@@ -166,6 +166,7 @@ export function assembleMainToolExecutor(
     readonly secretExecutor: ReturnType<typeof createSecretToolExecutor>;
     readonly triggerExecutor: ReturnType<typeof createTriggerToolExecutor>;
     readonly skillExecutor: ReturnType<typeof createSkillToolExecutor>;
+    readonly triggerManageExecutor?: SubsystemExecutor;
     readonly skillContextTracker?: SkillContextTracker;
     readonly simulateExecutor?: SubsystemExecutor;
   },
