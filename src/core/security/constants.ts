@@ -36,9 +36,6 @@ export const PROTECTED_BASENAMES: readonly string[] = [
 /** Directory path suffixes (relative to home) that are always RESTRICTED. */
 export const PROTECTED_DIR_PATTERNS: readonly string[] = [
   ".triggerfish",
-  ".triggerfish/config",
-  ".triggerfish/data",
-  ".triggerfish/logs",
 ] as const;
 
 /** Filesystem tools grouped by operation type. */
