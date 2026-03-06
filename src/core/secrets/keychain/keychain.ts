@@ -79,9 +79,12 @@ function selectNativeSecretStore(): SecretStore {
         "in-memory store (secrets will not persist across restarts), " +
         "or use a supported platform (Linux, macOS, Windows, Docker).";
       log.error("Secret backend selection failed", {
+        operation: "selectNativeSecretStore",
         os,
         err: new Error(message),
       });
+      // TODO(#issue): Convert createKeychain to return Result<SecretStore, string>
+      // instead of throwing. Requires updating all callers — out of scope for this PR.
       throw new Error(message);
     }
   }

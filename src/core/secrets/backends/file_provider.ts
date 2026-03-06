@@ -115,8 +115,14 @@ function checkPermissions(
         log.warn("Secret file permissions too open", detail);
       }
     }
-  } catch {
-    // File may not exist yet
+  } catch (err) {
+    if (!(err instanceof Deno.errors.NotFound)) {
+      log.debug("Secret file stat failed during permission check", {
+        operation: "checkPermissions",
+        path,
+        err,
+      });
+    }
   }
   return undefined;
 }

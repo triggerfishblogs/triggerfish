@@ -114,29 +114,6 @@ export async function migrateLegacySecretsFile(
   return { ok: true, value: { v: 1, entries } };
 }
 
-/**
- * Overwrite a file region with random bytes before the encrypted file
- * replaces it. Not a guaranteed secure wipe (journaling FS, SSDs) but
- * reduces the window where plaintext secrets remain on disk.
- */
-async function overwriteLegacyContent(
-  filePath: string,
-  fileSize: number,
-): Promise<void> {
-  try {
-    const randomBytes = crypto.getRandomValues(
-      new Uint8Array(Math.max(fileSize, 256)),
-    );
-    await Deno.writeFile(filePath, randomBytes);
-  } catch (err: unknown) {
-    log.warn("Legacy plaintext secrets file could not be overwritten", {
-      operation: "overwriteLegacyContent",
-      path: filePath,
-      err,
-    });
-  }
-}
-
 /** Handle legacy format migration: encrypt all plaintext entries. */
 async function handleLegacyMigration(
   parsed: Record<string, string>,
@@ -144,19 +121,6 @@ async function handleLegacyMigration(
   secretsPath: string,
   cache: SecretsFileCache,
 ): Promise<Result<EncryptedSecretsFile, string>> {
-  // Capture file size for the overwrite pass
-  let legacyFileSize = 0;
-  try {
-    const stat = await Deno.stat(secretsPath);
-    legacyFileSize = stat.size;
-  } catch (err) {
-    log.debug("Legacy secrets file stat failed before overwrite", {
-      operation: "handleLegacyMigration",
-      secretsPath,
-      err,
-    });
-  }
-
   const entryCount = Object.keys(parsed).length;
   log.warn("Migrating legacy plaintext secrets to encrypted format", {
     operation: "migrateSecrets",
@@ -169,13 +133,13 @@ async function handleLegacyMigration(
   const migrated = await migrateLegacySecretsFile(parsed, keyResult.value);
   if (!migrated.ok) return migrated;
 
-  // Overwrite old plaintext content before writing encrypted file
-  if (legacyFileSize > 0) {
-    await overwriteLegacyContent(secretsPath, legacyFileSize);
-  }
-
+  // Write encrypted to a temp file first, then rename over the legacy
+  // plaintext. This ensures the encrypted data is safely on disk before
+  // the plaintext is removed — a crash between writes is recoverable.
   cache.file = migrated.value;
-  await persistSecretsFile(secretsPath, migrated.value);
+  const tmpPath = secretsPath + ".tmp";
+  await persistSecretsFile(tmpPath, migrated.value);
+  await Deno.rename(tmpPath, secretsPath);
 
   log.warn(
     "Secret rotation recommended after migration from plaintext storage",
