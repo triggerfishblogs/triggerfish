@@ -90,6 +90,13 @@ export interface SchedulerServiceConfig {
   readonly orchestratorFactory: OrchestratorFactory;
   /** Path to TRIGGER.md (typically ~/.triggerfish/TRIGGER.md). */
   readonly triggerMdPath: string;
+  /**
+   * Optional lightweight check for memory-stored trigger instructions.
+   *
+   * Called before orchestrator creation to avoid spawning a session
+   * when no instructions exist. Returns the content string or null.
+   */
+  readonly checkMemoryInstructions?: () => Promise<string | null>;
   /** Trigger configuration. */
   readonly trigger: {
     readonly enabled: boolean;

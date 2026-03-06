@@ -153,7 +153,7 @@ async function executeUpdate(
   }
 
   try {
-    await ctx.memoryStore.save({
+    const result = await ctx.memoryStore.save({
       key: TRIGGER_INSTRUCTIONS_MEMORY_KEY,
       agentId: ctx.agentId,
       sessionTaint: "PUBLIC",
@@ -161,6 +161,13 @@ async function executeUpdate(
       tags: ["trigger", "instructions"],
       sourceSessionId: ctx.getSessionId(),
     });
+    if (!result.ok) {
+      log.error("Trigger instruction update failed", {
+        operation: "triggerManageUpdate",
+        err: result.error,
+      });
+      return `Error: Failed to save trigger instructions: ${result.error.message}`;
+    }
     log.info("Trigger instructions updated via trigger_manage", {
       operation: "triggerManageUpdate",
       contentLength: instructions.length,
@@ -172,7 +179,7 @@ async function executeUpdate(
       contentLength: instructions.length,
     });
   } catch (err) {
-    log.error("Trigger instruction update failed", {
+    log.error("Trigger instruction update threw unexpectedly", {
       operation: "triggerManageUpdate",
       err,
     });
