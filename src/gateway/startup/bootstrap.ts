@@ -87,11 +87,30 @@ export async function initializeStartupLogger(): Promise<
 > {
   const isWindowsService = Deno.build.os === "windows" &&
     !Deno.stdout.isTerminal();
-  const fileWriter = isWindowsService
-    ? undefined
-    : await createFileWriter({ logDir: resolveLogDir() });
-  initLogger({ level: "INFO", fileWriter, console: true });
-  return fileWriter;
+  try {
+    const fileWriter = isWindowsService
+      ? undefined
+      : await createFileWriter({ logDir: resolveLogDir() });
+    initLogger({ level: "INFO", fileWriter, console: true });
+    return fileWriter;
+  } catch (err: unknown) {
+    if (isLogFileBusyError(err)) {
+      // console.error is intentional — the logger itself failed to initialize
+      console.error(
+        "Triggerfish is already running. Stop the existing instance first, " +
+          "or use 'triggerfish status' to check.",
+      );
+      Deno.exit(1);
+    }
+    throw err;
+  }
+}
+
+/** Detect EBUSY / lock errors on the log file (Windows exclusive lock). */
+function isLogFileBusyError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const withCode = err as Error & { code?: string };
+  return withCode.code === "EBUSY" || err.message.includes("os error 32");
 }
 
 /** Load config from disk with secret resolution, exit on failure. */
