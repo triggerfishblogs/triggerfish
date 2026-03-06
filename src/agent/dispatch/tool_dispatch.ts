@@ -94,6 +94,12 @@ function checkIntegrationWriteDown(
   for (const [prefix, level] of config.integrationClassifications) {
     if (call.name.startsWith(prefix)) {
       if (!canFlowTo(sessionTaint, level)) {
+        log.warn("Integration write-down blocked", {
+          operation: "checkIntegrationWriteDown",
+          toolName: call.name,
+          sessionTaint,
+          integrationClassification: level,
+        });
         return {
           resultText:
             `Error: Session taint ${sessionTaint} cannot flow to ${call.name} (classified ${level}). ` +
@@ -117,7 +123,16 @@ function escalateNonOwnerResourceTaint(
   if (
     secCtx.resourceClassification === null || secCtx.isOwner ||
     secCtx.isTrigger || !config.escalateTaint
-  ) return;
+  ) {
+    log.debug("Non-owner taint escalation skipped", {
+      operation: "escalateNonOwnerResourceTaint",
+      toolName: call.name,
+      resourceClassification: secCtx.resourceClassification,
+      isOwner: secCtx.isOwner,
+      isTrigger: secCtx.isTrigger,
+    });
+    return;
+  }
   config.escalateTaint(
     secCtx.resourceClassification,
     `${call.name}: ${secCtx.resourceParam}`,

@@ -118,14 +118,12 @@ function executeActionModify(
   const newVerification = typeof input.new_verification === "string"
     ? input.new_verification
     : undefined;
-  return manager.modify(
-    sessionId,
-    stepId,
-    reason,
-    newDescription,
+  return manager.modify(sessionId, stepId, {
+    reason: reason as string,
+    newDescription: newDescription as string,
     newFiles,
     newVerification,
-  );
+  });
 }
 
 // ─── plan_manage dispatcher ──────────────────────────────────────────────────

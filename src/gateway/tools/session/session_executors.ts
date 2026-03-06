@@ -85,10 +85,21 @@ async function executeSessionsList(
       if (!session) return `Session not found: ${sessionId}`;
 
       if (!canFlowTo(session.taint, ctx.callerTaint)) {
+        log.warn("Session status access denied: taint exceeds caller", {
+          operation: "executeSessionsList",
+          targetSessionId: sessionId,
+          targetTaint: session.taint,
+          callerTaint: ctx.callerTaint,
+        });
         return `Access denied: session ${sessionId} is at ${session.taint}, your session is at ${ctx.callerTaint}.`;
       }
       return serializeSessionMeta(session);
     } catch (err) {
+      log.error("Session status lookup failed", {
+        operation: "executeSessionsList",
+        sessionId,
+        err,
+      });
       return `Error reading session: ${
         err instanceof Error ? err.message : String(err)
       }`;
@@ -99,11 +110,23 @@ async function executeSessionsList(
   try {
     const sessions = await ctx.sessionManager.sessionsList();
     const visible = sessions.filter((s) => canFlowTo(s.taint, ctx.callerTaint));
+    if (visible.length < sessions.length) {
+      log.debug("Sessions filtered by taint", {
+        operation: "executeSessionsList",
+        totalSessions: sessions.length,
+        visibleSessions: visible.length,
+        callerTaint: ctx.callerTaint,
+      });
+    }
     if (visible.length === 0) {
       return "No active sessions visible at your classification level.";
     }
     return visible.map(formatSessionSummary).join("\n\n");
   } catch (err) {
+    log.error("Session list retrieval failed", {
+      operation: "executeSessionsList",
+      err,
+    });
     return `Error listing sessions: ${
       err instanceof Error ? err.message : String(err)
     }`;
@@ -133,6 +156,11 @@ async function executeSessionsHistory(
     }
     return serializeSessionMeta(session);
   } catch (err) {
+    log.error("Session history retrieval failed", {
+      operation: "executeSessionsHistory",
+      sessionId,
+      err,
+    });
     return `Error reading session: ${
       err instanceof Error ? err.message : String(err)
     }`;
@@ -164,6 +192,11 @@ async function executeSessionsSend(
     if (!result.ok) return `Write-down blocked: ${result.error}`;
     return `Message delivered to session ${sessionId}.`;
   } catch (err) {
+    log.error("Session message send failed", {
+      operation: "executeSessionsSend",
+      sessionId,
+      err,
+    });
     return `Error sending to session: ${
       err instanceof Error ? err.message : String(err)
     }`;
@@ -191,6 +224,10 @@ async function executeSessionsSpawn(
       task,
     });
   } catch (err) {
+    log.error("Session spawn failed", {
+      operation: "executeSessionsSpawn",
+      err,
+    });
     return `Error spawning session: ${
       err instanceof Error ? err.message : String(err)
     }`;
