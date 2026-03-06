@@ -36,7 +36,7 @@ function requireString(
 
 /** Parse and validate a ClassificationLevel string, defaulting to INTERNAL. */
 function parseClassificationLevel(raw: unknown): ClassificationLevel {
-  if (typeof raw === "string" && raw in CLASSIFICATION_ORDER) {
+  if (typeof raw === "string" && Object.hasOwn(CLASSIFICATION_ORDER, raw)) {
     return raw as ClassificationLevel;
   }
   log.warn("Cron classification defaulted to INTERNAL", {
