@@ -21,6 +21,8 @@ import type { createTriggerStore } from "../../../scheduler/triggers/store.ts";
 import type { createToolFloorRegistry } from "../../../core/security/tool_floors.ts";
 import { createOrchestratorFactory } from "../factory/orchestrator_factory.ts";
 import { buildSchedulerConfig } from "../factory/scheduler_config.ts";
+import { createDeferredMemoryCheck } from "./trigger_memory.ts";
+import type { DeferredMemoryCheck } from "./trigger_memory.ts";
 import type { GatewayServer } from "../../server/server.ts";
 import type { A2UIHost } from "../../../tools/tidepool/host/host_types.ts";
 import type { BootstrapResult } from "../bootstrap.ts";
@@ -62,6 +64,7 @@ export interface CoreInfraResult {
   readonly factory: ReturnType<typeof createOrchestratorFactory>;
   readonly gatewayServerRef: GatewayServerRef;
   readonly tidepoolHostRef: TidepoolHostRef;
+  readonly deferredMemoryCheck: DeferredMemoryCheck;
 }
 
 /** Warn if filesystem default is PUBLIC. */
@@ -119,8 +122,10 @@ export function buildSchedulerInfrastructure(
   const schedulerConfig = buildSchedulerConfig(config, baseDir, factory);
   const gatewayServerRef: GatewayServerRef = { value: null };
   const tidepoolHostRef: TidepoolHostRef = { value: null };
+  const deferredMemoryCheck = createDeferredMemoryCheck();
   const schedulerService = createSchedulerService({
     ...schedulerConfig,
+    checkMemoryInstructions: deferredMemoryCheck.check,
     cronManager: coreInfra.cronManager,
     notificationService: coreInfra.notificationService,
     ownerId: "owner" as UserId,
@@ -143,6 +148,7 @@ export function buildSchedulerInfrastructure(
     schedulerService,
     gatewayServerRef,
     tidepoolHostRef,
+    deferredMemoryCheck,
   };
 }
 

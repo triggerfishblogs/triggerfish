@@ -11,7 +11,6 @@
 import { bootstrapConfigAndLogging } from "./bootstrap.ts";
 import { initializeCoreInfrastructure } from "./infra/core_infra.ts";
 import { initializeToolInfrastructure } from "./tools/tool_infra.ts";
-import { wireTriggerMemoryCheck } from "./infra/trigger_memory.ts";
 import { startServicesAndChannels } from "./service_startup.ts";
 import { registerShutdownHandlers } from "./shutdown.ts";
 
@@ -22,7 +21,7 @@ export async function runStart(): Promise<void> {
   const bootstrap = await bootstrapConfigAndLogging();
   const coreInfra = await initializeCoreInfrastructure(bootstrap);
   const toolInfra = await initializeToolInfrastructure(bootstrap, coreInfra);
-  wireTriggerMemoryCheck(coreInfra.schedulerConfig, toolInfra.memoryStore);
+  coreInfra.deferredMemoryCheck.bind(toolInfra.memoryStore);
   const shutdownDeps = await startServicesAndChannels(
     bootstrap,
     coreInfra,

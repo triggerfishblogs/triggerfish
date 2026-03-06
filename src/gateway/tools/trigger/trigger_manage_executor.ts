@@ -59,7 +59,7 @@ async function loadMemoryInstructions(
     }
     return record.content;
   } catch (err) {
-    log.debug("Memory instructions lookup failed", {
+    log.warn("Memory instructions lookup failed", {
       operation: "loadMemoryInstructions",
       err,
     });
