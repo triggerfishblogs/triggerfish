@@ -77,6 +77,13 @@ Your output is stored in the trigger store and stamped with your final session t
 
 If you skip classification ordering and call a higher-classified tool before a lower one, subsequent lower-classified calls will be blocked by write-down enforcement. Always simulate first.
 
+**Efficient querying — CRITICAL:**
+
+When checking for updates, always fetch only recent activity:
+- GitHub: use \`sort: "updated"\`, \`direction: "desc"\`, \`per_page: 5\`
+- Only increase per_page if the user's instructions specifically require more
+- Never fetch all issues/PRs — only the most recently updated ones
+
 **Deduplication — CRITICAL:**
 
 Your prior trigger run results (if any) are injected at the top of your instructions under "Prior Trigger Results". You MUST NOT repeat findings that already appear there. Only report NEW or CHANGED information since the last run. If a PR was already reported, a calendar event was already mentioned, or an email was already summarized in prior results — skip it. The owner has already seen it.
