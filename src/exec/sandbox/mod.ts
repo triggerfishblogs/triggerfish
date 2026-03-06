@@ -1,10 +1,13 @@
 /**
- * Filesystem sandbox — OS-level enforcement via Deno subprocess permissions.
+ * Filesystem sandbox — OS-level enforcement via Deno Worker permissions.
  *
- * Spawns a long-lived Deno subprocess with `--allow-read=<workspace>`
- * and `--allow-write=<workspace>`. All filesystem tool operations
- * (read, write, list, search, edit) are routed through this subprocess
- * via NDJSON over stdin/stdout.
+ * Spawns a permission-restricted Deno Worker with `read: [workspace]`
+ * and `write: [workspace]`. All filesystem tool operations
+ * (read, write, list, search, edit) are routed through this Worker
+ * via postMessage/onmessage.
+ *
+ * Works in both development mode (deno run) and compiled binaries
+ * (deno compile) without requiring Deno to be installed on the host.
  *
  * @module
  */

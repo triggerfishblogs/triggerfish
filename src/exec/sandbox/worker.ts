@@ -1,17 +1,17 @@
 /**
- * Sandboxed filesystem worker — runs inside a restricted Deno subprocess.
+ * Sandboxed filesystem worker — runs inside a permission-restricted Deno Worker.
  *
  * **IMPORTANT:** This file must be completely self-contained (zero imports)
- * because it is extracted to a temp file at runtime when running from a
- * compiled binary. Any `import` statement would fail since there is no
- * import map or adjacent module available.
+ * because it runs as an isolated Worker with its own module scope. Any
+ * `import` from adjacent modules may fail in compiled binaries if the
+ * import target is not explicitly included.
  *
- * Spawned with `--allow-read=<workspace> --allow-write=<workspace>`
- * so the kernel blocks any access outside the workspace, regardless
- * of application-level validation bugs.
+ * Permissions are restricted at the Worker level by the parent:
+ *   read: [workspacePath], write: [workspacePath], run: ["grep", "find"]
+ *   net: false, env: false, ffi: false
  *
- * Receives SandboxRequest messages over stdin (NDJSON), dispatches
- * by operation, writes SandboxResponse messages to stdout.
+ * Receives SandboxRequest messages via postMessage, dispatches by operation,
+ * returns SandboxResponse messages via postMessage.
  *
  * @module
  */
@@ -63,15 +63,7 @@ function parentDir(path: string): string {
 
 // ─── Workspace root ─────────────────────────────────────────────────────────
 
-const workspaceRoot = Deno.args[0];
-if (!workspaceRoot) {
-  Deno.stderr.writeSync(
-    new TextEncoder().encode(
-      "worker: workspace root required as first argument\n",
-    ),
-  );
-  Deno.exit(1);
-}
+let workspaceRoot = "";
 
 // ─── Path validation (defense-in-depth) ─────────────────────────────────────
 
@@ -274,43 +266,39 @@ async function dispatch(
   }
 }
 
-// ─── Main loop ──────────────────────────────────────────────────────────────
+// ─── Worker scope (typed for compile-time checking) ─────────────────────────
 
-const decoder = new TextDecoder();
-const encoder = new TextEncoder();
-const reader = Deno.stdin.readable.getReader();
-let buffer = "";
+// This file runs exclusively as a Deno Worker. The `self` global is typed as
+// Window in the main-thread context checked by `deno compile`, so we cast to
+// the Worker-specific interface once here.
+const workerScope = self as unknown as {
+  onmessage: ((event: MessageEvent) => void) | null;
+  postMessage(data: unknown): void;
+};
 
-async function mainLoop(): Promise<void> {
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.length === 0) continue;
-      let req: SandboxRequest;
-      try {
-        req = JSON.parse(trimmed) as SandboxRequest;
-      } catch {
-        const errResp: SandboxResponse = {
-          id: "unknown",
-          ok: false,
-          error: "Invalid JSON request",
-        };
-        await Deno.stdout.write(
-          encoder.encode(JSON.stringify(errResp) + "\n"),
-        );
-        continue;
-      }
-      const resp = await dispatch(req);
-      await Deno.stdout.write(
-        encoder.encode(JSON.stringify(resp) + "\n"),
-      );
-    }
+// ─── Message handler ────────────────────────────────────────────────────────
+
+workerScope.onmessage = async (event: MessageEvent) => {
+  const data = event.data;
+
+  // Initialization message — sets workspace root
+  if (data?.type === "init") {
+    workspaceRoot = data.workspacePath;
+    workerScope.postMessage({ type: "ready" });
+    return;
   }
-}
 
-await mainLoop();
+  // Reject requests before initialization
+  if (!workspaceRoot) {
+    workerScope.postMessage({
+      id: data?.id ?? "unknown",
+      ok: false,
+      error: "Sandbox worker not initialized (missing init message)",
+    });
+    return;
+  }
+
+  const req = data as SandboxRequest;
+  const resp = await dispatch(req);
+  workerScope.postMessage(resp);
+};
