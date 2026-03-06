@@ -77,10 +77,13 @@ export async function buildFullSystemPrompt(
   const spineContent = await readSpineFromDisk(state.config.spinePath);
   let systemPrompt = spineContent ?? DEFAULT_SYSTEM_PROMPT;
 
+  const extraSections = state.getExtraSystemPromptSections
+    ? await state.getExtraSystemPromptSections()
+    : [];
   const effectiveSections = state.getExtraSystemPromptSections
     ? [
       ...state.baseSystemPromptSections,
-      ...state.getExtraSystemPromptSections(),
+      ...extraSections,
     ]
     : state.baseSystemPromptSections;
   systemPrompt = appendSystemPromptSections(systemPrompt, effectiveSections);

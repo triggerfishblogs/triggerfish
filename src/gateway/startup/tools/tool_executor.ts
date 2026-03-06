@@ -53,6 +53,11 @@ import { buildGoogleExecutor } from "../factory/google_executor.ts";
 import { createToolExecutor, TOOL_GROUPS } from "../../tools/agent_tools.ts";
 import type { SubsystemExecutor } from "../../tools/executor/executor_types.ts";
 import type { wireMcpServers } from "../infra/mcp.ts";
+import type { MemoryStore } from "../../../tools/memory/store.ts";
+import { loadPersonaContext } from "../../../tools/memory/mod.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+
+const log = createLogger("persona-prompt");
 
 /** Mutable state bag for the main daemon session. */
 export interface MainSessionState {
@@ -197,14 +202,30 @@ export function buildExtraToolsGetter(
   ];
 }
 
+/** Options for persona auto-recall in the system prompt getter. */
+export interface PersonaRecallOptions {
+  readonly memoryStore: MemoryStore;
+  readonly agentId: string;
+  readonly getSessionTaint: () => ClassificationLevel;
+  /** Only inject persona context when the active session is the owner. */
+  readonly isOwnerSession: () => boolean;
+}
+
 /** Build the dynamic extra system prompt sections getter. */
 export function buildExtraSystemPromptGetter(
   mcpWiring: ReturnType<typeof wireMcpServers> | null,
   isTidepoolCallRef: { value: boolean },
   getSessionTaint: () => ClassificationLevel,
   workspacePaths: WorkspacePaths,
+  personaOptions?: PersonaRecallOptions,
 ) {
-  return () => {
+  // Cache persona context with a short TTL to avoid querying the store
+  // on every single LLM iteration within a rapid tool loop.
+  let cachedPersona = "";
+  let cacheTimestamp = 0;
+  const CACHE_TTL_MS = 30_000; // 30 seconds
+
+  return async () => {
     const sections: string[] = [];
     if (mcpWiring) {
       const mcpPrompt = mcpWiring.getSystemPrompt();
@@ -212,6 +233,27 @@ export function buildExtraSystemPromptGetter(
     }
     if (isTidepoolCallRef.value) sections.push(TIDEPOOL_SYSTEM_PROMPT);
     sections.push(buildWorkspacePrompt(getSessionTaint(), workspacePaths));
+
+    if (personaOptions && personaOptions.isOwnerSession()) {
+      const now = Date.now();
+      if (now - cacheTimestamp > CACHE_TTL_MS) {
+        try {
+          cachedPersona = await loadPersonaContext({
+            store: personaOptions.memoryStore,
+            agentId: personaOptions.agentId,
+            sessionTaint: personaOptions.getSessionTaint(),
+          });
+          cacheTimestamp = now;
+        } catch (err) {
+          log.error("Persona context load failed", {
+            operation: "buildExtraSystemPromptGetter",
+            err,
+          });
+        }
+      }
+      if (cachedPersona.length > 0) sections.push(cachedPersona);
+    }
+
     return sections;
   };
 }

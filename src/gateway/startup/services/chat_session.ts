@@ -50,6 +50,7 @@ import type { wireMcpServers } from "../infra/mcp.ts";
 import type { buildWebTools } from "../factory/web_tools.ts";
 import type { MainSessionState } from "../tools/tool_executor.ts";
 import type { WorkspacePaths } from "../tools/tool_executor.ts";
+import type { PersonaRecallOptions } from "../tools/tool_executor.ts";
 import {
   buildExtraSystemPromptGetter,
   buildExtraToolsGetter,
@@ -137,6 +138,10 @@ export interface ChatSessionDeps {
   readonly getWorkspacePath: () => string | null;
   /** Which external services are configured and have credentials. */
   readonly serviceAvailability: ServiceAvailability;
+  /** Persona auto-recall options (memory store + agent ID). */
+  readonly personaOptions?: PersonaRecallOptions;
+  /** Mutable ref toggled by non-owner turn wrappers. */
+  readonly isOwnerTurnRef?: { value: boolean };
 }
 
 /** Build the dynamic getter and prompt options for the chat session. */
@@ -159,6 +164,7 @@ export function buildChatSessionDynamicOptions(deps: ChatSessionDeps) {
       deps.isTidepoolCallRef,
       () => deps.state.session.taint,
       deps.workspacePaths,
+      deps.personaOptions,
     ),
     systemPromptSections: [
       TOOL_BEHAVIOR_PROMPT,
@@ -210,6 +216,7 @@ export function assembleChatSession(deps: ChatSessionDeps) {
     broadcastChatEvent: deps.broadcastChatEvent,
     workspacePath: deps.workspacePaths.publicPath,
     getWorkspacePath: deps.getWorkspacePath,
+    isOwnerTurnRef: deps.isOwnerTurnRef,
   });
 }
 

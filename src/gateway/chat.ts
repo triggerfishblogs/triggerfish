@@ -129,6 +129,7 @@ async function routeChannelMessage(
   msg: ChannelMessage,
   channelType: string,
   signal?: AbortSignal,
+  isOwnerTurnRef?: { value: boolean },
 ): Promise<void> {
   const channelState = channelStates.get(channelType);
   if (!channelState) {
@@ -176,14 +177,19 @@ async function routeChannelMessage(
   );
   if (!allowed) return;
 
-  await runNonOwnerAgentTurn(
-    state,
-    orchestrator,
-    msg,
-    channelType,
-    channelState,
-    signal,
-  );
+  if (isOwnerTurnRef) isOwnerTurnRef.value = false;
+  try {
+    await runNonOwnerAgentTurn(
+      state,
+      orchestrator,
+      msg,
+      channelType,
+      channelState,
+      signal,
+    );
+  } finally {
+    if (isOwnerTurnRef) isOwnerTurnRef.value = true;
+  }
 }
 
 // ─── History compaction ─────────────────────────────────────────────────────
@@ -526,6 +532,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
         msg,
         channelType,
         signal,
+        config.isOwnerTurnRef,
       ),
     clear() {
       orchestrator.clearHistory(getSession().id);

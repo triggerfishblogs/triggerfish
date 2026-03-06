@@ -80,5 +80,5 @@ export async function initializeMemorySystem(
     sessionTaint: session.taint,
     sourceSessionId: session.id,
   });
-  return { memoryDb, memoryExecutor };
+  return { memoryDb, memoryStore, memoryExecutor };
 }

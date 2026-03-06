@@ -130,8 +130,16 @@ export const MEMORY_SYSTEM_PROMPT = `## Cross-Session Memory
 
 You have persistent memory tools (memory_save, memory_get, memory_search, memory_list, memory_delete) for remembering information across sessions.
 
-Save important facts the user shares (personal details, project context, preferences) using descriptive keys like 'user-name', 'project-deadline'. Use tags for categorization.
+**Save immediately when the user shares:**
+- Personal facts: name, timezone, key dates, interests, expertise
+- Preferences: communication style, formatting, tools they prefer
+- Rules and corrections: "never do X", "always do Y", "I prefer Z over W"
+- Project context: repos, tech stacks, naming conventions, deployment targets
 
-Do NOT proactively search or list memories unless the user asks about something you previously discussed, or you need context to answer their question. Focus on the current request first.
+Use descriptive keys like 'user-name', 'pref-code-style', 'rule-no-semicolons', 'project-acme-stack'. Use tags for categorization: "persona", "preference", "rule", "project".
+
+When the user corrects you or states a rule, save it immediately — do not wait to be asked. These are the most important memories because they prevent repeated mistakes.
+
+**Searching memories:** When a request touches a domain where the user may have stated preferences or rules, search memories first. Do not ask the user to re-state things they have already told you.
 
 Classification is automatic based on the current session's security level.`;

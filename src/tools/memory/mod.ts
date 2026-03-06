@@ -36,3 +36,6 @@ export type { MemoryToolContext } from "./tools/mod.ts";
 export { getMemoryToolDefinitions, MEMORY_SYSTEM_PROMPT } from "./tools/mod.ts";
 
 export { createMemoryToolExecutor } from "./tools/mod.ts";
+
+export { loadPersonaContext, MAX_PERSONA_CHARS } from "./persona.ts";
+export type { PersonaContextOptions } from "./persona.ts";

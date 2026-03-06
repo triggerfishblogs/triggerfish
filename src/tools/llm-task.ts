@@ -58,6 +58,9 @@ problem before acting, delegate the thinking to llm_task — it runs with extend
 reasoning enabled, giving you higher-quality analysis.
 
 **When to use llm_task:**
+- Enhancing a user request with their known rules, preferences, and conventions
+  (search memories first, then pass those rules + the request to llm_task for
+  a refined plan that respects everything the user has told you)
 - Planning a multi-step approach before executing tool calls
 - Analyzing code structure or debugging complex issues
 - Reasoning through edge cases or architectural trade-offs
