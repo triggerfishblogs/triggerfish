@@ -95,7 +95,7 @@ the message:
 If no `ownerId` is configured, all messages are treated as coming from the
 owner.
 
-::: tip Always Set Owner ID If your bot is in a server with other members,
+::: danger Always Set Owner ID If your bot is in a server with other members,
 always configure `ownerId`. Without it, any server member can issue commands to
 your agent. :::
 

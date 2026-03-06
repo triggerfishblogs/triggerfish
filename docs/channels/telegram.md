@@ -18,7 +18,7 @@ API.
 
 ::: warning Keep Your Token Secret Your bot token grants full control of your
 bot. Never commit it to source control or share it publicly. Triggerfish stores
-it in your `triggerfish.yaml` config file. :::
+it in your OS keychain. :::
 
 ### Step 2: Get Your Telegram User ID
 

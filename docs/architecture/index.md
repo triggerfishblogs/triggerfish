@@ -76,7 +76,7 @@ The default is SQLite WAL at `~/.triggerfish/data/triggerfish.db`.
 
 ### Defense in Depth
 
-Security is layered across 10 independent mechanisms, from channel
+Security is layered across 12 independent mechanisms, from channel
 authentication and permission-aware data access through session taint, policy
 hooks, plugin sandboxing, and audit logging. No single layer is sufficient
 alone; together they form a defense that degrades gracefully even if one layer
@@ -104,7 +104,7 @@ is compromised.
 | Python plugins     | Pyodide (WASM)                                                            |
 | Testing            | Deno built-in test runner                                                 |
 | Channels           | Baileys (WhatsApp), grammY (Telegram), Bolt (Slack), discord.js (Discord) |
-| Browser automation | puppeteer-core / playwright (CDP)                                         |
+| Browser automation | puppeteer-core (CDP)                                                      |
 | Voice              | Whisper (local STT), ElevenLabs/OpenAI (TTS)                              |
 | Storage            | SQLite WAL (default), enterprise backends (Postgres, S3)                  |
 | Secrets            | OS keychain (personal), vault integration (enterprise)                    |

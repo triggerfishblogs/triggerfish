@@ -1,0 +1,211 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 760 340"
+  width="760"
+  height="340"
+  font-family="system-ui, sans-serif"
+>
+  <defs>
+    <marker
+      id="mss-arrow"
+      markerWidth="10"
+      markerHeight="7"
+      refX="10"
+      refY="3.5"
+      orient="auto"
+    >
+      <polygon points="0 0, 10 3.5, 0 7" fill="#374151" />
+    </marker>
+    <marker
+      id="mss-red"
+      markerWidth="10"
+      markerHeight="7"
+      refX="10"
+      refY="3.5"
+      orient="auto"
+    >
+      <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="760" height="340" fill="#ffffff" />
+
+  <!-- Title -->
+  <text
+    x="380"
+    y="36"
+    text-anchor="middle"
+    font-size="18"
+    font-weight="700"
+    fill="#1e40af"
+  >MCP Server States</text>
+
+  <!-- Entry point -->
+  <circle cx="100" cy="80" r="8" fill="#374151" />
+  <line
+    x1="100"
+    y1="88"
+    x2="100"
+    y2="108"
+    stroke="#374151"
+    stroke-width="2"
+    marker-end="url(#mss-arrow)"
+  />
+  <text x="100" y="72" text-anchor="middle" font-size="11" fill="#6b7280"
+  >New server</text>
+
+  <!-- UNTRUSTED state -->
+  <rect
+    x="20"
+    y="120"
+    width="160"
+    height="80"
+    rx="40"
+    fill="#f3f4f6"
+    stroke="#9ca3af"
+    stroke-width="2"
+  />
+  <text
+    x="100"
+    y="155"
+    text-anchor="middle"
+    font-size="15"
+    font-weight="700"
+    fill="#374151"
+  >UNTRUSTED</text>
+  <text x="100" y="175" text-anchor="middle" font-size="11" fill="#6b7280"
+  >Default state</text>
+
+  <!-- Arrow UNTRUSTED → CLASSIFIED -->
+  <line
+    x1="180"
+    y1="145"
+    x2="288"
+    y2="145"
+    stroke="#374151"
+    stroke-width="2"
+    marker-end="url(#mss-arrow)"
+  />
+  <rect
+    x="195"
+    y="114"
+    width="80"
+    height="22"
+    rx="4"
+    fill="#ffffff"
+    stroke="#d1d5db"
+    stroke-width="1"
+  />
+  <text x="235" y="129" text-anchor="middle" font-size="11" font-weight="500" fill="#374151"
+  >Classify</text>
+
+  <!-- CLASSIFIED state -->
+  <rect
+    x="300"
+    y="120"
+    width="160"
+    height="80"
+    rx="40"
+    fill="#dcfce7"
+    stroke="#16a34a"
+    stroke-width="2"
+  />
+  <text
+    x="380"
+    y="155"
+    text-anchor="middle"
+    font-size="15"
+    font-weight="700"
+    fill="#166534"
+  >CLASSIFIED</text>
+  <text x="380" y="175" text-anchor="middle" font-size="11" fill="#166534"
+  >Operational</text>
+
+  <!-- Arrow CLASSIFIED → BLOCKED -->
+  <line
+    x1="460"
+    y1="145"
+    x2="568"
+    y2="145"
+    stroke="#dc2626"
+    stroke-width="2"
+    marker-end="url(#mss-red)"
+  />
+  <rect
+    x="480"
+    y="114"
+    width="70"
+    height="22"
+    rx="4"
+    fill="#ffffff"
+    stroke="#fca5a5"
+    stroke-width="1"
+  />
+  <text x="515" y="129" text-anchor="middle" font-size="11" font-weight="500" fill="#dc2626"
+  >Revoke</text>
+
+  <!-- BLOCKED state -->
+  <rect
+    x="580"
+    y="120"
+    width="160"
+    height="80"
+    rx="40"
+    fill="#fef2f2"
+    stroke="#dc2626"
+    stroke-width="2"
+  />
+  <text
+    x="660"
+    y="155"
+    text-anchor="middle"
+    font-size="15"
+    font-weight="700"
+    fill="#dc2626"
+  >BLOCKED</text>
+  <text x="660" y="175" text-anchor="middle" font-size="11" fill="#dc2626"
+  >Prohibited</text>
+
+  <!-- Arrow UNTRUSTED → BLOCKED (direct) -->
+  <path
+    d="M 100 200 C 100 260, 300 280, 580 175"
+    fill="none"
+    stroke="#dc2626"
+    stroke-width="2"
+    stroke-dasharray="6,3"
+    marker-end="url(#mss-red)"
+  />
+  <rect
+    x="270"
+    y="246"
+    width="90"
+    height="22"
+    rx="4"
+    fill="#ffffff"
+    stroke="#fca5a5"
+    stroke-width="1"
+  />
+  <text x="315" y="261" text-anchor="middle" font-size="11" font-weight="500" fill="#dc2626"
+  >Direct block</text>
+
+  <!-- Bottom note -->
+  <rect
+    x="120"
+    y="290"
+    width="520"
+    height="36"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1"
+  />
+  <text
+    x="380"
+    y="313"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="600"
+    fill="#374151"
+  >UNTRUSTED servers are rejected by default — explicit classification required</text>
+</svg>

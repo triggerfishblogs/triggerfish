@@ -2,9 +2,8 @@
 
 The Agent Execution Environment is Triggerfish's self-development capability --
 a first-class code workspace where the agent can write code, execute it, observe
-output and errors, fix issues, and iterate until something works. This is what
-enables the agent to build robust integrations, test ideas, and create new tools
-on its own.
+output and errors, fix issues, and iterate until something works. This is what enables the agent to build integrations, test ideas, and create new
+tools on its own.
 
 ## Not the Plugin Sandbox
 
@@ -36,12 +35,12 @@ exactly what a human developer would see.
 
 ### Step 1: Write
 
-The agent creates or modifies files in its workspace using `exec.write`. The
+The agent creates or modifies files in its workspace using `write_file`. The
 workspace is a real filesystem directory scoped to the current agent.
 
 ### Step 2: Execute
 
-The agent runs the code via `exec.run`, receiving the complete stdout, stderr,
+The agent runs the code via `run_command`, receiving the complete stdout, stderr,
 and exit code. No output is hidden or summarized. The agent sees exactly what
 you would see in a terminal.
 
@@ -53,8 +52,8 @@ tests failed and why.
 
 ### Step 4: Fix
 
-The agent edits the code based on what it observed, using `exec.write` to update
-specific files.
+The agent edits the code based on what it observed, using `write_file` or
+`edit_file` to update specific files.
 
 ### Step 5: Repeat
 
@@ -74,16 +73,14 @@ on demand. :::
 
 ## Available Tools
 
-| Tool           | Description                                      | Output                                   |
-| -------------- | ------------------------------------------------ | ---------------------------------------- |
-| `exec.write`   | Write or overwrite a file in the workspace       | File path, bytes written                 |
-| `exec.read`    | Read file contents from the workspace            | File contents as string                  |
-| `exec.run`     | Execute a shell command in the workspace         | stdout, stderr, exit code, duration      |
-| `exec.install` | Install a package (npm, pip, deno add)           | Installation log, success/failure        |
-| `exec.ls`      | List files in the workspace (recursive optional) | File listing with sizes                  |
-| `exec.search`  | Search file contents (grep-like)                 | Matching lines with file:line references |
-| `exec.test`    | Run a test file and parse results                | Test names, pass/fail, error details     |
-| `exec.diff`    | Show changes between file versions               | Unified diff output                      |
+| Tool             | Description                                      | Output                                   |
+| ---------------- | ------------------------------------------------ | ---------------------------------------- |
+| `write_file`     | Write or overwrite a file in the workspace       | File path, bytes written                 |
+| `read_file`      | Read file contents from the workspace            | File contents as string                  |
+| `edit_file`      | Apply targeted edits to a file                   | Updated file contents                    |
+| `run_command`    | Execute a shell command in the workspace         | stdout, stderr, exit code, duration      |
+| `list_directory` | List files in the workspace (recursive optional) | File listing with sizes                  |
+| `search_files`   | Search file contents (grep-like)                 | Matching lines with file:line references |
 
 ## Workspace Structure
 
@@ -119,12 +116,13 @@ workspace scoped to the session.
 When you ask the agent to build a new integration (for example, "connect to my
 Notion and sync tasks"), the agent follows a natural development workflow:
 
-1. **Explore** -- Uses `exec.run` to test API endpoints, check auth, understand
-   response shapes
-2. **Scaffold** -- Writes integration code using `exec.write`, creates a test
+1. **Explore** -- Uses `run_command` to test API endpoints, check auth,
+   understand response shapes
+2. **Scaffold** -- Writes integration code using `write_file`, creates a test
    file alongside it
-3. **Test** -- Runs tests with `exec.test`, sees failures, iterates
-4. **Install deps** -- Uses `exec.install` to add required packages
+3. **Test** -- Runs tests with `run_command`, sees failures, iterates
+4. **Install deps** -- Uses `run_command` to add required packages (npm, pip,
+   deno add)
 5. **Iterate** -- Write, run, fix loop until tests pass and the integration
    works end-to-end
 6. **Persist** -- Saves as a skill (writes SKILL.md with metadata) or wires into
@@ -140,9 +138,9 @@ multiple runtimes:
 | Runtime | Available Via                   | Use Case                            |
 | ------- | ------------------------------- | ----------------------------------- |
 | Deno    | Direct execution                | TypeScript/JavaScript (first-class) |
-| Node.js | `exec.run node`                 | npm ecosystem access                |
-| Python  | `exec.run python`               | Data science, ML, scripting         |
-| Shell   | `exec.run sh` / `exec.run bash` | System automation, glue scripts     |
+| Node.js | `run_command node`                       | npm ecosystem access                |
+| Python  | `run_command python`                     | Data science, ML, scripting         |
+| Shell   | `run_command sh` / `run_command bash`    | System automation, glue scripts     |
 
 The agent can detect available runtimes and choose the best one for the task.
 Package installation works via the standard toolchain for each runtime.
@@ -154,7 +152,8 @@ policy-controlled at every step.
 
 ### Policy Integration
 
-- Every `exec.run` fires the `PRE_TOOL_CALL` hook with the command as context
+- Every `run_command` call fires the `PRE_TOOL_CALL` hook with the command as
+  context
 - Command allowlist/denylist is checked before execution
 - Output is captured and passed through the `POST_TOOL_RESPONSE` hook
 - Network endpoints accessed during execution are tracked via lineage

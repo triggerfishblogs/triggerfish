@@ -105,7 +105,7 @@ handles two types of requests:
 ## Message Limits
 
 WhatsApp supports messages up to 4,096 characters. Messages exceeding this limit
-are truncated before sending.
+are chunked into multiple messages before sending.
 
 ## Typing Indicators
 

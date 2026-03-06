@@ -11,22 +11,7 @@ External services send HTTP POST requests to registered webhook endpoints on the
 Triggerfish gateway. Each incoming event is verified for authenticity,
 classified, and routed to the agent for processing.
 
-```
-External Services              Gateway              Agent
-+----------------+          +------------+        +---------+
-| Gmail PubSub   |--------->|            |        |         |
-| GitHub         |--------->|  Webhook   |------->| Process |
-| Sentry         |--------->|  Endpoint  |        |  Event  |
-| Stripe         |--------->|            |        |         |
-| Custom         |--------->|            |        |         |
-+----------------+          +------------+        +---------+
-                                  |
-                            HMAC verification
-                            Classification
-                            Session isolation
-                            Policy hooks
-                            Audit logging
-```
+<img src="/diagrams/webhook-pipeline.svg" alt="Webhook pipeline: external services send HTTP POST through HMAC verification, classification, session isolation, and policy hooks to agent processing" style="max-width: 100%;" />
 
 ## Supported Event Sources
 
@@ -109,25 +94,7 @@ validation before the payload is processed.
 4. If the signatures do not match, the request is **rejected** immediately
 5. If verified, the payload proceeds to classification and processing
 
-```
-Inbound request
-    |
-    v
-Signature present?  --NO-->  Reject (401)
-    |
-   YES
-    |
-    v
-Compute HMAC(body, secret)
-    |
-    v
-Signature matches?  --NO-->  Reject (403)
-    |
-   YES
-    |
-    v
-Proceed to classification
-```
+<img src="/diagrams/hmac-verification.svg" alt="HMAC verification flow: check signature presence, compute HMAC, compare signatures, reject or proceed" style="max-width: 100%;" />
 
 ::: warning SECURITY Webhook requests without valid HMAC signatures are rejected
 before any processing occurs. This prevents spoofed events from triggering agent
@@ -221,7 +188,7 @@ webhooks:
 
 ## Example: GitHub PR Review Loop
 
-A powerful real-world example of webhooks in action: the agent opens a PR, then
+A real-world example of webhooks in action: the agent opens a PR, then
 GitHub webhook events drive the code review feedback loop without any polling.
 
 ### How It Works

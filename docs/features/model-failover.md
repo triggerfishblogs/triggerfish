@@ -1,8 +1,7 @@
 # LLM Providers and Failover
 
 Triggerfish supports multiple LLM providers with automatic failover, per-agent
-model selection, and session-level model switching. You are never locked into a
-single provider.
+model selection, and session-level model switching. No single-provider lock-in.
 
 ## Supported Providers
 
@@ -145,6 +144,6 @@ tries the next provider.
 See [Rate Limiting](/features/rate-limiting) for full details including OpenAI
 tier limits.
 
-::: info API keys are never stored in configuration files. Set credentials as
-environment variables or use your OS keychain. See the
-[Security Model](/security/) for details on secrets management. :::
+::: info API keys are never stored in configuration files. Use your OS keychain
+via `triggerfish config set-secret`. See the [Security Model](/security/) for
+details on secrets management. :::

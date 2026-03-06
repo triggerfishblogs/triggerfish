@@ -25,32 +25,7 @@ whether an action should be allowed. It simply requests actions, and the policy
 enforcement layer -- running as pure, deterministic code -- decides whether
 those actions proceed.
 
-```
-+----------------------------------------------------------+
-|  LLM / Agent Reasoning Layer                             |
-|  - Can be manipulated via prompt injection               |
-|  - Does NOT make security decisions                      |
-|  - Requests actions, does not execute them               |
-|  - Has ZERO authority                                    |
-+----------------------------------------------------------+
-                         |
-                         v  action request (structured)
-+----------------------------------------------------------+
-|  POLICY ENFORCEMENT LAYER                                |
-|  - Pure code, deterministic                              |
-|  - Tracks taint labels on all data in context            |
-|  - Computes effective classification of any output       |
-|  - Compares against channel/recipient classification     |
-|  - BLOCKS or ALLOWS -- no LLM discretion                 |
-|  - Logs all decisions for audit                          |
-|  - Cannot be prompt-injected                             |
-+----------------------------------------------------------+
-                         |
-                         v  allowed actions only
-+----------------------------------------------------------+
-|  Execution Layer (plugins, tool calls, messages)         |
-+----------------------------------------------------------+
-```
+<img src="/diagrams/enforcement-layers.svg" alt="Enforcement layers: LLM has zero authority, policy layer makes all decisions deterministically, only allowed actions reach execution" style="max-width: 100%;" />
 
 ::: warning SECURITY The LLM layer has no mechanism to override, skip, or
 influence the policy enforcement layer. There is no "parse LLM output for bypass
@@ -108,8 +83,8 @@ does what it is told, every time. :::
 
 ## Defense in Depth
 
-Triggerfish implements ten layers of defense. No single layer is sufficient on
-its own; together, they form a comprehensive security boundary:
+Triggerfish implements twelve layers of defense. No single layer is sufficient on
+its own; together, they form a security boundary:
 
 1. **Channel authentication** -- code-verified identity at session establishment
 2. **Permission-aware data access** -- source system permissions, not system
@@ -122,6 +97,10 @@ its own; together, they form a comprehensive security boundary:
 8. **Secrets isolation** -- OS keychain or vault, never config files
 9. **Agent identity** -- cryptographic delegation chains
 10. **Audit logging** -- all decisions recorded, no exceptions
+11. **SSRF prevention** -- IP denylist + DNS resolution checks on all outbound
+    HTTP
+12. **Memory classification gating** -- writes forced to session taint, reads
+    filtered by `canFlowTo`
 
 ## Next Steps
 

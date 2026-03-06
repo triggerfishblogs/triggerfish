@@ -14,25 +14,7 @@ beyond the Triggerfish installation itself.
 - **Python plugins** run inside Pyodide (a Python interpreter compiled to
   WebAssembly), which itself runs inside the Deno sandbox
 
-```
-+---------------------------------------------------+
-| Deno sandbox                                      |
-|   - Network allowlist enforced                    |
-|   - Filesystem isolated                           |
-|                                                   |
-|   +---------------------------------------------+ |
-|   | WASM sandbox (for Python)                   | |
-|   |   - Memory isolated                         | |
-|   |   - No system calls                         | |
-|   |   - Cannot escape to host                   | |
-|   |                                             | |
-|   |   +---------------------------------------+ | |
-|   |   | Plugin code runs here                 | | |
-|   |   | Double-sandboxed                      | | |
-|   |   +---------------------------------------+ | |
-|   +---------------------------------------------+ |
-+---------------------------------------------------+
-```
+<img src="/diagrams/plugin-sandbox.svg" alt="Plugin sandbox: Deno sandbox wraps WASM sandbox, plugin code runs in the innermost layer" style="max-width: 100%;" />
 
 This double-sandbox architecture means that even if a plugin contains malicious
 code, it cannot access the filesystem, make undeclared network calls, or escape

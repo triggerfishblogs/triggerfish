@@ -1,8 +1,9 @@
 # Feature Overview
 
 Beyond its [security model](/security/) and [channel support](/channels/),
-Triggerfish provides a set of capabilities that make your AI agent proactive,
-versatile, and resilient.
+Triggerfish provides capabilities that extend your AI agent beyond
+question-and-answer: scheduled tasks, persistent memory, web access, voice
+input, and multi-model failover.
 
 ## Proactive Behavior
 
@@ -16,7 +17,7 @@ sessions.
 
 ### [Notifications](./notifications)
 
-A first-class notification delivery service that routes messages across all
+A notification delivery service that routes messages across all
 connected channels with priority levels, offline queuing, and deduplication.
 Replaces ad-hoc notification patterns with a unified abstraction.
 
@@ -110,7 +111,7 @@ exhausted, and integrates with the failover chain.
 
 Unified structured logging with severity levels, file rotation, and dual output
 to stderr and file. Component-tagged log lines, automatic 1 MB rotation, and a
-bundled log-analyst skill for diagnosing issues.
+`log_read` tool for accessing log history.
 
 ::: info All features integrate with the core security model. Cron jobs respect
 classification ceilings. Voice input carries taint. Tide Pool content passes

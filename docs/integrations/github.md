@@ -226,56 +226,11 @@ triggerfish logs --tail
 
 ### With webhooks (instant)
 
-```
-Agent                          GitHub                    Triggerfish Gateway
-  |                              |                              |
-  |-- git push + gh pr create -->|                              |
-  |        (opens PR #42)        |                              |
-  |                              |                              |
-  |                       Reviewer posts review                 |
-  |                              |-- webhook POST ------------->|
-  |                              |   (pull_request_review)      |
-  |                              |                              |
-  |                              |              Verify HMAC     |
-  |                              |              Classify event  |
-  |                              |              Spawn session   |
-  |                              |                              |
-  |<---- new session with event payload + task instruction -----|
-  |                              |                              |
-  |  Read tracking file          |                              |
-  |  git checkout branch         |                              |
-  |  Read review comments        |                              |
-  |  Make changes                |                              |
-  |  git commit + push           |                              |
-  |  gh pr comment               |                              |
-  |-- push + comment ----------->|                              |
-  |                              |                              |
-```
+<img src="/diagrams/github-webhook-review.svg" alt="GitHub webhook review loop: agent opens PR, waits, receives webhook on review, reads tracking file, addresses feedback, commits and pushes" style="max-width: 100%;" />
 
 ### With trigger-based polling (behind firewall)
 
-```
-Agent                              GitHub
-  |                                  |
-  |-- git push + gh pr create ------>|  (opens PR #42)
-  |                                  |
-  |  Write tracking file locally     |
-  |  Stop. Wait for next trigger.    |
-  |                                  |
-  |           ... time passes ...    |
-  |           Reviewer posts review  |
-  |                                  |
-  |  [trigger wakeup / cron]         |
-  |-- gh pr view #42 --------------->|  (check for new reviews)
-  |<-- review data ------------------|
-  |                                  |
-  |  Read tracking file              |
-  |  git checkout branch             |
-  |  Make changes, commit, push      |
-  |  gh pr comment                   |
-  |-- push + comment ---------------->|
-  |                                  |
-```
+<img src="/diagrams/github-trigger-review.svg" alt="GitHub trigger-based review: agent opens PR, writes tracking file, waits for trigger wakeup, polls for reviews, addresses feedback" style="max-width: 100%;" />
 
 Both paths use the same tracking files. The agent recovers context by reading
 the PR tracking file from

@@ -1,7 +1,7 @@
 # CLI Commands
 
-Triggerfish provides a comprehensive CLI for managing your agent, daemon,
-channels, and sessions. This page covers every available command and in-chat
+Triggerfish provides a CLI for managing your agent, daemon, channels, and
+sessions. This page covers every available command and in-chat
 shortcut.
 
 ## Core Commands
@@ -16,8 +16,8 @@ triggerfish dive
 ```
 
 The wizard walks through 8 steps: LLM provider, agent name/personality, channel
-setup, classification mode, skill installation, Google Workspace connection,
-search provider, and daemon installation. See [Quick Start](./quickstart) for a
+setup, optional plugins, Google Workspace connection, GitHub connection, search
+provider, and daemon installation. See [Quick Start](./quickstart) for a
 full walkthrough.
 
 ### `triggerfish chat`
@@ -110,7 +110,7 @@ triggerfish logs --tail
 
 ### `triggerfish patrol`
 
-Run a comprehensive health check of your Triggerfish installation.
+Run a health check of your Triggerfish installation.
 
 ```bash
 triggerfish patrol
@@ -219,6 +219,24 @@ triggerfish disconnect github    # Remove GitHub token
 
 Removes all stored tokens from the keychain. You can reconnect at any time.
 
+### `triggerfish healthcheck`
+
+Run a quick connectivity check against the configured LLM provider. Returns
+success if the provider responds, or an error with details.
+
+```bash
+triggerfish healthcheck
+```
+
+### `triggerfish release-notes`
+
+Display release notes for the current or a specified version.
+
+```bash
+triggerfish release-notes
+triggerfish release-notes v0.5.0
+```
+
 ### `triggerfish update`
 
 Check for available updates and install them.
@@ -258,9 +276,9 @@ triggerfish session history             # View session transcript
 triggerfish session spawn               # Create a background session
 ```
 
-## Buoy Commands
+## Buoy Commands <ComingSoon :inline="true" />
 
-Manage companion device connections.
+Manage companion device connections. Buoy is not yet available.
 
 ```bash
 triggerfish buoys list                  # List connected buoys

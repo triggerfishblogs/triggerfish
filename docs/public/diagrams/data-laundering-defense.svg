@@ -1,0 +1,225 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 860 440"
+  width="860"
+  height="440"
+  font-family="system-ui, sans-serif"
+>
+  <defs>
+    <marker
+      id="dld-arrow"
+      markerWidth="10"
+      markerHeight="7"
+      refX="10"
+      refY="3.5"
+      orient="auto"
+    >
+      <polygon points="0 0, 10 3.5, 0 7" fill="#374151" />
+    </marker>
+    <marker
+      id="dld-red"
+      markerWidth="10"
+      markerHeight="7"
+      refX="10"
+      refY="3.5"
+      orient="auto"
+    >
+      <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="860" height="440" fill="#ffffff" />
+
+  <!-- Title -->
+  <text
+    x="430"
+    y="36"
+    text-anchor="middle"
+    font-size="18"
+    font-weight="700"
+    fill="#1e40af"
+  >Data Laundering Defense</text>
+
+  <!-- Attack label -->
+  <text
+    x="430"
+    y="72"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="600"
+    fill="#dc2626"
+  >Attack Path (blocked)</text>
+
+  <!-- Step 1: Agent A accesses CONFIDENTIAL -->
+  <rect
+    x="40"
+    y="100"
+    width="200"
+    height="70"
+    rx="8"
+    fill="#fef3c7"
+    stroke="#d97706"
+    stroke-width="2"
+  />
+  <text
+    x="140"
+    y="128"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="700"
+    fill="#92400e"
+  >1. Agent A</text>
+  <text x="140" y="150" text-anchor="middle" font-size="12" fill="#92400e"
+  >Accesses CONFIDENTIAL</text>
+
+  <!-- Arrow 1 → 2 -->
+  <line
+    x1="240"
+    y1="135"
+    x2="298"
+    y2="135"
+    stroke="#dc2626"
+    stroke-width="2"
+    stroke-dasharray="6,3"
+    marker-end="url(#dld-red)"
+  />
+
+  <!-- Step 2: Agent A calls Agent B -->
+  <rect
+    x="310"
+    y="100"
+    width="220"
+    height="70"
+    rx="8"
+    fill="#fef2f2"
+    stroke="#dc2626"
+    stroke-width="2"
+  />
+  <text
+    x="420"
+    y="128"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="700"
+    fill="#dc2626"
+  >2. Calls Agent B</text>
+  <text x="420" y="150" text-anchor="middle" font-size="12" fill="#dc2626"
+  >B has lower ceiling</text>
+
+  <!-- Big X over step 2 -->
+  <line x1="320" y1="108" x2="520" y2="162" stroke="#dc2626" stroke-width="4" />
+  <line x1="320" y1="162" x2="520" y2="108" stroke="#dc2626" stroke-width="4" />
+
+  <!-- Arrow 2 → 3 (crossed out) -->
+  <line
+    x1="530"
+    y1="135"
+    x2="588"
+    y2="135"
+    stroke="#dc2626"
+    stroke-width="2"
+    stroke-dasharray="6,3"
+    marker-end="url(#dld-red)"
+  />
+
+  <!-- Step 3: Output to PUBLIC -->
+  <rect
+    x="600"
+    y="100"
+    width="220"
+    height="70"
+    rx="8"
+    fill="#fef2f2"
+    stroke="#dc2626"
+    stroke-width="2"
+    opacity="0.5"
+  />
+  <text
+    x="710"
+    y="128"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="700"
+    fill="#dc2626"
+    opacity="0.5"
+  >3. Output to PUBLIC</text>
+  <text x="710" y="150" text-anchor="middle" font-size="12" fill="#dc2626" opacity="0.5"
+  >Data exfiltrated</text>
+
+  <!-- Defense section -->
+  <text
+    x="430"
+    y="220"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="600"
+    fill="#16a34a"
+  >Defense</text>
+
+  <!-- Defense explanation box -->
+  <rect
+    x="100"
+    y="240"
+    width="660"
+    height="120"
+    rx="8"
+    fill="#dcfce7"
+    stroke="#16a34a"
+    stroke-width="2"
+  />
+
+  <!-- BLOCKED label -->
+  <rect
+    x="130"
+    y="260"
+    width="120"
+    height="30"
+    rx="6"
+    fill="#dc2626"
+  />
+  <text
+    x="190"
+    y="280"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="700"
+    fill="#ffffff"
+  >BLOCKED</text>
+
+  <text
+    x="430"
+    y="280"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="600"
+    fill="#166534"
+  >Step 2 is blocked by the policy layer</text>
+
+  <text x="430" y="308" text-anchor="middle" font-size="13" fill="#166534"
+  >Agent A's taint (CONFIDENTIAL) exceeds Agent B's ceiling.</text>
+  <text x="430" y="330" text-anchor="middle" font-size="13" fill="#166534"
+  >Delegation is denied before B ever receives the task.</text>
+  <text x="430" y="350" text-anchor="middle" font-size="12" fill="#166534"
+  >The LLM cannot circumvent this check — it runs below the LLM layer.</text>
+
+  <!-- Bottom note -->
+  <rect
+    x="140"
+    y="390"
+    width="580"
+    height="36"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1"
+  />
+  <text
+    x="430"
+    y="413"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="600"
+    fill="#374151"
+  >Multi-agent delegation cannot be used to launder data to a lower classification.</text>
+</svg>

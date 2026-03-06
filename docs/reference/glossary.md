@@ -4,7 +4,7 @@
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **A2UI**                     | Agent-to-UI protocol for pushing visual content from the agent to the Tide Pool workspace in real time.                                                           |
 | **Background Session**       | A session spawned for autonomous tasks (cron, triggers) that starts with fresh PUBLIC taint and runs in an isolated workspace.                                    |
-| **Buoy**                     | A companion native app (iOS, Android) that provides device capabilities such as camera, location, screen recording, and push notifications to the agent.          |
+| **Buoy**                     | A companion native app (iOS, Android) that provides device capabilities such as camera, location, screen recording, and push notifications to the agent. (Coming soon.) |
 | **Classification**           | A sensitivity label assigned to data, channels, and recipients. Four levels: RESTRICTED, CONFIDENTIAL, INTERNAL, PUBLIC.                                          |
 | **Cron**                     | A scheduled recurring task executed by the agent at a specified time using standard cron expression syntax.                                                       |
 | **Dive**                     | The first-run setup wizard (`triggerfish dive`) that scaffolds `triggerfish.yaml`, SPINE.md, and initial configuration.                                           |

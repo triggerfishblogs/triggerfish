@@ -1,0 +1,280 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 860 460"
+  width="860"
+  height="460"
+  font-family="system-ui, sans-serif"
+>
+  <defs>
+    <marker
+      id="at-arr"
+      markerWidth="10"
+      markerHeight="7"
+      refX="10"
+      refY="3.5"
+      orient="auto"
+    >
+      <polygon points="0 0, 10 3.5, 0 7" fill="#374151" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="860" height="460" fill="#ffffff" />
+
+  <!-- Title -->
+  <text
+    x="430"
+    y="36"
+    text-anchor="middle"
+    font-size="18"
+    font-weight="700"
+    fill="#1e40af"
+  >Audit Trace Capabilities</text>
+
+  <!-- Central: Audit System -->
+  <rect
+    x="310"
+    y="70"
+    width="240"
+    height="80"
+    rx="8"
+    fill="#2563eb"
+    stroke="#1e40af"
+    stroke-width="2"
+  />
+  <text
+    x="430"
+    y="104"
+    text-anchor="middle"
+    font-size="16"
+    font-weight="700"
+    fill="#ffffff"
+  >Audit System</text>
+  <text
+    x="430"
+    y="126"
+    text-anchor="middle"
+    font-size="12"
+    fill="#bfdbfe"
+  >All policy decisions logged</text>
+
+  <!-- Arrow: Audit → Forward Trace -->
+  <line
+    x1="310"
+    y1="130"
+    x2="166"
+    y2="196"
+    stroke="#374151"
+    stroke-width="2"
+    marker-end="url(#at-arr)"
+  />
+
+  <!-- Arrow: Audit → Backward Trace -->
+  <line
+    x1="430"
+    y1="150"
+    x2="430"
+    y2="196"
+    stroke="#374151"
+    stroke-width="2"
+    marker-end="url(#at-arr)"
+  />
+
+  <!-- Arrow: Audit → Classification Justification -->
+  <line
+    x1="550"
+    y1="130"
+    x2="694"
+    y2="196"
+    stroke="#374151"
+    stroke-width="2"
+    marker-end="url(#at-arr)"
+  />
+
+  <!-- Branch 1: Forward Trace -->
+  <rect
+    x="30"
+    y="200"
+    width="240"
+    height="100"
+    rx="8"
+    fill="#dbeafe"
+    stroke="#93c5fd"
+    stroke-width="1.5"
+  />
+  <text
+    x="150"
+    y="228"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="600"
+    fill="#1e40af"
+  >Forward Trace</text>
+  <text
+    x="150"
+    y="252"
+    text-anchor="middle"
+    font-size="12"
+    fill="#374151"
+  >Where did data go?</text>
+  <text
+    x="150"
+    y="272"
+    text-anchor="middle"
+    font-size="11"
+    fill="#6b7280"
+  >Track from source through</text>
+  <text
+    x="150"
+    y="288"
+    text-anchor="middle"
+    font-size="11"
+    fill="#6b7280"
+  >all sessions and outputs</text>
+
+  <!-- Branch 2: Backward Trace -->
+  <rect
+    x="310"
+    y="200"
+    width="240"
+    height="100"
+    rx="8"
+    fill="#dcfce7"
+    stroke="#16a34a"
+    stroke-width="1.5"
+  />
+  <text
+    x="430"
+    y="228"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="600"
+    fill="#166534"
+  >Backward Trace</text>
+  <text
+    x="430"
+    y="252"
+    text-anchor="middle"
+    font-size="12"
+    fill="#374151"
+  >What sources contributed?</text>
+  <text
+    x="430"
+    y="272"
+    text-anchor="middle"
+    font-size="11"
+    fill="#6b7280"
+  >Trace from output back to</text>
+  <text
+    x="430"
+    y="288"
+    text-anchor="middle"
+    font-size="11"
+    fill="#6b7280"
+  >all contributing data sources</text>
+
+  <!-- Branch 3: Classification Justification -->
+  <rect
+    x="590"
+    y="200"
+    width="240"
+    height="100"
+    rx="8"
+    fill="#fef3c7"
+    stroke="#f59e0b"
+    stroke-width="1.5"
+  />
+  <text
+    x="710"
+    y="228"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="600"
+    fill="#92400e"
+  >Classification</text>
+  <text
+    x="710"
+    y="246"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="600"
+    fill="#92400e"
+  >Justification</text>
+  <text
+    x="710"
+    y="270"
+    text-anchor="middle"
+    font-size="12"
+    fill="#374151"
+  >Why this level?</text>
+  <text
+    x="710"
+    y="290"
+    text-anchor="middle"
+    font-size="11"
+    fill="#6b7280"
+  >Rules evaluated, inputs, result</text>
+
+  <!-- Arrow down to Compliance Export -->
+  <line
+    x1="150"
+    y1="300"
+    x2="150"
+    y2="356"
+    stroke="#374151"
+    stroke-width="1.5"
+    marker-end="url(#at-arr)"
+  />
+  <line
+    x1="430"
+    y1="300"
+    x2="430"
+    y2="356"
+    stroke="#374151"
+    stroke-width="1.5"
+    marker-end="url(#at-arr)"
+  />
+  <line
+    x1="710"
+    y1="300"
+    x2="710"
+    y2="356"
+    stroke="#374151"
+    stroke-width="1.5"
+    marker-end="url(#at-arr)"
+  />
+
+  <!-- Compliance Export (spans full width) -->
+  <rect
+    x="30"
+    y="360"
+    width="800"
+    height="70"
+    rx="8"
+    fill="#f5f3ff"
+    stroke="#8b5cf6"
+    stroke-width="1.5"
+  />
+  <text
+    x="430"
+    y="390"
+    text-anchor="middle"
+    font-size="15"
+    font-weight="600"
+    fill="#6d28d9"
+  >Compliance Export</text>
+  <text
+    x="430"
+    y="412"
+    text-anchor="middle"
+    font-size="12"
+    fill="#374151"
+  >Full chain of custody — every decision, every data flow, every classification change</text>
+  <text
+    x="430"
+    y="428"
+    text-anchor="middle"
+    font-size="11"
+    fill="#6b7280"
+  >Exportable audit trail for regulatory compliance and forensic analysis</text>
+</svg>

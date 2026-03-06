@@ -1,0 +1,175 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 720 560"
+  width="720"
+  height="560"
+  font-family="system-ui, sans-serif"
+>
+  <!-- Background -->
+  <rect width="720" height="560" fill="#ffffff" />
+
+  <!-- Title -->
+  <text
+    x="360"
+    y="36"
+    text-anchor="middle"
+    font-size="18"
+    font-weight="700"
+    fill="#1e40af"
+  >No Write-Down Flow Rules</text>
+
+  <!-- Subtitle -->
+  <text
+    x="360"
+    y="58"
+    text-anchor="middle"
+    font-size="12"
+    fill="#6b7280"
+  >canFlowTo(source, destination) — source level must be &lt;= destination level</text>
+
+  <!-- Column headers label -->
+  <text
+    x="420"
+    y="88"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="600"
+    fill="#1e40af"
+  >Destination</text>
+
+  <!-- Row header label -->
+  <text
+    x="68"
+    y="280"
+    text-anchor="middle"
+    font-size="14"
+    font-weight="600"
+    fill="#1e40af"
+    transform="rotate(-90,68,280)"
+  >Source</text>
+
+  <!-- Column headers -->
+  <rect x="220" y="96" width="110" height="36" rx="8" fill="#16a34a" />
+  <text x="275" y="119" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff">PUBLIC</text>
+
+  <rect x="340" y="96" width="110" height="36" rx="8" fill="#2563eb" />
+  <text x="395" y="119" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff">INTERNAL</text>
+
+  <rect x="460" y="96" width="110" height="36" rx="8" fill="#d97706" />
+  <text x="515" y="119" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff">CONFID.</text>
+
+  <rect x="580" y="96" width="110" height="36" rx="8" fill="#dc2626" />
+  <text x="635" y="119" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff">RESTRICTED</text>
+
+  <!-- Row headers -->
+  <rect x="90" y="148" width="120" height="50" rx="8" fill="#16a34a" />
+  <text x="150" y="178" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">PUBLIC</text>
+
+  <rect x="90" y="208" width="120" height="50" rx="8" fill="#2563eb" />
+  <text x="150" y="238" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">INTERNAL</text>
+
+  <rect x="90" y="268" width="120" height="50" rx="8" fill="#d97706" />
+  <text x="150" y="298" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">CONFID.</text>
+
+  <rect x="90" y="328" width="120" height="50" rx="8" fill="#dc2626" />
+  <text x="150" y="358" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">RESTRICTED</text>
+
+  <!-- Grid cells — Row 1: PUBLIC source -->
+  <!-- PUBLIC → PUBLIC (allowed) -->
+  <rect x="220" y="148" width="110" height="50" rx="8" fill="#dcfce7" stroke="#86efac" stroke-width="1.5" />
+  <text x="275" y="178" text-anchor="middle" font-size="20" font-weight="700" fill="#16a34a">&#x2713;</text>
+
+  <!-- PUBLIC → INTERNAL (allowed) -->
+  <rect x="340" y="148" width="110" height="50" rx="8" fill="#dcfce7" stroke="#86efac" stroke-width="1.5" />
+  <text x="395" y="178" text-anchor="middle" font-size="20" font-weight="700" fill="#16a34a">&#x2713;</text>
+
+  <!-- PUBLIC → CONFIDENTIAL (allowed) -->
+  <rect x="460" y="148" width="110" height="50" rx="8" fill="#dcfce7" stroke="#86efac" stroke-width="1.5" />
+  <text x="515" y="178" text-anchor="middle" font-size="20" font-weight="700" fill="#16a34a">&#x2713;</text>
+
+  <!-- PUBLIC → RESTRICTED (allowed) -->
+  <rect x="580" y="148" width="110" height="50" rx="8" fill="#dcfce7" stroke="#86efac" stroke-width="1.5" />
+  <text x="635" y="178" text-anchor="middle" font-size="20" font-weight="700" fill="#16a34a">&#x2713;</text>
+
+  <!-- Grid cells — Row 2: INTERNAL source -->
+  <!-- INTERNAL → PUBLIC (blocked) -->
+  <rect x="220" y="208" width="110" height="50" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5" />
+  <text x="275" y="238" text-anchor="middle" font-size="20" font-weight="700" fill="#dc2626">&#x2717;</text>
+
+  <!-- INTERNAL → INTERNAL (allowed) -->
+  <rect x="340" y="208" width="110" height="50" rx="8" fill="#dcfce7" stroke="#86efac" stroke-width="1.5" />
+  <text x="395" y="238" text-anchor="middle" font-size="20" font-weight="700" fill="#16a34a">&#x2713;</text>
+
+  <!-- INTERNAL → CONFIDENTIAL (allowed) -->
+  <rect x="460" y="208" width="110" height="50" rx="8" fill="#dcfce7" stroke="#86efac" stroke-width="1.5" />
+  <text x="515" y="238" text-anchor="middle" font-size="20" font-weight="700" fill="#16a34a">&#x2713;</text>
+
+  <!-- INTERNAL → RESTRICTED (allowed) -->
+  <rect x="580" y="208" width="110" height="50" rx="8" fill="#dcfce7" stroke="#86efac" stroke-width="1.5" />
+  <text x="635" y="238" text-anchor="middle" font-size="20" font-weight="700" fill="#16a34a">&#x2713;</text>
+
+  <!-- Grid cells — Row 3: CONFIDENTIAL source -->
+  <!-- CONFIDENTIAL → PUBLIC (blocked) -->
+  <rect x="220" y="268" width="110" height="50" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5" />
+  <text x="275" y="298" text-anchor="middle" font-size="20" font-weight="700" fill="#dc2626">&#x2717;</text>
+
+  <!-- CONFIDENTIAL → INTERNAL (blocked) -->
+  <rect x="340" y="268" width="110" height="50" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5" />
+  <text x="395" y="298" text-anchor="middle" font-size="20" font-weight="700" fill="#dc2626">&#x2717;</text>
+
+  <!-- CONFIDENTIAL → CONFIDENTIAL (allowed) -->
+  <rect x="460" y="268" width="110" height="50" rx="8" fill="#dcfce7" stroke="#86efac" stroke-width="1.5" />
+  <text x="515" y="298" text-anchor="middle" font-size="20" font-weight="700" fill="#16a34a">&#x2713;</text>
+
+  <!-- CONFIDENTIAL → RESTRICTED (allowed) -->
+  <rect x="580" y="268" width="110" height="50" rx="8" fill="#dcfce7" stroke="#86efac" stroke-width="1.5" />
+  <text x="635" y="298" text-anchor="middle" font-size="20" font-weight="700" fill="#16a34a">&#x2713;</text>
+
+  <!-- Grid cells — Row 4: RESTRICTED source -->
+  <!-- RESTRICTED → PUBLIC (blocked) -->
+  <rect x="220" y="328" width="110" height="50" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5" />
+  <text x="275" y="358" text-anchor="middle" font-size="20" font-weight="700" fill="#dc2626">&#x2717;</text>
+
+  <!-- RESTRICTED → INTERNAL (blocked) -->
+  <rect x="340" y="328" width="110" height="50" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5" />
+  <text x="395" y="358" text-anchor="middle" font-size="20" font-weight="700" fill="#dc2626">&#x2717;</text>
+
+  <!-- RESTRICTED → CONFIDENTIAL (blocked) -->
+  <rect x="460" y="328" width="110" height="50" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5" />
+  <text x="515" y="358" text-anchor="middle" font-size="20" font-weight="700" fill="#dc2626">&#x2717;</text>
+
+  <!-- RESTRICTED → RESTRICTED (allowed) -->
+  <rect x="580" y="328" width="110" height="50" rx="8" fill="#dcfce7" stroke="#86efac" stroke-width="1.5" />
+  <text x="635" y="358" text-anchor="middle" font-size="20" font-weight="700" fill="#16a34a">&#x2713;</text>
+
+  <!-- Legend -->
+  <rect x="140" y="410" width="440" height="36" rx="8" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1" />
+  <text x="195" y="433" text-anchor="middle" font-size="18" font-weight="700" fill="#16a34a">&#x2713;</text>
+  <text x="268" y="433" font-size="12" fill="#374151">Allowed (equal or higher)</text>
+  <text x="445" y="433" text-anchor="middle" font-size="18" font-weight="700" fill="#dc2626">&#x2717;</text>
+  <text x="508" y="433" font-size="12" fill="#374151">Blocked (write-down)</text>
+
+  <!-- Bottom explanation -->
+  <rect
+    x="100"
+    y="468"
+    width="520"
+    height="76"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1"
+  />
+  <text
+    x="360"
+    y="492"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#374151"
+  >Data can only flow to equal or higher classification levels</text>
+  <text x="360" y="512" text-anchor="middle" font-size="12" fill="#6b7280"
+  >CONFIDENTIAL data cannot reach a PUBLIC or INTERNAL channel.</text>
+  <text x="360" y="530" text-anchor="middle" font-size="12" fill="#6b7280"
+  >This is enforced deterministically by policy hooks, not the LLM.</text>
+</svg>

@@ -70,7 +70,7 @@ Keep it scannable -- bullet points, not paragraphs.
 | `category`                                    |    No    | Grouping category (productivity, development, communication, etc.) |
 | `tags`                                        |    No    | Searchable tags for discovery                                      |
 | `triggers`                                    |    No    | Automatic invocation rules (cron schedules, event patterns)        |
-| `metadata.triggerfish.classification_ceiling` |    No    | Maximum taint level this skill can reach                           |
+| `metadata.triggerfish.classification_ceiling` |    No    | Maximum taint level this skill can reach (default: `PUBLIC`)      |
 | `metadata.triggerfish.requires_tools`         |    No    | Tools the skill depends on (browser, exec, etc.)                   |
 | `metadata.triggerfish.network_domains`        |    No    | Allowed network endpoints for the skill                            |
 
@@ -84,8 +84,8 @@ names conflict.
 Ship with Triggerfish in the `skills/bundled/` directory. Maintained by the
 project. Always available.
 
-Triggerfish includes five foundational skills that make the agent
-self-sufficient from day one:
+Triggerfish includes ten bundled skills that make the agent self-sufficient from
+day one:
 
 | Skill                     | Description                                                                                                                                                         |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -95,6 +95,10 @@ self-sufficient from day one:
 | **skill-builder**         | How to author new skills. SKILL.md format, frontmatter fields, classification ceilings, self-authoring workflow, security scanning.                                 |
 | **integration-builder**   | How to build Triggerfish integrations. All six patterns: channel adapters, LLM providers, MCP servers, storage providers, exec tools, and plugins.                  |
 | **git-branch-management** | Git branch workflow for development. Feature branches, atomic commits, PR creation via `gh` CLI, PR tracking, review feedback loop via webhooks, merge and cleanup. |
+| **deep-research**         | Multi-step research methodology. Source evaluation, parallel searches, synthesis, and citation formatting.                                                           |
+| **pdf**                   | PDF document processing. Text extraction, summarization, and structured data extraction from PDF files.                                                              |
+| **triggerfish**            | Self-knowledge about Triggerfish internals. Architecture, configuration, troubleshooting, and development patterns.                                                  |
+| **triggers**              | Proactive behavior authoring. Writing effective TRIGGER.md files, monitoring patterns, and escalation rules.                                                         |
 
 These are the bootstrap skills -- the agent uses them to extend itself. The
 skill-builder teaches the agent how to create new skills, and the

@@ -71,6 +71,31 @@ policy hooks.
 | `recipient` | string | yes      | Recipient identifier within the channel   |
 | `text`      | string | yes      | Message text to send                      |
 
+### `summarize`
+
+Generate a concise summary of the current conversation. Useful for creating
+handoff notes, compressing context, or producing a recap for delivery to another
+channel.
+
+| Parameter | Type   | Required | Description                                     |
+| --------- | ------ | -------- | ----------------------------------------------- |
+| `scope`   | string | no       | What to summarize: `session` (default), `topic` |
+
+### `simulate_tool_call`
+
+Simulate a tool call to preview the policy engine's decision without executing
+the tool. Returns the hook evaluation result (ALLOW, BLOCK, or REDACT) and the
+rules that were evaluated.
+
+| Parameter   | Type   | Required | Description                              |
+| ----------- | ------ | -------- | ---------------------------------------- |
+| `tool_name` | string | yes      | The tool to simulate calling             |
+| `args`      | object | no       | Arguments to include in the simulation   |
+
+::: tip Use `simulate_tool_call` to check whether a tool call will be allowed
+before executing it. This is useful for understanding policy behavior without
+side effects. :::
+
 ## Use Cases
 
 ### Background Task Delegation
