@@ -252,8 +252,11 @@ Deno.test("loadPersonaContext — multiple tags on same record appear in first m
     sessionTaint: "PUBLIC",
   });
 
-  // Should appear in rules (higher priority) since we query per-tag
+  // Should appear in rules (higher priority) and NOT be duplicated in preferences
   assert(result.includes("Your Rules"));
   assert(result.includes("strict TypeScript"));
+  // Count occurrences — must appear exactly once (deduplication)
+  const occurrences = result.split("strict TypeScript").length - 1;
+  assertEquals(occurrences, 1, "Multi-tag record should not be duplicated across sections");
   await storage.close();
 });

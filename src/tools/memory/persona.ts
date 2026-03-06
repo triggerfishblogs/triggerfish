@@ -88,6 +88,7 @@ export async function loadPersonaContext(
   let totalChars = 0;
   const headerBase = "## What I Know About You\n\n";
   totalChars += headerBase.length;
+  const seenKeys = new Set<string>();
 
   for (const { tag, records } of sorted) {
     if (records.length === 0) continue;
@@ -96,17 +97,20 @@ export async function loadPersonaContext(
     if (totalChars + heading.length >= maxChars) break;
 
     const lines: string[] = [heading];
-    totalChars += heading.length;
+    let sectionChars = heading.length;
 
     for (const record of records) {
+      if (seenKeys.has(record.key)) continue;
       const line = formatRecord(record) + "\n";
-      if (totalChars + line.length >= maxChars) break;
+      if (totalChars + sectionChars + line.length >= maxChars) break;
       lines.push(line);
-      totalChars += line.length;
+      sectionChars += line.length;
+      seenKeys.add(record.key);
     }
 
-    // Only add the section if we got at least one record line
+    // Only charge budget and add section when at least one record fits
     if (lines.length > 1) {
+      totalChars += sectionChars;
       sections.push(lines.join(""));
     }
   }
