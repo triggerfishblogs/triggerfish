@@ -18,8 +18,6 @@ export {
   getTriggerManageToolDefinitions,
   TRIGGER_MANAGE_SYSTEM_PROMPT,
 } from "./trigger_manage_defs.ts";
-export {
-  createTriggerManageExecutor,
-  TRIGGER_INSTRUCTIONS_MEMORY_KEY,
-} from "./trigger_manage_executor.ts";
+export { createTriggerManageExecutor } from "./trigger_manage_executor.ts";
+export { TRIGGER_INSTRUCTIONS_MEMORY_KEY } from "../../../core/security/constants.ts";
 export type { TriggerManageContext } from "./trigger_manage_executor.ts";

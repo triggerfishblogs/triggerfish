@@ -98,5 +98,14 @@ export const WRITE_PROTECTED_BASENAMES: ReadonlySet<string> = new Set([
   "TRIGGER.md",
 ]);
 
+/**
+ * Memory key for agent-managed trigger instructions.
+ *
+ * Shared between the `trigger_manage` tool (writes) and the scheduler
+ * trigger runner (reads). Lives in core/ so both `gateway/` and
+ * `scheduler/` can import it without violating layer rules.
+ */
+export const TRIGGER_INSTRUCTIONS_MEMORY_KEY = "trigger:instructions";
+
 /** Default classification for unmapped filesystem paths. */
 export const DEFAULT_PATH_CLASSIFICATION: ClassificationLevel = "CONFIDENTIAL";

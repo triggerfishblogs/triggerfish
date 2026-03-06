@@ -15,13 +15,11 @@ import type { ClassificationLevel } from "../../../core/types/classification.ts"
 import type { TriggerStore } from "../../../scheduler/triggers/store.ts";
 import type { MemoryStore } from "../../../tools/memory/store.ts";
 import { canFlowTo } from "../../../core/types/classification.ts";
+import { TRIGGER_INSTRUCTIONS_MEMORY_KEY } from "../../../core/security/constants.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
 import type { SessionId } from "../../../core/types/session.ts";
 
 const log = createLogger("trigger-manage");
-
-/** Memory key for agent-managed trigger instructions. */
-export const TRIGGER_INSTRUCTIONS_MEMORY_KEY = "trigger:instructions";
 
 /** Context required by the trigger_manage executor. */
 export interface TriggerManageContext {

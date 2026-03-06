@@ -13,6 +13,7 @@
 import type { ToolExecutor } from "../core/types/tool.ts";
 import type { SchedulerServiceConfig } from "./service_types.ts";
 import { createLogger } from "../core/logger/mod.ts";
+import { TRIGGER_INSTRUCTIONS_MEMORY_KEY } from "../core/security/constants.ts";
 import { deliverSchedulerOutput } from "./service_output.ts";
 import { logSchedulerTokenUsage } from "./service_cron.ts";
 
@@ -20,9 +21,6 @@ const log = createLogger("scheduler");
 
 /** Memory key used to persist trigger run history. */
 const TRIGGER_HISTORY_MEMORY_KEY = "trigger:run-history";
-
-/** Memory key for agent-managed trigger instructions (set via trigger_manage). */
-const TRIGGER_INSTRUCTIONS_MEMORY_KEY = "trigger:instructions";
 
 /** Maximum character length for injected history (roughly ~375 tokens). */
 const MAX_HISTORY_CHARS = 1500;
@@ -169,57 +167,56 @@ async function loadMemoryInstructions(
 }
 
 /**
- * Resolve trigger instructions: memory override first, then TRIGGER.md file.
+ * Create the trigger orchestrator session.
  *
- * Memory instructions are set via the trigger_manage tool and take
- * precedence over the file. This allows the agent to update trigger
- * behavior without filesystem writes (which would be a write-down
- * from classified sessions into the trigger's PUBLIC context).
+ * Extracted so callers can defer creation until instructions are confirmed.
  */
-async function resolveTriggerInstructions(
-  config: SchedulerServiceConfig,
-  toolExecutor: ToolExecutor,
-): Promise<{ content: string; source: "memory" | "file" } | null> {
-  const memoryContent = await loadMemoryInstructions(toolExecutor);
-  if (memoryContent) {
-    log.info("Trigger instructions loaded from memory override", {
-      operation: "resolveTriggerInstructions",
-      contentLength: memoryContent.length,
-    });
-    return { content: memoryContent, source: "memory" };
-  }
-  const fileContent = await loadTriggerMd(config.triggerMdPath);
-  if (fileContent) {
-    log.info("Trigger instructions loaded from TRIGGER.md file", {
-      operation: "resolveTriggerInstructions",
-      contentLength: fileContent.length,
-    });
-    return { content: fileContent, source: "file" };
-  }
-  return null;
+function createTriggerSession(config: SchedulerServiceConfig) {
+  return config.orchestratorFactory.create(
+    "trigger",
+    { isTrigger: true, ceiling: config.trigger.classificationCeiling },
+  );
 }
 
 /**
  * Run the trigger callback: resolve instructions and send them to an
  * isolated orchestrator session.
  *
- * Instructions are resolved from memory first (agent-managed via
- * trigger_manage), falling back to the TRIGGER.md file. When neither
- * source has instructions, the trigger is skipped entirely.
+ * The TRIGGER.md file is checked first (cheap I/O). If present, the
+ * orchestrator is created and memory override is checked (takes
+ * precedence). If no file exists, the orchestrator is still created
+ * to check memory — but only on the first call after which the
+ * absence is cached for the session lifetime.
  *
  * Safe to call directly for forced trigger runs.
  */
 export async function runTriggerCallback(
   config: SchedulerServiceConfig,
 ): Promise<void> {
-  // Create a temporary orchestrator to access memory for instruction lookup
-  const { orchestrator, session, toolExecutor } =
-    await config.orchestratorFactory.create(
-      "trigger",
-      { isTrigger: true, ceiling: config.trigger.classificationCeiling },
-    );
+  const fileContent = await loadTriggerMd(config.triggerMdPath);
 
-  const resolved = await resolveTriggerInstructions(config, toolExecutor);
+  if (!fileContent && !triggerMemoryEverSet) {
+    log.debug("Trigger skipped — no TRIGGER.md and no prior memory override", {
+      operation: "runTriggerCallback",
+      path: config.triggerMdPath,
+    });
+    return;
+  }
+
+  const { orchestrator, session, toolExecutor } =
+    await createTriggerSession(config);
+
+  // Memory override takes precedence over file
+  const memoryContent = await loadMemoryInstructions(toolExecutor);
+  if (memoryContent) {
+    triggerMemoryEverSet = true;
+  }
+  const resolved = memoryContent
+    ? { content: memoryContent, source: "memory" as const }
+    : fileContent
+      ? { content: fileContent, source: "file" as const }
+      : null;
+
   if (!resolved) {
     log.debug("Trigger skipped — no instructions found", {
       operation: "runTriggerCallback",
@@ -227,6 +224,12 @@ export async function runTriggerCallback(
     });
     return;
   }
+
+  log.info(`Trigger instructions loaded from ${resolved.source}`, {
+    operation: "runTriggerCallback",
+    contentLength: resolved.content.length,
+  });
+
   try {
     await executeTriggerSessionWithOrchestrator(
       config,
@@ -242,3 +245,13 @@ export async function runTriggerCallback(
     });
   }
 }
+
+/**
+ * Tracks whether a memory override has ever been found.
+ *
+ * When no TRIGGER.md file exists and this flag is false, we skip
+ * orchestrator creation entirely. Once memory instructions are found
+ * (or set via trigger_manage), this flips to true and subsequent
+ * calls always check memory.
+ */
+let triggerMemoryEverSet = false;
