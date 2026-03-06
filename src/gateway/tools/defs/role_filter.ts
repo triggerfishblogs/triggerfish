@@ -89,7 +89,7 @@ export function filterToolsForRole(
   if (isOwner) return tools;
   const filtered = tools.filter((t) => !OWNER_ONLY_TOOLS.has(t.name));
   const removedCount = tools.length - filtered.length;
-  log.warn("Restricted tool list for non-owner session", {
+  log.debug("Restricted tool list for non-owner session", {
     operation: "filterToolsForRole",
     totalTools: tools.length,
     removedCount,

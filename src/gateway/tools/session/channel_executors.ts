@@ -30,9 +30,7 @@ function buildChannelSessionId(opts: {
   readonly recipient: string;
 }): string {
   if (opts.channel === "signal") {
-    return opts.recipient.startsWith("group-")
-      ? `signal-${opts.recipient}`
-      : `signal-${opts.recipient}`;
+    return `signal-${opts.recipient}`;
   }
   return `${opts.channel}-${opts.recipient}`;
 }
@@ -61,6 +59,7 @@ function enforceMessageWriteDown(ctx: SessionToolContext, opts: {
   const currentTaint = ctx.getCallerTaint?.() ?? ctx.callerTaint;
   if (!canFlowTo(currentTaint, opts.channelClassification)) {
     log.warn("Message write-down blocked", {
+      operation: "enforceMessageWriteDown",
       channel: opts.channel,
       sessionTaint: currentTaint,
       channelClassification: opts.channelClassification,
@@ -125,6 +124,12 @@ async function executeChannelSend(
       text_length: text.length,
     });
   } catch (err) {
+    log.error("Channel message send failed", {
+      operation: "executeChannelSend",
+      channel,
+      recipient,
+      err,
+    });
     return `Error sending message: ${
       err instanceof Error ? err.message : String(err)
     }`;

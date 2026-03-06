@@ -257,7 +257,10 @@ Deno.test("PlanManager: modify updates step description", async () => {
   mgr.approve(TEST_SESSION);
 
   const result = JSON.parse(
-    mgr.modify(TEST_SESSION, 1, "Needs refactor", "Create baz.ts instead"),
+    mgr.modify(TEST_SESSION, 1, {
+      reason: "Needs refactor",
+      newDescription: "Create baz.ts instead",
+    }),
   );
   assertEquals(result.status, "step_modified");
   assertEquals(result.step_id, 1);
@@ -273,14 +276,12 @@ Deno.test("PlanManager: modify updates files and verification", async () => {
   await mgr.exit(TEST_SESSION, makePlan());
   mgr.approve(TEST_SESSION);
 
-  mgr.modify(
-    TEST_SESSION,
-    1,
-    "Changed approach",
-    "New description",
-    ["new_file.ts"],
-    "deno task check",
-  );
+  mgr.modify(TEST_SESSION, 1, {
+    reason: "Changed approach",
+    newDescription: "New description",
+    newFiles: ["new_file.ts"],
+    newVerification: "deno task check",
+  });
 
   const state = mgr.getState(TEST_SESSION);
   const step = state.activePlan!.plan.steps.find((s) => s.id === 1);
@@ -295,7 +296,10 @@ Deno.test("PlanManager: modify non-existent step returns error", async () => {
   mgr.approve(TEST_SESSION);
 
   const result = JSON.parse(
-    mgr.modify(TEST_SESSION, 99, "reason", "new desc"),
+    mgr.modify(TEST_SESSION, 99, {
+      reason: "reason",
+      newDescription: "new desc",
+    }),
   );
   assert(result.error);
   assertStringIncludes(result.error, "not found");

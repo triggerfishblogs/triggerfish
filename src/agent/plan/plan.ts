@@ -154,14 +154,14 @@ function assembleManagerMethods(cfg: ManagerConfig): PlanManager {
         summary,
         deviations: devs,
       }),
-    modify: (sid, stepId, reason, desc, files?, verif?) =>
+    modify: (sid, stepId, opts) =>
       dispatchModifyStep({
         ctx: buildStepCtx(cfg, sid),
         stepId,
-        reason,
-        newDescription: desc,
-        newFiles: files,
-        newVerification: verif,
+        reason: opts.reason,
+        newDescription: opts.newDescription,
+        newFiles: opts.newFiles,
+        newVerification: opts.newVerification,
       }),
     isToolBlocked: (sid, toolName, args?) => {
       if (gs(sid).mode !== "plan") return false;

@@ -56,10 +56,12 @@ export interface PlanManager {
   modify(
     sessionId: string,
     stepId: number,
-    reason: string,
-    newDescription: string,
-    newFiles?: readonly string[],
-    newVerification?: string,
+    opts: {
+      readonly reason: string;
+      readonly newDescription: string;
+      readonly newFiles?: readonly string[];
+      readonly newVerification?: string;
+    },
   ): string;
 
   /** Check if a tool is blocked for a session in plan mode. */
