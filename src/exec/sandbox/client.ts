@@ -64,7 +64,6 @@ export function createFilesystemSandbox(
     worker = new Worker(workerUrl, {
       type: "module",
       name: "fs-sandbox",
-      // @ts-ignore Deno-specific Worker option for permission restriction
       deno: {
         permissions: {
           read: [workspacePath],

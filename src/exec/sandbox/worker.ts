@@ -281,9 +281,19 @@ const workerScope = self as unknown as {
 workerScope.onmessage = async (event: MessageEvent) => {
   const data = event.data;
 
-  // Initialization message — sets workspace root
+  // Initialization message — sets workspace root (once only)
   if (data?.type === "init") {
-    workspaceRoot = data.workspacePath;
+    if (!workspaceRoot) {
+      if (typeof data.workspacePath !== "string" || data.workspacePath.length === 0) {
+        workerScope.postMessage({
+          id: "unknown",
+          ok: false,
+          error: "Sandbox init failed: workspacePath must be a non-empty string",
+        });
+        return;
+      }
+      workspaceRoot = data.workspacePath;
+    }
     workerScope.postMessage({ type: "ready" });
     return;
   }

@@ -21,7 +21,6 @@ function spawnWorker(workspacePath: string): {
     "../../../src/exec/sandbox/worker.ts",
     import.meta.url,
   );
-  // @ts-ignore Deno-specific Worker option for permission restriction
   const worker = new Worker(workerUrl.href, {
     type: "module",
     name: "sandbox-test",
@@ -50,6 +49,15 @@ function spawnWorker(workspacePath: string): {
     } else {
       responseQueue.push(resp);
     }
+  };
+
+  worker.onerror = (event: ErrorEvent) => {
+    event.preventDefault();
+    const err = new Error(`Sandbox worker error: ${event.message}`);
+    for (const waiter of waiters) {
+      waiter({ id: "unknown", ok: false, error: err.message });
+    }
+    waiters.length = 0;
   };
 
   // Initialize with workspace path
