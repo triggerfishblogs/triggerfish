@@ -23,7 +23,7 @@ export const MAX_CACHE_ENTRIES = 10;
 /** Per-tool character budget overrides. */
 export const TOOL_RESPONSE_BUDGETS: ReadonlyMap<string, number> = new Map([
   ["read_file", 20_000],
-  ["github_list_comments", 6_000],
+  ["github_issues", 6_000],
   ["browser_snapshot", 8_000],
   ["run_command", 16_000],
 ]);

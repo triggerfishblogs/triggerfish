@@ -1,10 +1,9 @@
 /**
  * GitHub tool executor for the agent.
  *
- * Creates a chain-compatible executor for the 26 `github_*` tools.
- * Tool definitions live in `tools_defs.ts`; domain-specific handlers
- * live in `tools_repos.ts`, `tools_pulls.ts`, `tools_issues.ts`,
- * `tools_actions.ts`, and `tools_search.ts`.
+ * Creates a chain-compatible executor for the 4 consolidated `github_*`
+ * tools. Each tool dispatches on the `action` parameter to the
+ * domain-specific handler from repos/, pulls/, issues/, actions/.
  *
  * @module
  */
@@ -54,57 +53,79 @@ export {
   GITHUB_TOOLS_SYSTEM_PROMPT,
 } from "./tools_defs.ts";
 
-// ─── Tool dispatch map ──────────────────────────────────────────────────────
+// ─── Tool dispatch maps ─────────────────────────────────────────────────────
 
-/** Map of tool name to handler function. */
+/** Map of action name to handler function. */
 type ToolHandler = (
   client: GitHubToolContext["client"],
   input: Record<string, unknown>,
 ) => Promise<string>;
 
-/** Registry mapping each github_* tool name to its handler. */
-const TOOL_HANDLERS: Readonly<Record<string, ToolHandler>> = {
-  github_list_repos: executeListRepos,
-  github_get_repo: executeGetRepo,
-  github_read_file: executeReadFile,
-  github_list_commits: executeListCommits,
-  github_list_branches: executeListBranches,
-  github_create_branch: executeCreateBranch,
-  github_delete_branch: executeDeleteBranch,
-  github_clone_repo: executeCloneRepo,
-  github_pull: executePullRepo,
-  github_list_pulls: executeListPulls,
-  github_get_pull: executeGetPull,
-  github_create_pull: executeCreatePull,
-  github_update_pull: executeUpdatePull,
-  github_list_pull_files: executeListPullFiles,
-  github_review_pull: executeReviewPull,
-  github_merge_pull: executeMergePull,
-  github_list_issues: executeListIssues,
-  github_get_issue: executeGetIssue,
-  github_create_issue: executeCreateIssue,
-  github_update_issue: executeUpdateIssue,
-  github_list_comments: executeListComments,
-  github_add_comment: executeAddComment,
-  github_list_runs: executeListRuns,
-  github_cancel_run: executeCancelRun,
-  github_trigger_workflow: executeTriggerWorkflow,
-  github_search_code: executeSearchCode,
-  github_search_issues: executeSearchIssues,
+/** Repos domain: action → handler. */
+const REPOS_ACTIONS: Readonly<Record<string, ToolHandler>> = {
+  list: executeListRepos,
+  get: executeGetRepo,
+  read_file: executeReadFile,
+  list_commits: executeListCommits,
+  list_branches: executeListBranches,
+  create_branch: executeCreateBranch,
+  delete_branch: executeDeleteBranch,
+  clone: executeCloneRepo,
+  pull: executePullRepo,
+};
+
+/** Pulls domain: action → handler. */
+const PULLS_ACTIONS: Readonly<Record<string, ToolHandler>> = {
+  list: executeListPulls,
+  get: executeGetPull,
+  create: executeCreatePull,
+  update: executeUpdatePull,
+  list_files: executeListPullFiles,
+  review: executeReviewPull,
+  merge: executeMergePull,
+};
+
+/** Issues domain: action → handler. */
+const ISSUES_ACTIONS: Readonly<Record<string, ToolHandler>> = {
+  list: executeListIssues,
+  get: executeGetIssue,
+  create: executeCreateIssue,
+  update: executeUpdateIssue,
+  list_comments: executeListComments,
+  add_comment: executeAddComment,
+};
+
+/** Actions/search domain: action → handler. */
+const ACTIONS_ACTIONS: Readonly<Record<string, ToolHandler>> = {
+  list_runs: executeListRuns,
+  cancel_run: executeCancelRun,
+  trigger_workflow: executeTriggerWorkflow,
+  search_code: executeSearchCode,
+  search_issues: executeSearchIssues,
+};
+
+/** Tool name → action dispatch map. */
+const TOOL_ACTION_MAPS: Readonly<
+  Record<string, Readonly<Record<string, ToolHandler>>>
+> = {
+  github_repos: REPOS_ACTIONS,
+  github_pulls: PULLS_ACTIONS,
+  github_issues: ISSUES_ACTIONS,
+  github_actions: ACTIONS_ACTIONS,
 };
 
 // ─── Path Resolution ─────────────────────────────────────────────────────────
 
-/** Tools whose `path` input refers to a local filesystem location. */
-const LOCAL_PATH_TOOLS = new Set(["github_clone_repo", "github_pull"]);
+/** Actions whose `path` input refers to a local filesystem location. */
+const LOCAL_PATH_ACTIONS = new Set(["clone", "pull"]);
 
-/** Resolve local path inputs to absolute workspace paths for clone/pull tools. */
+/** Resolve local path inputs to absolute workspace paths for clone/pull actions. */
 function resolveLocalPathInput(
-  toolName: string,
+  action: string,
   input: Record<string, unknown>,
   workspacePath: string,
 ): Record<string, unknown> {
-  if (!LOCAL_PATH_TOOLS.has(toolName)) return input;
+  if (!LOCAL_PATH_ACTIONS.has(action)) return input;
   const path = input.path;
   if (typeof path !== "string" || path.length === 0) return input;
   return { ...input, path: join(workspacePath, path) };
@@ -126,21 +147,26 @@ export function createGitHubToolExecutor(
     name: string,
     input: Record<string, unknown>,
   ): Promise<string | null> => {
-    if (!name.startsWith("github_")) {
-      return null;
-    }
+    const actionMap = TOOL_ACTION_MAPS[name];
+    if (!actionMap) return null;
 
     if (!ctx) {
       return "GitHub is not configured. Set up a GitHub token to use GitHub tools.";
     }
 
-    const handler = TOOL_HANDLERS[name];
+    const action = input.action;
+    if (typeof action !== "string" || action.length === 0) {
+      return `Error: ${name} requires an 'action' parameter (string).`;
+    }
+
+    const handler = actionMap[action];
     if (!handler) {
-      return null;
+      const valid = Object.keys(actionMap).join(", ");
+      return `Error: unknown action "${action}" for ${name}. Valid actions: ${valid}`;
     }
 
     const resolvedInput = ctx.workspacePath
-      ? resolveLocalPathInput(name, input, ctx.workspacePath)
+      ? resolveLocalPathInput(action, input, ctx.workspacePath)
       : input;
 
     return handler(ctx.client, resolvedInput);

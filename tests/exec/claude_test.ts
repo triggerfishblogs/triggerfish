@@ -420,29 +420,26 @@ Deno.test("ClaudeSessionManager: spawn fails gracefully for missing binary", asy
 
 // --- Tool definitions tests ---
 
-Deno.test("getClaudeToolDefinitions: returns all 5 tools", () => {
+Deno.test("getClaudeToolDefinitions: returns 2 consolidated tools", () => {
   const defs = getClaudeToolDefinitions();
-  assertEquals(defs.length, 5);
+  assertEquals(defs.length, 2);
 
   const names = defs.map((d) => d.name);
-  assert(names.includes("claude_start"));
-  assert(names.includes("claude_send"));
+  assert(names.includes("claude_session"));
   assert(names.includes("claude_output"));
-  assert(names.includes("claude_status"));
-  assert(names.includes("claude_stop"));
 });
 
-Deno.test("getClaudeToolDefinitions: claude_start has required prompt param", () => {
+Deno.test("getClaudeToolDefinitions: claude_session has required action param", () => {
   const defs = getClaudeToolDefinitions();
-  const startTool = defs.find((d) => d.name === "claude_start");
-  assertExists(startTool);
-  assertExists(startTool!.parameters.prompt);
-  assertEquals(startTool!.parameters.prompt.required, true);
+  const sessionTool = defs.find((d) => d.name === "claude_session");
+  assertExists(sessionTool);
+  assertExists(sessionTool!.parameters.action);
+  assertEquals(sessionTool!.parameters.action.required, true);
 });
 
 Deno.test("CLAUDE_SESSION_SYSTEM_PROMPT: is non-empty", () => {
   assert(CLAUDE_SESSION_SYSTEM_PROMPT.length > 0);
-  assertStringIncludes(CLAUDE_SESSION_SYSTEM_PROMPT, "claude_start");
+  assertStringIncludes(CLAUDE_SESSION_SYSTEM_PROMPT, "claude_session");
 });
 
 // --- Tool executor tests ---
@@ -457,25 +454,25 @@ Deno.test("createClaudeToolExecutor: returns null for unknown tools", async () =
   assertEquals(result, null);
 });
 
-Deno.test("createClaudeToolExecutor: claude_start validates prompt", async () => {
+Deno.test("createClaudeToolExecutor: claude_session start validates prompt", async () => {
   const manager = createClaudeSessionManager({
     workspacePath: "/tmp/test",
   });
   const executor = createClaudeToolExecutor(manager);
 
-  const result = await executor("claude_start", {});
+  const result = await executor("claude_session", { action: "start" });
   assertExists(result);
   assertStringIncludes(result!, "Error");
   assertStringIncludes(result!, "prompt");
 });
 
-Deno.test("createClaudeToolExecutor: claude_send validates session_id", async () => {
+Deno.test("createClaudeToolExecutor: claude_session send validates session_id", async () => {
   const manager = createClaudeSessionManager({
     workspacePath: "/tmp/test",
   });
   const executor = createClaudeToolExecutor(manager);
 
-  const result = await executor("claude_send", { input: "test" });
+  const result = await executor("claude_session", { action: "send", input: "test" });
   assertExists(result);
   assertStringIncludes(result!, "Error");
 });
@@ -491,29 +488,29 @@ Deno.test("createClaudeToolExecutor: claude_output validates session_id", async 
   assertStringIncludes(result!, "Error");
 });
 
-Deno.test("createClaudeToolExecutor: claude_status validates session_id", async () => {
+Deno.test("createClaudeToolExecutor: claude_session status validates session_id", async () => {
   const manager = createClaudeSessionManager({
     workspacePath: "/tmp/test",
   });
   const executor = createClaudeToolExecutor(manager);
 
-  const result = await executor("claude_status", {});
+  const result = await executor("claude_session", { action: "status" });
   assertExists(result);
   assertStringIncludes(result!, "Error");
 });
 
-Deno.test("createClaudeToolExecutor: claude_stop validates session_id", async () => {
+Deno.test("createClaudeToolExecutor: claude_session stop validates session_id", async () => {
   const manager = createClaudeSessionManager({
     workspacePath: "/tmp/test",
   });
   const executor = createClaudeToolExecutor(manager);
 
-  const result = await executor("claude_stop", {});
+  const result = await executor("claude_session", { action: "stop" });
   assertExists(result);
   assertStringIncludes(result!, "Error");
 });
 
-Deno.test("createClaudeToolExecutor: claude_start success returns JSON with session_id", async () => {
+Deno.test("createClaudeToolExecutor: claude_session start success returns JSON with session_id", async () => {
   const tmpDir = await Deno.makeTempDir();
   const mockBin = await createMockClaude(tmpDir);
   const manager = createClaudeSessionManager({
@@ -523,7 +520,7 @@ Deno.test("createClaudeToolExecutor: claude_start success returns JSON with sess
   const executor = createClaudeToolExecutor(manager);
 
   try {
-    const result = await executor("claude_start", { prompt: "Hello!" });
+    const result = await executor("claude_session", { action: "start", prompt: "Hello!" });
     assertExists(result);
     assert(!result!.startsWith("Error"));
     const parsed = JSON.parse(result!);
@@ -537,7 +534,7 @@ Deno.test("createClaudeToolExecutor: claude_start success returns JSON with sess
   }
 });
 
-Deno.test("createClaudeToolExecutor: claude_status returns JSON for valid session", async () => {
+Deno.test("createClaudeToolExecutor: claude_session status returns JSON for valid session", async () => {
   const tmpDir = await Deno.makeTempDir();
   const mockBin = await createMockClaude(tmpDir);
   const manager = createClaudeSessionManager({
@@ -547,11 +544,12 @@ Deno.test("createClaudeToolExecutor: claude_status returns JSON for valid sessio
   const executor = createClaudeToolExecutor(manager);
 
   try {
-    const startResult = await executor("claude_start", { prompt: "Hello" });
+    const startResult = await executor("claude_session", { action: "start", prompt: "Hello" });
     assertExists(startResult);
     const started = JSON.parse(startResult!);
 
-    const statusResult = await executor("claude_status", {
+    const statusResult = await executor("claude_session", {
+      action: "status",
       session_id: started.session_id,
     });
     assertExists(statusResult);
@@ -567,7 +565,7 @@ Deno.test("createClaudeToolExecutor: claude_status returns JSON for valid sessio
   }
 });
 
-Deno.test("createClaudeToolExecutor: claude_stop returns success message", async () => {
+Deno.test("createClaudeToolExecutor: claude_session stop returns success message", async () => {
   const tmpDir = await Deno.makeTempDir();
   const mockBin = await createHangingMockClaude(tmpDir);
   const manager = createClaudeSessionManager({
@@ -577,13 +575,15 @@ Deno.test("createClaudeToolExecutor: claude_stop returns success message", async
   const executor = createClaudeToolExecutor(manager);
 
   try {
-    const startResult = await executor("claude_start", {
+    const startResult = await executor("claude_session", {
+      action: "start",
       prompt: "Long task",
     });
     assertExists(startResult);
     const started = JSON.parse(startResult!);
 
-    const stopResult = await executor("claude_stop", {
+    const stopResult = await executor("claude_session", {
+      action: "stop",
       session_id: started.session_id,
     });
     assertExists(stopResult);
@@ -597,10 +597,7 @@ Deno.test("createClaudeToolExecutor: claude_stop returns success message", async
 
 Deno.test("HARDCODED_TOOL_FLOORS: claude tools have INTERNAL floor", () => {
   const claudeTools = [
-    "claude_start",
-    "claude_send",
-    "claude_stop",
-    "claude_status",
+    "claude_session",
     "claude_output",
   ];
   for (const tool of claudeTools) {

@@ -36,10 +36,10 @@ async function executePlanModeToolCall(
   sessionKey: string,
   call: ParsedToolCall,
 ): Promise<{ resultText: string | undefined; blocked: boolean }> {
-  if (planManager.isToolBlocked(sessionKey, call.name)) {
+  if (planManager.isToolBlocked(sessionKey, call.name, call.args)) {
     return {
       resultText: `Tool "${call.name}" is blocked in plan mode. ` +
-        `Use plan.exit to present your implementation plan first.`,
+        `Use plan_manage(action: "exit") to present your implementation plan first.`,
       blocked: true,
     };
   }

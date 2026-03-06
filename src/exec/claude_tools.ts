@@ -52,13 +52,13 @@ function buildSessionConfig(
   return config;
 }
 
-async function executeClaudeStart(
+async function executeActionStart(
   manager: ClaudeSessionManager,
   input: Record<string, unknown>,
 ): Promise<string> {
   const prompt = input.prompt;
   if (typeof prompt !== "string" || prompt.length === 0) {
-    return "Error: claude_start requires a 'prompt' argument (string).";
+    return "Error: claude_session(action: 'start') requires a 'prompt' argument (string).";
   }
 
   const config = buildSessionConfig(input);
@@ -72,17 +72,17 @@ async function executeClaudeStart(
   });
 }
 
-async function executeClaudeSend(
+async function executeActionSend(
   manager: ClaudeSessionManager,
   input: Record<string, unknown>,
 ): Promise<string> {
   const sessionId = input.session_id;
   const userInput = input.input;
   if (typeof sessionId !== "string" || sessionId.length === 0) {
-    return "Error: claude_send requires a 'session_id' argument (string).";
+    return "Error: claude_session(action: 'send') requires a 'session_id' argument (string).";
   }
   if (typeof userInput !== "string" || userInput.length === 0) {
-    return "Error: claude_send requires an 'input' argument (string).";
+    return "Error: claude_session(action: 'send') requires an 'input' argument (string).";
   }
 
   const result = await manager.send(sessionId, userInput);
@@ -90,27 +90,13 @@ async function executeClaudeSend(
   return result.value;
 }
 
-function executeClaudeOutput(
+function executeActionStatus(
   manager: ClaudeSessionManager,
   input: Record<string, unknown>,
 ): string {
   const sessionId = input.session_id;
   if (typeof sessionId !== "string" || sessionId.length === 0) {
-    return "Error: claude_output requires a 'session_id' argument (string).";
-  }
-
-  const result = manager.getOutput(sessionId);
-  if (!result.ok) return `Error: ${result.error}`;
-  return result.value || "(no output yet)";
-}
-
-function executeClaudeStatus(
-  manager: ClaudeSessionManager,
-  input: Record<string, unknown>,
-): string {
-  const sessionId = input.session_id;
-  if (typeof sessionId !== "string" || sessionId.length === 0) {
-    return "Error: claude_status requires a 'session_id' argument (string).";
+    return "Error: claude_session(action: 'status') requires a 'session_id' argument (string).";
   }
 
   const result = manager.status(sessionId);
@@ -127,18 +113,57 @@ function executeClaudeStatus(
   });
 }
 
-async function executeClaudeStop(
+async function executeActionStop(
   manager: ClaudeSessionManager,
   input: Record<string, unknown>,
 ): Promise<string> {
   const sessionId = input.session_id;
   if (typeof sessionId !== "string" || sessionId.length === 0) {
-    return "Error: claude_stop requires a 'session_id' argument (string).";
+    return "Error: claude_session(action: 'stop') requires a 'session_id' argument (string).";
   }
 
   const result = await manager.stop(sessionId);
   if (!result.ok) return `Error: ${result.error}`;
   return `Session ${sessionId} stopped.`;
+}
+
+function executeClaudeOutput(
+  manager: ClaudeSessionManager,
+  input: Record<string, unknown>,
+): string {
+  const sessionId = input.session_id;
+  if (typeof sessionId !== "string" || sessionId.length === 0) {
+    return "Error: claude_output requires a 'session_id' argument (string).";
+  }
+
+  const result = manager.getOutput(sessionId);
+  if (!result.ok) return `Error: ${result.error}`;
+  return result.value || "(no output yet)";
+}
+
+// ─── claude_session dispatcher ──────────────────────────────────────────────
+
+async function dispatchClaudeSession(
+  manager: ClaudeSessionManager,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const action = input.action;
+  if (typeof action !== "string" || action.length === 0) {
+    return "Error: claude_session requires an 'action' parameter (string).";
+  }
+
+  switch (action) {
+    case "start":
+      return await executeActionStart(manager, input);
+    case "send":
+      return await executeActionSend(manager, input);
+    case "stop":
+      return await executeActionStop(manager, input);
+    case "status":
+      return executeActionStatus(manager, input);
+    default:
+      return `Error: unknown action "${action}" for claude_session. Valid actions: start, send, stop, status`;
+  }
 }
 
 /**
@@ -155,16 +180,10 @@ export function createClaudeToolExecutor(
     input: Record<string, unknown>,
   ): Promise<string | null> => {
     switch (name) {
-      case "claude_start":
-        return executeClaudeStart(manager, input);
-      case "claude_send":
-        return executeClaudeSend(manager, input);
+      case "claude_session":
+        return dispatchClaudeSession(manager, input);
       case "claude_output":
         return executeClaudeOutput(manager, input);
-      case "claude_status":
-        return executeClaudeStatus(manager, input);
-      case "claude_stop":
-        return executeClaudeStop(manager, input);
       default:
         return null;
     }

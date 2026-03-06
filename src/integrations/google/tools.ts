@@ -1,9 +1,9 @@
 /**
  * Google Workspace tool executor.
  *
- * Creates a chain-compatible executor for the 14 Google Workspace tools.
- * Tool definitions live in `tools_defs.ts`; per-domain execution logic
- * lives in `tools_exec_*.ts` modules.
+ * Creates a chain-compatible executor for the 5 consolidated Google
+ * Workspace tools. Each tool dispatches on the `action` parameter
+ * to the per-service executor module.
  *
  * @module
  */
@@ -42,28 +42,57 @@ export {
   GOOGLE_TOOLS_SYSTEM_PROMPT,
 } from "./tools_defs.ts";
 
-// ─── Dispatch table ─────────────────────────────────────────────────────────
+// ─── Action dispatch tables ─────────────────────────────────────────────────
 
-/** Map tool name to a per-domain executor function. */
-function buildDispatchTable(
+type ActionHandler = (input: Record<string, unknown>) => Promise<string>;
+
+function buildGmailDispatch(
   ctx: GoogleToolContext,
-): ReadonlyMap<string, (input: Record<string, unknown>) => Promise<string>> {
-  return new Map<string, (input: Record<string, unknown>) => Promise<string>>([
-    ["gmail_search", (input) => executeGmailSearch(ctx.gmail, input)],
-    ["gmail_read", (input) => executeGmailRead(ctx.gmail, input)],
-    ["gmail_send", (input) => executeGmailSend(ctx.gmail, input)],
-    ["gmail_label", (input) => executeGmailLabel(ctx.gmail, input)],
-    ["calendar_list", (input) => executeCalendarList(ctx.calendar, input)],
-    ["calendar_create", (input) => executeCalendarCreate(ctx.calendar, input)],
-    ["calendar_update", (input) => executeCalendarUpdate(ctx.calendar, input)],
-    ["tasks_list", (input) => executeTasksList(ctx.tasks, input)],
-    ["tasks_create", (input) => executeTasksCreate(ctx.tasks, input)],
-    ["tasks_complete", (input) => executeTasksComplete(ctx.tasks, input)],
-    ["drive_search", (input) => executeDriveSearch(ctx.drive, input)],
-    ["drive_read", (input) => executeDriveRead(ctx.drive, input)],
-    ["sheets_read", (input) => executeSheetsRead(ctx.sheets, input)],
-    ["sheets_write", (input) => executeSheetsWrite(ctx.sheets, input)],
-  ]);
+): Readonly<Record<string, ActionHandler>> {
+  return {
+    search: (input) => executeGmailSearch(ctx.gmail, input),
+    read: (input) => executeGmailRead(ctx.gmail, input),
+    send: (input) => executeGmailSend(ctx.gmail, input),
+    label: (input) => executeGmailLabel(ctx.gmail, input),
+  };
+}
+
+function buildCalendarDispatch(
+  ctx: GoogleToolContext,
+): Readonly<Record<string, ActionHandler>> {
+  return {
+    list: (input) => executeCalendarList(ctx.calendar, input),
+    create: (input) => executeCalendarCreate(ctx.calendar, input),
+    update: (input) => executeCalendarUpdate(ctx.calendar, input),
+  };
+}
+
+function buildTasksDispatch(
+  ctx: GoogleToolContext,
+): Readonly<Record<string, ActionHandler>> {
+  return {
+    list: (input) => executeTasksList(ctx.tasks, input),
+    create: (input) => executeTasksCreate(ctx.tasks, input),
+    complete: (input) => executeTasksComplete(ctx.tasks, input),
+  };
+}
+
+function buildDriveDispatch(
+  ctx: GoogleToolContext,
+): Readonly<Record<string, ActionHandler>> {
+  return {
+    search: (input) => executeDriveSearch(ctx.drive, input),
+    read: (input) => executeDriveRead(ctx.drive, input),
+  };
+}
+
+function buildSheetsDispatch(
+  ctx: GoogleToolContext,
+): Readonly<Record<string, ActionHandler>> {
+  return {
+    read: (input) => executeSheetsRead(ctx.sheets, input),
+    write: (input) => executeSheetsWrite(ctx.sheets, input),
+  };
 }
 
 // ─── Executor ───────────────────────────────────────────────────────────────
@@ -79,15 +108,35 @@ function buildDispatchTable(
 export function createGoogleToolExecutor(
   ctx: GoogleToolContext,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
-  const dispatch = buildDispatchTable(ctx);
+  const dispatchers: Readonly<
+    Record<string, Readonly<Record<string, ActionHandler>>>
+  > = {
+    google_gmail: buildGmailDispatch(ctx),
+    google_calendar: buildCalendarDispatch(ctx),
+    google_tasks: buildTasksDispatch(ctx),
+    google_drive: buildDriveDispatch(ctx),
+    google_sheets: buildSheetsDispatch(ctx),
+  };
 
   // deno-lint-ignore require-await
   return async (
     name: string,
     input: Record<string, unknown>,
   ): Promise<string | null> => {
-    const handler = dispatch.get(name);
-    if (!handler) return null;
+    const actionMap = dispatchers[name];
+    if (!actionMap) return null;
+
+    const action = input.action;
+    if (typeof action !== "string" || action.length === 0) {
+      return `Error: ${name} requires an 'action' parameter (string).`;
+    }
+
+    const handler = actionMap[action];
+    if (!handler) {
+      const valid = Object.keys(actionMap).join(", ");
+      return `Error: unknown action "${action}" for ${name}. Valid actions: ${valid}`;
+    }
+
     return handler(input);
   };
 }

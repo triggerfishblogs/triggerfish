@@ -77,8 +77,17 @@ export const DEFAULT_PLAN_STATE: PlanModeState = {
 /** Tools blocked during plan mode. */
 export const PLAN_BLOCKED_TOOLS: readonly string[] = [
   "write_file",
-  "cron_create",
-  "cron_delete",
+];
+
+/**
+ * Cron actions blocked during plan mode.
+ *
+ * The consolidated `cron` tool uses an `action` parameter. These
+ * actions are blocked; read-only actions (list, history) are allowed.
+ */
+export const PLAN_BLOCKED_CRON_ACTIONS: readonly string[] = [
+  "create",
+  "delete",
 ];
 
 /** Tools allowed during plan mode. */
@@ -88,16 +97,10 @@ export const PLAN_ALLOWED_TOOLS: readonly string[] = [
   "run_command",
   "list_directory",
   "search_files",
-  "cron_list",
-  "cron_history",
+  "cron",
   "todo_read",
   "todo_write",
-  "plan_enter",
-  "plan_exit",
-  "plan_status",
-  "plan_approve",
-  "plan_reject",
+  "plan_manage",
   "plan_step_complete",
-  "plan_complete",
-  "plan_modify",
+  "plan_status",
 ];

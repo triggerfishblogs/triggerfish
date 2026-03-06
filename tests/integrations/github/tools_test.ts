@@ -1,7 +1,7 @@
 /**
  * GitHub tools tests.
  *
- * Tests all 27 tool definitions, parameter validation,
+ * Tests all 4 consolidated tool definitions, parameter validation,
  * response formatting, null fallthrough, and graceful error handling.
  */
 import { assertEquals } from "@std/assert";
@@ -17,9 +17,9 @@ import type { Result } from "../../../src/core/types/classification.ts";
 
 // ─── Tool Definitions ────────────────────────────────────────────────────────
 
-Deno.test("getGitHubToolDefinitions: returns 27 tool definitions", () => {
+Deno.test("getGitHubToolDefinitions: returns 4 consolidated tool definitions", () => {
   const defs = getGitHubToolDefinitions();
-  assertEquals(defs.length, 27);
+  assertEquals(defs.length, 4);
 });
 
 Deno.test("getGitHubToolDefinitions: all tools have github_ prefix", () => {
@@ -45,31 +45,15 @@ Deno.test("getGitHubToolDefinitions: all tools have descriptions", () => {
   }
 });
 
-Deno.test("getGitHubToolDefinitions: all tool names follow verb-first pattern", () => {
+Deno.test("getGitHubToolDefinitions: all tools use domain-noun naming pattern", () => {
   const defs = getGitHubToolDefinitions();
-  const verbs = [
-    "list",
-    "get",
-    "read",
-    "create",
-    "update",
-    "delete",
-    "review",
-    "merge",
-    "trigger",
-    "cancel",
-    "add",
-    "search",
-    "clone",
-    "pull",
-  ];
+  const domains = ["repos", "pulls", "issues", "actions"];
   for (const def of defs) {
     const afterPrefix = def.name.replace("github_", "");
-    const firstWord = afterPrefix.split("_")[0];
     assertEquals(
-      verbs.includes(firstWord),
+      domains.includes(afterPrefix),
       true,
-      `${def.name} does not start with a known verb (got "${firstWord}")`,
+      `${def.name} does not match a known domain (got "${afterPrefix}")`,
     );
   }
 });
@@ -78,35 +62,27 @@ Deno.test("getGitHubToolDefinitions: expected tool names present", () => {
   const defs = getGitHubToolDefinitions();
   const names = new Set(defs.map((d) => d.name));
   const expected = [
-    "github_list_repos",
-    "github_get_repo",
-    "github_read_file",
-    "github_list_commits",
-    "github_list_branches",
-    "github_create_branch",
-    "github_delete_branch",
-    "github_list_pulls",
-    "github_get_pull",
-    "github_create_pull",
-    "github_update_pull",
-    "github_list_pull_files",
-    "github_review_pull",
-    "github_merge_pull",
-    "github_list_issues",
-    "github_get_issue",
-    "github_create_issue",
-    "github_update_issue",
-    "github_list_comments",
-    "github_add_comment",
-    "github_list_runs",
-    "github_cancel_run",
-    "github_trigger_workflow",
-    "github_search_code",
-    "github_search_issues",
-    "github_clone_repo",
+    "github_repos",
+    "github_pulls",
+    "github_issues",
+    "github_actions",
   ];
   for (const name of expected) {
     assertEquals(names.has(name), true, `Missing tool: ${name}`);
+  }
+});
+
+Deno.test("getGitHubToolDefinitions: all tools have required action parameter", () => {
+  const defs = getGitHubToolDefinitions();
+  for (const def of defs) {
+    const actionParam = def.parameters.action;
+    assertEquals(
+      actionParam !== undefined,
+      true,
+      `${def.name} missing action parameter`,
+    );
+    assertEquals(actionParam.required, true, `${def.name} action not required`);
+    assertEquals(actionParam.type, "string", `${def.name} action not string`);
   }
 });
 
@@ -133,7 +109,7 @@ Deno.test("createGitHubToolExecutor: returns null for non-github tools", async (
 Deno.test("createGitHubToolExecutor: returns null for unknown github_ tool", async () => {
   const ctx = createMockContext();
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_unknown_tool", {});
+  const result = await executor("github_unknown_tool", { action: "list" });
   assertEquals(result, null);
 });
 
@@ -141,41 +117,66 @@ Deno.test("createGitHubToolExecutor: returns null for unknown github_ tool", asy
 
 Deno.test("createGitHubToolExecutor: returns error when not configured", async () => {
   const executor = createGitHubToolExecutor(undefined);
-  const result = await executor("github_list_repos", {});
+  const result = await executor("github_repos", { action: "list" });
   assertEquals(typeof result, "string");
   assertEquals(result!.includes("not configured"), true);
 });
 
-// ─── Parameter Validation ────────────────────────────────────────────────────
+// ─── Action Validation ──────────────────────────────────────────────────────
 
-Deno.test("executor: github_read_file requires repo param", async () => {
+Deno.test("executor: returns error when action is missing", async () => {
   const ctx = createMockContext();
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_read_file", { path: "README.md" });
+  const result = await executor("github_repos", {});
+  assertEquals(result!.includes("action"), true);
+});
+
+Deno.test("executor: returns error for unknown action", async () => {
+  const ctx = createMockContext();
+  const executor = createGitHubToolExecutor(ctx);
+  const result = await executor("github_repos", { action: "nonexistent" });
+  assertEquals(result!.includes("unknown action"), true);
+  assertEquals(result!.includes("nonexistent"), true);
+});
+
+// ─── Parameter Validation ────────────────────────────────────────────────────
+
+Deno.test("executor: github_repos read_file requires repo param", async () => {
+  const ctx = createMockContext();
+  const executor = createGitHubToolExecutor(ctx);
+  const result = await executor("github_repos", {
+    action: "read_file",
+    path: "README.md",
+  });
   assertEquals(result!.includes("Error"), true);
 });
 
-Deno.test("executor: github_read_file requires path param", async () => {
+Deno.test("executor: github_repos read_file requires path param", async () => {
   const ctx = createMockContext();
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_read_file", { repo: "o/r" });
+  const result = await executor("github_repos", {
+    action: "read_file",
+    repo: "o/r",
+  });
   assertEquals(result!.includes("Error"), true);
 });
 
 Deno.test("executor: rejects invalid repo format (no slash)", async () => {
   const ctx = createMockContext();
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_read_file", {
+  const result = await executor("github_repos", {
+    action: "read_file",
     repo: "invalid",
     path: "f",
   });
   assertEquals(result!.includes("owner/name"), true);
 });
 
-Deno.test("executor: github_create_pull requires title", async () => {
+Deno.test("executor: github_pulls create requires title", async () => {
   const ctx = createMockContext();
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_create_pull", {
+  const result = await executor("github_pulls", {
+    action: "create",
     repo: "o/r",
     head: "feature",
     base: "main",
@@ -184,18 +185,21 @@ Deno.test("executor: github_create_pull requires title", async () => {
   assertEquals(result!.includes("title"), true);
 });
 
-Deno.test("executor: github_search_code requires query", async () => {
+Deno.test("executor: github_actions search_code requires query", async () => {
   const ctx = createMockContext();
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_search_code", {});
+  const result = await executor("github_actions", {
+    action: "search_code",
+  });
   assertEquals(result!.includes("Error"), true);
   assertEquals(result!.includes("query"), true);
 });
 
-Deno.test("executor: github_add_comment requires number", async () => {
+Deno.test("executor: github_issues add_comment requires number", async () => {
   const ctx = createMockContext();
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_add_comment", {
+  const result = await executor("github_issues", {
+    action: "add_comment",
     repo: "o/r",
     body: "hi",
   });
@@ -203,32 +207,40 @@ Deno.test("executor: github_add_comment requires number", async () => {
   assertEquals(result!.includes("number"), true);
 });
 
-Deno.test("executor: github_get_issue requires number", async () => {
+Deno.test("executor: github_issues get requires number", async () => {
   const ctx = createMockContext();
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_get_issue", { repo: "o/r" });
+  const result = await executor("github_issues", {
+    action: "get",
+    repo: "o/r",
+  });
   assertEquals(result!.includes("Error"), true);
   assertEquals(result!.includes("number"), true);
 });
 
-Deno.test("executor: github_get_pull requires pr_number", async () => {
+Deno.test("executor: github_pulls get requires pr_number", async () => {
   const ctx = createMockContext();
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_get_pull", { repo: "o/r" });
+  const result = await executor("github_pulls", {
+    action: "get",
+    repo: "o/r",
+  });
   assertEquals(result!.includes("Error"), true);
   assertEquals(result!.includes("pr_number"), true);
 });
 
-Deno.test("executor: github_create_branch requires branch and sha", async () => {
+Deno.test("executor: github_repos create_branch requires branch and sha", async () => {
   const ctx = createMockContext();
   const executor = createGitHubToolExecutor(ctx);
-  const result1 = await executor("github_create_branch", {
+  const result1 = await executor("github_repos", {
+    action: "create_branch",
     repo: "o/r",
     sha: "abc",
   });
   assertEquals(result1!.includes("Error"), true);
   assertEquals(result1!.includes("branch"), true);
-  const result2 = await executor("github_create_branch", {
+  const result2 = await executor("github_repos", {
+    action: "create_branch",
     repo: "o/r",
     branch: "feat",
   });
@@ -236,25 +248,31 @@ Deno.test("executor: github_create_branch requires branch and sha", async () => 
   assertEquals(result2!.includes("sha"), true);
 });
 
-Deno.test("executor: github_delete_branch requires branch", async () => {
+Deno.test("executor: github_repos delete_branch requires branch", async () => {
   const ctx = createMockContext();
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_delete_branch", { repo: "o/r" });
+  const result = await executor("github_repos", {
+    action: "delete_branch",
+    repo: "o/r",
+  });
   assertEquals(result!.includes("Error"), true);
   assertEquals(result!.includes("branch"), true);
 });
 
-Deno.test("executor: github_cancel_run requires run_id", async () => {
+Deno.test("executor: github_actions cancel_run requires run_id", async () => {
   const ctx = createMockContext();
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_cancel_run", { repo: "o/r" });
+  const result = await executor("github_actions", {
+    action: "cancel_run",
+    repo: "o/r",
+  });
   assertEquals(result!.includes("Error"), true);
   assertEquals(result!.includes("run_id"), true);
 });
 
 // ─── Response Formatting ─────────────────────────────────────────────────────
 
-Deno.test("executor: github_list_repos returns JSON with _classification", async () => {
+Deno.test("executor: github_repos list returns JSON with _classification", async () => {
   const ctx = createMockContext({
     listRepos: () =>
       Promise.resolve({
@@ -271,14 +289,14 @@ Deno.test("executor: github_list_repos returns JSON with _classification", async
       }),
   });
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_list_repos", {});
+  const result = await executor("github_repos", { action: "list" });
 
   const parsed = JSON.parse(result!);
   assertEquals(parsed.repos.length, 1);
   assertEquals(parsed.repos[0]._classification, "PUBLIC");
 });
 
-Deno.test("executor: github_search_code returns JSON with results", async () => {
+Deno.test("executor: github_actions search_code returns JSON with results", async () => {
   const ctx = createMockContext({
     searchCode: () =>
       Promise.resolve({
@@ -293,14 +311,17 @@ Deno.test("executor: github_search_code returns JSON with results", async () => 
       }),
   });
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_search_code", { query: "import foo" });
+  const result = await executor("github_actions", {
+    action: "search_code",
+    query: "import foo",
+  });
 
   const parsed = JSON.parse(result!);
   assertEquals(parsed.results.length, 1);
   assertEquals(parsed.results[0]._classification, "CONFIDENTIAL");
 });
 
-Deno.test("executor: github_create_issue returns created issue JSON", async () => {
+Deno.test("executor: github_issues create returns created issue JSON", async () => {
   const ctx = createMockContext({
     createIssue: () =>
       Promise.resolve({
@@ -319,7 +340,8 @@ Deno.test("executor: github_create_issue returns created issue JSON", async () =
       }),
   });
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_create_issue", {
+  const result = await executor("github_issues", {
+    action: "create",
     repo: "o/r",
     title: "New issue",
   });
@@ -329,7 +351,7 @@ Deno.test("executor: github_create_issue returns created issue JSON", async () =
   assertEquals(parsed._classification, "PUBLIC");
 });
 
-Deno.test("executor: github_get_repo returns repo detail JSON", async () => {
+Deno.test("executor: github_repos get returns repo detail JSON", async () => {
   const ctx = createMockContext({
     getRepo: () =>
       Promise.resolve({
@@ -352,7 +374,10 @@ Deno.test("executor: github_get_repo returns repo detail JSON", async () => {
       }),
   });
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_get_repo", { repo: "o/r" });
+  const result = await executor("github_repos", {
+    action: "get",
+    repo: "o/r",
+  });
 
   const parsed = JSON.parse(result!);
   assertEquals(parsed.language, "TypeScript");
@@ -360,7 +385,7 @@ Deno.test("executor: github_get_repo returns repo detail JSON", async () => {
   assertEquals(parsed._classification, "PUBLIC");
 });
 
-Deno.test("executor: github_list_comments returns comments JSON", async () => {
+Deno.test("executor: github_issues list_comments returns comments JSON", async () => {
   const ctx = createMockContext({
     listComments: () =>
       Promise.resolve({
@@ -376,7 +401,8 @@ Deno.test("executor: github_list_comments returns comments JSON", async () => {
       }),
   });
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_list_comments", {
+  const result = await executor("github_issues", {
+    action: "list_comments",
     repo: "o/r",
     number: 1,
   });
@@ -397,7 +423,7 @@ Deno.test("executor: formats API error correctly", async () => {
       }),
   });
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_list_repos", {});
+  const result = await executor("github_repos", { action: "list" });
   assertEquals(result!.includes("401"), true);
   assertEquals(result!.includes("Bad credentials"), true);
 });
@@ -416,7 +442,7 @@ Deno.test("executor: formats rate limit error", async () => {
       }),
   });
   const executor = createGitHubToolExecutor(ctx);
-  const result = await executor("github_list_repos", {});
+  const result = await executor("github_repos", { action: "list" });
   assertEquals(result!.includes("rate limit exceeded"), true);
 });
 
@@ -492,6 +518,8 @@ function createMockContext(
       defaultMethod as unknown as GitHubClient["searchIssues"],
     cloneRepo: overrides?.cloneRepo as GitHubClient["cloneRepo"] ??
       defaultMethod as unknown as GitHubClient["cloneRepo"],
+    pullRepo: overrides?.pullRepo as GitHubClient["pullRepo"] ??
+      defaultMethod as unknown as GitHubClient["pullRepo"],
   };
 
   return {

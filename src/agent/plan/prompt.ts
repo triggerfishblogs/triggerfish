@@ -27,11 +27,11 @@ on specific concerns).`;
 function buildPlanModeRestrictions(): string {
   return `You MUST NOT:
 - Write or edit any files (write_file is blocked)
-- Create or delete cron jobs (cron_create, cron_delete are blocked)
+- Create or delete cron jobs (cron create/delete actions are blocked)
 - Make any changes to the codebase
 - Skip exploration and jump to a plan without evidence
 
-When you have a complete plan, call plan_exit with your implementation plan.
+When you have a complete plan, call plan_manage(action: "exit", plan: {...}) with your implementation plan.
 If you need clarification from the user, ask before finalizing.`;
 }
 
@@ -61,9 +61,9 @@ ${buildPlanModeRestrictions()}`;
 export function buildAwaitingApprovalPrompt(): string {
   return `A plan is awaiting user approval. The user's message is their response to the plan you presented.
 
-- If they approve, call plan_approve to begin execution.
-- If they want changes, discuss modifications and call plan_enter to re-plan if needed.
-- If they reject, call plan_reject to return to normal mode.`;
+- If they approve, call plan_manage(action: "approve") to begin execution.
+- If they want changes, discuss modifications and call plan_manage(action: "enter") to re-plan if needed.
+- If they reject, call plan_manage(action: "reject") to return to normal mode.`;
 }
 
 /** Format a single plan step for the execution prompt. */
@@ -108,9 +108,9 @@ Rules:
 - Execute ONE step at a time
 - After each step, run the verification command specified in the plan
 - If verification fails, fix before moving to the next step
-- If you discover the plan needs modification, call plan_modify and explain why
+- If you discover the plan needs modification, call plan_manage(action: "modify") and explain why
 - Check off completed steps by calling plan_step_complete
-- When all steps are done, call plan_complete`;
+- When all steps are done, call plan_manage(action: "complete")`;
 }
 
 /**
