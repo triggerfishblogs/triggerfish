@@ -22,11 +22,13 @@ export {
   createFileSecretStore,
   createMemorySecretStore,
   loadOrCreateMachineKey,
+  resolvePermissionStrictness,
   SECRET_SERVICE_NAME,
 } from "./backends/mod.ts";
 export type {
   FileSecretStoreOptions,
   MachineKeyOptions,
+  PermissionStrictness,
   SecretStore,
 } from "./backends/mod.ts";
 

@@ -121,15 +121,31 @@ async function handleLegacyMigration(
   secretsPath: string,
   cache: SecretsFileCache,
 ): Promise<Result<EncryptedSecretsFile, string>> {
+  const entryCount = Object.keys(parsed).length;
+  log.warn("Migrating legacy plaintext secrets to encrypted format", {
+    operation: "migrateSecrets",
+    secretsPath,
+    entryCount,
+  });
+
   const keyResult = await getKey();
   if (!keyResult.ok) return { ok: false, error: keyResult.error };
   const migrated = await migrateLegacySecretsFile(parsed, keyResult.value);
   if (!migrated.ok) return migrated;
+
+  // Write encrypted to a temp file first, then rename over the legacy
+  // plaintext. This ensures the encrypted data is safely on disk before
+  // the plaintext is removed — a crash between writes is recoverable.
   cache.file = migrated.value;
-  await persistSecretsFile(secretsPath, migrated.value);
-  log.info("Migrating secrets to encrypted format", {
-    operation: "migrateSecrets",
-  });
+  const tmpPath = secretsPath + ".tmp";
+  await persistSecretsFile(tmpPath, migrated.value);
+  await Deno.rename(tmpPath, secretsPath);
+
+  log.warn(
+    "Secret rotation recommended after migration from plaintext storage",
+    { operation: "migrateSecrets", secretsPath },
+  );
+
   return { ok: true, value: migrated.value };
 }
 

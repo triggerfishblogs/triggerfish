@@ -3,14 +3,15 @@
  *
  * Reads and writes secrets from a JSON or .env file on disk.
  * Auto-detects format from file extension. Validates file
- * permissions (0600) on Linux/macOS.
+ * permissions (0600) on Linux/macOS with configurable strictness.
  *
  * @module
  */
 
 import { dirname } from "@std/path";
 import type { Result } from "../../types/classification.ts";
-import type { SecretStore } from "./secret_store.ts";
+import type { PermissionStrictness, SecretStore } from "./secret_store.ts";
+import { resolvePermissionStrictness } from "./secret_store.ts";
 import { createLogger } from "../../logger/logger.ts";
 
 const log = createLogger("secrets");
@@ -19,6 +20,8 @@ const log = createLogger("secrets");
 export interface FileSecretStoreOptions {
   /** Path to the secrets file (.json or .env). */
   readonly path: string;
+  /** How to handle file permission violations. Defaults to env or `"warn"`. */
+  readonly permissionStrictness?: PermissionStrictness;
 }
 
 /** Strip matching surrounding quotes (single or double) from a value. */
@@ -78,27 +81,50 @@ function detectFormat(path: string): "json" | "env" {
 }
 
 /**
- * Check file permissions on Linux/macOS. Warns if not 0600.
+ * Check file permissions on Linux/macOS.
+ *
+ * Behaviour depends on `strictness`:
+ * - `"warn"`: logs a warning, returns `undefined` (default).
+ * - `"error"`: returns an error string; caller should refuse to operate.
+ * - `"ignore"`: no-op, always returns `undefined`.
  */
-function checkPermissions(path: string): void {
-  if (Deno.build.os === "windows") {
-    return;
-  }
+function checkPermissions(
+  path: string,
+  strictness: PermissionStrictness,
+): string | undefined {
+  if (Deno.build.os === "windows" || strictness === "ignore") return undefined;
   try {
     const stat = Deno.statSync(path);
     if (stat.mode !== null && stat.mode !== undefined) {
       const perms = stat.mode & 0o777;
       if (perms !== 0o600) {
-        log.warn("Secret file permissions too open", {
+        const detail = {
           operation: "checkPermissions",
           path,
-          perms: perms.toString(8),
-        });
+          expected: "600",
+          actual: perms.toString(8),
+        };
+        if (strictness === "error") {
+          log.error("Secret file permissions too open", detail);
+          return (
+            `Secret file '${path}' has permissions 0${perms.toString(8)} ` +
+            "(expected 0600). Set TRIGGERFISH_SECRETS_PERMISSION_STRICTNESS=warn " +
+            "or =ignore to override."
+          );
+        }
+        log.warn("Secret file permissions too open", detail);
       }
     }
-  } catch {
-    // File may not exist yet
+  } catch (err) {
+    if (!(err instanceof Deno.errors.NotFound)) {
+      log.debug("Secret file stat failed during permission check", {
+        operation: "checkPermissions",
+        path,
+        err,
+      });
+    }
   }
+  return undefined;
 }
 
 /**
@@ -107,6 +133,7 @@ function checkPermissions(path: string): void {
  * Supports `.json` and `.env` formats (auto-detected from extension).
  * Lazy-loads the file on first access and caches in memory.
  * Validates file permissions (0600) on Linux/macOS, skips on Windows.
+ * Permission violations are handled according to `permissionStrictness`.
  *
  * @param options - Configuration for the file store
  * @returns A SecretStore backed by a file on disk
@@ -115,15 +142,21 @@ export function createFileSecretStore(
   options: FileSecretStoreOptions,
 ): SecretStore {
   const { path } = options;
+  const strictness = resolvePermissionStrictness(options.permissionStrictness);
   const format = detectFormat(path);
   let cache: Record<string, string> | null = null;
+  let permError: string | undefined;
 
   function loadCache(): Record<string, string> {
     if (cache !== null) {
       return cache;
     }
 
-    checkPermissions(path);
+    permError = checkPermissions(path, strictness);
+    if (permError !== undefined) {
+      cache = {};
+      return cache;
+    }
 
     try {
       const content = Deno.readTextFileSync(path);
@@ -153,8 +186,12 @@ export function createFileSecretStore(
     if (Deno.build.os !== "windows") {
       try {
         Deno.chmodSync(path, 0o600);
-      } catch {
-        // May not have permission to chmod
+      } catch (err: unknown) {
+        log.warn("Secret file chmod failed — verify permissions manually", {
+          operation: "writeBack",
+          path,
+          err,
+        });
       }
     }
   }
@@ -162,6 +199,9 @@ export function createFileSecretStore(
   return {
     getSecret(name: string): Promise<Result<string, string>> {
       const data = loadCache();
+      if (permError !== undefined) {
+        return Promise.resolve({ ok: false, error: permError });
+      }
       const value = data[name];
       if (value === undefined) {
         return Promise.resolve({
@@ -175,6 +215,9 @@ export function createFileSecretStore(
     setSecret(name: string, value: string): Promise<Result<true, string>> {
       log.warn("Secret write requested", { name, store: path });
       const data = loadCache();
+      if (permError !== undefined) {
+        return Promise.resolve({ ok: false, error: permError });
+      }
       data[name] = value;
       try {
         writeBack();
@@ -191,6 +234,9 @@ export function createFileSecretStore(
     deleteSecret(name: string): Promise<Result<true, string>> {
       log.warn("Secret delete requested", { name, store: path });
       const data = loadCache();
+      if (permError !== undefined) {
+        return Promise.resolve({ ok: false, error: permError });
+      }
       if (!(name in data)) {
         return Promise.resolve({
           ok: false,
@@ -212,6 +258,9 @@ export function createFileSecretStore(
 
     listSecrets(): Promise<Result<string[], string>> {
       const data = loadCache();
+      if (permError !== undefined) {
+        return Promise.resolve({ ok: false, error: permError });
+      }
       return Promise.resolve({ ok: true, value: Object.keys(data) });
     },
   };
