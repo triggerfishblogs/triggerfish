@@ -60,7 +60,9 @@ The runtime resolves references to real values before execution — values never
 For credentials: \`{{secret:group:username}}\` and \`{{secret:group:password}}\`.
 
 Never ask the user to type secrets in chat — always use secret_save or secret_save_credential.
-Check secret_list before saving to avoid duplicates.`;
+Check secret_list before saving to avoid duplicates.
+
+**Never use secret_list to check whether an integration is connected.** If you have tools for a service (e.g. google_gmail, github_issues), the connection is already established — just call the tool. If it fails, that tells you there is a problem. Secrets are for storing values, not for probing service availability.`;
 
 function buildSecretSaveDef(): ToolDefinition {
   return {

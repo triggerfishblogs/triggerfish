@@ -122,6 +122,9 @@ export interface ToolInfraResult {
   readonly memoryDb: Awaited<
     ReturnType<typeof initializeMemorySystem>
   >["memoryDb"];
+  readonly memoryStore: Awaited<
+    ReturnType<typeof initializeMemorySystem>
+  >["memoryStore"];
   readonly browserHandle: ReturnType<typeof initializeBrowserExecutor>;
   readonly channelAdapters: Map<string, RegisteredChannel>;
   readonly toolClassifications: Map<string, ClassificationLevel>;
@@ -229,7 +232,7 @@ export async function buildSessionScopedExecutors(
   },
 ) {
   const { state, mainWorkspace, registry } = toolInfra;
-  const { memoryDb, memoryExecutor } = await initializeMemorySystem(
+  const { memoryDb, memoryStore, memoryExecutor } = await initializeMemorySystem(
     coreInfra.dataDir,
     coreInfra.storage,
     state.session,
@@ -246,7 +249,7 @@ export async function buildSessionScopedExecutors(
     registry,
   );
   const channels = buildSessionChannelExecutors(coreInfra, state);
-  return { memoryDb, memoryExecutor, mainPlanExecutor, ...media, ...channels };
+  return { memoryDb, memoryStore, memoryExecutor, mainPlanExecutor, ...media, ...channels };
 }
 
 /** Build LLM, workspace, and path classifier foundation. */
@@ -388,6 +391,7 @@ export function assembleToolInfraResult(
     cliSecretPrompt: baseDeps.cliSecretPrompt,
     cliCredentialPrompt: baseDeps.cliCredentialPrompt,
     memoryDb: sessionExecs.memoryDb,
+    memoryStore: sessionExecs.memoryStore,
     browserHandle: sessionExecs.browserHandle,
     channelAdapters: sessionExecs.channelAdapters,
     toolClassifications: baseDeps.toolClassifications,

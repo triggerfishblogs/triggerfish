@@ -82,7 +82,7 @@ export interface ChatSessionConfig {
   /** Live getter for extra tools resolved at each LLM call (e.g. MCP servers). */
   readonly getExtraTools?: () => readonly ToolDefinition[];
   /** Live getter for extra system prompt sections resolved at each LLM call (e.g. MCP servers). */
-  readonly getExtraSystemPromptSections?: () => readonly string[];
+  readonly getExtraSystemPromptSections?: () => readonly string[] | Promise<readonly string[]>;
   readonly toolExecutor?: ToolExecutor;
   readonly systemPromptSections?: readonly string[];
   readonly compactorConfig?: Partial<CompactorConfig>;
@@ -154,6 +154,12 @@ export interface ChatSessionConfig {
   readonly workspacePath?: string;
   /** Returns the taint-aware workspace path for shell command classification. */
   readonly getWorkspacePath?: () => string | null;
+  /**
+   * Mutable ref toggled by non-owner turn wrappers.
+   * When false, persona context is suppressed in the system prompt.
+   * Default: true (owner turns).
+   */
+  readonly isOwnerTurnRef?: { value: boolean };
 }
 
 /** Shared chat session that serializes access to the orchestrator. */

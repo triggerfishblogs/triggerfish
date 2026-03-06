@@ -17,6 +17,7 @@ import type { BootstrapResult } from "./bootstrap.ts";
 import type { CoreInfraResult } from "./infra/core_infra.ts";
 import type { ToolInfraResult } from "./tools/tool_infra.ts";
 import { resolveWorkspacePathForTaint } from "./tools/tool_executor.ts";
+import { OWNER_MEMORY_AGENT_ID } from "../../core/types/session.ts";
 import type { ShutdownDeps } from "./shutdown.ts";
 import {
   assembleChatSession,
@@ -33,6 +34,7 @@ export function buildMainChatSession(
   coreInfra: CoreInfraResult,
   toolInfra: ToolInfraResult,
   isTidepoolCallRef: { value: boolean },
+  isOwnerTurnRef: { value: boolean },
 ) {
   const modelsConfig = bootstrap.config.models as
     | Record<string, unknown>
@@ -84,6 +86,13 @@ export function buildMainChatSession(
         },
       ),
     serviceAvailability: toolInfra.serviceAvailability,
+    personaOptions: {
+      memoryStore: toolInfra.memoryStore,
+      agentId: OWNER_MEMORY_AGENT_ID,
+      getSessionTaint: () => toolInfra.state.session.taint,
+      isOwnerSession: () => isOwnerTurnRef.value,
+    },
+    isOwnerTurnRef,
   });
 }
 
@@ -204,11 +213,13 @@ export async function startServicesAndChannels(
   toolInfra: ToolInfraResult,
 ): Promise<ShutdownDeps> {
   const isTidepoolCallRef = { value: false };
+  const isOwnerTurnRef = { value: true };
   const chatSession = buildMainChatSession(
     bootstrap,
     coreInfra,
     toolInfra,
     isTidepoolCallRef,
+    isOwnerTurnRef,
   );
   bootstrap.log.info("Main session created");
   toolInfra.mcpBroadcastRefs.chatSession = chatSession;
