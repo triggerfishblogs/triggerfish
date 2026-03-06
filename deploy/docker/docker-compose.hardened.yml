@@ -1,0 +1,81 @@
+# Hardened Docker Compose for Triggerfish
+#
+# This configuration separates the encryption key from the secrets file
+# using a tmpfs mount, preventing both from being captured in a single
+# volume snapshot or container escape. Each security option is annotated
+# with its purpose and trade-offs.
+#
+# Usage:
+#   docker compose -f docker-compose.hardened.yml up -d
+#
+# See also: https://github.com/greghavens/triggerfish/issues/209
+
+services:
+  triggerfish:
+    image: ${TRIGGERFISH_IMAGE:-ghcr.io/greghavens/triggerfish:latest}
+    container_name: triggerfish
+    restart: unless-stopped
+
+    # PID 1 signal forwarding — ensures SIGTERM reaches the process
+    # for graceful shutdown, replacing the need for tini.
+    init: true
+
+    ports:
+      - "18789:18789"
+      - "18790:18790"
+
+    volumes:
+      # Persistent volume for secrets.json, config, and data.
+      # The encryption key is NOT stored here — it lives in tmpfs below.
+      - triggerfish-data:/data
+
+    tmpfs:
+      # RAM-only filesystem for the encryption key. Contents are lost on
+      # container restart, so the key is re-generated on each boot.
+      # Trade-off: secrets.json must be re-encrypted after restart.
+      #   noexec  — prevents executing binaries from this mount
+      #   nosuid  — ignores setuid/setgid bits
+      #   size=10m — limits RAM usage (key is 32 bytes; 10 MiB is generous)
+      - /keys:rw,noexec,nosuid,size=10m
+
+    environment:
+      - TRIGGERFISH_DATA_DIR=/data
+      - TRIGGERFISH_CONFIG=/data/triggerfish.yaml
+
+      # Point the encryption key to the tmpfs mount instead of /data.
+      # This separates key material from ciphertext — an attacker with
+      # read access to the /data volume cannot decrypt without the key.
+      - TRIGGERFISH_KEY_PATH=/keys/secrets.key
+
+      # Enable strict permission enforcement. The container will exit
+      # (code 78, EX_CONFIG) if:
+      #   - The key file has group/other permissions (not 0600)
+      #   - /data is not a separate mount point (no volume attached)
+      - TRIGGERFISH_STRICT_PERMISSIONS=true
+
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+
+    env_file:
+      - path: .env
+        required: false
+
+    # Run as non-root user (nobody:nogroup). Limits blast radius if the
+    # container process is compromised — cannot modify host files or
+    # escalate to root.
+    user: "65534:65534"
+
+    # Prevent the container filesystem from being written to outside of
+    # mounted volumes and tmpfs. Blocks an attacker from dropping
+    # persistence tools or modifying binaries in the container.
+    # Trade-off: any writes outside /data and /keys will fail.
+    read_only: true
+
+    security_opt:
+      # Prevent the process from gaining new privileges via setuid,
+      # setgid, or capability inheritance. Closes a common container
+      # escape vector.
+      - no-new-privileges:true
+
+volumes:
+  triggerfish-data:
+    name: triggerfish-data
