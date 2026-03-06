@@ -1,9 +1,8 @@
 /**
- * Shared NDJSON protocol types for the filesystem sandbox.
+ * Shared message types for the filesystem sandbox.
  *
- * Imported by both the sandboxed worker subprocess and the
- * parent-side client. Each message is a single JSON line on
- * stdin (requests) or stdout (responses).
+ * Used by both the sandboxed Worker and the parent-side client.
+ * Messages are exchanged via Worker postMessage/onmessage.
  *
  * @module
  */
