@@ -93,6 +93,24 @@ Deno.test("path classification: ~/.triggerfish/logs/ is RESTRICTED", () => {
   assertEquals(result.source, "hardcoded");
 });
 
+Deno.test("path classification: ~/.triggerfish/ parent dir is RESTRICTED", () => {
+  const classifier = createPathClassifier(makeConfig());
+  const home = resolveHome();
+  const result = classifier.classify(join(home, ".triggerfish"));
+  assertEquals(result.classification, "RESTRICTED");
+  assertEquals(result.source, "hardcoded");
+});
+
+Deno.test("path classification: ~/.triggerfish/ unlisted subdir is RESTRICTED", () => {
+  const classifier = createPathClassifier(makeConfig());
+  const home = resolveHome();
+  const result = classifier.classify(
+    join(home, ".triggerfish", "other", "somefile.txt"),
+  );
+  assertEquals(result.classification, "RESTRICTED");
+  assertEquals(result.source, "hardcoded");
+});
+
 Deno.test("path classification: hardcoded paths override configured mappings", () => {
   // Even if someone configures SPINE.md as PUBLIC, hardcoded wins
   const home = resolveHome();
