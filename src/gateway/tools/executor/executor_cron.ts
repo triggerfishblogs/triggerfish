@@ -11,22 +11,27 @@ import type { CronManager } from "../../../scheduler/cron/parser.ts";
 import {
   CLASSIFICATION_ORDER,
   type ClassificationLevel,
+  type Result,
 } from "../../../core/types/classification.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
 
 const log = createLogger("cron-executor");
 
-/** Require a non-empty string from tool input, returning an error message if invalid. */
+/** Require a non-empty string from tool input. */
 function requireString(
   input: Record<string, unknown>,
   key: string,
   action: string,
-): string | null {
+): Result<string, string> {
   const value = input[key];
   if (typeof value !== "string" || value.length === 0) {
-    return `Error: cron(action: '${action}') requires a non-empty '${key}' argument (string).`;
+    return {
+      ok: false,
+      error:
+        `Error: cron(action: '${action}') requires a non-empty '${key}' argument (string).`,
+    };
   }
-  return null;
+  return { ok: true, value };
 }
 
 /** Parse and validate a ClassificationLevel string, defaulting to INTERNAL. */
@@ -34,7 +39,7 @@ function parseClassificationLevel(raw: unknown): ClassificationLevel {
   if (typeof raw === "string" && raw in CLASSIFICATION_ORDER) {
     return raw as ClassificationLevel;
   }
-  log.debug("Cron classification defaulted to INTERNAL", {
+  log.warn("Cron classification defaulted to INTERNAL", {
     operation: "parseClassificationLevel",
     providedValue: raw,
   });
@@ -46,13 +51,13 @@ function executeCronCreate(
   input: Record<string, unknown>,
   cronManager: CronManager,
 ): string {
-  const exprErr = requireString(input, "expression", "create");
-  if (exprErr) return exprErr;
-  const taskErr = requireString(input, "task", "create");
-  if (taskErr) return taskErr;
+  const exprResult = requireString(input, "expression", "create");
+  if (!exprResult.ok) return exprResult.error;
+  const taskResult = requireString(input, "task", "create");
+  if (!taskResult.ok) return taskResult.error;
 
-  const expression = input.expression as string;
-  const task = input.task as string;
+  const expression = exprResult.value;
+  const task = taskResult.value;
   const classification = parseClassificationLevel(input.classification);
   const result = cronManager.create({
     expression,
@@ -92,10 +97,10 @@ function executeCronDelete(
   input: Record<string, unknown>,
   cronManager: CronManager,
 ): string {
-  const argErr = requireString(input, "job_id", "delete");
-  if (argErr) return argErr;
+  const jobIdResult = requireString(input, "job_id", "delete");
+  if (!jobIdResult.ok) return jobIdResult.error;
 
-  const jobId = input.job_id as string;
+  const jobId = jobIdResult.value;
   const result = cronManager.delete(jobId);
   return result.ok ? `Deleted cron job ${jobId}` : `Error: ${result.error}`;
 }
@@ -105,10 +110,10 @@ function executeCronHistory(
   input: Record<string, unknown>,
   cronManager: CronManager,
 ): string {
-  const argErr = requireString(input, "job_id", "history");
-  if (argErr) return argErr;
+  const jobIdResult = requireString(input, "job_id", "history");
+  if (!jobIdResult.ok) return jobIdResult.error;
 
-  const jobId = input.job_id as string;
+  const jobId = jobIdResult.value;
   const hist = cronManager.history(jobId);
   if (hist.length === 0) return "No execution history for this job.";
   return hist.slice(-10).map((e) =>

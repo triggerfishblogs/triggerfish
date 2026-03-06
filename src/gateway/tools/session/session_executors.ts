@@ -85,6 +85,12 @@ async function executeSessionsList(
       if (!session) return `Session not found: ${sessionId}`;
 
       if (!canFlowTo(session.taint, ctx.callerTaint)) {
+        log.warn("Session status access denied: taint exceeds caller", {
+          operation: "executeSessionsList",
+          targetSessionId: sessionId,
+          targetTaint: session.taint,
+          callerTaint: ctx.callerTaint,
+        });
         return `Access denied: session ${sessionId} is at ${session.taint}, your session is at ${ctx.callerTaint}.`;
       }
       return serializeSessionMeta(session);
