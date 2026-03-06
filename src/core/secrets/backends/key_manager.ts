@@ -59,7 +59,7 @@ async function verifyKeyFilePermissions(
       log.warn("Machine key file permissions too open", detail);
     }
   } catch (err) {
-    log.debug("Key file stat failed during permission check", {
+    log.warn("Key file stat failed during permission check", {
       operation: "verifyKeyFilePermissions",
       keyPath,
       err,

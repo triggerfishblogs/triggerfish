@@ -153,6 +153,10 @@ export function createFileSecretStore(
     }
 
     permError = checkPermissions(path, strictness);
+    if (permError !== undefined) {
+      cache = {};
+      return cache;
+    }
 
     try {
       const content = Deno.readTextFileSync(path);

@@ -61,32 +61,12 @@ function selectNativeSecretStore(): SecretStore {
     case "windows":
       log.info("Secret backend selected: encrypted-file (Windows)");
       return createEncryptedFileSecretStore(resolveWindowsSecretStorePaths());
-    default: {
-      const allowMemory = Deno.env.get(
-        "TRIGGERFISH_SECRETS_MEMORY_FALLBACK",
+    default:
+      log.warn(
+        "Secret backend selected: in-memory (unsupported OS — secrets will not persist)",
+        { os },
       );
-      if (allowMemory === "true" || allowMemory === "1") {
-        log.warn(
-          "Secret backend selected: in-memory (unsupported OS, explicit opt-in)",
-          { os },
-        );
-        return createMemorySecretStore();
-      }
-      const message =
-        `Unsupported OS '${os}' for secrets storage. ` +
-        "Secrets cannot be stored securely on this platform. " +
-        "Set TRIGGERFISH_SECRETS_MEMORY_FALLBACK=true to use an " +
-        "in-memory store (secrets will not persist across restarts), " +
-        "or use a supported platform (Linux, macOS, Windows, Docker).";
-      log.error("Secret backend selection failed", {
-        operation: "selectNativeSecretStore",
-        os,
-        err: new Error(message),
-      });
-      // TODO(#issue): Convert createKeychain to return Result<SecretStore, string>
-      // instead of throwing. Requires updating all callers — out of scope for this PR.
-      throw new Error(message);
-    }
+      return createMemorySecretStore();
   }
 }
 
