@@ -80,7 +80,7 @@ export function createFilesystemSandbox(
       workspace: workspacePath,
       workerPath: workerTempPath,
     });
-    const cmd = new Deno.Command("deno", {
+    const cmd = new Deno.Command(Deno.execPath(), {
       args: [
         "run",
         "--no-prompt",

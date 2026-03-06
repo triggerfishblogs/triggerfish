@@ -21,7 +21,7 @@ function spawnWorker(workspacePath: string): {
     "../../../src/exec/sandbox/worker.ts",
     import.meta.url,
   );
-  const cmd = new Deno.Command("deno", {
+  const cmd = new Deno.Command(Deno.execPath(), {
     args: [
       "run",
       "--no-prompt",
