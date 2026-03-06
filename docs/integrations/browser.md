@@ -7,8 +7,8 @@ interact with pages, fill forms, capture screenshots, and automate web workflows
 
 ## Architecture
 
-Browser automation is built on `puppeteer-core` or `playwright`, connecting to a
-managed Chromium instance via CDP. Every browser action passes through the
+Browser automation is built on `puppeteer-core`, connecting to a managed
+Chromium instance via CDP. Every browser action passes through the
 policy layer before reaching the browser.
 
 Triggerfish auto-detects Chromium-based browsers including **Google Chrome**,
@@ -58,7 +58,7 @@ browser:
     classification:
       "*.internal.company.com": INTERNAL
       "github.com": INTERNAL
-      "*.google.com": PERSONAL
+      "*.google.com": INTERNAL
 ```
 
 ### How Domain Policy Works

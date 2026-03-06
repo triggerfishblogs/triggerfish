@@ -2,8 +2,8 @@
 
 Triggerfish connects to your existing messaging platforms. You talk to your
 agent wherever you already communicate -- terminal, Telegram, Slack, Discord,
-WhatsApp, a web widget, or email. Every channel is a first-class citizen with
-its own classification level, owner identity checks, and policy enforcement.
+WhatsApp, a web widget, or email. Every channel has its own classification level, owner identity checks, and
+policy enforcement.
 
 ## How Channels Work
 
@@ -11,16 +11,7 @@ Every channel adapter implements the same interface: `connect`, `disconnect`,
 `send`, `onMessage`, and `status`. The **channel router** sits above all
 adapters and handles message dispatch, classification checks, and retry logic.
 
-```
-Telegram  Signal  Slack  Discord  WhatsApp  WebChat  Email  CLI
-   |        |       |       |        |         |       |     |
-   +--------+-------+-------+--------+---------+-------+-----+
-                           |
-                     Channel Router
-                  (classification gate)
-                           |
-                     Gateway Server
-```
+<img src="/diagrams/channel-router.svg" alt="Channel router: all channel adapters flow through a central classification gate to the Gateway Server" style="max-width: 100%;" />
 
 When a message arrives on any channel, the router:
 
@@ -71,7 +62,7 @@ classification and the recipient classification:
 | ------------- | --------------- | --------------- |
 | INTERNAL      | INTERNAL        | INTERNAL        |
 | INTERNAL      | EXTERNAL        | PUBLIC          |
-| CONFIDENTIAL  | INTERNAL        | CONFIDENTIAL    |
+| CONFIDENTIAL  | INTERNAL        | INTERNAL        |
 | CONFIDENTIAL  | EXTERNAL        | PUBLIC          |
 
 This means that even if a channel is classified as `CONFIDENTIAL`, messages to

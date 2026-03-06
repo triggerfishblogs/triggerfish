@@ -22,19 +22,7 @@ usage is recorded.
 Both streaming and non-streaming calls consume from the same budget. For
 streaming calls, token usage is recorded when the stream finishes.
 
-```
-Agent Loop
-    |
-    v
-RateLimitedProvider
-    |-- Check TPM/RPM capacity
-    |-- If exhausted: await until window slides
-    |-- Forward call to underlying provider
-    |-- Record actual token usage
-    |
-    v
-Underlying LlmProvider (Anthropic, OpenAI, etc.)
-```
+<img src="/diagrams/rate-limiter-flow.svg" alt="Rate limiter flow: Agent Loop → Rate Limiter → capacity check → forward to provider or wait" style="max-width: 100%;" />
 
 ## OpenAI Tier Limits
 
@@ -99,6 +87,22 @@ When the limiter delays a call, it logs the wait time:
 ```
 [INFO] [provider] Rate limited: waiting 4.2s for TPM capacity
 ```
+
+## Channel Rate Limiting
+
+In addition to LLM provider rate limiting, Triggerfish enforces per-channel
+message rate limits to prevent flooding messaging platforms. Each channel adapter
+tracks outbound message frequency and delays sends when limits are approached.
+
+This protects against:
+
+- Platform API bans from excessive message volume
+- Accidental spam from runaway agent loops
+- Webhook-triggered message storms
+
+Channel rate limits are enforced transparently by the channel router. If the
+agent generates output faster than the channel allows, messages are queued and
+delivered at the maximum permitted rate.
 
 ## Related
 

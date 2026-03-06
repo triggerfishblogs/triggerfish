@@ -1,0 +1,351 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 700 820"
+  width="700"
+  height="820"
+  font-family="system-ui, sans-serif"
+>
+  <!-- Background -->
+  <rect width="700" height="820" fill="#ffffff" />
+
+  <!-- Title -->
+  <text
+    x="350"
+    y="36"
+    text-anchor="middle"
+    font-size="18"
+    font-weight="700"
+    fill="#1e40af"
+  >12 Defense Layers</text>
+
+  <!-- Layer 1 -->
+  <rect
+    x="80"
+    y="60"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <text
+    x="108"
+    y="90"
+    font-size="14"
+    font-weight="700"
+    fill="#374151"
+  >1</text>
+  <text
+    x="140"
+    y="90"
+    font-size="13"
+    font-weight="500"
+    fill="#374151"
+  >Input Validation &amp; Sanitization</text>
+
+  <!-- Layer 2 -->
+  <rect
+    x="80"
+    y="120"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <text
+    x="108"
+    y="150"
+    font-size="14"
+    font-weight="700"
+    fill="#374151"
+  >2</text>
+  <text
+    x="140"
+    y="150"
+    font-size="13"
+    font-weight="500"
+    fill="#374151"
+  >Authentication &amp; Identity</text>
+
+  <!-- Layer 3 -->
+  <rect
+    x="80"
+    y="180"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <text
+    x="108"
+    y="210"
+    font-size="14"
+    font-weight="700"
+    fill="#374151"
+  >3</text>
+  <text
+    x="140"
+    y="210"
+    font-size="13"
+    font-weight="500"
+    fill="#374151"
+  >Classification Assignment</text>
+
+  <!-- Layer 4 -->
+  <rect
+    x="80"
+    y="240"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <text
+    x="108"
+    y="270"
+    font-size="14"
+    font-weight="700"
+    fill="#374151"
+  >4</text>
+  <text
+    x="140"
+    y="270"
+    font-size="13"
+    font-weight="500"
+    fill="#374151"
+  >Taint Propagation &amp; Escalation</text>
+
+  <!-- Layer 5 -->
+  <rect
+    x="80"
+    y="300"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <text
+    x="108"
+    y="330"
+    font-size="14"
+    font-weight="700"
+    fill="#374151"
+  >5</text>
+  <text
+    x="140"
+    y="330"
+    font-size="13"
+    font-weight="500"
+    fill="#374151"
+  >Write-Down Prevention (No Downward Flow)</text>
+
+  <!-- Layer 6 -->
+  <rect
+    x="80"
+    y="360"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <text
+    x="108"
+    y="390"
+    font-size="14"
+    font-weight="700"
+    fill="#374151"
+  >6</text>
+  <text
+    x="140"
+    y="390"
+    font-size="13"
+    font-weight="500"
+    fill="#374151"
+  >Policy Hook Chain (Deterministic)</text>
+
+  <!-- Layer 7 -->
+  <rect
+    x="80"
+    y="420"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <text
+    x="108"
+    y="450"
+    font-size="14"
+    font-weight="700"
+    fill="#374151"
+  >7</text>
+  <text
+    x="140"
+    y="450"
+    font-size="13"
+    font-weight="500"
+    fill="#374151"
+  >Session Isolation &amp; Workspace Sandboxing</text>
+
+  <!-- Layer 8 -->
+  <rect
+    x="80"
+    y="480"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <text
+    x="108"
+    y="510"
+    font-size="14"
+    font-weight="700"
+    fill="#374151"
+  >8</text>
+  <text
+    x="140"
+    y="510"
+    font-size="13"
+    font-weight="500"
+    fill="#374151"
+  >Default Deny (Unclassified = Rejected)</text>
+
+  <!-- Layer 9 -->
+  <rect
+    x="80"
+    y="540"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <text
+    x="108"
+    y="570"
+    font-size="14"
+    font-weight="700"
+    fill="#374151"
+  >9</text>
+  <text
+    x="140"
+    y="570"
+    font-size="13"
+    font-weight="500"
+    fill="#374151"
+  >Rate Limiting &amp; Abuse Prevention</text>
+
+  <!-- Layer 10 -->
+  <rect
+    x="80"
+    y="600"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <text
+    x="100"
+    y="630"
+    font-size="14"
+    font-weight="700"
+    fill="#374151"
+  >10</text>
+  <text
+    x="140"
+    y="630"
+    font-size="13"
+    font-weight="500"
+    fill="#374151"
+  >Audit Logging &amp; Data Lineage</text>
+
+  <!-- Layer 11 — SSRF Prevention (light orange) -->
+  <rect
+    x="80"
+    y="660"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#fff7ed"
+    stroke="#f97316"
+    stroke-width="1.5"
+  />
+  <text
+    x="100"
+    y="690"
+    font-size="14"
+    font-weight="700"
+    fill="#c2410c"
+  >11</text>
+  <text
+    x="140"
+    y="690"
+    font-size="13"
+    font-weight="600"
+    fill="#c2410c"
+  >SSRF Prevention (DNS Resolve + IP Denylist)</text>
+
+  <!-- Layer 12 — Memory Classification Gating (light purple) -->
+  <rect
+    x="80"
+    y="720"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#f5f3ff"
+    stroke="#8b5cf6"
+    stroke-width="1.5"
+  />
+  <text
+    x="100"
+    y="750"
+    font-size="14"
+    font-weight="700"
+    fill="#6d28d9"
+  >12</text>
+  <text
+    x="140"
+    y="750"
+    font-size="13"
+    font-weight="600"
+    fill="#6d28d9"
+  >Memory Classification Gating (canFlowTo)</text>
+
+  <!-- Bottom note -->
+  <rect
+    x="140"
+    y="786"
+    width="420"
+    height="24"
+    rx="6"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1"
+  />
+  <text
+    x="350"
+    y="803"
+    text-anchor="middle"
+    font-size="12"
+    fill="#6b7280"
+  >Every layer is deterministic. The LLM cannot bypass any layer.</text>
+</svg>

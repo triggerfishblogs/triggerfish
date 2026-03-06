@@ -197,12 +197,7 @@ system. Even if a user has permission to access data in the source system,
 Triggerfish's classification rules govern where that data can flow after it is
 retrieved.
 
-```
-EFFECTIVE ACCESS = intersection(
-    user's source system permissions,    // What records user can see
-    triggerfish classification rules     // Where that data can flow
-)
-```
+<img src="/diagrams/secret-resolution-flow.svg" alt="Secret resolution flow: config file references resolved from OS keychain below the LLM layer" style="max-width: 100%;" />
 
 **Example:**
 

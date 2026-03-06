@@ -120,7 +120,7 @@ channels:
     classification: PUBLIC # Default: PUBLIC
 
   webchat:
-    port: 8080 # WebSocket port for web client
+    port: 8765 # WebSocket port for web client
     classification: PUBLIC # Default: PUBLIC (visitors)
 
   email:
@@ -170,16 +170,12 @@ policy:
 # MCP Servers: External tool servers
 # ---------------------------------------------------------------------------
 mcp_servers:
-  - id: filesystem
+  filesystem:
     command: "deno"
     args: ["run", "--allow-read", "--allow-write", "mcp-filesystem-server.ts"]
     classification: INTERNAL
-    tools:
-      read_file: { permission: read }
-      write_file: { permission: write }
-      list_directory: { permission: read }
 
-  - id: github
+  github:
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-github"]
     classification: CONFIDENTIAL
@@ -232,7 +228,7 @@ agents:
       tools:
         profile: "full"
       model: claude-opus-4-5
-      classification_ceiling: PERSONAL
+      classification_ceiling: INTERNAL
 
     - id: work
       name: "Work Assistant"
@@ -378,7 +374,6 @@ for details.
 | Key                   | Type   | Description                                               |
 | --------------------- | ------ | --------------------------------------------------------- |
 | `web.search.provider` | string | Search backend for `web_search` tool (currently: `brave`) |
-| `web.search.provider` | string | Search backend (currently: `brave`)                       |
 
 See [Web Search and Fetch](/features/web-search) for details.
 
@@ -388,8 +383,8 @@ See [Web Search and Fetch](/features/web-search) for details.
 | ------- | ------ | ---------- | ----------------------------------------------------------------------------------------- |
 | `level` | string | `"normal"` | Log verbosity: `quiet` (errors only), `normal` (info), `verbose` (debug), `debug` (trace) |
 
-See [Structured Logging](/features/logging) for details on log output, file
-rotation, and the log-analyst skill.
+See [Structured Logging](/features/logging) for details on log output and file
+rotation.
 
 ### `github`
 

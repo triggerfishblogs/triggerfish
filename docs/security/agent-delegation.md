@@ -57,32 +57,7 @@ When one agent calls another, the policy layer verifies the delegation before
 the callee agent executes. The check is deterministic and runs in code -- the
 calling agent cannot influence the decision.
 
-```
-+--------------+         +--------------+         +--------------+
-|   Agent A    |         |   Policy     |         |   Agent B    |
-|   (Caller)   |         |   Layer      |         |   (Callee)   |
-|              |         |              |         |              |
-| taint:       |         |              |         | ceiling:     |
-| CONFIDENTIAL |         |              |         | INTERNAL     |
-+------+-------+         +------+-------+         +------+-------+
-       |                        |                        |
-       | invoke(agent_b,        |                        |
-       |   task, context)       |                        |
-       |----------------------->|                        |
-       |                        |                        |
-       |                        | VERIFY:                |
-       |                        | 1. A can invoke B?     |
-       |                        | 2. A's taint <= B's    |
-       |                        |    ceiling?            |
-       |                        |    CONFIDENTIAL <=     |
-       |                        |    INTERNAL? NO!       |
-       |                        |                        |
-       |<-----------------------|                        |
-       | BLOCKED: Agent B       |                        |
-       | ceiling (INTERNAL)     |                        |
-       | below session taint    |                        |
-       | (CONFIDENTIAL)         |                        |
-```
+<img src="/diagrams/agent-delegation-sequence.svg" alt="Agent delegation sequence: Agent A invokes Agent B, policy layer verifies taint vs ceiling and blocks when taint exceeds ceiling" style="max-width: 100%;" />
 
 In this example, Agent A has a session taint of CONFIDENTIAL (it accessed
 Salesforce data earlier). Agent B has a classification ceiling of INTERNAL.
@@ -148,16 +123,7 @@ Agent A. If Agent B then accesses RESTRICTED data, its taint escalates to
 RESTRICTED. This elevated taint is carried back to Agent A when the invocation
 completes.
 
-```
-Agent A (taint: INTERNAL)
-  |
-  +--> invokes Agent B (ceiling: CONFIDENTIAL)
-       Agent B starts with taint: INTERNAL (inherited from A)
-       Agent B accesses Salesforce --> taint: CONFIDENTIAL
-       Agent B returns result
-  |
-Agent A taint updates to: CONFIDENTIAL (max of own + callee's)
-```
+<img src="/diagrams/taint-inheritance.svg" alt="Taint inheritance: Agent A (INTERNAL) invokes Agent B, B inherits taint, accesses Salesforce (CONFIDENTIAL), returns elevated taint to A" style="max-width: 100%;" />
 
 Taint flows in both directions -- from caller to callee at invocation time, and
 from callee back to caller at completion. It can only escalate.

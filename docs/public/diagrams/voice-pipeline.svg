@@ -1,0 +1,311 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 900 280"
+  width="900"
+  height="280"
+  font-family="system-ui, sans-serif"
+>
+  <defs>
+    <marker
+      id="vp-arr"
+      markerWidth="10"
+      markerHeight="7"
+      refX="10"
+      refY="3.5"
+      orient="auto"
+    >
+      <polygon points="0 0, 10 3.5, 0 7" fill="#374151" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="280" fill="#ffffff" />
+
+  <!-- Title -->
+  <text
+    x="450"
+    y="36"
+    text-anchor="middle"
+    font-size="18"
+    font-weight="700"
+    fill="#1e40af"
+  >Voice Pipeline</text>
+
+  <!-- Step 1: Wake Word Detection -->
+  <rect
+    x="20"
+    y="70"
+    width="150"
+    height="76"
+    rx="8"
+    fill="#dbeafe"
+    stroke="#93c5fd"
+    stroke-width="1.5"
+  />
+  <text
+    x="95"
+    y="98"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#1e40af"
+  >Wake Word</text>
+  <text
+    x="95"
+    y="116"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#1e40af"
+  >Detection</text>
+  <text
+    x="95"
+    y="136"
+    text-anchor="middle"
+    font-size="11"
+    fill="#6b7280"
+  >(local, on-device)</text>
+
+  <!-- Arrow -->
+  <line
+    x1="170"
+    y1="108"
+    x2="196"
+    y2="108"
+    stroke="#374151"
+    stroke-width="2"
+    marker-end="url(#vp-arr)"
+  />
+
+  <!-- Step 2: STT -->
+  <rect
+    x="200"
+    y="70"
+    width="150"
+    height="76"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <text
+    x="275"
+    y="98"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#374151"
+  >STT</text>
+  <text
+    x="275"
+    y="116"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="500"
+    fill="#374151"
+  >Speech to Text</text>
+  <text
+    x="275"
+    y="136"
+    text-anchor="middle"
+    font-size="11"
+    fill="#6b7280"
+  >Whisper (local)</text>
+
+  <!-- Arrow -->
+  <line
+    x1="350"
+    y1="108"
+    x2="376"
+    y2="108"
+    stroke="#374151"
+    stroke-width="2"
+    marker-end="url(#vp-arr)"
+  />
+
+  <!-- Step 3: Agent Processing -->
+  <rect
+    x="380"
+    y="70"
+    width="150"
+    height="76"
+    rx="8"
+    fill="#2563eb"
+    stroke="#1e40af"
+    stroke-width="1.5"
+  />
+  <text
+    x="455"
+    y="98"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#ffffff"
+  >Agent</text>
+  <text
+    x="455"
+    y="116"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#ffffff"
+  >Processing</text>
+  <text
+    x="455"
+    y="136"
+    text-anchor="middle"
+    font-size="11"
+    fill="#bfdbfe"
+  >(normal flow)</text>
+
+  <!-- Arrow -->
+  <line
+    x1="530"
+    y1="108"
+    x2="556"
+    y2="108"
+    stroke="#374151"
+    stroke-width="2"
+    marker-end="url(#vp-arr)"
+  />
+
+  <!-- Step 4: TTS -->
+  <rect
+    x="560"
+    y="70"
+    width="150"
+    height="76"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <text
+    x="635"
+    y="98"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#374151"
+  >TTS</text>
+  <text
+    x="635"
+    y="116"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="500"
+    fill="#374151"
+  >Text to Speech</text>
+  <text
+    x="635"
+    y="136"
+    text-anchor="middle"
+    font-size="11"
+    fill="#6b7280"
+  >ElevenLabs / OpenAI</text>
+
+  <!-- Arrow -->
+  <line
+    x1="710"
+    y1="108"
+    x2="736"
+    y2="108"
+    stroke="#374151"
+    stroke-width="2"
+    marker-end="url(#vp-arr)"
+  />
+
+  <!-- Step 5: Voice Output -->
+  <rect
+    x="740"
+    y="70"
+    width="140"
+    height="76"
+    rx="8"
+    fill="#dcfce7"
+    stroke="#16a34a"
+    stroke-width="1.5"
+  />
+  <text
+    x="810"
+    y="98"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#166534"
+  >Voice</text>
+  <text
+    x="810"
+    y="116"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#166534"
+  >Output</text>
+  <text
+    x="810"
+    y="136"
+    text-anchor="middle"
+    font-size="11"
+    fill="#6b7280"
+  >Speaker / headset</text>
+
+  <!-- Bottom annotations -->
+  <rect
+    x="20"
+    y="176"
+    width="150"
+    height="40"
+    rx="6"
+    fill="#dcfce7"
+    stroke="#86efac"
+    stroke-width="1"
+  />
+  <text x="95" y="195" text-anchor="middle" font-size="11" font-weight="500" fill="#166534">Privacy-preserving</text>
+  <text x="95" y="209" text-anchor="middle" font-size="10" fill="#166534">Runs locally on device</text>
+
+  <rect
+    x="200"
+    y="176"
+    width="150"
+    height="40"
+    rx="6"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1"
+  />
+  <text x="275" y="195" text-anchor="middle" font-size="11" font-weight="500" fill="#374151">Local processing</text>
+  <text x="275" y="209" text-anchor="middle" font-size="10" fill="#6b7280">No audio leaves device</text>
+
+  <rect
+    x="380"
+    y="176"
+    width="150"
+    height="40"
+    rx="6"
+    fill="#dbeafe"
+    stroke="#93c5fd"
+    stroke-width="1"
+  />
+  <text x="455" y="195" text-anchor="middle" font-size="11" font-weight="500" fill="#1e40af">Full hook chain</text>
+  <text x="455" y="209" text-anchor="middle" font-size="10" fill="#1e40af">Policy enforcement</text>
+
+  <!-- Bottom note -->
+  <rect
+    x="130"
+    y="240"
+    width="640"
+    height="30"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1"
+  />
+  <text
+    x="450"
+    y="260"
+    text-anchor="middle"
+    font-size="12"
+    fill="#6b7280"
+  >Wake word detection and STT run locally. Only text enters the agent pipeline.</text>
+</svg>

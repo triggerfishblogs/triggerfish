@@ -48,7 +48,7 @@ fix is released, whichever comes first.
 - Secrets leakage (credentials appearing in logs, context, or storage)
 - Prompt injection attacks that successfully influence deterministic policy
   decisions
-- Official Docker images and install scripts
+- Official Docker images (when available) and install scripts
 
 ### Out of scope
 

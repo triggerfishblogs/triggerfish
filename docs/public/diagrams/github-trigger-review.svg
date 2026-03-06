@@ -1,0 +1,251 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 880 400"
+  width="880"
+  height="400"
+  font-family="system-ui, sans-serif"
+>
+  <defs>
+    <marker
+      id="gtr-arrow"
+      markerWidth="10"
+      markerHeight="7"
+      refX="10"
+      refY="3.5"
+      orient="auto"
+    >
+      <polygon points="0 0, 10 3.5, 0 7" fill="#374151" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="880" height="400" fill="#ffffff" />
+
+  <!-- Title -->
+  <text
+    x="440"
+    y="36"
+    text-anchor="middle"
+    font-size="18"
+    font-weight="700"
+    fill="#1e40af"
+  >GitHub Webhook Review Flow</text>
+
+  <!-- Step 1: Reviewer posts feedback -->
+  <rect
+    x="30"
+    y="70"
+    width="150"
+    height="70"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#9ca3af"
+    stroke-width="2"
+  />
+  <text
+    x="105"
+    y="100"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="700"
+    fill="#374151"
+  >Reviewer posts</text>
+  <text x="105" y="118" text-anchor="middle" font-size="12" font-weight="700" fill="#374151"
+  >feedback</text>
+
+  <!-- Arrow 1 → 2 -->
+  <line x1="180" y1="105" x2="208" y2="105" stroke="#374151" stroke-width="2" marker-end="url(#gtr-arrow)" />
+
+  <!-- Step 2: GitHub sends webhook -->
+  <rect
+    x="220"
+    y="70"
+    width="140"
+    height="70"
+    rx="8"
+    fill="#fef3c7"
+    stroke="#d97706"
+    stroke-width="2"
+  />
+  <text
+    x="290"
+    y="100"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="700"
+    fill="#92400e"
+  >GitHub sends</text>
+  <text x="290" y="118" text-anchor="middle" font-size="12" font-weight="700" fill="#92400e"
+  >webhook</text>
+
+  <!-- Arrow 2 → 3 -->
+  <line x1="360" y1="105" x2="388" y2="105" stroke="#374151" stroke-width="2" marker-end="url(#gtr-arrow)" />
+
+  <!-- Step 3: HMAC verification -->
+  <rect
+    x="400"
+    y="70"
+    width="130"
+    height="70"
+    rx="8"
+    fill="#dbeafe"
+    stroke="#1e40af"
+    stroke-width="2"
+  />
+  <text
+    x="465"
+    y="100"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="700"
+    fill="#1e40af"
+  >HMAC</text>
+  <text x="465" y="118" text-anchor="middle" font-size="12" font-weight="700" fill="#1e40af"
+  >verification</text>
+
+  <!-- Arrow 3 → 4 -->
+  <line x1="530" y1="105" x2="558" y2="105" stroke="#374151" stroke-width="2" marker-end="url(#gtr-arrow)" />
+
+  <!-- Step 4: Spawn isolated session -->
+  <rect
+    x="570"
+    y="70"
+    width="130"
+    height="70"
+    rx="8"
+    fill="#dbeafe"
+    stroke="#1e40af"
+    stroke-width="2"
+  />
+  <text
+    x="635"
+    y="100"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="700"
+    fill="#1e40af"
+  >Spawn isolated</text>
+  <text x="635" y="118" text-anchor="middle" font-size="12" font-weight="700" fill="#1e40af"
+  >session</text>
+
+  <!-- Arrow 4 → 5 -->
+  <line x1="700" y1="105" x2="728" y2="105" stroke="#374151" stroke-width="2" marker-end="url(#gtr-arrow)" />
+
+  <!-- Step 5: Read tracking file -->
+  <rect
+    x="740"
+    y="70"
+    width="120"
+    height="70"
+    rx="8"
+    fill="#dbeafe"
+    stroke="#1e40af"
+    stroke-width="2"
+  />
+  <text
+    x="800"
+    y="100"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="700"
+    fill="#1e40af"
+  >Agent reads</text>
+  <text x="800" y="118" text-anchor="middle" font-size="12" font-weight="700" fill="#1e40af"
+  >tracking file</text>
+
+  <!-- Arrow down to second row -->
+  <line x1="800" y1="140" x2="800" y2="188" stroke="#374151" stroke-width="2" marker-end="url(#gtr-arrow)" />
+
+  <!-- Step 6: Addresses review -->
+  <rect
+    x="700"
+    y="200"
+    width="160"
+    height="60"
+    rx="8"
+    fill="#dcfce7"
+    stroke="#16a34a"
+    stroke-width="2"
+  />
+  <text
+    x="780"
+    y="226"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="700"
+    fill="#166534"
+  >Addresses review</text>
+  <text x="780" y="245" text-anchor="middle" font-size="12" fill="#166534"
+  >comments</text>
+
+  <!-- Arrow 6 → 7 -->
+  <line x1="700" y1="230" x2="632" y2="230" stroke="#374151" stroke-width="2" marker-end="url(#gtr-arrow)" />
+
+  <!-- Step 7: Commits & pushes -->
+  <rect
+    x="470"
+    y="200"
+    width="150"
+    height="60"
+    rx="8"
+    fill="#dcfce7"
+    stroke="#16a34a"
+    stroke-width="2"
+  />
+  <text
+    x="545"
+    y="226"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="700"
+    fill="#166534"
+  >Commits &amp;</text>
+  <text x="545" y="245" text-anchor="middle" font-size="12" fill="#166534"
+  >pushes</text>
+
+  <!-- Security annotations -->
+  <rect
+    x="30"
+    y="200"
+    width="380"
+    height="70"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1"
+  />
+  <text
+    x="220"
+    y="224"
+    text-anchor="middle"
+    font-size="12"
+    font-weight="600"
+    fill="#374151"
+  >Security guarantees at each step:</text>
+  <text x="220" y="244" text-anchor="middle" font-size="11" fill="#6b7280"
+  >HMAC prevents spoofed webhooks</text>
+  <text x="220" y="260" text-anchor="middle" font-size="11" fill="#6b7280"
+  >Isolated session prevents cross-contamination</text>
+
+  <!-- Bottom note -->
+  <rect
+    x="100"
+    y="310"
+    width="680"
+    height="60"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1"
+  />
+  <text
+    x="440"
+    y="336"
+    text-anchor="middle"
+    font-size="13"
+    font-weight="600"
+    fill="#374151"
+  >Fully automated: no human needed between review and fix</text>
+  <text x="440" y="356" text-anchor="middle" font-size="12" fill="#6b7280"
+  >The agent autonomously reads feedback, makes changes, and pushes — all within policy boundaries.</text>
+</svg>

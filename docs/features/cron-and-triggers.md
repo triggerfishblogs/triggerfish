@@ -181,11 +181,14 @@ Trigger context injection respects the no-write-down rule:
 - If the trigger's classification **exceeds** the session taint, the session
   taint **escalates** to match
 - If the session taint **exceeds** the trigger's classification, the injection
-  is **blocked** — data cannot flow from a higher classification to a lower one
+  is **allowed** — lower-classification data can always flow into a
+  higher-classification session (normal `canFlowTo` behavior). The session taint
+  is unchanged.
 
-::: warning A session already tainted at CONFIDENTIAL cannot load a PUBLIC
-trigger result. This prevents classified context from being mixed with
-lower-classification data in ways that could leak information. :::
+::: info A CONFIDENTIAL session can load a PUBLIC trigger result without issue —
+data flows upward. The reverse (injecting CONFIDENTIAL trigger data into a
+session with a PUBLIC ceiling) would escalate the session taint to
+CONFIDENTIAL. :::
 
 ### Persistence
 

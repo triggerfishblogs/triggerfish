@@ -51,9 +51,9 @@ as low-classification.
 | -------------- | ---------- | -------------- | ------------------------------ |
 | `INTERNAL`     | `INTERNAL` | `INTERNAL`     | No (CONFIDENTIAL > INTERNAL)   |
 | `INTERNAL`     | `EXTERNAL` | `PUBLIC`       | No                             |
-| `CONFIDENTIAL` | `INTERNAL` | `CONFIDENTIAL` | Yes                            |
+| `CONFIDENTIAL` | `INTERNAL` | `INTERNAL`     | No (CONFIDENTIAL > INTERNAL)   |
 | `CONFIDENTIAL` | `EXTERNAL` | `PUBLIC`       | No                             |
-| `RESTRICTED`   | `INTERNAL` | `RESTRICTED`   | Yes                            |
+| `RESTRICTED`   | `INTERNAL` | `INTERNAL`     | No (CONFIDENTIAL > INTERNAL)   |
 
 ## Channel Classification Rules
 

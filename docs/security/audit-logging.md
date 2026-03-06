@@ -124,6 +124,8 @@ Every enforcement hook execution produces an audit record containing:
 
 ## Audit Trace Capabilities
 
+<img src="/diagrams/audit-trace-flow.svg" alt="Audit trace flow: forward trace, backward trace, and classification justification feed into compliance export" style="max-width: 100%;" />
+
 Audit records can be queried in four ways, each serving a different compliance
 and forensic need.
 
@@ -259,8 +261,6 @@ system) and updated as data is transformed. Aggregated data inherits
 `max(input classifications)` -- if any input is CONFIDENTIAL, the output is at
 least CONFIDENTIAL.
 
-::: info Lineage tracking events include:
-
 | Event                                 | Lineage Action                              |
 | ------------------------------------- | ------------------------------------------- |
 | Data read from integration            | Create lineage record with origin           |
@@ -268,7 +268,6 @@ least CONFIDENTIAL.
 | Data aggregated from multiple sources | Merge lineage, classification = max(inputs) |
 | Data sent to channel                  | Record destination, verify classification   |
 | Session reset                         | Archive lineage records, clear from context |
-| :::                                   |                                             |
 
 ## Storage and Retention
 

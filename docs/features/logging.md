@@ -88,20 +88,20 @@ file locked -- the error is swallowed silently.
 This is intentional. Logging should never crash the application or slow down the
 agent. The stderr output serves as a fallback if file writes fail.
 
-## Log Analyst Skill
+## Log Read Tool
 
-Triggerfish ships with a bundled `log-analyst` skill that helps diagnose issues
-from log files. The skill can:
+The `log_read` tool gives the agent direct access to structured log history. The
+agent can read recent log entries, filter by component tag or severity, and
+diagnose issues without leaving the conversation.
 
-- Extract and summarize errors from a time range
-- Identify recurring patterns (repeated failures, retry storms)
-- Correlate events across components (e.g., a provider timeout leading to a
-  failover)
-- Prepare redacted bug reports suitable for sharing
+| Parameter  | Type   | Required | Description                                                   |
+| ---------- | ------ | -------- | ------------------------------------------------------------- |
+| `lines`    | number | no       | Number of recent log lines to return (default: 100)           |
+| `level`    | string | no       | Minimum severity filter (`error`, `warn`, `info`, `debug`)    |
+| `component`| string | no       | Filter by component tag (e.g., `gateway`, `orch`, `provider`) |
 
-::: tip Ask your agent "analyze the last hour of logs" or "what errors happened
-today" -- the log-analyst skill handles parsing, filtering, and summarization.
-:::
+::: tip Ask your agent "what errors happened today" or "show me recent gateway
+logs" -- the `log_read` tool handles filtering and retrieval. :::
 
 ## Viewing Logs
 

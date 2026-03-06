@@ -148,7 +148,7 @@ For personal tier users, recipient classification starts with a safe default:
 | Default                      | Classification |
 | ---------------------------- | -------------- |
 | All recipients               | EXTERNAL       |
-| User-marked trusted contacts | TRUSTED        |
+| User-marked trusted contacts | INTERNAL       |
 
 ::: tip In personal tier, all contacts default to EXTERNAL. This means the
 no-write-down rule will block any classified data from being sent to them. To

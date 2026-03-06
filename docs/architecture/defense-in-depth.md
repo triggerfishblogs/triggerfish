@@ -1,6 +1,6 @@
 # Defense in Depth
 
-Triggerfish implements security as 10 independent, overlapping layers. No single
+Triggerfish implements security as 12 independent, overlapping layers. No single
 layer is sufficient on its own. Together, they form a defense that degrades
 gracefully -- even if one layer is compromised, the remaining layers continue to
 protect the system.
@@ -11,7 +11,7 @@ authentication still faces session taint tracking, policy hooks, and audit
 logging. An LLM that is prompt-injected still cannot influence the deterministic
 policy layer below it. :::
 
-## The 10 Layers
+## The 12 Layers
 
 ### Layer 1: Channel Authentication
 
@@ -50,15 +50,7 @@ Triggerfish uses the user's delegated OAuth tokens -- not system service
 accounts -- to query external systems. The source system enforces its own
 permission model:
 
-```
-Traditional model:
-  Agent uses system service account -> sees ALL records
-  Security depends on LLM refusing to show restricted data
-
-Triggerfish model:
-  Agent uses user's delegated token -> sees only user's records
-  Source system enforces permissions, no LLM judgment needed
-```
+<img src="/diagrams/traditional-vs-triggerfish.svg" alt="Traditional vs Triggerfish: traditional model gives LLM direct control, Triggerfish routes all actions through a deterministic policy layer" style="max-width: 100%;" />
 
 The Plugin SDK enforces this at the API level:
 
@@ -139,12 +131,7 @@ user classifies them. The Gateway enforces:
 - Taint tracking on all MCP responses
 - Injection pattern scanning in parameters
 
-```
-MCP Server States:
-  UNTRUSTED  -- default, cannot be invoked
-  CLASSIFIED -- reviewed, assigned level, tools permitted
-  BLOCKED    -- explicitly prohibited
-```
+<img src="/diagrams/mcp-server-states.svg" alt="MCP server states: UNTRUSTED (default), CLASSIFIED (reviewed and permitted), BLOCKED (explicitly prohibited)" style="max-width: 100%;" />
 
 ### Layer 7: Plugin Sandbox
 
@@ -166,7 +153,7 @@ Plugins cannot:
 
 ::: tip The plugin sandbox is distinct from the agent exec environment. Plugins
 are untrusted code that the system protects _from_. The exec environment is a
-workspace where the agent is empowered _to build_ -- with policy-governed
+workspace where the agent is allowed _to build_ -- with policy-governed
 access, not sandbox isolation. :::
 
 ### Layer 8: Secrets Isolation
@@ -201,17 +188,7 @@ privilege escalation:
 - Circular invocations are detected and rejected
 - Delegation depth is limited and enforced
 
-```
-Attack: Data laundering via agent chain
-  Agent A accesses CONFIDENTIAL data
-  Agent A invokes Agent B (lower ceiling)
-  Agent B sends to PUBLIC channel
-
-Defense:
-  Step 2 is BLOCKED -- A's taint exceeds B's ceiling
-  Even if B had matching ceiling, B inherits A's taint
-  B cannot output to channel below inherited taint
-```
+<img src="/diagrams/data-laundering-defense.svg" alt="Data laundering defense: attack path blocked at ceiling check and taint inheritance prevents output to lower-classification channels" style="max-width: 100%;" />
 
 ### Layer 10: Audit Logging
 
@@ -253,28 +230,46 @@ hierarchy. Even an org admin cannot turn off logging for their own actions.
 Enterprise deployments can optionally enable full content logging (including
 blocked message content) for forensic requirements. :::
 
+### Layer 11: SSRF Prevention
+
+**Protects against:** Server-side request forgery, internal network
+reconnaissance, cloud metadata exfiltration.
+
+All outbound HTTP requests (from `web_fetch`, `browser.navigate`, and plugin
+network access) resolve DNS first and check the resolved IP against a hardcoded
+denylist of private and reserved ranges. This prevents an attacker from tricking
+the agent into accessing internal services via crafted URLs.
+
+- Private ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) are always
+  blocked
+- Link-local (`169.254.0.0/16`) and cloud metadata endpoints are blocked
+- Loopback (`127.0.0.0/8`) is blocked
+- The denylist is hardcoded and not configurable -- there is no admin override
+- DNS resolution happens before the request, preventing DNS rebinding attacks
+
+### Layer 12: Memory Classification Gating
+
+**Protects against:** Cross-session data leakage through memory, classification
+downgrade via memory writes, unauthorized access to classified memories.
+
+The cross-session memory system enforces classification at both write and read
+time:
+
+- **Writes**: Memory entries are forced to the current session's taint level.
+  The LLM cannot choose a lower classification for stored memories.
+- **Reads**: Memory queries are filtered by `canFlowTo` -- a session can only
+  read memories at or below its current taint level.
+
+This prevents an agent from storing CONFIDENTIAL data as PUBLIC in memory and
+later retrieving it in a lower-taint session to bypass the no-write-down rule.
+
 ## Trust Hierarchy
 
 The trust model defines who has authority over what. Higher tiers cannot bypass
 lower-tier security rules, but they can configure the adjustable parameters
 within those rules.
 
-```
-TRIGGERFISH (Vendor)
-  - Zero access by default
-  - Customer-granted support access only (time-bound, logged)
-         ^
-         | explicit grant only
-ORG ADMIN (Customer)
-  - Full visibility into all employee-agent activity
-  - Sets policies, permissions, allowed integrations
-  - Controls data retention, export, legal hold
-         ^
-         | org policy constrains
-EMPLOYEE (End User)
-  - Uses agent within org-defined boundaries
-  - Knows conversations are visible to employer
-```
+<img src="/diagrams/trust-hierarchy.svg" alt="Trust hierarchy: Triggerfish vendor (zero access), Org Admin (sets policies), Employee (uses agent within boundaries)" style="max-width: 100%;" />
 
 ::: tip **Personal tier:** The user IS the org admin. Full sovereignty. No
 Triggerfish visibility. The vendor has zero access to user data by default and

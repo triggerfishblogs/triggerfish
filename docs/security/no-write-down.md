@@ -15,12 +15,7 @@ exfiltrate sensitive information.
 
 Triggerfish uses four classification levels (highest to lowest):
 
-```
-RESTRICTED    -->  RESTRICTED only
-CONFIDENTIAL  -->  CONFIDENTIAL or RESTRICTED
-INTERNAL      -->  INTERNAL, CONFIDENTIAL, or RESTRICTED
-PUBLIC        -->  Anywhere
-```
+<img src="/diagrams/write-down-rules.svg" alt="Write-down rules: data flows only to equal or higher classification levels" style="max-width: 100%;" />
 
 Data classified at a given level can flow to that level or any level above it.
 It can never flow downward. This is the no-write-down rule.
@@ -46,7 +41,7 @@ level. If either one is below, the output is blocked.
 | -------------------- | --------------------------- | ------------------------ |
 | INTERNAL (Slack)     | INTERNAL (coworker)         | INTERNAL                 |
 | INTERNAL (Slack)     | EXTERNAL (vendor)           | PUBLIC                   |
-| CONFIDENTIAL (Slack) | INTERNAL (coworker)         | CONFIDENTIAL             |
+| CONFIDENTIAL (Slack) | INTERNAL (coworker)         | INTERNAL                 |
 | CONFIDENTIAL (Email) | EXTERNAL (personal contact) | PUBLIC                   |
 
 ::: info A CONFIDENTIAL channel with an EXTERNAL recipient has an effective

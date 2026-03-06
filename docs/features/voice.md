@@ -2,20 +2,16 @@
 
 <ComingSoon />
 
+::: info The STT and TTS providers listed below are interface-only stubs. The
+provider interfaces are defined but the implementations are not yet connected to
+actual speech services. :::
+
 Triggerfish supports speech interaction with wake word detection, push-to-talk,
 and text-to-speech response across macOS, iOS, and Android.
 
 ## Architecture
 
-```
-Wake Word       STT            Agent           TTS
-Detection    (Speech to      Processing     (Text to
-(local)       Text)        (normal flow)     Speech)
-   |             |               |               |
-   +------>------+------>--------+------>--------+
-                                                 |
-                                            Voice Output
-```
+<img src="/diagrams/voice-pipeline.svg" alt="Voice pipeline: Wake Word Detection → STT → Agent Processing → TTS → Voice Output" style="max-width: 100%;" />
 
 Audio flows through the same agent processing pipeline as text. Voice input is
 transcribed, enters the session as a classified message, passes through policy
@@ -96,6 +92,6 @@ Voice data follows the same classification rules as text:
 - **Audio recordings** (if retained) are classified at the session's taint
   level.
 
-::: info The voice pipeline integrates with Buoy companion apps on iOS and
-Android, enabling push-to-talk and voice wake from mobile devices. See the
-design document for details on the Buoy architecture. :::
+::: info The voice pipeline will integrate with Buoy companion apps on iOS and
+Android, enabling push-to-talk and voice wake from mobile devices. Buoy is not
+yet available. :::

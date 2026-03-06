@@ -3,7 +3,7 @@
 The `explore` tool gives the agent fast, structured understanding of codebases
 and directories. Instead of manually calling `read_file`, `list_directory`, and
 `search_files` in sequence, the agent calls `explore` once and gets back a
-comprehensive analysis produced by parallel sub-agents.
+structured report produced by parallel sub-agents.
 
 ## Tool
 

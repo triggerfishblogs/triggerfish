@@ -14,19 +14,7 @@ handles priority, queuing, and deduplication.
 
 ## How It Works
 
-```
-Cron Job / Trigger / Webhook / Agent
-               |
-               v
-     NotificationService
-     - Priority routing
-     - Offline queuing
-     - Deduplication
-               |
-     +---------+---------+
-     |         |         |
- Telegram    Slack    Discord   ...
-```
+<img src="/diagrams/notification-routing.svg" alt="Notification routing: sources flow through NotificationService with priority routing, queuing, and deduplication to channels" style="max-width: 100%;" />
 
 When any component needs to notify the owner -- a cron job completing, a trigger
 detecting something important, a webhook firing -- it calls the
