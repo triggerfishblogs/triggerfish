@@ -40,3 +40,22 @@ export { runWizardSelective } from "./selective/mod.ts";
 
 export type { VaultPatrolOptions } from "./patrol_vault.ts";
 export { conductVaultPatrol } from "./patrol_vault.ts";
+
+export {
+  type CallbackServer,
+  type CheckoutSessionResponse,
+  createCheckoutSession,
+  type DeviceCodeResponse,
+  type DevicePollResponse,
+  type LicenseValidation,
+  openInBrowser,
+  pollDeviceCode,
+  pollDeviceCodeLoop,
+  PRODUCTION_GATEWAY_URL,
+  requestDeviceCode,
+  resolveGatewayUrl,
+  SANDBOX_GATEWAY_URL,
+  sendMagicLink,
+  startCallbackServer,
+  validateLicenseKey,
+} from "./cloud.ts";
