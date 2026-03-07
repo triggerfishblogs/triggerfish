@@ -19,49 +19,7 @@ import type {
   NotionRichText,
   NotionSearchResult,
 } from "./types.ts";
-
-// ─── Raw API types ──────────────────────────────────────────────────────────
-
-/** Raw rich text from the Notion API. */
-interface RawRichText {
-  readonly type?: string;
-  readonly text?: { readonly content?: string; readonly link?: { readonly url?: string } | null };
-  readonly plain_text?: string;
-  readonly annotations?: {
-    readonly bold?: boolean;
-    readonly italic?: boolean;
-    readonly strikethrough?: boolean;
-    readonly underline?: boolean;
-    readonly code?: boolean;
-  };
-  readonly href?: string | null;
-}
-
-/** Raw property value from a page. */
-interface RawPropertyValue {
-  readonly type: string;
-  readonly title?: readonly { readonly plain_text: string }[];
-  readonly rich_text?: readonly { readonly plain_text: string }[];
-  readonly number?: number | null;
-  readonly select?: { readonly name: string } | null;
-  readonly multi_select?: readonly { readonly name: string }[];
-  readonly date?: { readonly start: string; readonly end?: string | null } | null;
-  readonly checkbox?: boolean;
-  readonly url?: string | null;
-  readonly email?: string | null;
-  readonly phone_number?: string | null;
-  readonly formula?: { readonly type: string; readonly string?: string; readonly number?: number };
-  readonly relation?: readonly { readonly id: string }[];
-  readonly status?: { readonly name: string } | null;
-  readonly [key: string]: unknown;
-}
-
-/** Raw property schema from a database. */
-interface RawPropertySchema {
-  readonly id: string;
-  readonly type: string;
-  readonly name: string;
-}
+import type { RawPropertySchema, RawPropertyValue, RawRichText } from "./raw_types.ts";
 
 // ─── Transformers ───────────────────────────────────────────────────────────
 

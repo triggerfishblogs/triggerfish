@@ -8,6 +8,8 @@
  * @module
  */
 
+export type { RawPropertySchema, RawPropertyValue, RawRichText } from "./raw_types.ts";
+
 export type {
   NotionError,
   NotionRichText,
