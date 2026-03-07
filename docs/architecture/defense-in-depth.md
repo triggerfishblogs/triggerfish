@@ -1,6 +1,6 @@
 # Defense in Depth
 
-Triggerfish implements security as 12 independent, overlapping layers. No single
+Triggerfish implements security as 13 independent, overlapping layers. No single
 layer is sufficient on its own. Together, they form a defense that degrades
 gracefully -- even if one layer is compromised, the remaining layers continue to
 protect the system.
@@ -11,7 +11,7 @@ authentication still faces session taint tracking, policy hooks, and audit
 logging. An LLM that is prompt-injected still cannot influence the deterministic
 policy layer below it. :::
 
-## The 12 Layers
+## The 13 Layers
 
 ### Layer 1: Channel Authentication
 
@@ -172,7 +172,32 @@ Credentials are stored in the OS keychain (personal tier) or vault integration
 The `SECRET_ACCESS` hook logs every credential access with the requesting
 plugin, the credential scope, and the decision.
 
-### Layer 9: Agent Identity
+### Layer 9: Filesystem Tool Sandbox
+
+**Protects against:** Path traversal attacks, unauthorized file access,
+classification bypass via direct filesystem operations.
+
+All filesystem tool operations (read, write, edit, list, search) run inside a
+sandboxed Deno Worker with OS-level permissions scoped to the session's
+taint-appropriate workspace subdirectory. The sandbox enforces three boundaries:
+
+- **Path jail** — every path is resolved to an absolute path and checked against
+  the jail root with separator-aware matching. Traversal attempts (`../`) that
+  escape the workspace are rejected before any I/O occurs
+- **Path classification** — every filesystem path is classified through a fixed
+  resolution chain: hardcoded protected paths (RESTRICTED), workspace
+  classification directories, configured path mappings, then default
+  classification. The agent cannot access paths above its session taint
+- **Taint-scoped permissions** — the sandbox Worker's Deno permissions are set
+  to the workspace subdirectory matching the session's current taint level. When
+  taint escalates, the Worker is respawned with expanded permissions. Permissions
+  can only widen, never narrow within a session
+- **Write protection** — critical files (`TRIGGER.md`, `triggerfish.yaml`,
+  `SPINE.md`) are write-protected at the tool layer regardless of sandbox
+  permissions. These files can only be modified through dedicated management
+  tools that enforce their own classification rules
+
+### Layer 10: Agent Identity
 
 **Protects against:** Privilege escalation through agent chains, data laundering
 via delegation.
@@ -190,7 +215,7 @@ privilege escalation:
 
 <img src="/diagrams/data-laundering-defense.svg" alt="Data laundering defense: attack path blocked at ceiling check and taint inheritance prevents output to lower-classification channels" style="max-width: 100%;" />
 
-### Layer 10: Audit Logging
+### Layer 11: Audit Logging
 
 **Protects against:** Undetectable breaches, compliance failures, inability to
 investigate incidents.
@@ -230,7 +255,7 @@ hierarchy. Even an org admin cannot turn off logging for their own actions.
 Enterprise deployments can optionally enable full content logging (including
 blocked message content) for forensic requirements. :::
 
-### Layer 11: SSRF Prevention
+### Layer 12: SSRF Prevention
 
 **Protects against:** Server-side request forgery, internal network
 reconnaissance, cloud metadata exfiltration.
@@ -247,7 +272,7 @@ the agent into accessing internal services via crafted URLs.
 - The denylist is hardcoded and not configurable -- there is no admin override
 - DNS resolution happens before the request, preventing DNS rebinding attacks
 
-### Layer 12: Memory Classification Gating
+### Layer 13: Memory Classification Gating
 
 **Protects against:** Cross-session data leakage through memory, classification
 downgrade via memory writes, unauthorized access to classified memories.

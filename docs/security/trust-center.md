@@ -31,7 +31,7 @@ tested in CI, and auditable in the open-source repository.
 | Responsible Disclosure Program | <StatusBadge status="active" />  | Documented vulnerability reporting process with defined response timelines. See [disclosure policy](/security/responsible-disclosure).              |
 | Hardened Container Image       | <StatusBadge status="planned" /> | Docker images on Google Distroless base with near-zero CVEs. Automated Trivy scanning in CI.                                                        |
 
-## Defense in Depth — 12 Independent Layers
+## Defense in Depth — 13 Independent Layers
 
 No single layer is sufficient alone. If one layer is compromised, the remaining
 layers continue to protect the system.
@@ -46,10 +46,11 @@ layers continue to protect the system.
 | 06    | MCP Gateway                  | Per-tool permissions, server classification       |
 | 07    | Plugin Sandbox               | Deno + WASM double sandbox (Pyodide)              |
 | 08    | Secrets Isolation            | OS keychain or vault, below LLM layer             |
-| 09    | Agent Identity & Delegation  | Cryptographic delegation chains                   |
-| 10    | Audit Logging                | Cannot be disabled                                |
-| 11    | SSRF Prevention              | IP denylist + DNS resolution checks               |
-| 12    | Memory Classification Gating | Write at own level, read down only                |
+| 09    | Filesystem Tool Sandbox      | Path jail, path classification, taint-scoped I/O  |
+| 10    | Agent Identity & Delegation  | Cryptographic delegation chains                   |
+| 11    | Audit Logging                | Cannot be disabled                                |
+| 12    | SSRF Prevention              | IP denylist + DNS resolution checks               |
+| 13    | Memory Classification Gating | Write at own level, read down only                |
 
 Read the full [Defense in Depth](/architecture/defense-in-depth) architecture
 documentation.

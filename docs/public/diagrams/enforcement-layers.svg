@@ -1,12 +1,12 @@
 <svg
   xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 700 820"
+  viewBox="0 0 700 880"
   width="700"
-  height="820"
+  height="880"
   font-family="system-ui, sans-serif"
 >
   <!-- Background -->
-  <rect width="700" height="820" fill="#ffffff" />
+  <rect width="700" height="880" fill="#ffffff" />
 
   <!-- Title -->
   <text
@@ -16,7 +16,7 @@
     font-size="18"
     font-weight="700"
     fill="#1e40af"
-  >12 Defense Layers</text>
+  >13 Defense Layers</text>
 
   <!-- Layer 1 -->
   <rect
@@ -226,15 +226,15 @@
     fill="#374151"
   >Default Deny (Unclassified = Rejected)</text>
 
-  <!-- Layer 9 -->
+  <!-- Layer 9 — Filesystem Tool Sandbox (light green) -->
   <rect
     x="80"
     y="540"
     width="540"
     height="50"
     rx="8"
-    fill="#f3f4f6"
-    stroke="#d1d5db"
+    fill="#f0fdf4"
+    stroke="#22c55e"
     stroke-width="1.5"
   />
   <text
@@ -242,15 +242,15 @@
     y="570"
     font-size="14"
     font-weight="700"
-    fill="#374151"
+    fill="#15803d"
   >9</text>
   <text
     x="140"
     y="570"
     font-size="13"
-    font-weight="500"
-    fill="#374151"
-  >Rate Limiting &amp; Abuse Prevention</text>
+    font-weight="600"
+    fill="#15803d"
+  >Filesystem Tool Sandbox (Path Jail + Classification)</text>
 
   <!-- Layer 10 -->
   <rect
@@ -276,12 +276,38 @@
     font-size="13"
     font-weight="500"
     fill="#374151"
-  >Audit Logging &amp; Data Lineage</text>
+  >Rate Limiting &amp; Abuse Prevention</text>
 
-  <!-- Layer 11 — SSRF Prevention (light orange) -->
+  <!-- Layer 11 -->
   <rect
     x="80"
     y="660"
+    width="540"
+    height="50"
+    rx="8"
+    fill="#f3f4f6"
+    stroke="#d1d5db"
+    stroke-width="1.5"
+  />
+  <text
+    x="100"
+    y="690"
+    font-size="14"
+    font-weight="700"
+    fill="#374151"
+  >11</text>
+  <text
+    x="140"
+    y="690"
+    font-size="13"
+    font-weight="500"
+    fill="#374151"
+  >Audit Logging &amp; Data Lineage</text>
+
+  <!-- Layer 12 — SSRF Prevention (light orange) -->
+  <rect
+    x="80"
+    y="720"
     width="540"
     height="50"
     rx="8"
@@ -291,23 +317,23 @@
   />
   <text
     x="100"
-    y="690"
+    y="750"
     font-size="14"
     font-weight="700"
     fill="#c2410c"
-  >11</text>
+  >12</text>
   <text
     x="140"
-    y="690"
+    y="750"
     font-size="13"
     font-weight="600"
     fill="#c2410c"
   >SSRF Prevention (DNS Resolve + IP Denylist)</text>
 
-  <!-- Layer 12 — Memory Classification Gating (light purple) -->
+  <!-- Layer 13 — Memory Classification Gating (light purple) -->
   <rect
     x="80"
-    y="720"
+    y="780"
     width="540"
     height="50"
     rx="8"
@@ -317,14 +343,14 @@
   />
   <text
     x="100"
-    y="750"
+    y="810"
     font-size="14"
     font-weight="700"
     fill="#6d28d9"
-  >12</text>
+  >13</text>
   <text
     x="140"
-    y="750"
+    y="810"
     font-size="13"
     font-weight="600"
     fill="#6d28d9"
@@ -333,7 +359,7 @@
   <!-- Bottom note -->
   <rect
     x="140"
-    y="786"
+    y="846"
     width="420"
     height="24"
     rx="6"
@@ -343,7 +369,7 @@
   />
   <text
     x="350"
-    y="803"
+    y="863"
     text-anchor="middle"
     font-size="12"
     fill="#6b7280"

@@ -83,8 +83,8 @@ does what it is told, every time. :::
 
 ## Defense in Depth
 
-Triggerfish implements twelve layers of defense. No single layer is sufficient on
-its own; together, they form a security boundary:
+Triggerfish implements thirteen layers of defense. No single layer is sufficient
+on its own; together, they form a security boundary:
 
 1. **Channel authentication** -- code-verified identity at session establishment
 2. **Permission-aware data access** -- source system permissions, not system
@@ -95,11 +95,13 @@ its own; together, they form a security boundary:
 6. **MCP Gateway** -- secure external tool access with per-tool permissions
 7. **Plugin sandbox** -- Deno + WASM double isolation
 8. **Secrets isolation** -- OS keychain or vault, never config files
-9. **Agent identity** -- cryptographic delegation chains
-10. **Audit logging** -- all decisions recorded, no exceptions
-11. **SSRF prevention** -- IP denylist + DNS resolution checks on all outbound
+9. **Filesystem tool sandbox** -- path jail, path classification, taint-scoped
+   OS-level I/O permissions
+10. **Agent identity** -- cryptographic delegation chains
+11. **Audit logging** -- all decisions recorded, no exceptions
+12. **SSRF prevention** -- IP denylist + DNS resolution checks on all outbound
     HTTP
-12. **Memory classification gating** -- writes forced to session taint, reads
+13. **Memory classification gating** -- writes forced to session taint, reads
     filtered by `canFlowTo`
 
 ## Next Steps

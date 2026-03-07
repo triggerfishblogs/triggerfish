@@ -76,9 +76,9 @@ The default is SQLite WAL at `~/.triggerfish/data/triggerfish.db`.
 
 ### Defense in Depth
 
-Security is layered across 12 independent mechanisms, from channel
+Security is layered across 13 independent mechanisms, from channel
 authentication and permission-aware data access through session taint, policy
-hooks, plugin sandboxing, and audit logging. No single layer is sufficient
+hooks, plugin sandboxing, filesystem tool sandboxing, and audit logging. No single layer is sufficient
 alone; together they form a defense that degrades gracefully even if one layer
 is compromised.
 
