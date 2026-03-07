@@ -112,6 +112,27 @@ export function createSecretAccessGate(
       };
 
       const result = await dispatch(input);
+
+      if (result.action === "DENY") {
+        log.warn("Secret access denied by hook", {
+          operation: "checkAccess",
+          secretPath,
+          provider,
+          classification,
+          sessionTaint,
+          reason: result.reason,
+        });
+      } else {
+        log.info("Secret access allowed by hook", {
+          operation: "checkAccess",
+          secretPath,
+          provider,
+          classification,
+          sessionTaint,
+          escalateTo: result.escalateTo,
+        });
+      }
+
       return { ok: true, value: result };
     },
   };

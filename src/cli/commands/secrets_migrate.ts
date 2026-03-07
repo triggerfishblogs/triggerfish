@@ -8,7 +8,7 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
-import type { SecretStore } from "../../core/secrets/backends/secret_store.ts";
+import type { SecretStore } from "../../core/secrets/mod.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("secrets:migrate");
@@ -24,7 +24,7 @@ export interface MigrationOptions {
   /** Whether to delete secrets from the source after migration. Default: false. */
   readonly deleteSource?: boolean;
   /** Progress callback for each migrated secret. */
-  readonly onProgress?: (name: string, status: "migrated" | "failed" | "verified") => void;
+  readonly onProgress?: (name: string, status: "failed" | "verified") => void;
 }
 
 /** Migration result. */

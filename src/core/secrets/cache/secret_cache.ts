@@ -112,56 +112,54 @@ export function createSecretCache(
   let misses = 0;
   let staleServes = 0;
 
-  const get: SecretCache["get"] = async (name, fetcher) => {
-    const now = Date.now();
-    const existing = cache.get(name);
+  type CacheResult = Result<{ value: string; metadata?: SecretMetadata }, string>;
 
-    if (existing && isFresh(existing, now, ttlMs)) {
-      cache.set(name, { ...existing, lastAccessedAt: now });
-      hits++;
-      return {
-        ok: true,
-        value: { value: existing.value, metadata: existing.metadata },
-      };
-    }
+  function serveFreshEntry(name: string, entry: CacheEntry, now: number): CacheResult {
+    cache.set(name, { ...entry, lastAccessedAt: now });
+    hits++;
+    return { ok: true, value: { value: entry.value, metadata: entry.metadata } };
+  }
 
-    if (existing && isWithinGrace(existing, now, ttlMs, staleGraceMs)) {
-      cache.set(name, { ...existing, lastAccessedAt: now });
-      staleServes++;
-
-      fetcher(name).then((result) => {
-        if (result.ok) {
-          cache.set(name, {
-            value: result.value.value,
-            metadata: result.value.metadata,
-            fetchedAt: Date.now(),
-            lastAccessedAt: Date.now(),
-          });
-        }
-      }).catch((err) => {
-        log.warn("Secret cache background revalidation failed", {
-          operation: "get",
-          name,
-          err,
+  function triggerBackgroundRefetch(name: string, fetcher: SecretFetcher): void {
+    fetcher(name).then((result) => {
+      if (result.ok) {
+        const now = Date.now();
+        cache.set(name, {
+          value: result.value.value,
+          metadata: result.value.metadata,
+          fetchedAt: now,
+          lastAccessedAt: now,
         });
+      }
+    }).catch((err) => {
+      log.warn("Secret cache background revalidation failed", {
+        operation: "get",
+        name,
+        err,
       });
+    });
+  }
 
-      return {
-        ok: true,
-        value: { value: existing.value, metadata: existing.metadata },
-      };
-    }
+  function serveStaleEntry(name: string, entry: CacheEntry, now: number, fetcher: SecretFetcher): CacheResult {
+    cache.set(name, { ...entry, lastAccessedAt: now });
+    staleServes++;
+    triggerBackgroundRefetch(name, fetcher);
+    return { ok: true, value: { value: entry.value, metadata: entry.metadata } };
+  }
 
+  async function fetchAndPopulate(
+    name: string,
+    existing: CacheEntry | undefined,
+    now: number,
+    fetcher: SecretFetcher,
+  ): Promise<CacheResult> {
     misses++;
     const result = await fetcher(name);
 
     if (!result.ok) {
       if (existing) {
         staleServes++;
-        return {
-          ok: true,
-          value: { value: existing.value, metadata: existing.metadata },
-        };
+        return { ok: true, value: { value: existing.value, metadata: existing.metadata } };
       }
       return result;
     }
@@ -178,6 +176,21 @@ export function createSecretCache(
     });
 
     return result;
+  }
+
+  const get: SecretCache["get"] = (name, fetcher) => {
+    const now = Date.now();
+    const existing = cache.get(name);
+
+    if (existing && isFresh(existing, now, ttlMs)) {
+      return Promise.resolve(serveFreshEntry(name, existing, now));
+    }
+
+    if (existing && isWithinGrace(existing, now, ttlMs, staleGraceMs)) {
+      return Promise.resolve(serveStaleEntry(name, existing, now, fetcher));
+    }
+
+    return fetchAndPopulate(name, existing, now, fetcher);
   };
 
   return {

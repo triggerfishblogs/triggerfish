@@ -8,7 +8,7 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
-import type { SecretStore } from "../../core/secrets/backends/secret_store.ts";
+import type { SecretStore } from "../../core/secrets/mod.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("secrets:verify");

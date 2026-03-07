@@ -16,12 +16,6 @@ export interface TokenAuthOptions {
   readonly token: string;
 }
 
-/** Auth state returned by token auth. */
-export interface TokenAuthState {
-  readonly token: string;
-  readonly renewable: false;
-}
-
 /**
  * Create a static token authenticator.
  *
