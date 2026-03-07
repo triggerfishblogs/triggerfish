@@ -20,6 +20,7 @@ import { enableWindowsAnsi } from "./platform.ts";
 import { runDive, runPatrol } from "./dive_command.ts";
 import {
   runDaemonLogs,
+  runDaemonRestart,
   runDaemonStart,
   runDaemonStatus,
   runDaemonStop,
@@ -119,6 +120,7 @@ function buildCommandDispatchMap(
       const { runTriggers } = await import("./commands/run_triggers.ts");
       await runTriggers();
     },
+    restart: () => runDaemonRestart(),
     start: () => runDaemonStart(),
     stop: () => runDaemonStop(),
     status: () => runDaemonStatus(),

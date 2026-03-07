@@ -12,6 +12,7 @@ import {
   bundleLogs,
   getDaemonStatus,
   installAndStartDaemon,
+  restartDaemon,
   stopDaemon,
   tailLogs,
   updateTriggerfish,
@@ -68,6 +69,21 @@ export async function runDaemonStop(): Promise<void> {
   } else {
     log.error("Daemon stop failed", {
       operation: "stopDaemon",
+      message: result.message,
+    });
+    console.log(`✗ ${result.message}`);
+    Deno.exit(1);
+  }
+}
+
+/** Restart the Triggerfish daemon (stop, wait, start). */
+export async function runDaemonRestart(): Promise<void> {
+  const result = await restartDaemon(Deno.execPath());
+  if (result.ok) {
+    console.log("✓ Daemon restarted");
+  } else {
+    log.error("Daemon restart failed", {
+      operation: "restartDaemon",
       message: result.message,
     });
     console.log(`✗ ${result.message}`);
