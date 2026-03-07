@@ -18,6 +18,10 @@ export {
 export { disconnectGithub, runConnectGithub } from "./connect_github.ts";
 export { disconnectNotion, runConnectNotion } from "./connect_notion.ts";
 
+import { disconnectGoogle, runConnectGoogle } from "./connect_google.ts";
+import { disconnectGithub, runConnectGithub } from "./connect_github.ts";
+import { disconnectNotion, runConnectNotion } from "./connect_notion.ts";
+
 /** Print connect usage help. */
 function printConnectUsage(): void {
   console.log(`
