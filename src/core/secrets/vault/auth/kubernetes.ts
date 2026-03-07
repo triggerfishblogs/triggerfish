@@ -9,6 +9,9 @@
 
 import type { Result } from "../../../types/classification.ts";
 import type { VaultAuthResponse } from "../vault_types.ts";
+import { createLogger } from "../../../logger/logger.ts";
+
+const log = createLogger("vault:kubernetes");
 
 /** Options for Kubernetes authentication. */
 export interface KubernetesAuthOptions {
@@ -47,10 +50,10 @@ export function createKubernetesAuth(
       const jwt = await Deno.readTextFile(jwtPath);
       return { ok: true, value: jwt.trim() };
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      log.warn("Kubernetes JWT read failed", { operation: "readJwt", jwtPath, err });
       return {
         ok: false,
-        error: `Kubernetes JWT read failed at ${jwtPath}: ${message}`,
+        error: `Kubernetes JWT read failed at ${jwtPath}: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
   }
@@ -97,10 +100,10 @@ export function createKubernetesAuth(
       token = auth.client_token;
       return { ok: true, value: auth };
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      log.warn("Kubernetes auth login request failed", { operation: "authenticate", err });
       return {
         ok: false,
-        error: `Kubernetes auth login request failed: ${message}`,
+        error: `Kubernetes auth login request failed: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
   }

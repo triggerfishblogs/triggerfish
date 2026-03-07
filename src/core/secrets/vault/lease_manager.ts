@@ -9,6 +9,9 @@
  */
 
 import type { Result } from "../../types/classification.ts";
+import { createLogger } from "../../logger/logger.ts";
+
+const log = createLogger("vault:lease-manager");
 
 /** Options for the lease manager. */
 export interface LeaseManagerOptions {
@@ -92,8 +95,22 @@ export function createLeaseManager(
         retries++;
       }
 
+      log.warn("Lease renewal exhausted retries", {
+        operation: "scheduleRenewal",
+        leaseId: entry.leaseId,
+        retries,
+        action: onRenewalFailure,
+      });
+
       if (onRenewalFailure === "revoke-and-refetch") {
-        await revoker(entry.leaseId);
+        const revokeResult = await revoker(entry.leaseId);
+        if (!revokeResult.ok) {
+          log.warn("Lease revocation failed", {
+            operation: "scheduleRenewal",
+            leaseId: entry.leaseId,
+            err: revokeResult.error,
+          });
+        }
       }
 
       leases.delete(entry.leaseId);

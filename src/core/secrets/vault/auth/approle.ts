@@ -9,6 +9,9 @@
 
 import type { Result } from "../../../types/classification.ts";
 import type { VaultAuthResponse } from "../vault_types.ts";
+import { createLogger } from "../../../logger/logger.ts";
+
+const log = createLogger("vault:approle");
 
 /** Options for AppRole authentication. */
 export interface AppRoleAuthOptions {
@@ -91,10 +94,10 @@ export function createAppRoleAuth(
       token = auth.client_token;
       return { ok: true, value: auth };
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      log.warn("AppRole login request failed", { operation: "login", err });
       return {
         ok: false,
-        error: `AppRole login request failed: ${message}`,
+        error: `AppRole login request failed: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
   }
@@ -124,10 +127,10 @@ export function createAppRoleAuth(
       token = auth.client_token;
       return { ok: true, value: auth };
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      log.warn("Token renewal request failed", { operation: "renewToken", err });
       return {
         ok: false,
-        error: `Token renewal request failed: ${message}`,
+        error: `Token renewal request failed: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
   }
