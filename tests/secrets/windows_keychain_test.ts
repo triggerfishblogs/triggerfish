@@ -41,50 +41,50 @@ function createMockDpapiStore(): {
 
   const store: import("../../src/core/secrets/backends/secret_store.ts").SecretStore =
     {
-      async getSecret(
+      getSecret(
         name: string,
       ): Promise<
         import("../../src/core/types/classification.ts").Result<string, string>
       > {
         const entry = entries.get(name);
         if (entry === undefined) {
-          return {
-            ok: false,
+          return Promise.resolve({
+            ok: false as const,
             error: `Secret '${name}' not found in DPAPI store`,
-          };
+          });
         }
-        return { ok: true, value: mockUnprotect(entry) };
+        return Promise.resolve({ ok: true as const, value: mockUnprotect(entry) });
       },
 
-      async setSecret(
+      setSecret(
         name: string,
         value: string,
       ): Promise<
         import("../../src/core/types/classification.ts").Result<true, string>
       > {
         entries.set(name, mockProtect(value));
-        return { ok: true, value: true };
+        return Promise.resolve({ ok: true as const, value: true as const });
       },
 
-      async deleteSecret(
+      deleteSecret(
         name: string,
       ): Promise<
         import("../../src/core/types/classification.ts").Result<true, string>
       > {
         if (!entries.has(name)) {
-          return {
-            ok: false,
+          return Promise.resolve({
+            ok: false as const,
             error: `Secret '${name}' not found in DPAPI store`,
-          };
+          });
         }
         entries.delete(name);
-        return { ok: true, value: true };
+        return Promise.resolve({ ok: true as const, value: true as const });
       },
 
-      async listSecrets(): Promise<
+      listSecrets(): Promise<
         import("../../src/core/types/classification.ts").Result<string[], string>
       > {
-        return { ok: true, value: [...entries.keys()] };
+        return Promise.resolve({ ok: true as const, value: [...entries.keys()] });
       },
     };
 
