@@ -46,21 +46,15 @@ export async function runConnect(
   _flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
   switch (subcommand) {
-    case "google": {
-      const { runConnectGoogle } = await import("./connect_google.ts");
+    case "google":
       await runConnectGoogle();
       break;
-    }
-    case "github": {
-      const { runConnectGithub } = await import("./connect_github.ts");
+    case "github":
       await runConnectGithub();
       break;
-    }
-    case "notion": {
-      const { runConnectNotion } = await import("./connect_notion.ts");
+    case "notion":
       await runConnectNotion();
       break;
-    }
     default:
       printConnectUsage();
       break;
@@ -75,21 +69,15 @@ export async function runDisconnect(
   _flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
   switch (subcommand) {
-    case "google": {
-      const { disconnectGoogle } = await import("./connect_google.ts");
+    case "google":
       await disconnectGoogle();
       break;
-    }
-    case "github": {
-      const { disconnectGithub } = await import("./connect_github.ts");
+    case "github":
       await disconnectGithub();
       break;
-    }
-    case "notion": {
-      const { disconnectNotion } = await import("./connect_notion.ts");
+    case "notion":
       await disconnectNotion();
       break;
-    }
     default:
       printDisconnectUsage();
       break;

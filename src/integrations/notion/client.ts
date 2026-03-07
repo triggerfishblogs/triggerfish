@@ -207,7 +207,12 @@ export function createNotionClient(config: NotionClientConfig): NotionClient {
     try {
       const data = (await response.json()) as T;
       return { ok: true, value: data };
-    } catch {
+    } catch (err) {
+      log.warn("Notion API response JSON parse failed", {
+        operation: "sendRequest",
+        status: response.status,
+        err,
+      });
       return {
         ok: false,
         error: {
