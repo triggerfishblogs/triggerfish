@@ -95,7 +95,7 @@ export interface PatrolCheckResult {
  *
  * Returns individual check results for each health dimension.
  */
-export function runVaultPatrolChecks(
+export function collectVaultPatrolChecks(
   report: VaultHealthReport,
 ): PatrolCheckResult[] {
   const checks: PatrolCheckResult[] = [];

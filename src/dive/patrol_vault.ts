@@ -12,7 +12,7 @@ import type { VaultClient } from "../core/secrets/vault/vault_client.ts";
 import type { SecretCache } from "../core/secrets/cache/secret_cache.ts";
 import {
   generateVaultHealthReport,
-  runVaultPatrolChecks,
+  collectVaultPatrolChecks,
 } from "../core/secrets/vault/health.ts";
 import type { PatrolCheckResult } from "../core/secrets/vault/health.ts";
 
@@ -28,7 +28,7 @@ export interface VaultPatrolOptions {
  *
  * @returns Array of patrol check results
  */
-export async function runVaultPatrol(
+export async function conductVaultPatrol(
   options: VaultPatrolOptions,
 ): Promise<Result<PatrolCheckResult[], string>> {
   const cacheStats = options.cache
@@ -45,5 +45,5 @@ export async function runVaultPatrol(
     return reportResult;
   }
 
-  return { ok: true, value: runVaultPatrolChecks(reportResult.value) };
+  return { ok: true, value: collectVaultPatrolChecks(reportResult.value) };
 }

@@ -7,7 +7,7 @@
 import { assertEquals } from "@std/assert";
 import {
   generateVaultHealthReport,
-  runVaultPatrolChecks,
+  collectVaultPatrolChecks,
 } from "../../../../src/core/secrets/vault/health.ts";
 import type { VaultClient } from "../../../../src/core/secrets/vault/vault_client.ts";
 
@@ -103,7 +103,7 @@ Deno.test("health report: unreachable Vault server", async () => {
 });
 
 Deno.test("patrol checks: all pass for healthy Vault", () => {
-  const checks = runVaultPatrolChecks({
+  const checks = collectVaultPatrolChecks({
     connected: true,
     initialized: true,
     sealed: false,
@@ -125,7 +125,7 @@ Deno.test("patrol checks: all pass for healthy Vault", () => {
 });
 
 Deno.test("patrol checks: fail when Vault unreachable", () => {
-  const checks = runVaultPatrolChecks({
+  const checks = collectVaultPatrolChecks({
     connected: false,
     initialized: false,
     sealed: true,
@@ -140,7 +140,7 @@ Deno.test("patrol checks: fail when Vault unreachable", () => {
 });
 
 Deno.test("patrol checks: warn when token near expiry", () => {
-  const checks = runVaultPatrolChecks({
+  const checks = collectVaultPatrolChecks({
     connected: true,
     initialized: true,
     sealed: false,
@@ -155,7 +155,7 @@ Deno.test("patrol checks: warn when token near expiry", () => {
 });
 
 Deno.test("patrol checks: warn when cache hit rate low", () => {
-  const checks = runVaultPatrolChecks({
+  const checks = collectVaultPatrolChecks({
     connected: true,
     initialized: true,
     sealed: false,

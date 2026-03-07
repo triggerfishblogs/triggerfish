@@ -18,7 +18,7 @@ export type { VaultAuth } from "./auth/mod.ts";
 
 export {
   generateVaultHealthReport,
-  runVaultPatrolChecks,
+  collectVaultPatrolChecks,
 } from "./health.ts";
 export type {
   PatrolCheckResult,
