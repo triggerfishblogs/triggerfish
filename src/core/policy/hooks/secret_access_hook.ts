@@ -48,6 +48,12 @@ export function evaluateSecretAccessPolicy(
   for (const rule of rules) {
     if (rule.condition(context)) {
       if (rule.action === "DENY") {
+        log.warn("Secret access denied by policy rule", {
+          operation: "evaluateSecretAccessPolicy",
+          secret: input.secretName,
+          rule: rule.name,
+          reason: rule.reason,
+        });
         return {
           action: "DENY",
           reason: rule.reason ?? `Denied by rule: ${rule.name}`,

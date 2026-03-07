@@ -115,13 +115,13 @@ Deno.test("patrol checks: all pass for healthy Vault", () => {
 
   assertEquals(checks.length, 4);
   assertEquals(checks[0].name, "vault_reachable");
-  assertEquals(checks[0].status, "pass");
+  assertEquals(checks[0].status, "HEALTHY");
   assertEquals(checks[1].name, "vault_unsealed");
-  assertEquals(checks[1].status, "pass");
+  assertEquals(checks[1].status, "HEALTHY");
   assertEquals(checks[2].name, "vault_auth_valid");
-  assertEquals(checks[2].status, "pass");
+  assertEquals(checks[2].status, "HEALTHY");
   assertEquals(checks[3].name, "vault_cache_health");
-  assertEquals(checks[3].status, "pass");
+  assertEquals(checks[3].status, "HEALTHY");
 });
 
 Deno.test("patrol checks: fail when Vault unreachable", () => {
@@ -136,7 +136,7 @@ Deno.test("patrol checks: fail when Vault unreachable", () => {
   });
 
   assertEquals(checks.length, 1);
-  assertEquals(checks[0].status, "fail");
+  assertEquals(checks[0].status, "CRITICAL");
 });
 
 Deno.test("patrol checks: warn when token near expiry", () => {
@@ -151,7 +151,7 @@ Deno.test("patrol checks: warn when token near expiry", () => {
   });
 
   const authCheck = checks.find((c) => c.name === "vault_auth_valid");
-  assertEquals(authCheck?.status, "warn");
+  assertEquals(authCheck?.status, "WARNING");
 });
 
 Deno.test("patrol checks: warn when cache hit rate low", () => {
@@ -166,5 +166,5 @@ Deno.test("patrol checks: warn when cache hit rate low", () => {
   });
 
   const cacheCheck = checks.find((c) => c.name === "vault_cache_health");
-  assertEquals(cacheCheck?.status, "warn");
+  assertEquals(cacheCheck?.status, "WARNING");
 });

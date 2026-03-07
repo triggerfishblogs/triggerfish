@@ -83,10 +83,10 @@ export async function generateVaultHealthReport(
   };
 }
 
-/** Patrol check result. */
+/** Patrol check result — status values match dive/patrol.ts HealthStatus. */
 export interface PatrolCheckResult {
   readonly name: string;
-  readonly status: "pass" | "warn" | "fail";
+  readonly status: "HEALTHY" | "WARNING" | "CRITICAL";
   readonly message: string;
 }
 
@@ -102,7 +102,7 @@ export function collectVaultPatrolChecks(
 
   checks.push({
     name: "vault_reachable",
-    status: report.connected ? "pass" : "fail",
+    status: report.connected ? "HEALTHY" : "CRITICAL",
     message: report.connected
       ? `Vault reachable (${report.latencyMs}ms)`
       : "Vault unreachable",
@@ -111,13 +111,13 @@ export function collectVaultPatrolChecks(
   if (report.connected) {
     checks.push({
       name: "vault_unsealed",
-      status: !report.sealed ? "pass" : "fail",
+      status: !report.sealed ? "HEALTHY" : "CRITICAL",
       message: report.sealed ? "Vault is sealed" : "Vault is unsealed",
     });
 
     checks.push({
       name: "vault_auth_valid",
-      status: report.tokenTtlSeconds > 60 ? "pass" : report.tokenTtlSeconds > 0 ? "warn" : "fail",
+      status: report.tokenTtlSeconds > 60 ? "HEALTHY" : report.tokenTtlSeconds > 0 ? "WARNING" : "CRITICAL",
       message: report.tokenTtlSeconds > 0
         ? `Token TTL: ${report.tokenTtlSeconds}s (renewable: ${report.tokenRenewable})`
         : "Token expired or invalid",
@@ -130,7 +130,7 @@ export function collectVaultPatrolChecks(
 
     checks.push({
       name: "vault_cache_health",
-      status: hitRate >= 0.5 ? "pass" : "warn",
+      status: hitRate >= 0.5 ? "HEALTHY" : "WARNING",
       message:
         `Cache: ${report.cacheStats.entries} entries, ${(hitRate * 100).toFixed(0)}% hit rate, ${report.cacheStats.staleServes} stale serves`,
     });
