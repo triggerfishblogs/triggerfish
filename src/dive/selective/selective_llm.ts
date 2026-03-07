@@ -333,8 +333,8 @@ async function promptTriggerfishKeyViaCheckout(): Promise<{
   const gatewayUrl = Deno.env.get("TRIGGERFISH_GATEWAY_URL") ??
     "https://api.trigger.fish";
   const ac = new AbortController();
-  const server = startCallbackServer(ac.signal);
   const flowId = crypto.randomUUID();
+  const server = startCallbackServer(ac.signal, flowId);
 
   try {
     const { createCheckoutSession } = await import("../cloud.ts");
@@ -382,8 +382,8 @@ async function promptTriggerfishKeyViaMagicLink(): Promise<{
   });
 
   const ac = new AbortController();
-  const server = startCallbackServer(ac.signal);
   const flowId = crypto.randomUUID();
+  const server = startCallbackServer(ac.signal, flowId);
 
   try {
     const { sendMagicLink } = await import("../cloud.ts");

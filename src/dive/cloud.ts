@@ -90,6 +90,7 @@ export interface CloudSetupOptions {
  */
 export function startCallbackServer(
   signal?: AbortSignal,
+  expectedFlowId?: string,
 ): CallbackServer {
   let resolveKey: (key: string) => void;
   let rejectKey: (err: Error) => void;
@@ -104,6 +105,10 @@ export function startCallbackServer(
       const url = new URL(req.url);
       if (url.pathname === "/callback") {
         const key = url.searchParams.get("key");
+        const flowId = url.searchParams.get("flow_id");
+        if (expectedFlowId && flowId !== expectedFlowId) {
+          return new Response("Invalid flow", { status: 403 });
+        }
         if (key && key.length > 0) {
           resolveKey!(key);
           const html = "<html><body><h2>Triggerfish setup complete!</h2>" +

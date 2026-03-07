@@ -292,7 +292,9 @@ export function createCloudSearchProvider(
         });
         return {
           ok: false,
-          error: `Cloud Search API error ${response.status}: ${text}`,
+          error: `Cloud Search API error ${response.status}: ${
+            text.slice(0, 200)
+          }`,
         };
       }
 

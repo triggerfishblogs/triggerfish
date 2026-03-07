@@ -149,7 +149,9 @@ export function createTriggerfishProvider(
             continue;
           }
           throw new Error(
-            `Triggerfish Cloud request failed (${response.status}): ${text}`,
+            `Triggerfish Cloud request failed (${response.status}): ${
+              text.slice(0, 200)
+            }`,
           );
         }
 
@@ -173,7 +175,9 @@ export function createTriggerfishProvider(
             continue;
           }
           throw new Error(
-            `Triggerfish Cloud API error: ${JSON.stringify(data.error)}`,
+            `Triggerfish Cloud API error: ${
+              JSON.stringify(data.error).slice(0, 200)
+            }`,
           );
         }
 
@@ -237,7 +241,9 @@ export function createTriggerfishProvider(
       if (!response.ok) {
         const body = await response.text();
         throw new Error(
-          `Triggerfish Cloud stream failed (${response.status}): ${body}`,
+          `Triggerfish Cloud stream failed (${response.status}): ${
+            body.slice(0, 200)
+          }`,
         );
       }
 
