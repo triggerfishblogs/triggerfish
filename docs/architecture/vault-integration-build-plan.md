@@ -389,8 +389,10 @@ When a secret is accessed via Vault:
    `default_level` if no match)
 3. **Taint check** — If `secret.classification > session.taint`, escalate taint
    via `escalateTaint(level, reason)`
-4. **Access gate** — If the session's classification ceiling is below the
-   secret's level, deny access (return error Result)
+4. **Access gate** — Verify the secret's classification can flow to the
+   session using `canFlowTo`; if the secret is above the session's current
+   taint level, escalate taint via `escalateTaint` (taint only goes up,
+   never down)
 5. **Audit** — Log via `SECRET_ACCESS` hook with full context:
    `{ secretPath, classification, sessionId, decision, timestamp }`
 
@@ -434,7 +436,7 @@ hooks:
 src/core/secrets/
   classification/
     secret_classifier.ts     # Path-to-classification mapping logic
-    secret_access_gate.ts    # Enforcement (taint check, ceiling check)
+    secret_access_gate.ts    # Enforcement (taint escalation, canFlowTo check)
     mod.ts                   # Barrel
 src/core/policy/
   hooks/
@@ -446,15 +448,15 @@ src/core/policy/
 | Test File | Coverage |
 |-----------|----------|
 | `tests/core/secrets/classification/classifier_test.ts` | Path glob matching, default level, ordering |
-| `tests/core/secrets/classification/access_gate_test.ts` | Taint escalation, ceiling denial, allow path |
+| `tests/core/secrets/classification/access_gate_test.ts` | Taint escalation, canFlowTo denial, allow path |
 | `tests/core/policy/secret_access_hook_test.ts` | Hook evaluation, DENY on background + RESTRICTED |
 | `tests/core/secrets/vault/classified_access_test.ts` | End-to-end: Vault fetch -> classify -> gate -> taint |
 
 **Critical boundary tests** (analogous to Phase A2 memory classification tests):
 
 1. PUBLIC session accesses INTERNAL secret -> taint escalates to INTERNAL
-2. INTERNAL session accesses RESTRICTED secret -> DENIED (if ceiling is
-   CONFIDENTIAL)
+2. INTERNAL session accesses RESTRICTED secret -> taint escalates to
+   RESTRICTED
 3. CONFIDENTIAL session accesses CONFIDENTIAL secret -> allowed, no escalation
 4. Background session accesses RESTRICTED secret -> DENIED by hook
 5. Secret with no classification mapping -> uses `default_level`
@@ -639,17 +641,26 @@ This keeps the dependency tree clean and avoids version conflicts.
 
 ### SSRF Considerations
 
-Vault's address is operator-configured (not user-supplied). However, the Vault
-client must still:
+The SSRF IP denylist (`src/tools/web/ssrf.ts`) is hardcoded and non-configurable
+— private/reserved IP ranges are always blocked. This denylist protects against
+user-supplied URLs (web_fetch, browser.navigate) where the LLM or end user
+controls the target.
 
-1. Resolve DNS before connecting (consistent with existing SSRF policy)
-2. Reject private/reserved IP ranges **unless** the address is explicitly
-   allowlisted in config as an `internal_service`
-3. Log all outbound connections at DEBUG level
+Vault's address is **operator-configured infrastructure**, not user-supplied
+input. The Vault client is therefore exempt from the SSRF IP denylist, since the
+operator explicitly declares the address in `triggerfish.yaml`. This is
+consistent with how other operator-configured services (database connections,
+notification endpoints) are handled — the threat model for SSRF targets
+LLM-controlled outbound requests, not static infrastructure wiring.
 
-Add a `secrets.providers.vault.allow_private_network: true` config flag for
-on-premise Vault deployments on private networks (common in enterprise). Default
-is `false`.
+The Vault client must still:
+
+1. Use HTTPS in production (warn at startup if scheme is `http://` and address
+   is not `127.0.0.1`)
+2. Validate the configured address is a well-formed URL at config load time
+3. Log all outbound Vault connections at DEBUG level
+4. Never allow the LLM to influence the Vault address — it is read-only from
+   config
 
 ---
 
@@ -664,7 +675,6 @@ secrets:
       address: "http://127.0.0.1:8200"
       auth:
         method: token
-      allow_private_network: true
 ```
 
 With `VAULT_TOKEN` set in environment.
@@ -712,7 +722,6 @@ secrets:
       auth:
         method: kubernetes
         role: "triggerfish"
-      allow_private_network: true
       startup: block
 ```
 
@@ -736,7 +745,7 @@ Phase 2: Vault Provider                     ~4-5 days
   v
 Phase 3: Classification-Aware Access        ~3-4 days
   |-- Path-to-classification mapping
-  |-- Access gate (taint escalation, ceiling check)
+  |-- Access gate (taint escalation, canFlowTo check)
   |-- SECRET_ACCESS hook activation
   |-- Config schema for classification mappings
   |-- Boundary tests
@@ -765,7 +774,7 @@ methods can be implemented in parallel (AppRole, Token, K8s are independent).
 | Cache serves stale secret after rotation | Stale-while-revalidate with configurable TTL; rotation webhook support planned |
 | Classification mapping misconfigured | Default-deny: unmapped paths get `default_level`, never PUBLIC |
 | Migration data loss | Source not deleted by default; round-trip verification required |
-| SSRF via Vault address | DNS resolution + private IP check (unless `allow_private_network: true`) |
+| SSRF via Vault address | Vault address is operator-configured (not user-supplied), exempt from SSRF IP denylist; LLM cannot influence the address |
 | Breaking existing deployments | Vault is opt-in; `secrets.default: keychain` remains the default |
 
 ---
