@@ -11,3 +11,4 @@ export type { WebToolsResult } from "./web_tools.ts";
 export { buildWebTools } from "./web_tools.ts";
 export { buildSchedulerConfig } from "./scheduler_config.ts";
 export { buildCalDavExecutor } from "./caldav_executor.ts";
+export { buildNotionExecutor } from "./notion_executor.ts";

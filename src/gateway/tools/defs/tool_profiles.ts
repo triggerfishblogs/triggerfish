@@ -57,6 +57,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "google",
     "github",
     "caldav",
+    "notion",
     "obsidian",
     "llmTask",
     "summarize",
@@ -88,6 +89,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "google",
     "github",
     "caldav",
+    "notion",
     "obsidian",
     "llmTask",
     "summarize",
@@ -111,6 +113,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "google",
     "github",
     "caldav",
+    "notion",
     "llmTask",
     "summarize",
     "healthcheck",
@@ -128,6 +131,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "google",
     "github",
     "caldav",
+    "notion",
     "llmTask",
     "summarize",
     "healthcheck",
@@ -144,6 +148,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "google",
     "github",
     "caldav",
+    "notion",
     "llmTask",
     "summarize",
     "healthcheck",
@@ -230,6 +235,8 @@ export interface ServiceAvailability {
   readonly github: boolean;
   /** CalDAV (config caldav.enabled). */
   readonly caldav: boolean;
+  /** Notion (keychain notion-api-key). */
+  readonly notion: boolean;
   /** Obsidian (config plugins.obsidian.enabled). */
   readonly obsidian: boolean;
   /** Signal channel (config channels.signal). */
@@ -249,6 +256,7 @@ const SERVICE_TO_GROUP: Readonly<
   google: "google",
   github: "github",
   caldav: "caldav",
+  notion: "notion",
   obsidian: "obsidian",
   signal: "signal",
 };
@@ -284,6 +292,7 @@ const SERVICE_SETUP_HINTS: Readonly<
   google: "Google Workspace — run `triggerfish connect google`",
   github: "GitHub — run `triggerfish connect github`",
   caldav: "CalDAV — set `caldav.enabled: true` in triggerfish.yaml",
+  notion: "Notion — run `triggerfish connect notion`",
   obsidian:
     "Obsidian — set `plugins.obsidian.enabled: true` in triggerfish.yaml",
   signal: "Signal — configure `channels.signal` in triggerfish.yaml",

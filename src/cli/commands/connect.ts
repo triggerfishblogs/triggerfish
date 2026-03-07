@@ -16,6 +16,7 @@ export {
 } from "./connect_google.ts";
 
 export { disconnectGithub, runConnectGithub } from "./connect_github.ts";
+export { disconnectNotion, runConnectNotion } from "./connect_notion.ts";
 
 /** Print connect usage help. */
 function printConnectUsage(): void {
@@ -23,6 +24,7 @@ function printConnectUsage(): void {
 CONNECT USAGE:
   triggerfish connect google    Authenticate with Google Workspace
   triggerfish connect github    Authenticate with GitHub
+  triggerfish connect notion    Authenticate with Notion
 `);
 }
 
@@ -32,6 +34,7 @@ function printDisconnectUsage(): void {
 DISCONNECT USAGE:
   triggerfish disconnect google    Remove Google authentication
   triggerfish disconnect github    Remove GitHub authentication
+  triggerfish disconnect notion    Remove Notion authentication
 `);
 }
 
@@ -51,6 +54,11 @@ export async function runConnect(
     case "github": {
       const { runConnectGithub } = await import("./connect_github.ts");
       await runConnectGithub();
+      break;
+    }
+    case "notion": {
+      const { runConnectNotion } = await import("./connect_notion.ts");
+      await runConnectNotion();
       break;
     }
     default:
@@ -75,6 +83,11 @@ export async function runDisconnect(
     case "github": {
       const { disconnectGithub } = await import("./connect_github.ts");
       await disconnectGithub();
+      break;
+    }
+    case "notion": {
+      const { disconnectNotion } = await import("./connect_notion.ts");
+      await disconnectNotion();
       break;
     }
     default:

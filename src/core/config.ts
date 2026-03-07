@@ -67,6 +67,17 @@ export interface TriggerFishConfig {
     readonly classification?: string;
     readonly classification_overrides?: Readonly<Record<string, string>>;
   };
+  readonly notion?: {
+    readonly enabled?: boolean;
+    readonly auth_type?: "token" | "oauth2";
+    readonly rate_limit?: number;
+    readonly classification_floor?: string;
+    readonly oauth2?: {
+      readonly client_id?: string;
+      readonly client_secret?: string;
+      readonly redirect_uri?: string;
+    };
+  };
   readonly caldav?: {
     readonly enabled?: boolean;
     readonly server_url?: string;

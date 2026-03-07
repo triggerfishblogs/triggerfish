@@ -46,6 +46,7 @@ import {
 } from "./browser_init.ts";
 import { buildCalDavExecutor } from "../factory/caldav_executor.ts";
 import type { CalDavConfig } from "../../../integrations/caldav/mod.ts";
+import { buildNotionExecutor } from "../factory/notion_executor.ts";
 
 /** Initialize MCP servers and create broadcast refs. */
 export function initializeMcpInfrastructure(
@@ -92,6 +93,11 @@ export async function buildExternalServiceExecutors(
     () => state.session.taint,
     state.session.id,
   );
+  const notionExecutor = await buildNotionExecutor(
+    config,
+    () => state.session.taint,
+    state.session.id,
+  );
   const obsidianExecutor = config.plugins?.obsidian
     ? await buildObsidianExecutor(
       config.plugins.obsidian as ObsidianPluginConfig,
@@ -107,7 +113,7 @@ export async function buildExternalServiceExecutors(
     integrationClassifications,
     keychain,
   );
-  return { githubExecutor, caldavExecutor, keychain, obsidianExecutor, ...mcp };
+  return { githubExecutor, caldavExecutor, notionExecutor, keychain, obsidianExecutor, ...mcp };
 }
 
 /** Build trigger executor with session taint escalation. */
