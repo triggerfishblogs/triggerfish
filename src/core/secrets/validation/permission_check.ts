@@ -22,6 +22,14 @@ export interface PermissionCheckResult {
   readonly message: string;
 }
 
+/** Typed error returned when key file verification fails. */
+export interface PermissionCheckError {
+  /** Discriminant indicating the failure category. */
+  readonly kind: "not_found" | "stat_failed";
+  /** Human-readable diagnostic message. */
+  readonly message: string;
+}
+
 /**
  * Check whether a Unix file mode has no group or other access bits set.
  *
@@ -43,11 +51,11 @@ export function isPermissionSecure(mode: number): boolean {
  * actual mode and a diagnostic message.
  *
  * @param keyPath - Absolute path to the key file
- * @returns Permission check result, or error string if stat fails
+ * @returns Permission check result, or typed error if stat fails
  */
 export async function verifyKeyFilePermissions(
   keyPath: string,
-): Promise<Result<PermissionCheckResult, string>> {
+): Promise<Result<PermissionCheckResult, PermissionCheckError>> {
   try {
     const stat = await Deno.stat(keyPath);
 
@@ -96,13 +104,20 @@ export async function verifyKeyFilePermissions(
     if (err instanceof Deno.errors.NotFound) {
       return {
         ok: false,
-        error: `Key file not found: ${keyPath}`,
+        error: {
+          kind: "not_found",
+          message: `Key file not found: ${keyPath}`,
+        },
       };
     }
-    const message = err instanceof Error ? err.message : String(err);
+    const detail = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
-      error: `Key file permission check failed for '${keyPath}': ${message}`,
+      error: {
+        kind: "stat_failed",
+        message:
+          `Key file permission check failed for '${keyPath}': ${detail}`,
+      },
     };
   }
 }

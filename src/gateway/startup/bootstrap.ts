@@ -214,15 +214,15 @@ async function validateKeyFilePermissions(
       Deno.exit(78);
     }
   } else if (!permResult.ok) {
-    if (permResult.error.startsWith("Key file not found")) {
+    if (permResult.error.kind === "not_found") {
       bootstrapLog.info("Docker security: key file not yet present", {
         operation: "validateKeyFilePermissions",
-        detail: permResult.error,
+        detail: permResult.error.message,
       });
     } else {
       bootstrapLog.warn("Docker security: key file stat failed", {
         operation: "validateKeyFilePermissions",
-        err: permResult.error,
+        err: permResult.error.message,
       });
     }
   }

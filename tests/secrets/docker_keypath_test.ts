@@ -5,7 +5,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { resolveDockerKeyPath } from "../../src/core/secrets/keychain/keychain.ts";
+import { resolveDockerKeyPath } from "../../src/core/secrets/mod.ts";
 
 // Helper to temporarily set/unset env vars
 function withEnv(

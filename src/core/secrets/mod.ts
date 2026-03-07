@@ -27,6 +27,7 @@ export {
 } from "./validation/mod.ts";
 export type {
   MountCheckResult,
+  PermissionCheckError,
   PermissionCheckResult,
 } from "./validation/mod.ts";
 

@@ -50,7 +50,8 @@ Deno.test("verifyKeyFilePermissions: returns error for missing file", async () =
   const result = await verifyKeyFilePermissions("/tmp/nonexistent-key-file");
   assertEquals(result.ok, false);
   if (!result.ok) {
-    assertEquals(result.error.includes("Key file not found"), true);
+    assertEquals(result.error.kind, "not_found");
+    assertEquals(result.error.message.includes("Key file not found"), true);
   }
 });
 

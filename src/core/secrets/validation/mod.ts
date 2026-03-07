@@ -8,7 +8,10 @@ export {
   isPermissionSecure,
   verifyKeyFilePermissions,
 } from "./permission_check.ts";
-export type { PermissionCheckResult } from "./permission_check.ts";
+export type {
+  PermissionCheckError,
+  PermissionCheckResult,
+} from "./permission_check.ts";
 
 export { parseMountPoints, verifyMountPoint } from "./mount_check.ts";
 export type { MountCheckResult } from "./mount_check.ts";
