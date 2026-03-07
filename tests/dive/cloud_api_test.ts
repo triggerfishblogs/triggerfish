@@ -1,5 +1,5 @@
 /**
- * Tests for Triggerfish Cloud setup flows.
+ * Tests for Triggerfish Cloud API client functions.
  *
  * Uses injected mock fetchers — no real network calls.
  */
@@ -13,89 +13,12 @@ import {
   resolveGatewayUrl,
   SANDBOX_GATEWAY_URL,
   sendMagicLink,
-  startCallbackServer,
-  validateLicenseKey,
 } from "../../src/dive/cloud.ts";
-
-// ─── Mock fetcher helpers ────────────────────────────────────────────────────
-
-function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-function mockFetcher(status: number, body: unknown): typeof fetch {
-  return (
-    _url: string | URL | Request,
-    _init?: RequestInit,
-  ): Promise<Response> => {
-    return Promise.resolve(jsonResponse(status, body));
-  };
-}
-
-function networkErrorFetcher(): typeof fetch {
-  return (
-    _url: string | URL | Request,
-    _init?: RequestInit,
-  ): Promise<Response> => {
-    return Promise.reject(new TypeError("Failed to fetch"));
-  };
-}
-
-/**
- * Create a mock fetcher that captures the request URL and headers.
- */
-function capturingFetcher(
-  status: number,
-  body: unknown,
-): {
-  fetcher: typeof fetch;
-  readonly captured: {
-    url: string;
-    method: string;
-    headers: Record<string, string>;
-    body: string;
-  };
-} {
-  const captured = {
-    url: "",
-    method: "",
-    headers: {} as Record<string, string>,
-    body: "",
-  };
-  const fetcher = (
-    url: string | URL | Request,
-    init?: RequestInit,
-  ): Promise<Response> => {
-    captured.url = typeof url === "string"
-      ? url
-      : url instanceof URL
-      ? url.toString()
-      : url.url;
-    captured.method = init?.method ?? "GET";
-    if (init?.headers) {
-      const h = init.headers;
-      if (h instanceof Headers) {
-        h.forEach((v, k) => {
-          captured.headers[k] = v;
-        });
-      } else if (Array.isArray(h)) {
-        for (const [k, v] of h) {
-          captured.headers[k] = v;
-        }
-      } else {
-        Object.assign(captured.headers, h);
-      }
-    }
-    if (init?.body && typeof init.body === "string") {
-      captured.body = init.body;
-    }
-    return Promise.resolve(jsonResponse(status, body));
-  };
-  return { fetcher, captured };
-}
+import {
+  capturingFetcher,
+  mockFetcher,
+  networkErrorFetcher,
+} from "./cloud_test_helpers.ts";
 
 // ─── resolveGatewayUrl ───────────────────────────────────────────────────────
 
@@ -323,144 +246,5 @@ Deno.test("Cloud: pollDeviceCodeLoop returns error on expired", async () => {
   assertEquals(result.ok, false);
   if (!result.ok) {
     assertStringIncludes(result.error, "expired");
-  }
-});
-
-// ─── validateLicenseKey ──────────────────────────────────────────────────────
-
-Deno.test("Cloud: validateLicenseKey sends Bearer auth header", async () => {
-  const { fetcher, captured } = capturingFetcher(200, {
-    valid: true,
-    plan: "pro",
-    features: ["llm_proxy"],
-  });
-
-  const result = await validateLicenseKey(
-    "https://api.test",
-    "tf_test_key123",
-    fetcher,
-  );
-
-  assertEquals(result.ok, true);
-  if (result.ok) {
-    assertEquals(result.value.valid, true);
-    assertEquals(result.value.plan, "pro");
-  }
-  assertEquals(
-    captured.url,
-    "https://api.test/v1/license/validate",
-  );
-  assertEquals(
-    captured.headers["Authorization"],
-    "Bearer tf_test_key123",
-  );
-});
-
-Deno.test("Cloud: validateLicenseKey returns error reason on 401", async () => {
-  const result = await validateLicenseKey(
-    "https://api.test",
-    "tf_test_bad_key",
-    mockFetcher(401, { valid: false, reason: "invalid_key" }),
-  );
-
-  assertEquals(result.ok, false);
-  if (!result.ok) {
-    assertEquals(result.error, "invalid_key");
-  }
-});
-
-Deno.test("Cloud: validateLicenseKey returns cancelled reason with portal_url", async () => {
-  const result = await validateLicenseKey(
-    "https://api.test",
-    "tf_test_cancelled",
-    mockFetcher(401, {
-      valid: false,
-      reason: "cancelled",
-      portal_url: "https://billing.stripe.com/p/session/test",
-    }),
-  );
-
-  assertEquals(result.ok, false);
-  if (!result.ok) {
-    assertEquals(result.error, "cancelled");
-  }
-});
-
-Deno.test("Cloud: validateLicenseKey returns error on network failure", async () => {
-  const result = await validateLicenseKey(
-    "https://api.test",
-    "tf_test_key",
-    networkErrorFetcher(),
-  );
-
-  assertEquals(result.ok, false);
-  if (!result.ok) {
-    assertStringIncludes(result.error, "Could not reach");
-  }
-});
-
-// ─── startCallbackServer ─────────────────────────────────────────────────────
-
-Deno.test("Cloud: callback server receives key from query param", async () => {
-  const ac = new AbortController();
-  const server = startCallbackServer(ac.signal);
-
-  try {
-    // Simulate the gateway redirect
-    const resp = await fetch(
-      `http://127.0.0.1:${server.port}/callback?key=tf_test_callback_key`,
-    );
-    assertEquals(resp.status, 200);
-    const html = await resp.text();
-    assertStringIncludes(html, "setup complete");
-
-    const key = await server.keyPromise;
-    assertEquals(key, "tf_test_callback_key");
-  } finally {
-    ac.abort();
-    server.close();
-  }
-});
-
-Deno.test("Cloud: callback server returns 404 for non-callback paths", async () => {
-  const ac = new AbortController();
-  const server = startCallbackServer(ac.signal);
-
-  try {
-    const resp = await fetch(`http://127.0.0.1:${server.port}/other`);
-    assertEquals(resp.status, 404);
-    await resp.text(); // consume body
-  } finally {
-    ac.abort();
-    server.close();
-  }
-});
-
-Deno.test("Cloud: callback server returns 404 when key param is missing", async () => {
-  const ac = new AbortController();
-  const server = startCallbackServer(ac.signal);
-
-  try {
-    const resp = await fetch(
-      `http://127.0.0.1:${server.port}/callback`,
-    );
-    assertEquals(resp.status, 404);
-    await resp.text(); // consume body
-  } finally {
-    ac.abort();
-    server.close();
-  }
-});
-
-Deno.test("Cloud: callback server listens on random port", () => {
-  const ac = new AbortController();
-  const server = startCallbackServer(ac.signal);
-
-  try {
-    // Port should be > 0 (allocated by OS)
-    assertEquals(server.port > 0, true);
-  } finally {
-    ac.abort();
-    server.close();
   }
 });
