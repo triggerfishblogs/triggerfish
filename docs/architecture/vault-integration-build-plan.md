@@ -2,7 +2,7 @@
 
 > Build plan for implementing HashiCorp Vault as the first external secret
 > management provider. Follows the interface design from the
-> [external secret providers research](./external-secret-providers.md).
+> external secret providers research.
 
 ## Current Architecture Summary
 
@@ -12,7 +12,7 @@ The existing secrets system has:
   4 methods: `getSecret`, `setSecret`, `deleteSecret`, `listSecrets`, all
   returning `Result<T, E>`
 - **Two-level resolution** — Config-time (`secret:key`) and tool-argument-time
-  (`{{secret:key}}`) via `src/core/secrets/resolver.ts`
+  (<span v-pre>`{{secret:key}}`</span>) via `src/core/secrets/resolver.ts`
 - **Multiple backends** — OS keychain, AES-256-GCM encrypted file, in-memory
 - **Classification integration** — Secret access triggers taint escalation via
   the existing dispatch pipeline in `src/agent/dispatch/access_control.ts`
@@ -130,8 +130,8 @@ interface CompositeSecretStoreOptions {
   `database/creds/myapp`
 - `secret:provider:anthropic:apiKey` -> Routes to default store (existing
   behavior)
-- `{{secret:vault:my-token}}` -> Routes to Vault in tool-argument resolution
-- `{{secret:my-token}}` -> Routes to default store (backward compatible)
+- <span v-pre>`{{secret:vault:my-token}}`</span> -> Routes to Vault in tool-argument resolution
+- <span v-pre>`{{secret:my-token}}`</span> -> Routes to default store (backward compatible)
 
 ### 1.4 File Structure (Phase 1)
 
