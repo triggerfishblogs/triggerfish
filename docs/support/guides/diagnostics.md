@@ -130,7 +130,7 @@ For a thorough diagnostic session:
 
 4. **Collect a log bundle** if you need to file an issue:
    ```bash
-   triggerfish logs --bundle
+   triggerfish logs bundle
    ```
 
 ---

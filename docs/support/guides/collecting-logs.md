@@ -7,7 +7,7 @@ When filing a bug report, a log bundle gives maintainers the information they ne
 The fastest way to create a log bundle:
 
 ```bash
-triggerfish logs --bundle
+triggerfish logs bundle
 ```
 
 This creates an archive containing all log files from `~/.triggerfish/logs/`:
@@ -59,7 +59,7 @@ By default, logs are at INFO level. To capture more detail for a bug report:
 
 3. Collect the bundle:
    ```bash
-   triggerfish logs --bundle
+   triggerfish logs bundle
    ```
 
 4. Set the level back to normal:

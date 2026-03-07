@@ -50,7 +50,7 @@ Say what you expected to happen and what actually happened. Include the exact er
 Attach a [log bundle](/support/guides/collecting-logs):
 
 ```bash
-triggerfish logs --bundle
+triggerfish logs bundle
 ```
 
 If the issue is security-sensitive, you can redact portions, but note in the issue what you redacted.
