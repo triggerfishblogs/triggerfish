@@ -8,11 +8,11 @@
  * @module
  */
 
-import { join } from "@std/path";
 import { isDockerEnvironment } from "../../env.ts";
 import { createEncryptedFileSecretStore } from "../encrypted/encrypted_file_provider.ts";
 import { createLinuxKeychain } from "./linux_keychain.ts";
 import { createMacKeychain } from "./mac_keychain.ts";
+import { createWindowsKeychain } from "./windows_keychain.ts";
 import { createMemorySecretStore } from "../backends/memory_store.ts";
 import type { SecretStore } from "../backends/secret_store.ts";
 import { createLogger } from "../../logger/logger.ts";
@@ -22,22 +22,6 @@ const log = createLogger("secrets");
 // Re-export so existing `import … from "./keychain.ts"` sites compile.
 export { createMemorySecretStore } from "../backends/memory_store.ts";
 export type { SecretStore } from "../backends/secret_store.ts";
-
-/** Resolve encrypted-file secret store paths for Windows. */
-function resolveWindowsSecretStorePaths(): {
-  readonly secretsPath: string;
-  readonly keyPath: string;
-} {
-  const dataDir = Deno.env.get("TRIGGERFISH_DATA_DIR") ??
-    join(
-      Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".",
-      ".triggerfish",
-    );
-  return {
-    secretsPath: join(dataDir, "secrets.json"),
-    keyPath: join(dataDir, "secrets.key"),
-  };
-}
 
 /** Create a store that rejects all operations for unsupported platforms. */
 function createRejectingSecretStore(os: string): SecretStore {
@@ -84,8 +68,8 @@ function selectNativeSecretStore(): SecretStore {
       log.info("Secret backend selected: Keychain (macOS)");
       return createMacKeychain();
     case "windows":
-      log.info("Secret backend selected: encrypted-file (Windows)");
-      return createEncryptedFileSecretStore(resolveWindowsSecretStorePaths());
+      log.info("Secret backend selected: DPAPI with encrypted-file fallback (Windows)");
+      return createWindowsKeychain();
     default: {
       const allowMemory = Deno.env.get(
         "TRIGGERFISH_SECRETS_MEMORY_FALLBACK",
@@ -109,7 +93,7 @@ function selectNativeSecretStore(): SecretStore {
  * - Docker: encrypted-file store at /data/
  * - Linux: `secret-tool` (libsecret / GNOME Keyring)
  * - macOS: `security` CLI (Keychain Access)
- * - Windows: encrypted-file store in TRIGGERFISH_DATA_DIR
+ * - Windows: DPAPI (PowerShell) with encrypted-file fallback
  * - Other: in-memory fallback
  *
  * @returns A SecretStore implementation appropriate for the current OS
