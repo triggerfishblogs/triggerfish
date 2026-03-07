@@ -80,15 +80,17 @@ export async function detectServiceAvailability(
     typeof import("../../../core/secrets/keychain/keychain.ts").createKeychain
   >,
 ): Promise<ServiceAvailability> {
-  const [googleResult, githubResult] = await Promise.all([
+  const [googleResult, githubResult, notionResult] = await Promise.all([
     keychain.getSecret("google:tokens"),
     keychain.getSecret("github-pat"),
+    keychain.getSecret("notion-api-key"),
   ]);
 
   const availability: ServiceAvailability = {
     google: googleResult.ok,
     github: githubResult.ok,
     caldav: config.caldav?.enabled === true,
+    notion: config.notion?.enabled === true && notionResult.ok,
     obsidian: config.plugins?.obsidian?.enabled === true,
     signal: config.channels?.signal !== undefined,
     telegram: (config.channels?.telegram as { botToken?: string } | undefined)
@@ -375,6 +377,7 @@ export function buildCompositeToolExecutor(
     state: baseDeps.state,
     githubExecutor: integrations.githubExecutor,
     caldavExecutor: integrations.caldavExecutor,
+    notionExecutor: integrations.notionExecutor,
     obsidianExecutor: integrations.obsidianExecutor,
     registry: baseDeps.registry,
     storage: coreInfra.storage,

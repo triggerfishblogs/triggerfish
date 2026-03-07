@@ -45,3 +45,7 @@ export {
 } from "./websocket_auth.ts";
 
 export { sanitizePathForPrompt } from "./path_sanitization.ts";
+
+export { checkIpListForSsrf, isPrivateIp, resolveAndCheck } from "./ssrf.ts";
+export { safeFetch } from "./safe_fetch.ts";
+export type { SsrfChecker } from "./safe_fetch.ts";

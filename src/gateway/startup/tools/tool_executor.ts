@@ -149,6 +149,7 @@ export function assembleMainToolExecutor(
     readonly state: MainSessionState;
     readonly githubExecutor: ReturnType<typeof createGitHubToolExecutor>;
     readonly caldavExecutor?: ReturnType<typeof createCalDavToolExecutor>;
+    readonly notionExecutor?: SubsystemExecutor;
     readonly obsidianExecutor:
       | Awaited<ReturnType<typeof buildObsidianExecutor>>
       | undefined;
