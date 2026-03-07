@@ -36,7 +36,7 @@ services:
       #   noexec  — prevents executing binaries from this mount
       #   nosuid  — ignores setuid/setgid bits
       #   size=10m — limits RAM usage (key is 32 bytes; 10 MiB is generous)
-      - /keys:rw,noexec,nosuid,size=10m
+      - /keys:rw,noexec,nosuid,size=10m,mode=0700
 
     environment:
       - TRIGGERFISH_DATA_DIR=/data
