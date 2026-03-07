@@ -13,6 +13,9 @@ import { isValidNotionTokenFormat } from "../../integrations/notion/auth.ts";
 
 const log = createLogger("cli.connect");
 
+// console.log is used intentionally throughout this file for interactive CLI
+// output (user-facing prompts and results). Daemon logging uses `log.*`.
+
 /** Print Notion integration setup instructions. */
 function printNotionSetupInstructions(): void {
   console.log("Connect Notion\n");
@@ -51,9 +54,13 @@ async function fetchNotionUser(
 
 /** Report a failed Notion token verification. */
 async function reportNotionTokenFailure(resp: Response): Promise<null> {
-  const body = await resp.json().catch(
-    () => ({}) as Record<string, unknown>,
-  );
+  const body = await resp.json().catch((err: unknown) => {
+    log.warn("Notion token verification response JSON parse failed", {
+      operation: "reportNotionTokenFailure",
+      err,
+    });
+    return {} as Record<string, unknown>;
+  });
   log.warn("Notion token verification failed", {
     operation: "connectNotion",
     status: resp.status,
