@@ -185,6 +185,13 @@ async function fetchBlockChildren(
       const childResult = await fetchBlockChildren(client, raw.id, depth + 1);
       if (childResult.ok) {
         children = childResult.value;
+      } else {
+        log.warn("Notion fetch nested block children failed", {
+          operation: "fetchBlockChildren",
+          blockId: raw.id,
+          depth,
+          error: childResult.error,
+        });
       }
     }
     blocks.push(transformRawBlock(raw, children));

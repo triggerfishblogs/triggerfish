@@ -9,7 +9,7 @@
 
 import { assertEquals } from "@std/assert";
 import { createNotionToolExecutor } from "../../../src/integrations/notion/tools.ts";
-import type { NotionToolContext } from "../../../src/integrations/notion/tools.ts";
+import type { NotionToolContext } from "../../../src/integrations/notion/tool_context.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 import type { ClassificationLevel } from "../../../src/core/types/classification.ts";
 
