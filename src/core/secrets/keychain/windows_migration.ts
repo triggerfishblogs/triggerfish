@@ -44,6 +44,32 @@ async function legacyStoreExists(paths: {
   }
 }
 
+/** Read one secret from the legacy store and write it to the DPAPI store. */
+async function migrateOneSecret(
+  legacyStore: SecretStore,
+  dpapiStore: SecretStore,
+  name: string,
+): Promise<boolean> {
+  const getResult = await legacyStore.getSecret(name);
+  if (!getResult.ok) {
+    log.warn("DPAPI migration: failed to read legacy secret, skipping", {
+      name,
+      err: getResult.error,
+    });
+    return false;
+  }
+
+  const setResult = await dpapiStore.setSecret(name, getResult.value);
+  if (!setResult.ok) {
+    log.warn("DPAPI migration: failed to write secret to DPAPI, skipping", {
+      name,
+      err: setResult.error,
+    });
+    return false;
+  }
+  return true;
+}
+
 /**
  * Migrate secrets from the encrypted-file store to the DPAPI backend.
  *
@@ -85,24 +111,8 @@ export async function migrateEncryptedFileToDpapi(
 
   let migrated = 0;
   for (const name of names) {
-    const getResult = await legacyStore.getSecret(name);
-    if (!getResult.ok) {
-      log.warn("DPAPI migration: failed to read legacy secret, skipping", {
-        name,
-        err: getResult.error,
-      });
-      continue;
-    }
-
-    const setResult = await dpapiStore.setSecret(name, getResult.value);
-    if (!setResult.ok) {
-      log.warn("DPAPI migration: failed to write secret to DPAPI, skipping", {
-        name,
-        err: setResult.error,
-      });
-      continue;
-    }
-    migrated++;
+    const ok = await migrateOneSecret(legacyStore, dpapiStore, name);
+    if (ok) migrated++;
   }
 
   log.info("DPAPI migration complete", {

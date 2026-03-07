@@ -147,6 +147,7 @@ async function writeDpapiSecretsFile(
     await Deno.writeTextFile(path, JSON.stringify(file, null, 2));
     return { ok: true, value: true };
   } catch (err: unknown) {
+    log.error("DPAPI secrets file write failed", { operation: "writeDpapiSecretsFile", path, err });
     const message = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
@@ -155,58 +156,79 @@ async function writeDpapiSecretsFile(
   }
 }
 
+/** Retrieve a single DPAPI-encrypted secret by name. */
+async function dpapiGetSecret(
+  secretsPath: string,
+  name: string,
+): Promise<Result<string, string>> {
+  log.debug("DPAPI secret read requested", { name });
+  const file = await readDpapiSecretsFile(secretsPath);
+  const entry = file.entries[name];
+  if (entry === undefined) {
+    log.warn("DPAPI secret not found", { name, store: secretsPath });
+    return { ok: false, error: `Secret '${name}' not found in DPAPI store` };
+  }
+  return unprotectSecret(entry);
+}
+
+/** DPAPI-encrypt and persist a secret. */
+async function dpapiSetSecret(
+  secretsPath: string,
+  name: string,
+  value: string,
+): Promise<Result<true, string>> {
+  log.warn("DPAPI secret write requested", { name, store: secretsPath });
+  const protectResult = await protectSecret(value);
+  if (!protectResult.ok) return { ok: false, error: protectResult.error };
+
+  const file = await readDpapiSecretsFile(secretsPath);
+  const updated: DpapiSecretsFile = {
+    v: 1,
+    entries: { ...file.entries, [name]: protectResult.value },
+  };
+  return writeDpapiSecretsFile(secretsPath, updated);
+}
+
+/** Remove a secret from the DPAPI store. */
+async function dpapiDeleteSecret(
+  secretsPath: string,
+  name: string,
+): Promise<Result<true, string>> {
+  log.warn("DPAPI secret delete requested", { name, store: secretsPath });
+  const file = await readDpapiSecretsFile(secretsPath);
+  if (!(name in file.entries)) {
+    return { ok: false, error: `Secret '${name}' not found in DPAPI store` };
+  }
+  const newEntries = { ...file.entries };
+  delete newEntries[name];
+  return writeDpapiSecretsFile(secretsPath, { v: 1, entries: newEntries });
+}
+
+/** List all secret names in the DPAPI store. */
+async function dpapiListSecrets(
+  secretsPath: string,
+): Promise<Result<string[], string>> {
+  const file = await readDpapiSecretsFile(secretsPath);
+  return { ok: true, value: Object.keys(file.entries) };
+}
+
 /** Build a SecretStore backed by DPAPI encryption. */
 function buildDpapiSecretStore(secretsPath: string): SecretStore {
   return {
-    async getSecret(name: string): Promise<Result<string, string>> {
-      log.debug("DPAPI secret read requested", { name });
-      const file = await readDpapiSecretsFile(secretsPath);
-      const entry = file.entries[name];
-      if (entry === undefined) {
-        log.warn("DPAPI secret not found", { name, store: secretsPath });
-        return {
-          ok: false,
-          error: `Secret '${name}' not found in DPAPI store`,
-        };
-      }
-      return unprotectSecret(entry);
-    },
-
-    async setSecret(
-      name: string,
-      value: string,
-    ): Promise<Result<true, string>> {
-      log.warn("DPAPI secret write requested", { name, store: secretsPath });
-      const protectResult = await protectSecret(value);
-      if (!protectResult.ok) return { ok: false, error: protectResult.error };
-
-      const file = await readDpapiSecretsFile(secretsPath);
-      const updated: DpapiSecretsFile = {
-        v: 1,
-        entries: { ...file.entries, [name]: protectResult.value },
-      };
-      return writeDpapiSecretsFile(secretsPath, updated);
-    },
-
-    async deleteSecret(name: string): Promise<Result<true, string>> {
-      log.warn("DPAPI secret delete requested", { name, store: secretsPath });
-      const file = await readDpapiSecretsFile(secretsPath);
-      if (!(name in file.entries)) {
-        return {
-          ok: false,
-          error: `Secret '${name}' not found in DPAPI store`,
-        };
-      }
-      const newEntries = { ...file.entries };
-      delete newEntries[name];
-      return writeDpapiSecretsFile(secretsPath, { v: 1, entries: newEntries });
-    },
-
-    async listSecrets(): Promise<Result<string[], string>> {
-      const file = await readDpapiSecretsFile(secretsPath);
-      return { ok: true, value: Object.keys(file.entries) };
-    },
+    getSecret: (name) => dpapiGetSecret(secretsPath, name),
+    setSecret: (name, value) => dpapiSetSecret(secretsPath, name, value),
+    deleteSecret: (name) => dpapiDeleteSecret(secretsPath, name),
+    listSecrets: () => dpapiListSecrets(secretsPath),
   };
+}
+
+/** Delegate a secret store method through the lazy-probed backend. */
+async function delegateToBackend<T>(
+  resolveBackend: () => Promise<SecretStore>,
+  op: (store: SecretStore) => Promise<T>,
+): Promise<T> {
+  const store = await resolveBackend();
+  return op(store);
 }
 
 /**
@@ -217,6 +239,9 @@ function buildDpapiSecretStore(secretsPath: string): SecretStore {
  * If unavailable, falls back to the AES-256-GCM encrypted-file store.
  *
  * This keeps `createKeychain()` synchronous while supporting async DPAPI probing.
+ *
+ * Note: Does not automatically migrate secrets from the legacy encrypted-file
+ * store. Use {@link migrateEncryptedFileToDpapi} to migrate manually.
  */
 export function createWindowsKeychain(): SecretStore {
   const secretsPath = resolveDpapiSecretsPath();
@@ -241,25 +266,13 @@ export function createWindowsKeychain(): SecretStore {
     return backendPromise;
   }
 
+  const delegate = <T>(op: (s: SecretStore) => Promise<T>) =>
+    delegateToBackend(resolveBackend, op);
+
   return {
-    async getSecret(name: string): Promise<Result<string, string>> {
-      const store = await resolveBackend();
-      return store.getSecret(name);
-    },
-    async setSecret(
-      name: string,
-      value: string,
-    ): Promise<Result<true, string>> {
-      const store = await resolveBackend();
-      return store.setSecret(name, value);
-    },
-    async deleteSecret(name: string): Promise<Result<true, string>> {
-      const store = await resolveBackend();
-      return store.deleteSecret(name);
-    },
-    async listSecrets(): Promise<Result<string[], string>> {
-      const store = await resolveBackend();
-      return store.listSecrets();
-    },
+    getSecret: (name) => delegate((s) => s.getSecret(name)),
+    setSecret: (name, value) => delegate((s) => s.setSecret(name, value)),
+    deleteSecret: (name) => delegate((s) => s.deleteSecret(name)),
+    listSecrets: () => delegate((s) => s.listSecrets()),
   };
 }
