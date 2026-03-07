@@ -7,7 +7,6 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../types/classification.ts";
 import { canFlowTo } from "../../types/classification.ts";
 import type {
   SecretAccessHookInput,

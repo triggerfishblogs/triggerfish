@@ -8,7 +8,7 @@ import { assertEquals } from "@std/assert";
 import { isExternalProvider } from "../../../src/core/secrets/backends/external_provider.ts";
 import { createMemorySecretStore } from "../../../src/core/secrets/backends/memory_store.ts";
 import type { ExternalSecretProvider } from "../../../src/core/secrets/backends/external_provider.ts";
-import type { Result } from "../../../src/core/types/classification.ts";
+
 
 function createMockExternalProvider(): ExternalSecretProvider {
   const store = createMemorySecretStore();

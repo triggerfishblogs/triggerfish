@@ -204,7 +204,7 @@ Deno.test("VaultClient: tokenLookupSelf returns token info", () =>
 
 Deno.test("VaultClient: sends namespace header when configured", () =>
   withMockFetch(
-    (url, init) => {
+    (_url, init) => {
       const headers = init?.headers as Record<string, string>;
       assertEquals(headers["X-Vault-Namespace"], "my-ns");
       return jsonResponse({ data: { data: {}, metadata: { version: 1, created_time: "", deletion_time: "", destroyed: false } } });

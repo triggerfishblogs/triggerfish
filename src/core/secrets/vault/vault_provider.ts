@@ -218,16 +218,16 @@ export function createVaultProvider(
       };
     };
 
-  const renewLease = async (
+  const renewLease = (
     _name: string,
   ): Promise<Result<true, string>> => {
-    return { ok: true, value: true };
+    return Promise.resolve({ ok: true, value: true });
   };
 
-  const revokeLease = async (
+  const revokeLease = (
     _name: string,
   ): Promise<Result<true, string>> => {
-    return { ok: true, value: true };
+    return Promise.resolve({ ok: true, value: true });
   };
 
   return {

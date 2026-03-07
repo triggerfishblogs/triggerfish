@@ -9,7 +9,6 @@
 
 import type { Result } from "../../types/classification.ts";
 import type {
-  KvMetadata,
   KvReadResponse,
   KvWriteResponse,
   TokenInfo,

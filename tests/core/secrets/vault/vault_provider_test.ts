@@ -8,7 +8,7 @@ import { assertEquals } from "@std/assert";
 import { createVaultProvider } from "../../../../src/core/secrets/vault/vault_provider.ts";
 import type { VaultClient } from "../../../../src/core/secrets/vault/vault_client.ts";
 import type { VaultAuth } from "../../../../src/core/secrets/vault/auth/mod.ts";
-import type { Result } from "../../../../src/core/types/classification.ts";
+
 
 function createMockAuth(): VaultAuth {
   return {
