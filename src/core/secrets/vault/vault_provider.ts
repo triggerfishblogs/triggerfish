@@ -69,10 +69,9 @@ export function createVaultProvider(
   const { client, auth, defaultMount, pathPrefix } = options;
   let authenticated = false;
 
-  async function ensureAuthenticated(): Promise<Result<true, string>> {
-    if (authenticated && auth.currentToken()) {
-      return { ok: true, value: true };
-    }
+  let authInFlight: Promise<Result<true, string>> | undefined;
+
+  async function doAuthenticate(): Promise<Result<true, string>> {
     log.info("Vault authentication attempt", { operation: "ensureAuthenticated" });
     const result = await auth.authenticate();
     if (!result.ok) {
@@ -88,6 +87,15 @@ export function createVaultProvider(
       );
     }
     return { ok: true, value: true };
+  }
+
+  function ensureAuthenticated(): Promise<Result<true, string>> {
+    if (authenticated && auth.currentToken()) {
+      return Promise.resolve({ ok: true as const, value: true as const });
+    }
+    if (authInFlight) return authInFlight;
+    authInFlight = doAuthenticate().finally(() => { authInFlight = undefined; });
+    return authInFlight;
   }
 
   function extractValue(

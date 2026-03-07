@@ -72,8 +72,6 @@ export interface VaultClientOptions {
   readonly address: string;
   /** Vault Enterprise namespace. */
   readonly namespace?: string;
-  /** Custom CA certificate path for TLS. */
-  readonly tlsCaCert?: string;
   /** Request timeout in milliseconds. Default: 10_000. */
   readonly requestTimeoutMs: number;
 }

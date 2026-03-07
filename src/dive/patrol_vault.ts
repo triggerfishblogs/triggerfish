@@ -8,13 +8,13 @@
  */
 
 import type { Result } from "../core/types/classification.ts";
-import type { VaultClient } from "../core/secrets/vault/vault_client.ts";
-import type { SecretCache } from "../core/secrets/cache/secret_cache.ts";
+import type { VaultClient } from "../core/secrets/vault/mod.ts";
+import type { SecretCache } from "../core/secrets/cache/mod.ts";
 import {
   generateVaultHealthReport,
   collectVaultPatrolChecks,
-} from "../core/secrets/vault/health.ts";
-import type { PatrolCheckResult } from "../core/secrets/vault/health.ts";
+} from "../core/secrets/vault/mod.ts";
+import type { PatrolCheckResult } from "../core/secrets/vault/mod.ts";
 
 /** Options for running Vault patrol checks. */
 export interface VaultPatrolOptions {

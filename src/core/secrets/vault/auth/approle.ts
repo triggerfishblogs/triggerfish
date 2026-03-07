@@ -81,12 +81,15 @@ export function createAppRoleAuth(
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         const errors = (body as { errors?: string[] }).errors ?? [];
-        return {
-          ok: false,
-          error: `AppRole login failed (${response.status}): ${
-            errors.join(", ") || "unknown error"
-          }`,
-        };
+        const errorMsg = `AppRole login failed (${response.status}): ${
+          errors.join(", ") || "unknown error"
+        }`;
+        log.warn("AppRole login HTTP error", {
+          operation: "login",
+          status: response.status,
+          errors,
+        });
+        return { ok: false, error: errorMsg };
       }
 
       const body = await response.json();
@@ -116,6 +119,10 @@ export function createAppRoleAuth(
       });
 
       if (!response.ok) {
+        log.warn("Token renewal HTTP error", {
+          operation: "renewToken",
+          status: response.status,
+        });
         return {
           ok: false,
           error: `Token renewal failed with status ${response.status}`,

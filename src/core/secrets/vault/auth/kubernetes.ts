@@ -87,6 +87,11 @@ export function createKubernetesAuth(
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         const errors = (body as { errors?: string[] }).errors ?? [];
+        log.warn("Kubernetes auth login HTTP error", {
+          operation: "authenticate",
+          status: response.status,
+          errors,
+        });
         return {
           ok: false,
           error: `Kubernetes auth login failed (${response.status}): ${
