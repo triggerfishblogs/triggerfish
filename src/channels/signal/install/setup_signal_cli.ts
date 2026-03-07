@@ -9,6 +9,7 @@ import type { GitHubRelease } from "../setup/setup_resolver.ts";
 import {
   checkJava,
   resolveSignalCliBinDir,
+  SIGNAL_CLI_KNOWN_GOOD_VERSION,
   trySignalCli,
 } from "../setup/setup_resolver.ts";
 import {
@@ -38,7 +39,7 @@ export async function fetchLatestVersion(): Promise<
 > {
   try {
     const resp = await fetch(
-      "https://api.github.com/repos/AsamK/signal-cli/releases/latest",
+      `https://api.github.com/repos/AsamK/signal-cli/releases/tags/v${SIGNAL_CLI_KNOWN_GOOD_VERSION}`,
       {
         headers: { "Accept": "application/vnd.github+json" },
       },
