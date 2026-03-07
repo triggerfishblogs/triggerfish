@@ -32,6 +32,9 @@ export type { ZaiConfig } from "./zai.ts";
 export { createFireworksProvider } from "./fireworks.ts";
 export type { FireworksConfig } from "./fireworks.ts";
 
+export { createTriggerfishProvider } from "./triggerfish.ts";
+export type { TriggerfishConfig } from "./triggerfish.ts";
+
 export { executeWithRetry, isRetryableError, withRetry } from "./retry.ts";
 export type { RetryOptions } from "./retry.ts";
 

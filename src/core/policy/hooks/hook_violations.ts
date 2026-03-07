@@ -34,14 +34,21 @@ export function detectToolFloorViolation(
     CLASSIFICATION_ORDER[sessionTaint] < CLASSIFICATION_ORDER[toolFloor];
 }
 
-/** Check if session taint exceeds a resource's classification level. */
+/**
+ * Check if session taint exceeds a resource's classification level on a write.
+ *
+ * Only triggers for write operations — reading a lower-classified resource
+ * into a higher-tainted session is a safe read-up, not a write-down.
+ */
 export function detectResourceWriteDownViolation(
   input: Record<string, unknown>,
   sessionTaint: ClassificationLevel,
 ): boolean {
   const rc = input.resource_classification as ClassificationLevel | undefined;
+  const opType = input.operation_type as string | undefined;
   return rc !== undefined &&
     rc in CLASSIFICATION_ORDER &&
+    opType === "write" &&
     !canFlowTo(sessionTaint, rc);
 }
 

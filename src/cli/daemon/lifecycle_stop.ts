@@ -6,7 +6,7 @@
 import {
   detectDaemonManager,
   encodeUtf16Base64,
-  launchdPlistPath,
+  LAUNCHD_LABEL,
   runCommand,
   runElevatedCommand,
   SYSTEMD_UNIT,
@@ -16,8 +16,9 @@ import type { DaemonResult } from "./daemon.ts";
 
 /** Stop launchd daemon (macOS). */
 async function stopLaunchdDaemon(): Promise<DaemonResult> {
-  const plistPath = launchdPlistPath();
-  const result = await runCommand("launchctl", ["unload", plistPath]);
+  const uid = Deno.uid?.() ?? (await runCommand("id", ["-u"])).stdout.trim();
+  const target = `gui/${uid}/${LAUNCHD_LABEL}`;
+  const result = await runCommand("launchctl", ["bootout", target]);
   return result.success
     ? { ok: true, message: "Daemon stopped" }
     : { ok: false, message: `Failed to stop daemon: ${result.stderr}` };

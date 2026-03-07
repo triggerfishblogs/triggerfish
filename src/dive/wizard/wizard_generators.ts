@@ -22,7 +22,16 @@ function buildProviderConfigSection(
   answers: WizardAnswers,
 ): Record<string, Record<string, string>> {
   const providers: Record<string, Record<string, string>> = {};
-  if (answers.provider === "ollama" || answers.provider === "lmstudio") {
+  if (answers.provider === "triggerfish") {
+    const cfg: Record<string, string> = {};
+    if (answers.gatewayUrl.length > 0) {
+      cfg["gatewayUrl"] = answers.gatewayUrl;
+    }
+    if (answers.licenseKey.length > 0) {
+      cfg["licenseKey"] = "secret:cloud:licenseKey";
+    }
+    providers["triggerfish"] = cfg;
+  } else if (answers.provider === "ollama" || answers.provider === "lmstudio") {
     providers[answers.provider] = {
       model: answers.providerModel,
       endpoint: answers.localEndpoint,
@@ -113,6 +122,10 @@ function buildChannelConfigSection(
 function buildWebSearchConfigSection(
   answers: WizardAnswers,
 ): Record<string, unknown> {
+  // Triggerfish Cloud includes search via the gateway — no separate config needed
+  if (answers.provider === "triggerfish") {
+    return { search: { provider: "cloud" } };
+  }
   if (answers.searchProvider === "brave" && answers.searchApiKey.length > 0) {
     return {
       search: { provider: "brave", api_key: "secret:web:search:apiKey" },

@@ -68,6 +68,11 @@ const PROVIDER_ENDPOINTS: Readonly<Record<ProviderChoice, ProviderEndpoint>> = {
     url: () => "https://api.z.ai/api/coding/paas/v4/models",
     headers: (apiKey) => ({ "Authorization": `Bearer ${apiKey}` }),
   },
+  triggerfish: {
+    url: (_apiKey, endpoint) =>
+      `${endpoint ?? "https://api.trigger.fish"}/v1/license/validate`,
+    headers: (apiKey) => ({ "Authorization": `Bearer ${apiKey}` }),
+  },
 };
 
 // ─── Public API ──────────────────────────────────────────────────────────────

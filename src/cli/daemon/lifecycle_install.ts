@@ -31,14 +31,27 @@ async function installLaunchdDaemon(
   const launchAgentsDir = `${Deno.env.get("HOME")}/Library/LaunchAgents`;
   await Deno.mkdir(launchAgentsDir, { recursive: true });
   await Deno.writeTextFile(plistPath, plist);
-  await runCommand("launchctl", ["unload", plistPath]);
-  const result = await runCommand("launchctl", ["load", plistPath]);
-  return result.success
-    ? {
-      ok: true,
-      message: `Daemon installed and started (launchd: ${LAUNCHD_LABEL})`,
-    }
-    : { ok: false, message: `Failed to start daemon: ${result.stderr}` };
+  const uid = Deno.uid?.() ?? (await runCommand("id", ["-u"])).stdout.trim();
+  const domain = `gui/${uid}`;
+  // Use bootout/bootstrap instead of unload/load to clear throttle state
+  await runCommand("launchctl", ["bootout", `${domain}/${LAUNCHD_LABEL}`]);
+  const result = await runCommand("launchctl", [
+    "bootstrap",
+    domain,
+    plistPath,
+  ]);
+  if (!result.success) {
+    return { ok: false, message: `Failed to start daemon: ${result.stderr}` };
+  }
+  // Kickstart ensures the process actually launches immediately
+  await runCommand("launchctl", [
+    "kickstart",
+    `${domain}/${LAUNCHD_LABEL}`,
+  ]);
+  return {
+    ok: true,
+    message: `Daemon installed and started (launchd: ${LAUNCHD_LABEL})`,
+  };
 }
 
 /** Install and start via systemd (Linux). */

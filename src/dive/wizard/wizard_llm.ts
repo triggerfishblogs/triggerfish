@@ -10,6 +10,12 @@
 import { Input, Select } from "@cliffy/prompt";
 
 import { verifyProvider } from "../verify.ts";
+import {
+  openInBrowser,
+  resolveGatewayUrl,
+  startCallbackServer,
+  validateLicenseKey,
+} from "../cloud.ts";
 
 import type { ProviderChoice } from "./wizard_types.ts";
 import { DEFAULT_MODELS, PROVIDER_LABELS } from "./wizard_types.ts";
@@ -22,6 +28,8 @@ export interface LlmProviderResult {
   readonly providerModel: string;
   readonly apiKey: string;
   readonly localEndpoint: string;
+  readonly licenseKey: string;
+  readonly gatewayUrl: string;
 }
 
 // ── Mutable state for verify loop ─────────────────────────────────────────────
@@ -42,6 +50,7 @@ async function selectLlmProvider(): Promise<{
   const provider = (await Select.prompt({
     message: "LLM provider",
     options: [
+      { name: PROVIDER_LABELS.triggerfish, value: "triggerfish" },
       { name: PROVIDER_LABELS.anthropic, value: "anthropic" },
       { name: PROVIDER_LABELS.fireworks, value: "fireworks" },
       { name: PROVIDER_LABELS.google, value: "google" },
@@ -53,6 +62,11 @@ async function selectLlmProvider(): Promise<{
       { name: PROVIDER_LABELS.zenmux, value: "zenmux" },
     ],
   })) as ProviderChoice;
+
+  // Triggerfish Cloud manages models — no model prompt needed
+  if (provider === "triggerfish") {
+    return { provider, providerModel: "auto" };
+  }
 
   const providerModel = await Input.prompt({
     message: "Model name",
@@ -119,6 +133,144 @@ async function collectLlmApiKey(
   }
   const apiKey = await collectCloudProviderApiKey(provider);
   return { apiKey, localEndpoint: "http://localhost:11434" };
+}
+
+// ── Triggerfish Cloud setup ──────────────────────────────────────────────────
+
+/** Collect a Triggerfish Cloud license key via interactive setup. */
+async function collectTriggerfishLicenseKey(): Promise<{
+  licenseKey: string;
+  gatewayUrl: string;
+}> {
+  console.log("");
+  console.log("  Triggerfish Cloud handles LLM routing, model selection,");
+  console.log("  and includes web search — no other API keys needed.");
+  console.log("");
+
+  const setupMethod = await Select.prompt({
+    message: "How would you like to set up Triggerfish Cloud?",
+    options: [
+      { name: "I'm a new customer — sign up", value: "new" },
+      { name: "I'm a returning customer — get my key", value: "returning" },
+      { name: "I already have a license key", value: "paste" },
+    ],
+  });
+
+  if (setupMethod === "paste") {
+    return await collectTriggerfishKeyDirect();
+  }
+
+  if (setupMethod === "new") {
+    return await collectTriggerfishKeyViaCheckout();
+  }
+
+  return await collectTriggerfishKeyViaMagicLink();
+}
+
+/** Collect a license key directly by pasting. */
+async function collectTriggerfishKeyDirect(): Promise<{
+  licenseKey: string;
+  gatewayUrl: string;
+}> {
+  const licenseKey = await Input.prompt({
+    message: "Paste your license key (tf_live_... or tf_test_...)",
+  });
+  const gatewayUrl = resolveGatewayUrl(licenseKey);
+  return { licenseKey, gatewayUrl };
+}
+
+/** Collect a license key via new customer checkout flow. */
+async function collectTriggerfishKeyViaCheckout(): Promise<{
+  licenseKey: string;
+  gatewayUrl: string;
+}> {
+  const gatewayUrl = Deno.env.get("TRIGGERFISH_GATEWAY_URL") ??
+    "https://api.trigger.fish";
+  const ac = new AbortController();
+  const flowId = crypto.randomUUID();
+  const server = startCallbackServer(ac.signal, flowId);
+
+  try {
+    const { createCheckoutSession } = await import("../cloud.ts");
+    const result = await createCheckoutSession(
+      gatewayUrl,
+      flowId,
+      server.port,
+    );
+
+    if (!result.ok) {
+      console.log(`  \u2717 ${result.error}`);
+      console.log("  Falling back to manual key entry.");
+      return await collectTriggerfishKeyDirect();
+    }
+
+    console.log("");
+    console.log("  Opening checkout in your browser...");
+    await openInBrowser(result.value.checkout_url);
+    console.log("  Waiting for setup to complete...");
+    console.log("  (Press Ctrl+C to cancel)");
+    console.log("");
+
+    const licenseKey = await server.keyPromise;
+    console.log("  \u2713 License key received!");
+    return { licenseKey, gatewayUrl: resolveGatewayUrl(licenseKey) };
+  } catch {
+    console.log("  Setup was cancelled or timed out.");
+    console.log("  Falling back to manual key entry.");
+    return await collectTriggerfishKeyDirect();
+  } finally {
+    ac.abort();
+    server.close();
+  }
+}
+
+/** Collect a license key via returning customer magic link. */
+async function collectTriggerfishKeyViaMagicLink(): Promise<{
+  licenseKey: string;
+  gatewayUrl: string;
+}> {
+  const gatewayUrl = Deno.env.get("TRIGGERFISH_GATEWAY_URL") ??
+    "https://api.trigger.fish";
+  const email = await Input.prompt({
+    message: "Email address on your Triggerfish account",
+  });
+
+  const ac = new AbortController();
+  const flowId = crypto.randomUUID();
+  const server = startCallbackServer(ac.signal, flowId);
+
+  try {
+    const { sendMagicLink } = await import("../cloud.ts");
+    const result = await sendMagicLink(
+      gatewayUrl,
+      email,
+      flowId,
+      server.port,
+    );
+
+    if (!result.ok) {
+      console.log(`  \u2717 ${result.error}`);
+      console.log("  Falling back to manual key entry.");
+      return await collectTriggerfishKeyDirect();
+    }
+
+    console.log("");
+    console.log("  Magic link sent! Check your email and click the link.");
+    console.log("  Waiting for setup to complete...");
+    console.log("  (Press Ctrl+C to cancel)");
+    console.log("");
+
+    const licenseKey = await server.keyPromise;
+    console.log("  \u2713 License key received!");
+    return { licenseKey, gatewayUrl: resolveGatewayUrl(licenseKey) };
+  } catch {
+    console.log("  Setup was cancelled or timed out.");
+    console.log("  Falling back to manual key entry.");
+    return await collectTriggerfishKeyDirect();
+  } finally {
+    ac.abort();
+    server.close();
+  }
 }
 
 // ── Verification helpers ──────────────────────────────────────────────────────
@@ -239,12 +391,73 @@ async function verifyLlmConnection(options: {
 
 // ── Step entry point ──────────────────────────────────────────────────────────
 
+/** Verify a Triggerfish Cloud license key with retry loop. */
+async function verifyTriggerfishKey(
+  licenseKey: string,
+  gatewayUrl: string,
+): Promise<{ licenseKey: string; gatewayUrl: string }> {
+  if (licenseKey.length === 0) {
+    return { licenseKey, gatewayUrl };
+  }
+
+  let currentKey = licenseKey;
+  let currentGateway = gatewayUrl;
+
+  while (true) {
+    console.log("");
+    console.log("  Validating license key...");
+    const result = await validateLicenseKey(currentGateway, currentKey);
+
+    if (result.ok && result.value.valid) {
+      const plan = result.value.plan ?? "unknown";
+      console.log(`  \u2713 License valid (plan: ${plan})`);
+      return { licenseKey: currentKey, gatewayUrl: currentGateway };
+    }
+
+    const errorMsg = result.ok ? "License is not active" : result.error;
+    console.log(`  \u2717 ${errorMsg}`);
+    console.log("");
+
+    const action = await Select.prompt({
+      message: "What would you like to do?",
+      options: [
+        { name: "Re-enter license key", value: "reenter" },
+        { name: "Keep this key anyway", value: "keep" },
+      ],
+    });
+
+    if (action === "keep") {
+      return { licenseKey: currentKey, gatewayUrl: currentGateway };
+    }
+
+    currentKey = await Input.prompt({
+      message: "License key (tf_live_... or tf_test_...)",
+    });
+    currentGateway = resolveGatewayUrl(currentKey);
+  }
+}
+
 /** Run the LLM provider selection wizard step (Step 1/8). */
 export async function promptLlmProviderStep(): Promise<LlmProviderResult> {
   console.log("  Step 1/8: Choose your LLM provider");
   console.log("");
 
   const { provider, providerModel } = await selectLlmProvider();
+
+  // Triggerfish Cloud has its own setup flow
+  if (provider === "triggerfish") {
+    const { licenseKey, gatewayUrl } = await collectTriggerfishLicenseKey();
+    const verified = await verifyTriggerfishKey(licenseKey, gatewayUrl);
+    return {
+      provider,
+      providerModel: "auto",
+      apiKey: "",
+      localEndpoint: "http://localhost:11434",
+      licenseKey: verified.licenseKey,
+      gatewayUrl: verified.gatewayUrl,
+    };
+  }
+
   const { apiKey, localEndpoint } = await collectLlmApiKey(provider);
 
   const verified = await verifyLlmConnection({
@@ -259,5 +472,7 @@ export async function promptLlmProviderStep(): Promise<LlmProviderResult> {
     providerModel: verified.providerModel,
     apiKey: verified.apiKey,
     localEndpoint: verified.localEndpoint,
+    licenseKey: "",
+    gatewayUrl: "",
   };
 }
