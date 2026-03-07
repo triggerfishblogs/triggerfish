@@ -49,10 +49,10 @@ interface ExternalSecretProvider extends SecretStore {
   readonly providerId: string;
 
   /** Check connectivity and authentication. */
-  readonly checkHealth: () => Promise<Result<HealthStatus, string>>;
+  readonly probeHealth: () => Promise<Result<HealthStatus, string>>;
 
   /** Retrieve secret with metadata (version, lease, classification). */
-  readonly getSecretWithMetadata: (
+  readonly fetchSecretWithMetadata: (
     name: string,
   ) => Promise<Result<{ value: string; metadata: SecretMetadata }, string>>;
 
@@ -185,8 +185,8 @@ interface VaultClientOptions {
 }
 
 interface VaultClient {
-  readonly kvGet: (mount: string, path: string) => Promise<Result<KvResponse, string>>;
-  readonly kvPut: (mount: string, path: string, data: Record<string, string>) => Promise<Result<KvMetadata, string>>;
+  readonly kvRead: (mount: string, path: string) => Promise<Result<KvResponse, string>>;
+  readonly kvPut: (mount: string, path: string, data: Readonly<Record<string, string>>) => Promise<Result<KvMetadata, string>>;
   readonly kvDelete: (mount: string, path: string) => Promise<Result<true, string>>;
   readonly kvList: (mount: string, path: string) => Promise<Result<string[], string>>;
   readonly healthCheck: () => Promise<Result<VaultHealth, string>>;
@@ -447,7 +447,7 @@ src/core/policy/
 | Test File | Coverage |
 |-----------|----------|
 | `tests/core/secrets/classification/classifier_test.ts` | Path glob matching, default level, ordering |
-| `tests/core/secrets/classification/access_gate_test.ts` | Taint escalation, canFlowTo denial, allow path |
+| `tests/core/secrets/classification/access_gate_test.ts` | Hook dispatch with escalateTo field, canFlowTo denial, allow path |
 | `tests/core/policy/secret_access_hook_test.ts` | Hook evaluation, DENY on background + RESTRICTED |
 | `tests/core/secrets/vault/classified_access_test.ts` | End-to-end: Vault fetch -> classify -> gate -> taint |
 
@@ -744,7 +744,7 @@ Phase 2: Vault Provider                     ~4-5 days
   v
 Phase 3: Classification-Aware Access        ~3-4 days
   |-- Path-to-classification mapping
-  |-- Access gate (taint escalation, canFlowTo check)
+  |-- Access gate (hook dispatch with escalateTo, canFlowTo check)
   |-- SECRET_ACCESS hook activation
   |-- Config schema for classification mappings
   |-- Boundary tests
