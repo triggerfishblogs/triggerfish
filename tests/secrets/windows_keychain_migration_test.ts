@@ -5,6 +5,12 @@
  * Verifies that secrets can be migrated from a legacy store
  * into the DPAPI-backed store by listing, reading, and
  * re-writing each entry.
+ *
+ * NOTE: These tests simulate the migration flow using mock stores rather than
+ * calling the actual `migrateEncryptedFileToDpapi` function. The real function
+ * requires filesystem access and PowerShell (DPAPI) which are unavailable in
+ * CI. The simulation validates the migration logic (list → read → write) using
+ * the same SecretStore interface that the real function operates on.
  */
 
 import { assertEquals } from "@std/assert";

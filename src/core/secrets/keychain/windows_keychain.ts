@@ -128,7 +128,7 @@ async function readDpapiSecretsFile(
   try {
     const raw = await Deno.readTextFile(path);
     const parsed = JSON.parse(raw) as DpapiSecretsFile;
-    if (parsed.v === 1 && typeof parsed.entries === "object") return parsed;
+    if (parsed.v === 1 && parsed.entries !== null && typeof parsed.entries === "object") return parsed;
     return { v: 1, entries: {} };
   } catch (err) {
     log.debug("DPAPI secrets file unreadable, starting empty", { operation: "readDpapiSecretsFile", path, err });
@@ -177,7 +177,7 @@ async function dpapiSetSecret(
   name: string,
   value: string,
 ): Promise<Result<true, string>> {
-  log.warn("DPAPI secret write requested", { name, store: secretsPath });
+  log.info("DPAPI secret write requested", { name, store: secretsPath });
   const protectResult = await protectSecret(value);
   if (!protectResult.ok) return { ok: false, error: protectResult.error };
 
@@ -194,7 +194,7 @@ async function dpapiDeleteSecret(
   secretsPath: string,
   name: string,
 ): Promise<Result<true, string>> {
-  log.warn("DPAPI secret delete requested", { name, store: secretsPath });
+  log.info("DPAPI secret delete requested", { name, store: secretsPath });
   const file = await readDpapiSecretsFile(secretsPath);
   if (!(name in file.entries)) {
     return { ok: false, error: `Secret '${name}' not found in DPAPI store` };
