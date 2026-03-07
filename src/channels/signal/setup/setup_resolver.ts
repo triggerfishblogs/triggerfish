@@ -24,7 +24,7 @@ const log = createLogger("signal");
  * installed version is older. Update this constant when a newer release
  * has been validated.
  */
-export const SIGNAL_CLI_KNOWN_GOOD_VERSION = "0.13.24";
+export const SIGNAL_CLI_KNOWN_GOOD_VERSION = "0.14.0";
 
 /** Result of the guided Signal setup flow. */
 export interface SignalSetupResult {

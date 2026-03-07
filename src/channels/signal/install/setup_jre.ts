@@ -48,14 +48,14 @@ const ADOPTIUM_ARCH_MAP: Record<string, string> = {
   aarch64: "aarch64",
 };
 
-/** Fetch JRE 21 asset metadata from the Adoptium API. */
+/** Fetch JRE 25 asset metadata from the Adoptium API. */
 async function fetchAdoptiumAssets(
   adoptOs: string,
   adoptArch: string,
 ): Promise<Result<AdoptiumAsset[], string>> {
   try {
     const metaUrl =
-      `https://api.adoptium.net/v3/assets/latest/21/hotspot?image_type=jre&os=${adoptOs}&architecture=${adoptArch}`;
+      `https://api.adoptium.net/v3/assets/latest/25/hotspot?image_type=jre&os=${adoptOs}&architecture=${adoptArch}`;
     const metaResp = await fetch(metaUrl);
     if (!metaResp.ok) {
       return {
@@ -118,9 +118,9 @@ async function verifyInstalledJre(): Promise<Result<string, string>> {
 }
 
 /**
- * Download and install Eclipse Temurin JRE 21 to ~/.triggerfish/bin/java/.
+ * Download and install Eclipse Temurin JRE 25 to ~/.triggerfish/bin/java/.
  *
- * Uses the Adoptium API to fetch the latest JRE 21 GA release.
+ * Uses the Adoptium API to fetch the latest JRE 25 GA release.
  *
  * @returns JAVA_HOME path for the installed JRE.
  */
@@ -138,12 +138,12 @@ export async function downloadJre(): Promise<Result<string, string>> {
     };
   }
 
-  log.info("Fetching JRE 21 release info", {
+  log.info("Fetching JRE 25 release info", {
     operation: "downloadJre",
     adoptOs,
     adoptArch,
   });
-  console.log("  Fetching JRE 21 release info...");
+  console.log("  Fetching JRE 25 release info...");
   const assetsResult = await fetchAdoptiumAssets(adoptOs, adoptArch);
   if (!assetsResult.ok) return assetsResult;
 
@@ -151,7 +151,7 @@ export async function downloadJre(): Promise<Result<string, string>> {
   if (assets.length === 0) {
     return {
       ok: false,
-      error: `No JRE 21 release found for ${adoptOs}/${adoptArch}`,
+      error: `No JRE 25 release found for ${adoptOs}/${adoptArch}`,
     };
   }
 
@@ -163,13 +163,13 @@ export async function downloadJre(): Promise<Result<string, string>> {
   }
 
   const sizeMB = (asset.binary.package.size / 1024 / 1024).toFixed(1);
-  log.info("Downloading JRE 21", {
+  log.info("Downloading JRE 25", {
     operation: "downloadJre",
     releaseName: asset.release_name,
     sizeMB,
   });
   console.log(
-    `  Downloading JRE 21 (${asset.release_name}, ${sizeMB} MB)...`,
+    `  Downloading JRE 25 (${asset.release_name}, ${sizeMB} MB)...`,
   );
 
   const extractResult = await downloadAndExtractArchive(
