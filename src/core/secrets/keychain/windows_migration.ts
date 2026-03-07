@@ -41,7 +41,8 @@ async function legacyStoreExists(paths: {
     await Deno.stat(paths.secretsPath);
     await Deno.stat(paths.keyPath);
     return true;
-  } catch {
+  } catch (err) {
+    log.debug("Legacy secrets file stat failed, treating as absent", { operation: "legacyStoreExists", secretsPath: paths.secretsPath, err });
     return false;
   }
 }

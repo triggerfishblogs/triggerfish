@@ -130,7 +130,8 @@ async function readDpapiSecretsFile(
     const parsed = JSON.parse(raw) as DpapiSecretsFile;
     if (parsed.v === 1 && typeof parsed.entries === "object") return parsed;
     return { v: 1, entries: {} };
-  } catch {
+  } catch (err) {
+    log.debug("DPAPI secrets file unreadable, starting empty", { operation: "readDpapiSecretsFile", path, err });
     return { v: 1, entries: {} };
   }
 }
