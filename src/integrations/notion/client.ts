@@ -10,6 +10,7 @@
 
 import type { Result } from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/mod.ts";
+import { safeFetch } from "../../core/security/mod.ts";
 import type { NotionError } from "./types.ts";
 
 const log = createLogger("notion:client");
@@ -121,7 +122,7 @@ function sleep(ms: number): Promise<void> {
 export function createNotionClient(config: NotionClientConfig): NotionClient {
   const baseUrl = config.baseUrl ?? DEFAULT_BASE_URL;
   const apiVersion = config.apiVersion ?? DEFAULT_API_VERSION;
-  const doFetch = config.fetchFn ?? fetch;
+  const doFetch = config.fetchFn ?? safeFetch;
   const rateLimitMs = 1000 / (config.rateLimitPerSecond ?? 3);
   let lastRequestTime = 0;
 

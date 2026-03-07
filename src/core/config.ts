@@ -74,7 +74,9 @@ export interface TriggerFishConfig {
     readonly classification_floor?: string;
     readonly oauth2?: {
       readonly client_id?: string;
-      readonly client_secret?: string;
+      // client_secret must be stored via the OS keychain (secret: ref),
+      // not in the config file. Will be resolved at runtime when OAuth2
+      // support is implemented.
       readonly redirect_uri?: string;
     };
   };
