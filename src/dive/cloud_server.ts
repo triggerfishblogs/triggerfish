@@ -83,7 +83,10 @@ export function startCallbackServer(
   });
 
   // Prevent unhandled rejection when abort fires after no one is awaiting
-  keyPromise.catch(() => {});
+  keyPromise.catch((_: unknown) => {
+    // Intentional no-op: callers use Promise.race and may not await keyPromise.
+    // The abort error is expected and already logged at the abort site.
+  });
 
   return {
     port: addr.port,
