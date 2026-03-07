@@ -25,11 +25,19 @@ export async function storeWizardSecrets(
   const s = store ?? createKeychain();
   const stored: string[] = [];
 
+  // Triggerfish Cloud license key
+  if (answers.provider === "triggerfish" && answers.licenseKey.length > 0) {
+    const key = "cloud:licenseKey";
+    await s.setSecret(key, answers.licenseKey);
+    stored.push(key);
+  }
+
   // Provider API key
   if (
     answers.apiKey.length > 0 &&
     answers.provider !== "ollama" &&
-    answers.provider !== "lmstudio"
+    answers.provider !== "lmstudio" &&
+    answers.provider !== "triggerfish"
   ) {
     const key = `provider:${answers.provider}:apiKey`;
     await s.setSecret(key, answers.apiKey);

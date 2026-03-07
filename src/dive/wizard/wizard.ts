@@ -166,6 +166,8 @@ function mapLlmToAnswerFields(llm: LlmProviderResult): Partial<WizardAnswers> {
     providerModel: llm.providerModel,
     apiKey: llm.apiKey,
     localEndpoint: llm.localEndpoint,
+    licenseKey: llm.licenseKey,
+    gatewayUrl: llm.gatewayUrl,
   };
 }
 
@@ -244,7 +246,17 @@ async function collectAllWizardSteps(
   await promptGoogleWorkspaceStep();
   await promptGitHubConnectionStep();
 
-  const search = await promptSearchProviderStep();
+  // Triggerfish Cloud includes search — skip the search provider step
+  let search: SearchProviderResult;
+  if (llm.provider === "triggerfish") {
+    console.log("  Step 7/8: Web search");
+    console.log("");
+    console.log("  \u2713 Web search included with Triggerfish Cloud");
+    console.log("");
+    search = { searchProvider: "skip", searchApiKey: "", searxngUrl: "" };
+  } else {
+    search = await promptSearchProviderStep();
+  }
   const installDaemon = await promptDaemonInstallStep();
 
   return assembleWizardAnswers({

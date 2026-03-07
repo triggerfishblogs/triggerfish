@@ -14,6 +14,7 @@ export interface DiveResult {
 
 /** LLM provider choice. */
 export type ProviderChoice =
+  | "triggerfish"
   | "anthropic"
   | "openai"
   | "google"
@@ -73,6 +74,8 @@ export interface WizardAnswers {
   readonly searchApiKey: string;
   readonly searxngUrl: string;
   readonly localEndpoint: string;
+  readonly licenseKey: string;
+  readonly gatewayUrl: string;
   readonly installDaemon: boolean;
   /**
    * Optional per-classification model overrides.
@@ -85,6 +88,7 @@ export interface WizardAnswers {
 
 /** Default models per provider. */
 export const DEFAULT_MODELS: Readonly<Record<ProviderChoice, string>> = {
+  triggerfish: "auto",
   anthropic: "claude-sonnet-4-5",
   openai: "gpt-4o",
   google: "gemini-2.0-flash",
@@ -98,6 +102,7 @@ export const DEFAULT_MODELS: Readonly<Record<ProviderChoice, string>> = {
 
 /** Human-readable labels for provider selection. */
 export const PROVIDER_LABELS: Readonly<Record<ProviderChoice, string>> = {
+  triggerfish: "Triggerfish Cloud — easiest setup, includes web search",
   anthropic: "Anthropic (Claude) — recommended",
   openai: "OpenAI (GPT-4o)",
   google: "Google (Gemini)",

@@ -18,6 +18,7 @@ import { createOpenRouterProvider } from "./openrouter/mod.ts";
 import { createZenMuxProvider } from "./zenmux.ts";
 import { createZaiProvider } from "./zai.ts";
 import { createFireworksProvider } from "./fireworks.ts";
+import { createTriggerfishProvider } from "./triggerfish.ts";
 import { withRetry } from "./retry.ts";
 
 /** Provider block from triggerfish.yaml. */
@@ -31,6 +32,10 @@ export interface ProvidersConfig {
   readonly zenmux?: { readonly model: string; readonly apiKey?: string };
   readonly zai?: { readonly model: string; readonly apiKey?: string };
   readonly fireworks?: { readonly model: string; readonly apiKey?: string };
+  readonly triggerfish?: {
+    readonly gatewayUrl?: string;
+    readonly licenseKey?: string;
+  };
 }
 
 /** Explicit provider + model pair for the primary model. */
@@ -142,6 +147,13 @@ export function loadProvidersFromConfig(
     })));
   }
 
+  if (providers.triggerfish) {
+    registry.register(withRetry(createTriggerfishProvider({
+      gatewayUrl: providers.triggerfish.gatewayUrl,
+      licenseKey: providers.triggerfish.licenseKey,
+    })));
+  }
+
   // Set default provider directly from models.primary.provider
   const defaultProvider = modelsConfig.primary.provider;
   if (defaultProvider && registry.get(defaultProvider)) {
@@ -240,6 +252,11 @@ function createProviderByName(
       });
     case "fireworks":
       return createFireworksProvider({ model, apiKey });
+    case "triggerfish":
+      return createTriggerfishProvider({
+        gatewayUrl: providerConfig.gatewayUrl as string | undefined,
+        licenseKey: providerConfig.licenseKey as string | undefined,
+      });
     default: {
       const log = createLogger("providers");
       log.warn("Unknown provider name in createProviderByName", {
@@ -276,6 +293,10 @@ export function resolveVisionProvider(
   ] as Readonly<Record<string, unknown>> | undefined;
   if (!providerConfig) return undefined;
 
-  const provider = createProviderByName(providerName, providerConfig, visionModel);
+  const provider = createProviderByName(
+    providerName,
+    providerConfig,
+    visionModel,
+  );
   return provider ? withRetry(provider) : undefined;
 }

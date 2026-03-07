@@ -10,6 +10,7 @@ import type { TriggerFishConfig } from "../../../core/config.ts";
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import {
   createBraveSearchProvider,
+  createCloudSearchProvider,
   createDomainClassifier,
   createDomainPolicy,
   createRateLimitedSearchProvider,
@@ -49,6 +50,18 @@ function buildSearchProvider(
   config: TriggerFishConfig,
 ): SearchProvider | undefined {
   const searchConfig = config.web?.search;
+
+  // Cloud search provider for Triggerfish Cloud subscribers
+  if (searchConfig?.provider === "cloud") {
+    const tfProvider = config.models.providers["triggerfish"];
+    return createCloudSearchProvider({
+      gatewayUrl: (tfProvider as unknown as Record<string, string>)
+        ?.gatewayUrl,
+      licenseKey: (tfProvider as unknown as Record<string, string>)
+        ?.licenseKey,
+    });
+  }
+
   if (!searchConfig?.api_key) return undefined;
 
   const provider = createBraveSearchProvider({
