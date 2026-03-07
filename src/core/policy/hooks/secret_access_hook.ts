@@ -8,10 +8,13 @@
  */
 
 import { canFlowTo } from "../../types/classification.ts";
+import { createLogger } from "../../logger/logger.ts";
 import type {
   SecretAccessHookInput,
   SecretAccessHookResult,
 } from "../../secrets/classification/secret_access_gate.ts";
+
+const log = createLogger("policy:secret-access");
 
 /** Policy rule for SECRET_ACCESS evaluation. */
 export interface SecretAccessPolicyRule {
@@ -55,9 +58,22 @@ export function evaluateSecretAccessPolicy(
   }
 
   if (canFlowTo(input.classification, input.sessionTaint)) {
+    log.info("Secret access allowed (within taint)", {
+      operation: "evaluateSecretAccessPolicy",
+      secret: input.secretName,
+      classification: input.classification,
+      sessionTaint: input.sessionTaint,
+    });
     return { action: "ALLOW" };
   }
 
+  log.warn("Secret access requires taint escalation", {
+    operation: "evaluateSecretAccessPolicy",
+    secret: input.secretName,
+    classification: input.classification,
+    sessionTaint: input.sessionTaint,
+    escalateTo: input.classification,
+  });
   return {
     action: "ALLOW",
     escalateTo: input.classification,

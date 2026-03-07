@@ -8,6 +8,9 @@
  */
 
 import type { Result } from "../../types/classification.ts";
+import { createLogger } from "../../logger/logger.ts";
+
+const log = createLogger("vault:provider");
 import type {
   ExternalSecretProvider,
   HealthStatus,
@@ -75,9 +78,14 @@ export function createVaultProvider(
     if (authenticated && auth.currentToken()) {
       return { ok: true, value: true };
     }
+    log.info("Vault authentication attempt", { operation: "ensureAuthenticated" });
     const result = await auth.authenticate();
-    if (!result.ok) return result;
+    if (!result.ok) {
+      log.warn("Vault authentication failed", { operation: "ensureAuthenticated", err: result.error });
+      return result;
+    }
     authenticated = true;
+    log.info("Vault authentication succeeded", { operation: "ensureAuthenticated" });
     return { ok: true, value: true };
   }
 

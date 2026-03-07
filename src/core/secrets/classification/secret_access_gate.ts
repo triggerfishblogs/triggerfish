@@ -14,7 +14,10 @@ import type {
   Result,
 } from "../../types/classification.ts";
 import { canFlowTo } from "../../types/classification.ts";
+import { createLogger } from "../../logger/logger.ts";
 import type { SecretClassifier } from "./secret_classifier.ts";
+
+const log = createLogger("secrets:access-gate");
 
 /** Input for the SECRET_ACCESS hook. */
 export interface SecretAccessHookInput {
@@ -65,9 +68,20 @@ function defaultHookDispatcher(
   const { classification, sessionTaint } = input;
 
   if (canFlowTo(classification, sessionTaint)) {
+    log.info("Secret access gate: allowed within taint", {
+      operation: "defaultHookDispatcher",
+      classification,
+      sessionTaint,
+    });
     return Promise.resolve({ action: "ALLOW" as const });
   }
 
+  log.warn("Secret access gate: escalation required", {
+    operation: "defaultHookDispatcher",
+    classification,
+    sessionTaint,
+    escalateTo: classification,
+  });
   return Promise.resolve({
     action: "ALLOW" as const,
     escalateTo: classification,

@@ -8,6 +8,9 @@
  */
 
 import type { Result } from "../../types/classification.ts";
+import { createLogger } from "../../logger/logger.ts";
+
+const log = createLogger("vault:client");
 import type {
   KvReadResponse,
   KvWriteResponse,
@@ -71,8 +74,8 @@ async function parseVaultError(
     if (errors && errors.length > 0) {
       return `Vault ${operation} failed (${response.status}): ${errors.join(", ")}`;
     }
-  } catch {
-    // Response body not JSON
+  } catch (err) {
+    log.debug("Vault error response body not JSON", { operation, err });
   }
   return `Vault ${operation} failed with status ${response.status}`;
 }
