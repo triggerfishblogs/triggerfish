@@ -15,6 +15,21 @@ import type { NotionError } from "./types.ts";
 
 const log = createLogger("notion:client");
 
+/** Wrap safeFetch to match the standard fetch signature. */
+async function defaultFetch(
+  url: string | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const result = await safeFetch(
+    typeof url === "string" ? url : url.toString(),
+    init,
+  );
+  if (!result.ok) {
+    throw new Error(result.error);
+  }
+  return result.value;
+}
+
 /** Configuration for the Notion HTTP client. */
 export interface NotionClientConfig {
   readonly token: string;
@@ -122,7 +137,7 @@ function sleep(ms: number): Promise<void> {
 export function createNotionClient(config: NotionClientConfig): NotionClient {
   const baseUrl = config.baseUrl ?? DEFAULT_BASE_URL;
   const apiVersion = config.apiVersion ?? DEFAULT_API_VERSION;
-  const doFetch = config.fetchFn ?? safeFetch;
+  const doFetch = config.fetchFn ?? defaultFetch;
   const rateLimitMs = 1000 / (config.rateLimitPerSecond ?? 3);
   let lastRequestTime = 0;
 
