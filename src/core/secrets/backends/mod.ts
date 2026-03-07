@@ -14,3 +14,9 @@ export { createFileSecretStore } from "./file_provider.ts";
 export type { FileSecretStoreOptions } from "./file_provider.ts";
 export { loadOrCreateMachineKey } from "./key_manager.ts";
 export type { MachineKeyOptions } from "./key_manager.ts";
+export { isExternalProvider } from "./external_provider.ts";
+export type {
+  ExternalSecretProvider,
+  HealthStatus,
+  SecretMetadata,
+} from "./external_provider.ts";
