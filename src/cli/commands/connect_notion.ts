@@ -158,6 +158,10 @@ export async function disconnectNotion(): Promise<void> {
   if (result.ok) {
     console.log("Notion disconnected. Token removed from keychain.");
   } else {
+    log.warn("Notion token removal failed or key not found", {
+      operation: "disconnectNotion",
+      err: result.error,
+    });
     console.log("No Notion account was connected.");
   }
 }

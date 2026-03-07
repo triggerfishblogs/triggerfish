@@ -13,6 +13,9 @@ import type { TriggerFishConfig } from "../../../core/config.ts";
 import type { SessionId } from "../../../core/types/session.ts";
 import { parseClassification } from "../../../core/types/classification.ts";
 import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("gateway.notion");
 import {
   createNotionClient,
   createNotionPagesService,
@@ -43,7 +46,10 @@ export async function buildNotionExecutor(
   const tokenResult = await resolveNotionToken({ secretStore: keychain });
 
   if (!tokenResult.ok) {
-    // Token not found — return executor that gives a graceful error
+    log.warn("Notion enabled but token not found in keychain", {
+      operation: "createNotionExecutor",
+      err: tokenResult.error,
+    });
     return createNotionToolExecutor(undefined);
   }
 
@@ -75,5 +81,12 @@ function resolveClassificationFloor(
   const floor = config.notion?.classification_floor;
   if (!floor) return undefined;
   const parsed = parseClassification(floor);
-  return parsed.ok ? parsed.value : undefined;
+  if (!parsed.ok) {
+    log.warn("Invalid notion classification_floor in config, ignoring", {
+      operation: "resolveClassificationFloor",
+      value: floor,
+    });
+    return undefined;
+  }
+  return parsed.value;
 }
