@@ -30,11 +30,11 @@ export interface SignalCliInstall {
 }
 
 /**
- * Fetch the latest signal-cli version from GitHub releases.
+ * Fetch the known-good pinned signal-cli version from GitHub releases.
  *
- * @returns Version string (e.g. "0.13.24") and asset list.
+ * @returns Release metadata for the pinned SIGNAL_CLI_KNOWN_GOOD_VERSION.
  */
-export async function fetchLatestVersion(): Promise<
+export async function fetchKnownGoodRelease(): Promise<
   Result<GitHubRelease, string>
 > {
   try {

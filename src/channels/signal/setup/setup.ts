@@ -33,7 +33,7 @@ export { downloadJre } from "../install/setup_jre.ts";
 // ─── Signal-cli installer: download + install signal-cli ────────
 export {
   downloadSignalCli,
-  fetchLatestVersion,
+  fetchKnownGoodRelease,
   type SignalCliInstall,
 } from "../install/setup_signal_cli.ts";
 

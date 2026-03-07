@@ -17,11 +17,13 @@ function drainStream(stream: ReadableStream<Uint8Array>, label: string): void {
       if (value) total += value.byteLength;
       if (done) {
         log.info("Pipe drain complete", { pipe: label, bytesRead: total });
+        reader.releaseLock();
         return;
       }
       pump();
     }).catch((err: unknown) => {
       log.debug("Pipe drain ended", { operation: "drainStream", pipe: label, err });
+      reader.releaseLock();
     });
   };
   pump();
