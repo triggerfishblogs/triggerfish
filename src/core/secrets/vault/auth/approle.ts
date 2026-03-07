@@ -38,6 +38,7 @@ export function createAppRoleAuth(
   currentToken: () => string;
   scheduleRenewal: (
     onRenewFailed: () => void,
+    initialTtlSeconds?: number,
   ) => void;
   cancelRenewal: () => void;
 } {
@@ -131,7 +132,10 @@ export function createAppRoleAuth(
     }
   }
 
-  function scheduleRenewal(onRenewFailed: () => void): void {
+  function scheduleRenewal(
+    onRenewFailed: () => void,
+    initialTtlSeconds?: number,
+  ): void {
     cancelRenewal();
 
     const renewalFn = async () => {
@@ -158,7 +162,10 @@ export function createAppRoleAuth(
       onRenewFailed();
     };
 
-    renewalTimer = setTimeout(renewalFn, 0);
+    const initialDelayMs = initialTtlSeconds
+      ? initialTtlSeconds * 1000 * RENEWAL_THRESHOLD
+      : 0;
+    renewalTimer = setTimeout(renewalFn, initialDelayMs);
   }
 
   function cancelRenewal(): void {

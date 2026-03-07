@@ -13,6 +13,9 @@
 import type { Result } from "../types/classification.ts";
 import type { ExternalSecretProvider } from "./backends/external_provider.ts";
 import type { SecretStore } from "./backends/secret_store.ts";
+import { createLogger } from "../logger/logger.ts";
+
+const log = createLogger("secrets:composite");
 import type { SecretCache, SecretFetcher } from "./cache/secret_cache.ts";
 
 /** Options for constructing a composite store. */
@@ -112,6 +115,13 @@ export function createCompositeSecretStore(
         for (const name of providerResult.value) {
           allNames.push(`${prefix}:${name}`);
         }
+      } else {
+        log.warn("External provider listSecrets failed", {
+          operation: "listSecrets",
+          prefix,
+          providerId: provider.providerId,
+          err: providerResult.error,
+        });
       }
     }
 

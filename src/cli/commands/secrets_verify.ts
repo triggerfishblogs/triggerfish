@@ -46,7 +46,7 @@ export async function verifySecrets(
     if (result.ok) {
       entries.push({ name, status: "ok" });
       ok++;
-    } else if (result.error.includes("not found")) {
+    } else if (/not found|does not exist|no secret|404/i.test(result.error)) {
       entries.push({ name, status: "missing", error: result.error });
       missing++;
     } else {

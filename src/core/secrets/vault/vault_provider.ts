@@ -52,11 +52,6 @@ function parseSecretPath(
   const prefix = pathPrefix ?? "";
   const fullPath = prefix + remaining;
 
-  const slashIdx = fullPath.indexOf("/");
-  if (slashIdx === -1) {
-    return { mount: defaultMount, path: fullPath, key };
-  }
-
   return { mount: defaultMount, path: fullPath, key };
 }
 

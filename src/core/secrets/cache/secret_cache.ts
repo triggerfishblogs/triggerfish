@@ -9,6 +9,9 @@
 
 import type { Result } from "../../types/classification.ts";
 import type { SecretMetadata } from "../backends/external_provider.ts";
+import { createLogger } from "../../logger/logger.ts";
+
+const log = createLogger("secrets:cache");
 
 /** Configuration for the secret cache. */
 export interface SecretCacheOptions {
@@ -135,6 +138,12 @@ export function createSecretCache(
             lastAccessedAt: Date.now(),
           });
         }
+      }).catch((err) => {
+        log.warn("Secret cache background revalidation failed", {
+          operation: "get",
+          name,
+          err,
+        });
       });
 
       return {
