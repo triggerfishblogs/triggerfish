@@ -90,7 +90,7 @@ this cache — they are already local I/O.
 interface SecretCacheOptions {
   readonly maxEntries: number;         // Default: 256
   readonly ttlMs: number;             // Default: 300_000 (5 min)
-  readonly staleWhileRevalidateMs: number; // Default: 60_000 (1 min grace)
+  readonly staleGraceMs: number; // Default: 60_000 (1 min grace)
 }
 ```
 
@@ -345,7 +345,7 @@ secrets:
       cache:
         ttl: 300                        # Seconds, default 300
         max_entries: 256                # Default 256
-        stale_grace: 60                 # Seconds, default 60
+        stale_grace_s: 60               # Seconds, default 60
       startup: block                    # block | warn | skip
 
   # Classification mapping: Vault path prefixes -> classification levels
@@ -387,13 +387,12 @@ When a secret is accessed via Vault:
    (first match wins, glob patterns)
 2. **Level assignment** — Assign the matched classification level (or
    `default_level` if no match)
-3. **Taint check** — If `secret.classification > session.taint`, escalate taint
-   via `escalateTaint(level, reason)`
-4. **Access gate** — Verify the secret's classification can flow to the
-   session using `canFlowTo`; if the secret is above the session's current
-   taint level, escalate taint via `escalateTaint` (taint only goes up,
-   never down)
-5. **Audit** — Log via `SECRET_ACCESS` hook with full context:
+3. **Hook dispatch** — Pass the classification level to the `SECRET_ACCESS`
+   hook via `SecretAccessHookInput`. The hook returns `escalateTo` in its
+   result. The orchestrator's existing POST_TOOL_RESPONSE taint escalation
+   machinery applies the escalation — `secret_access_gate.ts` does NOT call
+   `escalateTaint` directly
+4. **Audit** — Log via `SECRET_ACCESS` hook with full context:
    `{ secretPath, classification, sessionId, decision, timestamp }`
 
 ### 3.4 `SECRET_ACCESS` Hook Activation
@@ -436,7 +435,7 @@ hooks:
 src/core/secrets/
   classification/
     secret_classifier.ts     # Path-to-classification mapping logic
-    secret_access_gate.ts    # Enforcement (taint escalation, canFlowTo check)
+    secret_access_gate.ts    # Enforcement (classifies and dispatches to SECRET_ACCESS hook; does NOT escalate taint directly)
     mod.ts                   # Barrel
 src/core/policy/
   hooks/
@@ -642,18 +641,18 @@ This keeps the dependency tree clean and avoids version conflicts.
 ### SSRF Considerations
 
 The SSRF IP denylist (`src/tools/web/ssrf.ts`) is hardcoded and non-configurable
-— private/reserved IP ranges are always blocked. This denylist protects against
-user-supplied URLs (web_fetch, browser.navigate) where the LLM or end user
-controls the target.
+— private/reserved IP ranges are always blocked on all outbound HTTP. This rule
+is unconditional: DNS resolution and IP denylist checks apply to every outbound
+connection, regardless of whether the URL is user-supplied or operator-configured.
 
-Vault's address is **operator-configured infrastructure**, not user-supplied
-input. The Vault client is therefore exempt from the SSRF IP denylist, since the
-operator explicitly declares the address in `triggerfish.yaml`. This is
-consistent with how other operator-configured services (database connections,
-notification endpoints) are handled — the threat model for SSRF targets
-LLM-controlled outbound requests, not static infrastructure wiring.
+The Vault client MUST resolve DNS and check the resolved IP against the SSRF
+denylist before each connection, reusing the existing `src/tools/web/ssrf.ts`
+utilities. Although Vault's address is operator-configured (not LLM-controlled),
+the SSRF denylist is a defense-in-depth measure — misconfigured addresses,
+DNS rebinding, and compromised DNS resolvers are all real threats that the
+denylist mitigates.
 
-The Vault client must still:
+The Vault client must also:
 
 1. Use HTTPS in production (warn at startup if scheme is `http://` and address
    is not `127.0.0.1`)
@@ -774,7 +773,7 @@ methods can be implemented in parallel (AppRole, Token, K8s are independent).
 | Cache serves stale secret after rotation | Stale-while-revalidate with configurable TTL; rotation webhook support planned |
 | Classification mapping misconfigured | Default-deny: unmapped paths get `default_level`, never PUBLIC |
 | Migration data loss | Source not deleted by default; round-trip verification required |
-| SSRF via Vault address | Vault address is operator-configured (not user-supplied), exempt from SSRF IP denylist; LLM cannot influence the address |
+| SSRF via Vault address | Vault client resolves DNS and checks against SSRF IP denylist before each connection (reuses `src/tools/web/ssrf.ts`); LLM cannot influence the address |
 | Breaking existing deployments | Vault is opt-in; `secrets.default: keychain` remains the default |
 
 ---
