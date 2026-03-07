@@ -178,6 +178,14 @@ async function fetchBlockChildren(
   );
   if (!result.ok) return result;
 
+  if (result.value.has_more) {
+    log.warn("Notion page content truncated at 100 blocks", {
+      operation: "fetchBlockChildren",
+      blockId,
+      nextCursor: result.value.next_cursor,
+    });
+  }
+
   const blocks: NotionBlock[] = [];
   for (const raw of result.value.results) {
     let children: readonly NotionBlock[] | undefined;

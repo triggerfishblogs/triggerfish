@@ -138,11 +138,13 @@ export function createNotionClient(config: NotionClientConfig): NotionClient {
   const baseUrl = config.baseUrl ?? DEFAULT_BASE_URL;
   const apiVersion = config.apiVersion ?? DEFAULT_API_VERSION;
   const doFetch = config.fetchFn ?? defaultFetch;
-  const rateLimitMs = 1000 / (config.rateLimitPerSecond ?? 3);
+  const rateLimitPerSec = config.rateLimitPerSecond ?? 3;
+  const rateLimitMs = rateLimitPerSec > 0 ? 1000 / rateLimitPerSec : 0;
   let lastRequestTime = 0;
 
   /** Enforce minimum interval between requests. */
   async function waitForRateLimit(): Promise<void> {
+    if (rateLimitMs === 0) return;
     const now = Date.now();
     const elapsed = now - lastRequestTime;
     const sleepMs = elapsed < rateLimitMs ? rateLimitMs - elapsed : 0;
