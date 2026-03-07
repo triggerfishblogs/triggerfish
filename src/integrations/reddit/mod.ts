@@ -46,6 +46,6 @@ export type { RedditToolContext } from "./tools.ts";
 export {
   createRedditToolExecutor,
   formatRedditError,
-  getRedditToolDefinitions,
+  buildRedditToolDefinitions,
   REDDIT_TOOLS_SYSTEM_PROMPT,
 } from "./tools.ts";

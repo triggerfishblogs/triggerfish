@@ -38,18 +38,18 @@ export function createRateLimiter(
       return true;
     },
     async waitForSlot(): Promise<void> {
-      pruneOld();
-      if (timestamps.length < maxRequests) {
-        timestamps.push(nowFn());
-        return;
+      while (true) {
+        pruneOld();
+        if (timestamps.length < maxRequests) {
+          timestamps.push(nowFn());
+          return;
+        }
+        const oldest = timestamps[0];
+        const waitMs = oldest + windowMs - nowFn() + 1;
+        if (waitMs > 0) {
+          await new Promise((r) => setTimeout(r, waitMs));
+        }
       }
-      const oldest = timestamps[0];
-      const waitMs = oldest + windowMs - nowFn() + 1;
-      if (waitMs > 0) {
-        await new Promise((r) => setTimeout(r, waitMs));
-      }
-      pruneOld();
-      timestamps.push(nowFn());
     },
   };
 }

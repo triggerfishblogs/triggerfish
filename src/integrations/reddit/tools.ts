@@ -81,7 +81,7 @@ function buildRedditReadDef(): ToolDefinition {
 }
 
 /** Get all Reddit tool definitions. */
-export function getRedditToolDefinitions(): readonly ToolDefinition[] {
+export function buildRedditToolDefinitions(): readonly ToolDefinition[] {
   return [buildRedditReadDef()];
 }
 

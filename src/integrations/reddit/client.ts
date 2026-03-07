@@ -23,7 +23,7 @@ import type {
 } from "./types.ts";
 import type { RateLimiter } from "./rate_limiter.ts";
 import { createRateLimiter } from "./rate_limiter.ts";
-import type { TokenState } from "./api.ts";
+import type { TokenState, RefreshTokenOptions } from "./api.ts";
 import { refreshAccessToken, sendRedditApiRequest } from "./api.ts";
 import {
   mapComment,
@@ -41,7 +41,7 @@ import {
   type RawUser,
 } from "./mappers.ts";
 
-// Re-export for backwards compatibility with barrel imports
+// Convenience re-exports so callers can import from client.ts directly
 export { redditContentClassification } from "./mappers.ts";
 export { createRateLimiter } from "./rate_limiter.ts";
 export type { RateLimiter } from "./rate_limiter.ts";
@@ -90,11 +90,7 @@ export interface RedditClient {
 
 // ─── Token Management ────────────────────────────────────────────────────────
 
-function createTokenManager(
-  config: RedditClientConfig,
-  doFetch: typeof fetch,
-  tokenUrl: string,
-) {
+function createTokenManager(refreshOpts: RefreshTokenOptions) {
   let tokenState: TokenState = { accessToken: "", expiresAt: 0 };
 
   return {
@@ -103,14 +99,7 @@ function createTokenManager(
         return { ok: true, value: tokenState.accessToken };
       }
 
-      const refreshResult = await refreshAccessToken(
-        config.clientId,
-        config.clientSecret,
-        config.refreshToken,
-        doFetch,
-        tokenUrl,
-      );
-
+      const refreshResult = await refreshAccessToken(refreshOpts);
       if (!refreshResult.ok) return refreshResult;
       tokenState = refreshResult.value;
       return { ok: true, value: tokenState.accessToken };
@@ -128,23 +117,29 @@ function createTokenManager(
  */
 export function createRedditClient(config: RedditClientConfig): RedditClient {
   const baseUrl = config.baseUrl ?? "https://oauth.reddit.com";
-  const doFetch = config.fetchFn ?? fetch;
+  const fetchFn = config.fetchFn ?? fetch;
   const rateLimiter = config.rateLimiter ?? createRateLimiter();
-  const tokens = createTokenManager(config, doFetch, "https://www.reddit.com");
+  const tokens = createTokenManager({
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+    refreshToken: config.refreshToken,
+    fetchFn,
+    baseTokenUrl: "https://www.reddit.com",
+  });
 
   async function apiGet<T>(path: string): Promise<Result<T, RedditError>> {
     const tokenResult = await tokens.ensureAccessToken();
     if (!tokenResult.ok) return tokenResult;
 
-    return sendRedditApiRequest<T>(
-      doFetch,
+    return sendRedditApiRequest<T>({
+      fetchFn,
       baseUrl,
-      tokenResult.value,
-      config.username,
-      config.clientId,
+      accessToken: tokenResult.value,
+      username: config.username,
+      clientId: config.clientId,
       path,
       rateLimiter,
-    );
+    });
   }
 
   return {
@@ -161,6 +156,25 @@ export function createRedditClient(config: RedditClientConfig): RedditClient {
 
 type ApiGet = <T>(path: string) => Promise<Result<T, RedditError>>;
 
+function mapRawSubreddit(raw: RawSubreddit, rules: RedditRule[]): RedditSubreddit {
+  return {
+    name: raw.display_name,
+    title: raw.title,
+    description: raw.public_description,
+    subscribers: raw.subscribers,
+    activeUsers: raw.accounts_active,
+    subredditType: raw.subreddit_type,
+    rules,
+    classification: redditContentClassification("public_content"),
+  };
+}
+
+function extractRules(rulesResult: Result<{ rules: readonly RawRule[] }, RedditError>): RedditRule[] {
+  if (!rulesResult.ok) return [];
+  const rawRules = rulesResult.value.rules;
+  return rawRules ? rawRules.map((r) => ({ shortName: r.short_name, description: r.description })) : [];
+}
+
 async function fetchSubredditInfo(
   apiGet: ApiGet,
   subreddit: string,
@@ -170,25 +184,7 @@ async function fetchSubredditInfo(
   if (!aboutResult.ok) return aboutResult;
 
   const rulesResult = await apiGet<{ rules: readonly RawRule[] }>(`/r/${encoded}/about/rules`);
-  const rawRules = rulesResult.ok ? rulesResult.value.rules : undefined;
-  const rules: RedditRule[] = rawRules
-    ? rawRules.map((r) => ({ shortName: r.short_name, description: r.description }))
-    : [];
-
-  const raw = aboutResult.value.data;
-  return {
-    ok: true,
-    value: {
-      name: raw.display_name,
-      title: raw.title,
-      description: raw.public_description,
-      subscribers: raw.subscribers,
-      activeUsers: raw.accounts_active,
-      subredditType: raw.subreddit_type,
-      rules,
-      classification: redditContentClassification("public_content"),
-    },
-  };
+  return { ok: true, value: mapRawSubreddit(aboutResult.value.data, extractRules(rulesResult)) };
 }
 
 async function fetchPosts(
@@ -206,32 +202,32 @@ async function fetchPosts(
   return { ok: true, value: result.value.data.children.map((c) => mapPost(c.data)) };
 }
 
+type PostResponse = readonly [
+  { data: { children: readonly { data: RawPost }[] } },
+  { data: { children: readonly RawCommentChild[] } },
+];
+
+function extractComments(children: readonly RawCommentChild[]): RedditComment[] {
+  const comments: RedditComment[] = [];
+  for (const child of children) {
+    if (child.kind === "t1") comments.push(mapComment(child.data));
+  }
+  return comments;
+}
+
 async function fetchPostWithComments(
   apiGet: ApiGet,
   postId: string,
 ): Promise<Result<{ readonly post: RedditPost; readonly comments: readonly RedditComment[] }, RedditError>> {
-  type PostResponse = readonly [
-    { data: { children: readonly { data: RawPost }[] } },
-    { data: { children: readonly RawCommentChild[] } },
-  ];
-
   const result = await apiGet<PostResponse>(`/comments/${encodeURIComponent(postId)}`);
   if (!result.ok) return result;
 
-  const [postListing, commentListing] = result.value;
-  const rawPost = postListing.data.children[0]?.data;
+  const rawPost = result.value[0].data.children[0]?.data;
   if (!rawPost) {
     return { ok: false, error: { status: 404, message: `Post not found: ${postId}` } };
   }
 
-  const comments: RedditComment[] = [];
-  for (const child of commentListing.data.children) {
-    if (child.kind === "t1") {
-      comments.push(mapComment(child.data));
-    }
-  }
-
-  return { ok: true, value: { post: mapPost(rawPost), comments } };
+  return { ok: true, value: { post: mapPost(rawPost), comments: extractComments(result.value[1].data.children) } };
 }
 
 async function fetchModQueue(

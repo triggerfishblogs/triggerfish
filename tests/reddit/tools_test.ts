@@ -6,20 +6,20 @@
 import { assertEquals } from "@std/assert";
 import {
   createRedditToolExecutor,
-  getRedditToolDefinitions,
+  buildRedditToolDefinitions,
   REDDIT_TOOLS_SYSTEM_PROMPT,
 } from "../../src/integrations/reddit/tools.ts";
 import { createMockToolContext } from "./tools_helpers_test.ts";
 
 // ─── Tool Definitions ────────────────────────────────────────────────────────
 
-Deno.test("getRedditToolDefinitions: returns 1 consolidated tool definition", () => {
-  const defs = getRedditToolDefinitions();
+Deno.test("buildRedditToolDefinitions: returns 1 consolidated tool definition", () => {
+  const defs = buildRedditToolDefinitions();
   assertEquals(defs.length, 1);
 });
 
-Deno.test("getRedditToolDefinitions: tool has reddit_ prefix", () => {
-  const defs = getRedditToolDefinitions();
+Deno.test("buildRedditToolDefinitions: tool has reddit_ prefix", () => {
+  const defs = buildRedditToolDefinitions();
   for (const def of defs) {
     assertEquals(
       def.name.startsWith("reddit_"),
@@ -29,8 +29,8 @@ Deno.test("getRedditToolDefinitions: tool has reddit_ prefix", () => {
   }
 });
 
-Deno.test("getRedditToolDefinitions: tool has description", () => {
-  const defs = getRedditToolDefinitions();
+Deno.test("buildRedditToolDefinitions: tool has description", () => {
+  const defs = buildRedditToolDefinitions();
   for (const def of defs) {
     assertEquals(typeof def.description, "string");
     assertEquals(
@@ -41,14 +41,14 @@ Deno.test("getRedditToolDefinitions: tool has description", () => {
   }
 });
 
-Deno.test("getRedditToolDefinitions: expected tool names present", () => {
-  const defs = getRedditToolDefinitions();
+Deno.test("buildRedditToolDefinitions: expected tool names present", () => {
+  const defs = buildRedditToolDefinitions();
   const names = new Set(defs.map((d) => d.name));
   assertEquals(names.has("reddit_read"), true, "Missing tool: reddit_read");
 });
 
-Deno.test("getRedditToolDefinitions: tool has required action parameter", () => {
-  const defs = getRedditToolDefinitions();
+Deno.test("buildRedditToolDefinitions: tool has required action parameter", () => {
+  const defs = buildRedditToolDefinitions();
   for (const def of defs) {
     const actionParam = def.parameters.action;
     assertEquals(
