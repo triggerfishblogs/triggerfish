@@ -8,6 +8,27 @@ import type { Result } from "../../../core/types/classification.ts";
 
 const log = createLogger("signal");
 
+/** Consume a ReadableStream to completion, discarding data. Logs total bytes drained. */
+function drainStream(stream: ReadableStream<Uint8Array>, label: string): void {
+  const reader = stream.getReader();
+  let total = 0;
+  const pump = (): void => {
+    reader.read().then(({ done, value }) => {
+      if (value) total += value.byteLength;
+      if (done) {
+        log.info("Pipe drain complete", { pipe: label, bytesRead: total });
+        reader.releaseLock();
+        return;
+      }
+      pump();
+    }).catch((err: unknown) => {
+      log.debug("Pipe drain ended", { operation: "drainStream", pipe: label, err });
+      reader.releaseLock();
+    });
+  };
+  pump();
+}
+
 /**
  * Run `signal-cli link` and capture the sgnl:// URI.
  *
@@ -33,38 +54,76 @@ export async function startLinkProcess(
     });
     const child = cmd.spawn();
 
-    // Read the URI from stdout — it's the first line signal-cli outputs
+    // signal-cli ≥0.14 prints a QR code to stdout BEFORE the URI when
+    // System.console() is non-null (always true on Windows PowerShell).
+    // Scan all lines for the sgnl:// or https://signal.link/ URI instead
+    // of assuming it is the first line.
     const reader = child.stdout.getReader();
     const decoder = new TextDecoder();
+    let buf = "";
     let uri = "";
+    let totalStdout = "";
 
-    // Read chunks until we get a complete URI line
     const timeout = AbortSignal.timeout(30000);
     while (!timeout.aborted) {
       const { value, done } = await reader.read();
       if (done) break;
-      uri += decoder.decode(value);
-      if (uri.includes("\n")) {
-        uri = uri.split("\n")[0].trim();
-        break;
+      const chunk = decoder.decode(value);
+      buf += chunk;
+      totalStdout += chunk;
+
+      // Check every complete line for the link URI
+      while (buf.includes("\n")) {
+        const newlineIdx = buf.indexOf("\n");
+        const line = buf.slice(0, newlineIdx).trim();
+        buf = buf.slice(newlineIdx + 1);
+
+        if (
+          line.startsWith("sgnl://") ||
+          line.startsWith("https://signal.link/")
+        ) {
+          uri = line;
+          break;
+        }
       }
+      if (uri) break;
     }
 
     reader.releaseLock();
 
-    if (!uri.startsWith("sgnl://") && !uri.startsWith("https://signal.link/")) {
+    // Log raw stdout for diagnostics — critical for debugging Windows failures
+    log.info("signal-cli link stdout captured", {
+      operation: "startLinkProcess",
+      stdoutBytes: totalStdout.length,
+      foundUri: !!uri,
+      stdoutPreview: totalStdout.slice(0, 500),
+    });
+
+    if (!uri) {
       const stderrReader = child.stderr.getReader();
       const { value: errBytes } = await stderrReader.read();
       stderrReader.releaseLock();
-      const errMsg = errBytes
+      const stderrText = errBytes
         ? decoder.decode(errBytes).trim()
-        : "Unknown error";
+        : "(empty)";
+      log.error("signal-cli link did not produce a URI", {
+        operation: "startLinkProcess",
+        stderr: stderrText,
+        stdout: totalStdout.slice(0, 500),
+      });
       return {
         ok: false,
         error:
-          `signal-cli link did not produce a URI. Got: "${uri}". stderr: ${errMsg}`,
+          `signal-cli link did not produce a URI. stderr: ${stderrText}`,
       };
     }
+
+    // Drain stdout and stderr in the background to prevent pipe buffer
+    // deadlock. On Windows, pipe buffers are small (4 KB default) and
+    // signal-cli writes progress/confirmation after the URI line. If
+    // nobody reads, the process blocks and linking fails.
+    drainStream(child.stdout, "link.stdout");
+    drainStream(child.stderr, "link.stderr");
 
     return { ok: true, value: { uri, process: child } };
   } catch (err) {

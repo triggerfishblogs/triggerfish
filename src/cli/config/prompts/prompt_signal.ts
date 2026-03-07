@@ -8,7 +8,7 @@ import { Confirm, Input, Select } from "@cliffy/prompt";
 import {
   checkSignalCli,
   downloadSignalCli,
-  fetchLatestVersion,
+  fetchKnownGoodRelease,
   isDaemonRunning,
   renderQrCode,
   startDaemon,
@@ -61,7 +61,7 @@ async function promptSignalCliInstall(): Promise<SignalCliBinary> {
 /** Fetch the latest release and install signal-cli. */
 async function fetchAndInstallSignalCli(): Promise<SignalCliBinary> {
   console.log("\n  Fetching latest release info...");
-  const releaseResult = await fetchLatestVersion();
+  const releaseResult = await fetchKnownGoodRelease();
   if (!releaseResult.ok) {
     log.error("Signal CLI release fetch failed", {
       operation: "fetchSignalCli",

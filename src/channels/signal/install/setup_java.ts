@@ -1,5 +1,5 @@
 /**
- * Java JRE resolution — find and validate Java 21+ installations.
+ * Java JRE resolution — find and validate Java 25+ installations.
  *
  * Checks the managed JRE directory (~/.triggerfish/bin/java/) and
  * system PATH for a suitable Java installation. Used by the signal-cli
@@ -20,10 +20,10 @@ function validateJavaVersion(versionText: string): Result<string, string> {
   const match = versionText.match(/(\d+)\.\d+/);
   if (!match) return { ok: true, value: firstLine };
   const major = parseInt(match[1], 10);
-  if (major >= 21) return { ok: true, value: firstLine };
+  if (major >= 25) return { ok: true, value: firstLine };
   return {
     ok: false,
-    error: `Java ${major} found, but signal-cli requires Java 21+`,
+    error: `Java ${major} found, but signal-cli requires Java 25+`,
   };
 }
 
@@ -113,7 +113,7 @@ export function javaHomeBin(javaHome: string): string {
 }
 
 /**
- * Check if Java 21+ is available — checks managed JRE first, then PATH.
+ * Check if Java 25+ is available — checks managed JRE first, then PATH.
  *
  * @returns Java version string and JAVA_HOME path (if managed), or error.
  */
@@ -139,6 +139,6 @@ export async function checkJava(): Promise<
 
   return {
     ok: false,
-    error: "Java 21+ not found (checked ~/.triggerfish/bin/java/ and PATH)",
+    error: "Java 25+ not found (checked ~/.triggerfish/bin/java/ and PATH)",
   };
 }

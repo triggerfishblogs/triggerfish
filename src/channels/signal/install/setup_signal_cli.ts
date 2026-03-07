@@ -9,6 +9,7 @@ import type { GitHubRelease } from "../setup/setup_resolver.ts";
 import {
   checkJava,
   resolveSignalCliBinDir,
+  SIGNAL_CLI_KNOWN_GOOD_VERSION,
   trySignalCli,
 } from "../setup/setup_resolver.ts";
 import {
@@ -29,16 +30,16 @@ export interface SignalCliInstall {
 }
 
 /**
- * Fetch the latest signal-cli version from GitHub releases.
+ * Fetch the known-good pinned signal-cli version from GitHub releases.
  *
- * @returns Version string (e.g. "0.13.24") and asset list.
+ * @returns Release metadata for the pinned SIGNAL_CLI_KNOWN_GOOD_VERSION.
  */
-export async function fetchLatestVersion(): Promise<
+export async function fetchKnownGoodRelease(): Promise<
   Result<GitHubRelease, string>
 > {
   try {
     const resp = await fetch(
-      "https://api.github.com/repos/AsamK/signal-cli/releases/latest",
+      `https://api.github.com/repos/AsamK/signal-cli/releases/tags/v${SIGNAL_CLI_KNOWN_GOOD_VERSION}`,
       {
         headers: { "Accept": "application/vnd.github+json" },
       },
@@ -79,23 +80,23 @@ function selectReleaseAsset(
   return undefined;
 }
 
-/** Ensure Java 21+ is available, downloading a portable JRE if needed. */
+/** Ensure Java 25+ is available, downloading a portable JRE if needed. */
 async function ensureJavaAvailable(): Promise<Result<string, string>> {
   const javaCheck = await checkJava();
   if (javaCheck.ok) {
     return { ok: true, value: javaCheck.value.javaHome ?? "" };
   }
 
-  log.info("Java 21+ not found, downloading portable JRE", {
+  log.info("Java 25+ not found, downloading portable JRE", {
     operation: "ensureJavaAvailable",
   });
-  console.log("  Java 21+ not found — downloading portable JRE...");
+
   const jreResult = await downloadJre();
   if (!jreResult.ok) {
     return {
       ok: false,
       error:
-        `JVM build requires Java 21+ and auto-install failed: ${jreResult.error}`,
+        `JVM build requires Java 25+ and auto-install failed: ${jreResult.error}`,
     };
   }
   return jreResult;
@@ -162,7 +163,7 @@ async function verifySignalCliBinary(
  * Download and install signal-cli to Triggerfish's managed bin directory.
  *
  * On Linux: tries native build first (no Java needed), falls back to JVM build.
- * On macOS/other: uses JVM build (requires Java 21+, auto-downloads portable JRE if missing).
+ * On macOS/other: uses JVM build (requires Java 25+, auto-downloads portable JRE if missing).
  *
  * @param release - GitHub release metadata.
  * @returns Path to the installed signal-cli binary and optional JAVA_HOME.

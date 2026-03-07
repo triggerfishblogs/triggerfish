@@ -24,7 +24,7 @@ export {
   checkSignalCli,
   downloadJre,
   downloadSignalCli,
-  fetchLatestVersion,
+  fetchKnownGoodRelease,
   isDaemonRunning,
   renderQrCode,
   resolveJavaHome,
