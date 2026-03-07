@@ -9,6 +9,9 @@
 
 import type { Result } from "../../core/types/classification.ts";
 import type { SecretStore } from "../../core/secrets/backends/secret_store.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("secrets:migrate");
 
 /** Migration options. */
 export interface MigrationOptions {
@@ -75,6 +78,9 @@ export async function migrateSecrets(
       continue;
     }
 
+    migrated++;
+    onProgress?.(name, "migrated");
+
     const verifyResult = await to.getSecret(targetName);
     if (!verifyResult.ok || verifyResult.value !== readResult.value) {
       failed.push(name);
@@ -83,11 +89,17 @@ export async function migrateSecrets(
     }
 
     verified++;
-    migrated++;
     onProgress?.(name, "verified");
 
     if (deleteSource) {
-      await from.deleteSecret(name);
+      const deleteResult = await from.deleteSecret(name);
+      if (!deleteResult.ok) {
+        log.warn("Source secret deletion failed after migration", {
+          operation: "migrateSecrets",
+          name,
+          err: deleteResult.error,
+        });
+      }
     }
   }
 

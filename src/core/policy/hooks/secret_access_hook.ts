@@ -53,7 +53,12 @@ export function evaluateSecretAccessPolicy(
           reason: rule.reason ?? `Denied by rule: ${rule.name}`,
         };
       }
-      break;
+      log.info("Secret access explicitly allowed by rule", {
+        operation: "evaluateSecretAccessPolicy",
+        secret: input.secretName,
+        rule: rule.name,
+      });
+      return { action: "ALLOW" };
     }
   }
 

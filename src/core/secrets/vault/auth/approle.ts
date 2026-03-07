@@ -168,6 +168,7 @@ export function createAppRoleAuth(
     const initialDelayMs = initialTtlSeconds
       ? initialTtlSeconds * 1000 * RENEWAL_THRESHOLD
       : 0;
+    if (initialDelayMs <= 0) return;
     renewalTimer = setTimeout(renewalFn, initialDelayMs);
   }
 

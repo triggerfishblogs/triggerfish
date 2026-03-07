@@ -28,7 +28,7 @@ interface CacheEntry {
   readonly value: string;
   readonly metadata?: SecretMetadata;
   readonly fetchedAt: number;
-  lastAccessedAt: number;
+  readonly lastAccessedAt: number;
 }
 
 /** Fetch function signature for cache miss resolution. */
@@ -117,7 +117,7 @@ export function createSecretCache(
     const existing = cache.get(name);
 
     if (existing && isFresh(existing, now, ttlMs)) {
-      existing.lastAccessedAt = now;
+      cache.set(name, { ...existing, lastAccessedAt: now });
       hits++;
       return {
         ok: true,
@@ -126,7 +126,7 @@ export function createSecretCache(
     }
 
     if (existing && isWithinGrace(existing, now, ttlMs, staleGraceMs)) {
-      existing.lastAccessedAt = now;
+      cache.set(name, { ...existing, lastAccessedAt: now });
       staleServes++;
 
       fetcher(name).then((result) => {

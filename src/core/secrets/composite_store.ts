@@ -14,9 +14,9 @@ import type { Result } from "../types/classification.ts";
 import type { ExternalSecretProvider } from "./backends/external_provider.ts";
 import type { SecretStore } from "./backends/secret_store.ts";
 import { createLogger } from "../logger/logger.ts";
+import type { SecretCache, SecretFetcher } from "./cache/secret_cache.ts";
 
 const log = createLogger("secrets:composite");
-import type { SecretCache, SecretFetcher } from "./cache/secret_cache.ts";
 
 /** Options for constructing a composite store. */
 export interface CompositeSecretStoreOptions {
