@@ -53,12 +53,23 @@ function createRejectingSecretStore(os: string): SecretStore {
   };
 }
 
+/**
+ * Resolve the Docker encryption key path.
+ *
+ * Uses `TRIGGERFISH_KEY_PATH` env var if set, otherwise defaults to
+ * `/data/secrets.key` (co-located with secrets file).
+ */
+export function resolveDockerKeyPath(): string {
+  return Deno.env.get("TRIGGERFISH_KEY_PATH") ?? "/data/secrets.key";
+}
+
 /** Select the secret backend for Docker environments. */
 function createDockerSecretStore(): SecretStore {
-  log.info("Secret backend selected: encrypted-file (Docker)");
+  const keyPath = resolveDockerKeyPath();
+  log.info("Secret backend selected: encrypted-file (Docker)", { keyPath });
   return createEncryptedFileSecretStore({
     secretsPath: "/data/secrets.json",
-    keyPath: "/data/secrets.key",
+    keyPath,
   });
 }
 

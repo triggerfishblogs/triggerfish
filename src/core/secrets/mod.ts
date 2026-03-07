@@ -14,8 +14,22 @@ export {
   createKeychain,
   createLinuxKeychain,
   createMacKeychain,
+  resolveDockerKeyPath,
   runCommand,
 } from "./keychain/mod.ts";
+
+// validation/ — Docker security checks
+export {
+  isPermissionSecure,
+  parseMountPoints,
+  verifyKeyFilePermissions,
+  verifyMountPoint,
+} from "./validation/mod.ts";
+export type {
+  MountCheckResult,
+  PermissionCheckError,
+  PermissionCheckResult,
+} from "./validation/mod.ts";
 
 // backends/ — storage backends and interfaces
 export {

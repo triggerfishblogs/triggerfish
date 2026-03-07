@@ -18,6 +18,8 @@ services:
       - path: .env
         required: false
     # Runs as nonroot UID 65534 (distroless default)
+    # For production hardening (tmpfs key isolation, strict permissions,
+    # read-only root), see docker-compose.hardened.yml in this directory.
 
 volumes:
   triggerfish-data:
