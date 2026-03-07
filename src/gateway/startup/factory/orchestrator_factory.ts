@@ -36,6 +36,18 @@ import {
 import { createWorkspace } from "../../../exec/workspace.ts";
 import type { ToolFloorRegistry } from "../../../core/security/tool_floors.ts";
 import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
+import {
+  createGatedKeychain,
+  createSecretAccessGate,
+  createSecretClassifier,
+} from "../../../core/secrets/classification/mod.ts";
+import type { SecretClassifier } from "../../../core/secrets/classification/mod.ts";
+import {
+  createDefaultSecretAccessRules,
+  evaluateSecretAccessPolicy,
+} from "../../../core/policy/hooks/secret_access_hook.ts";
+import type { SecretAccessPolicyRule } from "../../../core/policy/hooks/secret_access_hook.ts";
+import type { ClassificationMapping } from "../../../core/secrets/classification/secret_classifier.ts";
 import { TRIGGER_SESSION_SYSTEM_PROMPT } from "../../tools/trigger/trigger_tools.ts";
 import {
   buildWorkspacePrompt,
@@ -118,6 +130,21 @@ async function discoverSkillsOnce(
   }
 }
 
+/** Build a SecretClassifier from YAML config. */
+function buildSecretClassifier(
+  config: TriggerFishConfig,
+): SecretClassifier {
+  const classificationConfig = config.secrets?.classification;
+  const mappings: ClassificationMapping[] =
+    (classificationConfig?.mappings ?? []).map((m) => ({
+      path: m.path,
+      level: m.level as ClassificationLevel,
+    }));
+  const defaultLevel =
+    (classificationConfig?.default_level as ClassificationLevel) ?? "INTERNAL";
+  return createSecretClassifier({ mappings, defaultLevel });
+}
+
 /** Initialize shared factory infrastructure from config. */
 function initializeFactoryInfra(
   config: TriggerFishConfig,
@@ -125,6 +152,8 @@ function initializeFactoryInfra(
 ): FactoryInfra & {
   readonly hookRunner: ReturnType<typeof createHookRunner>;
   readonly spinePath: string;
+  readonly secretClassifier: SecretClassifier;
+  readonly secretAccessRules: readonly SecretAccessPolicyRule[];
 } {
   const registry = createProviderRegistry();
   loadProvidersFromConfig(config.models as ModelsConfig, registry);
@@ -138,6 +167,9 @@ function initializeFactoryInfra(
     config,
   );
 
+  const secretClassifier = buildSecretClassifier(config);
+  const secretAccessRules = createDefaultSecretAccessRules();
+
   return {
     registry,
     hookRunner: createHookRunner(engine),
@@ -146,6 +178,8 @@ function initializeFactoryInfra(
     webFetcher,
     domainClassifier,
     keychain: createKeychain(),
+    secretClassifier,
+    secretAccessRules,
     ...(() => {
       const { all, integrations } = mapToolPrefixClassifications(config);
       return {
@@ -210,8 +244,42 @@ export function createOrchestratorFactory(
         channelId: channelId as ChannelId,
       });
 
+      const secretAccessGate = createSecretAccessGate({
+        classifier: infra.secretClassifier,
+        hookDispatcher: (input) =>
+          Promise.resolve(
+            evaluateSecretAccessPolicy(
+              input,
+              infra.secretAccessRules,
+              isTrigger,
+            ),
+          ),
+      });
+
+      const gatedKeychain = createGatedKeychain({
+        inner: infra.keychain,
+        gate: secretAccessGate,
+        provider: "keychain",
+        getSessionTaint: () => session.taint,
+        getIsBackground: () => isTrigger,
+        onEscalate: (level) => {
+          session = updateTaint(
+            session,
+            level,
+            `Secret access required taint escalation to ${level}`,
+          );
+        },
+      });
+
+      log.info("Secret access gate wired for session", {
+        operation: "createOrchestratorFactory",
+        channelId,
+        isTrigger,
+        agentId,
+      });
+
       const githubExecutor = await buildSchedulerGitHubExecutor({
-        keychain: infra.keychain,
+        keychain: gatedKeychain,
         config,
         sessionTaint: session.taint,
         sourceSessionId: session.id,

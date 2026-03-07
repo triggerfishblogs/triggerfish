@@ -129,6 +129,17 @@ export interface TriggerFishConfig {
       readonly folder_classifications?: Readonly<Record<string, string>>;
     };
   };
+  readonly secrets?: {
+    readonly classification?: {
+      /** Fallback classification when no mapping matches. Default: INTERNAL. */
+      readonly default_level?: string;
+      /** Ordered path-to-classification mappings. First match wins. */
+      readonly mappings?: readonly {
+        readonly path: string;
+        readonly level: string;
+      }[];
+    };
+  };
   readonly filesystem?: {
     readonly default?: string;
     readonly paths?: Readonly<Record<string, string>>;

@@ -79,11 +79,13 @@ export type {
 
 // classification/ — path-to-classification mapping and access control
 export {
+  createGatedKeychain,
   createSecretAccessGate,
   createSecretClassifier,
 } from "./classification/mod.ts";
 export type {
   ClassificationMapping,
+  GatedKeychainOptions,
   SecretAccessGate,
   SecretAccessGateOptions,
   SecretAccessHookInput,
