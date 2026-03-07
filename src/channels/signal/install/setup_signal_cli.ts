@@ -90,7 +90,7 @@ async function ensureJavaAvailable(): Promise<Result<string, string>> {
   log.info("Java 25+ not found, downloading portable JRE", {
     operation: "ensureJavaAvailable",
   });
-  console.log("  Java 25+ not found — downloading portable JRE...");
+
   const jreResult = await downloadJre();
   if (!jreResult.ok) {
     return {

@@ -20,7 +20,9 @@ function drainStream(stream: ReadableStream<Uint8Array>, label: string): void {
         return;
       }
       pump();
-    }).catch(() => { /* stream closed or errored — expected */ });
+    }).catch((err: unknown) => {
+      log.debug("Pipe drain ended", { operation: "drainStream", pipe: label, err });
+    });
   };
   pump();
 }

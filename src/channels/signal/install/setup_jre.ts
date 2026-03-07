@@ -143,7 +143,7 @@ export async function downloadJre(): Promise<Result<string, string>> {
     adoptOs,
     adoptArch,
   });
-  console.log("  Fetching JRE 25 release info...");
+
   const assetsResult = await fetchAdoptiumAssets(adoptOs, adoptArch);
   if (!assetsResult.ok) return assetsResult;
 
@@ -168,9 +168,6 @@ export async function downloadJre(): Promise<Result<string, string>> {
     releaseName: asset.release_name,
     sizeMB,
   });
-  console.log(
-    `  Downloading JRE 25 (${asset.release_name}, ${sizeMB} MB)...`,
-  );
 
   const extractResult = await downloadAndExtractArchive(
     asset.binary.package.link,
