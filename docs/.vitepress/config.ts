@@ -72,6 +72,7 @@ export default defineConfig({
       { text: "Integrations", link: "/integrations/" },
       { text: "Features", link: "/features/" },
       { text: "Reference", link: "/reference/" },
+      { text: "Support", link: "/support/" },
     ],
 
     sidebar: {
@@ -208,6 +209,88 @@ export default defineConfig({
             { text: "Config Schema", link: "/reference/config-yaml" },
             { text: "Interfaces", link: "/reference/interfaces" },
             { text: "Glossary", link: "/reference/glossary" },
+          ],
+        },
+      ],
+      "/support/": [
+        {
+          text: "Support Center",
+          items: [
+            { text: "Overview", link: "/support/" },
+            { text: "FAQ", link: "/support/faq" },
+          ],
+        },
+        {
+          text: "Troubleshooting",
+          items: [
+            { text: "Start Here", link: "/support/troubleshooting/" },
+            {
+              text: "Installation",
+              link: "/support/troubleshooting/installation",
+            },
+            { text: "Daemon", link: "/support/troubleshooting/daemon" },
+            {
+              text: "Configuration",
+              link: "/support/troubleshooting/configuration",
+            },
+            { text: "Channels", link: "/support/troubleshooting/channels" },
+            {
+              text: "LLM Providers",
+              link: "/support/troubleshooting/providers",
+            },
+            {
+              text: "Integrations",
+              link: "/support/troubleshooting/integrations",
+            },
+            {
+              text: "Browser Automation",
+              link: "/support/troubleshooting/browser",
+            },
+            {
+              text: "Security & Classification",
+              link: "/support/troubleshooting/security",
+            },
+            {
+              text: "Secrets & Credentials",
+              link: "/support/troubleshooting/secrets",
+            },
+            {
+              text: "Error Reference",
+              link: "/support/troubleshooting/error-reference",
+            },
+          ],
+        },
+        {
+          text: "How-To Guides",
+          items: [
+            {
+              text: "Collecting Logs",
+              link: "/support/guides/collecting-logs",
+            },
+            {
+              text: "Running Diagnostics",
+              link: "/support/guides/diagnostics",
+            },
+            { text: "Filing Issues", link: "/support/guides/filing-issues" },
+            {
+              text: "Platform Notes",
+              link: "/support/guides/platform-notes",
+            },
+          ],
+        },
+        {
+          text: "Knowledge Base",
+          items: [
+            {
+              text: "Secrets Migration",
+              link: "/support/kb/secrets-migration",
+            },
+            { text: "Self-Update Process", link: "/support/kb/self-update" },
+            {
+              text: "Breaking Changes",
+              link: "/support/kb/breaking-changes",
+            },
+            { text: "Known Issues", link: "/support/kb/known-issues" },
           ],
         },
       ],
