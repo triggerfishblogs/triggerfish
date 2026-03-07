@@ -35,6 +35,12 @@ Deno.test("CLI: parses 'stop' command", async () => {
   assertEquals(cmd.command, "stop");
 });
 
+Deno.test("CLI: parses 'restart' command", async () => {
+  const { parseCommand } = await import("../../src/cli/main.ts");
+  const cmd = parseCommand(["restart"]);
+  assertEquals(cmd.command, "restart");
+});
+
 Deno.test("CLI: parses 'status' command", async () => {
   const { parseCommand } = await import("../../src/cli/main.ts");
   const cmd = parseCommand(["status"]);

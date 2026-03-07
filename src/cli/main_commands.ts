@@ -20,6 +20,7 @@ const KNOWN_COMMANDS = new Set([
   "connect",
   "cron",
   "disconnect",
+  "restart",
   "run",
   "run-triggers",
   "skill",
@@ -193,6 +194,7 @@ COMMANDS:
   status      Show daemon status
   logs        View or bundle daemon logs
   patrol      Run health diagnostics
+  restart     Stop and restart the daemon
   tidepool    Tidepool A2UI controls
   update      Pull latest code, recompile, and restart
   help        Show this help message
@@ -255,6 +257,7 @@ const HELP_EXAMPLES_OPS =
   triggerfish run                                   # Run gateway in foreground
   triggerfish start                                 # Install and start daemon
   triggerfish stop                                  # Stop the daemon
+  triggerfish restart                               # Stop and restart daemon
   triggerfish status                                # Check daemon status
   triggerfish logs view --tail                      # Follow daemon logs
   triggerfish logs bundle                           # Archive logs into .tar.gz or .zip

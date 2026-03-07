@@ -9,11 +9,7 @@
 import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
 import { Confirm } from "@cliffy/prompt";
 import { backupConfig, resolveConfigPath } from "./paths.ts";
-import {
-  getDaemonStatus,
-  installAndStartDaemon,
-  stopDaemon,
-} from "../daemon/daemon.ts";
+import { getDaemonStatus, restartDaemon } from "../daemon/daemon.ts";
 import { validateConfig } from "../../core/config.ts";
 import { readNestedYamlValue, writeNestedYamlValue } from "./yaml_paths.ts";
 import { createLogger } from "../../core/logger/mod.ts";
@@ -34,33 +30,19 @@ export async function promptDaemonRestart(): Promise<void> {
       default: true,
     });
     if (restart) {
-      await restartDaemonProcess();
+      const result = await restartDaemon(Deno.execPath());
+      if (result.ok) {
+        console.log("✓ Daemon restarted");
+      } else {
+        log.warn("Daemon restart failed after config change", {
+          operation: "promptDaemonRestart",
+          message: result.message,
+        });
+        console.log(`✗ ${result.message}`);
+      }
     }
   } else {
     console.log("Daemon is not running. Start it with: triggerfish start");
-  }
-}
-
-/** Stop and restart the daemon process. */
-async function restartDaemonProcess(): Promise<void> {
-  const stopResult = await stopDaemon();
-  if (!stopResult.ok) {
-    log.warn("Daemon stop failed during restart", {
-      operation: "restartDaemon",
-      message: stopResult.message,
-    });
-    console.log(`\u2717 Failed to stop daemon: ${stopResult.message}`);
-    return;
-  }
-  const startResult = await installAndStartDaemon(Deno.execPath());
-  if (startResult.ok) {
-    console.log("\u2713 Daemon restarted");
-  } else {
-    log.warn("Daemon start failed during restart", {
-      operation: "restartDaemon",
-      message: startResult.message,
-    });
-    console.log(`\u2717 ${startResult.message}`);
   }
 }
 
