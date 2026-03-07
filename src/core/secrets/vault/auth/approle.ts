@@ -10,6 +10,7 @@
 import type { Result } from "../../../types/classification.ts";
 import type { VaultAuthResponse } from "../vault_types.ts";
 import { createLogger } from "../../../logger/logger.ts";
+import { safeFetch, type SsrfChecker } from "../../../security/safe_fetch.ts";
 
 const log = createLogger("vault:approle");
 
@@ -36,6 +37,7 @@ export function createAppRoleAuth(
   options: AppRoleAuthOptions,
   vaultAddress: string,
   namespace?: string,
+  ssrfChecker?: SsrfChecker,
 ): {
   authenticate: () => Promise<Result<VaultAuthResponse, string>>;
   currentToken: () => string;
@@ -68,41 +70,39 @@ export function createAppRoleAuth(
       : vaultAddress;
     const url = `${base}/v1/auth/${mountPath}/login`;
 
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: buildHeaders(),
-        body: JSON.stringify({
-          role_id: options.roleId,
-          secret_id: options.secretId,
-        }),
-      });
+    const fetchResult = await safeFetch(url, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({
+        role_id: options.roleId,
+        secret_id: options.secretId,
+      }),
+    }, ssrfChecker);
 
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        const errors = (body as { errors?: string[] }).errors ?? [];
-        const errorMsg = `AppRole login failed (${response.status}): ${
-          errors.join(", ") || "unknown error"
-        }`;
-        log.warn("AppRole login HTTP error", {
-          operation: "login",
-          status: response.status,
-          errors,
-        });
-        return { ok: false, error: errorMsg };
-      }
-
-      const body = await response.json();
-      const auth = body.auth as VaultAuthResponse;
-      token = auth.client_token;
-      return { ok: true, value: auth };
-    } catch (err: unknown) {
-      log.warn("AppRole login request failed", { operation: "login", err });
-      return {
-        ok: false,
-        error: `AppRole login request failed: ${err instanceof Error ? err.message : String(err)}`,
-      };
+    if (!fetchResult.ok) {
+      log.warn("AppRole login request failed", { operation: "login", err: fetchResult.error });
+      return { ok: false, error: `AppRole login request failed: ${fetchResult.error}` };
     }
+
+    const response = fetchResult.value;
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      const errors = (body as { errors?: string[] }).errors ?? [];
+      const errorMsg = `AppRole login failed (${response.status}): ${
+        errors.join(", ") || "unknown error"
+      }`;
+      log.warn("AppRole login HTTP error", {
+        operation: "login",
+        status: response.status,
+        errors,
+      });
+      return { ok: false, error: errorMsg };
+    }
+
+    const body = await response.json();
+    const auth = body.auth as VaultAuthResponse;
+    token = auth.client_token;
+    return { ok: true, value: auth };
   }
 
   async function renewToken(): Promise<Result<VaultAuthResponse, string>> {
@@ -111,35 +111,33 @@ export function createAppRoleAuth(
       : vaultAddress;
     const url = `${base}/v1/auth/token/renew-self`;
 
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: buildHeaders(),
-        body: JSON.stringify({}),
+    const fetchResult = await safeFetch(url, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({}),
+    }, ssrfChecker);
+
+    if (!fetchResult.ok) {
+      log.warn("Token renewal request failed", { operation: "renewToken", err: fetchResult.error });
+      return { ok: false, error: `Token renewal request failed: ${fetchResult.error}` };
+    }
+
+    const response = fetchResult.value;
+    if (!response.ok) {
+      log.warn("Token renewal HTTP error", {
+        operation: "renewToken",
+        status: response.status,
       });
-
-      if (!response.ok) {
-        log.warn("Token renewal HTTP error", {
-          operation: "renewToken",
-          status: response.status,
-        });
-        return {
-          ok: false,
-          error: `Token renewal failed with status ${response.status}`,
-        };
-      }
-
-      const body = await response.json();
-      const auth = body.auth as VaultAuthResponse;
-      token = auth.client_token;
-      return { ok: true, value: auth };
-    } catch (err: unknown) {
-      log.warn("Token renewal request failed", { operation: "renewToken", err });
       return {
         ok: false,
-        error: `Token renewal request failed: ${err instanceof Error ? err.message : String(err)}`,
+        error: `Token renewal failed with status ${response.status}`,
       };
     }
+
+    const body = await response.json();
+    const auth = body.auth as VaultAuthResponse;
+    token = auth.client_token;
+    return { ok: true, value: auth };
   }
 
   function scheduleRenewal(

@@ -10,6 +10,7 @@
 import type { Result } from "../../../types/classification.ts";
 import type { VaultAuthResponse } from "../vault_types.ts";
 import { createLogger } from "../../../logger/logger.ts";
+import { safeFetch, type SsrfChecker } from "../../../security/safe_fetch.ts";
 
 const log = createLogger("vault:kubernetes");
 
@@ -37,6 +38,7 @@ export function createKubernetesAuth(
   options: KubernetesAuthOptions,
   vaultAddress: string,
   namespace?: string,
+  ssrfChecker?: SsrfChecker,
 ): {
   authenticate: () => Promise<Result<VaultAuthResponse, string>>;
   currentToken: () => string;
@@ -74,43 +76,41 @@ export function createKubernetesAuth(
       headers["X-Vault-Namespace"] = namespace;
     }
 
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          role: options.role,
-          jwt: jwtResult.value,
-        }),
+    const fetchResult = await safeFetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        role: options.role,
+        jwt: jwtResult.value,
+      }),
+    }, ssrfChecker);
+
+    if (!fetchResult.ok) {
+      log.warn("Kubernetes auth login request failed", { operation: "authenticate", err: fetchResult.error });
+      return { ok: false, error: `Kubernetes auth login request failed: ${fetchResult.error}` };
+    }
+
+    const response = fetchResult.value;
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      const errors = (body as { errors?: string[] }).errors ?? [];
+      log.warn("Kubernetes auth login HTTP error", {
+        operation: "authenticate",
+        status: response.status,
+        errors,
       });
-
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        const errors = (body as { errors?: string[] }).errors ?? [];
-        log.warn("Kubernetes auth login HTTP error", {
-          operation: "authenticate",
-          status: response.status,
-          errors,
-        });
-        return {
-          ok: false,
-          error: `Kubernetes auth login failed (${response.status}): ${
-            errors.join(", ") || "unknown error"
-          }`,
-        };
-      }
-
-      const body = await response.json();
-      const auth = body.auth as VaultAuthResponse;
-      token = auth.client_token;
-      return { ok: true, value: auth };
-    } catch (err: unknown) {
-      log.warn("Kubernetes auth login request failed", { operation: "authenticate", err });
       return {
         ok: false,
-        error: `Kubernetes auth login request failed: ${err instanceof Error ? err.message : String(err)}`,
+        error: `Kubernetes auth login failed (${response.status}): ${
+          errors.join(", ") || "unknown error"
+        }`,
       };
     }
+
+    const body = await response.json();
+    const auth = body.auth as VaultAuthResponse;
+    token = auth.client_token;
+    return { ok: true, value: auth };
   }
 
   return {
