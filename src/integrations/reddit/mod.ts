@@ -26,16 +26,20 @@ export type {
 export type {
   RedditClient,
   RedditClientConfig,
-  RateLimiter,
-  ResolveRedditTokenOptions,
 } from "./client.ts";
 
 export {
-  createRateLimiter,
   createRedditClient,
   redditContentClassification,
-  resolveRedditToken,
 } from "./client.ts";
+
+export type { RateLimiter } from "./rate_limiter.ts";
+
+export { createRateLimiter } from "./rate_limiter.ts";
+
+export type { ResolveRedditTokenOptions } from "./api.ts";
+
+export { resolveRedditToken } from "./api.ts";
 
 export type { RedditToolContext } from "./tools.ts";
 
