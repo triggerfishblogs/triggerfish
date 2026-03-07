@@ -13,6 +13,7 @@ import type { Result } from "../../types/classification.ts";
 import type { SecretStore } from "../backends/secret_store.ts";
 import { createEncryptedFileSecretStore } from "../encrypted/encrypted_file_provider.ts";
 import { createLogger } from "../../logger/logger.ts";
+import { resolveTriggerfishDataDir } from "./windows_keychain.ts";
 
 const log = createLogger("secrets");
 
@@ -21,11 +22,7 @@ function resolveLegacyPaths(): {
   readonly secretsPath: string;
   readonly keyPath: string;
 } {
-  const dataDir = Deno.env.get("TRIGGERFISH_DATA_DIR") ??
-    join(
-      Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".",
-      ".triggerfish",
-    );
+  const dataDir = resolveTriggerfishDataDir();
   return {
     secretsPath: join(dataDir, "secrets.json"),
     keyPath: join(dataDir, "secrets.key"),

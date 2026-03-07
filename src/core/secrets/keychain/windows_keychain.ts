@@ -11,7 +11,7 @@
  * @module
  */
 
-import { join } from "@std/path";
+import { dirname, join } from "@std/path";
 import type { Result } from "../../types/classification.ts";
 import type { SecretStore } from "../backends/secret_store.ts";
 import { createEncryptedFileSecretStore } from "../encrypted/encrypted_file_provider.ts";
@@ -42,14 +42,18 @@ const UNPROTECT_SCRIPT =
   `$enc, $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser); ` +
   `[System.Text.Encoding]::UTF8.GetString($dec)`;
 
-/** Resolve the path for the DPAPI secrets JSON file. */
-export function resolveDpapiSecretsPath(): string {
-  const dataDir = Deno.env.get("TRIGGERFISH_DATA_DIR") ??
+/** Resolve the triggerfish data directory from env or default. */
+export function resolveTriggerfishDataDir(): string {
+  return Deno.env.get("TRIGGERFISH_DATA_DIR") ??
     join(
       Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".",
       ".triggerfish",
     );
-  return join(dataDir, "dpapi_secrets.json");
+}
+
+/** Resolve the path for the DPAPI secrets JSON file. */
+export function resolveDpapiSecretsPath(): string {
+  return join(resolveTriggerfishDataDir(), "dpapi_secrets.json");
 }
 
 /** Resolve encrypted-file secret store paths for DPAPI fallback. */
@@ -57,11 +61,7 @@ function resolveEncryptedFilePaths(): {
   readonly secretsPath: string;
   readonly keyPath: string;
 } {
-  const dataDir = Deno.env.get("TRIGGERFISH_DATA_DIR") ??
-    join(
-      Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".",
-      ".triggerfish",
-    );
+  const dataDir = resolveTriggerfishDataDir();
   return {
     secretsPath: join(dataDir, "secrets.json"),
     keyPath: join(dataDir, "secrets.key"),
@@ -142,7 +142,7 @@ async function writeDpapiSecretsFile(
   file: DpapiSecretsFile,
 ): Promise<Result<true, string>> {
   try {
-    const dir = path.substring(0, path.lastIndexOf(Deno.build.os === "windows" ? "\\" : "/"));
+    const dir = dirname(path);
     await Deno.mkdir(dir, { recursive: true });
     await Deno.writeTextFile(path, JSON.stringify(file, null, 2));
     return { ok: true, value: true };
@@ -210,46 +210,6 @@ function buildDpapiSecretStore(secretsPath: string): SecretStore {
 }
 
 /**
- * Backend state: tracks whether DPAPI is available.
- *
- * Probed lazily on the first secret operation. If DPAPI is unavailable,
- * all subsequent calls are routed to the encrypted-file fallback.
- */
-interface WindowsBackendState {
-  probed: boolean;
-  dpapiAvailable: boolean;
-  activeStore: SecretStore | null;
-}
-
-/** Ensure the backend has been probed and the active store is selected. */
-async function ensureBackendReady(
-  state: WindowsBackendState,
-  secretsPath: string,
-): Promise<SecretStore> {
-  if (state.activeStore !== null) return state.activeStore;
-
-  const available = await probeWindowsDpapi();
-  state.probed = true;
-  state.dpapiAvailable = available;
-
-  if (available) {
-    log.info("DPAPI probe succeeded, using DPAPI backend", {
-      store: secretsPath,
-    });
-    state.activeStore = buildDpapiSecretStore(secretsPath);
-  } else {
-    log.info(
-      "DPAPI probe failed, falling back to encrypted-file backend " +
-        "(headless, container, or Windows Server Core without PowerShell)",
-    );
-    state.activeStore = createEncryptedFileSecretStore(
-      resolveEncryptedFilePaths(),
-    );
-  }
-  return state.activeStore;
-}
-
-/**
  * Create a Windows secret store with DPAPI encryption.
  *
  * On first operation, probes whether DPAPI is available via PowerShell.
@@ -260,30 +220,45 @@ async function ensureBackendReady(
  */
 export function createWindowsKeychain(): SecretStore {
   const secretsPath = resolveDpapiSecretsPath();
-  const state: WindowsBackendState = {
-    probed: false,
-    dpapiAvailable: false,
-    activeStore: null,
-  };
+  let backendPromise: Promise<SecretStore> | null = null;
+
+  /** Lazily probe DPAPI and cache the resulting store. */
+  function resolveBackend(): Promise<SecretStore> {
+    if (backendPromise !== null) return backendPromise;
+    backendPromise = probeWindowsDpapi().then((available) => {
+      if (available) {
+        log.info("DPAPI probe succeeded, using DPAPI backend", {
+          store: secretsPath,
+        });
+        return buildDpapiSecretStore(secretsPath);
+      }
+      log.info(
+        "DPAPI probe failed, falling back to encrypted-file backend " +
+          "(headless, container, or Windows Server Core without PowerShell)",
+      );
+      return createEncryptedFileSecretStore(resolveEncryptedFilePaths());
+    });
+    return backendPromise;
+  }
 
   return {
     async getSecret(name: string): Promise<Result<string, string>> {
-      const store = await ensureBackendReady(state, secretsPath);
+      const store = await resolveBackend();
       return store.getSecret(name);
     },
     async setSecret(
       name: string,
       value: string,
     ): Promise<Result<true, string>> {
-      const store = await ensureBackendReady(state, secretsPath);
+      const store = await resolveBackend();
       return store.setSecret(name, value);
     },
     async deleteSecret(name: string): Promise<Result<true, string>> {
-      const store = await ensureBackendReady(state, secretsPath);
+      const store = await resolveBackend();
       return store.deleteSecret(name);
     },
     async listSecrets(): Promise<Result<string[], string>> {
-      const store = await ensureBackendReady(state, secretsPath);
+      const store = await resolveBackend();
       return store.listSecrets();
     },
   };
