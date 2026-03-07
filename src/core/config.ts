@@ -67,6 +67,19 @@ export interface TriggerFishConfig {
     readonly classification?: string;
     readonly classification_overrides?: Readonly<Record<string, string>>;
   };
+  readonly notion?: {
+    readonly enabled?: boolean;
+    readonly auth_type?: "token" | "oauth2";
+    readonly rate_limit?: number;
+    readonly classification_floor?: string;
+    readonly oauth2?: {
+      readonly client_id?: string;
+      // client_secret must be stored via the OS keychain (secret: ref),
+      // not in the config file. Will be resolved at runtime when OAuth2
+      // support is implemented.
+      readonly redirect_uri?: string;
+    };
+  };
   readonly caldav?: {
     readonly enabled?: boolean;
     readonly server_url?: string;

@@ -16,6 +16,11 @@ export {
 } from "./connect_google.ts";
 
 export { disconnectGithub, runConnectGithub } from "./connect_github.ts";
+export { disconnectNotion, runConnectNotion } from "./connect_notion.ts";
+
+import { disconnectGoogle, runConnectGoogle } from "./connect_google.ts";
+import { disconnectGithub, runConnectGithub } from "./connect_github.ts";
+import { disconnectNotion, runConnectNotion } from "./connect_notion.ts";
 
 /** Print connect usage help. */
 function printConnectUsage(): void {
@@ -23,6 +28,7 @@ function printConnectUsage(): void {
 CONNECT USAGE:
   triggerfish connect google    Authenticate with Google Workspace
   triggerfish connect github    Authenticate with GitHub
+  triggerfish connect notion    Authenticate with Notion
 `);
 }
 
@@ -32,6 +38,7 @@ function printDisconnectUsage(): void {
 DISCONNECT USAGE:
   triggerfish disconnect google    Remove Google authentication
   triggerfish disconnect github    Remove GitHub authentication
+  triggerfish disconnect notion    Remove Notion authentication
 `);
 }
 
@@ -43,16 +50,15 @@ export async function runConnect(
   _flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
   switch (subcommand) {
-    case "google": {
-      const { runConnectGoogle } = await import("./connect_google.ts");
+    case "google":
       await runConnectGoogle();
       break;
-    }
-    case "github": {
-      const { runConnectGithub } = await import("./connect_github.ts");
+    case "github":
       await runConnectGithub();
       break;
-    }
+    case "notion":
+      await runConnectNotion();
+      break;
     default:
       printConnectUsage();
       break;
@@ -67,16 +73,15 @@ export async function runDisconnect(
   _flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
   switch (subcommand) {
-    case "google": {
-      const { disconnectGoogle } = await import("./connect_google.ts");
+    case "google":
       await disconnectGoogle();
       break;
-    }
-    case "github": {
-      const { disconnectGithub } = await import("./connect_github.ts");
+    case "github":
       await disconnectGithub();
       break;
-    }
+    case "notion":
+      await disconnectNotion();
+      break;
     default:
       printDisconnectUsage();
       break;

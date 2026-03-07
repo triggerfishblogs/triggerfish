@@ -162,7 +162,7 @@ Deletes a secret by name from the keychain.
 <div v-pre>
 
 When the agent uses a tool that needs a secret (for example, setting an API key
-in an MCP server environment variable), it uses the `{{secret:name}}` syntax in
+in an MCP server environment variable), it uses the <span v-pre>`{{secret:name}}`</span> syntax in
 tool arguments:
 
 ```
@@ -170,7 +170,7 @@ tool_call: set_env_var
 arguments: { "key": "API_TOKEN", "value": "{{secret:my-api-token}}" }
 ```
 
-The runtime resolves `{{secret:name}}` references **below the LLM layer** before
+The runtime resolves <span v-pre>`{{secret:name}}`</span> references **below the LLM layer** before
 the tool executes. The resolved value never appears in conversation history or
 logs.
 

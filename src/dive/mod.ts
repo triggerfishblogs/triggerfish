@@ -37,3 +37,6 @@ export {
 
 export { runWizard } from "./wizard/mod.ts";
 export { runWizardSelective } from "./selective/mod.ts";
+
+export type { VaultPatrolOptions } from "./patrol_vault.ts";
+export { conductVaultPatrol } from "./patrol_vault.ts";

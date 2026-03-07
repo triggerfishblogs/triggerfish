@@ -59,6 +59,7 @@ function buildCoreSubsystems(
     opts.googleExecutor,
     opts.githubExecutor,
     opts.caldavExecutor,
+    opts.notionExecutor,
     opts.obsidianExecutor,
   ];
 }
