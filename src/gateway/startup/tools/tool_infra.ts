@@ -377,6 +377,7 @@ export function buildCompositeToolExecutor(
     state: baseDeps.state,
     githubExecutor: integrations.githubExecutor,
     caldavExecutor: integrations.caldavExecutor,
+    notionExecutor: integrations.notionExecutor,
     obsidianExecutor: integrations.obsidianExecutor,
     registry: baseDeps.registry,
     storage: coreInfra.storage,

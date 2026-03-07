@@ -148,8 +148,8 @@ export function createNotionClient(config: NotionClientConfig): NotionClient {
     const now = Date.now();
     const elapsed = now - lastRequestTime;
     const sleepMs = elapsed < rateLimitMs ? rateLimitMs - elapsed : 0;
-    lastRequestTime = now + sleepMs;
     if (sleepMs > 0) await sleep(sleepMs);
+    lastRequestTime = Date.now();
   }
 
   /** Send a single HTTP request to the Notion API. */

@@ -268,7 +268,7 @@ export function resolveNotionClassification(ctx: NotionToolContext): Classificat
   const taint = ctx.sessionTaint();
   if (!ctx.classificationFloor) return taint;
   if (compareClassification(ctx.classificationFloor, taint) > 0) {
-    log.info("Notion classification floor overrides session taint", {
+    log.warn("Notion classification floor overrides session taint", {
       operation: "resolveNotionClassification",
       classificationFloor: ctx.classificationFloor,
       sessionTaint: taint,
