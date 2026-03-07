@@ -15,4 +15,5 @@ export {
 export * from "./google/mod.ts";
 export * from "./github/mod.ts";
 export * from "./caldav/mod.ts";
+export * from "./reddit/mod.ts";
 export * from "./remote/mod.ts";
