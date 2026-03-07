@@ -235,6 +235,8 @@ export function createVaultProvider(
       };
     };
 
+  // KV v2 secrets are versioned, not leased — no lease renewal or revocation needed.
+  // These no-ops satisfy the ExternalSecretProvider interface for lease-based backends.
   const renewLease = (
     _name: string,
   ): Promise<Result<true, string>> => {

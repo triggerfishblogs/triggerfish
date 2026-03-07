@@ -9,6 +9,9 @@
 
 import type { Result } from "../../core/types/classification.ts";
 import type { SecretStore } from "../../core/secrets/backends/secret_store.ts";
+import { createLogger } from "../../core/logger/logger.ts";
+
+const log = createLogger("secrets:verify");
 
 /** Verification result for a single secret reference. */
 export interface SecretVerificationEntry {
@@ -47,9 +50,11 @@ export async function verifySecrets(
       entries.push({ name, status: "ok" });
       ok++;
     } else if (/not found|does not exist|no secret|404/i.test(result.error)) {
+      log.info("Secret not found during verification", { operation: "verifySecrets", name });
       entries.push({ name, status: "missing", error: result.error });
       missing++;
     } else {
+      log.warn("Secret verification error", { operation: "verifySecrets", name, err: result.error });
       entries.push({ name, status: "error", error: result.error });
       errors++;
     }
