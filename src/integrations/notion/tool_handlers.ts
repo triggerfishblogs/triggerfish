@@ -267,9 +267,16 @@ export async function executeBlocksAppend(
 export function resolveNotionClassification(ctx: NotionToolContext): ClassificationLevel {
   const taint = ctx.sessionTaint();
   if (!ctx.classificationFloor) return taint;
-  return compareClassification(ctx.classificationFloor, taint) > 0
-    ? ctx.classificationFloor
-    : taint;
+  if (compareClassification(ctx.classificationFloor, taint) > 0) {
+    log.info("Notion classification floor overrides session taint", {
+      operation: "resolveNotionClassification",
+      classificationFloor: ctx.classificationFloor,
+      sessionTaint: taint,
+      effective: ctx.classificationFloor,
+    });
+    return ctx.classificationFloor;
+  }
+  return taint;
 }
 
 /** Format properties for JSON output (simplified for LLM readability). */
