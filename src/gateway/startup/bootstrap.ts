@@ -228,29 +228,32 @@ async function validateKeyFilePermissions(
   }
 }
 
-/** Verify /data is a separate mount point, exiting in strict mode on violation. */
+/** Verify data dir is a separate mount point, exiting in strict mode on violation. */
 async function validateDataMountPoint(
   opts: { readonly strict: boolean },
 ): Promise<void> {
-  const mountResult = await verifyMountPoint("/data");
+  const dataDir = Deno.env.get("TRIGGERFISH_DATA_DIR") ?? "/data";
+  const mountResult = await verifyMountPoint(dataDir);
   if (mountResult.ok && !mountResult.value.isMounted) {
     bootstrapLog.warn(
-      "Docker security: /data is not a separate mount point",
+      `Docker security: ${dataDir} is not a separate mount point`,
       {
         operation: "validateDataMountPoint",
+        dataDir,
         message: mountResult.value.message,
       },
     );
     if (opts.strict) {
       bootstrapLog.error(
-        "Docker security: exiting due to missing volume mount (strict mode)",
-        { operation: "validateDataMountPoint" },
+        `Docker security: exiting due to missing volume mount at ${dataDir} (strict mode)`,
+        { operation: "validateDataMountPoint", dataDir },
       );
       Deno.exit(78);
     }
   } else if (!mountResult.ok) {
     bootstrapLog.warn("Docker security: mount check could not complete", {
       operation: "validateDataMountPoint",
+      dataDir,
       err: mountResult.error,
     });
   }
