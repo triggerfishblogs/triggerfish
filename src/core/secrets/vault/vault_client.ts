@@ -9,8 +9,6 @@
 
 import type { Result } from "../../types/classification.ts";
 import { createLogger } from "../../logger/logger.ts";
-
-const log = createLogger("vault:client");
 import type {
   KvReadResponse,
   KvWriteResponse,
@@ -18,6 +16,8 @@ import type {
   VaultClientOptions,
   VaultHealth,
 } from "./vault_types.ts";
+
+const log = createLogger("vault:client");
 
 /** Vault HTTP client interface. */
 export interface VaultClient {

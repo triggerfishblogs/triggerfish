@@ -9,8 +9,6 @@
 
 import type { Result } from "../../types/classification.ts";
 import { createLogger } from "../../logger/logger.ts";
-
-const log = createLogger("vault:provider");
 import type {
   ExternalSecretProvider,
   HealthStatus,
@@ -18,6 +16,8 @@ import type {
 } from "../backends/external_provider.ts";
 import type { VaultClient } from "./vault_client.ts";
 import type { VaultAuth } from "./auth/mod.ts";
+
+const log = createLogger("vault:provider");
 
 /** Options for creating a Vault secret provider. */
 export interface VaultProviderOptions {

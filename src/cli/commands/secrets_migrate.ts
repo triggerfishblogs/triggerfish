@@ -78,9 +78,6 @@ export async function migrateSecrets(
       continue;
     }
 
-    migrated++;
-    onProgress?.(name, "migrated");
-
     const verifyResult = await to.getSecret(targetName);
     if (!verifyResult.ok || verifyResult.value !== readResult.value) {
       failed.push(name);
@@ -88,6 +85,7 @@ export async function migrateSecrets(
       continue;
     }
 
+    migrated++;
     verified++;
     onProgress?.(name, "verified");
 
