@@ -145,10 +145,9 @@ export function createNotionClient(config: NotionClientConfig): NotionClient {
   async function waitForRateLimit(): Promise<void> {
     const now = Date.now();
     const elapsed = now - lastRequestTime;
-    lastRequestTime = now;
-    if (elapsed < rateLimitMs) {
-      await sleep(rateLimitMs - elapsed);
-    }
+    const sleepMs = elapsed < rateLimitMs ? rateLimitMs - elapsed : 0;
+    lastRequestTime = now + sleepMs;
+    if (sleepMs > 0) await sleep(sleepMs);
   }
 
   /** Send a single HTTP request to the Notion API. */

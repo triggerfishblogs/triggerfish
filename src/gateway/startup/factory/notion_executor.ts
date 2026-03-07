@@ -14,8 +14,6 @@ import type { SessionId } from "../../../core/types/session.ts";
 import { parseClassification } from "../../../core/types/classification.ts";
 import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
-
-const log = createLogger("gateway.notion");
 import {
   createNotionClient,
   createNotionPagesService,
@@ -24,6 +22,8 @@ import {
   createNotionToolExecutor,
   resolveNotionToken,
 } from "../../../integrations/notion/mod.ts";
+
+const log = createLogger("gateway.notion");
 
 /**
  * Build the Notion tool executor from config and keychain.
