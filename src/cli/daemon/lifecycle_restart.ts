@@ -3,28 +3,42 @@
  * @module
  */
 
-import type { DaemonResult } from "./daemon.ts";
+import type { DaemonResult, DaemonStatus } from "./daemon.ts";
 import { getDaemonStatus } from "./lifecycle_status.ts";
 import { installAndStartDaemon } from "./lifecycle_install.ts";
 import { stopDaemon } from "./lifecycle_stop.ts";
-import { createLogger } from "../../core/logger/mod.ts";
-
-const log = createLogger("cli.daemon");
 
 const POLL_INTERVAL_MS = 500;
 const POLL_TIMEOUT_MS = 5000;
+
+/** Injectable dependencies for restart — enables unit testing. */
+export interface RestartDeps {
+  readonly stopDaemon: () => Promise<DaemonResult>;
+  readonly getDaemonStatus: () => Promise<DaemonStatus>;
+  readonly installAndStartDaemon: (binaryPath: string) => Promise<DaemonResult>;
+  readonly pollIntervalMs: number;
+  readonly pollTimeoutMs: number;
+}
+
+const defaultDeps: RestartDeps = {
+  stopDaemon,
+  getDaemonStatus,
+  installAndStartDaemon,
+  pollIntervalMs: POLL_INTERVAL_MS,
+  pollTimeoutMs: POLL_TIMEOUT_MS,
+};
 
 /**
  * Poll daemon status until it reports not running or timeout is reached.
  *
  * @returns True if the daemon stopped within the timeout, false otherwise.
  */
-async function awaitDaemonStopped(): Promise<boolean> {
-  const deadline = Date.now() + POLL_TIMEOUT_MS;
+async function awaitDaemonStopped(deps: RestartDeps): Promise<boolean> {
+  const deadline = Date.now() + deps.pollTimeoutMs;
   while (Date.now() < deadline) {
-    const status = await getDaemonStatus();
+    const status = await deps.getDaemonStatus();
     if (!status.running) return true;
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    await new Promise((resolve) => setTimeout(resolve, deps.pollIntervalMs));
   }
   return false;
 }
@@ -33,31 +47,25 @@ async function awaitDaemonStopped(): Promise<boolean> {
  * Restart the Triggerfish daemon: stop, wait for exit, then start.
  *
  * @param binaryPath - Absolute path to the triggerfish binary.
+ * @param deps - Injectable dependencies (defaults to real implementations).
  * @returns Result indicating success or failure.
  */
 export async function restartDaemon(
   binaryPath: string,
+  deps: RestartDeps = defaultDeps,
 ): Promise<DaemonResult> {
-  const stopResult = await stopDaemon();
+  const stopResult = await deps.stopDaemon();
   if (!stopResult.ok) {
-    log.error("Daemon stop failed during restart", {
-      operation: "restartDaemon",
-      message: stopResult.message,
-    });
     return { ok: false, message: `Restart failed (stop): ${stopResult.message}` };
   }
 
-  const stopped = await awaitDaemonStopped();
+  const stopped = await awaitDaemonStopped(deps);
   if (!stopped) {
-    log.error("Daemon did not stop within timeout during restart", {
-      operation: "restartDaemon",
-      timeoutMs: POLL_TIMEOUT_MS,
-    });
     return {
       ok: false,
-      message: `Restart failed: daemon did not stop within ${POLL_TIMEOUT_MS}ms`,
+      message: `Restart failed: daemon did not stop within ${deps.pollTimeoutMs}ms`,
     };
   }
 
-  return installAndStartDaemon(binaryPath);
+  return deps.installAndStartDaemon(binaryPath);
 }
