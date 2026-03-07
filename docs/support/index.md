@@ -7,7 +7,7 @@ Get help with Triggerfish installation, configuration, and day-to-day operations
 - **Something broken right now?** Start with the [Troubleshooting Guide](/support/troubleshooting/)
 - **Need to look up an error?** See the [Error Reference](/support/troubleshooting/error-reference)
 - **Want to file a bug?** Read [How to File a Good Issue](/support/guides/filing-issues) first
-- **Upgrading or migrating?** Check the [Knowledge Base](/support/kb/)
+- **Upgrading or migrating?** Check the [Knowledge Base](#knowledge-base)
 
 ## Self-Service Resources
 
