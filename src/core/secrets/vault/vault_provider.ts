@@ -81,6 +81,12 @@ export function createVaultProvider(
     }
     authenticated = true;
     log.info("Vault authentication succeeded", { operation: "ensureAuthenticated" });
+    if (auth.scheduleRenewal) {
+      auth.scheduleRenewal(
+        () => { authenticated = false; },
+        result.value.lease_duration,
+      );
+    }
     return { ok: true, value: true };
   }
 

@@ -21,6 +21,10 @@ export type { TokenAuthOptions } from "./token.ts";
 export interface VaultAuth {
   readonly authenticate: () => Promise<Result<VaultAuthResponse, string>>;
   readonly currentToken: () => string;
+  readonly scheduleRenewal?: (
+    onRenewFailed: () => void,
+    initialTtlSeconds?: number,
+  ) => void;
   readonly cancelRenewal?: () => void;
 }
 
@@ -53,6 +57,7 @@ export function createVaultAuth(
       return {
         authenticate: auth.authenticate,
         currentToken: auth.currentToken,
+        scheduleRenewal: auth.scheduleRenewal,
         cancelRenewal: auth.cancelRenewal,
       };
     }
