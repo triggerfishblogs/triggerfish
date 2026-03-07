@@ -23,10 +23,12 @@ import { logDir as resolveLogDir } from "../../cli/daemon/daemon.ts";
 import { loadConfigWithSecrets } from "../../core/config.ts";
 import type { TriggerFishConfig } from "../../core/config.ts";
 import { resolveBaseDir, resolveConfigPath } from "../../cli/config/paths.ts";
-import { createKeychain } from "../../core/secrets/keychain/keychain.ts";
-import { resolveDockerKeyPath } from "../../core/secrets/keychain/keychain.ts";
-import { verifyKeyFilePermissions } from "../../core/secrets/validation/permission_check.ts";
-import { verifyMountPoint } from "../../core/secrets/validation/mount_check.ts";
+import {
+  createKeychain,
+  resolveDockerKeyPath,
+  verifyKeyFilePermissions,
+  verifyMountPoint,
+} from "../../core/secrets/mod.ts";
 
 /** Result of the bootstrap phase: config loaded and logger ready. */
 export interface BootstrapResult {
@@ -193,6 +195,61 @@ export function buildToolFloorRegistryFromConfig(
   return createToolFloorRegistry(overrides.size > 0 ? overrides : undefined);
 }
 
+/** Verify key file permissions, exiting in strict mode on violation. */
+async function validateKeyFilePermissions(
+  opts: { readonly strict: boolean },
+): Promise<void> {
+  const keyPath = resolveDockerKeyPath();
+  const permResult = await verifyKeyFilePermissions(keyPath);
+  if (permResult.ok && !permResult.value.valid) {
+    bootstrapLog.warn("Docker security: insecure key file permissions", {
+      operation: "validateKeyFilePermissions",
+      message: permResult.value.message,
+    });
+    if (opts.strict) {
+      bootstrapLog.error(
+        "Docker security: exiting due to insecure permissions (strict mode)",
+        { operation: "validateKeyFilePermissions", keyPath },
+      );
+      Deno.exit(78);
+    }
+  } else if (!permResult.ok) {
+    // Key file may not exist yet (first run) — log but don't fail
+    bootstrapLog.info("Docker security: key file not yet available", {
+      operation: "validateKeyFilePermissions",
+      detail: permResult.error,
+    });
+  }
+}
+
+/** Verify /data is a separate mount point, exiting in strict mode on violation. */
+async function validateDataMountPoint(
+  opts: { readonly strict: boolean },
+): Promise<void> {
+  const mountResult = await verifyMountPoint("/data");
+  if (mountResult.ok && !mountResult.value.isMounted) {
+    bootstrapLog.warn(
+      "Docker security: /data is not a separate mount point",
+      {
+        operation: "validateDataMountPoint",
+        message: mountResult.value.message,
+      },
+    );
+    if (opts.strict) {
+      bootstrapLog.error(
+        "Docker security: exiting due to missing volume mount (strict mode)",
+        { operation: "validateDataMountPoint" },
+      );
+      Deno.exit(78);
+    }
+  } else if (!mountResult.ok) {
+    bootstrapLog.warn("Docker security: mount check could not complete", {
+      operation: "validateDataMountPoint",
+      err: mountResult.error,
+    });
+  }
+}
+
 /**
  * Validate Docker security configuration at startup.
  *
@@ -202,51 +259,8 @@ export function buildToolFloorRegistryFromConfig(
  */
 export async function validateDockerSecurityConfig(): Promise<void> {
   const strict = Deno.env.get("TRIGGERFISH_STRICT_PERMISSIONS") === "true";
-  const keyPath = resolveDockerKeyPath();
-
-  const permResult = await verifyKeyFilePermissions(keyPath);
-  if (permResult.ok && !permResult.value.valid) {
-    bootstrapLog.warn("Docker security: insecure key file permissions", {
-      operation: "validateDockerSecurityConfig",
-      message: permResult.value.message,
-    });
-    if (strict) {
-      bootstrapLog.error(
-        "Docker security: exiting due to insecure permissions (strict mode)",
-        { operation: "validateDockerSecurityConfig", keyPath },
-      );
-      Deno.exit(78);
-    }
-  } else if (!permResult.ok) {
-    // Key file may not exist yet (first run) — log but don't fail
-    bootstrapLog.info("Docker security: key file not yet available", {
-      operation: "validateDockerSecurityConfig",
-      detail: permResult.error,
-    });
-  }
-
-  const mountResult = await verifyMountPoint("/data");
-  if (mountResult.ok && !mountResult.value.isMounted) {
-    bootstrapLog.warn(
-      "Docker security: /data is not a separate mount point",
-      {
-        operation: "validateDockerSecurityConfig",
-        message: mountResult.value.message,
-      },
-    );
-    if (strict) {
-      bootstrapLog.error(
-        "Docker security: exiting due to missing volume mount (strict mode)",
-        { operation: "validateDockerSecurityConfig" },
-      );
-      Deno.exit(78);
-    }
-  } else if (!mountResult.ok) {
-    bootstrapLog.warn("Docker security: mount check could not complete", {
-      operation: "validateDockerSecurityConfig",
-      err: mountResult.error,
-    });
-  }
+  await validateKeyFilePermissions({ strict });
+  await validateDataMountPoint({ strict });
 }
 
 /** Load config, initialize logging, and return bootstrap context. */
