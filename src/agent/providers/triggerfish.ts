@@ -98,13 +98,19 @@ function stripReasoningContent(
 
 // ─── Request building ────────────────────────────────────────────────────────
 
+/** Options for building a chat request body. */
+interface ChatRequestOptions {
+  readonly maxTokens: number;
+  readonly messages: readonly LlmMessage[];
+  readonly tools: readonly unknown[];
+  readonly streaming: boolean;
+}
+
 /** Build the chat request body with proper thinking/tool mode. */
 function buildChatRequestBody(
-  maxTokens: number,
-  messages: readonly LlmMessage[],
-  tools: readonly unknown[],
-  streaming: boolean,
+  opts: ChatRequestOptions,
 ): Record<string, unknown> {
+  const { maxTokens, messages, tools, streaming } = opts;
   const openaiMessages = messages.map((m) =>
     stripReasoningContent({
       role: m.role,
@@ -257,7 +263,7 @@ export function createTriggerfishProvider(
     ): Promise<LlmCompletionResult> {
       const signal = options.signal as AbortSignal | undefined;
       const sessionId = options.sessionId as string | undefined;
-      const body = buildChatRequestBody(maxTokens, messages, tools, false);
+      const body = buildChatRequestBody({ maxTokens, messages, tools, streaming: false });
       const requestBody = JSON.stringify(body);
       const headers = buildHeaders(licenseKey, sessionId);
 
@@ -333,7 +339,7 @@ export function createTriggerfishProvider(
     ): AsyncIterable<LlmStreamChunk> {
       const signal = options.signal as AbortSignal | undefined;
       const sessionId = options.sessionId as string | undefined;
-      const body = buildChatRequestBody(maxTokens, messages, tools, true);
+      const body = buildChatRequestBody({ maxTokens, messages, tools, streaming: true });
       const headers = buildHeaders(licenseKey, sessionId);
 
       const response = await fetch(chatUrl, {

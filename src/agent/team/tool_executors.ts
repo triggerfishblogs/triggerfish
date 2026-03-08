@@ -102,23 +102,23 @@ async function executeTeamCreate(
 ): Promise<string> {
   const name = input.name;
   if (typeof name !== "string" || name.length === 0) {
-    return "Error: team_create requires a non-empty 'name' argument.";
+    return "Team creation failed: 'name' argument must not be empty.";
   }
 
   const task = input.task;
   if (typeof task !== "string" || task.length === 0) {
-    return "Error: team_create requires a non-empty 'task' argument.";
+    return "Team creation failed: 'task' argument must not be empty.";
   }
 
   const membersResult = parseMembersInput(input.members);
   if (typeof membersResult === "string") {
-    return `Error: ${membersResult}`;
+    return membersResult;
   }
 
   let classificationCeiling: ClassificationLevel | undefined;
   if (typeof input.classification_ceiling === "string") {
     const parsed = parseClassification(input.classification_ceiling);
-    if (!parsed.ok) return `Error: ${parsed.error}`;
+    if (!parsed.ok) return parsed.error;
     classificationCeiling = parsed.value;
   }
 
@@ -142,7 +142,7 @@ async function executeTeamCreate(
     ctx.callerSessionId,
   );
 
-  if (!result.ok) return `Error: ${result.error}`;
+  if (!result.ok) return result.error;
 
   const team = result.value;
   return JSON.stringify({
@@ -164,11 +164,11 @@ async function executeTeamStatus(
 ): Promise<string> {
   const teamId = input.team_id;
   if (typeof teamId !== "string" || teamId.length === 0) {
-    return "Error: team_status requires a non-empty 'team_id' argument.";
+    return "Team status failed: 'team_id' argument must not be empty.";
   }
 
   const result = await ctx.teamManager.fetchTeamStatus(teamId as TeamId);
-  if (!result.ok) return `Error: ${result.error}`;
+  if (!result.ok) return result.error;
 
   const team = result.value;
 
@@ -179,7 +179,7 @@ async function executeTeamStatus(
       callerSessionId: ctx.callerSessionId,
       createdBy: team.createdBy,
     });
-    return "Error: Team status denied: caller is not the creator or a member";
+    return "Team status denied: caller is not the creator or a member";
   }
 
   return JSON.stringify({
@@ -210,7 +210,7 @@ async function executeTeamDisband(
 ): Promise<string> {
   const teamId = input.team_id;
   if (typeof teamId !== "string" || teamId.length === 0) {
-    return "Error: team_disband requires a non-empty 'team_id' argument.";
+    return "Team disband failed: 'team_id' argument must not be empty.";
   }
 
   const reason = typeof input.reason === "string" ? input.reason : undefined;
@@ -221,7 +221,7 @@ async function executeTeamDisband(
     reason,
   );
 
-  if (!result.ok) return `Error: ${result.error}`;
+  if (!result.ok) return result.error;
 
   return JSON.stringify({
     team_id: result.value.id,
@@ -237,18 +237,18 @@ async function executeTeamMessage(
 ): Promise<string> {
   const teamId = input.team_id;
   if (typeof teamId !== "string" || teamId.length === 0) {
-    return "Error: team_message requires a non-empty 'team_id' argument.";
+    return "Team message failed: 'team_id' argument must not be empty.";
   }
 
   const message = input.message;
   if (typeof message !== "string" || message.length === 0) {
-    return "Error: team_message requires a non-empty 'message' argument.";
+    return "Team message failed: 'message' argument must not be empty.";
   }
 
   const role = typeof input.role === "string" ? input.role : "";
 
   const statusResult = await ctx.teamManager.fetchTeamStatus(teamId as TeamId);
-  if (!statusResult.ok) return `Error: ${statusResult.error}`;
+  if (!statusResult.ok) return statusResult.error;
 
   if (!isCreatorOrMember(statusResult.value, ctx.callerSessionId)) {
     log.warn("Unauthorized team_message attempt", {
@@ -257,7 +257,7 @@ async function executeTeamMessage(
       callerSessionId: ctx.callerSessionId,
       createdBy: statusResult.value.createdBy,
     });
-    return "Error: Team message denied: caller is not the creator or a member";
+    return "Team message denied: caller is not the creator or a member";
   }
 
   const result = await ctx.teamManager.deliverTeamMessage(
@@ -267,7 +267,7 @@ async function executeTeamMessage(
     message,
   );
 
-  if (!result.ok) return `Error: ${result.error}`;
+  if (!result.ok) return result.error;
 
   return JSON.stringify({ delivered: true, target_role: role || "lead" });
 }

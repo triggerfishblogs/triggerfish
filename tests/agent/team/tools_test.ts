@@ -140,7 +140,6 @@ Deno.test("team_create: validates required name", async () => {
   const exec = createTestExecutor();
   const result = await exec("team_create", { task: "x", members: [] });
   assert(result !== null);
-  assertStringIncludes(result!, "Error");
   assertStringIncludes(result!, "name");
 });
 
@@ -148,7 +147,6 @@ Deno.test("team_create: validates required task", async () => {
   const exec = createTestExecutor();
   const result = await exec("team_create", { name: "Team", members: [] });
   assert(result !== null);
-  assertStringIncludes(result!, "Error");
   assertStringIncludes(result!, "task");
 });
 
@@ -160,7 +158,7 @@ Deno.test("team_create: validates members array", async () => {
     members: "not-an-array",
   });
   assert(result !== null);
-  assertStringIncludes(result!, "Error");
+  assertStringIncludes(result!, "Members");
 });
 
 Deno.test("team_create: returns team_id on success", async () => {
@@ -214,7 +212,6 @@ Deno.test("team_create: rejects invalid classification_ceiling", async () => {
   });
 
   assert(result !== null);
-  assertStringIncludes(result!, "Error");
   assertStringIncludes(result!, "Invalid classification");
 });
 
@@ -224,7 +221,6 @@ Deno.test("team_status: validates required team_id", async () => {
   const exec = createTestExecutor();
   const result = await exec("team_status", {});
   assert(result !== null);
-  assertStringIncludes(result!, "Error");
   assertStringIncludes(result!, "team_id");
 });
 
@@ -250,7 +246,6 @@ Deno.test("team_status: returns error for missing team", async () => {
 
   const result = await exec("team_status", { team_id: "missing-id" });
   assert(result !== null);
-  assertStringIncludes(result!, "Error");
   assertStringIncludes(result!, "not found");
 });
 
@@ -260,7 +255,7 @@ Deno.test("team_disband: validates required team_id", async () => {
   const exec = createTestExecutor();
   const result = await exec("team_disband", {});
   assert(result !== null);
-  assertStringIncludes(result!, "Error");
+  assertStringIncludes(result!, "team_id");
 });
 
 Deno.test("team_disband: returns disbanded status", async () => {
@@ -281,14 +276,13 @@ Deno.test("team_message: validates required team_id", async () => {
   const exec = createTestExecutor();
   const result = await exec("team_message", { message: "hi" });
   assert(result !== null);
-  assertStringIncludes(result!, "Error");
+  assertStringIncludes(result!, "team_id");
 });
 
 Deno.test("team_message: validates required message", async () => {
   const exec = createTestExecutor();
   const result = await exec("team_message", { team_id: "team-123" });
   assert(result !== null);
-  assertStringIncludes(result!, "Error");
   assertStringIncludes(result!, "message");
 });
 

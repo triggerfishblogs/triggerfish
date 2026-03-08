@@ -226,6 +226,8 @@ function buildSendMessage(
         operation: "sendMessage",
         fromId,
         toId,
+        senderTaint,
+        targetTaint: live.session.taint,
         contentLength: content.length,
       });
 
