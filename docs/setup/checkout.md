@@ -104,13 +104,13 @@ lastUpdated: false
   font-size: 14px;
   cursor: pointer;
   margin-top: auto;
-  background: var(--vp-c-brand-1);
-  color: #000;
+  background: var(--vp-c-brand-2);
+  color: var(--vp-c-white);
   border: none;
   width: 100%;
 }
 
-.checkout-btn:hover { background: var(--vp-c-brand-2); }
+.checkout-btn:hover { background: var(--vp-c-brand-3); }
 .checkout-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .checkout-error {
