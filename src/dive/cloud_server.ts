@@ -13,7 +13,7 @@
 export const PRODUCTION_GATEWAY_URL = "https://api.trigger.fish";
 
 /** Sandbox gateway URL (for tf_test_ keys). */
-export const SANDBOX_GATEWAY_URL = "https://triggerfish-cloud-sandbox.fly.dev";
+export const SANDBOX_GATEWAY_URL = "https://api-sandbox.trigger.fish";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

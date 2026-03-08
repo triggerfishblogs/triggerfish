@@ -186,27 +186,20 @@ async function collectTriggerfishKeyViaCheckout(): Promise<{
 }> {
   const gatewayUrl = Deno.env.get("TRIGGERFISH_GATEWAY_URL") ??
     "https://api.trigger.fish";
+  const siteUrl = Deno.env.get("TRIGGERFISH_SITE_URL") ??
+    "https://trigger.fish";
   const ac = new AbortController();
   const flowId = crypto.randomUUID();
   const server = startCallbackServer(ac.signal, flowId);
 
   try {
-    const { createCheckoutSession } = await import("../cloud.ts");
-    const result = await createCheckoutSession(
-      gatewayUrl,
-      flowId,
-      server.port,
-    );
-
-    if (!result.ok) {
-      console.log(`  \u2717 ${result.error}`);
-      console.log("  Falling back to manual key entry.");
-      return await collectTriggerfishKeyDirect();
-    }
+    const pricingUrl =
+      `${siteUrl}/pricing?flow_id=${flowId}&port=${server.port}&gateway=${encodeURIComponent(gatewayUrl)}`;
 
     console.log("");
-    console.log("  Opening checkout in your browser...");
-    await openInBrowser(result.value.checkout_url);
+    console.log("  Opening the pricing page in your browser...");
+    console.log("  Choose a plan and complete checkout.");
+    await openInBrowser(pricingUrl);
     console.log("  Waiting for setup to complete...");
     console.log("  (Press Ctrl+C to cancel)");
     console.log("");

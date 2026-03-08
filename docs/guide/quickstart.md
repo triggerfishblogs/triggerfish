@@ -27,9 +27,9 @@ Step 1/8: Choose your LLM provider
 ```
 
 Select a provider and enter your credentials. Triggerfish supports multiple
-providers with automatic failover. **Triggerfish Gateway** is the easiest option —
-subscribe to a [Pro or Power plan](/pricing), and your agent connects to managed
-LLM and search infrastructure with no API keys to configure.
+providers with automatic failover. **Triggerfish Gateway** is the easiest option
+— subscribe to a [Pro or Power plan](/pricing), and your agent connects to
+managed LLM and search infrastructure with no API keys to configure.
 
 ### Step 2: Name Your Agent
 

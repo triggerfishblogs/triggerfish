@@ -64,7 +64,8 @@ The binary installers download a pre-built release, verify its checksum, and run
 the setup wizard. See the [installation guide](/guide/installation) for Docker
 setup, building from source, and the release process.
 
-Don't want to manage API keys? [See pricing](/pricing) for Triggerfish Gateway — managed LLM and search infrastructure, ready in minutes.
+Don't want to manage API keys? [See pricing](/pricing) for Triggerfish Gateway —
+managed LLM and search infrastructure, ready in minutes.
 
 ## How It Works
 
