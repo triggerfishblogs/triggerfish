@@ -23,8 +23,8 @@ export interface CallbackServer {
   readonly port: number;
   /** Resolves with the license key when callback is received. */
   readonly keyPromise: Promise<string>;
-  /** Close the server. */
-  readonly close: () => void;
+  /** Gracefully shut down the server (waits for in-flight responses). */
+  readonly close: () => Promise<void>;
 }
 
 // ─── Callback Server ──────────────────────────────────────────────────────────
@@ -51,8 +51,11 @@ export function startCallbackServer(
     rejectKey = reject;
   });
 
+  // Do NOT pass `signal` to Deno.serve — aborting the signal forcefully kills
+  // the server before in-flight responses (like the success HTML) are sent to
+  // the browser. Instead, use server.shutdown() for graceful close.
   const server = Deno.serve(
-    { port: 0, hostname: "127.0.0.1", signal, onListen: () => {} },
+    { port: 0, hostname: "127.0.0.1", onListen: () => {} },
     (req) => {
       const url = new URL(req.url);
       if (url.pathname === "/callback") {
@@ -99,7 +102,7 @@ export function startCallbackServer(
     port: addr.port,
     keyPromise,
     close: () => server.shutdown(),
-  };
+  } satisfies CallbackServer;
 }
 
 // ─── Gateway URL Resolution ──────────────────────────────────────────────────

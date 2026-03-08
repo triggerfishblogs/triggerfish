@@ -361,7 +361,7 @@ async function promptTriggerfishKeyViaCheckout(): Promise<{
     return await promptTriggerfishKeyDirect();
   } finally {
     ac.abort();
-    server.close();
+    await server.close();
   }
 }
 
@@ -412,7 +412,7 @@ async function promptTriggerfishKeyViaMagicLink(): Promise<{
     return await promptTriggerfishKeyDirect();
   } finally {
     ac.abort();
-    server.close();
+    await server.close();
   }
 }
 
