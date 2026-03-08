@@ -198,7 +198,7 @@ as we refine the product. Early access subscribers lock in their rate.
     <li>Longer AI responses</li>
     <li>Priority support</li>
   </ul>
-  <a href="https://buy.stripe.com/00waEW8ik0L3a5M7yxao801" class="cta primary">Subscribe</a>
+  <a href="https://buy.stripe.com/5kQdR89mo2Tb4Lsg53ao802" class="cta primary">Subscribe</a>
 </div>
 
 <div class="pricing-card">
