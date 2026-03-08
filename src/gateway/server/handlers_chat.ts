@@ -172,6 +172,11 @@ function routeChatSocketMessage(
     handleCompactMessage(chat, socket);
     return;
   }
+  if (msg.type === "bumpers") {
+    const enabled = chat.toggleBumpers();
+    sendSafeWebSocket(socket, { type: "bumpers_status", enabled });
+    return;
+  }
   handleUserMessage(msg, chat, socket, abortRef);
 }
 

@@ -132,6 +132,12 @@ export interface OrchestratorConfig {
   readonly getSessionTaint?: () => ClassificationLevel;
   /** Escalate session taint after tool dispatch (upward only via maxClassification). */
   readonly escalateTaint?: (level: ClassificationLevel, reason: string) => void;
+  /**
+   * Check if bumpers would block taint escalation to the given level.
+   * Returns the block message when bumpers are active and the level
+   * would escalate taint, or null when the escalation is allowed.
+   */
+  readonly checkBumpersBlock?: (level: ClassificationLevel) => string | null;
   /** Whether the active session belongs to the owner. */
   readonly isOwnerSession?: () => boolean;
   /**

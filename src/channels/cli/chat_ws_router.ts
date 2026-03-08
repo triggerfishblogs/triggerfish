@@ -67,6 +67,15 @@ function routeTaintChangedEvent(
   if (ctx.isTty) ctx.screen.redrawInput(ctx.editor);
 }
 
+function routeBumpersStatusEvent(
+  evt: Extract<ChatEvent, { type: "bumpers_status" }>,
+  ctx: RouterContext,
+): void {
+  const label = evt.enabled ? "Bumpers deployed." : "No bumpers deployed.";
+  ctx.screen.writeOutput(`  ${label}`);
+  if (ctx.isTty) ctx.screen.redrawInput(ctx.editor);
+}
+
 function routeMcpStatusEvent(
   evt: Extract<ChatEvent, { type: "mcp_status" }>,
   ctx: RouterContext,
@@ -380,6 +389,8 @@ function dispatchChatEvent(
         evt as Extract<ChatEvent, { type: "credential_prompt" }>,
         ctx,
       );
+    case "bumpers_status":
+      return routeBumpersStatusEvent(evt, ctx);
     case "cancelled":
       return routeCancelledEvent(ctx);
     case "error":

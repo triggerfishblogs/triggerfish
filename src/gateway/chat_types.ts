@@ -107,6 +107,10 @@ export interface ChatSessionConfig {
   readonly getSessionTaint?: () => ClassificationLevel;
   /** Escalate session taint after tool dispatch. */
   readonly escalateTaint?: (level: ClassificationLevel, reason: string) => void;
+  /** Check if bumpers would block taint escalation to the given level. */
+  readonly checkBumpersBlock?: (level: ClassificationLevel) => string | null;
+  /** Toggle bumpers on the owner session. Returns the new enabled state. */
+  readonly toggleSessionBumpers?: () => boolean;
   /** Reset session state (taint back to PUBLIC). Called on /clear. */
   readonly resetSession?: () => void;
   /** Pairing service for verifying channel pairing codes. */
@@ -196,6 +200,8 @@ export interface ChatSession {
     channelType: string,
     signal?: AbortSignal,
   ): Promise<void>;
+  /** Toggle bumpers on/off and return the new enabled state. */
+  toggleBumpers(): boolean;
   /** Clear conversation history and reset session state. */
   clear(): void;
   /** Force LLM-based summarization of conversation history. */

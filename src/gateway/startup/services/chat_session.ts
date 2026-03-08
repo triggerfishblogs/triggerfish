@@ -11,6 +11,7 @@
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import { createSession, updateTaint } from "../../../core/types/session.ts";
 import type { ChannelId, UserId } from "../../../core/types/session.ts";
+import { BUMPER_BLOCK_MESSAGE, toggleBumpers, wouldBumpersBlock } from "../../../core/session/bumpers.ts";
 import type { TriggerFishConfig } from "../../../core/config.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
 import type { createProviderRegistry } from "../../../agent/llm.ts";
@@ -79,6 +80,25 @@ export function buildSessionLifecycleCallbacks(
     getSessionTaint: () => state.session.taint,
     escalateTaint: (level: ClassificationLevel, reason: string) => {
       state.session = updateTaint(state.session, level, reason);
+    },
+    checkBumpersBlock: (level: ClassificationLevel): string | null => {
+      if (wouldBumpersBlock(state.session, level)) {
+        log.warn("Bumpers blocked taint escalation", {
+          operation: "checkBumpersBlock",
+          currentTaint: state.session.taint,
+          requestedLevel: level,
+        });
+        return BUMPER_BLOCK_MESSAGE;
+      }
+      return null;
+    },
+    toggleSessionBumpers: (): boolean => {
+      state.session = toggleBumpers(state.session);
+      log.warn("Bumpers toggled", {
+        operation: "toggleSessionBumpers",
+        bumpersEnabled: state.session.bumpersEnabled,
+      });
+      return state.session.bumpersEnabled;
     },
     resetSession: () => {
       state.session = createSession({
@@ -165,6 +185,7 @@ export function buildChatSessionDynamicOptions(deps: ChatSessionDeps) {
       () => deps.state.session.taint,
       deps.workspacePaths,
       deps.personaOptions,
+      () => deps.state.session.bumpersEnabled,
     ),
     systemPromptSections: [
       TOOL_BEHAVIOR_PROMPT,

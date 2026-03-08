@@ -7,6 +7,12 @@
 export type { SessionManager } from "./manager.ts";
 export { createSessionManager } from "./manager.ts";
 export { propagateTaint } from "./taint.ts";
+export {
+  BUMPER_BLOCK_MESSAGE,
+  BUMPERS_SYSTEM_PROMPT,
+  toggleBumpers,
+  wouldBumpersBlock,
+} from "./bumpers.ts";
 
 export type {
   LineageClassification,

@@ -112,6 +112,7 @@ export function assembleOrchestratorConfig(
     integrationClassifications: config.integrationClassifications,
     getSessionTaint,
     escalateTaint,
+    checkBumpersBlock: config.checkBumpersBlock,
     isOwnerSession: () => state.activeSessionId === state.ownerSessionId,
     getNonOwnerCeiling: () => state.activeNonOwnerCeiling,
     pathClassifier: config.pathClassifier,

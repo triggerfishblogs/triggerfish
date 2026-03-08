@@ -108,7 +108,9 @@ export type ChatEvent =
     readonly firedAt: string;
   }
   /** Server → client: cancel acknowledged — the in-flight request was aborted. */
-  | { readonly type: "cancelled" };
+  | { readonly type: "cancelled" }
+  /** Server → client: bumpers state changed. */
+  | { readonly type: "bumpers_status"; readonly enabled: boolean };
 
 /** Messages the client can send. */
 export type ChatClientMessage =
@@ -116,6 +118,7 @@ export type ChatClientMessage =
   | { readonly type: "cancel" }
   | { readonly type: "clear" }
   | { readonly type: "compact" }
+  | { readonly type: "bumpers" }
   | {
     /**
      * Browser → server: the user has entered a secret value in the password

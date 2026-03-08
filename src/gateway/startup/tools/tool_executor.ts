@@ -10,6 +10,7 @@
 
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import type { createSession } from "../../../core/types/session.ts";
+import { BUMPERS_SYSTEM_PROMPT } from "../../../core/session/bumpers.ts";
 import type { createProviderRegistry } from "../../../agent/llm.ts";
 import type { createSqliteStorage } from "../../../core/storage/sqlite.ts";
 import type {
@@ -220,6 +221,7 @@ export function buildExtraSystemPromptGetter(
   getSessionTaint: () => ClassificationLevel,
   workspacePaths: WorkspacePaths,
   personaOptions?: PersonaRecallOptions,
+  getBumpersEnabled?: () => boolean,
 ) {
   // Cache persona context with a short TTL to avoid querying the store
   // on every single LLM iteration within a rapid tool loop.
@@ -234,6 +236,7 @@ export function buildExtraSystemPromptGetter(
       if (mcpPrompt) sections.push(mcpPrompt);
     }
     if (isTidepoolCallRef.value) sections.push(TIDEPOOL_SYSTEM_PROMPT);
+    if (getBumpersEnabled?.()) sections.push(BUMPERS_SYSTEM_PROMPT);
     sections.push(buildWorkspacePrompt(getSessionTaint(), workspacePaths));
 
     if (personaOptions && personaOptions.isOwnerSession()) {

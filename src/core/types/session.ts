@@ -46,6 +46,7 @@ export interface SessionState {
   readonly userId: UserId;
   readonly channelId: ChannelId;
   readonly taint: ClassificationLevel;
+  readonly bumpersEnabled: boolean;
   readonly createdAt: Date;
   readonly history: readonly TaintEvent[];
 }
@@ -54,6 +55,7 @@ export interface SessionState {
 export interface CreateSessionOptions {
   readonly userId: UserId;
   readonly channelId: ChannelId;
+  readonly bumpersEnabled?: boolean;
 }
 
 /**
@@ -65,6 +67,7 @@ export function createSession(options: CreateSessionOptions): SessionState {
     userId: options.userId,
     channelId: options.channelId,
     taint: "PUBLIC",
+    bumpersEnabled: options.bumpersEnabled ?? true,
     createdAt: new Date(),
     history: [],
   };

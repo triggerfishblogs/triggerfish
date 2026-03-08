@@ -534,6 +534,12 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
         signal,
         config.isOwnerTurnRef,
       ),
+    toggleBumpers() {
+      if (config.toggleSessionBumpers) {
+        return config.toggleSessionBumpers();
+      }
+      return false;
+    },
     clear() {
       orchestrator.clearHistory(getSession().id);
       if (config.resetSession) config.resetSession();
