@@ -10,6 +10,7 @@
 import { join } from "@std/path";
 import type { TriggerFishConfig } from "../../../core/config.ts";
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import { parseClassification } from "../../../core/types/classification.ts";
 import {
   createSession,
   OWNER_MEMORY_AGENT_ID,
@@ -130,6 +131,20 @@ async function discoverSkillsOnce(
   }
 }
 
+/** Parse and validate a classification level string from config. */
+function parseConfigClassification(
+  value: string,
+  context: string,
+): ClassificationLevel {
+  const result = parseClassification(value);
+  if (!result.ok) {
+    throw new Error(
+      `Secret classification config invalid: ${context} "${value}" is not a valid level`,
+    );
+  }
+  return result.value;
+}
+
 /** Build a SecretClassifier from YAML config. */
 function buildSecretClassifier(
   config: TriggerFishConfig,
@@ -138,10 +153,11 @@ function buildSecretClassifier(
   const mappings: ClassificationMapping[] =
     (classificationConfig?.mappings ?? []).map((m) => ({
       path: m.path,
-      level: m.level as ClassificationLevel,
+      level: parseConfigClassification(m.level, `mapping path="${m.path}"`),
     }));
-  const defaultLevel =
-    (classificationConfig?.default_level as ClassificationLevel) ?? "INTERNAL";
+  const defaultLevel = classificationConfig?.default_level
+    ? parseConfigClassification(classificationConfig.default_level, "default_level")
+    : "INTERNAL";
   return createSecretClassifier({ mappings, defaultLevel });
 }
 

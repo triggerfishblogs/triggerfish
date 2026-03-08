@@ -11,6 +11,7 @@
 import { assertEquals } from "@std/assert";
 import { createSecretClassifier } from "../../src/core/secrets/classification/secret_classifier.ts";
 import { createSecretAccessGate } from "../../src/core/secrets/classification/secret_access_gate.ts";
+import type { SecretAccessGate } from "../../src/core/secrets/classification/secret_access_gate.ts";
 import { createGatedKeychain } from "../../src/core/secrets/classification/gated_keychain.ts";
 import {
   createDefaultSecretAccessRules,
@@ -140,6 +141,29 @@ Deno.test("gated keychain: passes through setSecret without gating", async () =>
   const result = await gated.setSecret("restricted/new-key", "value");
 
   assertEquals(result.ok, true);
+});
+
+Deno.test("gated keychain: surfaces gate evaluation failure as error", async () => {
+  const failingGate: SecretAccessGate = {
+    checkAccess: () =>
+      Promise.resolve({ ok: false as const, error: "gate internal error" }),
+  };
+
+  const gated = createGatedKeychain({
+    inner: createTestStore(),
+    gate: failingGate,
+    provider: "keychain",
+    getSessionTaint: () => "PUBLIC" as ClassificationLevel,
+    getIsBackground: () => false,
+    onEscalate: () => {},
+  });
+
+  const result = await gated.getSecret("any-key");
+
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("gate internal error"), true);
+  }
 });
 
 Deno.test("gated keychain: INTERNAL secrets allowed without escalation at INTERNAL taint", async () => {
