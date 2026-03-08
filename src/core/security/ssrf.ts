@@ -113,30 +113,40 @@ export function isPrivateIp(ip: string): boolean {
   return false;
 }
 
-/** Resolve a hostname to ALL its A record IP addresses. */
+/** Resolve a hostname to ALL its A and AAAA record IP addresses. */
 async function resolveDnsHostname(
   hostname: string,
 ): Promise<Result<readonly string[], string>> {
-  let addresses: string[];
-  try {
-    addresses = await Deno.resolveDns(
-      hostname,
-      "A",
-    ) as unknown as string[];
-  } catch (err) {
+  const [v4Result, v6Result] = await Promise.allSettled([
+    Deno.resolveDns(hostname, "A"),
+    Deno.resolveDns(hostname, "AAAA"),
+  ]);
+
+  const v4Ips = v4Result.status === "fulfilled"
+    ? (v4Result.value as unknown as string[])
+    : [];
+  const v6Ips = v6Result.status === "fulfilled"
+    ? (v6Result.value as unknown as string[])
+    : [];
+
+  const addresses = [...v4Ips.map(String), ...v6Ips.map(String)];
+
+  if (addresses.length === 0) {
+    const firstErr = v4Result.status === "rejected"
+      ? v4Result.reason
+      : v6Result.status === "rejected"
+      ? v6Result.reason
+      : null;
+    const detail = firstErr instanceof Error
+      ? firstErr.message
+      : String(firstErr);
     return {
       ok: false,
-      error: `DNS resolution failed for ${hostname}: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
+      error: `DNS resolution failed for ${hostname}: ${detail}`,
     };
   }
 
-  if (!Array.isArray(addresses) || addresses.length === 0) {
-    return { ok: false, error: `No DNS records found for ${hostname}` };
-  }
-
-  return { ok: true, value: addresses.map(String) };
+  return { ok: true, value: addresses };
 }
 
 /**
@@ -146,7 +156,7 @@ async function resolveDnsHostname(
  * on success (for logging). Exported for unit testing without DNS mocking.
  *
  * @param hostname - The original hostname (used in error messages)
- * @param ips - All DNS A records returned for the hostname
+ * @param ips - All DNS A and AAAA records returned for the hostname
  * @returns Ok with the first IP, or Err if any IP is private
  */
 export function checkIpListForSsrf(
@@ -172,7 +182,7 @@ export function checkIpListForSsrf(
 /**
  * Resolve a hostname via DNS and check ALL resolved IPs against the SSRF denylist.
  *
- * Blocks if ANY of the returned A records is a private/reserved IP address.
+ * Blocks if ANY of the returned A or AAAA records is a private/reserved IP address.
  * This prevents DNS rebinding attacks where a domain returns a mix of
  * public and private IPs.
  *

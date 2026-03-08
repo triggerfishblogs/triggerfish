@@ -12,6 +12,7 @@ import { assertEquals } from "@std/assert";
 import {
   checkIpListForSsrf,
   isPrivateIp,
+  resolveAndCheck,
 } from "../../../src/tools/web/ssrf.ts";
 import { safeFetch } from "../../../src/tools/web/safe_fetch.ts";
 
@@ -191,4 +192,97 @@ Deno.test("isPrivateIp regression: IPv6 loopback ::1 still blocked", () => {
 Deno.test("isPrivateIp regression: public IPs still allowed", () => {
   assertEquals(isPrivateIp("8.8.8.8"), false);
   assertEquals(isPrivateIp("1.1.1.1"), false);
+});
+
+// ─── resolveAndCheck: IPv6 AAAA record handling ──────────────────────────────
+
+function stubResolveDns(
+  aRecords: string[] | Error,
+  aaaaRecords: string[] | Error,
+): Deno.Disposable {
+  const original = Deno.resolveDns;
+  (Deno as Record<string, unknown>).resolveDns = (
+    _hostname: string,
+    recordType: string,
+  ) => {
+    if (recordType === "A") {
+      return aRecords instanceof Error
+        ? Promise.reject(aRecords)
+        : Promise.resolve(aRecords);
+    }
+    if (recordType === "AAAA") {
+      return aaaaRecords instanceof Error
+        ? Promise.reject(aaaaRecords)
+        : Promise.resolve(aaaaRecords);
+    }
+    return Promise.reject(new Error(`Unexpected record type: ${recordType}`));
+  };
+  return {
+    [Symbol.dispose]() {
+      (Deno as Record<string, unknown>).resolveDns = original;
+    },
+  };
+}
+
+Deno.test("resolveAndCheck: blocks private IPv6 loopback from AAAA record", async () => {
+  using _stub = stubResolveDns(["1.2.3.4"], ["::1"]);
+  const result = await resolveAndCheck("evil.example.com");
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("::1"), true);
+  }
+});
+
+Deno.test("resolveAndCheck: blocks private IPv6 unique-local (fd) from AAAA record", async () => {
+  using _stub = stubResolveDns(["1.2.3.4"], ["fd12::1"]);
+  const result = await resolveAndCheck("evil.example.com");
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("fd12::1"), true);
+  }
+});
+
+Deno.test("resolveAndCheck: blocks private IPv6 link-local from AAAA record", async () => {
+  using _stub = stubResolveDns(["1.2.3.4"], ["fe80::1"]);
+  const result = await resolveAndCheck("evil.example.com");
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("fe80::1"), true);
+  }
+});
+
+Deno.test("resolveAndCheck: allows public IPv6 from AAAA record", async () => {
+  using _stub = stubResolveDns(["93.184.216.34"], ["2607:f8b0:4004:800::200e"]);
+  const result = await resolveAndCheck("example.com");
+  assertEquals(result.ok, true);
+});
+
+Deno.test("resolveAndCheck: works with AAAA-only host (no A records)", async () => {
+  using _stub = stubResolveDns(new Error("no A records"), ["2607:f8b0:4004:800::200e"]);
+  const result = await resolveAndCheck("ipv6only.example.com");
+  assertEquals(result.ok, true);
+});
+
+Deno.test("resolveAndCheck: works with A-only host (no AAAA records)", async () => {
+  using _stub = stubResolveDns(["93.184.216.34"], new Error("no AAAA records"));
+  const result = await resolveAndCheck("ipv4only.example.com");
+  assertEquals(result.ok, true);
+});
+
+Deno.test("resolveAndCheck: fails when both A and AAAA queries fail", async () => {
+  using _stub = stubResolveDns(new Error("NXDOMAIN"), new Error("NXDOMAIN"));
+  const result = await resolveAndCheck("nonexistent.example.com");
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("DNS resolution failed"), true);
+  }
+});
+
+Deno.test("resolveAndCheck: blocks AAAA-only host with private IPv6", async () => {
+  using _stub = stubResolveDns(new Error("no A records"), ["::1"]);
+  const result = await resolveAndCheck("sneaky.example.com");
+  assertEquals(result.ok, false);
+  if (!result.ok) {
+    assertEquals(result.error.includes("::1"), true);
+  }
 });
