@@ -2,6 +2,7 @@
 
 | Term                         | Definition                                                                                                                                                        |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agent Team**               | A persistent group of collaborating agent sessions with distinct roles. One member is the lead who coordinates work. Created via `team_create`, monitored with lifecycle checks. |
 | **A2UI**                     | Agent-to-UI protocol for pushing visual content from the agent to the Tide Pool workspace in real time.                                                           |
 | **Background Session**       | A session spawned for autonomous tasks (cron, triggers) that starts with fresh PUBLIC taint and runs in an isolated workspace.                                    |
 | **Buoy**                     | A companion native app (iOS, Android) that provides device capabilities such as camera, location, screen recording, and push notifications to the agent. (Coming soon.) |
@@ -29,5 +30,6 @@
 | **Tide Pool**                | An agent-driven visual workspace where Triggerfish renders interactive content (dashboards, charts, forms) using the A2UI protocol.                               |
 | **TRIGGER.md**               | The agent's proactive behavior definition file, specifying what to check, monitor, and act on during periodic trigger wakeups.                                    |
 | **Webhook**                  | An inbound HTTP endpoint that accepts events from external services (GitHub, Sentry, etc.) and triggers agent actions.                                            |
+| **Team Lead**                | The designated coordinator in an agent team. Receives the team objective, decomposes work, assigns tasks to members, and decides when the team is done.           |
 | **Workspace**                | A per-agent filesystem directory where the agent writes and executes its own code, isolated from other agents.                                                    |
 | **Write-Down**               | The prohibited flow of data from a higher classification level to a lower one (e.g., CONFIDENTIAL data sent to a PUBLIC channel).                                 |

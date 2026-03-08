@@ -319,6 +319,38 @@ External services can POST to Triggerfish's webhook endpoint to trigger agent ac
 
 ---
 
+## Agent Teams
+
+### What are agent teams?
+
+Agent teams are persistent groups of collaborating agents that work together on complex tasks. Each team member is a separate agent session with its own role, conversation context, and tools. One member is designated the lead and coordinates the work. See [Agent Teams](/features/agent-teams) for full documentation.
+
+### How are teams different from sub-agents?
+
+Sub-agents are fire-and-forget: you delegate a single task and wait for the result. Teams are persistent — members communicate with each other via `sessions_send`, the lead coordinates work, and the team runs autonomously until disbanded or timed out. Use sub-agents for focused delegation; use teams for complex multi-role collaboration.
+
+### Do agent teams require a paid plan?
+
+Agent teams require the **Power** plan ($149/month) when using Triggerfish Gateway. Open source users running their own API keys have full access — each team member consumes inference from your configured LLM provider.
+
+### Why did my team lead immediately fail?
+
+The most common cause is a misconfigured LLM provider. Each team member spawns its own agent session that needs a working LLM connection. Check `triggerfish logs` for provider errors around the time of team creation. See [Agent Teams Troubleshooting](/support/troubleshooting/security#agent-teams) for more details.
+
+### Can team members use different models?
+
+Yes. Each member definition accepts an optional `model` field. If omitted, the member inherits the creating agent's model. This lets you assign expensive models to complex roles and cheaper models to simple ones.
+
+### How long can a team run?
+
+By default, teams have a 1-hour lifetime (`max_lifetime_seconds: 3600`). When the limit is reached, the lead gets a 60-second warning to produce final output, then the team is auto-disbanded. You can configure a longer lifetime at creation time.
+
+### What happens if a team member crashes?
+
+The lifecycle monitor detects member failures within 30 seconds. Failed members are marked as `failed` and the lead is notified to continue with remaining members or disband. If the lead itself fails, the team is paused and the creating session is notified.
+
+---
+
 ## Miscellaneous
 
 ### Is Triggerfish open source?
