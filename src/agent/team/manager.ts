@@ -346,35 +346,83 @@ function buildPlaceholderMembers(
 
 // ─── Initial task delivery ───────────────────────────────────────────────────
 
-/** Send initial tasks to team members after creation. */
-async function deliverInitialTasks(
+/**
+ * Send initial tasks to team members after creation.
+ *
+ * The lead receives the team task (blocking) so it can decompose and
+ * delegate work to members via sessions_send. Members with explicit
+ * initialTask are fired in parallel (non-blocking) so they start
+ * concurrently. Members without initialTask idle until the lead
+ * assigns them work.
+ */
+function deliverInitialTasks(
   definition: TeamDefinition,
   members: readonly TeamMemberInstance[],
   createdBy: SessionId,
   deps: TeamManagerDeps,
-): Promise<void> {
+): void {
+  // Fire non-lead members with explicit initialTask in parallel (non-blocking).
+  // These run concurrently and do not block team creation.
   for (const memberDef of definition.members) {
+    if (memberDef.isLead) continue;
+    if (!memberDef.initialTask) continue;
+
     const memberInstance = members.find((m) => m.role === memberDef.role);
     if (!memberInstance) continue;
 
-    const taskContent = resolveInitialTask(memberDef, definition.task);
-    if (!taskContent) continue;
-
-    const result = await deps.sendMessage(
-      createdBy,
-      memberInstance.sessionId,
-      taskContent,
-    );
-
-    if (!result.ok) {
-      log.warn("Initial task delivery failed for team member", {
-        operation: "deliverInitialTasks",
-        role: memberDef.role,
-        sessionId: memberInstance.sessionId,
-        err: result.error,
+    // Fire and forget — log failures but don't block.
+    deps.sendMessage(createdBy, memberInstance.sessionId, memberDef.initialTask)
+      .then((result) => {
+        if (!result.ok) {
+          log.warn("Initial task delivery failed for team member", {
+            operation: "deliverInitialTasks",
+            role: memberDef.role,
+            sessionId: memberInstance.sessionId,
+            err: result.error,
+          });
+        }
+      })
+      .catch((err) => {
+        log.error("Initial task delivery threw for team member", {
+          operation: "deliverInitialTasks",
+          role: memberDef.role,
+          sessionId: memberInstance.sessionId,
+          err,
+        });
       });
-    }
   }
+
+  // Deliver the team task to the lead. The lead decomposes work and
+  // delegates to members via sessions_send. This runs concurrently
+  // with any member initialTask deliveries above.
+  const leadDef = definition.members.find((m) => m.isLead);
+  if (!leadDef) return;
+
+  const leadInstance = members.find((m) => m.role === leadDef.role);
+  if (!leadInstance) return;
+
+  const leadTask = resolveInitialTask(leadDef, definition.task);
+  if (!leadTask) return;
+
+  deps.sendMessage(createdBy, leadInstance.sessionId, leadTask)
+    .then((result) => {
+      if (!result.ok) {
+        log.warn("Initial task delivery failed for team lead", {
+          operation: "deliverInitialTasks",
+          role: leadDef.role,
+          sessionId: leadInstance.sessionId,
+          err: result.error,
+        });
+      }
+    })
+    .catch((err) => {
+      log.error("Initial task delivery threw for team lead", {
+        operation: "deliverInitialTasks",
+        role: leadDef.role,
+        sessionId: leadInstance.sessionId,
+        err,
+      });
+    });
 }
 
 /** Resolve what initial task to send to a member. */
@@ -743,7 +791,11 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
 
       await deps.storage.set(buildStorageKey(teamId), serializeTeamInstance(team));
 
-      await deliverInitialTasks(definition, members, createdBy, deps);
+      // Fire-and-forget: deliver initial tasks in the background so
+      // team_create returns immediately. The lead decomposes work and
+      // delegates to members via sessions_send asynchronously.
+      // Individual delivery failures are logged inside deliverInitialTasks.
+      deliverInitialTasks(definition, members, createdBy, deps);
 
       log.info("Team created", {
         operation: "createTeam",
