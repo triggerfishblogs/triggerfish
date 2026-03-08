@@ -339,13 +339,13 @@ async function promptTriggerfishKeyViaCheckout(): Promise<{
   const server = startCallbackServer(ac.signal, flowId);
 
   try {
-    const pricingUrl =
-      `${siteUrl}/pricing?flow_id=${flowId}&port=${server.port}&gateway=${encodeURIComponent(gatewayUrl)}`;
+    const checkoutUrl =
+      `${siteUrl}/setup/checkout?flow_id=${flowId}&port=${server.port}&gateway=${encodeURIComponent(gatewayUrl)}`;
 
     console.log("");
-    console.log("  Opening the pricing page in your browser...");
+    console.log("  Opening the plan picker in your browser...");
     console.log("  Choose a plan and complete checkout.");
-    await openInBrowser(pricingUrl);
+    await openInBrowser(checkoutUrl);
     console.log("  Waiting for setup to complete...");
     console.log("  (Press Ctrl+C to cancel)");
     console.log("");

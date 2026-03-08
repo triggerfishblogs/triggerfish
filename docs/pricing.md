@@ -145,9 +145,10 @@ Triggerfish is open source and always will be. Bring your own API keys and run
 everything locally for free. Triggerfish Gateway adds a managed LLM backend, web
 search, tunnels, and updates — so you don't have to manage any of it.
 
-::: info Early Access Triggerfish Gateway is currently in early access. Pricing
-and features may change as we refine the product. Early access subscribers lock
-in their rate. :::
+::: info Early Access
+Triggerfish Gateway is currently in early access. Pricing and features may change
+as we refine the product. Early access subscribers lock in their rate.
+:::
 
 <div class="pricing-grid">
 
@@ -181,7 +182,7 @@ in their rate. :::
     <li>Scheduled jobs</li>
     <li>Setup in under 2 minutes</li>
   </ul>
-  <a href="https://buy.stripe.com/aFa14m9mobpH0vc4mlao800" class="cta primary" data-plan="pro">Subscribe</a>
+  <a href="https://buy.stripe.com/aFa14m9mobpH0vc4mlao800" class="cta primary">Subscribe</a>
 </div>
 
 <div class="pricing-card">
@@ -197,7 +198,7 @@ in their rate. :::
     <li>Longer AI responses</li>
     <li>Priority support</li>
   </ul>
-  <a href="https://buy.stripe.com/00waEW8ik0L3a5M7yxao801" class="cta primary" data-plan="power">Subscribe</a>
+  <a href="https://buy.stripe.com/00waEW8ik0L3a5M7yxao801" class="cta primary">Subscribe</a>
 </div>
 
 <div class="pricing-card">
@@ -265,10 +266,8 @@ Triggerfish Gateway is not a separate product — it's a managed backend for the
 same open-source agent you already run locally.
 
 1. **Subscribe** above — you'll receive your license key by email after checkout
-2. **Run `triggerfish dive --force`** and select Triggerfish Gateway as your
-   provider
-3. **Enter your license key** or use the magic link flow to activate
-   automatically
+2. **Run `triggerfish dive --force`** and select Triggerfish Gateway as your provider
+3. **Enter your license key** or use the magic link flow to activate automatically
 
 Already subscribed on another machine? Run `triggerfish dive --force`, select
 Triggerfish Gateway, and choose "I already have an account" to sign in with your
@@ -305,50 +304,10 @@ tunnels) stop until you resubscribe. No data is lost.
 
 ### Is my data sent through your servers?
 
-LLM requests are proxied through the cloud gateway to the model provider. We do
-not store conversation content. Usage metadata is logged for billing. Your
-agent, data, SPINE, and skills remain entirely on your machine.
+LLM requests are proxied through the cloud gateway to the model provider.
+We do not store conversation content. Usage metadata is logged for billing.
+Your agent, data, SPINE, and skills remain entirely on your machine.
 
 ### How do I manage my subscription?
 
 Visit the customer portal to update payment methods, switch plans, or cancel.
-
-<script setup>
-import { onMounted } from 'vue'
-
-onMounted(() => {
-  const params = new URLSearchParams(window.location.search)
-  const flowId = params.get('flow_id')
-  const port = params.get('port')
-  const gateway = params.get('gateway')
-
-  if (!flowId || !port || !gateway) return
-
-  document.querySelectorAll('a.cta.primary[data-plan]').forEach(link => {
-    link.addEventListener('click', async (e) => {
-      e.preventDefault()
-      const plan = link.dataset.plan
-      link.textContent = 'Redirecting...'
-      link.style.pointerEvents = 'none'
-
-      try {
-        const resp = await fetch(`${gateway}/v1/setup/checkout-session`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ flow_id: flowId, port: Number(port), plan }),
-        })
-        const data = await resp.json()
-        if (data.checkout_url) {
-          window.location.href = data.checkout_url
-        } else {
-          link.textContent = 'Error — try again'
-          link.style.pointerEvents = ''
-        }
-      } catch {
-        link.textContent = 'Error — try again'
-        link.style.pointerEvents = ''
-      }
-    })
-  })
-})
-</script>
