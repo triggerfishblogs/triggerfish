@@ -127,3 +127,25 @@ export {
 } from "./plan/mod.ts";
 
 export { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "./plan/mod.ts";
+
+// Agent teams
+export type {
+  TeamDefinition,
+  TeamId,
+  TeamInstance,
+  TeamManager,
+  TeamManagerDeps,
+  TeamMemberDefinition,
+  TeamMemberInstance,
+  TeamMemberStatus,
+  TeamStatus,
+  TeamToolContext,
+} from "./team/mod.ts";
+
+export {
+  buildTeamRosterPrompt,
+  createTeamManager,
+  createTeamToolExecutor,
+  getTeamToolDefinitions,
+  TEAM_SYSTEM_PROMPT,
+} from "./team/mod.ts";
