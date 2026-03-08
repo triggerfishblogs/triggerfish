@@ -179,18 +179,8 @@ export function classifyResponseQuality(
     (finalText.length < 200 && ECHOED_TOOL_PLACEHOLDER.test(finalText));
   const isLeakedIntent = hasTools && finalText.length < 300 &&
     LEAKED_INTENT_PATTERN.test(finalText);
-  // DISABLED: trailing continuation detection causes false positives when the
-  // agent describes a future conditional action ("Once you provide these
-  // details, I'll create the team..."). The pattern matches "I'll create"
-  // and forces a recovery nudge, causing an unprompted second LLM turn.
-  // See: team_create tool confusion bug (2026-03-08).
-  const hasTrailingIntent = false; // hasTools && detectTrailingContinuationIntent(finalText);
-  // DISABLED: dense narration detection causes false positives when the agent
-  // legitimately asks the user for information using intent-like language
-  // ("I need to know...", "Let me gather..."). This triggers recovery nudges
-  // that force additional LLM turns without waiting for user input.
-  // See: team_create premature invocation bug (2026-03-08).
-  const isDenseNarration = false; // detectDenseNarration(finalText, hasTools);
+  const hasTrailingIntent = false;
+  const isDenseNarration = false;
   return {
     isEmptyOrJunk,
     isLeakedIntent,

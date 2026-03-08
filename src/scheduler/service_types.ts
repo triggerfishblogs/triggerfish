@@ -47,6 +47,11 @@ export interface OrchestratorCreateOptions {
    * the parent's workspace and sandbox boundary.
    */
   readonly workspace?: import("../exec/workspace_types.ts").Workspace;
+  /**
+   * Additional system prompt sections injected into the orchestrator.
+   * Used by team member sessions to include the team roster prompt.
+   */
+  readonly systemPromptSections?: readonly string[];
 }
 
 /**

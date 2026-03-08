@@ -259,6 +259,7 @@ export function createOrchestratorFactory(
           TOOL_BEHAVIOR_PROMPT,
           ...resolvePromptsForProfile(toolProfile),
           skillState.prompt,
+          ...(options?.systemPromptSections ?? []),
           ...(isTrigger ? [TRIGGER_SESSION_SYSTEM_PROMPT] : []),
         ],
         getExtraSystemPromptSections: () => [

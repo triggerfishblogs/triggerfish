@@ -286,7 +286,7 @@ async function checkLeadHealth(
   deps: TeamManagerDeps,
 ): Promise<boolean> {
   const lead = team.members.find((m) => m.isLead);
-  if (!lead || lead.status !== "active") return false;
+  if (!lead || (lead.status !== "active" && lead.status !== "idle")) return false;
 
   const taint = await deps.getSessionTaint(lead.sessionId);
   if (taint !== null) return false;
