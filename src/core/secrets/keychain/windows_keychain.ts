@@ -305,26 +305,49 @@ async function delegateToBackend<T>(
 }
 
 /**
+ * Detect whether we're running inside the Windows service wrapper.
+ *
+ * The C# service wrapper redirects stdout, so it is never a TTY.
+ * Interactive sessions (terminal, dive wizard) always have a TTY.
+ */
+function isWindowsServiceContext(): boolean {
+  return Deno.build.os === "windows" && !Deno.stdout.isTerminal();
+}
+
+/**
  * Create a Windows secret store with DPAPI encryption.
  *
- * On first operation, probes whether DPAPI is available via PowerShell.
- * If available, uses a dual-store strategy: writes go to both DPAPI and the
- * AES-256-GCM encrypted-file backend; reads try DPAPI first and fall back to
- * encrypted-file on failure. This handles the Windows service case where the
- * daemon runs as LocalSystem and cannot DPAPI-decrypt blobs encrypted by the
- * interactive user who ran `triggerfish dive`.
+ * **Service context** (daemon running under the C# service wrapper as
+ * LocalSystem): uses the AES-256-GCM encrypted-file store directly.
+ * DPAPI is user-bound — LocalSystem cannot decrypt blobs encrypted by the
+ * interactive user — so we skip the probe entirely. The encrypted-file
+ * store is a plain file on disk, accessible from any user context, and
+ * was the original backend before DPAPI was introduced (migration preserves
+ * those files as backups).
  *
- * If DPAPI is unavailable (headless, container, Windows Server Core without
- * PowerShell), falls back entirely to the encrypted-file store.
+ * **Interactive context** (terminal, dive wizard): probes DPAPI. If
+ * available, uses a dual-store — writes go to both DPAPI and the
+ * encrypted-file backend so secrets are always readable by the service.
+ * If DPAPI is unavailable (headless/container), uses encrypted-file only.
  *
  * This keeps `createKeychain()` synchronous while supporting async DPAPI probing.
- *
- * Note: Does not automatically migrate secrets from the legacy encrypted-file
- * store. Use {@link migrateEncryptedFileToDpapi} to migrate manually.
  */
 export function createWindowsKeychain(): SecretStore {
   const secretsPath = resolveDpapiSecretsPath();
   const filePaths = resolveEncryptedFilePaths();
+
+  // In the service context, skip DPAPI entirely. The service runs as
+  // LocalSystem and cannot decrypt secrets encrypted by the interactive user.
+  // The encrypted-file store is file-based and accessible from any user context.
+  if (isWindowsServiceContext()) {
+    log.info(
+      "Windows service context — using encrypted-file backend directly " +
+        "(skipping DPAPI: service runs as LocalSystem, cannot decrypt user-bound blobs)",
+      { store: filePaths.secretsPath },
+    );
+    return createEncryptedFileSecretStore(filePaths);
+  }
+
   let backendPromise: Promise<SecretStore> | null = null;
 
   /** Lazily probe DPAPI and cache the resulting store. */
@@ -334,7 +357,7 @@ export function createWindowsKeychain(): SecretStore {
       if (available) {
         log.info(
           "DPAPI probe succeeded, using dual-store backend " +
-            "(DPAPI + encrypted-file fallback for service context)",
+            "(writes to both DPAPI and encrypted-file so the service can always read)",
           { dpapiStore: secretsPath, fileStore: filePaths.secretsPath },
         );
         return buildDualSecretStore(secretsPath, filePaths);
