@@ -181,7 +181,12 @@ export function classifyResponseQuality(
     LEAKED_INTENT_PATTERN.test(finalText);
   const hasTrailingIntent = hasTools &&
     detectTrailingContinuationIntent(finalText);
-  const isDenseNarration = detectDenseNarration(finalText, hasTools);
+  // DISABLED: dense narration detection causes false positives when the agent
+  // legitimately asks the user for information using intent-like language
+  // ("I need to know...", "Let me gather..."). This triggers recovery nudges
+  // that force additional LLM turns without waiting for user input.
+  // See: team_create premature invocation bug (2026-03-08).
+  const isDenseNarration = false; // detectDenseNarration(finalText, hasTools);
   return {
     isEmptyOrJunk,
     isLeakedIntent,
