@@ -156,6 +156,46 @@ async function evaluatePreToolCallHook(
   return { result, currentTaint };
 }
 
+/** Check if bumpers would block a tool call based on classification. */
+function checkBumpersForToolCall(
+  secCtx: SecurityContext,
+  config: OrchestratorConfig,
+  call: ParsedToolCall,
+): string | null {
+  if (!config.checkBumpersBlock) return null;
+
+  if (secCtx.resourceClassification !== null) {
+    const blocked = config.checkBumpersBlock(secCtx.resourceClassification);
+    if (blocked) {
+      log.warn("Bumpers blocked tool call via resource classification", {
+        operation: "checkBumpersForToolCall",
+        toolName: call.name,
+        resourceClassification: secCtx.resourceClassification,
+      });
+      return blocked;
+    }
+  }
+
+  if (config.toolClassifications) {
+    for (const [prefix, level] of config.toolClassifications) {
+      if (call.name.startsWith(prefix)) {
+        const blocked = config.checkBumpersBlock(level);
+        if (blocked) {
+          log.warn("Bumpers blocked tool call via prefix classification", {
+            operation: "checkBumpersForToolCall",
+            toolName: call.name,
+            prefix,
+            classificationLevel: level,
+          });
+          return blocked;
+        }
+        break;
+      }
+    }
+  }
+  return null;
+}
+
 /** Execute the tool after policy approval (write-down + escalation + dispatch). */
 async function executeAfterPolicyApproval(
   call: ParsedToolCall,
@@ -185,6 +225,12 @@ async function executeSecurityEnforcedToolCall(
     call,
     config,
   );
+
+  const bumpersBlock = checkBumpersForToolCall(secCtx, config, call);
+  if (bumpersBlock !== null) {
+    return { resultText: bumpersBlock, blocked: true };
+  }
+
   preEscalateOwnerTriggerTaint(secCtx, config, call);
   if (secCtx.resourceClassification === null) {
     log.debug(

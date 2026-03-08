@@ -108,7 +108,9 @@ export type ChatEvent =
     readonly firedAt: string;
   }
   /** Server → client: cancel acknowledged — the in-flight request was aborted. */
-  | { readonly type: "cancelled" };
+  | { readonly type: "cancelled" }
+  /** Server → client: bumper state changed. */
+  | { readonly type: "bumpers_status"; readonly enabled: boolean };
 
 /** Messages the client can send. */
 export type ChatClientMessage =
@@ -149,7 +151,9 @@ export type ChatClientMessage =
     readonly source: string;
     /** Whether the user accepted (true) or dismissed (false). */
     readonly accepted: boolean;
-  };
+  }
+  /** Client → server: toggle bumpers on/off. */
+  | { readonly type: "bumpers" };
 
 /** Callback to send a chat event to a specific client. */
 export type ChatEventSender = (event: ChatEvent) => void;

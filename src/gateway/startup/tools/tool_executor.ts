@@ -31,6 +31,7 @@ import { VERSION } from "../../../cli/version.ts";
 import type { createAutoLaunchBrowserExecutor } from "../../../tools/browser/mod.ts";
 import type { createTidepoolToolExecutor } from "../../../tools/tidepool/mod.ts";
 import { TIDEPOOL_SYSTEM_PROMPT } from "../../../tools/tidepool/mod.ts";
+import { BUMPERS_SYSTEM_PROMPT } from "../../../core/session/bumpers.ts";
 import type { createImageToolExecutor } from "../../../tools/image/mod.ts";
 import type { createExploreToolExecutor } from "../../../tools/explore/mod.ts";
 import type { createSessionToolExecutor } from "../../tools/session/session_tools.ts";
@@ -220,6 +221,7 @@ export function buildExtraSystemPromptGetter(
   getSessionTaint: () => ClassificationLevel,
   workspacePaths: WorkspacePaths,
   personaOptions?: PersonaRecallOptions,
+  getBumpersEnabled?: () => boolean,
 ) {
   // Cache persona context with a short TTL to avoid querying the store
   // on every single LLM iteration within a rapid tool loop.
@@ -234,6 +236,7 @@ export function buildExtraSystemPromptGetter(
       if (mcpPrompt) sections.push(mcpPrompt);
     }
     if (isTidepoolCallRef.value) sections.push(TIDEPOOL_SYSTEM_PROMPT);
+    if (getBumpersEnabled?.()) sections.push(BUMPERS_SYSTEM_PROMPT);
     sections.push(buildWorkspacePrompt(getSessionTaint(), workspacePaths));
 
     if (personaOptions && personaOptions.isOwnerSession()) {

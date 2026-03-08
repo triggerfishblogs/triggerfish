@@ -121,6 +121,7 @@ export function assembleOrchestratorConfig(
     secretStore: config.secretStore,
     getActiveSkillContext: config.getActiveSkillContext,
     filterTools: filterToolsForRole,
+    checkBumpersBlock: config.checkBumpersBlock,
   };
 }
 

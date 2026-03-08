@@ -69,6 +69,11 @@ export function dispatchSlashCommand(
     return { handled: true, shouldExit: false };
   }
 
+  if (text === "/bumpers") {
+    deps.ws.send(JSON.stringify({ type: "bumpers" }));
+    return { handled: true, shouldExit: false };
+  }
+
   return { handled: false, shouldExit: false };
 }
 
@@ -100,6 +105,7 @@ function handleHelpCommand(screen: ScreenManager): SlashCommandResult {
       "    /quit, /exit, /q     \u2014 Exit chat\n" +
       "    /clear               \u2014 Clear screen\n" +
       "    /compact             \u2014 Summarize conversation history\n" +
+      "    /bumpers             \u2014 Toggle taint escalation bumpers\n" +
       "    /verbose             \u2014 Toggle tool display detail\n" +
       "    /help                \u2014 Show this help\n" +
       "    Ctrl+V               \u2014 Paste image from clipboard\n" +

@@ -155,8 +155,23 @@ export interface ToolInfraResult {
   readonly serviceAvailability: ServiceAvailability;
 }
 
+/** Load persisted bumper preference from storage. */
+async function loadBumpersPreference(
+  storage: ReturnType<typeof createSqliteStorage>,
+): Promise<boolean | undefined> {
+  try {
+    const raw = await storage.get("prefs:owner:bumpers_default");
+    if (raw !== null) return JSON.parse(raw) as boolean;
+  } catch {
+    // Fall through to default
+  }
+  return undefined;
+}
+
 /** Create the main session state and core session-level executors. */
-export function initializeMainSessionState(): {
+export function initializeMainSessionState(opts?: {
+  readonly bumpersEnabled?: boolean;
+}): {
   state: MainSessionState;
   cliSecretPrompt: SecretPromptCallback;
   cliCredentialPrompt: CredentialPromptCallback;
@@ -165,6 +180,7 @@ export function initializeMainSessionState(): {
     session: createSession({
       userId: "owner" as UserId,
       channelId: "daemon" as ChannelId,
+      bumpersEnabled: opts?.bumpersEnabled,
     }),
     activeSecretPrompt: createCliSecretPrompt(),
     activeCredentialPrompt: createCliCredentialPrompt(),
@@ -276,8 +292,9 @@ export async function initializeBaseToolDeps(
   coreInfra: CoreInfraResult,
 ) {
   const foundation = await buildLlmAndWorkspaceFoundation(bootstrap);
+  const bumpersDefault = await loadBumpersPreference(coreInfra.storage);
   const { state, cliSecretPrompt, cliCredentialPrompt } =
-    initializeMainSessionState();
+    initializeMainSessionState({ bumpersEnabled: bumpersDefault });
   const workspace = foundation.mainWorkspace;
   const workspacePaths: WorkspacePaths = {
     publicPath: workspace.publicPath,

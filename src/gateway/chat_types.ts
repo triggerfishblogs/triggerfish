@@ -160,6 +160,15 @@ export interface ChatSessionConfig {
    * Default: true (owner turns).
    */
   readonly isOwnerTurnRef?: { value: boolean };
+  /**
+   * Check if bumpers would block taint escalation to the given level.
+   * Returns the block message if blocked, null otherwise.
+   */
+  readonly checkBumpersBlock?: (level: ClassificationLevel) => string | null;
+  /** Toggle session bumpers on/off. Returns the new enabled state. */
+  readonly toggleSessionBumpers?: () => boolean;
+  /** Read whether bumpers are currently enabled. */
+  readonly getBumpersEnabled?: () => boolean;
 }
 
 /** Shared chat session that serializes access to the orchestrator. */
@@ -290,4 +299,8 @@ export interface ChatSession {
    * Called by the daemon when MCP connection state changes.
    */
   setMcpStatus?: (connected: number, configured: number) => void;
+  /** Toggle bumpers on/off and return the new enabled state. */
+  toggleBumpers(): boolean;
+  /** Read whether bumpers are currently enabled. */
+  readonly bumpersEnabled: boolean;
 }
