@@ -152,8 +152,8 @@ lastUpdated: false
 </div>
 <div class="checkout-card">
 <h3>Power</h3>
-<div class="price">$149<span>/month</span></div>
-<div class="subtitle">For heavy workloads.</div>
+<div class="price">$199<span>/month</span></div>
+<div class="subtitle">5x more usage than Pro.</div>
 <ul>
 <li>Everything in Pro</li>
 <li>Higher usage limits</li>

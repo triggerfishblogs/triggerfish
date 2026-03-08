@@ -187,8 +187,8 @@ as we refine the product. Early access subscribers lock in their rate.
 
 <div class="pricing-card">
   <h3>Power</h3>
-  <div class="price">$149<span>/month</span></div>
-  <div class="subtitle">For power users and heavy workloads.</div>
+  <div class="price">$199<span>/month</span></div>
+  <div class="subtitle">5x more usage than Pro. For heavy workloads.</div>
   <ul>
     <li>Everything in Pro</li>
     <li>AI inference included — higher usage limits</li>
