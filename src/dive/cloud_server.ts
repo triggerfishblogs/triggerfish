@@ -63,8 +63,15 @@ export function startCallbackServer(
         }
         if (key && key.length > 0) {
           resolveKey!(key);
-          const html = "<html><body><h2>Triggerfish setup complete!</h2>" +
-            "<p>You can close this tab and return to the terminal.</p>" +
+          const isExisting = url.searchParams.get("existing") === "1";
+          const heading = isExisting
+            ? "Welcome back!"
+            : "Triggerfish setup complete!";
+          const message = isExisting
+            ? "You already have an active subscription. Your account has been connected to this device. The duplicate charge has been cancelled."
+            : "You can close this tab and return to the terminal.";
+          const html = `<html><body><h2>${heading}</h2>` +
+            `<p>${message}</p>` +
             "</body></html>";
           return new Response(html, {
             headers: { "Content-Type": "text/html" },
