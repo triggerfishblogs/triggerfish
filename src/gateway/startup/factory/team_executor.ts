@@ -254,8 +254,13 @@ function buildSendMessage(
       return { ok: true, value: { delivered: true } };
     }
 
-    // Target is not in the live registry — use sessionManager for
-    // write-down check (external session, e.g. creator notification).
+    // Target is not in the live registry — route via sessionManager
+    // which enforces write-down checks for external sessions.
+    log.info("Routing message to external session via sessionManager", {
+      operation: "sendMessage",
+      fromId,
+      toId,
+    });
     const target = await sessionManager.get(toId);
     if (!target) {
       return { ok: false, error: `Target session not found: ${toId}` };
