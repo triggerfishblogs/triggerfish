@@ -176,7 +176,7 @@ as we refine the product. Early access subscribers lock in their rate.
   <div class="subtitle">Everything you need. No API keys required.</div>
   <ul>
     <li>Everything in Open Source</li>
-    <li>Managed LLM backend (no API keys needed)</li>
+    <li>AI inference included — managed LLM backend, no API keys needed</li>
     <li>Web search included</li>
     <li>Cloud tunnel for webhooks</li>
     <li>Scheduled jobs</li>
@@ -191,7 +191,7 @@ as we refine the product. Early access subscribers lock in their rate.
   <div class="subtitle">For power users and heavy workloads.</div>
   <ul>
     <li>Everything in Pro</li>
-    <li>Higher AI usage limits</li>
+    <li>AI inference included — higher usage limits</li>
     <li>More concurrent sessions</li>
     <li>Multiple cloud tunnels</li>
     <li>Unlimited scheduled jobs</li>
