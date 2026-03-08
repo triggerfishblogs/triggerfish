@@ -352,6 +352,8 @@ async function promptTriggerfishKeyViaCheckout(): Promise<{
 
     const licenseKey = await server.keyPromise;
     console.log("  \u2713 License key received!");
+    // Let the callback response reach the browser before shutting down
+    await new Promise((r) => setTimeout(r, 1000));
     return { licenseKey, gatewayUrl: resolveGatewayUrl(licenseKey) };
   } catch {
     console.log("  Setup was cancelled or timed out.");
@@ -401,6 +403,8 @@ async function promptTriggerfishKeyViaMagicLink(): Promise<{
 
     const licenseKey = await server.keyPromise;
     console.log("  \u2713 License key received!");
+    // Let the callback response reach the browser before shutting down
+    await new Promise((r) => setTimeout(r, 1000));
     return { licenseKey, gatewayUrl: resolveGatewayUrl(licenseKey) };
   } catch {
     console.log("  Setup was cancelled or timed out.");
