@@ -394,18 +394,18 @@ const TEAM_EXECUTORS: Readonly<
 export function createTeamToolExecutor(
   ctx: TeamToolContext | undefined,
 ): (name: string, input: Record<string, unknown>) => Promise<string | null> {
-  return async (
+  return (
     name: string,
     input: Record<string, unknown>,
   ): Promise<string | null> => {
-    if (!TEAM_TOOLS.has(name)) return null;
+    if (!TEAM_TOOLS.has(name)) return Promise.resolve(null);
 
     if (!ctx) {
-      return "Agent teams are not available in this context.";
+      return Promise.resolve("Agent teams are not available in this context.");
     }
 
     const executor = TEAM_EXECUTORS[name];
-    if (!executor) return null;
+    if (!executor) return Promise.resolve(null);
 
     log.info("Team tool invoked", {
       operation: name,

@@ -23,14 +23,14 @@ import type {
 function createTestStorage(): import("../../../src/core/storage/provider.ts").StorageProvider {
   const store = new Map<string, string>();
   return {
-    async set(key: string, value: string) { store.set(key, value); },
-    async get(key: string) { return store.get(key) ?? null; },
-    async delete(key: string) { store.delete(key); },
-    async list(prefix?: string) {
+    set(key: string, value: string) { store.set(key, value); return Promise.resolve(); },
+    get(key: string) { return Promise.resolve(store.get(key) ?? null); },
+    delete(key: string) { store.delete(key); return Promise.resolve(); },
+    list(prefix?: string) {
       const keys = [...store.keys()];
-      return prefix ? keys.filter((k) => k.startsWith(prefix)) : keys;
+      return Promise.resolve(prefix ? keys.filter((k) => k.startsWith(prefix)) : keys);
     },
-    async close() { store.clear(); },
+    close() { store.clear(); return Promise.resolve(); },
   };
 }
 
@@ -51,26 +51,27 @@ function createTestDeps(
 ): TeamManagerDeps {
   return {
     storage: createTestStorage(),
-    spawnMemberSession: async (options: SpawnMemberOptions): Promise<SpawnedMember> => {
+    spawnMemberSession: (options: SpawnMemberOptions): Promise<SpawnedMember> => {
       if (spawnFailRole && options.role === spawnFailRole) {
-        throw new Error(`Spawn failed for ${options.role}`);
+        return Promise.reject(new Error(`Spawn failed for ${options.role}`));
       }
       sessionCounter++;
       const sessionId = `lc-session-${sessionCounter}` as SessionId;
       sessionTaints.set(sessionId, "PUBLIC");
-      return {
+      return Promise.resolve({
         sessionId,
         model: options.model ?? "test-model",
-      };
+      });
     },
-    sendMessage: async (): Promise<Result<{ readonly delivered: true }, string>> => {
-      return { ok: true, value: { delivered: true } };
+    sendMessage: (): Promise<Result<{ readonly delivered: true }, string>> => {
+      return Promise.resolve({ ok: true, value: { delivered: true } });
     },
-    getSessionTaint: async (sessionId: SessionId): Promise<ClassificationLevel | null> => {
-      return sessionTaints.get(sessionId as string) ?? null;
+    getSessionTaint: (sessionId: SessionId): Promise<ClassificationLevel | null> => {
+      return Promise.resolve(sessionTaints.get(sessionId as string) ?? null);
     },
-    terminateSession: async (sessionId: SessionId): Promise<void> => {
+    terminateSession: (sessionId: SessionId): Promise<void> => {
       terminatedSessions.add(sessionId as string);
+      return Promise.resolve();
     },
     ...overrides,
   };
@@ -325,15 +326,15 @@ Deno.test("lifecycle: member model override is captured", async () => {
   resetTestState();
   let capturedModel: string | undefined;
   const deps = createTestDeps({
-    spawnMemberSession: async (options: SpawnMemberOptions): Promise<SpawnedMember> => {
+    spawnMemberSession: (options: SpawnMemberOptions): Promise<SpawnedMember> => {
       if (options.role === "analyst") {
         capturedModel = options.model;
       }
       sessionCounter++;
-      return {
+      return Promise.resolve({
         sessionId: `lc-session-${sessionCounter}` as SessionId,
         model: options.model ?? "default-model",
-      };
+      });
     },
   });
   const manager = createTeamManager(deps);

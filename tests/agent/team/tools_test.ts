@@ -5,7 +5,7 @@
  * including validation of untrusted LLM input.
  */
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
-import type { ClassificationLevel, Result } from "../../../src/core/types/classification.ts";
+import type { ClassificationLevel } from "../../../src/core/types/classification.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 import type { TeamManager } from "../../../src/agent/team/manager.ts";
 import type { TeamId, TeamInstance } from "../../../src/agent/team/types.ts";
@@ -59,23 +59,23 @@ function createMockTeamInstance(overrides?: Partial<TeamInstance>): TeamInstance
 
 function createMockManager(overrides?: Partial<TeamManager>): TeamManager {
   return {
-    createTeam: async () => ({
-      ok: true,
+    createTeam: () => Promise.resolve({
+      ok: true as const,
       value: createMockTeamInstance(),
     }),
-    fetchTeamStatus: async () => ({
-      ok: true,
+    fetchTeamStatus: () => Promise.resolve({
+      ok: true as const,
       value: createMockTeamInstance(),
     }),
-    disbandTeam: async () => ({
-      ok: true,
+    disbandTeam: () => Promise.resolve({
+      ok: true as const,
       value: createMockTeamInstance({ status: "disbanded" }),
     }),
-    deliverTeamMessage: async () => ({
-      ok: true,
+    deliverTeamMessage: () => Promise.resolve({
+      ok: true as const,
       value: { delivered: true as const },
     }),
-    listTeams: async () => [],
+    listTeams: () => Promise.resolve([]),
     ...overrides,
   };
 }
@@ -181,9 +181,9 @@ Deno.test("team_create: returns team_id on success", async () => {
 Deno.test("team_create: parses classification_ceiling", async () => {
   let receivedDef: { classificationCeiling?: ClassificationLevel } | null = null;
   const exec = createTestExecutor({
-    createTeam: async (def) => {
+    createTeam: (def) => {
       receivedDef = def;
-      return { ok: true, value: createMockTeamInstance() };
+      return Promise.resolve({ ok: true as const, value: createMockTeamInstance() });
     },
   });
 
@@ -238,8 +238,8 @@ Deno.test("team_status: returns team state", async () => {
 
 Deno.test("team_status: returns error for missing team", async () => {
   const exec = createTestExecutor({
-    fetchTeamStatus: async () => ({
-      ok: false,
+    fetchTeamStatus: () => Promise.resolve({
+      ok: false as const,
       error: "Team not found: missing-id",
     }),
   });

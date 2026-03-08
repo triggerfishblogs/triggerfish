@@ -24,14 +24,14 @@ import type {
 function createTestStorage(): import("../../../src/core/storage/provider.ts").StorageProvider {
   const store = new Map<string, string>();
   return {
-    async set(key: string, value: string) { store.set(key, value); },
-    async get(key: string) { return store.get(key) ?? null; },
-    async delete(key: string) { store.delete(key); },
-    async list(prefix?: string) {
+    set(key: string, value: string) { store.set(key, value); return Promise.resolve(); },
+    get(key: string) { return Promise.resolve(store.get(key) ?? null); },
+    delete(key: string) { store.delete(key); return Promise.resolve(); },
+    list(prefix?: string) {
       const keys = [...store.keys()];
-      return prefix ? keys.filter((k) => k.startsWith(prefix)) : keys;
+      return Promise.resolve(prefix ? keys.filter((k) => k.startsWith(prefix)) : keys);
     },
-    async close() { store.clear(); },
+    close() { store.clear(); return Promise.resolve(); },
   };
 }
 
@@ -50,27 +50,28 @@ function createTestDeps(
 ): TeamManagerDeps {
   return {
     storage: createTestStorage(),
-    spawnMemberSession: async (options: SpawnMemberOptions): Promise<SpawnedMember> => {
+    spawnMemberSession: (options: SpawnMemberOptions): Promise<SpawnedMember> => {
       sessionCounter++;
       const sessionId = `test-session-${sessionCounter}` as SessionId;
       sessionTaints.set(sessionId, "PUBLIC");
-      return {
+      return Promise.resolve({
         sessionId,
         model: options.model ?? "test-model",
-      };
+      });
     },
-    sendMessage: async (
+    sendMessage: (
       _fromId: SessionId,
       _toId: SessionId,
       _content: string,
     ): Promise<Result<{ readonly delivered: true }, string>> => {
-      return { ok: true, value: { delivered: true } };
+      return Promise.resolve({ ok: true, value: { delivered: true } });
     },
-    getSessionTaint: async (sessionId: SessionId): Promise<ClassificationLevel | null> => {
-      return sessionTaints.get(sessionId as string) ?? null;
+    getSessionTaint: (sessionId: SessionId): Promise<ClassificationLevel | null> => {
+      return Promise.resolve(sessionTaints.get(sessionId as string) ?? null);
     },
-    terminateSession: async (sessionId: SessionId): Promise<void> => {
+    terminateSession: (sessionId: SessionId): Promise<void> => {
       terminatedSessions.add(sessionId as string);
+      return Promise.resolve();
     },
     ...overrides,
   };
@@ -396,9 +397,9 @@ Deno.test("deliverTeamMessage: sends to specified role", async () => {
   resetTestState();
   let sentTo: SessionId | null = null;
   const deps = createTestDeps({
-    sendMessage: async (_from, to, _content) => {
+    sendMessage: (_from, to, _content) => {
       sentTo = to;
-      return { ok: true, value: { delivered: true } };
+      return Promise.resolve({ ok: true as const, value: { delivered: true as const } });
     },
   });
   const manager = createTeamManager(deps);
@@ -423,9 +424,9 @@ Deno.test("deliverTeamMessage: defaults to lead when no role specified", async (
   resetTestState();
   let sentTo: SessionId | null = null;
   const deps = createTestDeps({
-    sendMessage: async (_from, to, _content) => {
+    sendMessage: (_from, to, _content) => {
       sentTo = to;
-      return { ok: true, value: { delivered: true } };
+      return Promise.resolve({ ok: true as const, value: { delivered: true as const } });
     },
   });
   const manager = createTeamManager(deps);
