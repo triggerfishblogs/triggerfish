@@ -26,6 +26,10 @@ import {
   createTeamToolExecutor,
   type TeamToolContext,
 } from "../../../agent/team/tools.ts";
+import {
+  TEAM_STORAGE_PREFIX,
+  type TeamInstance,
+} from "../../../agent/team/types.ts";
 import type { SubsystemExecutor } from "../../tools/executor/executor_types.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 
@@ -110,16 +114,62 @@ function buildSpawnMemberSession(
   };
 }
 
+/** Max length for lastOutput stored per member. */
+const MAX_LAST_OUTPUT_LENGTH = 500;
+
 /**
- * Build sendMessage that actually delivers via executeAgentTurn.
+ * Update a member's lastOutput and lastActivityAt in persisted team state.
  *
- * For messages to team members (in the registry), calls the orchestrator
- * directly. For messages to sessions outside the team (e.g. creator
- * notifications), falls back to sessions_send write-down check only.
+ * Scans all teams in storage to find the member by sessionId, then
+ * patches the member record. This is best-effort — failures are logged.
+ */
+async function persistMemberOutput(
+  storage: StorageProvider,
+  sessionId: SessionId,
+  output: string,
+): Promise<void> {
+  const keys = await storage.list(`${TEAM_STORAGE_PREFIX}`);
+  for (const key of keys) {
+    const raw = await storage.get(key);
+    if (!raw) continue;
+
+    const team: TeamInstance = JSON.parse(raw);
+    const idx = team.members.findIndex(
+      (m) => (m.sessionId as string) === (sessionId as string),
+    );
+    if (idx === -1) continue;
+
+    const truncated = output.length > MAX_LAST_OUTPUT_LENGTH
+      ? output.slice(0, MAX_LAST_OUTPUT_LENGTH) + "..."
+      : output;
+    const updated = {
+      ...team,
+      members: team.members.map((m, i) =>
+        i === idx
+          ? { ...m, lastOutput: truncated, lastActivityAt: new Date() }
+          : m
+      ),
+    };
+    await storage.set(key, JSON.stringify(updated));
+    return;
+  }
+}
+
+/**
+ * Build sendMessage that delivers via executeAgentTurn (fire-and-forget).
+ *
+ * For messages to team members (in the registry), queues delivery via
+ * the orchestrator in the background and returns immediately. The member's
+ * lastOutput is updated in storage after the turn completes, so
+ * team_status can report progress.
+ *
+ * For messages to sessions outside the team (e.g. creator notifications),
+ * falls back to sessions_send write-down check only.
  */
 function buildSendMessage(
   registry: ReturnType<typeof createSessionRegistry>,
   sessionManager: EnhancedSessionManager,
+  storage: StorageProvider,
 ): (
   fromId: SessionId,
   toId: SessionId,
@@ -133,28 +183,40 @@ function buildSendMessage(
     const live = registry.get(toId);
 
     if (live) {
-      // Target is a live team member — deliver via orchestrator.
-      log.info("Delivering message to team member", {
+      // Target is a live team member — queue delivery in the background.
+      // Returns immediately so the caller is not blocked waiting for
+      // the member's full agent loop to complete.
+      log.info("Queuing message delivery to team member", {
         operation: "sendMessage",
         fromId,
         toId,
         contentLength: content.length,
       });
 
-      const result = await live.orchestrator.executeAgentTurn({
+      live.orchestrator.executeAgentTurn({
         session: live.session,
         message: content,
         targetClassification: live.session.taint,
-      });
-
-      if (!result.ok) {
-        log.error("Team member message processing failed", {
-          operation: "sendMessage",
-          toId,
-          err: result.error,
+      })
+        .then(async (result) => {
+          if (!result.ok) {
+            log.error("Team member message processing failed", {
+              operation: "sendMessage",
+              toId,
+              err: result.error,
+            });
+            return;
+          }
+          // Persist the member's output so team_status can report it.
+          await persistMemberOutput(storage, toId, result.value.response);
+        })
+        .catch((err) => {
+          log.error("Team member message delivery threw", {
+            operation: "sendMessage",
+            toId,
+            err,
+          });
         });
-        return { ok: false, error: `Message delivery failed: ${result.error}` };
-      }
 
       return { ok: true, value: { delivered: true } };
     }
@@ -229,7 +291,7 @@ export function buildTeamManager(opts: {
   readonly callerSessionId: SessionId;
 }): TeamManager {
   const registry = createSessionRegistry();
-  const sendMessage = buildSendMessage(registry, opts.sessionManager);
+  const sendMessage = buildSendMessage(registry, opts.sessionManager, opts.storage);
 
   return createTeamManager({
     storage: opts.storage,

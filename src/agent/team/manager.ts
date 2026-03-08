@@ -226,6 +226,7 @@ function serializeTeamMember(member: TeamMemberInstance): SerializedTeamMember {
     status: member.status,
     currentTaint: member.currentTaint,
     lastActivityAt: member.lastActivityAt.toISOString(),
+    lastOutput: member.lastOutput,
   };
 }
 
@@ -259,6 +260,7 @@ function deserializeTeamMember(data: SerializedTeamMember): TeamMemberInstance {
     status: data.status,
     currentTaint: data.currentTaint,
     lastActivityAt: new Date(data.lastActivityAt),
+    lastOutput: data.lastOutput,
   };
 }
 

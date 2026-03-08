@@ -42,7 +42,7 @@ export interface TriggerfishConfig {
   readonly gatewayUrl?: string;
   /** License key. Falls back to TRIGGERFISH_LICENSE_KEY env var. */
   readonly licenseKey?: string;
-  /** Maximum tokens for completion. Default: 4096 */
+  /** Maximum tokens for completion. Default: 16384 */
   readonly maxTokens?: number;
 }
 
@@ -64,7 +64,7 @@ export function createTriggerfishProvider(
     "https://api.trigger.fish";
   const licenseKey = config.licenseKey ??
     Deno.env.get("TRIGGERFISH_LICENSE_KEY") ?? "";
-  const maxTokens = config.maxTokens ?? 4096;
+  const maxTokens = config.maxTokens ?? 16384;
   const chatUrl = `${gatewayUrl}/v1/llm/chat`;
 
   const log = createLogger("triggerfish-cloud");

@@ -92,6 +92,8 @@ export interface TeamMemberInstance {
   readonly status: TeamMemberStatus;
   readonly currentTaint: ClassificationLevel;
   readonly lastActivityAt: Date;
+  /** Last text output produced by this member's agent turn (truncated). */
+  readonly lastOutput?: string;
 }
 
 /** Overall team status. */
@@ -158,4 +160,5 @@ export interface SerializedTeamMember {
   readonly status: TeamMemberStatus;
   readonly currentTaint: ClassificationLevel;
   readonly lastActivityAt: string;
+  readonly lastOutput?: string;
 }

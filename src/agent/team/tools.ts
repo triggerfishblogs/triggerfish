@@ -310,6 +310,7 @@ async function executeTeamStatus(
       status: m.status,
       current_taint: m.currentTaint,
       last_activity: m.lastActivityAt.toISOString(),
+      last_output: m.lastOutput ?? null,
     })),
     created_at: team.createdAt.toISOString(),
     idle_timeout_seconds: team.idleTimeoutSeconds,
