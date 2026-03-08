@@ -166,8 +166,6 @@ as we refine the product. Early access subscribers lock in their rate.
     <li>Bring your own LLM keys (Anthropic, OpenAI, Google, Ollama, etc.)</li>
     <li>Bring your own search keys (Brave, SearXNG)</li>
     <li>Automatic updates</li>
-    <li class="excluded">No managed LLM — you provide API keys</li>
-    <li class="excluded">No cloud tunnels — self-host webhooks</li>
   </ul>
   <a href="/guide/installation" class="cta secondary">Install Now</a>
 </div>
