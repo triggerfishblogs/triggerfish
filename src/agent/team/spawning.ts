@@ -13,7 +13,7 @@ import type {
   TeamMemberDefinition,
   TeamMemberInstance,
 } from "./types.ts";
-import type { TeamManagerDeps } from "./manager.ts";
+import type { TeamManagerDeps } from "./manager_types.ts";
 import { buildTeamRosterPrompt } from "./roster.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 

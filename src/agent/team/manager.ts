@@ -7,15 +7,13 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type { Result } from "../../core/types/classification.ts";
 import type { SessionId } from "../../core/types/session.ts";
-import type { StorageProvider } from "../../core/storage/provider.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 import type {
   TeamDefinition,
   TeamId,
   TeamInstance,
-  TeamMemberDefinition,
 } from "./types.ts";
 import {
   DEFAULT_IDLE_TIMEOUT_SECONDS,
@@ -35,106 +33,21 @@ import {
   refreshMemberTaints,
   findLeadMember,
   findMemberByRole,
+  executeDisbandTeam,
 } from "./helpers.ts";
 import { createLifecycleMonitor } from "./lifecycle.ts";
 
+// Re-export types so existing importers of manager.ts still work.
+export type {
+  TeamManagerDeps,
+  SpawnMemberOptions,
+  SpawnedMember,
+  TeamManager,
+} from "./manager_types.ts";
+
+import type { TeamManagerDeps, TeamManager } from "./manager_types.ts";
+
 const log = createLogger("team-manager");
-
-// ─── Public types ─────────────────────────────────────────────────────────────
-
-/** Dependencies injected into the TeamManager. */
-export interface TeamManagerDeps {
-  /** Storage for persisting team state. */
-  readonly storage: StorageProvider;
-  /** Spawns an isolated agent session for a team member. */
-  readonly spawnMemberSession: (options: SpawnMemberOptions) => Promise<SpawnedMember>;
-  /** Sends a message from one session to another with write-down enforcement. */
-  readonly sendMessage: (
-    fromId: SessionId,
-    toId: SessionId,
-    content: string,
-  ) => Promise<Result<{ readonly delivered: true }, string>>;
-  /** Retrieves current taint for a session. */
-  readonly getSessionTaint: (sessionId: SessionId) => Promise<ClassificationLevel | null>;
-  /** Terminates a session. */
-  readonly terminateSession: (sessionId: SessionId) => Promise<void>;
-  /**
-   * Notify the creating session about a lifecycle event.
-   * Optional — lifecycle monitoring is skipped when not provided.
-   */
-  readonly notifyCreator?: (
-    creatorSessionId: SessionId,
-    message: string,
-  ) => Promise<void>;
-}
-
-/** Options for spawning a team member session. */
-export interface SpawnMemberOptions {
-  readonly role: string;
-  readonly description: string;
-  readonly teamRosterPrompt: string;
-  readonly model?: string;
-  readonly classificationCeiling?: ClassificationLevel;
-  readonly tools?: TeamMemberDefinition["tools"];
-}
-
-/** Result of spawning a member session. */
-export interface SpawnedMember {
-  readonly sessionId: SessionId;
-  readonly model: string;
-}
-
-/** The team manager interface. */
-export interface TeamManager {
-  /** Create a new team from a definition. */
-  createTeam(
-    definition: TeamDefinition,
-    createdBy: SessionId,
-  ): Promise<Result<TeamInstance, string>>;
-
-  /** Get the current status of a team. */
-  fetchTeamStatus(teamId: TeamId): Promise<Result<TeamInstance, string>>;
-
-  /** Disband an active team. Only lead or creating session can disband. */
-  disbandTeam(
-    teamId: TeamId,
-    callerSessionId: SessionId,
-    reason?: string,
-  ): Promise<Result<TeamInstance, string>>;
-
-  /**
-   * Force-disband a team without authorization checks.
-   *
-   * Internal-only — used by lifecycle monitoring for auto-disband
-   * on lifetime expiry. Not exposed to tool executors.
-   */
-  forceDisbandTeam(
-    teamId: TeamId,
-    reason?: string,
-  ): Promise<Result<TeamInstance, string>>;
-
-  /** Send a message to a team member from outside the team. */
-  deliverTeamMessage(
-    teamId: TeamId,
-    callerSessionId: SessionId,
-    role: string,
-    message: string,
-  ): Promise<Result<{ readonly delivered: true }, string>>;
-
-  /** List teams created by a session. */
-  listTeams(callerSessionId: SessionId): Promise<readonly TeamInstance[]>;
-
-  /** Start background lifecycle monitoring for a team. */
-  startLifecycleMonitor(teamId: TeamId): void;
-
-  /** Stop lifecycle monitoring for a team. */
-  stopLifecycleMonitor(teamId: TeamId): void;
-
-  /** Stop all lifecycle monitors (cleanup on shutdown). */
-  stopAllMonitors(): void;
-}
-
-// ─── Manager factory ─────────────────────────────────────────────────────────
 
 /**
  * Create a TeamManager instance.
@@ -222,7 +135,6 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
 
       const updatedMembers = await refreshMemberTaints(team.members, deps);
       const aggregateTaint = computeAggregateTaint(updatedMembers);
-
       const updated: TeamInstance = { ...team, members: updatedMembers, aggregateTaint };
       await deps.storage.set(buildStorageKey(teamId), serializeTeamInstance(updated));
 
@@ -242,10 +154,7 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
       const team = deserializeTeamInstance(raw);
 
       if (team.status !== "running" && team.status !== "paused") {
-        return {
-          ok: false,
-          error: `Team cannot be disbanded in status: ${team.status}`,
-        };
+        return { ok: false, error: `Team cannot be disbanded in status: ${team.status}` };
       }
 
       const isCreator = callerSessionId === team.createdBy;
@@ -265,43 +174,11 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
         };
       }
 
-      log.info("Team disbanding", {
-        operation: "disbandTeam",
-        teamId,
-        teamName: team.name,
-        reason,
-        disbandedBy: callerSessionId,
-      });
-
-      for (const member of team.members) {
-        if (member.status === "active" || member.status === "idle") {
-          await deps.terminateSession(member.sessionId);
-        }
-      }
-
-      const updatedMembers = await refreshMemberTaints(team.members, deps);
-      const finalTaint = computeAggregateTaint(updatedMembers);
-
-      const disbanded: TeamInstance = {
-        ...team,
-        members: updatedMembers.map((m) => ({
-          ...m,
-          status: m.status === "active" || m.status === "idle" ? "completed" as const : m.status,
-        })),
-        status: "disbanded",
-        aggregateTaint: finalTaint,
-      };
-
-      await deps.storage.set(buildStorageKey(teamId), serializeTeamInstance(disbanded));
-      monitor.stop(teamId);
-
-      log.info("Team disbanded", {
-        operation: "disbandTeam",
-        teamId,
-        teamName: team.name,
-        finalTaint,
-      });
-
+      const disbanded = await executeDisbandTeam(
+        { teamId, reason, operationName: "disbandTeam" },
+        deps,
+        monitor,
+      );
       return { ok: true, value: disbanded };
     },
 
@@ -317,48 +194,14 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
       const team = deserializeTeamInstance(raw);
 
       if (team.status !== "running" && team.status !== "paused") {
-        return {
-          ok: false,
-          error: `Team cannot be disbanded in status: ${team.status}`,
-        };
+        return { ok: false, error: `Team cannot be disbanded in status: ${team.status}` };
       }
 
-      log.info("Team force-disbanding (internal)", {
-        operation: "forceDisbandTeam",
-        teamId,
-        teamName: team.name,
-        reason,
-      });
-
-      for (const member of team.members) {
-        if (member.status === "active" || member.status === "idle") {
-          await deps.terminateSession(member.sessionId);
-        }
-      }
-
-      const updatedMembers = await refreshMemberTaints(team.members, deps);
-      const finalTaint = computeAggregateTaint(updatedMembers);
-
-      const disbanded: TeamInstance = {
-        ...team,
-        members: updatedMembers.map((m) => ({
-          ...m,
-          status: m.status === "active" || m.status === "idle" ? "completed" as const : m.status,
-        })),
-        status: "disbanded",
-        aggregateTaint: finalTaint,
-      };
-
-      await deps.storage.set(buildStorageKey(teamId), serializeTeamInstance(disbanded));
-      monitor.stop(teamId);
-
-      log.info("Team force-disbanded", {
-        operation: "forceDisbandTeam",
-        teamId,
-        teamName: team.name,
-        finalTaint,
-      });
-
+      const disbanded = await executeDisbandTeam(
+        { teamId, reason, operationName: "forceDisbandTeam" },
+        deps,
+        monitor,
+      );
       return { ok: true, value: disbanded };
     },
 
@@ -376,28 +219,16 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
       const team = deserializeTeamInstance(raw);
 
       if (team.status !== "running") {
-        return {
-          ok: false,
-          error: `Team message delivery denied: team status is ${team.status}`,
-        };
+        return { ok: false, error: `Team message delivery denied: team status is ${team.status}` };
       }
 
-      const target = role
-        ? findMemberByRole(team, role)
-        : findLeadMember(team);
-
+      const target = role ? findMemberByRole(team, role) : findLeadMember(team);
       if (!target) {
-        return {
-          ok: false,
-          error: `Team member not found: ${role || "lead"}`,
-        };
+        return { ok: false, error: `Team member not found: ${role || "lead"}` };
       }
 
       if (target.status !== "active" && target.status !== "idle") {
-        return {
-          ok: false,
-          error: `Team member "${target.role}" is not active (status: ${target.status})`,
-        };
+        return { ok: false, error: `Team member "${target.role}" is not active (status: ${target.status})` };
       }
 
       return deps.sendMessage(callerSessionId, target.sessionId, message);
@@ -417,12 +248,7 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
             teams.push(team);
           }
         } catch (err: unknown) {
-          log.warn("Team deserialization failed", {
-            operation: "listTeams",
-            callerSessionId,
-            key,
-            err,
-          });
+          log.warn("Team deserialization failed", { operation: "listTeams", callerSessionId, key, err });
         }
       }
 

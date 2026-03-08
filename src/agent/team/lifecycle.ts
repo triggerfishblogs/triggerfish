@@ -11,7 +11,7 @@
 import type { Result } from "../../core/types/classification.ts";
 import type { TeamId, TeamInstance, TeamMemberInstance } from "./types.ts";
 import { LIFETIME_GRACE_PERIOD_SECONDS } from "./types.ts";
-import type { TeamManagerDeps } from "./manager.ts";
+import type { TeamManagerDeps } from "./manager_types.ts";
 import { serializeTeamInstance } from "./serialization.ts";
 import { deserializeTeamInstance } from "./serialization.ts";
 import { computeAggregateTaint, buildStorageKey } from "./helpers.ts";
