@@ -44,9 +44,7 @@ lastUpdated: false
 }
 
 @media (max-width: 560px) {
-  .checkout-grid {
-    grid-template-columns: 1fr;
-  }
+  .checkout-grid { grid-template-columns: 1fr; }
 }
 
 .checkout-card {
@@ -58,10 +56,7 @@ lastUpdated: false
   flex-direction: column;
 }
 
-.checkout-card h3 {
-  margin: 0 0 8px;
-  font-size: 22px;
-}
+.checkout-card h3 { margin: 0 0 8px; font-size: 22px; }
 
 .checkout-card .price {
   font-size: 36px;
@@ -100,29 +95,23 @@ lastUpdated: false
   font-weight: 700;
 }
 
-.checkout-card .cta {
+.checkout-btn {
   display: block;
   text-align: center;
   padding: 10px 20px;
   border-radius: 8px;
   font-weight: 600;
   font-size: 14px;
-  text-decoration: none;
   cursor: pointer;
   margin-top: auto;
   background: var(--vp-c-brand-1);
   color: var(--vp-c-white);
   border: none;
+  width: 100%;
 }
 
-.checkout-card .cta:hover {
-  background: var(--vp-c-brand-2);
-}
-
-.checkout-card .cta:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+.checkout-btn:hover { background: var(--vp-c-brand-2); }
+.checkout-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .checkout-error {
   color: var(--vp-c-danger-1);
@@ -137,51 +126,45 @@ lastUpdated: false
 }
 </style>
 
-<div id="checkout-app">
-  <div class="checkout-missing" id="missing-params" style="display:none;">
-    <h2>Invalid setup link</h2>
-    <p>This page is opened automatically by <code>triggerfish dive</code>.<br>
-    Run the setup wizard in your terminal to get started.</p>
-  </div>
+<div id="missing-params" class="checkout-missing" style="display:none;">
+<h2>Invalid setup link</h2>
+<p>This page is opened automatically by <code>triggerfish dive</code>.<br>Run the setup wizard in your terminal to get started.</p>
+</div>
 
-  <div class="checkout-wrapper" id="checkout-flow" style="display:none;">
-    <div class="checkout-header">
-      <h1>Choose your plan</h1>
-      <p>Your agent is waiting — pick a plan to finish setup.</p>
-    </div>
-
-    <div class="checkout-grid">
-      <div class="checkout-card">
-        <h3>Pro</h3>
-        <div class="price">$49<span>/month</span></div>
-        <div class="subtitle">Everything you need.</div>
-        <ul>
-          <li>AI inference included</li>
-          <li>Web search included</li>
-          <li>Cloud tunnel for webhooks</li>
-          <li>Scheduled jobs</li>
-          <li>No API keys to manage</li>
-        </ul>
-        <button class="cta" data-plan="pro">Subscribe — Pro</button>
-      </div>
-
-      <div class="checkout-card">
-        <h3>Power</h3>
-        <div class="price">$149<span>/month</span></div>
-        <div class="subtitle">For heavy workloads.</div>
-        <ul>
-          <li>Everything in Pro</li>
-          <li>Higher usage limits</li>
-          <li>More concurrent sessions</li>
-          <li>Multiple cloud tunnels</li>
-          <li>Longer AI responses</li>
-        </ul>
-        <button class="cta" data-plan="power">Subscribe — Power</button>
-      </div>
-    </div>
-
-    <div class="checkout-error" id="checkout-error" style="display:none;"></div>
-  </div>
+<div id="checkout-flow" class="checkout-wrapper" style="display:none;">
+<div class="checkout-header">
+<h1>Choose your plan</h1>
+<p>Your agent is waiting — pick a plan to finish setup.</p>
+</div>
+<div class="checkout-grid">
+<div class="checkout-card">
+<h3>Pro</h3>
+<div class="price">$49<span>/month</span></div>
+<div class="subtitle">Everything you need.</div>
+<ul>
+<li>AI inference included</li>
+<li>Web search included</li>
+<li>Cloud tunnel for webhooks</li>
+<li>Scheduled jobs</li>
+<li>No API keys to manage</li>
+</ul>
+<button class="checkout-btn" data-plan="pro">Subscribe — Pro</button>
+</div>
+<div class="checkout-card">
+<h3>Power</h3>
+<div class="price">$149<span>/month</span></div>
+<div class="subtitle">For heavy workloads.</div>
+<ul>
+<li>Everything in Pro</li>
+<li>Higher usage limits</li>
+<li>More concurrent sessions</li>
+<li>Multiple cloud tunnels</li>
+<li>Longer AI responses</li>
+</ul>
+<button class="checkout-btn" data-plan="power">Subscribe — Power</button>
+</div>
+</div>
+<div id="checkout-error" class="checkout-error" style="display:none;"></div>
 </div>
 
 <script setup>
@@ -200,16 +183,14 @@ onMounted(() => {
 
   document.getElementById('checkout-flow').style.display = ''
 
-  document.querySelectorAll('button.cta[data-plan]').forEach(btn => {
+  document.querySelectorAll('button.checkout-btn[data-plan]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const plan = btn.dataset.plan
       const errorEl = document.getElementById('checkout-error')
       errorEl.style.display = 'none'
 
-      // Disable all buttons
-      document.querySelectorAll('button.cta[data-plan]').forEach(b => {
+      document.querySelectorAll('button.checkout-btn').forEach(b => {
         b.disabled = true
-        b.style.opacity = '0.6'
       })
       btn.textContent = 'Redirecting to checkout...'
 
@@ -234,9 +215,8 @@ onMounted(() => {
   function showError(btn, plan, errorEl, msg) {
     errorEl.textContent = msg
     errorEl.style.display = ''
-    document.querySelectorAll('button.cta[data-plan]').forEach(b => {
+    document.querySelectorAll('button.checkout-btn').forEach(b => {
       b.disabled = false
-      b.style.opacity = ''
     })
     btn.textContent = plan === 'pro' ? 'Subscribe — Pro' : 'Subscribe — Power'
   }
