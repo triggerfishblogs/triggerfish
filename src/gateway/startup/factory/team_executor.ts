@@ -11,6 +11,7 @@
 
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import type { Result } from "../../../core/types/classification.ts";
+import { canFlowTo } from "../../../core/types/classification.ts";
 import type { SessionId, SessionState } from "../../../core/types/session.ts";
 import type { StorageProvider } from "../../../core/storage/provider.ts";
 import type { Orchestrator } from "../../../core/types/orchestrator.ts";
@@ -84,7 +85,7 @@ function buildSpawnMemberSession(
   registry: ReturnType<typeof createSessionRegistry>,
 ): (options: SpawnMemberOptions) => Promise<SpawnedMember> {
   return async (options: SpawnMemberOptions): Promise<SpawnedMember> => {
-    const channelId = `team-member-${options.role}-${Date.now()}`;
+    const channelId = `team-member-${options.role}-${crypto.randomUUID()}`;
 
     log.info("Spawning team member session", {
       operation: "spawnMemberSession",
@@ -155,6 +156,19 @@ async function persistMemberOutput(
   }
 }
 
+/** Resolve the sender's current taint from the registry or session manager. */
+async function resolveSenderTaint(
+  senderId: SessionId,
+  registry: ReturnType<typeof createSessionRegistry>,
+  sessionManager: EnhancedSessionManager,
+): Promise<ClassificationLevel | null> {
+  const liveSender = registry.get(senderId);
+  if (liveSender) return liveSender.session.taint;
+
+  const persisted = await sessionManager.get(senderId);
+  return persisted?.taint ?? null;
+}
+
 /**
  * Build sendMessage that delivers via executeAgentTurn (fire-and-forget).
  *
@@ -183,9 +197,28 @@ function buildSendMessage(
     const live = registry.get(toId);
 
     if (live) {
-      // Target is a live team member — queue delivery in the background.
-      // Returns immediately so the caller is not blocked waiting for
-      // the member's full agent loop to complete.
+      // Enforce write-down rule: sender's taint must flow to target's taint.
+      // Without this check, a CONFIDENTIAL session could send data to a
+      // PUBLIC team member, violating the no-write-down invariant.
+      const senderTaint = await resolveSenderTaint(
+        fromId,
+        registry,
+        sessionManager,
+      );
+      if (senderTaint && !canFlowTo(senderTaint, live.session.taint)) {
+        log.warn("Write-down blocked for team member delivery", {
+          operation: "sendMessage",
+          fromId,
+          toId,
+          senderTaint,
+          targetTaint: live.session.taint,
+        });
+        return {
+          ok: false,
+          error: `Write-down blocked: ${senderTaint} cannot flow to ${live.session.taint}`,
+        };
+      }
+
       log.info("Queuing message delivery to team member", {
         operation: "sendMessage",
         fromId,

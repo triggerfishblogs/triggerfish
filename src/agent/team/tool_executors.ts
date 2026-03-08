@@ -17,6 +17,15 @@ import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("team-tools");
 
+/** Min/max bounds for timeout values (seconds). */
+const MIN_TIMEOUT_SECONDS = 60;
+const MAX_TIMEOUT_SECONDS = 86_400;
+
+/** Clamp a timeout value to safe bounds. */
+function clampTimeout(value: number): number {
+  return Math.max(MIN_TIMEOUT_SECONDS, Math.min(MAX_TIMEOUT_SECONDS, Math.floor(value)));
+}
+
 // ─── Input parsing ───────────────────────────────────────────────────────────
 
 /** Parse a member definition from LLM input. */
@@ -107,11 +116,11 @@ async function executeTeamCreate(
   }
 
   const idleTimeoutSeconds = typeof input.idle_timeout_seconds === "number"
-    ? input.idle_timeout_seconds
+    ? clampTimeout(input.idle_timeout_seconds)
     : undefined;
 
   const maxLifetimeSeconds = typeof input.max_lifetime_seconds === "number"
-    ? input.max_lifetime_seconds
+    ? clampTimeout(input.max_lifetime_seconds)
     : undefined;
 
   const result = await ctx.teamManager.createTeam(
