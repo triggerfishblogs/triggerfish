@@ -159,7 +159,7 @@ async function main(): Promise<void> {
   // Guard preserves any test-configured logger already set before main() runs —
   // without it, test loggers would be overridden here at process startup.
   if (!isLoggerInitialized()) {
-    initLogger({ level: "INFO" });
+    initLogger({ level: "INFO", console: false });
   }
   enableWindowsAnsi();
   await cleanupOldBinary();
