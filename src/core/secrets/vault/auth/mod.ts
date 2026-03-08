@@ -8,6 +8,7 @@
  */
 
 import type { Result } from "../../../types/classification.ts";
+import type { SsrfChecker } from "../../../security/safe_fetch.ts";
 import type { VaultAuthMethod, VaultAuthResponse } from "../vault_types.ts";
 import { createAppRoleAuth } from "./approle.ts";
 import { createKubernetesAuth } from "./kubernetes.ts";
@@ -39,6 +40,7 @@ export function createVaultAuth(
   authConfig: VaultAuthMethod,
   vaultAddress: string,
   namespace?: string,
+  ssrfChecker?: SsrfChecker,
 ): VaultAuth {
   switch (authConfig.method) {
     case "token":
@@ -53,6 +55,7 @@ export function createVaultAuth(
         },
         vaultAddress,
         namespace,
+        ssrfChecker,
       );
       return {
         authenticate: auth.authenticate,
@@ -71,6 +74,7 @@ export function createVaultAuth(
         },
         vaultAddress,
         namespace,
+        ssrfChecker,
       );
       return {
         authenticate: auth.authenticate,

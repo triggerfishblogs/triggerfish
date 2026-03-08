@@ -7,6 +7,8 @@
  * @module
  */
 
+import type { SsrfChecker } from "../../security/safe_fetch.ts";
+
 /** Vault KV v2 read response data. */
 export interface KvReadResponse {
   readonly data: Readonly<Record<string, string>>;
@@ -74,6 +76,8 @@ export interface VaultClientOptions {
   readonly namespace?: string;
   /** Request timeout in milliseconds. Default: 10_000. */
   readonly requestTimeoutMs: number;
+  /** Override SSRF checker for testing. Default: resolveAndCheck. */
+  readonly ssrfChecker?: SsrfChecker;
 }
 
 /** Union type for authentication methods. */

@@ -2,13 +2,14 @@
  * Minimal HTTP client for HashiCorp Vault REST API.
  *
  * Targets KV v2 secret engine. No external SDK dependency —
- * uses Deno's built-in `fetch()` for all HTTP communication.
+ * uses `safeFetch()` with SSRF prevention for all HTTP communication.
  *
  * @module
  */
 
 import type { Result } from "../../types/classification.ts";
 import { createLogger } from "../../logger/logger.ts";
+import { safeFetch } from "../../security/safe_fetch.ts";
 import type {
   KvReadResponse,
   KvWriteResponse,
@@ -93,7 +94,7 @@ export function createVaultClient(
   options: VaultClientOptions,
   getToken: TokenAccessor,
 ): VaultClient {
-  const { address, namespace, requestTimeoutMs } = options;
+  const { address, namespace, requestTimeoutMs, ssrfChecker } = options;
 
   async function vaultFetch(
     apiPath: string,
@@ -107,15 +108,25 @@ export function createVaultClient(
     );
 
     try {
-      const response = await fetch(url, {
-        ...fetchOptions,
-        headers: {
-          ...buildHeaders(getToken(), namespace),
-          ...fetchOptions.headers,
+      const result = await safeFetch(
+        url,
+        {
+          ...fetchOptions,
+          headers: {
+            ...buildHeaders(getToken(), namespace),
+            ...fetchOptions.headers,
+          },
+          signal: controller.signal,
         },
-        signal: controller.signal,
-      });
-      return { ok: true, value: response };
+        ssrfChecker,
+      );
+      if (!result.ok) {
+        return {
+          ok: false,
+          error: `Vault request to ${apiPath} failed: ${result.error}`,
+        };
+      }
+      return { ok: true, value: result.value };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return {
@@ -219,11 +230,15 @@ export function createVaultClient(
     );
 
     try {
-      const response = await fetch(url, {
-        method: "GET",
-        signal: controller.signal,
-      });
-      const body = await response.json();
+      const result = await safeFetch(
+        url,
+        { method: "GET", signal: controller.signal },
+        ssrfChecker,
+      );
+      if (!result.ok) {
+        return { ok: false, error: `Vault health check failed: ${result.error}` };
+      }
+      const body = await result.value.json();
       return { ok: true, value: body as VaultHealth };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
