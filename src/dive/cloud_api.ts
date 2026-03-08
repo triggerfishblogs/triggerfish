@@ -1,5 +1,5 @@
 /**
- * Triggerfish Cloud API client functions.
+ * Triggerfish Gateway API client functions.
  *
  * Handles new customer checkout, returning customer magic link,
  * device code flow (headless), and license key validation.

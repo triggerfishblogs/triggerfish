@@ -203,7 +203,7 @@ function parseBraveResults(
 
 // ─── Cloud Search Implementation ────────────────────────────────────────────
 
-/** Configuration for the Triggerfish Cloud search provider. */
+/** Configuration for the Triggerfish Gateway search provider. */
 export interface CloudSearchConfig {
   /** Gateway base URL. Falls back to TRIGGERFISH_GATEWAY_URL env var. */
   readonly gatewayUrl?: string;
@@ -224,13 +224,13 @@ interface CloudSearchResponse {
 }
 
 /**
- * Create a Triggerfish Cloud search provider.
+ * Create a Triggerfish Gateway search provider.
  *
- * Routes search queries through the Triggerfish Cloud gateway's search proxy,
+ * Routes search queries through the Triggerfish Gateway gateway's search proxy,
  * which provides Brave Search access using the subscriber's license key.
  *
  * @param config - Gateway URL and license key
- * @returns A SearchProvider backed by the Triggerfish Cloud gateway
+ * @returns A SearchProvider backed by the Triggerfish Gateway gateway
  */
 export function createCloudSearchProvider(
   config: CloudSearchConfig,
@@ -244,7 +244,7 @@ export function createCloudSearchProvider(
 
   return {
     id: "cloud",
-    name: "Triggerfish Cloud Search",
+    name: "Triggerfish Gateway Search",
 
     async search(
       query: string,

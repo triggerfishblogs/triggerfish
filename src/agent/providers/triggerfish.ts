@@ -1,7 +1,7 @@
 /**
- * Triggerfish Cloud LLM provider implementation.
+ * Triggerfish Gateway LLM provider implementation.
  *
- * Routes LLM requests through the Triggerfish Cloud gateway, which handles
+ * Routes LLM requests through the Triggerfish Gateway gateway, which handles
  * model selection, provider failover, and token clamping internally.
  * Uses the OpenAI-compatible chat completions format.
  *
@@ -36,7 +36,7 @@ function toOpenAiContent(content: string | unknown): string | unknown[] {
   });
 }
 
-/** Configuration for the Triggerfish Cloud provider. */
+/** Configuration for the Triggerfish Gateway provider. */
 export interface TriggerfishConfig {
   /** Gateway base URL. Defaults to production. */
   readonly gatewayUrl?: string;
@@ -47,14 +47,14 @@ export interface TriggerfishConfig {
 }
 
 /**
- * Create a Triggerfish Cloud LLM provider.
+ * Create a Triggerfish Gateway LLM provider.
  *
- * Routes all LLM requests through the Triggerfish Cloud gateway.
+ * Routes all LLM requests through the Triggerfish Gateway gateway.
  * The gateway handles model selection and provider failover — the agent
  * does not send a `model` field.
  *
  * @param config - Provider configuration
- * @returns An LlmProvider backed by the Triggerfish Cloud gateway
+ * @returns An LlmProvider backed by the Triggerfish Gateway gateway
  */
 export function createTriggerfishProvider(
   config: TriggerfishConfig,
@@ -71,7 +71,7 @@ export function createTriggerfishProvider(
 
   if (!licenseKey) {
     log.warn(
-      "Triggerfish Cloud license key not configured. " +
+      "Triggerfish Gateway license key not configured. " +
         "Run 'triggerfish dive' to set up your subscription, " +
         "or set TRIGGERFISH_LICENSE_KEY in your environment.",
     );
@@ -149,7 +149,7 @@ export function createTriggerfishProvider(
             continue;
           }
           throw new Error(
-            `Triggerfish Cloud request failed (${response.status}): ${
+            `Triggerfish Gateway request failed (${response.status}): ${
               text.slice(0, 200)
             }`,
           );
@@ -175,7 +175,7 @@ export function createTriggerfishProvider(
             continue;
           }
           throw new Error(
-            `Triggerfish Cloud API error: ${
+            `Triggerfish Gateway API error: ${
               JSON.stringify(data.error).slice(0, 200)
             }`,
           );
@@ -193,7 +193,7 @@ export function createTriggerfishProvider(
       }
 
       throw new Error(
-        `Triggerfish Cloud request failed after ${MAX_RETRIES} retries: ${
+        `Triggerfish Gateway request failed after ${MAX_RETRIES} retries: ${
           lastError ?? "unknown"
         }`,
       );
@@ -241,7 +241,7 @@ export function createTriggerfishProvider(
       if (!response.ok) {
         const body = await response.text();
         throw new Error(
-          `Triggerfish Cloud stream failed (${response.status}): ${
+          `Triggerfish Gateway stream failed (${response.status}): ${
             body.slice(0, 200)
           }`,
         );

@@ -246,12 +246,12 @@ async function collectAllWizardSteps(
   await promptGoogleWorkspaceStep();
   await promptGitHubConnectionStep();
 
-  // Triggerfish Cloud includes search — skip the search provider step
+  // Triggerfish Gateway includes search — skip the search provider step
   let search: SearchProviderResult;
   if (llm.provider === "triggerfish") {
     console.log("  Step 7/8: Web search");
     console.log("");
-    console.log("  \u2713 Web search included with Triggerfish Cloud");
+    console.log("  \u2713 Web search included with Triggerfish Gateway");
     console.log("");
     search = { searchProvider: "skip", searchApiKey: "", searxngUrl: "" };
   } else {

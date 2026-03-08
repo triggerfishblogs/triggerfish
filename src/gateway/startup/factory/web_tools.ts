@@ -51,7 +51,7 @@ function buildSearchProvider(
 ): SearchProvider | undefined {
   const searchConfig = config.web?.search;
 
-  // Cloud search provider for Triggerfish Cloud subscribers
+  // Cloud search provider for Triggerfish Gateway subscribers
   if (searchConfig?.provider === "cloud") {
     const tfProvider = config.models.providers["triggerfish"];
     return createCloudSearchProvider({

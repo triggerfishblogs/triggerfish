@@ -1,5 +1,5 @@
 /**
- * Triggerfish Cloud setup — barrel re-export.
+ * Triggerfish Gateway setup — barrel re-export.
  *
  * Re-exports API client functions from cloud_api.ts and
  * callback server from cloud_server.ts.

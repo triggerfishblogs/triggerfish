@@ -1,5 +1,5 @@
 /**
- * Triggerfish Cloud callback server and browser opener.
+ * Triggerfish Gateway callback server and browser opener.
  *
  * Provides the local HTTP server that receives license keys from
  * the cloud gateway callback, and the platform-specific browser opener.

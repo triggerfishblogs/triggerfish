@@ -1,5 +1,5 @@
 /**
- * Tests for Triggerfish Cloud API client functions.
+ * Tests for Triggerfish Gateway API client functions.
  *
  * Uses injected mock fetchers — no real network calls.
  */

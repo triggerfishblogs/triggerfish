@@ -122,7 +122,7 @@ function buildChannelConfigSection(
 function buildWebSearchConfigSection(
   answers: WizardAnswers,
 ): Record<string, unknown> {
-  // Triggerfish Cloud includes search via the gateway — no separate config needed
+  // Triggerfish Gateway includes search via the gateway — no separate config needed
   if (answers.provider === "triggerfish") {
     return { search: { provider: "cloud" } };
   }

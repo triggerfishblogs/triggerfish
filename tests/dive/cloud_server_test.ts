@@ -1,5 +1,5 @@
 /**
- * Tests for Triggerfish Cloud callback server.
+ * Tests for Triggerfish Gateway callback server.
  */
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { startCallbackServer } from "../../src/dive/cloud.ts";

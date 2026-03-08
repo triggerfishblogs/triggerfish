@@ -63,7 +63,7 @@ async function selectLlmProvider(): Promise<{
     ],
   })) as ProviderChoice;
 
-  // Triggerfish Cloud manages models — no model prompt needed
+  // Triggerfish Gateway manages models — no model prompt needed
   if (provider === "triggerfish") {
     return { provider, providerModel: "auto" };
   }
@@ -135,20 +135,20 @@ async function collectLlmApiKey(
   return { apiKey, localEndpoint: "http://localhost:11434" };
 }
 
-// ── Triggerfish Cloud setup ──────────────────────────────────────────────────
+// ── Triggerfish Gateway setup ──────────────────────────────────────────────────
 
-/** Collect a Triggerfish Cloud license key via interactive setup. */
+/** Collect a Triggerfish Gateway license key via interactive setup. */
 async function collectTriggerfishLicenseKey(): Promise<{
   licenseKey: string;
   gatewayUrl: string;
 }> {
   console.log("");
-  console.log("  Triggerfish Cloud handles LLM routing, model selection,");
+  console.log("  Triggerfish Gateway handles LLM routing, model selection,");
   console.log("  and includes web search — no other API keys needed.");
   console.log("");
 
   const setupMethod = await Select.prompt({
-    message: "How would you like to set up Triggerfish Cloud?",
+    message: "How would you like to set up Triggerfish Gateway?",
     options: [
       { name: "I'm a new customer — sign up", value: "new" },
       { name: "I'm a returning customer — get my key", value: "returning" },
@@ -391,7 +391,7 @@ async function verifyLlmConnection(options: {
 
 // ── Step entry point ──────────────────────────────────────────────────────────
 
-/** Verify a Triggerfish Cloud license key with retry loop. */
+/** Verify a Triggerfish Gateway license key with retry loop. */
 async function verifyTriggerfishKey(
   licenseKey: string,
   gatewayUrl: string,
@@ -444,7 +444,7 @@ export async function promptLlmProviderStep(): Promise<LlmProviderResult> {
 
   const { provider, providerModel } = await selectLlmProvider();
 
-  // Triggerfish Cloud has its own setup flow
+  // Triggerfish Gateway has its own setup flow
   if (provider === "triggerfish") {
     const { licenseKey, gatewayUrl } = await collectTriggerfishLicenseKey();
     const verified = await verifyTriggerfishKey(licenseKey, gatewayUrl);

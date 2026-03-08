@@ -102,7 +102,7 @@ export const DEFAULT_MODELS: Readonly<Record<ProviderChoice, string>> = {
 
 /** Human-readable labels for provider selection. */
 export const PROVIDER_LABELS: Readonly<Record<ProviderChoice, string>> = {
-  triggerfish: "Triggerfish Cloud — easiest setup, includes web search",
+  triggerfish: "Triggerfish Gateway — easiest setup, includes web search",
   anthropic: "Anthropic (Claude) — recommended",
   openai: "OpenAI (GPT-4o)",
   google: "Google (Gemini)",

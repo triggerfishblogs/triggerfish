@@ -25,7 +25,7 @@ export async function storeWizardSecrets(
   const s = store ?? createKeychain();
   const stored: string[] = [];
 
-  // Triggerfish Cloud license key
+  // Triggerfish Gateway license key
   if (answers.provider === "triggerfish" && answers.licenseKey.length > 0) {
     const key = "cloud:licenseKey";
     await s.setSecret(key, answers.licenseKey);

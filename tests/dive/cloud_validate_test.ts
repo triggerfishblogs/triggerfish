@@ -1,5 +1,5 @@
 /**
- * Tests for Triggerfish Cloud license validation.
+ * Tests for Triggerfish Gateway license validation.
  *
  * Uses injected mock fetchers — no real network calls.
  */

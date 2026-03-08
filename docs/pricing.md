@@ -142,11 +142,11 @@ title: Pricing
 # Pricing
 
 Triggerfish is open source and always will be. Bring your own API keys and run
-everything locally for free. Triggerfish Cloud adds a managed LLM backend, web
+everything locally for free. Triggerfish Gateway adds a managed LLM backend, web
 search, tunnels, and updates — so you don't have to manage any of it.
 
 ::: info Early Access
-Triggerfish Cloud is currently in early access. Pricing and features may change
+Triggerfish Gateway is currently in early access. Pricing and features may change
 as we refine the product. Early access subscribers lock in their rate.
 :::
 
@@ -260,17 +260,17 @@ as we refine the product. Early access subscribers lock in their rate.
 </tbody>
 </table>
 
-## How Triggerfish Cloud Works
+## How Triggerfish Gateway Works
 
-Triggerfish Cloud is not a separate product — it's a managed backend for the
+Triggerfish Gateway is not a separate product — it's a managed backend for the
 same open-source agent you already run locally.
 
 1. **Subscribe** above — you'll receive your license key by email after checkout
-2. **Run `triggerfish dive --force`** and select Triggerfish Cloud as your provider
+2. **Run `triggerfish dive --force`** and select Triggerfish Gateway as your provider
 3. **Enter your license key** or use the magic link flow to activate automatically
 
 Already subscribed on another machine? Run `triggerfish dive --force`, select
-Triggerfish Cloud, and choose "I already have an account" to sign in with your
+Triggerfish Gateway, and choose "I already have an account" to sign in with your
 email.
 
 Your license key is stored in your OS keychain. You can manage your subscription
@@ -281,12 +281,12 @@ anytime through the customer portal.
 ### Can I switch between Open Source and Cloud?
 
 Yes. Your agent config is a single YAML file. Run `triggerfish dive --force` to
-reconfigure at any time. Switch from your own API keys to Triggerfish Cloud or
+reconfigure at any time. Switch from your own API keys to Triggerfish Gateway or
 back — your SPINE, skills, channels, and data stay exactly the same.
 
-### What LLM does Triggerfish Cloud use?
+### What LLM does Triggerfish Gateway use?
 
-Triggerfish Cloud routes through optimized model infrastructure. The model
+Triggerfish Gateway routes through optimized model infrastructure. The model
 selection is managed for you — we pick the best cost/quality tradeoff and handle
 caching, failover, and optimization automatically.
 

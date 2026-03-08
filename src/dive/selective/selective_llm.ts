@@ -267,19 +267,19 @@ async function buildLlmModelsConfig(
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
-// ── Triggerfish Cloud setup ──────────────────────────────────────────────────
+// ── Triggerfish Gateway setup ──────────────────────────────────────────────────
 
-/** Collect a Triggerfish Cloud license key via interactive setup. */
+/** Collect a Triggerfish Gateway license key via interactive setup. */
 async function collectTriggerfishLicenseKey(
   existingKey: string,
 ): Promise<{ licenseKey: string; gatewayUrl: string }> {
   console.log("");
-  console.log("  Triggerfish Cloud handles LLM routing, model selection,");
+  console.log("  Triggerfish Gateway handles LLM routing, model selection,");
   console.log("  and includes web search — no other API keys needed.");
   console.log("");
 
   const setupMethod = await Select.prompt({
-    message: "How would you like to set up Triggerfish Cloud?",
+    message: "How would you like to set up Triggerfish Gateway?",
     options: [
       { name: "I'm a new customer — sign up", value: "new" },
       { name: "I'm a returning customer — get my key", value: "returning" },
@@ -463,7 +463,7 @@ async function verifyTriggerfishKey(
   }
 }
 
-/** Build models config for Triggerfish Cloud provider. */
+/** Build models config for Triggerfish Gateway provider. */
 async function buildTriggerfishModelsConfig(
   licenseKey: string,
   gatewayUrl: string,
@@ -505,7 +505,7 @@ export async function reconfigureLlmProvider(
 
   const provider = await promptLlmProviderChoice(currentProvider);
 
-  // Triggerfish Cloud has its own setup flow
+  // Triggerfish Gateway has its own setup flow
   if (provider === "triggerfish") {
     const existingKey = (readNestedConfigValue(
       existingConfig,
