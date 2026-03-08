@@ -10,7 +10,8 @@
 
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { parseClassification } from "../../core/types/classification.ts";
-import type { TeamMemberDefinition, TeamId } from "./types.ts";
+import type { SessionId } from "../../core/types/session.ts";
+import type { TeamMemberDefinition, TeamId, TeamInstance } from "./types.ts";
 import type { TeamToolContext } from "./tool_definitions.ts";
 import { TEAM_TOOL_NAMES } from "./tool_definitions.ts";
 import { createLogger } from "../../core/logger/logger.ts";
@@ -24,6 +25,12 @@ const MAX_TIMEOUT_SECONDS = 86_400;
 /** Clamp a timeout value to safe bounds. */
 function clampTimeout(value: number): number {
   return Math.max(MIN_TIMEOUT_SECONDS, Math.min(MAX_TIMEOUT_SECONDS, Math.floor(value)));
+}
+
+/** Check if a session is the team creator or a team member. */
+function isCreatorOrMember(team: TeamInstance, sessionId: SessionId): boolean {
+  if (team.createdBy === sessionId) return true;
+  return team.members.some((m) => m.sessionId === sessionId);
 }
 
 // ─── Input parsing ───────────────────────────────────────────────────────────
@@ -164,6 +171,17 @@ async function executeTeamStatus(
   if (!result.ok) return `Error: ${result.error}`;
 
   const team = result.value;
+
+  if (!isCreatorOrMember(team, ctx.callerSessionId)) {
+    log.warn("Unauthorized team_status attempt", {
+      operation: "team_status",
+      teamId,
+      callerSessionId: ctx.callerSessionId,
+      createdBy: team.createdBy,
+    });
+    return "Error: Team status denied: caller is not the creator or a member";
+  }
+
   return JSON.stringify({
     team_id: team.id,
     name: team.name,
@@ -228,6 +246,17 @@ async function executeTeamMessage(
   }
 
   const role = typeof input.role === "string" ? input.role : "";
+
+  const statusResult = await ctx.teamManager.fetchTeamStatus(teamId as TeamId);
+  if (statusResult.ok && !isCreatorOrMember(statusResult.value, ctx.callerSessionId)) {
+    log.warn("Unauthorized team_message attempt", {
+      operation: "team_message",
+      teamId,
+      callerSessionId: ctx.callerSessionId,
+      createdBy: statusResult.value.createdBy,
+    });
+    return "Error: Team message denied: caller is not the creator or a member";
+  }
 
   const result = await ctx.teamManager.deliverTeamMessage(
     teamId as TeamId,

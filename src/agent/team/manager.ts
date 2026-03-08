@@ -102,6 +102,17 @@ export interface TeamManager {
     reason?: string,
   ): Promise<Result<TeamInstance, string>>;
 
+  /**
+   * Force-disband a team without authorization checks.
+   *
+   * Internal-only — used by lifecycle monitoring for auto-disband
+   * on lifetime expiry. Not exposed to tool executors.
+   */
+  forceDisbandTeam(
+    teamId: TeamId,
+    reason?: string,
+  ): Promise<Result<TeamInstance, string>>;
+
   /** Send a message to a team member from outside the team. */
   deliverTeamMessage(
     teamId: TeamId,
@@ -110,8 +121,8 @@ export interface TeamManager {
     message: string,
   ): Promise<Result<{ readonly delivered: true }, string>>;
 
-  /** List all teams for an agent. */
-  listTeams(agentId: string): Promise<readonly TeamInstance[]>;
+  /** List teams created by a session. */
+  listTeams(callerSessionId: SessionId): Promise<readonly TeamInstance[]>;
 
   /** Start background lifecycle monitoring for a team. */
   startLifecycleMonitor(teamId: TeamId): void;
@@ -294,6 +305,63 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
       return { ok: true, value: disbanded };
     },
 
+    async forceDisbandTeam(
+      teamId: TeamId,
+      reason?: string,
+    ): Promise<Result<TeamInstance, string>> {
+      const raw = await deps.storage.get(buildStorageKey(teamId));
+      if (!raw) {
+        return { ok: false, error: `Team not found: ${teamId}` };
+      }
+
+      const team = deserializeTeamInstance(raw);
+
+      if (team.status !== "running" && team.status !== "paused") {
+        return {
+          ok: false,
+          error: `Team cannot be disbanded in status: ${team.status}`,
+        };
+      }
+
+      log.info("Team force-disbanding (internal)", {
+        operation: "forceDisbandTeam",
+        teamId,
+        teamName: team.name,
+        reason,
+      });
+
+      for (const member of team.members) {
+        if (member.status === "active" || member.status === "idle") {
+          await deps.terminateSession(member.sessionId);
+        }
+      }
+
+      const updatedMembers = await refreshMemberTaints(team.members, deps);
+      const finalTaint = computeAggregateTaint(updatedMembers);
+
+      const disbanded: TeamInstance = {
+        ...team,
+        members: updatedMembers.map((m) => ({
+          ...m,
+          status: m.status === "active" || m.status === "idle" ? "completed" as const : m.status,
+        })),
+        status: "disbanded",
+        aggregateTaint: finalTaint,
+      };
+
+      await deps.storage.set(buildStorageKey(teamId), serializeTeamInstance(disbanded));
+      monitor.stop(teamId);
+
+      log.info("Team force-disbanded", {
+        operation: "forceDisbandTeam",
+        teamId,
+        teamName: team.name,
+        finalTaint,
+      });
+
+      return { ok: true, value: disbanded };
+    },
+
     async deliverTeamMessage(
       teamId: TeamId,
       callerSessionId: SessionId,
@@ -335,7 +403,7 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
       return deps.sendMessage(callerSessionId, target.sessionId, message);
     },
 
-    async listTeams(agentId: string): Promise<readonly TeamInstance[]> {
+    async listTeams(callerSessionId: SessionId): Promise<readonly TeamInstance[]> {
       const keys = await deps.storage.list(TEAM_STORAGE_PREFIX);
       const teams: TeamInstance[] = [];
 
@@ -344,11 +412,14 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
         if (!raw) continue;
 
         try {
-          teams.push(deserializeTeamInstance(raw));
+          const team = deserializeTeamInstance(raw);
+          if (team.createdBy === callerSessionId) {
+            teams.push(team);
+          }
         } catch (err: unknown) {
           log.warn("Team deserialization failed", {
             operation: "listTeams",
-            agentId,
+            callerSessionId,
             key,
             err,
           });
@@ -371,7 +442,7 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
     },
   };
 
-  const monitor = createLifecycleMonitor(deps, manager.disbandTeam.bind(manager));
+  const monitor = createLifecycleMonitor(deps, manager.forceDisbandTeam.bind(manager));
 
   return manager;
 }

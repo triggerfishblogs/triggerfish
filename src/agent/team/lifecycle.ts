@@ -9,7 +9,6 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
-import type { SessionId } from "../../core/types/session.ts";
 import type { TeamId, TeamInstance, TeamMemberInstance } from "./types.ts";
 import { LIFETIME_GRACE_PERIOD_SECONDS } from "./types.ts";
 import type { TeamManagerDeps } from "./manager.ts";
@@ -44,13 +43,12 @@ export interface LifecycleMonitor {
  * Create a lifecycle monitor that periodically checks team health.
  *
  * @param deps - Team manager dependencies for storage, messaging, taint
- * @param disbandTeam - Callback to disband a team on lifetime expiry
+ * @param forceDisbandTeam - Callback to force-disband a team on lifetime expiry (no auth check)
  */
 export function createLifecycleMonitor(
   deps: TeamManagerDeps,
-  disbandTeam: (
+  forceDisbandTeam: (
     teamId: TeamId,
-    callerSessionId: SessionId,
     reason?: string,
   ) => Promise<Result<TeamInstance, string>>,
 ): LifecycleMonitor {
@@ -91,7 +89,7 @@ export function createLifecycleMonitor(
     );
     if (shouldDisband) {
       stopMonitor(teamId);
-      await disbandTeam(teamId, team.createdBy, "Lifetime limit reached");
+      await forceDisbandTeam(teamId, "Lifetime limit reached");
       return;
     }
 

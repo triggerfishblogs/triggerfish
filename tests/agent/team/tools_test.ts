@@ -75,6 +75,10 @@ function createMockManager(overrides?: Partial<TeamManager>): TeamManager {
       ok: true as const,
       value: { delivered: true as const },
     }),
+    forceDisbandTeam: () => Promise.resolve({
+      ok: true as const,
+      value: createMockTeamInstance({ status: "disbanded" }),
+    }),
     listTeams: () => Promise.resolve([]),
     ...overrides,
   };

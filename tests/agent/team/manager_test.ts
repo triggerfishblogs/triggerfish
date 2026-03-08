@@ -468,15 +468,22 @@ Deno.test("deliverTeamMessage: rejects unknown role", async () => {
 
 // ─── List tests ──────────────────────────────────────────────────────────────
 
-Deno.test("listTeams: returns all teams", async () => {
+Deno.test("listTeams: returns only teams created by caller", async () => {
   resetTestState();
   const storage = createTestStorage();
   const deps = createTestDeps({ storage });
   const manager = createTeamManager(deps);
 
+  const otherCaller = "other-session" as SessionId;
+
   await manager.createTeam(createValidDefinition({ name: "Team A" }), CALLER);
   await manager.createTeam(createValidDefinition({ name: "Team B" }), CALLER);
+  await manager.createTeam(createValidDefinition({ name: "Team C" }), otherCaller);
 
-  const teams = await manager.listTeams("test-agent");
-  assertEquals(teams.length, 2);
+  const callerTeams = await manager.listTeams(CALLER);
+  assertEquals(callerTeams.length, 2);
+
+  const otherTeams = await manager.listTeams(otherCaller);
+  assertEquals(otherTeams.length, 1);
+  assertEquals(otherTeams[0].name, "Team C");
 });
