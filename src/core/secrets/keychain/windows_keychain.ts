@@ -27,16 +27,14 @@ interface DpapiSecretsFile {
 }
 
 /** PowerShell command to DPAPI-protect a value piped via stdin. */
-const PROTECT_SCRIPT =
-  `Add-Type -AssemblyName System.Security; ` +
+const PROTECT_SCRIPT = `Add-Type -AssemblyName System.Security; ` +
   `$bytes = [System.Text.Encoding]::UTF8.GetBytes($input); ` +
   `$enc = [System.Security.Cryptography.ProtectedData]::Protect(` +
   `$bytes, $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser); ` +
   `[Convert]::ToBase64String($enc)`;
 
 /** PowerShell command to DPAPI-unprotect a base64 blob piped via stdin. */
-const UNPROTECT_SCRIPT =
-  `Add-Type -AssemblyName System.Security; ` +
+const UNPROTECT_SCRIPT = `Add-Type -AssemblyName System.Security; ` +
   `$enc = [Convert]::FromBase64String($input); ` +
   `$dec = [System.Security.Cryptography.ProtectedData]::Unprotect(` +
   `$enc, $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser); ` +
@@ -128,10 +126,17 @@ async function readDpapiSecretsFile(
   try {
     const raw = await Deno.readTextFile(path);
     const parsed = JSON.parse(raw) as DpapiSecretsFile;
-    if (parsed.v === 1 && parsed.entries !== null && typeof parsed.entries === "object") return parsed;
+    if (
+      parsed.v === 1 && parsed.entries !== null &&
+      typeof parsed.entries === "object"
+    ) return parsed;
     return { v: 1, entries: {} };
   } catch (err) {
-    log.debug("DPAPI secrets file unreadable, starting empty", { operation: "readDpapiSecretsFile", path, err });
+    log.debug("DPAPI secrets file unreadable, starting empty", {
+      operation: "readDpapiSecretsFile",
+      path,
+      err,
+    });
     return { v: 1, entries: {} };
   }
 }
@@ -147,7 +152,11 @@ async function writeDpapiSecretsFile(
     await Deno.writeTextFile(path, JSON.stringify(file, null, 2));
     return { ok: true, value: true };
   } catch (err: unknown) {
-    log.error("DPAPI secrets file write failed", { operation: "writeDpapiSecretsFile", path, err });
+    log.error("DPAPI secrets file write failed", {
+      operation: "writeDpapiSecretsFile",
+      path,
+      err,
+    });
     const message = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
@@ -222,6 +231,70 @@ function buildDpapiSecretStore(secretsPath: string): SecretStore {
   };
 }
 
+/**
+ * Build a dual-write SecretStore that stores in both DPAPI and encrypted-file.
+ *
+ * Writes go to both backends so secrets are available regardless of which
+ * Windows user context reads them (interactive user vs LocalSystem service).
+ * Reads try DPAPI first; if DPAPI unprotect fails (cross-user context),
+ * falls back to the encrypted-file backend.
+ */
+function buildDualSecretStore(
+  dpapiSecretsPath: string,
+  filePaths: { readonly secretsPath: string; readonly keyPath: string },
+): SecretStore {
+  const dpapi = buildDpapiSecretStore(dpapiSecretsPath);
+  const fileStore = createEncryptedFileSecretStore(filePaths);
+
+  return {
+    async getSecret(name: string): Promise<Result<string, string>> {
+      const dpapiResult = await dpapi.getSecret(name);
+      if (dpapiResult.ok) return dpapiResult;
+      log.debug("DPAPI read failed, trying encrypted-file fallback", {
+        name,
+        dpapiError: dpapiResult.error,
+      });
+      return fileStore.getSecret(name);
+    },
+
+    async setSecret(
+      name: string,
+      value: string,
+    ): Promise<Result<true, string>> {
+      // Write to both backends — DPAPI for interactive use, encrypted-file
+      // for Windows service (LocalSystem) which can't decrypt DPAPI blobs
+      // encrypted by the interactive user.
+      const dpapiResult = await dpapi.setSecret(name, value);
+      const fileResult = await fileStore.setSecret(name, value);
+      // Return success if at least one backend succeeded
+      if (dpapiResult.ok) return dpapiResult;
+      if (fileResult.ok) return fileResult;
+      return {
+        ok: false,
+        error:
+          `Both backends failed — DPAPI: ${dpapiResult.error}; file: ${fileResult.error}`,
+      };
+    },
+
+    async deleteSecret(name: string): Promise<Result<true, string>> {
+      const dpapiResult = await dpapi.deleteSecret(name);
+      const fileResult = await fileStore.deleteSecret(name);
+      if (dpapiResult.ok) return dpapiResult;
+      if (fileResult.ok) return fileResult;
+      return dpapiResult;
+    },
+
+    async listSecrets(): Promise<Result<string[], string>> {
+      const dpapiResult = await dpapi.listSecrets();
+      const fileResult = await fileStore.listSecrets();
+      const dpapiNames = dpapiResult.ok ? dpapiResult.value : [];
+      const fileNames = fileResult.ok ? fileResult.value : [];
+      const merged = [...new Set([...dpapiNames, ...fileNames])];
+      return { ok: true, value: merged };
+    },
+  };
+}
+
 /** Delegate a secret store method through the lazy-probed backend. */
 async function delegateToBackend<T>(
   resolveBackend: () => Promise<SecretStore>,
@@ -235,8 +308,14 @@ async function delegateToBackend<T>(
  * Create a Windows secret store with DPAPI encryption.
  *
  * On first operation, probes whether DPAPI is available via PowerShell.
- * If available, secrets are DPAPI-encrypted and stored in `dpapi_secrets.json`.
- * If unavailable, falls back to the AES-256-GCM encrypted-file store.
+ * If available, uses a dual-store strategy: writes go to both DPAPI and the
+ * AES-256-GCM encrypted-file backend; reads try DPAPI first and fall back to
+ * encrypted-file on failure. This handles the Windows service case where the
+ * daemon runs as LocalSystem and cannot DPAPI-decrypt blobs encrypted by the
+ * interactive user who ran `triggerfish dive`.
+ *
+ * If DPAPI is unavailable (headless, container, Windows Server Core without
+ * PowerShell), falls back entirely to the encrypted-file store.
  *
  * This keeps `createKeychain()` synchronous while supporting async DPAPI probing.
  *
@@ -245,6 +324,7 @@ async function delegateToBackend<T>(
  */
 export function createWindowsKeychain(): SecretStore {
   const secretsPath = resolveDpapiSecretsPath();
+  const filePaths = resolveEncryptedFilePaths();
   let backendPromise: Promise<SecretStore> | null = null;
 
   /** Lazily probe DPAPI and cache the resulting store. */
@@ -252,16 +332,18 @@ export function createWindowsKeychain(): SecretStore {
     if (backendPromise !== null) return backendPromise;
     backendPromise = probeWindowsDpapi().then((available) => {
       if (available) {
-        log.info("DPAPI probe succeeded, using DPAPI backend", {
-          store: secretsPath,
-        });
-        return buildDpapiSecretStore(secretsPath);
+        log.info(
+          "DPAPI probe succeeded, using dual-store backend " +
+            "(DPAPI + encrypted-file fallback for service context)",
+          { dpapiStore: secretsPath, fileStore: filePaths.secretsPath },
+        );
+        return buildDualSecretStore(secretsPath, filePaths);
       }
       log.info(
         "DPAPI probe failed, falling back to encrypted-file backend " +
           "(headless, container, or Windows Server Core without PowerShell)",
       );
-      return createEncryptedFileSecretStore(resolveEncryptedFilePaths());
+      return createEncryptedFileSecretStore(filePaths);
     });
     return backendPromise;
   }
