@@ -148,7 +148,7 @@ lastUpdated: false
 <li>Scheduled jobs</li>
 <li>No API keys to manage</li>
 </ul>
-<button class="checkout-btn" data-plan="pro">Subscribe — Pro</button>
+<button class="checkout-btn" data-plan="pro">Subscribe</button>
 </div>
 <div class="checkout-card">
 <h3>Power</h3>
@@ -161,7 +161,7 @@ lastUpdated: false
 <li>Multiple cloud tunnels</li>
 <li>Longer AI responses</li>
 </ul>
-<button class="checkout-btn" data-plan="power">Subscribe — Power</button>
+<button class="checkout-btn" data-plan="power">Subscribe</button>
 </div>
 </div>
 <div id="checkout-error" class="checkout-error" style="display:none;"></div>
@@ -218,7 +218,7 @@ onMounted(() => {
     document.querySelectorAll('button.checkout-btn').forEach(b => {
       b.disabled = false
     })
-    btn.textContent = plan === 'pro' ? 'Subscribe — Pro' : 'Subscribe — Power'
+    btn.textContent = 'Subscribe'
   }
 })
 </script>
