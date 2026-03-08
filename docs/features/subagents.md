@@ -80,3 +80,11 @@ constraints. They cannot escalate beyond the parent's ceiling.
 parallel sub-agents depending on the depth level. If you need structured
 codebase exploration, use `explore` directly rather than manually spawning
 sub-agents. :::
+
+## Sub-Agents vs Agent Teams
+
+Sub-agents are fire-and-forget: the parent waits for a single result.
+[Agent Teams](./agent-teams) are persistent groups of collaborating agents with
+distinct roles, a lead coordinator, and inter-member communication. Use
+sub-agents for focused single-step delegation. Use teams when the task benefits
+from multiple specialized perspectives iterating on each other's work.

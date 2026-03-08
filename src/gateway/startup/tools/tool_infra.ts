@@ -65,6 +65,7 @@ import { createSimulateToolExecutor } from "../../tools/simulate/mod.ts";
 import { createTriggerManageExecutor } from "../../tools/trigger/trigger_manage_executor.ts";
 import type { ServiceAvailability } from "../../tools/defs/tool_profiles.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
+import { buildTeamExecutor } from "../factory/team_executor.ts";
 
 const availabilityLog = createLogger("service-availability");
 
@@ -391,6 +392,15 @@ export function buildCompositeToolExecutor(
     skillExecutor: integrations.skillExecutor,
     skillContextTracker: integrations.skillContextTracker,
     simulateExecutor,
+    teamExecutor: coreInfra.factory
+      ? buildTeamExecutor({
+        storage: coreInfra.storage,
+        orchestratorFactory: coreInfra.factory,
+        sessionManager: coreInfra.enhancedSessionManager,
+        callerSessionId: baseDeps.state.session.id,
+        getCallerTaint: () => baseDeps.state.session.taint,
+      })
+      : undefined,
   });
 }
 

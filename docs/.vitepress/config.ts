@@ -198,6 +198,7 @@ export default defineConfig({
             { text: "Model Failover", link: "/features/model-failover" },
             { text: "Notifications", link: "/features/notifications" },
             { text: "Logging", link: "/features/logging" },
+            { text: "Agent Teams", link: "/features/agent-teams" },
             { text: "Rate Limiting", link: "/features/rate-limiting" },
           ],
         },

@@ -62,6 +62,8 @@ export interface ToolExecutorOptions {
   readonly releaseNotesExecutor?: SubsystemExecutor;
   /** Executor for `simulate_tool_call` — dry-run security pipeline simulation. */
   readonly simulateExecutor?: SubsystemExecutor;
+  /** Executor for team_create, team_status, team_disband, team_message. */
+  readonly teamExecutor?: SubsystemExecutor;
   /**
    * Skill context tracker for the session. When provided, web_fetch domain
    * restrictions are enforced per the active skill's networkDomains declaration.

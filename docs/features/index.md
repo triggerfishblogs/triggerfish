@@ -70,6 +70,14 @@ Delegate work to autonomous sub-agents or run isolated LLM prompts for
 summarization, classification, and focused reasoning without polluting the main
 conversation.
 
+### [Agent Teams](./agent-teams)
+
+Spawn persistent teams of collaborating agents with specialized roles. A lead
+coordinates members who communicate autonomously via inter-session messaging.
+Includes lifecycle monitoring with idle timeouts, lifetime limits, and health
+checks. Best for complex tasks that benefit from multiple perspectives iterating
+on each other's work.
+
 ## Rich Interaction
 
 ### [Voice Pipeline](./voice)

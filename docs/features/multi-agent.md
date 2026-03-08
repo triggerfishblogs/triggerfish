@@ -112,6 +112,10 @@ Multi-agent routing enforces strict isolation between agents:
 gated by the policy layer. One agent cannot silently access another agent's data
 or sessions without explicit policy rules allowing it. :::
 
+::: tip Multi-agent routing is for separating concerns across channels and
+personas. For agents that need to collaborate on a shared task, see
+[Agent Teams](/features/agent-teams). :::
+
 ## Default Agent
 
 When no routing rule matches an inbound message, it goes to the default agent.

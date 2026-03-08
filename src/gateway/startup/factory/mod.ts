@@ -12,3 +12,5 @@ export { buildWebTools } from "./web_tools.ts";
 export { buildSchedulerConfig } from "./scheduler_config.ts";
 export { buildCalDavExecutor } from "./caldav_executor.ts";
 export { buildNotionExecutor } from "./notion_executor.ts";
+export { buildTeamExecutor, buildTeamManager } from "./team_executor.ts";
+export type { TeamExecutorOptions } from "./team_executor.ts";

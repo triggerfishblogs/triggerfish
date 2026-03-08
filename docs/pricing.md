@@ -192,6 +192,7 @@ as we refine the product. Early access subscribers lock in their rate.
   <ul>
     <li>Everything in Pro</li>
     <li>AI inference included — higher usage limits</li>
+    <li>Agent teams — multi-agent collaboration</li>
     <li>More concurrent sessions</li>
     <li>Multiple cloud tunnels</li>
     <li>Unlimited scheduled jobs</li>
@@ -240,6 +241,7 @@ as we refine the product. Early access subscribers lock in their rate.
 <tr><td>Skills, plugins, webhooks</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
 <tr><td>Browser automation</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
 <tr><td>Exec environment</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
+<tr><td>Agent teams</td><td>&#10003;</td><td>&mdash;</td><td>&#10003;</td><td>&#10003;</td></tr>
 
 <tr class="section-header"><td colspan="5">AI &amp; Search</td></tr>
 <tr><td>LLM provider</td><td>Bring your own</td><td>Managed</td><td>Managed</td><td>Managed</td></tr>

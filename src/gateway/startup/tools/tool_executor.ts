@@ -52,6 +52,7 @@ import type {
 import { buildGoogleExecutor } from "../factory/google_executor.ts";
 import { createToolExecutor, TOOL_GROUPS } from "../../tools/agent_tools.ts";
 import type { SubsystemExecutor } from "../../tools/executor/executor_types.ts";
+import type { buildTeamExecutor } from "../factory/team_executor.ts";
 import type { wireMcpServers } from "../infra/mcp.ts";
 import type { MemoryStore } from "../../../tools/memory/store.ts";
 import { loadPersonaContext } from "../../../tools/memory/mod.ts";
@@ -170,6 +171,7 @@ export function assembleMainToolExecutor(
     readonly triggerManageExecutor?: SubsystemExecutor;
     readonly skillContextTracker?: SkillContextTracker;
     readonly simulateExecutor?: SubsystemExecutor;
+    readonly teamExecutor?: ReturnType<typeof buildTeamExecutor>;
   },
 ) {
   const aux = buildAuxiliaryExecutors(

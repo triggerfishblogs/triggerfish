@@ -29,6 +29,7 @@ import { GITHUB_TOOLS_SYSTEM_PROMPT } from "../../../integrations/github/mod.ts"
 import { OBSIDIAN_SYSTEM_PROMPT } from "../../../tools/obsidian/mod.ts";
 import { HEALTHCHECK_SYSTEM_PROMPT } from "../../../tools/healthcheck.ts";
 import { SIMULATE_SYSTEM_PROMPT } from "../../../tools/simulate/mod.ts";
+import { TEAM_SYSTEM_PROMPT } from "../../../agent/team/mod.ts";
 import { TOOL_GROUPS, type ToolGroupName } from "./tool_groups.ts";
 import type { ToolDefinition } from "../../../core/types/tool.ts";
 
@@ -71,6 +72,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "agents",
     "cron",
     "simulate",
+    "team",
   ],
   /** CLI chat — everything except tidepool canvas tools. */
   cli: [
@@ -103,6 +105,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "agents",
     "cron",
     "simulate",
+    "team",
   ],
   /** Trigger sessions — sandboxed file tools only, no run_command. */
   triggerSession: [
@@ -206,6 +209,7 @@ export const TOOL_GROUP_PROMPTS: Partial<
   obsidian: OBSIDIAN_SYSTEM_PROMPT,
   healthcheck: HEALTHCHECK_SYSTEM_PROMPT,
   simulate: SIMULATE_SYSTEM_PROMPT,
+  team: TEAM_SYSTEM_PROMPT,
 };
 
 /**

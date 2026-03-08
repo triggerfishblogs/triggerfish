@@ -187,6 +187,59 @@ Same concept as above, but for viewing conversation history.
 
 ---
 
+## Agent Teams
+
+### "Team message delivery denied: team status is ..."
+
+The team is not in `running` status. This happens when:
+
+- The team was **disbanded** (manually or by the lifecycle monitor)
+- The team was **paused** because the lead session failed
+- The team **timed out** after exceeding its lifetime limit
+
+Check the team's current status with `team_status`. If the team is paused due to lead failure, you can disband it with `team_disband` and create a new one.
+
+### "Team member not found" / "Team member ... is not active"
+
+The target member either does not exist (wrong role name) or has been terminated. Members are terminated when:
+
+- They exceed the idle timeout (2x `idle_timeout_seconds`)
+- The team is disbanded
+- Their session crashes and the lifecycle monitor detects it
+
+Use `team_status` to see all members and their current status.
+
+### "Team disband denied: only the lead or creating session can disband"
+
+Only two sessions can disband a team:
+
+1. The session that originally called `team_create`
+2. The lead member's session
+
+If you are getting this error from within the team, the calling member is not the lead. If you are getting it from outside the team, you are not the session that created it.
+
+### Team lead immediately fails after creation
+
+The lead's agent session could not complete its first turn. Common causes:
+
+1. **LLM provider error:** The provider returned an error (rate limit, auth failure, model not found). Check `triggerfish logs` for provider errors.
+2. **Classification ceiling too low:** If the lead needs tools classified above its ceiling, the session may fail on its first tool call.
+3. **Missing tools:** The lead may need specific tools to decompose work. Ensure tool profiles are configured correctly.
+
+### Team members idle and never produce output
+
+Members wait for the lead to send them work via `sessions_send`. If the lead does not decompose the task:
+
+- The lead's model may not understand team coordination. Try a more capable model for the lead role.
+- The `task` description may be too vague for the lead to decompose into sub-tasks.
+- Check `team_status` to see if the lead is `active` and has recent activity.
+
+### "Write-down blocked" between team members
+
+Team members follow the same classification rules as all sessions. If one member has been tainted to `CONFIDENTIAL` and tries to send data to a member at `PUBLIC`, the write-down check blocks it. This is expected behavior — classified data cannot flow to lower-classified sessions, even within a team.
+
+---
+
 ## Delegation & Multi-Agent
 
 ### "Delegation certificate signature invalid"
