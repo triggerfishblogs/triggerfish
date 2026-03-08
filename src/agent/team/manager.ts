@@ -29,6 +29,7 @@ import type {
 import {
   DEFAULT_IDLE_TIMEOUT_SECONDS,
   DEFAULT_MAX_LIFETIME_SECONDS,
+  LIFETIME_GRACE_PERIOD_SECONDS,
   TEAM_STORAGE_PREFIX,
 } from "./types.ts";
 import { buildTeamRosterPrompt } from "./roster.ts";
@@ -58,6 +59,15 @@ export interface TeamManagerDeps {
   readonly getSessionTaint: (sessionId: SessionId) => Promise<ClassificationLevel | null>;
   /** Terminates a session. */
   readonly terminateSession: (sessionId: SessionId) => Promise<void>;
+  /**
+   * Notify the creating session about a lifecycle event.
+   * Used for lead failure, all-idle, and lifetime timeout warnings.
+   * Optional — lifecycle monitoring is skipped when not provided.
+   */
+  readonly notifyCreator?: (
+    creatorSessionId: SessionId,
+    message: string,
+  ) => Promise<void>;
 }
 
 /** Options for spawning a team member session. */
@@ -104,6 +114,18 @@ export interface TeamManager {
 
   /** List all teams for an agent. */
   listTeams(agentId: string): Promise<readonly TeamInstance[]>;
+
+  /**
+   * Start background lifecycle monitoring for a team.
+   * Monitors idle timeouts, lifetime timeout, and member health.
+   */
+  startLifecycleMonitor(teamId: TeamId): void;
+
+  /** Stop lifecycle monitoring for a team. */
+  stopLifecycleMonitor(teamId: TeamId): void;
+
+  /** Stop all lifecycle monitors (cleanup on shutdown). */
+  stopAllMonitors(): void;
 }
 
 // ─── Validation ──────────────────────────────────────────────────────────────
@@ -401,6 +423,176 @@ function findMemberByRole(
   return team.members.find((m) => m.role === role);
 }
 
+// ─── Lifecycle monitoring ──────────────────────────────────────────────────────
+
+/** Check interval for lifecycle monitoring (30 seconds). */
+const LIFECYCLE_CHECK_INTERVAL_MS = 30_000;
+
+/** State tracked per team for lifecycle monitoring. */
+interface MonitorState {
+  readonly intervalId: number;
+  nudgedMembers: Set<string>;
+  lifetimeWarned: boolean;
+}
+
+/** Check if a member has been idle too long and handle accordingly. */
+async function checkMemberIdle(
+  team: TeamInstance,
+  member: TeamMemberInstance,
+  nudgedMembers: Set<string>,
+  deps: TeamManagerDeps,
+): Promise<TeamMemberInstance> {
+  if (member.status !== "active" && member.status !== "idle") return member;
+
+  const idleMs = Date.now() - member.lastActivityAt.getTime();
+  const idleThresholdMs = team.idleTimeoutSeconds * 1_000;
+
+  if (idleMs < idleThresholdMs) {
+    nudgedMembers.delete(member.role);
+    return member;
+  }
+
+  if (!nudgedMembers.has(member.role)) {
+    nudgedMembers.add(member.role);
+    log.info("Nudging idle team member", {
+      operation: "checkMemberIdle",
+      teamId: team.id,
+      role: member.role,
+      idleSeconds: Math.floor(idleMs / 1_000),
+    });
+    const lead = team.members.find((m) => m.isLead);
+    const nudgeTarget = member.isLead ? "the lead" : lead?.role ?? "another teammate";
+    await deps.sendMessage(
+      team.createdBy,
+      member.sessionId,
+      `You have been idle for ${Math.floor(idleMs / 1_000)} seconds. ` +
+      `If your work is complete, send your results to ${nudgeTarget}.`,
+    );
+    return member;
+  }
+
+  if (idleMs >= idleThresholdMs * 2) {
+    log.info("Terminating idle team member", {
+      operation: "checkMemberIdle",
+      teamId: team.id,
+      role: member.role,
+    });
+    await deps.terminateSession(member.sessionId);
+    const lead = team.members.find((m) => m.isLead);
+    if (lead && lead.sessionId !== member.sessionId) {
+      await deps.sendMessage(
+        team.createdBy,
+        lead.sessionId,
+        `Team member "${member.role}" has been terminated due to inactivity.`,
+      );
+    }
+    return { ...member, status: "completed" };
+  }
+
+  return member;
+}
+
+/** Check team lifetime and handle timeout. */
+async function checkLifetimeTimeout(
+  team: TeamInstance,
+  monitorState: MonitorState,
+  deps: TeamManagerDeps,
+): Promise<boolean> {
+  const elapsedMs = Date.now() - team.createdAt.getTime();
+  const lifetimeMs = team.maxLifetimeSeconds * 1_000;
+  const graceMs = LIFETIME_GRACE_PERIOD_SECONDS * 1_000;
+
+  if (elapsedMs < lifetimeMs) return false;
+
+  if (!monitorState.lifetimeWarned) {
+    monitorState.lifetimeWarned = true;
+    const lead = team.members.find((m) => m.isLead);
+    if (lead && (lead.status === "active" || lead.status === "idle")) {
+      log.info("Team lifetime limit reached, warning lead", {
+        operation: "checkLifetimeTimeout",
+        teamId: team.id,
+      });
+      await deps.sendMessage(
+        team.createdBy,
+        lead.sessionId,
+        "Team lifetime limit reached. Wrapping up — you have " +
+        `${LIFETIME_GRACE_PERIOD_SECONDS} seconds to produce a final output.`,
+      );
+    }
+    return false;
+  }
+
+  if (elapsedMs >= lifetimeMs + graceMs) {
+    log.info("Team lifetime grace period expired, auto-disbanding", {
+      operation: "checkLifetimeTimeout",
+      teamId: team.id,
+    });
+    return true;
+  }
+
+  return false;
+}
+
+/** Detect lead failure (session taint returns null = session gone). */
+async function checkLeadHealth(
+  team: TeamInstance,
+  deps: TeamManagerDeps,
+): Promise<boolean> {
+  const lead = team.members.find((m) => m.isLead);
+  if (!lead || lead.status !== "active") return false;
+
+  const taint = await deps.getSessionTaint(lead.sessionId);
+  if (taint !== null) return false;
+
+  log.warn("Lead session failure detected", {
+    operation: "checkLeadHealth",
+    teamId: team.id,
+    leadSessionId: lead.sessionId,
+  });
+
+  if (deps.notifyCreator) {
+    await deps.notifyCreator(
+      team.createdBy,
+      `Team "${team.name}" lead has failed. Team is paused. ` +
+      `Use team_disband to clean up or team_message to redirect work.`,
+    );
+  }
+
+  return true;
+}
+
+/** Detect member failure and notify the lead. */
+async function checkMemberHealth(
+  team: TeamInstance,
+  member: TeamMemberInstance,
+  deps: TeamManagerDeps,
+): Promise<TeamMemberInstance> {
+  if (member.status !== "active" && member.status !== "idle") return member;
+  if (member.isLead) return member;
+
+  const taint = await deps.getSessionTaint(member.sessionId);
+  if (taint !== null) return member;
+
+  log.warn("Team member session failure detected", {
+    operation: "checkMemberHealth",
+    teamId: team.id,
+    role: member.role,
+    sessionId: member.sessionId,
+  });
+
+  const lead = team.members.find((m) => m.isLead);
+  if (lead && (lead.status === "active" || lead.status === "idle")) {
+    await deps.sendMessage(
+      team.createdBy,
+      lead.sessionId,
+      `Team member "${member.role}" has failed. ` +
+      `Continue with remaining members or disband the team.`,
+    );
+  }
+
+  return { ...member, status: "failed" };
+}
+
 // ─── Manager factory ─────────────────────────────────────────────────────────
 
 /**
@@ -410,7 +602,97 @@ function findMemberByRole(
  * taint tracking) and adds team-specific lifecycle coordination.
  */
 export function createTeamManager(deps: TeamManagerDeps): TeamManager {
-  return {
+  const monitors = new Map<string, MonitorState>();
+
+  /** Run one lifecycle check tick for a team. */
+  async function runLifecycleTick(
+    teamId: TeamId,
+    monitorState: MonitorState,
+  ): Promise<void> {
+    const raw = await deps.storage.get(buildStorageKey(teamId));
+    if (!raw) {
+      stopMonitor(teamId);
+      return;
+    }
+
+    const team = deserializeTeamInstance(raw);
+    if (team.status !== "running") {
+      stopMonitor(teamId);
+      return;
+    }
+
+    const shouldDisband = await checkLifetimeTimeout(
+      team,
+      monitorState,
+      deps,
+    );
+    if (shouldDisband) {
+      stopMonitor(teamId);
+      await manager.disbandTeam(teamId, team.createdBy, "Lifetime limit reached");
+      return;
+    }
+
+    const leadFailed = await checkLeadHealth(team, deps);
+    if (leadFailed) {
+      const pausedMembers = team.members.map((m) =>
+        m.isLead ? { ...m, status: "failed" as const } : m
+      );
+      const paused: TeamInstance = { ...team, status: "paused", members: pausedMembers };
+      await deps.storage.set(buildStorageKey(teamId), serializeTeamInstance(paused));
+      stopMonitor(teamId);
+      return;
+    }
+
+    let membersChanged = false;
+    const updatedMembers: TeamMemberInstance[] = [];
+    for (const member of team.members) {
+      let updated = await checkMemberHealth(team, member, deps);
+      updated = await checkMemberIdle(
+        team,
+        updated,
+        monitorState.nudgedMembers,
+        deps,
+      );
+      if (updated !== member) membersChanged = true;
+      updatedMembers.push(updated);
+    }
+
+    if (membersChanged) {
+      const updated: TeamInstance = {
+        ...team,
+        members: updatedMembers,
+        aggregateTaint: computeAggregateTaint(updatedMembers),
+      };
+      await deps.storage.set(buildStorageKey(teamId), serializeTeamInstance(updated));
+
+      const allIdle = updatedMembers
+        .filter((m) => m.status === "active" || m.status === "idle")
+        .length === 0;
+      if (allIdle && deps.notifyCreator) {
+        await deps.notifyCreator(
+          team.createdBy,
+          `All members of team "${team.name}" are inactive. ` +
+          `Use team_message to inject new instructions or team_disband to clean up.`,
+        );
+        stopMonitor(teamId);
+      }
+    }
+  }
+
+  /** Stop a single monitor. */
+  function stopMonitor(teamId: TeamId): void {
+    const state = monitors.get(teamId as string);
+    if (state) {
+      clearInterval(state.intervalId);
+      monitors.delete(teamId as string);
+      log.info("Lifecycle monitor stopped", {
+        operation: "stopLifecycleMonitor",
+        teamId,
+      });
+    }
+  }
+
+  const manager: TeamManager = {
     async createTeam(
       definition: TeamDefinition,
       createdBy: SessionId,
@@ -469,6 +751,10 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
         teamName: definition.name,
         memberRoles: members.map((m) => m.role),
       });
+
+      if (deps.notifyCreator) {
+        manager.startLifecycleMonitor(teamId);
+      }
 
       return { ok: true, value: team };
     },
@@ -569,6 +855,8 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
         serializeTeamInstance(disbanded),
       );
 
+      manager.stopLifecycleMonitor(teamId);
+
       log.info("Team disbanded", {
         operation: "disbandTeam",
         teamId,
@@ -646,5 +934,44 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
 
       return teams;
     },
+
+    startLifecycleMonitor(teamId: TeamId): void {
+      if (monitors.has(teamId as string)) return;
+
+      const monitorState: MonitorState = {
+        intervalId: setInterval(
+          () => {
+            runLifecycleTick(teamId, monitorState).catch((err) => {
+              log.error("Lifecycle tick failed", {
+                operation: "startLifecycleMonitor",
+                teamId,
+                err,
+              });
+            });
+          },
+          LIFECYCLE_CHECK_INTERVAL_MS,
+        ),
+        nudgedMembers: new Set(),
+        lifetimeWarned: false,
+      };
+
+      monitors.set(teamId as string, monitorState);
+      log.info("Lifecycle monitor started", {
+        operation: "startLifecycleMonitor",
+        teamId,
+      });
+    },
+
+    stopLifecycleMonitor(teamId: TeamId): void {
+      stopMonitor(teamId);
+    },
+
+    stopAllMonitors(): void {
+      for (const [id] of monitors) {
+        stopMonitor(id as TeamId);
+      }
+    },
   };
+
+  return manager;
 }
