@@ -18,6 +18,8 @@ import type { HookRunner } from "../../core/policy/hooks/hooks.ts";
 import type { LlmProvider, LlmProviderRegistry } from "../llm.ts";
 import type { CompactorConfig } from "../compactor/compactor.ts";
 import type { PlanManager } from "../plan/plan.ts";
+import type { MessageStore } from "../../core/conversation/mod.ts";
+import type { LineageStore } from "../../core/session/lineage.ts";
 
 /** Default system prompt used when no SPINE.md is found. */
 export const DEFAULT_SYSTEM_PROMPT =
@@ -178,6 +180,16 @@ export interface OrchestratorConfig {
     tools: readonly ToolDefinition[],
     isOwner: boolean,
   ) => readonly ToolDefinition[];
+  /**
+   * Message store for persisting conversation records.
+   * When absent, conversation persistence is disabled (backward compatible).
+   */
+  readonly messageStore?: MessageStore;
+  /**
+   * Lineage store for automatic data provenance tracking.
+   * When absent, lineage recording is disabled (backward compatible).
+   */
+  readonly lineageStore?: LineageStore;
 }
 
 /** Config shape for building integration/plugin/channel classification map. */

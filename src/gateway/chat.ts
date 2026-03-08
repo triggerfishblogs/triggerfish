@@ -199,10 +199,31 @@ async function compactChatHistory(
   orchestrator: Orchestrator,
   getSession: () => SessionState,
   sendEvent: ChatEventSender,
+  config: ChatSessionConfig,
 ): Promise<void> {
   sendEvent({ type: "compact_start" });
   try {
     const result = await orchestrator.compactHistory(getSession().id);
+
+    // Persist compaction to message store
+    if (config.messageStore && result.messagesAfter > 0) {
+      const sessionId = getSession().id as string;
+      const sessionTaint = config.getSessionTaint?.() ?? "PUBLIC" as ClassificationLevel;
+      // Mark all prior records as compacted
+      await config.messageStore.markCompacted(
+        sessionId,
+        0,
+        result.messagesBefore - 1,
+      );
+      // Append the compaction summary record
+      await config.messageStore.append({
+        session_id: sessionId,
+        role: "compaction_summary",
+        content: `[Compaction] ${result.messagesBefore} → ${result.messagesAfter} messages, ${result.tokensBefore} → ${result.tokensAfter} tokens`,
+        classification: sessionTaint,
+      });
+    }
+
     sendEvent({
       type: "compact_complete",
       messagesBefore: result.messagesBefore,
@@ -539,7 +560,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
       if (config.resetSession) config.resetSession();
     },
     compact: (sendEvent) =>
-      compactChatHistory(orchestrator, getSession, sendEvent),
+      compactChatHistory(orchestrator, getSession, sendEvent, config),
     handleTriggerPromptResponse(source, accepted, sendEvent) {
       if (!accepted) {
         chatLog.debug("Trigger prompt declined", {

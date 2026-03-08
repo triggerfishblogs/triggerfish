@@ -4,11 +4,15 @@
  *
  * All records are persisted under the `lineage:` key namespace. Session-based
  * lookups use a secondary index under `lineage-session:`.
+ * Forward-trace uses a reverse index under `lineage-fwd:`.
+ * Content-hash lookups use `lineage-hash:`.
  *
  * @module
  */
 
 import type { StorageProvider } from "../storage/provider.ts";
+import type { ClassificationLevel, Result } from "../types/classification.ts";
+import { canFlowTo } from "../types/classification.ts";
 import type { SessionId } from "../types/session.ts";
 import type {
   LineageCreateInput,
@@ -18,6 +22,9 @@ import type {
 import {
   computeContentHash,
   deserialiseLineageRecord,
+  lineageFwdIndexKey,
+  lineageFwdPrefixKey,
+  lineageHashIndexKey,
   lineageRecordKey,
   lineageSessionIndexKey,
   serialiseLineageRecord,
@@ -27,6 +34,7 @@ import {
 async function buildLineageRecord(
   input: LineageCreateInput,
 ): Promise<LineageRecord> {
+  const storeContent = input.classification.level === "PUBLIC";
   return {
     lineage_id: crypto.randomUUID(),
     content_hash: await computeContentHash(input.content),
@@ -42,10 +50,11 @@ async function buildLineageRecord(
     ...(input.current_location !== undefined
       ? { current_location: input.current_location }
       : {}),
+    ...(storeContent ? { content: input.content } : {}),
   };
 }
 
-/** Persist a new lineage record and its session index entry. */
+/** Persist a new lineage record and all its index entries. */
 async function persistLineageRecord(
   storage: StorageProvider,
   record: LineageRecord,
@@ -58,6 +67,20 @@ async function persistLineageRecord(
     lineageSessionIndexKey(record.sessionId, record.lineage_id),
     record.lineage_id,
   );
+  // Hash index for getByHash() lookups
+  await storage.set(
+    lineageHashIndexKey(record.content_hash),
+    record.lineage_id,
+  );
+  // Forward-trace reverse index entries
+  if (record.inputLineageIds) {
+    for (const parentId of record.inputLineageIds) {
+      await storage.set(
+        lineageFwdIndexKey(parentId, record.lineage_id),
+        record.lineage_id,
+      );
+    }
+  }
 }
 
 /** Fetch a single lineage record by ID from storage. */
@@ -88,7 +111,7 @@ async function fetchLineageRecordsBySession(
   return records;
 }
 
-/** Find all records derived from a given record (forward trace). */
+/** Find all records derived from a given record (forward trace — O(n) scan). */
 async function traceLineageForward(
   storage: StorageProvider,
   id: string,
@@ -101,6 +124,24 @@ async function traceLineageForward(
     const record = deserialiseLineageRecord(json);
     if (record.inputLineageIds?.includes(id)) {
       results.push(record);
+    }
+  }
+  return results;
+}
+
+/** Find all records derived from a given record using the reverse index — O(k). */
+async function traceLineageForwardIndexed(
+  storage: StorageProvider,
+  id: string,
+): Promise<LineageRecord[]> {
+  const prefix = lineageFwdPrefixKey(id);
+  const keys = await storage.list(prefix);
+  const results: LineageRecord[] = [];
+  for (const key of keys) {
+    const childId = await storage.get(key);
+    if (childId !== null) {
+      const record = await fetchLineageRecord(storage, childId);
+      if (record !== null) results.push(record);
     }
   }
   return results;
@@ -121,11 +162,28 @@ async function traceLineageBackward(
   return results;
 }
 
+/** Look up content by SHA-256 hash with classification enforcement. */
+async function lookupByHash(
+  storage: StorageProvider,
+  hash: string,
+  taint: ClassificationLevel,
+): Promise<{ content: string; record: LineageRecord } | null> {
+  const lineageId = await storage.get(lineageHashIndexKey(hash));
+  if (lineageId === null) return null;
+  const record = await fetchLineageRecord(storage, lineageId);
+  if (record === null) return null;
+  if (!canFlowTo(record.classification.level, taint)) return null;
+  if (record.content === undefined) return null;
+  return { content: record.content, record };
+}
+
 /**
  * Create a new {@link LineageStore} backed by the given {@link StorageProvider}.
  *
  * All records are persisted under the `lineage:` key namespace. Session-based
  * lookups use a secondary index under `lineage-session:`.
+ * Forward-trace uses a reverse index under `lineage-fwd:`.
+ * Content-hash lookups use `lineage-hash:`.
  */
 export function createLineageStore(
   storage: StorageProvider,
@@ -140,10 +198,47 @@ export function createLineageStore(
     getBySession: (sessionId: SessionId) =>
       fetchLineageRecordsBySession(storage, sessionId),
     trace_forward: (id: string) => traceLineageForward(storage, id),
+    trace_forward_indexed: (id: string) =>
+      traceLineageForwardIndexed(storage, id),
     trace_backward: (id: string) => traceLineageBackward(storage, id),
+    getByHash: (hash: string, taint: ClassificationLevel) =>
+      lookupByHash(storage, hash, taint),
     // deno-lint-ignore require-await
     async export(sessionId: SessionId): Promise<LineageRecord[]> {
       return fetchLineageRecordsBySession(storage, sessionId);
+    },
+    async applyLineageRetention(
+      config: { readonly maxAgeDays: number },
+      now?: Date,
+    ): Promise<Result<number, string>> {
+      const referenceTime = now ?? new Date();
+      const maxAgeMs = config.maxAgeDays * 24 * 60 * 60 * 1000;
+      try {
+        const keys = await storage.list("lineage:");
+        let deletedCount = 0;
+        for (const key of keys) {
+          const json = await storage.get(key);
+          if (json === null) continue;
+          try {
+            const record = deserialiseLineageRecord(json);
+            const accessedAt = new Date(record.origin.accessed_at).getTime();
+            if (isNaN(accessedAt)) continue;
+            if (referenceTime.getTime() - accessedAt > maxAgeMs) {
+              await storage.delete(key);
+              deletedCount++;
+            }
+          } catch {
+            continue;
+          }
+        }
+        return { ok: true, value: deletedCount };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          ok: false,
+          error: `Lineage retention policy failed: ${message}`,
+        };
+      }
     },
   };
 }

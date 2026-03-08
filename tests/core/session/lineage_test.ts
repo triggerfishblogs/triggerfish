@@ -189,3 +189,159 @@ Deno.test("LineageStore: export produces full chain for session", async () => {
   assertExists(exported[0].lineage_id);
   assertExists(exported[0].content_hash);
 });
+
+// ─── Phase 2: Enhanced lineage tests ─────────────────────────────────────────
+
+Deno.test("LineageStore: content stored only for PUBLIC classification", async () => {
+  const store = await makeStore();
+  const publicRecord = await store.create({
+    content: "public data",
+    origin: {
+      source_type: "web",
+      source_name: "example.com",
+      accessed_at: new Date().toISOString(),
+      accessed_by: "agent",
+      access_method: "fetch",
+    },
+    classification: { level: "PUBLIC", reason: "public web data" },
+    sessionId: "s" as SessionId,
+  });
+  const confidentialRecord = await store.create({
+    content: "secret data",
+    origin: {
+      source_type: "api",
+      source_name: "crm",
+      accessed_at: new Date().toISOString(),
+      accessed_by: "agent",
+      access_method: "api",
+    },
+    classification: { level: "CONFIDENTIAL", reason: "CRM data" },
+    sessionId: "s" as SessionId,
+  });
+
+  assertEquals(publicRecord.content, "public data");
+  assertEquals(confidentialRecord.content, undefined);
+
+  // Verify persistence
+  const fetchedPublic = await store.get(publicRecord.lineage_id);
+  const fetchedConfidential = await store.get(confidentialRecord.lineage_id);
+  assertEquals(fetchedPublic?.content, "public data");
+  assertEquals(fetchedConfidential?.content, undefined);
+});
+
+Deno.test("LineageStore: getByHash returns content for PUBLIC with matching taint", async () => {
+  const store = await makeStore();
+  const record = await store.create({
+    content: "shared public content",
+    origin: {
+      source_type: "web",
+      source_name: "example.com",
+      accessed_at: new Date().toISOString(),
+      accessed_by: "agent",
+      access_method: "fetch",
+    },
+    classification: { level: "PUBLIC", reason: "public" },
+    sessionId: "s" as SessionId,
+  });
+
+  const result = await store.getByHash(record.content_hash, "PUBLIC");
+  assertExists(result);
+  assertEquals(result!.content, "shared public content");
+  assertEquals(result!.record.lineage_id, record.lineage_id);
+});
+
+Deno.test("LineageStore: getByHash enforces canFlowTo — RESTRICTED cannot read PUBLIC content via lower taint", async () => {
+  const store = await makeStore();
+  // Create a CONFIDENTIAL record (content not stored)
+  const record = await store.create({
+    content: "classified data",
+    origin: {
+      source_type: "api",
+      source_name: "crm",
+      accessed_at: new Date().toISOString(),
+      accessed_by: "agent",
+      access_method: "api",
+    },
+    classification: { level: "CONFIDENTIAL", reason: "CRM" },
+    sessionId: "s" as SessionId,
+  });
+
+  // PUBLIC taint cannot read CONFIDENTIAL records
+  const result = await store.getByHash(record.content_hash, "PUBLIC");
+  assertEquals(result, null);
+});
+
+Deno.test("LineageStore: getByHash returns null for non-existent hash", async () => {
+  const store = await makeStore();
+  const result = await store.getByHash("nonexistent", "PUBLIC");
+  assertEquals(result, null);
+});
+
+Deno.test("LineageStore: trace_forward_indexed uses reverse index", async () => {
+  const store = await makeStore();
+  const parent = await store.create({
+    content: "parent data",
+    origin: {
+      source_type: "api",
+      source_name: "source",
+      accessed_at: "",
+      accessed_by: "",
+      access_method: "",
+    },
+    classification: { level: "PUBLIC", reason: "" },
+    sessionId: "s" as SessionId,
+  });
+  const child1 = await store.create({
+    content: "child 1",
+    origin: {
+      source_type: "llm",
+      source_name: "claude",
+      accessed_at: "",
+      accessed_by: "",
+      access_method: "",
+    },
+    classification: { level: "PUBLIC", reason: "" },
+    sessionId: "s" as SessionId,
+    inputLineageIds: [parent.lineage_id],
+  });
+  const child2 = await store.create({
+    content: "child 2",
+    origin: {
+      source_type: "llm",
+      source_name: "claude",
+      accessed_at: "",
+      accessed_by: "",
+      access_method: "",
+    },
+    classification: { level: "INTERNAL", reason: "" },
+    sessionId: "s" as SessionId,
+    inputLineageIds: [parent.lineage_id],
+  });
+
+  const forward = await store.trace_forward_indexed(parent.lineage_id);
+  assertEquals(forward.length, 2);
+  const ids = forward.map((r) => r.lineage_id).sort();
+  const expected = [child1.lineage_id, child2.lineage_id].sort();
+  assertEquals(ids, expected);
+});
+
+Deno.test("LineageStore: hash index enables O(1) lookup", async () => {
+  const store = await makeStore();
+  const record = await store.create({
+    content: "indexed content",
+    origin: {
+      source_type: "web",
+      source_name: "example.com",
+      accessed_at: new Date().toISOString(),
+      accessed_by: "agent",
+      access_method: "fetch",
+    },
+    classification: { level: "PUBLIC", reason: "public" },
+    sessionId: "s" as SessionId,
+  });
+
+  // Can look up by hash with sufficient taint
+  const result = await store.getByHash(record.content_hash, "RESTRICTED");
+  assertExists(result);
+  assertEquals(result!.record.lineage_id, record.lineage_id);
+});

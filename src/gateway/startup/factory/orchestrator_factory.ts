@@ -44,6 +44,8 @@ import {
 import type { EnhancedSessionManager } from "../../sessions.ts";
 import type { CronManager } from "../../../scheduler/cron/parser.ts";
 import type { StorageProvider } from "../../../core/storage/provider.ts";
+import { createMessageStore } from "../../../core/conversation/mod.ts";
+import { createLineageStore } from "../../../core/session/lineage.ts";
 import type {
   OrchestratorCreateOptions,
   OrchestratorFactory,
@@ -247,6 +249,13 @@ export function createOrchestratorFactory(
         restrictedPath: workspace.restrictedPath,
       };
 
+      const factoryMessageStore = storage
+        ? createMessageStore(storage)
+        : undefined;
+      const factoryLineageStore = storage
+        ? createLineageStore(storage)
+        : undefined;
+
       const orchestrator = createOrchestrator({
         hookRunner: infra.hookRunner,
         providerRegistry: infra.registry,
@@ -255,6 +264,8 @@ export function createOrchestratorFactory(
         maxToolResponseChars: isTrigger ? 8_000 : undefined,
         tools: resolveToolsForProfile(toolProfile),
         toolExecutor,
+        messageStore: factoryMessageStore,
+        lineageStore: factoryLineageStore,
         systemPromptSections: [
           TOOL_BEHAVIOR_PROMPT,
           ...resolvePromptsForProfile(toolProfile),

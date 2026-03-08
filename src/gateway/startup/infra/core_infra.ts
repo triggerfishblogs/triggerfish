@@ -8,6 +8,8 @@
  */
 
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import type { MessageStore } from "../../../core/conversation/mod.ts";
+import type { LineageStore } from "../../../core/session/lineage.ts";
 import type { UserId } from "../../../core/types/session.ts";
 import type { createSqliteStorage } from "../../../core/storage/sqlite.ts";
 import type { createLogger } from "../../../core/logger/mod.ts";
@@ -65,6 +67,8 @@ export interface CoreInfraResult {
   readonly gatewayServerRef: GatewayServerRef;
   readonly tidepoolHostRef: TidepoolHostRef;
   readonly deferredMemoryCheck: DeferredMemoryCheck;
+  readonly messageStore: MessageStore;
+  readonly lineageStore: LineageStore;
 }
 
 /** Warn if filesystem default is PUBLIC. */
