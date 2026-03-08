@@ -20,7 +20,7 @@ Deno.test("Cloud: callback server receives key from query param", async () => {
     assertEquals(key, "tf_test_callback_key");
   } finally {
     ac.abort();
-    server.close();
+    await server.close();
   }
 });
 
@@ -34,7 +34,7 @@ Deno.test("Cloud: callback server returns 404 for non-callback paths", async () 
     await resp.text();
   } finally {
     ac.abort();
-    server.close();
+    await server.close();
   }
 });
 
@@ -50,11 +50,11 @@ Deno.test("Cloud: callback server returns 404 when key param is missing", async 
     await resp.text();
   } finally {
     ac.abort();
-    server.close();
+    await server.close();
   }
 });
 
-Deno.test("Cloud: callback server listens on random port", () => {
+Deno.test("Cloud: callback server listens on random port", async () => {
   const ac = new AbortController();
   const server = startCallbackServer(ac.signal);
 
@@ -62,6 +62,6 @@ Deno.test("Cloud: callback server listens on random port", () => {
     assertEquals(server.port > 0, true);
   } finally {
     ac.abort();
-    server.close();
+    await server.close();
   }
 });

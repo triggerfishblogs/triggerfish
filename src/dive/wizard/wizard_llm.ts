@@ -220,7 +220,7 @@ async function collectTriggerfishKeyViaCheckout(): Promise<{
     return await collectTriggerfishKeyDirect();
   } finally {
     ac.abort();
-    server.close();
+    await server.close();
   }
 }
 
@@ -269,7 +269,7 @@ async function collectTriggerfishKeyViaMagicLink(): Promise<{
     return await collectTriggerfishKeyDirect();
   } finally {
     ac.abort();
-    server.close();
+    await server.close();
   }
 }
 
