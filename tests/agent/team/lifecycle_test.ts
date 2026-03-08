@@ -100,6 +100,7 @@ Deno.test("lifecycle: team starts in running status", async () => {
   const result = await manager.createTeam(createThreePersonTeam(), CALLER);
   assert(result.ok);
   assertEquals(result.value.status, "running");
+  manager.stopAllMonitors();
 });
 
 Deno.test("lifecycle: all members start as active", async () => {
@@ -112,6 +113,7 @@ Deno.test("lifecycle: all members start as active", async () => {
   for (const member of result.value.members) {
     assertEquals(member.status, "active");
   }
+  manager.stopAllMonitors();
 });
 
 Deno.test("lifecycle: each member gets unique session ID", async () => {
@@ -124,6 +126,7 @@ Deno.test("lifecycle: each member gets unique session ID", async () => {
   const sessionIds = result.value.members.map((m) => m.sessionId);
   const uniqueIds = new Set(sessionIds);
   assertEquals(uniqueIds.size, 3);
+  manager.stopAllMonitors();
 });
 
 Deno.test("lifecycle: spawn failure rolls back entire team creation", async () => {
@@ -218,6 +221,7 @@ Deno.test("lifecycle: only creator can disband", async () => {
   );
   assert(!result.ok);
   assertStringIncludes(result.error, "denied");
+  manager.stopAllMonitors();
 });
 
 Deno.test("lifecycle: lead session can disband", async () => {
@@ -318,6 +322,7 @@ Deno.test("lifecycle: multiple teams coexist independently", async () => {
   assert(status2.ok);
   assertEquals(status1.value.status, "disbanded");
   assertEquals(status2.value.status, "running");
+  manager.stopAllMonitors();
 });
 
 // ─── Model override ──────────────────────────────────────────────────────────
@@ -357,4 +362,5 @@ Deno.test("lifecycle: member model override is captured", async () => {
   );
 
   assertEquals(capturedModel, "claude-3-opus");
+  manager.stopAllMonitors();
 });

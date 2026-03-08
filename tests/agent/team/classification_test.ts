@@ -119,6 +119,7 @@ Deno.test("classification: team ceiling is stored on team instance", async () =>
 
   assert(result.ok);
   assertEquals(result.value.classificationCeiling, "CONFIDENTIAL");
+  manager.stopAllMonitors();
 });
 
 Deno.test("classification: member ceiling cannot exceed team ceiling", async () => {
@@ -147,6 +148,7 @@ Deno.test("classification: member ceiling at or below team ceiling is accepted",
   );
 
   assert(result.ok);
+  manager.stopAllMonitors();
 });
 
 Deno.test("classification: no team ceiling allows any member ceiling", async () => {
@@ -162,6 +164,7 @@ Deno.test("classification: no team ceiling allows any member ceiling", async () 
   );
 
   assert(result.ok);
+  manager.stopAllMonitors();
 });
 
 // ─── Aggregate taint computation ─────────────────────────────────────────────
@@ -177,6 +180,7 @@ Deno.test("classification: aggregate taint starts at PUBLIC", async () => {
 
   assert(result.ok);
   assertEquals(result.value.aggregateTaint, "PUBLIC");
+  manager.stopAllMonitors();
 });
 
 Deno.test("classification: aggregate taint reflects highest member taint", async () => {
@@ -197,6 +201,7 @@ Deno.test("classification: aggregate taint reflects highest member taint", async
   const statusResult = await manager.fetchTeamStatus(createResult.value.id);
   assert(statusResult.ok);
   assertEquals(statusResult.value.aggregateTaint, "CONFIDENTIAL");
+  manager.stopAllMonitors();
 });
 
 Deno.test("classification: aggregate taint uses maxClassification across all members", async () => {
@@ -219,6 +224,7 @@ Deno.test("classification: aggregate taint uses maxClassification across all mem
   const statusResult = await manager.fetchTeamStatus(createResult.value.id);
   assert(statusResult.ok);
   assertEquals(statusResult.value.aggregateTaint, "RESTRICTED");
+  manager.stopAllMonitors();
 });
 
 // ─── Taint refresh on status ─────────────────────────────────────────────────
@@ -250,6 +256,7 @@ Deno.test("classification: status refreshes member taints from live sessions", a
   assert(statusAfter.ok);
   const updatedLead = statusAfter.value.members.find((m) => m.isLead)!;
   assertEquals(updatedLead.currentTaint, "CONFIDENTIAL");
+  manager.stopAllMonitors();
 });
 
 // ─── Disband stores final taint ──────────────────────────────────────────────
@@ -303,6 +310,7 @@ Deno.test("classification: initial task is sent to lead", async () => {
     m.content === "Classified analysis"
   );
   assert(leadMessage !== undefined);
+  manager.stopAllMonitors();
 });
 
 Deno.test("classification: non-lead with initialTask receives it", async () => {
@@ -331,6 +339,7 @@ Deno.test("classification: non-lead with initialTask receives it", async () => {
     m.content === "Research topic X"
   );
   assert(analystMessage !== undefined);
+  manager.stopAllMonitors();
 });
 
 Deno.test("classification: non-lead without initialTask receives nothing", async () => {
@@ -355,4 +364,5 @@ Deno.test("classification: non-lead without initialTask receives nothing", async
     m.to.includes("2") // second session spawned
   );
   assertEquals(workerMessages.length, 0);
+  manager.stopAllMonitors();
 });

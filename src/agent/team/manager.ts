@@ -101,9 +101,7 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
           memberRoles: members.map((m) => m.role),
         });
 
-        if (deps.notifyCreator) {
-          manager.startLifecycleMonitor(teamId);
-        }
+        manager.startLifecycleMonitor(teamId);
 
         return { ok: true, value: team };
       } catch (err: unknown) {

@@ -248,7 +248,9 @@ async function executeTeamMessage(
   const role = typeof input.role === "string" ? input.role : "";
 
   const statusResult = await ctx.teamManager.fetchTeamStatus(teamId as TeamId);
-  if (statusResult.ok && !isCreatorOrMember(statusResult.value, ctx.callerSessionId)) {
+  if (!statusResult.ok) return `Error: ${statusResult.error}`;
+
+  if (!isCreatorOrMember(statusResult.value, ctx.callerSessionId)) {
     log.warn("Unauthorized team_message attempt", {
       operation: "team_message",
       teamId,

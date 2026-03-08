@@ -101,16 +101,27 @@ export function detectRepetition(text: string): string | null {
 }
 
 /**
+ * Pattern matching conditional/future phrasing that precedes intent verbs.
+ * When the model writes "Once you provide details, I'll create the team",
+ * the intent is conditional — not a trailing continuation failure.
+ */
+const CONDITIONAL_PREFIX =
+  /(?:once|when|if|after|before|unless|until|whether|should you|whenever)\b/i;
+
+/**
  * Detect trailing continuation intent in the tail of a long response.
  *
  * Returns true when the response is long enough to be substantive (>100 chars)
  * and its last ~250 characters contain a phrase indicating the LLM intended
- * to continue with a tool call but stopped generating.
+ * to continue with a tool call but stopped generating. Skips matches preceded
+ * by conditional language ("Once you...", "If you...", "When I...") which
+ * indicate a described future action, not a truncated tool invocation.
  */
 export function detectTrailingContinuationIntent(text: string): boolean {
   if (text.length < 100) return false;
   const tail = text.slice(-250).trim();
-  return TRAILING_CONTINUATION_PATTERN.test(tail);
+  if (!TRAILING_CONTINUATION_PATTERN.test(tail)) return false;
+  return !CONDITIONAL_PREFIX.test(tail);
 }
 
 /**
@@ -179,8 +190,9 @@ export function classifyResponseQuality(
     (finalText.length < 200 && ECHOED_TOOL_PLACEHOLDER.test(finalText));
   const isLeakedIntent = hasTools && finalText.length < 300 &&
     LEAKED_INTENT_PATTERN.test(finalText);
-  const hasTrailingIntent = false;
-  const isDenseNarration = false;
+  const hasTrailingIntent = hasTools &&
+    detectTrailingContinuationIntent(finalText);
+  const isDenseNarration = detectDenseNarration(finalText, hasTools);
   return {
     isEmptyOrJunk,
     isLeakedIntent,

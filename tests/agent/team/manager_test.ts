@@ -119,6 +119,7 @@ Deno.test("createTeam: spawns sessions and returns team instance", async () => {
   assertEquals(team.members.length, 2);
   assertEquals(team.aggregateTaint, "PUBLIC");
   assertEquals(team.createdBy, CALLER);
+  manager.stopAllMonitors();
 });
 
 Deno.test("createTeam: members have correct roles and session IDs", async () => {
@@ -137,6 +138,7 @@ Deno.test("createTeam: members have correct roles and session IDs", async () => 
   assertEquals(lead.role, "lead");
   assertEquals(researcher.role, "researcher");
   assert(lead.sessionId !== researcher.sessionId);
+  manager.stopAllMonitors();
 });
 
 Deno.test("createTeam: uses custom idle and lifetime timeouts", async () => {
@@ -155,6 +157,7 @@ Deno.test("createTeam: uses custom idle and lifetime timeouts", async () => {
   assert(result.ok);
   assertEquals(result.value.idleTimeoutSeconds, 120);
   assertEquals(result.value.maxLifetimeSeconds, 7200);
+  manager.stopAllMonitors();
 });
 
 Deno.test("createTeam: applies default timeouts when not specified", async () => {
@@ -167,6 +170,7 @@ Deno.test("createTeam: applies default timeouts when not specified", async () =>
   assert(result.ok);
   assertEquals(result.value.idleTimeoutSeconds, 300);
   assertEquals(result.value.maxLifetimeSeconds, 3600);
+  manager.stopAllMonitors();
 });
 
 Deno.test("createTeam: persists team to storage", async () => {
@@ -185,6 +189,7 @@ Deno.test("createTeam: persists team to storage", async () => {
   assert(raw !== null);
   const parsed = JSON.parse(raw!);
   assertEquals(parsed.name, "Test Team");
+  manager.stopAllMonitors();
 });
 
 // ─── Validation tests ────────────────────────────────────────────────────────
@@ -296,6 +301,7 @@ Deno.test("fetchTeamStatus: returns current team state", async () => {
   assert(statusResult.ok);
   assertEquals(statusResult.value.name, "Test Team");
   assertEquals(statusResult.value.status, "running");
+  manager.stopAllMonitors();
 });
 
 Deno.test("fetchTeamStatus: returns error for unknown team", async () => {
@@ -322,6 +328,7 @@ Deno.test("fetchTeamStatus: refreshes member taints", async () => {
   const statusResult = await manager.fetchTeamStatus(createResult.value.id);
   assert(statusResult.ok);
   assertEquals(statusResult.value.aggregateTaint, "CONFIDENTIAL");
+  manager.stopAllMonitors();
 });
 
 // ─── Disband tests ───────────────────────────────────────────────────────────
@@ -374,6 +381,7 @@ Deno.test("disbandTeam: rejects unauthorized caller", async () => {
 
   assert(!result.ok);
   assertStringIncludes(result.error, "denied");
+  manager.stopAllMonitors();
 });
 
 Deno.test("disbandTeam: rejects already disbanded team", async () => {
@@ -418,6 +426,7 @@ Deno.test("deliverTeamMessage: sends to specified role", async () => {
 
   assert(result.ok);
   assertEquals(sentTo, researcher.sessionId);
+  manager.stopAllMonitors();
 });
 
 Deno.test("deliverTeamMessage: defaults to lead when no role specified", async () => {
@@ -445,6 +454,7 @@ Deno.test("deliverTeamMessage: defaults to lead when no role specified", async (
 
   assert(result.ok);
   assertEquals(sentTo, lead.sessionId);
+  manager.stopAllMonitors();
 });
 
 Deno.test("deliverTeamMessage: rejects unknown role", async () => {
@@ -464,6 +474,7 @@ Deno.test("deliverTeamMessage: rejects unknown role", async () => {
 
   assert(!result.ok);
   assertStringIncludes(result.error, "not found");
+  manager.stopAllMonitors();
 });
 
 // ─── List tests ──────────────────────────────────────────────────────────────
@@ -486,4 +497,5 @@ Deno.test("listTeams: returns only teams created by caller", async () => {
   const otherTeams = await manager.listTeams(otherCaller);
   assertEquals(otherTeams.length, 1);
   assertEquals(otherTeams[0].name, "Team C");
+  manager.stopAllMonitors();
 });
