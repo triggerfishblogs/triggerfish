@@ -165,9 +165,9 @@ as we refine the product. Early access subscribers lock in their rate.
     <li>Browser automation</li>
     <li>Bring your own LLM keys (Anthropic, OpenAI, Google, Ollama, etc.)</li>
     <li>Bring your own search keys (Brave, SearXNG)</li>
+    <li>Automatic updates</li>
     <li class="excluded">No managed LLM — you provide API keys</li>
     <li class="excluded">No cloud tunnels — self-host webhooks</li>
-    <li class="excluded">No automatic updates</li>
   </ul>
   <a href="/guide/installation" class="cta secondary">Install Now</a>
 </div>
@@ -182,7 +182,6 @@ as we refine the product. Early access subscribers lock in their rate.
     <li>Web search included</li>
     <li>Cloud tunnel for webhooks</li>
     <li>Scheduled jobs</li>
-    <li>Automatic updates</li>
     <li>Setup in under 2 minutes</li>
   </ul>
   <a href="https://buy.stripe.com/aFa14m9mobpH0vc4mlao800" class="cta primary">Subscribe</a>
@@ -252,7 +251,7 @@ as we refine the product. Early access subscribers lock in their rate.
 <tr class="section-header"><td colspan="5">Infrastructure</td></tr>
 <tr><td>Cloud tunnels</td><td>&mdash;</td><td>&#10003;</td><td>Multiple</td><td>Custom</td></tr>
 <tr><td>Scheduled jobs</td><td>Unlimited</td><td>&#10003;</td><td>Unlimited</td><td>Unlimited</td></tr>
-<tr><td>Automatic updates</td><td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
+<tr><td>Automatic updates</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
 
 <tr class="section-header"><td colspan="5">Support &amp; Admin</td></tr>
 <tr><td>Community support</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
