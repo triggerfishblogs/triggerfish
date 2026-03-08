@@ -105,7 +105,7 @@ lastUpdated: false
   cursor: pointer;
   margin-top: auto;
   background: var(--vp-c-brand-1);
-  color: var(--vp-c-white);
+  color: #000;
   border: none;
   width: 100%;
 }
