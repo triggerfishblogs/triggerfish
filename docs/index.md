@@ -13,6 +13,9 @@ hero:
       text: Get Started
       link: /guide/
     - theme: alt
+      text: Pricing
+      link: /pricing
+    - theme: alt
       text: View on GitHub
       link: https://github.com/greghavens/triggerfish
 
@@ -28,7 +31,7 @@ features:
     details: Agent execution environment with a write/run/fix feedback loop. Self-authoring skills. The Reef marketplace for discovering and sharing capabilities.
   - icon: "\U0001F916"
     title: Any LLM Provider
-    details: Anthropic, OpenAI, Google Gemini, local models via Ollama, OpenRouter. Automatic failover chains.
+    details: Anthropic, OpenAI, Google Gemini, local models via Ollama, OpenRouter. Automatic failover chains. Or choose Triggerfish Cloud — no API keys needed.
   - icon: "\U0001F3AF"
     title: Proactive by Default
     details: Cron jobs, triggers, and webhooks. Your agent checks in, monitors, and acts autonomously — within strict policy boundaries.
@@ -60,6 +63,8 @@ docker run -v ./triggerfish.yaml:/data/triggerfish.yaml \
 The binary installers download a pre-built release, verify its checksum, and run
 the setup wizard. See the [installation guide](/guide/installation) for Docker
 setup, building from source, and the release process.
+
+Don't want to manage API keys? [See pricing](/pricing) for Triggerfish Cloud — managed LLM and search infrastructure, ready in minutes.
 
 ## How It Works
 

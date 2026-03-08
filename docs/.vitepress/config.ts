@@ -66,6 +66,7 @@ export default defineConfig({
 
     nav: [
       { text: "Guide", link: "/guide/" },
+      { text: "Pricing", link: "/pricing" },
       { text: "Architecture", link: "/architecture/" },
       { text: "Security", link: "/security/" },
       { text: "Channels", link: "/channels/" },
