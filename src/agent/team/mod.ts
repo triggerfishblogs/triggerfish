@@ -34,10 +34,36 @@ export { createTeamManager } from "./manager.ts";
 export { buildTeamRosterPrompt } from "./roster.ts";
 export type { RosterPromptOptions } from "./roster.ts";
 
-export type { TeamToolContext } from "./tools.ts";
+export type { TeamToolContext } from "./tool_definitions.ts";
 
 export {
-  createTeamToolExecutor,
   getTeamToolDefinitions,
   TEAM_SYSTEM_PROMPT,
-} from "./tools.ts";
+  TEAM_TOOL_NAMES,
+} from "./tool_definitions.ts";
+
+export { createTeamToolExecutor } from "./tool_executors.ts";
+
+export type { LifecycleMonitor } from "./lifecycle.ts";
+export { createLifecycleMonitor } from "./lifecycle.ts";
+
+export {
+  computeAggregateTaint,
+  buildStorageKey,
+  findLeadMember,
+  findMemberByRole,
+  refreshMemberTaints,
+} from "./helpers.ts";
+
+export {
+  serializeTeamInstance,
+  deserializeTeamInstance,
+} from "./serialization.ts";
+
+export { validateTeamDefinition } from "./validation.ts";
+
+export {
+  spawnAllMembers,
+  buildPlaceholderMembers,
+  deliverInitialTasks,
+} from "./spawning.ts";
