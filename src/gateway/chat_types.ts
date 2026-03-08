@@ -25,6 +25,8 @@ import type { ChannelAdapter, ChannelMessage } from "../channels/types.ts";
 import type { PairingService } from "../channels/pairing.ts";
 import type { ToolDefinition, ToolExecutor } from "../core/types/tool.ts";
 import type { TriggerStore } from "../scheduler/triggers/store.ts";
+import type { MessageStore } from "../core/conversation/mod.ts";
+import type { LineageStore } from "../core/session/lineage_types.ts";
 
 export type {
   ChatClientMessage,
@@ -160,6 +162,10 @@ export interface ChatSessionConfig {
    * Default: true (owner turns).
    */
   readonly isOwnerTurnRef?: { value: boolean };
+  /** Message persistence store for conversation records. */
+  readonly messageStore?: MessageStore;
+  /** Data lineage store for provenance tracking. */
+  readonly lineageStore?: LineageStore;
 }
 
 /** Shared chat session that serializes access to the orchestrator. */

@@ -267,6 +267,90 @@ async function dispatchSingleToolCall(
   );
 }
 
+/** Determine the lineage source_type based on tool name prefix. */
+function determineSourceType(toolName: string): string {
+  if (toolName.startsWith("web_")) return "web_request";
+  if (toolName.startsWith("browser_")) return "browser_session";
+  if (toolName.startsWith("memory_")) return "memory_access";
+  if (toolName.startsWith("google_") || toolName.startsWith("gmail_") ||
+    toolName.startsWith("calendar_") || toolName.startsWith("drive_") ||
+    toolName.startsWith("sheets_") || toolName.startsWith("tasks_")) {
+    return "google_api";
+  }
+  if (toolName.startsWith("github_")) return "github_api";
+  if (toolName.startsWith("obsidian_")) return "obsidian_vault";
+  if (toolName.startsWith("file_") || toolName === "read_file" ||
+    toolName === "write_file" || toolName === "edit_file") {
+    return "filesystem";
+  }
+  if (toolName.startsWith("mcp_")) return "mcp_server";
+  if (toolName.startsWith("skill_")) return "skill_execution";
+  if (toolName.startsWith("cron_") || toolName.startsWith("trigger_")) {
+    return "scheduler";
+  }
+  return "tool_response";
+}
+
+/** Record lineage and persist tool_call after non-blocked dispatch. */
+async function recordToolCallLineageAndPersist(
+  call: ParsedToolCall,
+  resultText: string,
+  config: import("../orchestrator/orchestrator_types.ts").OrchestratorConfig,
+  session: SessionState,
+): Promise<void> {
+  let lineageId: string | undefined;
+
+  if (config.lineageStore) {
+    try {
+      const taint = config.getSessionTaint?.() ?? session.taint;
+      const lineageRecord = await config.lineageStore.create({
+        content: resultText,
+        origin: {
+          source_type: determineSourceType(call.name),
+          source_name: call.name,
+          accessed_at: new Date().toISOString(),
+          accessed_by: session.userId as string,
+          access_method: call.name,
+        },
+        classification: {
+          level: taint,
+          reason: `Tool call: ${call.name}`,
+        },
+        sessionId: session.id,
+      });
+      lineageId = lineageRecord.lineage_id;
+    } catch (err: unknown) {
+      log.error("Tool call lineage creation failed", {
+        operation: "recordToolCallLineageAndPersist",
+        toolName: call.name,
+        sessionId: session.id,
+        err,
+      });
+    }
+  }
+
+  if (config.messageStore) {
+    try {
+      await config.messageStore.append({
+        session_id: session.id as string,
+        role: "tool_call",
+        content: JSON.stringify(call.args).slice(0, 4096),
+        classification: config.getSessionTaint?.() ?? session.taint,
+        tool_name: call.name,
+        tool_args: call.args,
+        lineage_id: lineageId,
+      });
+    } catch (err: unknown) {
+      log.error("Tool call persistence failed", {
+        operation: "recordToolCallLineageAndPersist",
+        toolName: call.name,
+        sessionId: session.id,
+        err,
+      });
+    }
+  }
+}
+
 /** Execute a single tool call with event emission and format the result. */
 async function executeAndFormatToolCall(
   call: ParsedToolCall,
@@ -300,6 +384,17 @@ async function executeAndFormatToolCall(
     result: cappedText,
     blocked,
   });
+
+  // Record lineage and persist tool_call (skip blocked calls and read_more)
+  if (!blocked && call.name !== "read_more") {
+    await recordToolCallLineageAndPersist(
+      call,
+      resultText,
+      orchestratorState.config,
+      session,
+    );
+  }
+
   return `[TOOL_RESULT name="${call.name}"]\n${cappedText}\n[/TOOL_RESULT]`;
 }
 

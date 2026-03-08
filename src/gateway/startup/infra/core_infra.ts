@@ -18,6 +18,8 @@ import { createSchedulerService } from "../../../scheduler/service.ts";
 import type { createEnhancedSessionManager } from "../../sessions.ts";
 import type { createNotificationService } from "../../notifications/notifications.ts";
 import type { createTriggerStore } from "../../../scheduler/triggers/store.ts";
+import type { MessageStore } from "../../../core/conversation/mod.ts";
+import type { LineageStore } from "../../../core/session/lineage_types.ts";
 import type { createToolFloorRegistry } from "../../../core/security/tool_floors.ts";
 import { createOrchestratorFactory } from "../factory/orchestrator_factory.ts";
 import { buildSchedulerConfig } from "../factory/scheduler_config.ts";
@@ -65,6 +67,8 @@ export interface CoreInfraResult {
   readonly gatewayServerRef: GatewayServerRef;
   readonly tidepoolHostRef: TidepoolHostRef;
   readonly deferredMemoryCheck: DeferredMemoryCheck;
+  readonly messageStore: MessageStore;
+  readonly lineageStore: LineageStore;
 }
 
 /** Warn if filesystem default is PUBLIC. */

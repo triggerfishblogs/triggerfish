@@ -65,8 +65,8 @@ export interface GatewayOptions {
   readonly hookRunner: HookRunner;
   /** Mock tool response for testing without a real MCP server. */
   readonly mockToolResponse?: McpToolResult;
-  /** Lineage store for recording data provenance on tool responses. */
-  readonly lineageStore?: LineageStore;
+  /** Lineage store for recording data provenance on tool responses. Required. */
+  readonly lineageStore: LineageStore;
 }
 
 /** Enhanced tool result with taint and lineage tracking. */

@@ -2,12 +2,14 @@
  * Agent turn — entry point and preconditions.
  *
  * Validates preconditions, prepares context (system prompt, history,
- * vision fallback), and delegates to the agent loop.
+ * vision fallback), and delegates to the agent loop. Persists user
+ * messages and restores session history from MessageStore on resume.
  *
  * @module
  */
 
 import type { Result } from "../../core/types/classification.ts";
+import { canFlowTo } from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 import type { SessionState } from "../../core/types/session.ts";
 import type { MessageContent } from "../../core/image/content.ts";
@@ -23,6 +25,7 @@ import type {
   ProcessMessageResult,
 } from "../orchestrator/orchestrator_types.ts";
 import type { OrchestratorState } from "../orchestrator/orchestrator.ts";
+import type { ConversationRecord } from "../../core/conversation/mod.ts";
 
 const log = createLogger("agent-turn");
 
@@ -92,16 +95,164 @@ function autoCompactHistory(
   }
 }
 
+/** Convert a ConversationRecord to a HistoryEntry for session restoration. */
+function recordToHistoryEntry(record: ConversationRecord): HistoryEntry[] {
+  switch (record.role) {
+    case "user":
+      return [{ role: "user", content: record.content }];
+    case "assistant":
+      return [{ role: "assistant", content: record.content }];
+    case "compaction_summary":
+      return [{
+        role: "user",
+        content: "[CONTEXT SUMMARY]\n" + record.content,
+      }];
+    case "tool_call":
+      return [
+        {
+          role: "assistant",
+          content: record.tool_args
+            ? JSON.stringify(record.tool_args)
+            : "{}",
+        },
+        {
+          role: "user",
+          content: `[TOOL_RESULT name="${record.tool_name ?? "unknown"}"]\n` +
+            `(result not available — see lineage ${record.lineage_id ?? "unknown"})\n` +
+            `[/TOOL_RESULT]`,
+        },
+      ];
+  }
+}
+
+/** Restore session history from MessageStore if history is empty. */
+async function restoreSessionHistoryIfEmpty(
+  config: OrchestratorConfig,
+  session: SessionState,
+  history: HistoryEntry[],
+): Promise<void> {
+  if (history.length > 0 || !config.messageStore) return;
+
+  const records = await config.messageStore.loadActive(
+    session.id as string,
+  );
+
+  if (records.length === 0) return;
+
+  // Check for a compaction summary — if present, prefer it over raw turns
+  const summaryRecord = records.find(
+    (r) => r.role === "compaction_summary",
+  );
+  if (summaryRecord) {
+    const entries = recordToHistoryEntry(summaryRecord);
+    history.push(...entries);
+    log.info("Session history restored from compaction summary", {
+      operation: "restoreSessionHistoryIfEmpty",
+      sessionId: session.id,
+      recordCount: 1,
+    });
+    return;
+  }
+
+  // Restore from raw turns with taint gating
+  let restoredCount = 0;
+  for (const record of records) {
+    if (!canFlowTo(record.classification, session.taint)) {
+      log.warn("Skipping record above session taint on restore", {
+        operation: "restoreSessionHistoryIfEmpty",
+        sessionId: session.id,
+        recordClassification: record.classification,
+        sessionTaint: session.taint,
+        sequence: record.sequence,
+      });
+      continue;
+    }
+    const entries = recordToHistoryEntry(record);
+    history.push(...entries);
+    restoredCount++;
+  }
+
+  if (restoredCount > 0) {
+    log.info("Session history restored from persisted records", {
+      operation: "restoreSessionHistoryIfEmpty",
+      sessionId: session.id,
+      recordCount: restoredCount,
+    });
+  }
+}
+
+/** Persist a user message to the MessageStore and create lineage record. */
+async function persistUserMessage(
+  config: OrchestratorConfig,
+  session: SessionState,
+  messageText: string,
+): Promise<void> {
+  if (!config.messageStore) return;
+
+  let lineageId: string | undefined;
+  if (config.lineageStore) {
+    try {
+      const lineageRecord = await config.lineageStore.create({
+        content: messageText,
+        origin: {
+          source_type: "channel_message",
+          source_name: session.channelId as string,
+          accessed_at: new Date().toISOString(),
+          accessed_by: session.userId as string,
+          access_method: "user_input",
+        },
+        classification: {
+          level: session.taint,
+          reason: "User message",
+        },
+        sessionId: session.id,
+      });
+      lineageId = lineageRecord.lineage_id;
+    } catch (err: unknown) {
+      log.error("User message lineage creation failed", {
+        operation: "persistUserMessage",
+        sessionId: session.id,
+        err,
+      });
+    }
+  }
+
+  try {
+    await config.messageStore.append({
+      session_id: session.id as string,
+      role: "user",
+      content: messageText,
+      classification: session.taint,
+      lineage_id: lineageId,
+    });
+  } catch (err: unknown) {
+    log.error("User message persistence failed", {
+      operation: "persistUserMessage",
+      sessionId: session.id,
+      err,
+    });
+  }
+}
+
 /** Prepare system prompt, history, and vision fallback for the turn. */
 async function prepareAgentTurnContext(
   state: OrchestratorState,
   sessionKey: string,
   message: MessageContent,
+  session: SessionState,
   signal: AbortSignal | undefined,
 ): Promise<{ systemPrompt: string; history: HistoryEntry[] }> {
   let systemPrompt = await buildFullSystemPrompt(state, sessionKey);
   const history = ensureSessionHistory(state.histories, sessionKey);
+
+  // Restore persisted history on session resume (before user push)
+  await restoreSessionHistoryIfEmpty(state.config, session, history);
+
   history.push({ role: "user", content: message });
+
+  // Persist user message to MessageStore
+  const messageText = extractText(message);
+  await persistUserMessage(state.config, session, messageText);
 
   const visionAddendum = await processVisionFallback(
     state,
@@ -144,7 +295,13 @@ export async function runAgentTurn(
   if (!guard.ok) return guard;
 
   const sessionKey = session.id as string;
-  const ctx = await prepareAgentTurnContext(state, sessionKey, message, signal);
+  const ctx = await prepareAgentTurnContext(
+    state,
+    sessionKey,
+    message,
+    session,
+    signal,
+  );
   return runAgentLoop({
     state,
     session,

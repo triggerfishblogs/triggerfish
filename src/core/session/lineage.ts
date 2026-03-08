@@ -11,6 +11,7 @@
 export type {
   LineageClassification,
   LineageCreateInput,
+  LineageHashResult,
   LineageLocation,
   LineageOrigin,
   LineageRecord,

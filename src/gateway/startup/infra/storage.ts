@@ -15,6 +15,8 @@ import { createSessionManager } from "../../../core/session/manager.ts";
 import { createEnhancedSessionManager } from "../../sessions.ts";
 import { createNotificationService } from "../../notifications/notifications.ts";
 import { createTriggerStore } from "../../../scheduler/triggers/store.ts";
+import { createMessageStore } from "../../../core/conversation/mod.ts";
+import { createLineageStore } from "../../../core/session/lineage_store.ts";
 import { createProviderRegistry } from "../../../agent/llm.ts";
 import { loadProvidersFromConfig } from "../../../agent/providers/config.ts";
 import type { ModelsConfig } from "../../../agent/providers/config.ts";
@@ -52,7 +54,15 @@ export function initializeSessionInfrastructure(
   );
   const notificationService = createNotificationService(storage);
   const triggerStore = createTriggerStore(storage);
-  return { enhancedSessionManager, notificationService, triggerStore };
+  const messageStore = createMessageStore(storage);
+  const lineageStore = createLineageStore(storage);
+  return {
+    enhancedSessionManager,
+    notificationService,
+    triggerStore,
+    messageStore,
+    lineageStore,
+  };
 }
 
 /** Build LLM provider registry, policy engine, and hook runner. */

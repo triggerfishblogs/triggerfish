@@ -8,5 +8,6 @@ export * from "./types/mod.ts";
 export * from "./policy/mod.ts";
 export * from "./session/mod.ts";
 export * from "./storage/mod.ts";
+export * from "./conversation/mod.ts";
 export * from "./logger/mod.ts";
 export * from "./env.ts";

@@ -142,6 +142,10 @@ export interface ChatSessionDeps {
   readonly personaOptions?: PersonaRecallOptions;
   /** Mutable ref toggled by non-owner turn wrappers. */
   readonly isOwnerTurnRef?: { value: boolean };
+  /** Message persistence store for conversation records. */
+  readonly messageStore?: import("../../../core/conversation/mod.ts").MessageStore;
+  /** Data lineage store for provenance tracking. */
+  readonly lineageStore?: import("../../../core/session/lineage_types.ts").LineageStore;
 }
 
 /** Build the dynamic getter and prompt options for the chat session. */
@@ -217,6 +221,8 @@ export function assembleChatSession(deps: ChatSessionDeps) {
     workspacePath: deps.workspacePaths.publicPath,
     getWorkspacePath: deps.getWorkspacePath,
     isOwnerTurnRef: deps.isOwnerTurnRef,
+    messageStore: deps.messageStore,
+    lineageStore: deps.lineageStore,
   });
 }
 

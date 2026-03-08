@@ -18,6 +18,8 @@ import type { HookRunner } from "../../core/policy/hooks/hooks.ts";
 import type { LlmProvider, LlmProviderRegistry } from "../llm.ts";
 import type { CompactorConfig } from "../compactor/compactor.ts";
 import type { PlanManager } from "../plan/plan.ts";
+import type { MessageStore } from "../../core/conversation/mod.ts";
+import type { LineageStore } from "../../core/session/lineage_types.ts";
 
 /** Default system prompt used when no SPINE.md is found. */
 export const DEFAULT_SYSTEM_PROMPT =
@@ -161,6 +163,10 @@ export interface OrchestratorConfig {
    * before dispatch. The resolved values are never logged or returned to the LLM.
    */
   readonly secretStore?: SecretStore;
+  /** Message persistence store for conversation records. */
+  readonly messageStore?: MessageStore;
+  /** Data lineage store for provenance tracking. */
+  readonly lineageStore?: LineageStore;
   /**
    * Returns the currently active skill context, or null if none.
    * When non-null and requiresTools is non-null, the tool list shown to

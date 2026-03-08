@@ -11,6 +11,7 @@ export { propagateTaint } from "./taint.ts";
 export type {
   LineageClassification,
   LineageCreateInput,
+  LineageHashResult,
   LineageLocation,
   LineageOrigin,
   LineageRecord,

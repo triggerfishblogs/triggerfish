@@ -12,6 +12,7 @@ import type {
   Result,
 } from "../../core/types/classification.ts";
 import type { SessionState } from "../../core/types/session.ts";
+import { createLogger as createResponseLogger } from "../../core/logger/mod.ts";
 import type {
   HistoryEntry,
   OrchestratorConfig,
@@ -25,6 +26,8 @@ import type {
   OrchestratorState,
   TokenAccumulator,
 } from "../orchestrator/orchestrator.ts";
+
+const responseLog = createResponseLogger("response-handling");
 
 // ─── Response quality ────────────────────────────────────────────────────────
 
@@ -303,6 +306,14 @@ export async function handleFinalResponse(
     content: responseText.length > 0 ? responseText : completion.content,
   });
 
+  // Persist assistant response and create lineage record
+  await persistAssistantResponse(
+    state,
+    session,
+    responseText.length > 0 ? responseText : completion.content,
+    targetClassification,
+  );
+
   return {
     ok: true,
     value: {
@@ -313,4 +324,61 @@ export async function handleFinalResponse(
       },
     },
   };
+}
+
+/** Persist assistant response to MessageStore and create lineage record. */
+async function persistAssistantResponse(
+  state: OrchestratorState,
+  session: SessionState,
+  responseText: string,
+  targetClassification: ClassificationLevel,
+): Promise<void> {
+  const config = state.config;
+  let lineageId: string | undefined;
+
+  if (config.lineageStore) {
+    try {
+      const taint = config.getSessionTaint?.() ?? session.taint;
+      const lineageRecord = await config.lineageStore.create({
+        content: responseText,
+        origin: {
+          source_type: "agent_response",
+          source_name: "assistant",
+          accessed_at: new Date().toISOString(),
+          accessed_by: session.userId as string,
+          access_method: "llm_generation",
+        },
+        classification: {
+          level: targetClassification,
+          reason: "Assistant response",
+        },
+        sessionId: session.id,
+      });
+      lineageId = lineageRecord.lineage_id;
+    } catch (err: unknown) {
+      responseLog.error("Assistant response lineage creation failed", {
+        operation: "persistAssistantResponse",
+        sessionId: session.id,
+        err,
+      });
+    }
+  }
+
+  if (config.messageStore) {
+    try {
+      await config.messageStore.append({
+        session_id: session.id as string,
+        role: "assistant",
+        content: responseText,
+        classification: config.getSessionTaint?.() ?? session.taint,
+        lineage_id: lineageId,
+      });
+    } catch (err: unknown) {
+      responseLog.error("Assistant response persistence failed", {
+        operation: "persistAssistantResponse",
+        sessionId: session.id,
+        err,
+      });
+    }
+  }
 }

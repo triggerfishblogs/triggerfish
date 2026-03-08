@@ -199,10 +199,12 @@ async function compactChatHistory(
   orchestrator: Orchestrator,
   getSession: () => SessionState,
   sendEvent: ChatEventSender,
+  config: import("./chat_types.ts").ChatSessionConfig,
 ): Promise<void> {
   sendEvent({ type: "compact_start" });
   try {
-    const result = await orchestrator.compactHistory(getSession().id);
+    const session = getSession();
+    const result = await orchestrator.compactHistory(session.id);
     sendEvent({
       type: "compact_complete",
       messagesBefore: result.messagesBefore,
@@ -210,6 +212,35 @@ async function compactChatHistory(
       tokensBefore: result.tokensBefore,
       tokensAfter: result.tokensAfter,
     });
+
+    // Persist compaction to MessageStore
+    if (config.messageStore && result.messagesAfter < result.messagesBefore) {
+      try {
+        await config.messageStore.markCompacted(
+          session.id as string,
+          0,
+          result.messagesBefore - 1,
+        );
+        // Store compaction summary if the result includes summary text
+        if (result.messagesAfter > 0) {
+          const summaryContent =
+            `[Compaction: ${result.messagesBefore} → ${result.messagesAfter} messages, ` +
+            `${result.tokensBefore} → ${result.tokensAfter} tokens]`;
+          await config.messageStore.append({
+            session_id: session.id as string,
+            role: "compaction_summary",
+            content: summaryContent,
+            classification: config.getSessionTaint?.() ?? session.taint,
+          });
+        }
+      } catch (err: unknown) {
+        chatLog.error("Compaction persistence failed", {
+          operation: "compactChatHistory",
+          sessionId: session.id,
+          err,
+        });
+      }
+    }
   } catch (err: unknown) {
     sendEvent({
       type: "error",
@@ -539,7 +570,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
       if (config.resetSession) config.resetSession();
     },
     compact: (sendEvent) =>
-      compactChatHistory(orchestrator, getSession, sendEvent),
+      compactChatHistory(orchestrator, getSession, sendEvent, config),
     handleTriggerPromptResponse(source, accepted, sendEvent) {
       if (!accepted) {
         chatLog.debug("Trigger prompt declined", {
