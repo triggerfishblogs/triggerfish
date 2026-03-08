@@ -425,6 +425,18 @@ You can create persistent teams of collaborating agents using team_create.
 Each team member gets its own session, role, and tools. One member is the lead
 who coordinates the work and decides when the team is done.
 
+IMPORTANT: Do NOT call team_create until you have confirmed ALL of the following
+with the user:
+1. The specific problem/task the team will work on
+2. The team name
+3. The exact roles and which role is the lead
+4. Classification level and timeout preferences (or confirm defaults are fine)
+
+Each team member spawns a separate agent session that consumes resources. Never
+create a team with placeholder or generic roles. Always gather the full
+specification from the user first, then call team_create once with the correct
+configuration.
+
 - Use team_create to define roles and spawn the team
 - Use team_status to check progress
 - Use team_message to send instructions to a specific member
