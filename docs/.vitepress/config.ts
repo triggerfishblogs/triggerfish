@@ -2,8 +2,18 @@ import { defineConfig } from "vitepress";
 import fs from "node:fs";
 import path from "node:path";
 
-function getBlogSidebar() {
-  const blogDir = path.resolve(__dirname, "../blog");
+const recentPostsLabel: Record<string, string> = {
+  "": "Recent Posts", "en-GB": "Recent Posts", "es-419": "Publicaciones recientes",
+  "es-ES": "Publicaciones recientes", "fr-FR": "Articles récents",
+  "zh-CN": "最新文章", "zh-TW": "最新文章", "ko-KR": "최근 게시물",
+  "hi-IN": "हालिया पोस्ट", "ar-SA": "أحدث المقالات", "fil-PH": "Mga Kamakailang Post",
+  "he-IL": "פוסטים אחרונים", "fa-IR": "مطالب اخیر", "pt-BR": "Publicações recentes",
+  "de-DE": "Neueste Beiträge", "it-IT": "Articoli recenti",
+};
+
+function getBlogSidebar(locale = "") {
+  const prefix = locale ? `${locale}/` : "";
+  const blogDir = path.resolve(__dirname, `../${prefix}blog`);
   if (!fs.existsSync(blogDir)) return [];
   const files = fs.readdirSync(blogDir).filter(
     (f) => f.endsWith(".md") && f !== "index.md"
@@ -20,14 +30,14 @@ function getBlogSidebar() {
     if (draftMatch) continue;
     posts.push({
       title: titleMatch ? titleMatch[1] : file.replace(".md", ""),
-      link: `/blog/${file.replace(".md", "")}`,
+      link: `/${prefix}blog/${file.replace(".md", "")}`,
       date: dateMatch ? dateMatch[1] : "1970-01-01",
     });
   }
   posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   return [
     {
-      text: "Recent Posts",
+      text: recentPostsLabel[locale] || "Recent Posts",
       items: posts.slice(0, 10).map((p) => ({ text: p.title, link: p.link })),
     },
   ];
@@ -119,21 +129,26 @@ export default defineConfig({
       lang: enUS.lang,
       description: enUS.description,
     },
-    "en-GB": enGB,
-    "es-419": es419,
-    "es-ES": esES,
-    "fr-FR": frFR,
-    "zh-CN": zhCN,
-    "zh-TW": zhTW,
-    "ko-KR": koKR,
-    "hi-IN": hiIN,
-    "ar-SA": arSA,
-    "fil-PH": filPH,
-    "he-IL": heIL,
-    "fa-IR": faIR,
-    "pt-BR": ptBR,
-    "de-DE": deDE,
-    "it-IT": itIT,
+    ...Object.fromEntries(
+      [
+        ["en-GB", enGB], ["es-419", es419], ["es-ES", esES], ["fr-FR", frFR],
+        ["zh-CN", zhCN], ["zh-TW", zhTW], ["ko-KR", koKR], ["hi-IN", hiIN],
+        ["ar-SA", arSA], ["fil-PH", filPH], ["he-IL", heIL], ["fa-IR", faIR],
+        ["pt-BR", ptBR], ["de-DE", deDE], ["it-IT", itIT],
+      ].map(([key, cfg]) => [
+        key,
+        {
+          ...(cfg as Record<string, unknown>),
+          themeConfig: {
+            ...((cfg as Record<string, unknown>).themeConfig as Record<string, unknown>),
+            sidebar: {
+              ...(((cfg as Record<string, unknown>).themeConfig as Record<string, unknown>).sidebar as Record<string, unknown>),
+              [`/${key}/blog/`]: getBlogSidebar(key as string),
+            },
+          },
+        },
+      ])
+    ),
   },
 
   themeConfig: {
