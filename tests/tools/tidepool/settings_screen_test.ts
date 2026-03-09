@@ -5,38 +5,21 @@
  */
 
 import { assertEquals } from "@std/assert";
-import {
-  SETTINGS_SECTION_META,
-  SETTINGS_SECTIONS,
-} from "../../../src/tools/tidepool/screens/settings.ts";
+import { SETTINGS_SECTIONS } from "../../../src/tools/tidepool/screens/settings.ts";
 import type {
   SettingsField,
   SettingsFormState,
 } from "../../../src/tools/tidepool/screens/settings_fields.ts";
 
-Deno.test("SETTINGS_SECTIONS contains 8 sections", () => {
-  assertEquals(SETTINGS_SECTIONS.length, 8);
+Deno.test("SETTINGS_SECTIONS contains 7 sections", () => {
+  assertEquals(SETTINGS_SECTIONS.length, 7);
   assertEquals(SETTINGS_SECTIONS.includes("general"), true);
   assertEquals(SETTINGS_SECTIONS.includes("providers"), true);
   assertEquals(SETTINGS_SECTIONS.includes("channels"), true);
   assertEquals(SETTINGS_SECTIONS.includes("classification"), true);
-  assertEquals(SETTINGS_SECTIONS.includes("skills"), true);
   assertEquals(SETTINGS_SECTIONS.includes("scheduler"), true);
-  assertEquals(SETTINGS_SECTIONS.includes("security"), true);
+  assertEquals(SETTINGS_SECTIONS.includes("integrations"), true);
   assertEquals(SETTINGS_SECTIONS.includes("advanced"), true);
-});
-
-Deno.test("SETTINGS_SECTION_META matches sections", () => {
-  assertEquals(SETTINGS_SECTION_META.length, SETTINGS_SECTIONS.length);
-  for (const meta of SETTINGS_SECTION_META) {
-    assertEquals(
-      SETTINGS_SECTIONS.includes(meta.id),
-      true,
-      `${meta.id} should be a valid section`,
-    );
-    assertEquals(typeof meta.label, "string");
-    assertEquals(typeof meta.icon, "string");
-  }
 });
 
 Deno.test("SettingsField types are valid", () => {
