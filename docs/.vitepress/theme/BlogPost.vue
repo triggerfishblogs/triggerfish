@@ -18,6 +18,20 @@ const dateLocaleMap = {
   'fa-IR': 'fa-IR', 'pt-BR': 'pt-BR', 'de-DE': 'de-DE', 'it-IT': 'it-IT',
 }
 
+const backLabel: Record<string, string> = {
+  'en-US': '← Blog', 'en-GB': '← Blog', 'es-419': '← Blog', 'es-ES': '← Blog',
+  'fr-FR': '← Blog', 'zh-CN': '← 博客', 'zh-TW': '← 部落格', 'ko-KR': '← 블로그',
+  'hi-IN': '← ब्लॉग', 'ar-SA': 'المدونة →', 'fil-PH': '← Blog',
+  'he-IL': 'בלוג →', 'fa-IR': 'وبلاگ →', 'pt-BR': '← Blog',
+  'de-DE': '← Blog', 'it-IT': '← Blog',
+}
+
+const blogLink = computed(() => {
+  const l = lang.value
+  if (!l || l === 'en-US') return '/blog/'
+  return `/${l}/blog/`
+})
+
 const formattedDate = computed(() => {
   if (!frontmatter.value.date) return ''
   const locale = dateLocaleMap[lang.value] || 'en-US'
@@ -31,6 +45,7 @@ const formattedDate = computed(() => {
 
 <template>
   <div v-if="isBlogPost" class="blog-post-header">
+    <a :href="blogLink" class="blog-back-link">{{ backLabel[lang] || '← Blog' }}</a>
     <h1>{{ frontmatter.title }}</h1>
     <div class="blog-post-meta">
       <time v-if="formattedDate">{{ formattedDate }}</time>
@@ -44,6 +59,18 @@ const formattedDate = computed(() => {
 </template>
 
 <style>
+.blog-back-link {
+  display: inline-block;
+  font-size: 14px;
+  color: var(--vp-c-brand-1);
+  text-decoration: none;
+  margin-bottom: 16px;
+}
+
+.blog-back-link:hover {
+  text-decoration: underline;
+}
+
 .blog-post-header {
   margin-bottom: 32px;
 }
