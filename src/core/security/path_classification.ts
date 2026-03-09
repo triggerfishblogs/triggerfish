@@ -231,7 +231,10 @@ function remapSandboxPath(
 ): string | null {
   if (!workspacePaths || !expanded.startsWith("/")) return null;
   // Check if the path already falls within the real workspace
-  if (expanded.startsWith(workspacePaths.basePath)) return null;
+  if (
+    expanded === workspacePaths.basePath ||
+    expanded.startsWith(workspacePaths.basePath + "/")
+  ) return null;
   // "/" → basePath, "/foo" → basePath/foo
   if (expanded === "/") return workspacePaths.basePath;
   return join(workspacePaths.basePath, expanded);

@@ -325,6 +325,30 @@ Deno.test("path classification: sandbox '/confidential' remaps to workspace conf
   assertEquals(result.source, "workspace");
 });
 
+Deno.test("path classification: sandbox traversal escaping workspace gets default (safe)", () => {
+  const basePath = "/tmp/workspaces/agent-1";
+  const ws = makeWorkspacePaths(basePath);
+  const classifier = createPathClassifier(makeConfig(), ws, {
+    resolveCwd: () => join(basePath, "public"),
+  });
+  // Traversal that escapes workspace resolves outside basePath → default CONFIDENTIAL (safe)
+  const result = classifier.classify("/public/../../confidential/file.txt");
+  assertEquals(result.classification, "CONFIDENTIAL");
+  assertEquals(result.source, "default");
+});
+
+Deno.test("path classification: sandbox traversal within workspace classifies correctly", () => {
+  const basePath = "/tmp/workspaces/agent-1";
+  const ws = makeWorkspacePaths(basePath);
+  const classifier = createPathClassifier(makeConfig(), ws, {
+    resolveCwd: () => join(basePath, "public"),
+  });
+  // "/public/../internal/file.txt" → basePath + "/internal/file.txt"
+  const result = classifier.classify("/public/../internal/file.txt");
+  assertEquals(result.classification, "INTERNAL");
+  assertEquals(result.source, "workspace");
+});
+
 Deno.test("path classification: real absolute workspace path is not double-remapped", () => {
   const basePath = "/tmp/workspaces/agent-1";
   const ws = makeWorkspacePaths(basePath);
