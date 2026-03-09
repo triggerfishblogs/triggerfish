@@ -16,6 +16,9 @@ import type { TidepoolMemoryHandler } from "./host_memory.ts";
 import type { TidepoolConfigHandler } from "./host_config.ts";
 import type { LogLevel } from "../screens/logs.ts";
 import { trySendSocketPayload } from "./host_broadcast.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("tidepool-dispatch");
 
 /** Send a JSON response to a single socket. */
 function reply(
@@ -130,7 +133,8 @@ export function createMemoryTopicDispatcher(
         .then((result) => {
           reply(socket, { topic: "memory", type: "search_results", ...result });
         })
-        .catch(() => {
+        .catch((err: unknown) => {
+          log.warn("Memory search dispatch failed", { operation: "search", err });
           reply(socket, {
             topic: "memory",
             type: "search_results",
@@ -144,7 +148,8 @@ export function createMemoryTopicDispatcher(
         .then((tags) => {
           reply(socket, { topic: "memory", type: "tags", tags });
         })
-        .catch(() => {
+        .catch((err: unknown) => {
+          log.warn("Memory tags dispatch failed", { operation: "tags", err });
           reply(socket, { topic: "memory", type: "tags", tags: [] });
         });
     } else if (action === "get") {
@@ -155,7 +160,8 @@ export function createMemoryTopicDispatcher(
           .then((entry) => {
             reply(socket, { topic: "memory", type: "entry", entry });
           })
-          .catch(() => {
+          .catch((err: unknown) => {
+            log.warn("Memory get dispatch failed", { operation: "get", id, err });
             reply(socket, { topic: "memory", type: "entry", entry: null });
           });
       }
@@ -167,7 +173,8 @@ export function createMemoryTopicDispatcher(
           .then((ok) => {
             reply(socket, { topic: "memory", type: "deleted", id, ok });
           })
-          .catch(() => {
+          .catch((err: unknown) => {
+            log.warn("Memory delete dispatch failed", { operation: "delete", id, err });
             reply(socket, { topic: "memory", type: "deleted", id, ok: false });
           });
       }
