@@ -5,7 +5,7 @@ description: "Introducing the Triggerfish blog where we will share updates, tech
 author: "Triggerfish"
 tags:
   - announcement
-draft: true
+draft: false
 ---
 
 # Welcome to the Triggerfish Blog
