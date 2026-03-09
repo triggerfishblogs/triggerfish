@@ -5,6 +5,9 @@
  */
 
 import type { LogEntry, LogFilter } from "../screens/logs.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("tidepool-logs");
 
 
 /** Maximum number of buffered log lines. */
@@ -68,8 +71,8 @@ export function createTidepoolLogSink(): TidepoolLogSink {
             if (sub.socket.readyState === WebSocket.OPEN) {
               sub.socket.send(json);
             }
-          } catch {
-            // Subscriber may have disconnected
+          } catch (err) {
+            log.debug("Log subscriber send failed", { err });
           }
         }
       }
@@ -89,8 +92,8 @@ export function createTidepoolLogSink(): TidepoolLogSink {
         if (socket.readyState === WebSocket.OPEN) {
           socket.send(json);
         }
-      } catch {
-        // Socket may have closed
+      } catch (err) {
+        log.debug("Log backfill send failed", { err });
       }
     },
 

@@ -7,6 +7,7 @@
  * @module
  */
 
+import { createLogger } from "../../../core/logger/mod.ts";
 import {
   createTidepoolAgentsHandler,
   createTidepoolConfigHandler,
@@ -26,6 +27,8 @@ import type { CoreInfraResult } from "../infra/core_infra.ts";
 import type { ToolInfraResult } from "../tools/tool_infra.ts";
 import { startTidepoolHost } from "./chat_session.ts";
 import { createHealthSnapshotProvider } from "./tidepool_health.ts";
+
+const log = createLogger("tidepool-topics");
 
 /** Register WebSocket topic handlers for all Tidepool screens. */
 export function registerTidepoolTopicHandlers(
@@ -128,15 +131,15 @@ function wireTidepoolLogSink(
   try {
     const stat = Deno.statSync(logPath);
     lastSize = stat.size;
-  } catch {
-    // Log file may not exist yet
+  } catch (err) {
+    log.debug("Log file not found at startup, will poll", { err });
   }
 
   const interval = setInterval(() => {
     try {
       lastSize = pollLogFile(sink, logPath, lastSize);
-    } catch {
-      // File may be rotated or temporarily unavailable
+    } catch (err) {
+      log.debug("Log file poll failed, may be rotated", { err });
     }
   }, 1000);
 
@@ -229,8 +232,8 @@ export async function buildAgentSessionListAsync(
           history: serializeTaintHistory(s.history ?? []),
         });
       }
-    } catch {
-      // Session manager may not support listing
+    } catch (err) {
+      log.debug("Session list retrieval failed", { err });
     }
   }
 
