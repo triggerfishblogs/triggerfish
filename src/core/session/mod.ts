@@ -21,3 +21,10 @@ export { createLineageStore } from "./lineage.ts";
 
 export type { RetentionConfig } from "./retention.ts";
 export { applyRetention } from "./retention.ts";
+
+export {
+  BUMPER_BLOCK_MESSAGE,
+  BUMPERS_SYSTEM_PROMPT,
+  toggleBumpers,
+  wouldBumpersBlock,
+} from "./bumpers.ts";

@@ -93,6 +93,8 @@ export function buildMainChatSession(
       isOwnerSession: () => isOwnerTurnRef.value,
     },
     isOwnerTurnRef,
+    storage: coreInfra.storage,
+    ownerId: "owner",
   });
 }
 

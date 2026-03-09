@@ -178,6 +178,11 @@ export interface OrchestratorConfig {
     tools: readonly ToolDefinition[],
     isOwner: boolean,
   ) => readonly ToolDefinition[];
+  /**
+   * Check if bumpers would block taint escalation to the given level.
+   * Returns the block message if blocked, null otherwise.
+   */
+  readonly checkBumpersBlock?: (level: ClassificationLevel) => string | null;
 }
 
 /** Config shape for building integration/plugin/channel classification map. */

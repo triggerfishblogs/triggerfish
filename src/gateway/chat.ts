@@ -591,5 +591,14 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     get sessionTaint() {
       return getSessionTaint();
     },
+    toggleBumpers() {
+      if (config.toggleSessionBumpers) {
+        return config.toggleSessionBumpers();
+      }
+      return false;
+    },
+    get bumpersEnabled() {
+      return config.getBumpersEnabled?.() ?? true;
+    },
   };
 }

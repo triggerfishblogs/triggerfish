@@ -230,6 +230,15 @@ function drainPendingTriggerPrompt(ctx: RouterContext): void {
   }
 }
 
+function routeBumpersStatusEvent(
+  evt: Extract<ChatEvent, { type: "bumpers_status" }>,
+  ctx: RouterContext,
+): void {
+  const label = evt.enabled ? "Bumpers deployed." : "No bumpers deployed.";
+  ctx.screen.writeOutput(`  ${label}`);
+  if (ctx.isTty) ctx.screen.redrawInput(ctx.editor);
+}
+
 function routeCancelledEvent(ctx: RouterContext): void {
   if (ctx.isTty) {
     ctx.screen.stopSpinner();
@@ -378,6 +387,11 @@ function dispatchChatEvent(
     case "credential_prompt":
       return routeCredentialPromptEvent(
         evt as Extract<ChatEvent, { type: "credential_prompt" }>,
+        ctx,
+      );
+    case "bumpers_status":
+      return routeBumpersStatusEvent(
+        evt as Extract<ChatEvent, { type: "bumpers_status" }>,
         ctx,
       );
     case "cancelled":
