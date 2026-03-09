@@ -40,12 +40,14 @@ function buildHealthCards(
   const cards: HealthMetricCard[] = [];
   const rawConfig = bootstrap.config as unknown as Record<string, unknown>;
 
+  const gatewayPort = (rawConfig.gateway as Record<string, unknown> | undefined)
+    ?.port ?? 18789;
   cards.push({
     id: "gateway",
     label: "Gateway",
     status: "green" as StatusLevel,
     value: "Running",
-    detail: "Port 18789",
+    detail: `Port ${gatewayPort}`,
   });
 
   const provider = bootstrap.config.models?.primary;

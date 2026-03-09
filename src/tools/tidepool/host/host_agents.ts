@@ -57,7 +57,10 @@ export function createTidepoolAgentsHandler(): TidepoolAgentsHandler {
     },
 
     subscribeSession(socket: WebSocket, sessionId: string): void {
-      sessionSubscribers.push({ socket, sessionId });
+      const exists = sessionSubscribers.some(
+        (s) => s.socket === socket && s.sessionId === sessionId,
+      );
+      if (!exists) sessionSubscribers.push({ socket, sessionId });
     },
 
     unsubscribeSession(socket: WebSocket, sessionId: string): void {

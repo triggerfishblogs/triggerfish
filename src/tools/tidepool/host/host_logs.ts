@@ -79,6 +79,8 @@ export function createTidepoolLogSink(): TidepoolLogSink {
     },
 
     subscribe(socket: WebSocket, filter: LogFilter): void {
+      const existing = subscribers.findIndex((s) => s.socket === socket);
+      if (existing >= 0) subscribers.splice(existing, 1);
       subscribers.push({ socket, filter });
 
       // Send buffered lines that match filter

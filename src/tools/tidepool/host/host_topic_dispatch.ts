@@ -208,13 +208,13 @@ export function createSettingsTopicDispatcher(
         })
         .catch((err: unknown) => {
           log.warn("Settings get_section dispatch failed", { operation: "get_section", section, err });
-          const message = err instanceof Error ? err.message : String(err);
+          const errMessage = err instanceof Error ? err.message : String(err);
           reply(socket, {
             topic: "settings",
             type: "section_data",
             section,
             data: {},
-            error: message,
+            error: errMessage,
           });
         });
     } else if (action === "update") {
@@ -235,13 +235,13 @@ export function createSettingsTopicDispatcher(
         })
         .catch((err: unknown) => {
           log.warn("Settings update dispatch failed", { operation: "update", section, err });
-          const message = err instanceof Error ? err.message : String(err);
+          const errMessage = err instanceof Error ? err.message : String(err);
           reply(socket, {
             topic: "settings",
             type: "update_result",
             section,
             valid: false,
-            errors: [{ field: "_", message }],
+            errors: [{ field: "_", message: errMessage }],
           });
         });
     }

@@ -133,39 +133,68 @@ function wireTidepoolLogSink(
   const logPath = `${home}/.triggerfish/logs/triggerfish.log`;
 
   let lastSize = 0;
-  try {
-    const stat = Deno.statSync(logPath);
-    lastSize = stat.size;
-  } catch (err) {
-    log.debug("Log file not found at startup, will poll", { err });
-  }
-
-  const interval = setInterval(() => {
-    try {
-      lastSize = pollLogFile(sink, logPath, lastSize);
-    } catch (err) {
-      log.debug("Log file poll failed, may be rotated", { err });
-    }
-  }, 1000);
-
-  Deno.unrefTimer(interval);
+  Deno.stat(logPath)
+    .then((stat) => {
+      lastSize = stat.size;
+    })
+    .catch((err: unknown) => {
+      log.debug("Log file not found at startup, will poll", { err });
+    })
+    .finally(() => {
+      startLogPollLoop(sink, logPath, lastSize);
+    });
 }
 
-/** Read new lines from the log file and feed them to the sink. */
-function pollLogFile(
+/** Start async poll loop using setTimeout to avoid blocking the event loop. */
+function startLogPollLoop(
+  sink: ReturnType<typeof createTidepoolLogSink>,
+  logPath: string,
+  initialSize: number,
+): void {
+  let lastSize = initialSize;
+  const tick = (): void => {
+    pollLogFileAsync(sink, logPath, lastSize)
+      .then((newSize) => {
+        lastSize = newSize;
+      })
+      .catch((err: unknown) => {
+        log.debug("Log file poll failed, may be rotated", { err });
+      })
+      .finally(() => {
+        const timer = setTimeout(tick, 1000);
+        Deno.unrefTimer(timer);
+      });
+  };
+  const timer = setTimeout(tick, 1000);
+  Deno.unrefTimer(timer);
+}
+
+/** Read new lines from the log file and feed them to the sink (async). */
+async function pollLogFileAsync(
   sink: ReturnType<typeof createTidepoolLogSink>,
   logPath: string,
   lastSize: number,
-): number {
-  const stat = Deno.statSync(logPath);
+): Promise<number> {
+  const stat = await Deno.stat(logPath);
   if (stat.size <= lastSize) return lastSize;
 
-  const file = Deno.openSync(logPath, { read: true });
-  file.seekSync(lastSize, Deno.SeekMode.Start);
-  const buf = new Uint8Array(stat.size - lastSize);
-  file.readSync(buf);
-  file.close();
+  const file = await Deno.open(logPath, { read: true });
+  try {
+    await file.seek(lastSize, Deno.SeekMode.Start);
+    const buf = new Uint8Array(stat.size - lastSize);
+    await file.read(buf);
+    feedLogLinesToSink(sink, buf);
+  } finally {
+    file.close();
+  }
+  return stat.size;
+}
 
+/** Parse log lines from raw bytes and write entries to the sink. */
+function feedLogLinesToSink(
+  sink: ReturnType<typeof createTidepoolLogSink>,
+  buf: Uint8Array,
+): void {
   const text = new TextDecoder().decode(buf);
   const lines = text.split("\n").filter((l) => l.length > 0);
   const logLineRegex = /^\[([^\]]+)\]\s+\[(\w+)\]\s+\[([^\]]+)\]\s+(.*)/;
@@ -181,7 +210,6 @@ function pollLogFile(
       });
     }
   }
-  return stat.size;
 }
 
 /** Serialize taint history events for client transport. */
