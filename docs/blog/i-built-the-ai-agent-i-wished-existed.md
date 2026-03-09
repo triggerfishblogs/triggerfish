@@ -17,6 +17,8 @@ tags:
   - triggerfish
 draft: false
 ---
+![Trigger with a Claw](/blog/images/gemini_generated_image_ygq4uwygq4uwygq4.png "Trigger with a Claw")
+
 A while back I started paying close attention to what AI agents could actually do. Not the demos. The real ones, running on real data, in real environments where mistakes have consequences. What I found was that the capability was genuinely there. You could wire an agent into your email, your calendar, your code, your files, and it could do meaningful work. That part impressed me.
 
 What didn't impress me was the security model. Or rather, the absence of one. Every platform I looked at was enforcing its rules the same way: by telling the model what it wasn't supposed to do. Write a good system prompt, describe the boundaries, trust the model to stay inside them. That works until someone figures out how to phrase a request that convinces the model the rules don't apply here, right now, in this specific case. And people do figure that out. It's not that hard.
@@ -33,4 +35,4 @@ I open-sourced the enforcement core for exactly that reason. If you can't read i
 
 The platform is free for individuals and you can run it yourself. If you'd rather not think about the infrastructure, there's a subscription option where we handle the model and search. Either way, the security model is the same.
 
-This is the agent I wished existed two years ago. I think a lot of people have been waiting for the same thing.
+This is the agent I wished existed then. I think a lot of people have been waiting for the same thing.
