@@ -52,9 +52,9 @@ import {
 } from "./locales/mod.ts";
 
 export default defineConfig({
-  title: "Triggerfish",
+  title: "Triggerfish | Multi Channel AI Agent | AI Assistant",
   description:
-    "Secure, multi-channel AI agent platform with deterministic policy enforcement below the LLM layer.",
+    "Secure, multi-channel AI agent platform with deterministic policy enforcement below the LLM layer. | AI Assistant",
   lang: "en-US",
   appearance: "force-dark",
   ignoreDeadLinks: true,
