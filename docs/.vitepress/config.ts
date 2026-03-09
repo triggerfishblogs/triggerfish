@@ -61,6 +61,7 @@ export default defineConfig({
 
   head: [
     ["link", { rel: "icon", type: "image/png", href: "/triggerfish.png" }],
+    ["meta", { name: "google-site-verification", content: "ldCxz0D3v6Gq7KqvM3HRbUUVWAlAaoIfF81Or8r8jjg" }],
 
     // OpenGraph
     ["meta", {
