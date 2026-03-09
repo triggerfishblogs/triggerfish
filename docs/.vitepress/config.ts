@@ -1,4 +1,37 @@
 import { defineConfig } from "vitepress";
+import fs from "node:fs";
+import path from "node:path";
+
+function getBlogSidebar() {
+  const blogDir = path.resolve(__dirname, "../blog");
+  if (!fs.existsSync(blogDir)) return [];
+  const files = fs.readdirSync(blogDir).filter(
+    (f) => f.endsWith(".md") && f !== "index.md"
+  );
+  const posts: { title: string; link: string; date: string }[] = [];
+  for (const file of files) {
+    const content = fs.readFileSync(path.join(blogDir, file), "utf-8");
+    const match = content.match(/^---\n([\s\S]*?)\n---/);
+    if (!match) continue;
+    const fm = match[1];
+    const titleMatch = fm.match(/^title:\s*["']?(.+?)["']?\s*$/m);
+    const dateMatch = fm.match(/^date:\s*["']?(.+?)["']?\s*$/m);
+    const draftMatch = fm.match(/^draft:\s*true/m);
+    if (draftMatch) continue;
+    posts.push({
+      title: titleMatch ? titleMatch[1] : file.replace(".md", ""),
+      link: `/blog/${file.replace(".md", "")}`,
+      date: dateMatch ? dateMatch[1] : "1970-01-01",
+    });
+  }
+  posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return [
+    {
+      text: "Recent Posts",
+      items: posts.slice(0, 10).map((p) => ({ text: p.title, link: p.link })),
+    },
+  ];
+}
 import {
   enUS,
   enGB,
@@ -346,6 +379,7 @@ export default defineConfig({
           ],
         },
       ],
+      "/blog/": getBlogSidebar(),
     },
 
     socialLinks: [

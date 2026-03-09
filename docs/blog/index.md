@@ -1,7 +1,6 @@
 ---
 layout: page
 title: Blog
-sidebar: false
 aside: false
 editLink: false
 lastUpdated: false
