@@ -33,4 +33,4 @@ I open-sourced the enforcement core for exactly that reason. If you can't read i
 
 The platform is free for individuals and you can run it yourself. If you'd rather not think about the infrastructure, there's a subscription option where we handle the model and search. Either way, the security model is the same.
 
-This is the agent I wished existed two years ago. I think a lot of people have been waiting for the same thing.
+This is the agent I wished existed then. I think a lot of people have been waiting for the same thing.
