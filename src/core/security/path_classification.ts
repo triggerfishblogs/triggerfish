@@ -216,6 +216,28 @@ export interface PathClassifierOptions {
 }
 
 /**
+ * Remap an absolute sandbox path to a real workspace path.
+ *
+ * The filesystem sandbox presents the workspace as `/`. Absolute paths
+ * like `/` or `/public` from the sandbox must be mapped to the real
+ * workspace basePath before classification, otherwise `resolve(cwd, "/")`
+ * returns the filesystem root and falls through to the default level.
+ *
+ * Returns null if no remapping applies (no workspace or non-absolute path).
+ */
+function remapSandboxPath(
+  expanded: string,
+  workspacePaths?: WorkspacePaths,
+): string | null {
+  if (!workspacePaths || !expanded.startsWith("/")) return null;
+  // Check if the path already falls within the real workspace
+  if (expanded.startsWith(workspacePaths.basePath)) return null;
+  // "/" → basePath, "/foo" → basePath/foo
+  if (expanded === "/") return workspacePaths.basePath;
+  return join(workspacePaths.basePath, expanded);
+}
+
+/**
  * Create a path classifier.
  *
  * @param config - Filesystem security configuration (path mappings + default)
@@ -233,9 +255,10 @@ export function createPathClassifier(
   return {
     classify(inputPath: string): PathClassificationResult {
       const expanded = expandTilde(inputPath);
-      const absolutePath = opts?.resolveCwd
-        ? resolve(opts.resolveCwd(), expanded)
-        : resolve(expanded);
+      const absolutePath = remapSandboxPath(expanded, workspacePaths)
+        ?? (opts?.resolveCwd
+          ? resolve(opts.resolveCwd(), expanded)
+          : resolve(expanded));
       return resolvePathClassification(
         absolutePath,
         homeDir,

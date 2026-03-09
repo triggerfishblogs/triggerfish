@@ -31,6 +31,7 @@ function makeConfig(
 function makeWorkspacePaths(basePath: string): WorkspacePaths {
   return {
     basePath,
+    publicPath: join(basePath, "public"),
     internalPath: join(basePath, "internal"),
     confidentialPath: join(basePath, "confidential"),
     restrictedPath: join(basePath, "restricted"),
@@ -287,4 +288,50 @@ Deno.test("path classification: hardcoded > workspace > configured > default", (
   const r2 = classifier.classify(join(basePath, "internal", "notes.txt"));
   assertEquals(r2.classification, "INTERNAL");
   assertEquals(r2.source, "workspace");
+});
+
+// --- Sandbox path remapping ---
+
+Deno.test("path classification: sandbox root '/' remaps to workspace basePath (PUBLIC)", () => {
+  const basePath = "/tmp/workspaces/agent-1";
+  const ws = makeWorkspacePaths(basePath);
+  const classifier = createPathClassifier(makeConfig(), ws, {
+    resolveCwd: () => join(basePath, "public"),
+  });
+  const result = classifier.classify("/");
+  assertEquals(result.classification, "PUBLIC");
+  assertEquals(result.source, "workspace");
+});
+
+Deno.test("path classification: sandbox '/public' remaps to workspace public dir", () => {
+  const basePath = "/tmp/workspaces/agent-1";
+  const ws = makeWorkspacePaths(basePath);
+  const classifier = createPathClassifier(makeConfig(), ws, {
+    resolveCwd: () => join(basePath, "public"),
+  });
+  const result = classifier.classify("/public");
+  assertEquals(result.classification, "PUBLIC");
+  assertEquals(result.source, "workspace");
+});
+
+Deno.test("path classification: sandbox '/confidential' remaps to workspace confidential dir", () => {
+  const basePath = "/tmp/workspaces/agent-1";
+  const ws = makeWorkspacePaths(basePath);
+  const classifier = createPathClassifier(makeConfig(), ws, {
+    resolveCwd: () => join(basePath, "public"),
+  });
+  const result = classifier.classify("/confidential");
+  assertEquals(result.classification, "CONFIDENTIAL");
+  assertEquals(result.source, "workspace");
+});
+
+Deno.test("path classification: real absolute workspace path is not double-remapped", () => {
+  const basePath = "/tmp/workspaces/agent-1";
+  const ws = makeWorkspacePaths(basePath);
+  const classifier = createPathClassifier(makeConfig(), ws, {
+    resolveCwd: () => join(basePath, "public"),
+  });
+  const result = classifier.classify(join(basePath, "internal", "file.txt"));
+  assertEquals(result.classification, "INTERNAL");
+  assertEquals(result.source, "workspace");
 });
