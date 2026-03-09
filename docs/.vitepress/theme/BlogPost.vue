@@ -2,16 +2,26 @@
 import { computed } from 'vue'
 import { useData, useRoute } from 'vitepress'
 
-const { frontmatter } = useData()
+const { frontmatter, lang } = useData()
 const route = useRoute()
 
-const isBlogPost = computed(() =>
-  route.path.startsWith('/blog/') && route.path !== '/blog/'
-)
+const isBlogPost = computed(() => {
+  const p = route.path
+  // Match /blog/post or /xx-XX/blog/post, but not /blog/ index pages
+  return /\/(blog\/)(?!$).+/.test(p)
+})
+
+const dateLocaleMap = {
+  'en-US': 'en-US', 'en-GB': 'en-GB', 'es-419': 'es', 'es-ES': 'es-ES',
+  'fr-FR': 'fr-FR', 'zh-CN': 'zh-CN', 'zh-TW': 'zh-TW', 'ko-KR': 'ko-KR',
+  'hi-IN': 'hi-IN', 'ar-SA': 'ar-SA', 'fil-PH': 'fil-PH', 'he-IL': 'he-IL',
+  'fa-IR': 'fa-IR', 'pt-BR': 'pt-BR', 'de-DE': 'de-DE', 'it-IT': 'it-IT',
+}
 
 const formattedDate = computed(() => {
   if (!frontmatter.value.date) return ''
-  return new Date(frontmatter.value.date).toLocaleDateString('en-US', {
+  const locale = dateLocaleMap[lang.value] || 'en-US'
+  return new Date(frontmatter.value.date).toLocaleDateString(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
