@@ -1,7 +1,5 @@
 ---
-layout: page
 title: Blog
-aside: false
 editLink: false
 lastUpdated: false
 ---
@@ -34,9 +32,7 @@ import { data as posts } from './posts.data.ts'
 
 <style>
 .blog-index {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 24px 0;
+  padding: 8px 0;
 }
 
 .blog-index h1 {
