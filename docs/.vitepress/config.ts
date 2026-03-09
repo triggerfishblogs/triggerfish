@@ -116,6 +116,7 @@ export default defineConfig({
       { text: "Features", link: "/features/" },
       { text: "Reference", link: "/reference/" },
       { text: "Support", link: "/support/" },
+      { text: "Blog", link: "/blog/" },
     ],
 
     sidebar: {
