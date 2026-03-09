@@ -8,7 +8,7 @@ backend:
 publish_mode: editorial_workflow
 
 media_folder: docs/blog/images
-public_folder: https://trigger.fish/blog/images
+public_folder: /blog/images
 
 collections:
   - name: blog
