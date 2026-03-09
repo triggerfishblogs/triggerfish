@@ -17,7 +17,7 @@ tags:
   - triggerfish
 draft: false
 ---
-![Trigger with a Claw](https://trigger.fish/blog/images/gemini_generated_image_50pl5550pl5550pl.png "Trigger with a Claw")
+![](https://trigger.fish/blog/images/gemini_generated_image_ygq4uwygq4uwygq4.png)
 
 A while back I started paying close attention to what AI agents could actually do. Not the demos. The real ones, running on real data, in real environments where mistakes have consequences. What I found was that the capability was genuinely there. You could wire an agent into your email, your calendar, your code, your files, and it could do meaningful work. That part impressed me.
 
