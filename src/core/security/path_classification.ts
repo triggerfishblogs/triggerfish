@@ -258,10 +258,10 @@ export function createPathClassifier(
   return {
     classify(inputPath: string): PathClassificationResult {
       const expanded = expandTilde(inputPath);
-      const absolutePath = remapSandboxPath(expanded, workspacePaths)
-        ?? (opts?.resolveCwd
-          ? resolve(opts.resolveCwd(), expanded)
-          : resolve(expanded));
+      const absolutePath = (opts?.resolveCwd
+        ? remapSandboxPath(expanded, workspacePaths) ??
+          resolve(opts.resolveCwd(), expanded)
+        : resolve(expanded));
       return resolvePathClassification(
         absolutePath,
         homeDir,

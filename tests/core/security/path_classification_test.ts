@@ -349,6 +349,17 @@ Deno.test("path classification: sandbox traversal within workspace classifies co
   assertEquals(result.source, "workspace");
 });
 
+Deno.test("path classification: hardcoded paths remain RESTRICTED with workspacePaths (no sandbox)", () => {
+  const basePath = "/tmp/workspaces/agent-1";
+  const ws = makeWorkspacePaths(basePath);
+  const home = resolveHome();
+  // No resolveCwd = no sandbox; hardcoded paths must not be remapped
+  const classifier = createPathClassifier(makeConfig(), ws);
+  const result = classifier.classify(join(home, ".triggerfish", "data", "triggerfish.db"));
+  assertEquals(result.classification, "RESTRICTED");
+  assertEquals(result.source, "hardcoded");
+});
+
 Deno.test("path classification: real absolute workspace path is not double-remapped", () => {
   const basePath = "/tmp/workspaces/agent-1";
   const ws = makeWorkspacePaths(basePath);
