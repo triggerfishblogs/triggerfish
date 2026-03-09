@@ -15,112 +15,169 @@ import type { StatusLevel } from "../../../tools/tidepool/components/status_dot.
 
 /** Create a health snapshot provider from available services. */
 export function createHealthSnapshotProvider(
-  _coreInfra: CoreInfraResult,
+  coreInfra: CoreInfraResult,
   bootstrap: BootstrapResult,
 ): () => Promise<HealthSnapshot> {
-  // deno-lint-ignore require-await
   return async () => {
-    const cards = buildHealthCards(bootstrap);
-    const hasRed = cards.some((c) => c.status === "red");
-    const hasYellow = cards.some((c) => c.status === "yellow");
-    const overall = hasRed
-      ? "CRITICAL" as const
-      : hasYellow
-        ? "WARNING" as const
-        : "HEALTHY" as const;
-
-    return { overall, cards, timestamp: new Date().toISOString() };
+    const cards = await buildHealthCards(bootstrap, coreInfra);
+    return {
+      overall: deriveOverallStatus(cards),
+      cards,
+      timestamp: new Date().toISOString(),
+    };
   };
 }
 
-/** Assemble health metric cards from config state. */
-function buildHealthCards(
-  bootstrap: BootstrapResult,
-): HealthMetricCard[] {
-  const cards: HealthMetricCard[] = [];
-  const rawConfig = bootstrap.config as unknown as Record<string, unknown>;
+/** Derive the overall status from the worst card status. */
+function deriveOverallStatus(
+  cards: readonly HealthMetricCard[],
+): "HEALTHY" | "WARNING" | "CRITICAL" {
+  if (cards.some((c) => c.status === "red")) return "CRITICAL";
+  if (cards.some((c) => c.status === "yellow")) return "WARNING";
+  return "HEALTHY";
+}
 
-  const gatewayPort = (rawConfig.gateway as Record<string, unknown> | undefined)
+/** Assemble all health metric cards. */
+async function buildHealthCards(
+  bootstrap: BootstrapResult,
+  coreInfra: CoreInfraResult,
+): Promise<HealthMetricCard[]> {
+  const rawConfig = bootstrap.config as unknown as Record<string, unknown>;
+  return [
+    buildGatewayCard(rawConfig),
+    buildLlmCard(bootstrap),
+    await buildSessionsCard(coreInfra),
+    buildChannelsCard(bootstrap),
+    buildPolicyCard(bootstrap),
+    buildSkillsCard(rawConfig),
+    buildSecretsCard(),
+    buildSecurityCard(rawConfig),
+    buildSchedulerCard(bootstrap),
+  ];
+}
+
+/** Gateway status card. */
+function buildGatewayCard(
+  rawConfig: Record<string, unknown>,
+): HealthMetricCard {
+  const port = (rawConfig.gateway as Record<string, unknown> | undefined)
     ?.port ?? 18789;
-  cards.push({
+  return {
     id: "gateway",
     label: "Gateway",
     status: "green" as StatusLevel,
     value: "Running",
-    detail: `Port ${gatewayPort}`,
-  });
+    detail: `Port ${port}`,
+  };
+}
 
+/** LLM provider card. */
+function buildLlmCard(bootstrap: BootstrapResult): HealthMetricCard {
   const provider = bootstrap.config.models?.primary;
-  cards.push({
+  return {
     id: "llm",
     label: "LLM Provider",
     status: (provider ? "green" : "red") as StatusLevel,
     value: provider
       ? `${provider.provider}:${provider.model}`
       : "Not configured",
-  });
+  };
+}
 
-  cards.push({
+/** Active sessions card with live count from session manager. */
+async function buildSessionsCard(
+  coreInfra: CoreInfraResult,
+): Promise<HealthMetricCard> {
+  let count = 1; // main session always exists
+  if (coreInfra.enhancedSessionManager) {
+    try {
+      const managed = await coreInfra.enhancedSessionManager.sessionsList();
+      count += managed.length;
+    } catch {
+      // Fall back to main session only
+    }
+  }
+  return {
     id: "sessions",
     label: "Sessions",
     status: "green" as StatusLevel,
-    value: "1",
-  });
+    value: String(count),
+  };
+}
 
+/** Channels card. */
+function buildChannelsCard(bootstrap: BootstrapResult): HealthMetricCard {
   const channelKeys = Object.keys(bootstrap.config.channels ?? {});
-  cards.push({
+  return {
     id: "channels",
     label: "Channels",
     status: (channelKeys.length > 0 ? "green" : "yellow") as StatusLevel,
     value: `${channelKeys.length} configured`,
-  });
+  };
+}
 
+/** Policy card. */
+function buildPolicyCard(bootstrap: BootstrapResult): HealthMetricCard {
   const classMode = bootstrap.config.classification?.mode;
-  cards.push({
+  return {
     id: "policy",
     label: "Policy",
     status: "green" as StatusLevel,
     value: classMode ? `Mode: ${classMode}` : "Default",
-  });
+  };
+}
 
+/** Skills card. */
+function buildSkillsCard(
+  rawConfig: Record<string, unknown>,
+): HealthMetricCard {
   const skillsObj = rawConfig.skills as Record<string, unknown> | undefined;
   const skillCount = Array.isArray(skillsObj?.installed)
     ? (skillsObj!.installed as unknown[]).length
     : 0;
-  cards.push({
+  return {
     id: "skills",
     label: "Skills",
     status: "green" as StatusLevel,
     value: `${skillCount} installed`,
-  });
+  };
+}
 
-  cards.push({
+/** Secrets card. */
+function buildSecretsCard(): HealthMetricCard {
+  return {
     id: "secrets",
     label: "Secrets",
     status: "green" as StatusLevel,
     value: "Keychain",
-  });
+  };
+}
 
+/** Security card. */
+function buildSecurityCard(
+  rawConfig: Record<string, unknown>,
+): HealthMetricCard {
   const securityObj = rawConfig.security as
     | Record<string, unknown>
     | undefined;
   const dmPolicy = securityObj?.dmPolicy as string | undefined;
-  cards.push({
+  return {
     id: "security",
     label: "Security",
     status: "green" as StatusLevel,
     value: dmPolicy ? `DM: ${dmPolicy}` : "Default",
-  });
+  };
+}
 
+/** Scheduler card. */
+function buildSchedulerCard(bootstrap: BootstrapResult): HealthMetricCard {
   const trigger = bootstrap.config.scheduler?.trigger;
-  cards.push({
+  return {
     id: "cron",
     label: "Scheduler",
     status: (trigger?.enabled ? "green" : "yellow") as StatusLevel,
     value: trigger?.enabled
       ? `Trigger every ${trigger.interval_minutes ?? 30}m`
       : "Disabled",
-  });
-
-  return cards;
+  };
 }

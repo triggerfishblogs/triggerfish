@@ -273,7 +273,7 @@ export async function buildAgentSessionListAsync(
         });
       }
     } catch (err) {
-      log.debug("Session list retrieval failed", { err });
+      log.warn("Session list retrieval failed", { operation: "sessionsList", err });
     }
   }
 
