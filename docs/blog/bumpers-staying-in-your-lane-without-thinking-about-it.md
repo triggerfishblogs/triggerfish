@@ -13,7 +13,7 @@ tags:
   - triggerfish
 draft: false
 ---
-![](/blog/images/chatgpt-image-mar-9-2026-04_07_56-pm.png "Title Graphic on Bumpers Keeping you in your lane")
+![](/blog/images/chatgpt-image-mar-9-2026-04_07_56-pm.jpg "Title Graphic on Bumpers Keeping you in your lane")
 
 One of the things that makes AI agents genuinely useful is also what makes them occasionally alarming. Give an agent access to your tools and it will use them. All of them, if the task seems to call for it. You ask it to help draft a message and it reaches into your calendar to check availability, pulls some context from a file, checks a Slack thread. Before you know it, a simple task has touched three different data sources at three different classification levels and your session is now tainted to a level you didn't intend to work at.
 
@@ -29,7 +29,7 @@ Bumpers are on by default. When your session starts, you'll see "Bumpers deploye
 
 The important thing to understand about what bumpers do and don't do. They are not a general-purpose restriction on the agent. They don't limit what tools the agent can call, what data it can read, or how it handles anything within the current classification level. If your session is already tainted to CONFIDENTIAL and the agent accesses another CONFIDENTIAL resource, bumpers have nothing to say about it. The taint isn't moving. Bumpers only care about escalation.
 
-![](/blog/images/gemini_generated_image_4ovbs34ovbs34ovb.png)
+![](/blog/images/gemini_generated_image_4ovbs34ovbs34ovb.jpg)
 
 This matters because bumpers are designed to stay out of your way. The whole point is that you shouldn't have to think about classification levels during a normal working session. You set bumpers on, you work, and if the agent reaches for something that would change the nature of your session it stops and tells you. You decide whether to unlock it. That's the entire interaction.
 
