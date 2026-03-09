@@ -148,7 +148,7 @@ export function createMemoryTopicDispatcher(
         });
     } else if (action === "tags") {
       handler
-        .tags()
+        .tags(taint)
         .then((tags) => {
           reply(socket, { topic: "memory", type: "tags", tags });
         })
@@ -173,7 +173,7 @@ export function createMemoryTopicDispatcher(
       const id = payload.id as string;
       if (id) {
         handler
-          .delete(id)
+          .delete(id, taint)
           .then((ok) => {
             reply(socket, { topic: "memory", type: "deleted", id, ok });
           })
@@ -206,13 +206,15 @@ export function createSettingsTopicDispatcher(
             data,
           });
         })
-        .catch((err: Error) => {
+        .catch((err: unknown) => {
+          log.warn("Settings get_section dispatch failed", { operation: "get_section", section, err });
+          const message = err instanceof Error ? err.message : String(err);
           reply(socket, {
             topic: "settings",
             type: "section_data",
             section,
             data: {},
-            error: err.message,
+            error: message,
           });
         });
     } else if (action === "update") {
@@ -231,13 +233,15 @@ export function createSettingsTopicDispatcher(
             ...result,
           });
         })
-        .catch((err: Error) => {
+        .catch((err: unknown) => {
+          log.warn("Settings update dispatch failed", { operation: "update", section, err });
+          const message = err instanceof Error ? err.message : String(err);
           reply(socket, {
             topic: "settings",
             type: "update_result",
             section,
             valid: false,
-            errors: [{ field: "_", message: err.message }],
+            errors: [{ field: "_", message }],
           });
         });
     }

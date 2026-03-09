@@ -24,10 +24,10 @@ export interface TidepoolMemoryHandler {
     id: string,
     sessionTaint: string,
   ) => Promise<Record<string, unknown> | null>;
-  /** Delete a memory. */
-  readonly delete: (id: string) => Promise<boolean>;
-  /** List all tags. */
-  readonly tags: () => Promise<readonly string[]>;
+  /** Delete a memory with taint-gated access. */
+  readonly delete: (id: string, sessionTaint: string) => Promise<boolean>;
+  /** List all tags visible at the given taint level. */
+  readonly tags: (sessionTaint: string) => Promise<readonly string[]>;
 }
 
 /** Minimal store interface — avoids importing from tools/memory (Layer 1 sibling). */
@@ -128,12 +128,14 @@ export function createTidepoolMemoryHandler(
       return fetchSingleMemory(memStore, id, taint);
     },
 
-    delete(id: string): Promise<boolean> {
-      return deleteMemoryRecord(memStore, id);
+    delete(id: string, sessionTaint: string): Promise<boolean> {
+      const taint = sessionTaint as ClassificationLevel;
+      return deleteMemoryRecord(memStore, id, taint);
     },
 
-    tags(): Promise<readonly string[]> {
-      return listMemoryTags(memStore);
+    tags(sessionTaint: string): Promise<readonly string[]> {
+      const taint = sessionTaint as ClassificationLevel;
+      return listMemoryTags(memStore, taint);
     },
   };
 }
@@ -183,27 +185,29 @@ async function fetchSingleMemory(
   return recordToEntry(record);
 }
 
-/** Delete a memory record using RESTRICTED taint for full access. */
+/** Delete a memory record gated by session taint. */
 async function deleteMemoryRecord(
   memStore: MinimalMemoryStore,
   id: string,
+  sessionTaint: ClassificationLevel,
 ): Promise<boolean> {
   const result = await memStore.delete({
     agentId: OWNER_MEMORY_AGENT_ID,
-    sessionTaint: "RESTRICTED" as ClassificationLevel,
+    sessionTaint,
     key: id,
     sourceSessionId: "tidepool-ui",
   });
   return result.ok;
 }
 
-/** List all unique tags by scanning visible records. */
+/** List unique tags from records visible at the given taint level. */
 async function listMemoryTags(
   memStore: MinimalMemoryStore,
+  sessionTaint: ClassificationLevel,
 ): Promise<readonly string[]> {
   const records = await memStore.list({
     agentId: OWNER_MEMORY_AGENT_ID,
-    sessionTaint: "RESTRICTED" as ClassificationLevel,
+    sessionTaint,
   });
   return extractUniqueTags(records);
 }
