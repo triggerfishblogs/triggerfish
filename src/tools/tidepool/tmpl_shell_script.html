@@ -1,0 +1,219 @@
+<script>
+  (function () {
+    // -------------------------------------------------------------------------
+    // Screen switching + hash routing
+    // -------------------------------------------------------------------------
+
+    var SCREEN_IDS = ["chat", "agents", "health", "settings", "logs", "memory"];
+    var DEFAULT_SCREEN = "chat";
+    var currentScreen = DEFAULT_SCREEN;
+
+    function resolveScreen(hash) {
+      var id = (hash || "").replace(/^#/, "");
+      return SCREEN_IDS.indexOf(id) !== -1 ? id : DEFAULT_SCREEN;
+    }
+
+    function switchScreen(screenId) {
+      if (SCREEN_IDS.indexOf(screenId) === -1) return;
+      if (screenId === currentScreen) return;
+
+      var oldEl = document.getElementById("screen-" + currentScreen);
+      var newEl = document.getElementById("screen-" + screenId);
+      if (!oldEl || !newEl) return;
+
+      oldEl.style.display = "none";
+      newEl.style.display = "flex";
+
+      // Update nav active state
+      var navItems = document.querySelectorAll(".nav-item");
+      for (var i = 0; i < navItems.length; i++) {
+        var item = navItems[i];
+        if (item.getAttribute("data-screen") === screenId) {
+          item.classList.add("active");
+        } else {
+          item.classList.remove("active");
+        }
+      }
+
+      var prevScreen = currentScreen;
+      currentScreen = screenId;
+
+      // Notify screen lifecycle
+      if (window.tidepoolScreens && window.tidepoolScreens[prevScreen]) {
+        window.tidepoolScreens[prevScreen].onUnmount();
+      }
+      if (window.tidepoolScreens && window.tidepoolScreens[screenId]) {
+        window.tidepoolScreens[screenId].onMount();
+      }
+
+      // Send screen_changed event to server
+      if (window.tidepoolWs && window.tidepoolWs.send) {
+        window.tidepoolWs.send({
+          topic: "shell",
+          action: "screen_changed",
+          payload: { screen: screenId, previous: prevScreen }
+        });
+      }
+    }
+
+    // Nav click handler
+    document.getElementById("nav-bar").addEventListener("click", function (e) {
+      var item = e.target.closest(".nav-item");
+      if (!item) return;
+      var screenId = item.getAttribute("data-screen");
+      if (screenId) {
+        location.hash = "#" + screenId;
+      }
+    });
+
+    // Hash change listener
+    window.addEventListener("hashchange", function () {
+      switchScreen(resolveScreen(location.hash));
+    });
+
+    // -------------------------------------------------------------------------
+    // WebSocket topic multiplexer
+    // -------------------------------------------------------------------------
+
+    var topicHandlers = {};
+
+    window.tidepoolMux = {
+      /** Register a handler for a topic. */
+      on: function (topic, handler) {
+        if (!topicHandlers[topic]) topicHandlers[topic] = [];
+        topicHandlers[topic].push(handler);
+      },
+      /** Remove a handler for a topic. */
+      off: function (topic, handler) {
+        if (!topicHandlers[topic]) return;
+        topicHandlers[topic] = topicHandlers[topic].filter(function (h) {
+          return h !== handler;
+        });
+      },
+      /** Dispatch a message to its topic handlers. */
+      dispatch: function (msg) {
+        var topic = msg.topic || "chat";
+        var handlers = topicHandlers[topic];
+        if (handlers) {
+          for (var i = 0; i < handlers.length; i++) {
+            try { handlers[i](msg); } catch (err) { console.error("Topic handler error:", err); }
+          }
+        }
+      }
+    };
+
+    // -------------------------------------------------------------------------
+    // Shared WebSocket wrapper
+    // -------------------------------------------------------------------------
+
+    var ws = null;
+    var reconnectDelay = 1000;
+
+    window.tidepoolWs = {
+      /** Send a message object as JSON. */
+      send: function (obj) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(obj));
+        }
+      },
+      /** Get raw WebSocket reference. */
+      raw: function () { return ws; },
+      /** Check if connected. */
+      isConnected: function () {
+        return ws && ws.readyState === WebSocket.OPEN;
+      }
+    };
+
+    function connectWs() {
+      var proto = location.protocol === "https:" ? "wss:" : "ws:";
+      ws = new WebSocket(proto + "//" + location.host);
+
+      ws.onopen = function () {
+        reconnectDelay = 1000;
+        // Notify connection handlers
+        if (window.tidepoolMux) {
+          window.tidepoolMux.dispatch({ topic: "shell", type: "ws_connected" });
+        }
+      };
+
+      ws.onclose = function () {
+        if (window.tidepoolMux) {
+          window.tidepoolMux.dispatch({ topic: "shell", type: "ws_disconnected" });
+        }
+        setTimeout(connectWs, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+      };
+
+      ws.onerror = function () {
+        if (window.tidepoolMux) {
+          window.tidepoolMux.dispatch({ topic: "shell", type: "ws_error" });
+        }
+      };
+
+      ws.onmessage = function (e) {
+        try {
+          var msg = JSON.parse(e.data);
+          window.tidepoolMux.dispatch(msg);
+        } catch (err) {
+          console.error("WS parse error:", err);
+        }
+      };
+    }
+
+    // -------------------------------------------------------------------------
+    // Badge API
+    // -------------------------------------------------------------------------
+
+    window.tidepoolBadge = {
+      /** Set a count badge on a nav item. */
+      setCount: function (screenId, count) {
+        var badge = document.getElementById("nav-badge-" + screenId);
+        if (!badge) return;
+        if (count > 0) {
+          badge.textContent = count > 99 ? "99+" : String(count);
+          badge.style.display = "flex";
+        } else {
+          badge.style.display = "none";
+        }
+      },
+      /** Set a status dot on a nav item. */
+      setStatus: function (screenId, status) {
+        var dot = document.getElementById("nav-status-" + screenId);
+        if (!dot) return;
+        dot.className = "nav-status-dot " + (status || "");
+        dot.style.display = status ? "block" : "none";
+      },
+      /** Clear all badges. */
+      clearAll: function () {
+        for (var i = 0; i < SCREEN_IDS.length; i++) {
+          window.tidepoolBadge.setCount(SCREEN_IDS[i], 0);
+          window.tidepoolBadge.setStatus(SCREEN_IDS[i], "");
+        }
+      }
+    };
+
+    // -------------------------------------------------------------------------
+    // Screen lifecycle registry
+    // -------------------------------------------------------------------------
+
+    window.tidepoolScreens = {};
+
+    // -------------------------------------------------------------------------
+    // Initialize: connect WS, switch to initial screen
+    // -------------------------------------------------------------------------
+
+    connectWs();
+
+    // Defer initial screen switch until DOM is fully parsed (screen containers
+    // are rendered after this script so they may not exist yet).
+    document.addEventListener("DOMContentLoaded", function () {
+      var initialScreen = resolveScreen(location.hash);
+      if (initialScreen !== DEFAULT_SCREEN) {
+        switchScreen(initialScreen);
+      } else {
+        var defaultNav = document.querySelector('.nav-item[data-screen="chat"]');
+        if (defaultNav) defaultNav.classList.add("active");
+      }
+    });
+  })();
+</script>

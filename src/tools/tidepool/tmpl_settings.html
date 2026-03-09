@@ -1,0 +1,482 @@
+<div class="screen-settings-container">
+  <div class="settings-sections" id="settings-sections">
+    <button class="settings-section-tab active" data-section="general">General</button>
+    <button class="settings-section-tab" data-section="providers">LLM Providers</button>
+    <button class="settings-section-tab" data-section="channels">Channels</button>
+    <button class="settings-section-tab" data-section="classification">Classification</button>
+    <button class="settings-section-tab" data-section="scheduler">Scheduler</button>
+    <button class="settings-section-tab" data-section="integrations">Integrations</button>
+    <button class="settings-section-tab" data-section="advanced">Advanced</button>
+  </div>
+  <div class="settings-form-area" id="settings-form-area">
+    <div class="settings-form-header">
+      <span class="settings-form-title" id="settings-form-title">General</span>
+      <span class="settings-readonly-badge">read-only</span>
+    </div>
+    <div class="settings-form-body" id="settings-form-body">
+      <div class="screen-placeholder"><div>Loading configuration...</div></div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var sections = document.getElementById("settings-sections");
+  var formTitle = document.getElementById("settings-form-title");
+  var formBody = document.getElementById("settings-form-body");
+  var currentSection = "general";
+
+  function esc(s) {
+    var d = document.createElement("div");
+    d.textContent = String(s == null ? "" : s);
+    return d.innerHTML;
+  }
+
+  sections.addEventListener("click", function (e) {
+    var tab = e.target.closest(".settings-section-tab");
+    if (!tab) return;
+    var section = tab.getAttribute("data-section");
+    if (section === currentSection) return;
+    var tabs = sections.querySelectorAll(".settings-section-tab");
+    for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle("active", tabs[i] === tab);
+    currentSection = section;
+    formTitle.textContent = tab.textContent;
+    loadSection(section);
+  });
+
+  function loadSection(section) {
+    formBody.innerHTML = '<div class="screen-placeholder"><div>Loading...</div></div>';
+    if (window.tidepoolWs) {
+      window.tidepoolWs.send({ topic: "settings", action: "get_section", payload: { section: section } });
+    }
+  }
+
+  // ---- Shared helpers ----
+  var CLS_COLORS = {
+    PUBLIC: "var(--green)", INTERNAL: "var(--yellow)",
+    CONFIDENTIAL: "var(--orange)", RESTRICTED: "var(--red)"
+  };
+
+  function chip(level) {
+    return '<span class="settings-class-chip" style="border-color:' +
+      (CLS_COLORS[level] || "var(--fg3)") + ';color:' +
+      (CLS_COLORS[level] || "var(--fg3)") + '">' + esc(level) + '</span>';
+  }
+
+  function kv(label, value, opts) {
+    opts = opts || {};
+    var vh;
+    if (opts.chip) vh = chip(value);
+    else if (opts.secret) vh = '<span class="settings-secret-val">' + esc(value) + '</span>';
+    else if (opts.code) vh = '<code class="settings-code-val">' + esc(value) + '</code>';
+    else if (opts.bool) vh = '<span class="settings-val">' + (value ? "Yes" : "No") + '</span>';
+    else vh = '<span class="settings-val">' + esc(value) + '</span>';
+    return '<div class="settings-kv"><span class="settings-kv-label">' + esc(label) + '</span>' + vh + '</div>';
+  }
+
+  function heading(t) { return '<div class="settings-section-header">' + esc(t) + '</div>'; }
+  function empty(t) { return '<div class="settings-empty">' + esc(t) + '</div>'; }
+  function card(inner, opts) {
+    opts = opts || {};
+    var cls = "settings-card";
+    var style = "";
+    if (opts.border) { cls += " settings-channel-card"; style = ' style="border-left-color:' + opts.border + '"'; }
+    return '<div class="' + cls + '"' + style + '>' + inner + '</div>';
+  }
+  function cardTitle(name, extra) { return '<div class="settings-card-title">' + esc(name) + (extra || "") + '</div>'; }
+  function fmtKey(k) { return k.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ").replace(/\b\w/g, function(c){return c.toUpperCase();}); }
+  function isSecretKey(k) { return /token|key|secret|password|licensekey/i.test(k); }
+
+  // Render all keys from an object, masking secrets
+  function kvAuto(obj, skipKeys) {
+    var html = "";
+    var keys = Object.keys(obj || {});
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (skipKeys && skipKeys.indexOf(k) !== -1) continue;
+      var v = obj[k];
+      if (v == null) continue;
+      if (typeof v === "boolean") html += kv(fmtKey(k), v, { bool: true });
+      else if (typeof v === "object") html += kv(fmtKey(k), JSON.stringify(v), { code: true });
+      else if (isSecretKey(k)) html += kv(fmtKey(k), "••••••••", { secret: true });
+      else html += kv(fmtKey(k), String(v));
+    }
+    return html;
+  }
+
+  // ---- GENERAL: logging, mcp_servers ----
+  // Schema: logging: { level?: string }, mcp_servers: Record<name, { command?, url?, args?, env?, classification?, enabled? }>
+  function renderGeneral(data) {
+    var html = "";
+    html += heading("Logging");
+    var log = (data.logging && typeof data.logging === "object") ? data.logging : {};
+    html += card(kv("Level", log.level || "info"));
+
+    html += heading("MCP Servers");
+    if (!data.mcp_servers || typeof data.mcp_servers !== "object" || Object.keys(data.mcp_servers).length === 0) {
+      html += empty("No MCP servers configured.");
+    } else {
+      var servers = Object.keys(data.mcp_servers);
+      for (var i = 0; i < servers.length; i++) {
+        var name = servers[i];
+        var srv = data.mcp_servers[name];
+        if (!srv || typeof srv !== "object") continue;
+        var inner = "";
+        if (srv.command) inner += kv("Command", srv.command, { code: true });
+        if (srv.url) inner += kv("URL", srv.url, { code: true });
+        if (srv.args && srv.args.length) inner += kv("Args", srv.args.join(" "), { code: true });
+        if (srv.env && typeof srv.env === "object") {
+          var envKeys = Object.keys(srv.env);
+          for (var e = 0; e < envKeys.length; e++) {
+            inner += kv("Env: " + envKeys[e], srv.env[envKeys[e]], { code: true });
+          }
+        }
+        if (srv.classification) inner += kv("Classification", srv.classification, { chip: true });
+        if (srv.enabled === false) inner += kv("Enabled", false, { bool: true });
+        html += card(cardTitle(name) + inner);
+      }
+    }
+    return html;
+  }
+
+  // ---- PROVIDERS: models.primary, models.providers, models.classification_models ----
+  // Schema: primary: { provider, model }, vision?: string, providers: Record<name, { model, apiKey? }>,
+  //         classification_models?: Record<level, { provider, model }>
+  function renderProviders(data) {
+    var html = "";
+    var primary = data.primary;
+    if (primary) {
+      html += heading("Primary Model");
+      html += card(kv("Provider", primary.provider || "—") + kv("Model", primary.model || "—"));
+    }
+    if (data.vision) {
+      html += card(kv("Vision Model", data.vision));
+    }
+    var providers = data.providers;
+    if (providers && typeof providers === "object") {
+      html += heading("Configured Providers");
+      var keys = Object.keys(providers);
+      if (keys.length === 0) html += empty("No providers configured.");
+      for (var i = 0; i < keys.length; i++) {
+        var name = keys[i];
+        var p = providers[name];
+        if (!p || typeof p !== "object") continue;
+        var inner = "";
+        if (p.model) inner += kv("Model", p.model);
+        if (p.apiKey) inner += kv("API Key", "••••••••", { secret: true });
+        html += card(cardTitle(name) + inner);
+      }
+    }
+    var clsModels = data.classification_models;
+    if (clsModels && typeof clsModels === "object") {
+      html += heading("Classification-Specific Models");
+      var cmKeys = Object.keys(clsModels);
+      for (var i = 0; i < cmKeys.length; i++) {
+        var lvl = cmKeys[i];
+        var cm = clsModels[lvl];
+        if (!cm || typeof cm !== "object") continue;
+        html += card(chip(lvl) + " " + kv("Provider", cm.provider || "—") + kv("Model", cm.model || "—"));
+      }
+    }
+    return html || empty("No LLM providers configured.");
+  }
+
+  // ---- CHANNELS ----
+  // Schema: Record<name, { classification?, user_classifications?, respond_to_unclassified?,
+  //   pairing?, pairing_classification?, ownerId/ownerPhone/ownerEmail?, port?, endpoint?, ...secrets }>
+  var CHANNEL_SAFE_FIELDS = ["classification", "ownerId", "ownerPhone", "ownerEmail", "owner_email",
+    "owner_space_id", "port", "webhookPort", "endpoint", "account", "interactive", "showTaint",
+    "respond_to_unclassified", "pairing", "pairing_classification", "defaultGroupMode",
+    "default_group_mode", "fromAddress", "imapHost", "imapPort", "imapUser", "pollInterval",
+    "allowedOrigins", "enabled", "pubsub_subscription", "phoneNumberId"];
+  var CHANNEL_SECRET_FIELDS = ["botToken", "appToken", "signingSecret", "accessToken",
+    "verifyToken", "smtpApiKey", "imapPassword", "credentials_ref", "token"];
+  var CHANNEL_MAP_FIELDS = ["user_classifications", "groups"];
+
+  function renderChannels(data) {
+    var keys = Object.keys(data);
+    if (keys.length === 0) return empty("No channels configured.");
+    var html = "";
+    for (var i = 0; i < keys.length; i++) {
+      var name = keys[i];
+      var ch = data[name];
+      if (!ch || typeof ch !== "object") continue;
+      var cls = ch.classification || "PUBLIC";
+      var border = CLS_COLORS[cls] || "var(--fg3)";
+      var inner = "";
+      // Render only schema-defined fields
+      for (var f = 0; f < CHANNEL_SAFE_FIELDS.length; f++) {
+        var fk = CHANNEL_SAFE_FIELDS[f];
+        if (fk === "classification" || ch[fk] == null) continue;
+        var fv = ch[fk];
+        if (typeof fv === "boolean") inner += kv(fmtKey(fk), fv, { bool: true });
+        else if (Array.isArray(fv)) inner += kv(fmtKey(fk), fv.join(", "), { code: true });
+        else inner += kv(fmtKey(fk), String(fv));
+      }
+      for (var s = 0; s < CHANNEL_SECRET_FIELDS.length; s++) {
+        var sk = CHANNEL_SECRET_FIELDS[s];
+        if (ch[sk]) inner += kv(fmtKey(sk), "••••••••", { secret: true });
+      }
+      for (var m = 0; m < CHANNEL_MAP_FIELDS.length; m++) {
+        var mk = CHANNEL_MAP_FIELDS[m];
+        if (ch[mk] && typeof ch[mk] === "object") {
+          var mapKeys = Object.keys(ch[mk]);
+          if (mapKeys.length > 0) inner += kv(fmtKey(mk), mapKeys.length + " entries");
+        }
+      }
+      html += card(cardTitle(name, chip(cls)) + inner, { border: border });
+    }
+    return html;
+  }
+
+  // ---- CLASSIFICATION: classification, secrets, filesystem, tools ----
+  function renderClassification(data) {
+    var html = "";
+    if (data.classification) {
+      var c = data.classification;
+      html += heading("Classification Policy");
+      html += card(kv("Mode", c.mode || "personal"));
+    }
+    if (data.secrets) {
+      html += heading("Secret Classification");
+      var sec = data.secrets;
+      if (sec.classification) {
+        var sc = sec.classification;
+        if (sc.default_level) html += kv("Default Level", sc.default_level, { chip: true });
+        if (sc.mappings && sc.mappings.length) {
+          for (var i = 0; i < sc.mappings.length; i++) {
+            var m = sc.mappings[i];
+            html += card(kv("Path", m.path, { code: true }) + kv("Level", m.level, { chip: true }));
+          }
+        }
+      }
+    }
+    if (data.filesystem) {
+      html += heading("Filesystem Classification");
+      var fs = data.filesystem;
+      if (fs.default) html += kv("Default", fs.default, { chip: true });
+      if (fs.paths) {
+        var fpKeys = Object.keys(fs.paths);
+        for (var i = 0; i < fpKeys.length; i++) {
+          html += kv(fpKeys[i], fs.paths[fpKeys[i]], { chip: true });
+        }
+      }
+    }
+    if (data.tools) {
+      html += heading("Tool Classification Floors");
+      var tf = data.tools;
+      if (tf.floors) {
+        var tfKeys = Object.keys(tf.floors);
+        for (var i = 0; i < tfKeys.length; i++) {
+          html += kv(tfKeys[i], tf.floors[tfKeys[i]], { chip: true });
+        }
+      }
+    }
+    return html || empty("Default classification policy (no overrides configured).");
+  }
+
+  // ---- SCHEDULER ----
+  function renderScheduler(data) {
+    var html = "";
+    var trigger = data.trigger;
+    if (trigger && typeof trigger === "object") {
+      html += heading("Trigger");
+      var inner = kv("Enabled", trigger.enabled, { bool: true });
+      if (trigger.interval_minutes) inner += kv("Interval", trigger.interval_minutes + " min");
+      if (trigger.classification_ceiling) inner += kv("Ceiling", trigger.classification_ceiling, { chip: true });
+      if (trigger.quiet_hours) {
+        var qh = trigger.quiet_hours;
+        inner += kv("Quiet Hours", (qh.start || 0) + ":00 – " + (qh.end || 0) + ":00");
+      }
+      html += card(inner);
+    }
+    var webhooks = data.webhooks;
+    if (webhooks && typeof webhooks === "object") {
+      html += heading("Webhooks");
+      if (webhooks.enabled !== undefined) html += kv("Enabled", webhooks.enabled, { bool: true });
+      if (webhooks.sources) {
+        var wKeys = Object.keys(webhooks.sources);
+        for (var i = 0; i < wKeys.length; i++) {
+          var src = webhooks.sources[wKeys[i]];
+          html += card(cardTitle(wKeys[i]) + kv("Secret", "••••••••", { secret: true }) +
+            (src.classification ? kv("Classification", src.classification, { chip: true }) : ""));
+        }
+      }
+    }
+    return html || empty("No scheduler configuration.");
+  }
+
+  // ---- INTEGRATIONS: web, github, google, notion, caldav, plugins ----
+  // Schema-aware: only render fields defined in TriggerFishConfig
+  function renderIntegrations(data) {
+    var html = "";
+    if (data.web) {
+      html += heading("Web");
+      var web = data.web;
+      if (web.search) {
+        var ws = web.search;
+        var wsHtml = "";
+        if (ws.provider) wsHtml += kv("Provider", ws.provider);
+        if (ws.api_key) wsHtml += kv("API Key", "••••••••", { secret: true });
+        if (ws.max_results) wsHtml += kv("Max Results", String(ws.max_results));
+        if (ws.safe_search) wsHtml += kv("Safe Search", ws.safe_search);
+        if (ws.rate_limit) wsHtml += kv("Rate Limit", String(ws.rate_limit));
+        if (wsHtml) html += card(cardTitle("Search") + wsHtml);
+      }
+      if (web.fetch) {
+        var wf = web.fetch;
+        var wfHtml = "";
+        if (wf.rate_limit) wfHtml += kv("Rate Limit", String(wf.rate_limit));
+        if (wf.max_content_length) wfHtml += kv("Max Content Length", String(wf.max_content_length));
+        if (wf.timeout) wfHtml += kv("Timeout", wf.timeout + "ms");
+        if (wf.default_mode) wfHtml += kv("Default Mode", wf.default_mode);
+        if (wfHtml) html += card(cardTitle("Fetch") + wfHtml);
+      }
+      if (web.domains) {
+        var doms = web.domains;
+        var dHtml = "";
+        if (doms.denylist && doms.denylist.length) dHtml += kv("Denylist", doms.denylist.join(", "), { code: true });
+        if (doms.allowlist && doms.allowlist.length) dHtml += kv("Allowlist", doms.allowlist.join(", "), { code: true });
+        if (doms.classifications && doms.classifications.length) {
+          for (var i = 0; i < doms.classifications.length; i++) {
+            var dc = doms.classifications[i];
+            dHtml += '<div class="settings-kv"><code class="settings-code-val">' + esc(dc.pattern) + '</code>' + chip(dc.classification) + '</div>';
+          }
+        }
+        if (dHtml) html += card(cardTitle("Domain Rules") + dHtml);
+      }
+    }
+    if (data.github) {
+      html += heading("GitHub");
+      var gh = data.github;
+      var ghHtml = "";
+      if (gh.token) ghHtml += kv("Token", "••••••••", { secret: true });
+      if (gh.base_url) ghHtml += kv("Base URL", gh.base_url, { code: true });
+      if (gh.classification) ghHtml += kv("Classification", gh.classification, { chip: true });
+      if (gh.classification_overrides && typeof gh.classification_overrides === "object") {
+        var coKeys = Object.keys(gh.classification_overrides);
+        for (var ci = 0; ci < coKeys.length; ci++) {
+          ghHtml += kv(coKeys[ci], gh.classification_overrides[coKeys[ci]], { chip: true });
+        }
+      }
+      html += card(ghHtml || empty("Default configuration."));
+    }
+    if (data.google) {
+      html += heading("Google");
+      var go = data.google;
+      var goHtml = "";
+      if (go.classification) goHtml += kv("Classification", go.classification, { chip: true });
+      html += card(goHtml || empty("Default configuration."));
+    }
+    if (data.notion) {
+      html += heading("Notion");
+      var nt = data.notion;
+      var ntHtml = "";
+      if (nt.enabled !== undefined) ntHtml += kv("Enabled", nt.enabled, { bool: true });
+      if (nt.auth_type) ntHtml += kv("Auth Type", nt.auth_type);
+      if (nt.rate_limit) ntHtml += kv("Rate Limit", String(nt.rate_limit));
+      if (nt.classification_floor) ntHtml += kv("Classification Floor", nt.classification_floor, { chip: true });
+      if (nt.oauth2 && typeof nt.oauth2 === "object") {
+        if (nt.oauth2.client_id) ntHtml += kv("OAuth2 Client ID", nt.oauth2.client_id, { code: true });
+        if (nt.oauth2.redirect_uri) ntHtml += kv("OAuth2 Redirect URI", nt.oauth2.redirect_uri, { code: true });
+      }
+      html += card(ntHtml || empty("Default configuration."));
+    }
+    if (data.caldav) {
+      html += heading("CalDAV");
+      var cd = data.caldav;
+      var cdHtml = "";
+      if (cd.enabled !== undefined) cdHtml += kv("Enabled", cd.enabled, { bool: true });
+      if (cd.server_url) cdHtml += kv("Server URL", cd.server_url, { code: true });
+      if (cd.username) cdHtml += kv("Username", cd.username);
+      if (cd.credential_ref) cdHtml += kv("Credential Ref", "••••••••", { secret: true });
+      if (cd.default_calendar) cdHtml += kv("Default Calendar", cd.default_calendar);
+      if (cd.classification) cdHtml += kv("Classification", cd.classification, { chip: true });
+      html += card(cdHtml || empty("Default configuration."));
+    }
+    if (data.plugins && typeof data.plugins === "object") {
+      // Schema: plugins.obsidian: { enabled?, vault_path?, classification?, daily_notes?, exclude_folders?, folder_classifications? }
+      if (data.plugins.obsidian) {
+        html += heading("Plugin: Obsidian");
+        var ob = data.plugins.obsidian;
+        var obHtml = "";
+        if (ob.enabled !== undefined) obHtml += kv("Enabled", ob.enabled, { bool: true });
+        if (ob.vault_path) obHtml += kv("Vault Path", ob.vault_path, { code: true });
+        if (ob.classification) obHtml += kv("Classification", ob.classification, { chip: true });
+        if (ob.daily_notes && typeof ob.daily_notes === "object") {
+          if (ob.daily_notes.folder) obHtml += kv("Daily Notes Folder", ob.daily_notes.folder, { code: true });
+          if (ob.daily_notes.date_format) obHtml += kv("Date Format", ob.daily_notes.date_format, { code: true });
+          if (ob.daily_notes.template) obHtml += kv("Template", ob.daily_notes.template, { code: true });
+        }
+        if (ob.exclude_folders && ob.exclude_folders.length) obHtml += kv("Exclude Folders", ob.exclude_folders.join(", "), { code: true });
+        if (ob.folder_classifications && typeof ob.folder_classifications === "object") {
+          var fcKeys = Object.keys(ob.folder_classifications);
+          for (var fi = 0; fi < fcKeys.length; fi++) {
+            obHtml += kv(fcKeys[fi], ob.folder_classifications[fcKeys[fi]], { chip: true });
+          }
+        }
+        html += card(obHtml || empty("Default configuration."));
+      }
+    }
+    return html || empty("No integrations configured.");
+  }
+
+  // ---- ADVANCED: raw YAML view ----
+  function renderAdvanced(data) {
+    return '<pre class="settings-yaml-view">' + esc(toYaml(data, 0)) + '</pre>';
+  }
+
+  function toYaml(obj, indent) {
+    var pad = ""; for (var p = 0; p < indent; p++) pad += "  ";
+    var lines = [];
+    if (Array.isArray(obj)) {
+      for (var i = 0; i < obj.length; i++) {
+        if (typeof obj[i] === "object" && obj[i] !== null) {
+          lines.push(pad + "-"); lines.push(toYaml(obj[i], indent + 1));
+        } else lines.push(pad + "- " + String(obj[i]));
+      }
+    } else if (typeof obj === "object" && obj !== null) {
+      var keys = Object.keys(obj);
+      for (var k = 0; k < keys.length; k++) {
+        var key = keys[k], val = obj[key];
+        if (typeof val === "object" && val !== null) {
+          lines.push(pad + key + ":"); lines.push(toYaml(val, indent + 1));
+        } else {
+          var sv = String(val);
+          if (isSecretKey(key)) sv = "••••••••";
+          lines.push(pad + key + ": " + sv);
+        }
+      }
+    }
+    return lines.join("\n");
+  }
+
+  var RENDERERS = {
+    general: renderGeneral,
+    providers: renderProviders,
+    channels: renderChannels,
+    classification: renderClassification,
+    scheduler: renderScheduler,
+    integrations: renderIntegrations,
+    advanced: renderAdvanced
+  };
+
+  function renderSection(section, data) {
+    var renderer = RENDERERS[section];
+    if (renderer) formBody.innerHTML = renderer(data);
+    else formBody.innerHTML = kvAuto(data) || empty("No configuration for this section.");
+  }
+
+  if (window.tidepoolMux) {
+    window.tidepoolMux.on("settings", function (msg) {
+      if (msg.type === "section_data") renderSection(msg.section, msg.data || {});
+    });
+  }
+
+  if (window.tidepoolScreens) {
+    window.tidepoolScreens.settings = {
+      onMount: function () { loadSection(currentSection); },
+      onUnmount: function () {}
+    };
+  }
+})();
+</script>

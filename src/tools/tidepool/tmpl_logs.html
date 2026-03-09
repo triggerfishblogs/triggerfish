@@ -1,0 +1,195 @@
+<div class="screen-logs-container">
+  <div class="logs-toolbar">
+    <div class="logs-level-filters">
+      <button class="log-level-btn active" data-level="DEBUG">DEBUG</button>
+      <button class="log-level-btn active" data-level="INFO">INFO</button>
+      <button class="log-level-btn active" data-level="WARN">WARN</button>
+      <button class="log-level-btn active" data-level="ERROR">ERROR</button>
+    </div>
+    <select class="logs-source-filter" id="logs-source-filter">
+      <option value="">All sources</option>
+    </select>
+    <input type="text" class="logs-search" id="logs-search" placeholder="Search logs..." autocomplete="off">
+    <button class="logs-pause-btn" id="logs-pause-btn" title="Pause">
+      <span class="pause-icon">&#x23F8;</span>
+      <span class="logs-buffered-badge" id="logs-buffered-badge" style="display:none">0</span>
+    </button>
+    <button class="logs-clear-btn" id="logs-clear-btn" title="Clear">&#x2715;</button>
+  </div>
+  <div class="logs-output" id="logs-output"></div>
+</div>
+<script>
+(function () {
+  var output = document.getElementById("logs-output");
+  var searchInput = document.getElementById("logs-search");
+  var sourceFilter = document.getElementById("logs-source-filter");
+  var pauseBtn = document.getElementById("logs-pause-btn");
+  var clearBtn = document.getElementById("logs-clear-btn");
+  var bufferedBadge = document.getElementById("logs-buffered-badge");
+
+  var activeLevels = { DEBUG: true, INFO: true, WARN: true, ERROR: true };
+  var paused = false;
+  var bufferedEntries = [];
+  var autoScroll = true;
+  var knownSources = new Set();
+
+  var LEVEL_COLORS = {
+    DEBUG: "var(--fg3)",
+    INFO: "var(--fg)",
+    WARN: "var(--yellow)",
+    ERROR: "var(--red)",
+  };
+
+  // Level filter buttons
+  document.querySelector(".logs-level-filters").addEventListener("click", function (e) {
+    var btn = e.target.closest(".log-level-btn");
+    if (!btn) return;
+    var level = btn.getAttribute("data-level");
+    activeLevels[level] = !activeLevels[level];
+    btn.classList.toggle("active");
+    refilter();
+  });
+
+  // Pause button
+  pauseBtn.addEventListener("click", function () {
+    paused = !paused;
+    pauseBtn.querySelector(".pause-icon").textContent = paused ? "\u25B6" : "\u23F8";
+    if (!paused) {
+      flushBuffered();
+    }
+  });
+
+  // Clear button
+  clearBtn.addEventListener("click", function () {
+    output.innerHTML = "";
+  });
+
+  // Search filter
+  var searchTimer = null;
+  searchInput.addEventListener("input", function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(refilter, 150);
+  });
+
+  // Source filter
+  sourceFilter.addEventListener("change", refilter);
+
+  // Auto-scroll detection
+  output.addEventListener("scroll", function () {
+    autoScroll = output.scrollTop + output.clientHeight >= output.scrollHeight - 20;
+  });
+
+  function refilter() {
+    var lines = output.querySelectorAll(".log-line");
+    var search = searchInput.value.toLowerCase();
+    var source = sourceFilter.value;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var level = line.getAttribute("data-level");
+      var src = line.getAttribute("data-source");
+      var text = line.textContent.toLowerCase();
+      var visible = activeLevels[level] &&
+        (!source || src === source) &&
+        (!search || text.indexOf(search) !== -1);
+      line.style.display = visible ? "" : "none";
+    }
+  }
+
+  function renderEntry(entry) {
+    var el = document.createElement("div");
+    el.className = "log-line";
+    el.setAttribute("data-level", entry.level);
+    el.setAttribute("data-source", entry.source || "");
+    el.style.color = LEVEL_COLORS[entry.level] || "var(--fg)";
+
+    var ts = entry.timestamp ? entry.timestamp.split("T")[1]?.slice(0, 12) || "" : "";
+    el.innerHTML =
+      '<span class="log-ts">' + escapeH(ts) + '</span>' +
+      '<span class="log-level log-level-' + entry.level.toLowerCase() + '">' + entry.level + '</span>' +
+      '<span class="log-source">[' + escapeH(entry.source || "") + ']</span> ' +
+      '<span class="log-msg">' + escapeH(entry.message || "") + '</span>';
+
+    // Track sources
+    if (entry.source && !knownSources.has(entry.source)) {
+      knownSources.add(entry.source);
+      var opt = document.createElement("option");
+      opt.value = entry.source;
+      opt.textContent = entry.source;
+      sourceFilter.appendChild(opt);
+    }
+
+    return el;
+  }
+
+  function appendEntry(entry) {
+    if (paused) {
+      bufferedEntries.push(entry);
+      bufferedBadge.textContent = bufferedEntries.length > 99 ? "99+" : String(bufferedEntries.length);
+      bufferedBadge.style.display = "flex";
+      return;
+    }
+    var el = renderEntry(entry);
+    output.appendChild(el);
+    if (autoScroll) {
+      output.scrollTop = output.scrollHeight;
+    }
+  }
+
+  function flushBuffered() {
+    for (var i = 0; i < bufferedEntries.length; i++) {
+      var el = renderEntry(bufferedEntries[i]);
+      output.appendChild(el);
+    }
+    bufferedEntries = [];
+    bufferedBadge.style.display = "none";
+    if (autoScroll) {
+      output.scrollTop = output.scrollHeight;
+    }
+    refilter();
+  }
+
+  function escapeH(s) {
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // Subscribe to logs topic via mux
+  if (window.tidepoolMux) {
+    window.tidepoolMux.on("logs", function (msg) {
+      if (msg.type === "log_entry" && msg.entry) {
+        appendEntry(msg.entry);
+      } else if (msg.type === "log_backfill" && msg.entries) {
+        for (var i = 0; i < msg.entries.length; i++) {
+          appendEntry(msg.entries[i]);
+        }
+      }
+    });
+  }
+
+  // Register screen lifecycle
+  if (window.tidepoolScreens) {
+    window.tidepoolScreens.logs = {
+      onMount: function () {
+        // Subscribe when screen becomes visible
+        if (window.tidepoolWs) {
+          window.tidepoolWs.send({
+            topic: "logs",
+            action: "subscribe",
+            payload: { levels: Object.keys(activeLevels) }
+          });
+        }
+      },
+      onUnmount: function () {
+        // Unsubscribe when screen becomes hidden
+        if (window.tidepoolWs) {
+          window.tidepoolWs.send({
+            topic: "logs",
+            action: "unsubscribe"
+          });
+        }
+      }
+    };
+  }
+})();
+</script>
