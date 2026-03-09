@@ -4,8 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
     paths-ignore:
-      - "docs/blog/**"
-      - "docs/blog/images/**"
+      - "docs/**"
 
 permissions:
   contents: read
