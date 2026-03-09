@@ -1,0 +1,180 @@
+/* RTL (Right-to-Left) overrides for Arabic locale */
+
+[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Sidebar on right side — mirror position and flip internal padding */
+[dir="rtl"] .VPSidebar {
+  right: 0;
+  left: auto;
+  border-right: none;
+  border-left: 1px solid var(--vp-c-divider);
+}
+
+/*
+ * VitePress uses padding-left on the sidebar to push links inward on wide screens.
+ * For RTL, swap it so links align with the navbar content edge (inner left of sidebar).
+ */
+[dir="rtl"] .VPSidebar .nav {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+@media (min-width: 960px) {
+  [dir="rtl"] .VPSidebar {
+    padding-left: 32px !important;
+    padding-right: 32px !important;
+  }
+}
+
+@media (min-width: 1440px) {
+  [dir="rtl"] .VPSidebar {
+    padding-left: 32px !important;
+    padding-right: calc((100vw - var(--vp-layout-max-width, 1440px)) / 2 + 32px) !important;
+  }
+}
+
+/* Content area: flip the sidebar margin/padding from left to right */
+[dir="rtl"] .VPDoc {
+  padding-left: 0 !important;
+  padding-right: var(--vp-sidebar-width, 272px) !important;
+}
+
+[dir="rtl"] .VPDoc .container > .content {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* On pages with outline (aside), flip the aside to the left */
+[dir="rtl"] .VPDocAside {
+  left: 0;
+  right: auto;
+}
+
+/* Main layout content shift */
+@media (min-width: 960px) {
+  [dir="rtl"] .VPContent.has-sidebar {
+    padding-left: 0 !important;
+    padding-right: var(--vp-sidebar-width, 272px) !important;
+  }
+}
+
+@media (min-width: 1440px) {
+  [dir="rtl"] .VPContent.has-sidebar {
+    padding-right: calc((100vw - var(--vp-layout-max-width, 1440px)) / 2 + var(--vp-sidebar-width, 272px)) !important;
+    padding-left: calc((100vw - var(--vp-layout-max-width, 1440px)) / 2) !important;
+  }
+}
+
+/* Nav flows right-to-left */
+[dir="rtl"] .VPNavBar .content {
+  direction: rtl;
+}
+
+[dir="rtl"] .VPNavBarMenu {
+  direction: rtl;
+}
+
+/* Code blocks remain LTR */
+[dir="rtl"] pre,
+[dir="rtl"] code,
+[dir="rtl"] .vp-code-group,
+[dir="rtl"] div[class*="language-"] {
+  direction: ltr;
+  text-align: left;
+}
+
+/* Previous/Next navigation mirrored */
+[dir="rtl"] .pager {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .pager .prev {
+  text-align: right;
+}
+
+[dir="rtl"] .pager .next {
+  text-align: left;
+}
+
+/* Tables right-aligned by default */
+[dir="rtl"] table {
+  direction: rtl;
+}
+
+[dir="rtl"] th,
+[dir="rtl"] td {
+  text-align: right;
+}
+
+/* Outline/TOC — flip to left side */
+[dir="rtl"] .VPDocOutlineItem {
+  padding-right: 16px;
+  padding-left: 0;
+}
+
+[dir="rtl"] .VPDocAsideOutline {
+  direction: rtl;
+}
+
+@media (min-width: 1280px) {
+  [dir="rtl"] .VPDoc .aside {
+    right: auto;
+    left: 0;
+    padding-left: 32px;
+    padding-right: 0;
+  }
+}
+
+/* List markers */
+[dir="rtl"] ul,
+[dir="rtl"] ol {
+  padding-right: 1.25rem;
+  padding-left: 0;
+}
+
+/* Breadcrumb and inline items */
+[dir="rtl"] .breadcrumb {
+  direction: rtl;
+}
+
+/* Search modal */
+[dir="rtl"] .VPLocalSearchBox {
+  direction: rtl;
+}
+
+/* Edit link */
+[dir="rtl"] .VPDocFooter .edit-link {
+  direction: rtl;
+}
+
+/* Footer */
+[dir="rtl"] .VPFooter {
+  direction: rtl;
+}
+
+/* Sidebar menu toggle icon flip */
+[dir="rtl"] .VPSidebar .curtain {
+  right: auto;
+  left: 0;
+}
+
+/* Badge and tag alignment */
+[dir="rtl"] .VPBadge {
+  margin-right: 0;
+  margin-left: 4px;
+}
+
+/* Hero section */
+[dir="rtl"] .VPHero {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Feature grid */
+[dir="rtl"] .VPFeature {
+  direction: rtl;
+  text-align: right;
+}

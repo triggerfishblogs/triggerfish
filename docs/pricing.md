@@ -182,7 +182,7 @@ as we refine the product. Early access subscribers lock in their rate.
     <li>Scheduled jobs</li>
     <li>Setup in under 2 minutes</li>
   </ul>
-  <a href="https://buy.stripe.com/aFa14m9mobpH0vc4mlao800" class="cta primary">Subscribe</a>
+  <a href="https://billing.trigger.fish/b/aFa14m9mobpH0vc4mlao800?locale=en" class="cta primary">Subscribe</a>
 </div>
 
 <div class="pricing-card">
@@ -199,7 +199,7 @@ as we refine the product. Early access subscribers lock in their rate.
     <li>Longer AI responses</li>
     <li>Priority support</li>
   </ul>
-  <a href="https://buy.stripe.com/5kQdR89mo2Tb4Lsg53ao802" class="cta primary">Subscribe</a>
+  <a href="https://billing.trigger.fish/b/5kQdR89mo2Tb4Lsg53ao802?locale=en" class="cta primary">Subscribe</a>
 </div>
 
 <div class="pricing-card">

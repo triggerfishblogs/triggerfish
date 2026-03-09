@@ -1,4 +1,22 @@
 import { defineConfig } from "vitepress";
+import {
+  enUS,
+  enGB,
+  es419,
+  esES,
+  frFR,
+  zhCN,
+  zhTW,
+  koKR,
+  hiIN,
+  arSA,
+  filPH,
+  heIL,
+  faIR,
+  ptBR,
+  deDE,
+  itIT,
+} from "./locales/mod.ts";
 
 export default defineConfig({
   title: "Triggerfish",
@@ -6,6 +24,7 @@ export default defineConfig({
     "Secure, multi-channel AI agent platform with deterministic policy enforcement below the LLM layer.",
   lang: "en-US",
   appearance: "force-dark",
+  ignoreDeadLinks: true,
 
   head: [
     ["link", { rel: "icon", type: "image/png", href: "/triggerfish.png" }],
@@ -59,6 +78,29 @@ export default defineConfig({
       src: "https://app.termly.io/resource-blocker/00bdb41e-67d7-4026-a802-0edd02329f10?autoBlock=on",
     }],
   ],
+
+  locales: {
+    root: {
+      label: enUS.label,
+      lang: enUS.lang,
+      description: enUS.description,
+    },
+    "en-GB": enGB,
+    "es-419": es419,
+    "es-ES": esES,
+    "fr-FR": frFR,
+    "zh-CN": zhCN,
+    "zh-TW": zhTW,
+    "ko-KR": koKR,
+    "hi-IN": hiIN,
+    "ar-SA": arSA,
+    "fil-PH": filPH,
+    "he-IL": heIL,
+    "fa-IR": faIR,
+    "pt-BR": ptBR,
+    "de-DE": deDE,
+    "it-IT": itIT,
+  },
 
   themeConfig: {
     logo: { src: "/triggerfish.png", alt: "Triggerfish" },
@@ -200,6 +242,14 @@ export default defineConfig({
             { text: "Logging", link: "/features/logging" },
             { text: "Agent Teams", link: "/features/agent-teams" },
             { text: "Rate Limiting", link: "/features/rate-limiting" },
+            { text: "Explore", link: "/features/explore" },
+            { text: "Filesystem", link: "/features/filesystem" },
+            { text: "Image & Vision", link: "/features/image-vision" },
+            { text: "Memory", link: "/features/memory" },
+            { text: "Planning", link: "/features/planning" },
+            { text: "Sessions", link: "/features/sessions" },
+            { text: "Web Search", link: "/features/web-search" },
+            { text: "Subagents", link: "/features/subagents" },
           ],
         },
       ],
@@ -310,6 +360,314 @@ export default defineConfig({
 
     search: {
       provider: "local",
+      options: {
+        locales: {
+          root: {
+            translations: {
+              button: {
+                buttonText: "Search",
+                buttonAriaLabel: "Search",
+              },
+              modal: {
+                displayDetails: "Display detailed list",
+                resetButtonTitle: "Reset search",
+                backButtonTitle: "Close search",
+                noResultsText: "No results for",
+                footer: {
+                  selectText: "to select",
+                  navigateText: "to navigate",
+                  closeText: "to close",
+                },
+              },
+            },
+          },
+          "en-GB": {
+            translations: {
+              button: {
+                buttonText: "Search",
+                buttonAriaLabel: "Search",
+              },
+              modal: {
+                displayDetails: "Display detailed list",
+                resetButtonTitle: "Reset search",
+                backButtonTitle: "Close search",
+                noResultsText: "No results for",
+                footer: {
+                  selectText: "to select",
+                  navigateText: "to navigate",
+                  closeText: "to close",
+                },
+              },
+            },
+          },
+          "es-419": {
+            translations: {
+              button: {
+                buttonText: "Buscar",
+                buttonAriaLabel: "Buscar",
+              },
+              modal: {
+                displayDetails: "Mostrar lista detallada",
+                resetButtonTitle: "Restablecer búsqueda",
+                backButtonTitle: "Cerrar búsqueda",
+                noResultsText: "Sin resultados para",
+                footer: {
+                  selectText: "para seleccionar",
+                  navigateText: "para navegar",
+                  closeText: "para cerrar",
+                },
+              },
+            },
+          },
+          "es-ES": {
+            translations: {
+              button: {
+                buttonText: "Buscar",
+                buttonAriaLabel: "Buscar",
+              },
+              modal: {
+                displayDetails: "Mostrar lista detallada",
+                resetButtonTitle: "Restablecer búsqueda",
+                backButtonTitle: "Cerrar búsqueda",
+                noResultsText: "Sin resultados para",
+                footer: {
+                  selectText: "para seleccionar",
+                  navigateText: "para navegar",
+                  closeText: "para cerrar",
+                },
+              },
+            },
+          },
+          "fr-FR": {
+            translations: {
+              button: {
+                buttonText: "Rechercher",
+                buttonAriaLabel: "Rechercher",
+              },
+              modal: {
+                displayDetails: "Afficher la liste détaillée",
+                resetButtonTitle: "Réinitialiser la recherche",
+                backButtonTitle: "Fermer la recherche",
+                noResultsText: "Aucun résultat pour",
+                footer: {
+                  selectText: "pour sélectionner",
+                  navigateText: "pour naviguer",
+                  closeText: "pour fermer",
+                },
+              },
+            },
+          },
+          "zh-CN": {
+            translations: {
+              button: {
+                buttonText: "搜索",
+                buttonAriaLabel: "搜索",
+              },
+              modal: {
+                displayDetails: "显示详细列表",
+                resetButtonTitle: "重置搜索",
+                backButtonTitle: "关闭搜索",
+                noResultsText: "未找到相关结果",
+                footer: {
+                  selectText: "选择",
+                  navigateText: "导航",
+                  closeText: "关闭",
+                },
+              },
+            },
+          },
+          "zh-TW": {
+            translations: {
+              button: {
+                buttonText: "搜尋",
+                buttonAriaLabel: "搜尋",
+              },
+              modal: {
+                displayDetails: "顯示詳細列表",
+                resetButtonTitle: "重設搜尋",
+                backButtonTitle: "關閉搜尋",
+                noResultsText: "未找到相關結果",
+                footer: {
+                  selectText: "選擇",
+                  navigateText: "導覽",
+                  closeText: "關閉",
+                },
+              },
+            },
+          },
+          "ko-KR": {
+            translations: {
+              button: {
+                buttonText: "검색",
+                buttonAriaLabel: "검색",
+              },
+              modal: {
+                displayDetails: "상세 목록 표시",
+                resetButtonTitle: "검색 초기화",
+                backButtonTitle: "검색 닫기",
+                noResultsText: "검색 결과 없음",
+                footer: {
+                  selectText: "선택",
+                  navigateText: "탐색",
+                  closeText: "닫기",
+                },
+              },
+            },
+          },
+          "hi-IN": {
+            translations: {
+              button: {
+                buttonText: "खोजें",
+                buttonAriaLabel: "खोजें",
+              },
+              modal: {
+                displayDetails: "विस्तृत सूची दिखाएँ",
+                resetButtonTitle: "खोज रीसेट करें",
+                backButtonTitle: "खोज बंद करें",
+                noResultsText: "कोई परिणाम नहीं",
+                footer: {
+                  selectText: "चुनने के लिए",
+                  navigateText: "नेविगेट करने के लिए",
+                  closeText: "बंद करने के लिए",
+                },
+              },
+            },
+          },
+          "ar-SA": {
+            translations: {
+              button: {
+                buttonText: "بحث",
+                buttonAriaLabel: "بحث",
+              },
+              modal: {
+                displayDetails: "عرض القائمة التفصيلية",
+                resetButtonTitle: "إعادة تعيين البحث",
+                backButtonTitle: "إغلاق البحث",
+                noResultsText: "لا توجد نتائج لـ",
+                footer: {
+                  selectText: "للاختيار",
+                  navigateText: "للتنقل",
+                  closeText: "للإغلاق",
+                },
+              },
+            },
+          },
+          "fil-PH": {
+            translations: {
+              button: {
+                buttonText: "Maghanap",
+                buttonAriaLabel: "Maghanap",
+              },
+              modal: {
+                displayDetails: "Ipakita ang detalyadong listahan",
+                resetButtonTitle: "I-reset ang paghahanap",
+                backButtonTitle: "Isara ang paghahanap",
+                noResultsText: "Walang resulta para sa",
+                footer: {
+                  selectText: "para pumili",
+                  navigateText: "para mag-navigate",
+                  closeText: "para isara",
+                },
+              },
+            },
+          },
+          "he-IL": {
+            translations: {
+              button: {
+                buttonText: "חיפוש",
+                buttonAriaLabel: "חיפוש",
+              },
+              modal: {
+                displayDetails: "הצג רשימה מפורטת",
+                resetButtonTitle: "אפס חיפוש",
+                backButtonTitle: "סגור חיפוש",
+                noResultsText: "אין תוצאות עבור",
+                footer: {
+                  selectText: "לבחירה",
+                  navigateText: "לניווט",
+                  closeText: "לסגירה",
+                },
+              },
+            },
+          },
+          "fa-IR": {
+            translations: {
+              button: {
+                buttonText: "جستجو",
+                buttonAriaLabel: "جستجو",
+              },
+              modal: {
+                displayDetails: "نمایش لیست جزئیات",
+                resetButtonTitle: "بازنشانی جستجو",
+                backButtonTitle: "بستن جستجو",
+                noResultsText: "نتیجه‌ای برای",
+                footer: {
+                  selectText: "برای انتخاب",
+                  navigateText: "برای ناوبری",
+                  closeText: "برای بستن",
+                },
+              },
+            },
+          },
+          "pt-BR": {
+            translations: {
+              button: {
+                buttonText: "Pesquisar",
+                buttonAriaLabel: "Pesquisar",
+              },
+              modal: {
+                displayDetails: "Exibir lista detalhada",
+                resetButtonTitle: "Redefinir pesquisa",
+                backButtonTitle: "Fechar pesquisa",
+                noResultsText: "Sem resultados para",
+                footer: {
+                  selectText: "para selecionar",
+                  navigateText: "para navegar",
+                  closeText: "para fechar",
+                },
+              },
+            },
+          },
+          "de-DE": {
+            translations: {
+              button: {
+                buttonText: "Suchen",
+                buttonAriaLabel: "Suchen",
+              },
+              modal: {
+                displayDetails: "Detaillierte Liste anzeigen",
+                resetButtonTitle: "Suche zurücksetzen",
+                backButtonTitle: "Suche schließen",
+                noResultsText: "Keine Ergebnisse für",
+                footer: {
+                  selectText: "zum Auswählen",
+                  navigateText: "zum Navigieren",
+                  closeText: "zum Schließen",
+                },
+              },
+            },
+          },
+          "it-IT": {
+            translations: {
+              button: {
+                buttonText: "Cerca",
+                buttonAriaLabel: "Cerca",
+              },
+              modal: {
+                displayDetails: "Mostra elenco dettagliato",
+                resetButtonTitle: "Reimposta ricerca",
+                backButtonTitle: "Chiudi ricerca",
+                noResultsText: "Nessun risultato per",
+                footer: {
+                  selectText: "per selezionare",
+                  navigateText: "per navigare",
+                  closeText: "per chiudere",
+                },
+              },
+            },
+          },
+        },
+      },
     },
 
     editLink: {

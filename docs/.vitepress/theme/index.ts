@@ -3,6 +3,7 @@ import ComingSoon from "./ComingSoon.vue";
 import StatusBadge from "./StatusBadge.vue";
 import LatestRelease from "./LatestRelease.vue";
 import "./custom.css";
+import "./rtl.css";
 
 export default {
   extends: DefaultTheme,
