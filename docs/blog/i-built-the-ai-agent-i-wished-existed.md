@@ -15,7 +15,7 @@ tags:
   - prompt injection
   - agent security
   - triggerfish
-draft: true
+draft: false
 ---
 A while back I started paying close attention to what AI agents could actually do. Not the demos. The real ones, running on real data, in real environments where mistakes have consequences. What I found was that the capability was genuinely there. You could wire an agent into your email, your calendar, your code, your files, and it could do meaningful work. That part impressed me.
 
