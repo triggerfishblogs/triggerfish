@@ -83,12 +83,12 @@ title: Pricing
 }
 
 .pricing-card .cta.primary {
-  background: var(--vp-c-brand-1);
+  background: #16a34a;
   color: var(--vp-c-white);
 }
 
 .pricing-card .cta.primary:hover {
-  background: var(--vp-c-brand-2);
+  background: #15803d;
 }
 
 .pricing-card .cta.secondary {
