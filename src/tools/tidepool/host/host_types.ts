@@ -45,6 +45,8 @@ export interface A2UIHost {
    * Broadcast a raw chat event (e.g. trigger_prompt) to all connected Tidepool clients.
    */
   broadcastChatEvent(event: ChatEvent): void;
+  /** Register a handler for a WebSocket topic (e.g. "logs", "health", "agents"). */
+  registerTopicHandler(topic: string, handler: TopicHandler): void;
   /** The number of currently connected WebSocket clients. */
   readonly connections: number;
 }
@@ -52,6 +54,12 @@ export interface A2UIHost {
 // ---------------------------------------------------------------------------
 // Internal mutable state shared across the A2UI host closure
 // ---------------------------------------------------------------------------
+
+/** Handler for a topic-routed WebSocket message. */
+export type TopicHandler = (
+  message: Record<string, unknown>,
+  socket: WebSocket,
+) => void;
 
 /** Mutable state shared across the A2UI host closure. */
 export interface A2UIHostState {
@@ -63,4 +71,6 @@ export interface A2UIHostState {
   /** Last known MCP connected count; -1 means no status yet. */
   lastMcpConnected: number;
   lastMcpConfigured: number;
+  /** Topic handler registry for non-chat topics. */
+  topicHandlers?: Record<string, TopicHandler>;
 }

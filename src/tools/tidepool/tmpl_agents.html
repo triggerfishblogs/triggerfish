@@ -1,0 +1,323 @@
+<div class="screen-agents-container">
+  <div class="agents-list-panel" id="agents-list-panel">
+    <div class="agents-list-header">
+      <span>Sessions</span>
+    </div>
+    <div class="agents-list" id="agents-list">
+      <div class="agents-group" id="agents-group-main">
+        <div class="agents-group-header">MAIN SESSION</div>
+        <div class="agents-group-items" id="agents-items-main"></div>
+      </div>
+      <div class="agents-group" id="agents-group-teams">
+        <div class="agents-group-header agents-group-collapsible" id="agents-teams-toggle">
+          TEAMS <span class="agents-collapse-icon">&#x25BC;</span>
+        </div>
+        <div class="agents-group-items" id="agents-items-teams"></div>
+      </div>
+      <div class="agents-group" id="agents-group-background">
+        <div class="agents-group-header">BACKGROUND SESSIONS</div>
+        <div class="agents-group-items" id="agents-items-background"></div>
+      </div>
+      <div class="agents-group" id="agents-group-history">
+        <div class="agents-group-header agents-group-collapsible" id="agents-history-toggle">
+          RECENT SESSIONS <span class="agents-collapse-icon">&#x25BC;</span>
+        </div>
+        <div class="agents-group-items" id="agents-items-history"></div>
+      </div>
+    </div>
+  </div>
+  <div class="agents-detail-panel" id="agents-detail-panel">
+    <div class="agents-detail-placeholder" id="agents-detail-placeholder">
+      <div class="screen-placeholder">
+        <svg viewBox="0 0 20 20" width="36" height="36" fill="var(--fg3)">
+          <path d="M10 2a4 4 0 100 8 4 4 0 000-8zM2 18a8 8 0 0116 0H2z"/>
+        </svg>
+        <div>Select a session</div>
+      </div>
+    </div>
+    <div class="agents-detail-content" id="agents-detail-content" style="display:none">
+      <div class="agents-detail-header" id="agents-detail-header"></div>
+      <div class="agents-detail-meta" id="agents-detail-meta"></div>
+      <div class="agents-detail-actions" id="agents-detail-actions"></div>
+      <div class="agents-detail-chat" id="agents-detail-chat"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var listPanel = document.getElementById("agents-list");
+  var mainItems = document.getElementById("agents-items-main");
+  var teamItems = document.getElementById("agents-items-teams");
+  var bgItems = document.getElementById("agents-items-background");
+  var historyItems = document.getElementById("agents-items-history");
+  var detailPlaceholder = document.getElementById("agents-detail-placeholder");
+  var detailContent = document.getElementById("agents-detail-content");
+  var detailHeader = document.getElementById("agents-detail-header");
+  var detailMeta = document.getElementById("agents-detail-meta");
+  var detailActions = document.getElementById("agents-detail-actions");
+  var detailChat = document.getElementById("agents-detail-chat");
+  var teamsToggle = document.getElementById("agents-teams-toggle");
+  var historyToggle = document.getElementById("agents-history-toggle");
+
+  var selectedSessionId = null;
+  var chatInstance = null;
+  var teamsCollapsed = false;
+  var historyCollapsed = false;
+
+  var TAINT_BORDERS = {
+    PUBLIC: "var(--green)", INTERNAL: "var(--yellow)",
+    CONFIDENTIAL: "var(--orange)", RESTRICTED: "var(--red)"
+  };
+
+  function escapeH(s) {
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  // Collapsible toggles
+  teamsToggle.addEventListener("click", function () {
+    teamsCollapsed = !teamsCollapsed;
+    teamItems.style.display = teamsCollapsed ? "none" : "";
+    teamsToggle.querySelector(".agents-collapse-icon").textContent = teamsCollapsed ? "\u25B6" : "\u25BC";
+  });
+  historyToggle.addEventListener("click", function () {
+    historyCollapsed = !historyCollapsed;
+    historyItems.style.display = historyCollapsed ? "none" : "";
+    historyToggle.querySelector(".agents-collapse-icon").textContent = historyCollapsed ? "\u25B6" : "\u25BC";
+  });
+
+  function renderSessionCard(session) {
+    var el = document.createElement("div");
+    el.className = "agents-session-card";
+    el.setAttribute("data-session-id", session.sessionId);
+    el.style.borderLeftColor = TAINT_BORDERS[session.taint] || "var(--border)";
+    if (session.sessionId === selectedSessionId) {
+      el.classList.add("selected");
+    }
+
+    var statusClass = session.status || "gray";
+    var timeStr = session.createdAt ? fmtTime(session.createdAt) : (session.lastActivity || "");
+
+    el.innerHTML =
+      '<div class="agents-card-top">' +
+        '<span class="status-dot ' + statusClass + '"></span>' +
+        '<span class="agents-card-label">' + escapeH(session.label) + '</span>' +
+      '</div>' +
+      (session.model ? '<div class="agents-card-model">Model: ' + escapeH(session.model) + '</div>' : '') +
+      '<div class="agents-card-taint">' +
+        '<span class="taint-badge ' + (session.taint || "public").toLowerCase() + '">' +
+          escapeH(session.taint || "PUBLIC") +
+        '</span>' +
+        (timeStr ? '<span class="agents-card-time">' + escapeH(timeStr) + '</span>' : '') +
+      '</div>';
+
+    el.addEventListener("click", function () {
+      selectSession(session);
+    });
+    return el;
+  }
+
+  function renderTeamCard(team) {
+    var container = document.createElement("div");
+    container.className = "agents-team-card";
+    container.style.borderLeftColor = TAINT_BORDERS[team.taint] || "var(--border)";
+
+    var header = document.createElement("div");
+    header.className = "agents-team-header";
+    header.innerHTML =
+      '<span class="status-dot ' + (team.status || "gray") + '"></span>' +
+      '<span class="agents-team-name">Team: ' + escapeH(team.name) + '</span>' +
+      '<span class="taint-badge ' + (team.taint || "public").toLowerCase() + '">' +
+        escapeH(team.taint || "PUBLIC") +
+      '</span>';
+    container.appendChild(header);
+
+    var members = team.members || [];
+    for (var i = 0; i < members.length; i++) {
+      var memberEl = renderSessionCard(members[i]);
+      memberEl.classList.add("agents-team-member");
+      container.appendChild(memberEl);
+    }
+    return container;
+  }
+
+  function renderSessionList(sessions, teams) {
+    mainItems.innerHTML = "";
+    teamItems.innerHTML = "";
+    bgItems.innerHTML = "";
+    historyItems.innerHTML = "";
+
+    // Main session
+    var mainSessions = (sessions || []).filter(function (s) { return s.group === "main"; });
+    for (var i = 0; i < mainSessions.length; i++) {
+      mainItems.appendChild(renderSessionCard(mainSessions[i]));
+    }
+
+    // Teams
+    var teamList = teams || [];
+    for (var t = 0; t < teamList.length; t++) {
+      teamItems.appendChild(renderTeamCard(teamList[t]));
+    }
+
+    // Background (active)
+    var bgSessions = (sessions || []).filter(function (s) { return s.group === "background"; });
+    for (var b = 0; b < bgSessions.length; b++) {
+      bgItems.appendChild(renderSessionCard(bgSessions[b]));
+    }
+
+    // Recent/history sessions (completed triggers, past sessions)
+    var historySessions = (sessions || []).filter(function (s) { return s.group === "history"; });
+    for (var h = 0; h < historySessions.length; h++) {
+      historyItems.appendChild(renderSessionCard(historySessions[h]));
+    }
+
+    // Hide empty groups
+    document.getElementById("agents-group-teams").style.display = teamList.length > 0 ? "" : "none";
+    document.getElementById("agents-group-background").style.display = bgSessions.length > 0 ? "" : "none";
+    document.getElementById("agents-group-history").style.display = historySessions.length > 0 ? "" : "none";
+
+    // Update nav badge with active count
+    var activeCount = (sessions || []).filter(function (s) {
+      return s.status === "green" || s.status === "yellow";
+    }).length;
+    if (window.tidepoolBadge && activeCount > 1) {
+      window.tidepoolBadge.setCount("agents", activeCount);
+    }
+  }
+
+  function renderTaintHistory(events) {
+    if (!events || events.length === 0) return "";
+    var html = '<div class="agents-taint-timeline">';
+    for (var i = 0; i < events.length; i++) {
+      var ev = events[i];
+      html += '<div class="agents-taint-event">' +
+        '<span class="taint-badge ' + (ev.previousLevel || "public").toLowerCase() + '">' + escapeH(ev.previousLevel) + '</span>' +
+        '<span class="agents-taint-arrow">\u2192</span>' +
+        '<span class="taint-badge ' + (ev.newLevel || "public").toLowerCase() + '">' + escapeH(ev.newLevel) + '</span>' +
+        '<span class="agents-taint-reason">' + escapeH(ev.reason || "") + '</span>' +
+        (ev.timestamp ? '<span class="agents-taint-time">' + escapeH(fmtTime(ev.timestamp)) + '</span>' : '') +
+      '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function selectSession(session) {
+    // Unsubscribe from previous
+    if (selectedSessionId && window.tidepoolWs) {
+      window.tidepoolWs.send({
+        topic: "agents",
+        action: "unsubscribe_session",
+        payload: { sessionId: selectedSessionId }
+      });
+    }
+
+    selectedSessionId = session.sessionId;
+
+    // Update selected state in list
+    var cards = listPanel.querySelectorAll(".agents-session-card");
+    for (var i = 0; i < cards.length; i++) {
+      cards[i].classList.toggle("selected", cards[i].getAttribute("data-session-id") === selectedSessionId);
+    }
+
+    // Show detail panel
+    detailPlaceholder.style.display = "none";
+    detailContent.style.display = "flex";
+
+    // Tinted header background
+    var taintColor = TAINT_BORDERS[session.taint] || "var(--border)";
+    detailHeader.style.background = taintColor.replace(")", ", 0.1)").replace("var(", "rgba(");
+    detailHeader.innerHTML =
+      '<span class="status-dot ' + (session.status || "gray") + '"></span>' +
+      '<span class="agents-detail-label">' + escapeH(session.label) + '</span>' +
+      '<span class="taint-badge ' + (session.taint || "public").toLowerCase() + '">' +
+        escapeH(session.taint || "PUBLIC") +
+      '</span>';
+
+    detailMeta.innerHTML =
+      (session.teamRole ? '<div>Role: ' + escapeH(session.teamRole) + '</div>' : '') +
+      (session.model ? '<div>Model: ' + escapeH(session.model) + '</div>' : '') +
+      (session.channelId ? '<div>Channel: ' + escapeH(session.channelId) + '</div>' : '') +
+      (session.createdAt ? '<div>Created: ' + escapeH(fmtTime(session.createdAt)) + '</div>' : '') +
+      '<div>Status: ' + escapeH(session.status || "unknown") + '</div>' +
+      '<div>Taint: ' + escapeH(session.taint || "PUBLIC") + '</div>' +
+      renderTaintHistory(session.history);
+
+    // Actions
+    detailActions.innerHTML = '';
+    if (session.group === "background") {
+      var termBtn = document.createElement("button");
+      termBtn.className = "agents-action-btn agents-action-danger";
+      termBtn.textContent = "Terminate";
+      termBtn.addEventListener("click", function () {
+        if (window.tidepoolWs) {
+          window.tidepoolWs.send({
+            topic: "agents",
+            action: "terminate",
+            payload: { sessionId: session.sessionId }
+          });
+        }
+      });
+      detailActions.appendChild(termBtn);
+    }
+
+    // Create chat instance for this session
+    if (chatInstance) {
+      chatInstance.destroy();
+    }
+    detailChat.innerHTML = "";
+    if (window.TidepoolChat) {
+      chatInstance = new window.TidepoolChat(detailChat, {
+        sessionId: session.sessionId,
+        readOnly: false,
+        topic: "agents"
+      });
+    }
+
+    // Subscribe to session transcript
+    if (window.tidepoolWs) {
+      window.tidepoolWs.send({
+        topic: "agents",
+        action: "subscribe_session",
+        payload: { sessionId: session.sessionId }
+      });
+    }
+  }
+
+  // Listen for agents topic messages
+  if (window.tidepoolMux) {
+    window.tidepoolMux.on("agents", function (msg) {
+      if (msg.type === "session_list") {
+        renderSessionList(msg.sessions, msg.teams);
+      } else if (msg.type === "session_updated" || msg.type === "session_created" || msg.type === "session_terminated") {
+        // Request fresh session list
+        if (window.tidepoolWs) {
+          window.tidepoolWs.send({ topic: "agents", action: "list_sessions" });
+        }
+      }
+      // Per-session events are handled by the TidepoolChat instance via mux
+    });
+  }
+
+  // Register screen lifecycle
+  if (window.tidepoolScreens) {
+    window.tidepoolScreens.agents = {
+      onMount: function () {
+        if (window.tidepoolWs) {
+          window.tidepoolWs.send({ topic: "agents", action: "list_sessions" });
+        }
+      },
+      onUnmount: function () {
+        // Keep session subscription alive for real-time updates
+      }
+    };
+  }
+})();
+</script>

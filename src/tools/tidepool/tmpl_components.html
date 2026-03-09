@@ -1,0 +1,330 @@
+<script>
+  /**
+   * Shared Tidepool UI components: TidepoolChat, renderTaintBadge, renderStatusDot.
+   *
+   * TidepoolChat is a reusable class that can be instantiated N times on the
+   * same page, each with an independent message history and scroll position.
+   */
+  (function () {
+    // -------------------------------------------------------------------------
+    // Helpers (shared across instances)
+    // -------------------------------------------------------------------------
+
+    function escapeHtml(s) {
+      var d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function renderMarkdown(text) {
+      if (!text) return "";
+      var cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
+      cleaned = cleaned.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "");
+      cleaned = cleaned.replace(/<think(?:ing)?>[\s\S]*$/gi, "");
+      cleaned = cleaned.replace(/^[\s\S]*?<\/think(?:ing)?>/gi, "");
+      cleaned = cleaned.trim();
+      var html = escapeHtml(cleaned);
+      html = html.replace(
+        /```(\w*)?\n([\s\S]*?)```/g,
+        "<pre><code>$2</code></pre>",
+      );
+      html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+      html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      html = html.replace(/\n/g, "<br>");
+      return html;
+    }
+
+    var TAINT_COLORS = {
+      PUBLIC: "var(--green)",
+      INTERNAL: "var(--yellow)",
+      CONFIDENTIAL: "var(--orange)",
+      RESTRICTED: "var(--red)",
+    };
+
+    // -------------------------------------------------------------------------
+    // TidepoolChat class
+    // -------------------------------------------------------------------------
+
+    /**
+     * Reusable chat component.
+     *
+     * @param {HTMLElement} containerEl - DOM element to mount into
+     * @param {Object} opts - Configuration
+     * @param {string} opts.sessionId - Session ID to subscribe to
+     * @param {boolean} opts.readOnly - If true, hide input bar
+     * @param {string} opts.topic - WS topic for messages (default: "chat")
+     */
+    function TidepoolChat(containerEl, opts) {
+      opts = opts || {};
+      this.container = containerEl;
+      this.sessionId = opts.sessionId || "main";
+      this.readOnly = opts.readOnly || false;
+      this.topic = opts.topic || "chat";
+      this.currentTaint = "PUBLIC";
+      this.processing = false;
+      this.currentAssistantEl = null;
+      this.currentAssistantText = "";
+      this.activeTools = {};
+      this.todoListEl = null;
+      this.pendingTodoArgs = null;
+      this._destroyed = false;
+
+      this._build();
+      this._subscribe();
+    }
+
+    TidepoolChat.prototype._build = function () {
+      this.container.innerHTML = "";
+      this.container.classList.add("tidepool-chat-instance");
+
+      // Messages area
+      this.messagesEl = document.createElement("div");
+      this.messagesEl.className = "chat-messages";
+      this.container.appendChild(this.messagesEl);
+
+      // Input bar (unless readOnly)
+      if (!this.readOnly) {
+        this.inputBarEl = document.createElement("div");
+        this.inputBarEl.className = "chat-input-bar";
+        this.inputBarEl.style.borderTopColor = TAINT_COLORS[this.currentTaint] || "var(--green)";
+
+        this.inputEl = document.createElement("textarea");
+        this.inputEl.className = "chat-input";
+        this.inputEl.rows = 1;
+        this.inputEl.placeholder = "Type a message...";
+        this.inputEl.autocomplete = "off";
+
+        this.sendBtnEl = document.createElement("button");
+        this.sendBtnEl.className = "chat-send-btn";
+        this.sendBtnEl.textContent = "Send";
+
+        this.inputBarEl.appendChild(this.inputEl);
+        this.inputBarEl.appendChild(this.sendBtnEl);
+        this.container.appendChild(this.inputBarEl);
+
+        this._wireInput();
+      }
+    };
+
+    TidepoolChat.prototype._wireInput = function () {
+      var self = this;
+
+      this.sendBtnEl.addEventListener("click", function () {
+        if (self.processing) {
+          self._sendWs({ type: "cancel" });
+          return;
+        }
+        self._sendMessage();
+      });
+
+      this.inputEl.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          self._sendMessage();
+        }
+      });
+
+      this.inputEl.addEventListener("input", function () {
+        this.style.height = "auto";
+        this.style.height = Math.min(this.scrollHeight, 120) + "px";
+      });
+    };
+
+    TidepoolChat.prototype._sendMessage = function () {
+      if (!this.inputEl) return;
+      var text = this.inputEl.value.trim();
+      if (!text || !window.tidepoolWs || !window.tidepoolWs.isConnected() || this.processing) {
+        return;
+      }
+
+      this.appendMessage("user", text);
+      this._sendWs({ type: "message", content: text });
+      this.inputEl.value = "";
+      this.inputEl.style.height = "auto";
+      this.processing = true;
+      this.sendBtnEl.textContent = "Stop";
+    };
+
+    TidepoolChat.prototype._sendWs = function (msg) {
+      if (window.tidepoolWs && window.tidepoolWs.isConnected()) {
+        // For non-main sessions, route via agents topic
+        if (this.sessionId !== "main" && this.topic === "agents") {
+          msg.topic = "agents";
+          msg.sessionId = this.sessionId;
+        }
+        window.tidepoolWs.send(msg);
+      }
+    };
+
+    TidepoolChat.prototype._subscribe = function () {
+      var self = this;
+      this._handler = function (evt) {
+        if (self._destroyed) return;
+        // Filter by session if this is a session-specific chat
+        if (evt.sessionId && evt.sessionId !== self.sessionId) return;
+        self._handleEvent(evt);
+      };
+
+      if (window.tidepoolMux) {
+        window.tidepoolMux.on(this.topic, this._handler);
+      }
+    };
+
+    TidepoolChat.prototype._handleEvent = function (evt) {
+      switch (evt.type) {
+        case "llm_start":
+          if (!this.currentAssistantEl) {
+            this.currentAssistantEl = this.appendMessage("assistant", "");
+            this.currentAssistantEl.classList.add("thinking", "taint-" + this.currentTaint.toLowerCase());
+            this.currentAssistantEl.innerHTML =
+              '<span class="thinking-label"><span class="thinking-spinner"></span> Thinking\u2026</span>';
+            this.currentAssistantText = "";
+          }
+          break;
+        case "tool_call":
+          this._addTool(evt.name, evt.args);
+          break;
+        case "tool_result":
+          this._finishTool(evt.name, evt.result);
+          break;
+        case "response":
+          if (this.currentAssistantEl) {
+            this.currentAssistantEl.classList.remove("thinking");
+            this.currentAssistantEl.className = this.currentAssistantEl.className.replace(/\btaint-\w+/g, "");
+            this.currentAssistantEl.classList.add("taint-" + this.currentTaint.toLowerCase());
+            this.currentAssistantEl.innerHTML = renderMarkdown(evt.text);
+          } else {
+            this.appendMessage("assistant", evt.text);
+          }
+          this.currentAssistantEl = null;
+          this.currentAssistantText = "";
+          this.todoListEl = null;
+          this.processing = false;
+          if (this.sendBtnEl) {
+            this.sendBtnEl.textContent = "Send";
+          }
+          break;
+        case "taint_changed":
+          this.currentTaint = evt.level || evt.taint || "PUBLIC";
+          if (this.inputBarEl) {
+            this.inputBarEl.style.borderTopColor = TAINT_COLORS[this.currentTaint] || "var(--border)";
+          }
+          break;
+        case "cancelled":
+          this.currentAssistantEl = null;
+          this.currentAssistantText = "";
+          this.todoListEl = null;
+          this.processing = false;
+          if (this.sendBtnEl) this.sendBtnEl.textContent = "Send";
+          break;
+        case "error":
+          this.appendMessage("error", evt.message);
+          this.currentAssistantEl = null;
+          this.processing = false;
+          if (this.sendBtnEl) this.sendBtnEl.textContent = "Send";
+          break;
+      }
+    };
+
+    TidepoolChat.prototype.appendMessage = function (role, text) {
+      var el = document.createElement("div");
+      el.className = "msg " + role;
+      if (role === "user") {
+        el.classList.add("taint-" + this.currentTaint.toLowerCase());
+      }
+      el.innerHTML = renderMarkdown(text);
+      this.messagesEl.appendChild(el);
+      this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+      return el;
+    };
+
+    TidepoolChat.prototype.appendToolCall = function (call) {
+      this._addTool(call.name, call.args);
+    };
+
+    TidepoolChat.prototype.appendToolResult = function (result) {
+      this._finishTool(result.name, result.result);
+    };
+
+    TidepoolChat.prototype._addTool = function (name, args) {
+      if (name === "todo_read" || name === "todo_write") {
+        this.pendingTodoArgs = args;
+        return;
+      }
+      var el = document.createElement("div");
+      el.className = "tool";
+      var argValues = Object.keys(args || {}).map(function (k) { return args[k]; }).join(" ");
+      el.innerHTML = '<span class="spinner"></span> ' + escapeHtml(name) + " " + escapeHtml(String(argValues).slice(0, 60));
+      this.messagesEl.appendChild(el);
+      this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+      this.activeTools[name] = el;
+    };
+
+    TidepoolChat.prototype._finishTool = function (name, result) {
+      if (name === "todo_read" || name === "todo_write") {
+        this.pendingTodoArgs = null;
+        return;
+      }
+      if (this.activeTools[name]) {
+        this.activeTools[name].className = "tool done";
+        delete this.activeTools[name];
+      }
+    };
+
+    TidepoolChat.prototype.setReadOnly = function (reason) {
+      this.readOnly = true;
+      if (this.inputEl) {
+        this.inputEl.disabled = true;
+        this.inputEl.placeholder = reason || "Read only";
+      }
+      if (this.sendBtnEl) {
+        this.sendBtnEl.disabled = true;
+      }
+    };
+
+    TidepoolChat.prototype.destroy = function () {
+      this._destroyed = true;
+      if (window.tidepoolMux && this._handler) {
+        window.tidepoolMux.off(this.topic, this._handler);
+      }
+      this.container.innerHTML = "";
+      this.container.classList.remove("tidepool-chat-instance");
+    };
+
+    // -------------------------------------------------------------------------
+    // Taint badge renderer
+    // -------------------------------------------------------------------------
+
+    function renderTaintBadge(level) {
+      var cssClass = (level || "PUBLIC").toLowerCase();
+      return '<span class="taint-badge ' + cssClass + '">' + escapeHtml(level || "PUBLIC") + '</span>';
+    }
+
+    // -------------------------------------------------------------------------
+    // Status dot renderer
+    // -------------------------------------------------------------------------
+
+    function renderStatusDot(status) {
+      var level;
+      switch (status) {
+        case "active": case "running": case "connected": case "healthy":
+          level = "green"; break;
+        case "idle": case "waiting": case "degraded": case "connecting":
+          level = "yellow"; break;
+        case "error": case "failed": case "critical": case "disconnected":
+          level = "red"; break;
+        default:
+          level = "gray"; break;
+      }
+      return '<span class="status-dot ' + level + '" title="' + escapeHtml(status || "unknown") + '"></span>';
+    }
+
+    // -------------------------------------------------------------------------
+    // Export to global scope
+    // -------------------------------------------------------------------------
+
+    window.TidepoolChat = TidepoolChat;
+    window.renderTaintBadge = renderTaintBadge;
+    window.renderStatusDot = renderStatusDot;
+  })();
+</script>

@@ -17,7 +17,7 @@ export type {
 export { createA2UIHost, createTidepoolHost } from "./host.ts";
 
 // Host state and internal types
-export type { A2UIHostState } from "./host_types.ts";
+export type { A2UIHostState, TopicHandler } from "./host_types.ts";
 
 // Broadcast helpers
 export {
@@ -36,3 +36,32 @@ export {
   routeHostRequest,
   upgradeWebSocketClient,
 } from "./host_server.ts";
+
+// Topic-specific host handlers
+export type { TidepoolLogSink } from "./host_logs.ts";
+export { createTidepoolLogSink } from "./host_logs.ts";
+
+export type { TidepoolMemoryHandler } from "./host_memory.ts";
+export { createTidepoolMemoryHandler } from "./host_memory.ts";
+
+export type { TidepoolHealthHandler } from "./host_health.ts";
+export { createTidepoolHealthHandler } from "./host_health.ts";
+
+export type { TidepoolAgentsHandler } from "./host_agents.ts";
+export { createTidepoolAgentsHandler } from "./host_agents.ts";
+
+export type {
+  ConfigFieldError,
+  ConfigValidationResult,
+  TidepoolConfigHandler,
+} from "./host_config.ts";
+export { createTidepoolConfigHandler } from "./host_config.ts";
+
+// Topic dispatch factories
+export {
+  createAgentsTopicDispatcher,
+  createHealthTopicDispatcher,
+  createLogsTopicDispatcher,
+  createMemoryTopicDispatcher,
+  createSettingsTopicDispatcher,
+} from "./host_topic_dispatch.ts";

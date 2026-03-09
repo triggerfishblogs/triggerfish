@@ -31,23 +31,46 @@ export function upgradeWebSocketClient(
     sendInitialClientState(socket, state, chatSession);
   });
 
-  wireMessageListener(socket, chatSession, ref);
+  wireMessageListener(socket, chatSession, ref, state);
   wireCleanupListeners(socket, state, ref);
 
   return response;
 }
 
-/** Attach a message listener that dispatches chat messages from the client. */
+/**
+ * Attach a message listener that routes by topic.
+ *
+ * Messages without a `topic` field (or with topic "chat") are dispatched
+ * to the existing chat handler for backward compatibility. Messages with
+ * other topics are forwarded to the topic handler registry on state.
+ */
 function wireMessageListener(
   socket: WebSocket,
   chatSession: ChatSession | undefined,
   ref: AbortControllerRef,
+  state: A2UIHostState,
 ): void {
   socket.addEventListener("message", (event: MessageEvent) => {
-    if (!chatSession) return;
     try {
-      const ctx: ChatDispatchContext = { socket, chatSession, ref };
-      dispatchClientChatMessage(event.data, ctx);
+      const text = typeof event.data === "string"
+        ? event.data
+        : new TextDecoder().decode(event.data as ArrayBuffer);
+      const parsed = JSON.parse(text) as Record<string, unknown>;
+      const topic = (parsed.topic as string) ?? "chat";
+
+      if (topic === "chat" || !parsed.topic) {
+        // Legacy chat protocol — dispatch directly
+        if (!chatSession) return;
+        const ctx: ChatDispatchContext = { socket, chatSession, ref };
+        dispatchClientChatMessage(event.data, ctx);
+        return;
+      }
+
+      // Topic-routed message — dispatch to registered handler
+      const handler = state.topicHandlers?.[topic];
+      if (handler) {
+        handler(parsed, socket);
+      }
     } catch {
       // Ignore malformed messages
     }

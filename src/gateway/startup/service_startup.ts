@@ -27,6 +27,7 @@ import {
   wrapChatSessionForGateway,
   wrapChatSessionForTidepool,
 } from "./services/chat_session.ts";
+import { registerTidepoolTopicHandlers } from "./services/tidepool_topics.ts";
 
 /** Create the main chat session from assembled infrastructure. */
 export function buildMainChatSession(
@@ -96,13 +97,14 @@ export function buildMainChatSession(
   });
 }
 
-/** Start the Tidepool host and wire tool references. */
+/** Start the Tidepool host and wire tool references + topic handlers. */
 export async function launchTidepoolService(
   toolInfra: ToolInfraResult,
   chatSession: ReturnType<typeof createChatSession>,
   isTidepoolCallRef: { value: boolean },
   notificationService: CoreInfraResult["notificationService"],
-  log: BootstrapResult["log"],
+  bootstrap: BootstrapResult,
+  coreInfra: CoreInfraResult,
 ) {
   const tidepoolChatSession = wrapChatSessionForTidepool(
     chatSession,
@@ -114,10 +116,13 @@ export async function launchTidepoolService(
   const tidepoolHost = await startTidepoolHost(
     tidepoolChatSession,
     notificationService,
-    log,
+    bootstrap.log,
   );
   toolInfra.tidepoolToolsRef.value = createTidePoolTools(tidepoolHost);
   toolInfra.mcpBroadcastRefs.tidepoolHost = tidepoolHost;
+
+  registerTidepoolTopicHandlers(tidepoolHost, toolInfra, bootstrap, coreInfra);
+
   return tidepoolHost;
 }
 
@@ -158,7 +163,8 @@ export async function startNetworkServices(
     chatSession,
     isTidepoolCallRef,
     coreInfra.notificationService,
-    bootstrap.log,
+    bootstrap,
+    coreInfra,
   );
   const server = await launchGatewayService(
     toolInfra,

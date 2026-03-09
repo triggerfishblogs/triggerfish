@@ -28,45 +28,35 @@
         "var(--border)";
     }
 
-    var ws = null;
     var processing = false;
     var currentAssistantEl = null;
     var currentAssistantText = "";
-    var reconnectDelay = 1000;
     var pendingImages = [];
 
-    function connect() {
-      var proto = location.protocol === "https:" ? "wss:" : "ws:";
-      ws = new WebSocket(proto + "//" + location.host);
-      dot.className = "dot connecting";
+    // -------------------------------------------------------------------------
+    // Wire into shared WS mux — listen for shell connection events
+    // -------------------------------------------------------------------------
 
-      ws.onopen = function () {
-        dot.className = "dot connected";
-        sendBtn.disabled = false;
-        reconnectDelay = 1000;
-      };
-
-      ws.onclose = function () {
-        dot.className = "dot disconnected";
-        sendBtn.disabled = true;
-        processing = false;
-        setTimeout(connect, reconnectDelay);
-        reconnectDelay = Math.min(reconnectDelay * 2, 30000);
-      };
-
-      ws.onerror = function () {
-        dot.className = "dot disconnected";
-      };
-
-      ws.onmessage = function (e) {
-        try {
-          var evt = JSON.parse(e.data);
-          handleEvent(evt);
-        } catch (err) {
-          console.error("Parse error:", err);
+    if (window.tidepoolMux) {
+      window.tidepoolMux.on("shell", function (msg) {
+        if (msg.type === "ws_connected") {
+          dot.className = "dot connected";
+          sendBtn.disabled = false;
+        } else if (msg.type === "ws_disconnected") {
+          dot.className = "dot disconnected";
+          sendBtn.disabled = true;
+          processing = false;
+        } else if (msg.type === "ws_error") {
+          dot.className = "dot disconnected";
         }
-      };
+      });
+
+      // Register as handler for "chat" topic (default topic for legacy messages)
+      window.tidepoolMux.on("chat", handleEvent);
     }
+
+    // Set initial connecting state
+    dot.className = "dot connecting";
 
     function handleEvent(evt) {
       switch (evt.type) {
@@ -98,8 +88,6 @@
         case "response":
           if (currentAssistantEl) {
             currentAssistantEl.classList.remove("thinking");
-            // Update taint border to current level — escalation may have
-            // occurred mid-turn via tool results.
             currentAssistantEl.className = currentAssistantEl.className
               .replace(/\btaint-\w+/g, "");
             currentAssistantEl.classList.add(
@@ -239,27 +227,23 @@
       function onSubmit() {
         var val = valueInput.value;
         cleanup();
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(
-            JSON.stringify({
-              type: "secret_prompt_response",
-              nonce: nonce,
-              value: val || null,
-            }),
-          );
+        if (window.tidepoolWs && window.tidepoolWs.isConnected()) {
+          window.tidepoolWs.send({
+            type: "secret_prompt_response",
+            nonce: nonce,
+            value: val || null,
+          });
         }
       }
 
       function onCancel() {
         cleanup();
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(
-            JSON.stringify({
-              type: "secret_prompt_response",
-              nonce: nonce,
-              value: null,
-            }),
-          );
+        if (window.tidepoolWs && window.tidepoolWs.isConnected()) {
+          window.tidepoolWs.send({
+            type: "secret_prompt_response",
+            nonce: nonce,
+            value: null,
+          });
         }
       }
 
@@ -320,25 +304,25 @@
         var user = usernameInput.value;
         var pass = passwordInput.value;
         cleanup();
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
+        if (window.tidepoolWs && window.tidepoolWs.isConnected()) {
+          window.tidepoolWs.send({
             type: "credential_prompt_response",
             nonce: nonce,
             username: user || null,
             password: pass || null,
-          }));
+          });
         }
       }
 
       function onCancel() {
         cleanup();
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
+        if (window.tidepoolWs && window.tidepoolWs.isConnected()) {
+          window.tidepoolWs.send({
             type: "credential_prompt_response",
             nonce: nonce,
             username: null,
             password: null,
-          }));
+          });
         }
       }
 
@@ -549,13 +533,13 @@
 
     function sendMessage() {
       var text = input.value.trim();
-      if (!text || !ws || ws.readyState !== WebSocket.OPEN || processing) {
+      if (!text || !window.tidepoolWs || !window.tidepoolWs.isConnected() || processing) {
         return;
       }
 
       // Client-side slash commands
       if (text === "/clear") {
-        ws.send(JSON.stringify({ type: "clear" }));
+        window.tidepoolWs.send({ type: "clear" });
         messages.innerHTML = "";
         currentAssistantEl = null;
         currentAssistantText = "";
@@ -581,7 +565,7 @@
       } else {
         content = text;
       }
-      ws.send(JSON.stringify({ type: "message", content: content }));
+      window.tidepoolWs.send({ type: "message", content: content });
       input.value = "";
       input.style.height = "auto";
       processing = true;
@@ -591,8 +575,8 @@
 
     sendBtn.addEventListener("click", function () {
       if (processing) {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "cancel" }));
+        if (window.tidepoolWs && window.tidepoolWs.isConnected()) {
+          window.tidepoolWs.send({ type: "cancel" });
         }
         return;
       }
@@ -643,7 +627,5 @@
       pendingImages = [];
       pasteIndicator.className = "";
     });
-
-    connect();
   })();
 </script>
