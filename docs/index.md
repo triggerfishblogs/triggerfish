@@ -40,10 +40,7 @@ features:
     details: Apache 2.0 licensed. Security-critical components fully open for audit. Don't trust us — verify the code.
 ---
 
-<p align="center" style="margin: 2rem 0 0;">
-  <a href="https://github.com/greghavens/triggerfish/releases/latest"><img src="https://img.shields.io/github/v/tag/greghavens/triggerfish?label=Latest%20Release&style=for-the-badge&color=0077B6" alt="Latest Release" /></a>&nbsp;
-  <a href="https://github.com/greghavens/triggerfish/releases/latest"><img src="https://img.shields.io/github/release-date/greghavens/triggerfish?label=Released&style=for-the-badge&color=023E8A" alt="Release Date" /></a>
-</p>
+<LatestRelease />
 
 ## Install in one command
 
