@@ -76,9 +76,24 @@ layout: page
 .account-message.success {
   color: var(--vp-c-brand-2);
 }
+
+.usage-wrapper {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 0 20px;
+}
+
+.usage-iframe {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  min-height: 500px;
+  background: transparent;
+  display: block;
+}
 </style>
 
-<div class="account-wrapper">
+<div class="account-wrapper" id="account-form-section">
 <h1>Manage your subscription</h1>
 <p class="subtitle">Enter your email to receive a sign-in link.</p>
 <div class="account-form">
@@ -88,6 +103,10 @@ layout: page
 <div id="account-message" class="account-message" style="display:none;"></div>
 </div>
 
+<div class="usage-wrapper" id="usage-section" style="display:none;">
+<iframe id="usage-iframe" class="usage-iframe" allowtransparency="true"></iframe>
+</div>
+
 <script setup>
 import { onMounted } from 'vue'
 
@@ -95,6 +114,29 @@ onMounted(() => {
   // Derive gateway from current hostname (no hardcoded URLs)
   const isSandbox = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   const GATEWAY = isSandbox ? 'https://api-sandbox.trigger.fish' : 'https://api.trigger.fish'
+
+  // Check for token param — if present, show usage dashboard instead of email form
+  const params = new URLSearchParams(window.location.search)
+  const token = params.get('token')
+
+  if (token) {
+    const formSection = document.getElementById('account-form-section')
+    const usageSection = document.getElementById('usage-section')
+    const iframe = document.getElementById('usage-iframe')
+
+    formSection.style.display = 'none'
+    usageSection.style.display = ''
+    iframe.src = `${GATEWAY}/v1/account/usage?token=${encodeURIComponent(token)}`
+
+    window.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'tf-resize' && typeof event.data.height === 'number') {
+        iframe.style.height = `${event.data.height}px`
+      }
+    })
+
+    return
+  }
+
   const input = document.getElementById('account-email')
   const btn = document.getElementById('account-btn')
   const msg = document.getElementById('account-message')
