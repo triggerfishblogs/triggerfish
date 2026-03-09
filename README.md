@@ -13,6 +13,8 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/greghavens/triggerfish/releases/latest"><img src="https://img.shields.io/github/v/tag/greghavens/triggerfish?label=Release&style=for-the-badge&color=0077B6" alt="Latest Release" /></a>
+  <a href="https://github.com/greghavens/triggerfish/releases/latest"><img src="https://img.shields.io/github/release-date/greghavens/triggerfish?label=Released&style=for-the-badge&color=023E8A" alt="Release Date" /></a>
   <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge" alt="Apache 2.0 License" />
   <img src="https://img.shields.io/badge/Runtime-Deno_2.x-000000?style=for-the-badge&logo=deno&logoColor=white" alt="Deno" />
   <img src="https://img.shields.io/badge/LLM-Claude_%7C_GPT_%7C_Gemini-8A2BE2?style=for-the-badge" alt="LLMs" />
