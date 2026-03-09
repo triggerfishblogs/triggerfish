@@ -18,9 +18,6 @@ collections:
     slug: "{{slug}}"
     extension: md
     format: yaml-frontmatter
-    filter:
-      field: title
-      pattern: "."
     fields:
       - { label: Title, name: title, widget: string }
       - { label: Date, name: date, widget: datetime, format: "YYYY-MM-DD", date_format: "YYYY-MM-DD", time_format: false }
