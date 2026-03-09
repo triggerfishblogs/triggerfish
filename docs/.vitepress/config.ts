@@ -11,6 +11,15 @@ const recentPostsLabel: Record<string, string> = {
   "de-DE": "Neueste Beiträge", "it-IT": "Articoli recenti",
 };
 
+const tagsLabel: Record<string, string> = {
+  "": "Tags", "en-GB": "Tags", "es-419": "Etiquetas",
+  "es-ES": "Etiquetas", "fr-FR": "Étiquettes",
+  "zh-CN": "标签", "zh-TW": "標籤", "ko-KR": "태그",
+  "hi-IN": "टैग", "ar-SA": "الوسوم", "fil-PH": "Mga Tag",
+  "he-IL": "תגיות", "fa-IR": "برچسب‌ها", "pt-BR": "Tags",
+  "de-DE": "Schlagwörter", "it-IT": "Tag",
+};
+
 function getBlogSidebar(locale = "") {
   const prefix = locale ? `${locale}/` : "";
   const blogDir = path.resolve(__dirname, `../${prefix}blog`);
@@ -18,7 +27,7 @@ function getBlogSidebar(locale = "") {
   const files = fs.readdirSync(blogDir).filter(
     (f) => f.endsWith(".md") && f !== "index.md"
   );
-  const posts: { title: string; link: string; date: string }[] = [];
+  const posts: { title: string; link: string; date: string; tags: string[] }[] = [];
   for (const file of files) {
     const content = fs.readFileSync(path.join(blogDir, file), "utf-8");
     const match = content.match(/^---\n([\s\S]*?)\n---/);
@@ -28,19 +37,49 @@ function getBlogSidebar(locale = "") {
     const dateMatch = fm.match(/^date:\s*["']?(.+?)["']?\s*$/m);
     const draftMatch = fm.match(/^draft:\s*true/m);
     if (draftMatch) continue;
+    const tagMatches = [...fm.matchAll(/^\s+-\s+(.+)$/gm)];
+    const inTags = fm.indexOf("tags:") !== -1;
+    const fileTags: string[] = [];
+    if (inTags) {
+      const tagsSection = fm.slice(fm.indexOf("tags:"));
+      const tagLines = tagsSection.split("\n").slice(1);
+      for (const line of tagLines) {
+        const m = line.match(/^\s+-\s+(.+)$/);
+        if (m) fileTags.push(m[1].trim());
+        else break;
+      }
+    }
     posts.push({
       title: titleMatch ? titleMatch[1] : file.replace(".md", ""),
       link: `/${prefix}blog/${file.replace(".md", "")}`,
       date: dateMatch ? dateMatch[1] : "1970-01-01",
+      tags: fileTags,
     });
   }
   posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  return [
+  const tagCounts = new Map<string, number>();
+  for (const p of posts) {
+    for (const t of p.tags) {
+      tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
+    }
+  }
+  const sortedTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]);
+  const sidebar: { text: string; items: { text: string; link: string }[] }[] = [
     {
       text: recentPostsLabel[locale] || "Recent Posts",
       items: posts.slice(0, 10).map((p) => ({ text: p.title, link: p.link })),
     },
   ];
+  if (sortedTags.length > 0) {
+    sidebar.push({
+      text: tagsLabel[locale] || "Tags",
+      items: sortedTags.map(([tag, count]) => ({
+        text: `${tag} (${count})`,
+        link: `/${prefix}blog/?tag=${encodeURIComponent(tag)}`,
+      })),
+    });
+  }
+  return sidebar;
 }
 import {
   enUS,
