@@ -12,6 +12,9 @@ import type { CoreInfraResult } from "../infra/core_infra.ts";
 import type { HealthSnapshot } from "../../../tools/tidepool/screens/health.ts";
 import type { HealthMetricCard } from "../../../tools/tidepool/screens/health.ts";
 import type { StatusLevel } from "../../../tools/tidepool/components/status_dot.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("tidepool-health");
 
 /** Create a health snapshot provider from available services. */
 export function createHealthSnapshotProvider(
@@ -93,8 +96,8 @@ async function buildSessionsCard(
     try {
       const managed = await coreInfra.enhancedSessionManager.sessionsList();
       count += managed.length;
-    } catch {
-      // Fall back to main session only
+    } catch (err: unknown) {
+      log.warn("Session count retrieval failed for health card", { operation: "buildSessionsCard", err });
     }
   }
   return {
