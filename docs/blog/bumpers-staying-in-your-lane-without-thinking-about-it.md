@@ -4,7 +4,7 @@ date: 2026-03-09
 description: Triggerfish bumpers keep your agent working at the level you're in.
   No accidental escalation, no surprises. Toggle them off when you need more. On
   by default.
-author: Triggerfish
+author: Greg Havens
 draft: false
 ---
 ![](/blog/images/chatgpt-image-mar-9-2026-04_07_56-pm.png "Title Graphic on Bumpers Keeping you in your lane")
