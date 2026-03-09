@@ -3,7 +3,7 @@ backend:
   repo: greghavens/triggerfish
   branch: master
   open_authoring: true
-  base_url: https://triggerfish-cms-auth.greg-0df.workers.dev
+  base_url: https://cms-auth.trigger.fish
 
 publish_mode: editorial_workflow
 
