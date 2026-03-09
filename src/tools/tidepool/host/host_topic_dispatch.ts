@@ -64,6 +64,8 @@ export function createHealthTopicDispatcher(
     if (action === "snapshot") {
       handler.snapshot().then((snap) => {
         reply(socket, { topic: "health", type: "snapshot", ...snap });
+      }).catch((err: unknown) => {
+        log.warn("Health snapshot dispatch failed", { operation: "snapshot", err });
       });
     } else if (action === "subscribe_live") {
       handler.subscribeLive(socket);
@@ -86,6 +88,8 @@ export function createAgentsTopicDispatcher(
       handler.subscribeList(socket);
       sessionListProvider().then((sessions) => {
         reply(socket, { topic: "agents", type: "session_list", sessions });
+      }).catch((err: unknown) => {
+        log.warn("Agents session list dispatch failed", { operation: "list_sessions", err });
       });
     } else if (action === "subscribe_session") {
       const sessionId = payload.sessionId as string;

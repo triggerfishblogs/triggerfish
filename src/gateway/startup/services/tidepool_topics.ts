@@ -125,7 +125,12 @@ function registerSettingsHandler(
 function wireTidepoolLogSink(
   sink: ReturnType<typeof createTidepoolLogSink>,
 ): void {
-  const logPath = `${Deno.env.get("HOME")}/.triggerfish/logs/triggerfish.log`;
+  const home = Deno.env.get("HOME");
+  if (!home) {
+    log.debug("HOME env var not set, log sink polling disabled");
+    return;
+  }
+  const logPath = `${home}/.triggerfish/logs/triggerfish.log`;
 
   let lastSize = 0;
   try {

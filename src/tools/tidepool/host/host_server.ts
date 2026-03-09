@@ -16,6 +16,9 @@ import {
   type ChatDispatchContext,
   dispatchClientChatMessage,
 } from "./host_chat.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("tidepool-server");
 
 /** Upgrade a WebSocket request: wire lifecycle listeners and return the upgrade response. */
 export function upgradeWebSocketClient(
@@ -71,8 +74,8 @@ function wireMessageListener(
       if (handler) {
         handler(parsed, socket);
       }
-    } catch {
-      // Ignore malformed messages
+    } catch (err) {
+      log.debug("Tidepool WS message dispatch failed", { err });
     }
   });
 }
@@ -117,8 +120,8 @@ export function closeAllClientSockets(clients: Set<WebSocket>): void {
   for (const ws of clients) {
     try {
       ws.close();
-    } catch {
-      // Client may already be closed
+    } catch (err) {
+      log.debug("Tidepool client socket close failed", { err });
     }
   }
   clients.clear();
