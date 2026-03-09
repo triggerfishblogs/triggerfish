@@ -3,7 +3,7 @@ backend:
   repo: greghavens/triggerfish
   branch: master
   open_authoring: true
-  base_url: https://decapcms-oauth.netlify.app
+  base_url: https://triggerfish-cms-auth.greghavens.workers.dev
 
 publish_mode: editorial_workflow
 
