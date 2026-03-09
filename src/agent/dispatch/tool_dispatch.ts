@@ -193,6 +193,10 @@ function checkBumpersForToolCall(
       }
     }
   }
+  log.debug("Bumpers allowed tool call", {
+    operation: "checkBumpersForToolCall",
+    toolName: call.name,
+  });
   return null;
 }
 

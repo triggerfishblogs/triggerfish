@@ -67,6 +67,7 @@ import type { ServiceAvailability } from "../../tools/defs/tool_profiles.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 
 const availabilityLog = createLogger("service-availability");
+const log = createLogger("tool-infra");
 
 /**
  * Detect which external services have credentials/config available.
@@ -162,8 +163,11 @@ async function loadBumpersPreference(
   try {
     const raw = await storage.get("prefs:owner:bumpers_default");
     if (raw !== null) return JSON.parse(raw) as boolean;
-  } catch {
-    // Fall through to default
+  } catch (err: unknown) {
+    log.warn("Bumper preference load failed, using default", {
+      operation: "loadBumpersPreference",
+      err,
+    });
   }
   return undefined;
 }
