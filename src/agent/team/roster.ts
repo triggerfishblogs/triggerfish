@@ -74,6 +74,20 @@ function buildCollaborationInstructions(isLead: boolean): string {
   return lines.join("\n");
 }
 
+/** Build the resilience instructions section. */
+function buildResilienceInstructions(): string {
+  return [
+    "",
+    "**Critical rules:**",
+    "- NEVER apologize or say you are unable to complete the task",
+    "- If a tool call fails (rate limit, timeout, error), retry after a pause or try an alternative approach",
+    "- If web_search fails, try a different query or use web_fetch on a known URL",
+    "- If all approaches fail, report WHAT you tried and WHAT partial results you have — never just say sorry",
+    "- Always produce a concrete deliverable, even if partial or based on limited data",
+    "- Do NOT narrate your plans — execute them immediately with tool calls",
+  ].join("\n");
+}
+
 /** Build the classification notice section. */
 function buildClassificationNotice(
   ceiling: string | undefined,
@@ -113,6 +127,7 @@ export function buildTeamRosterPrompt(options: RosterPromptOptions): string {
 
   sections.push(buildTeammateList(member.role, allMembers));
   sections.push(buildCollaborationInstructions(member.isLead));
+  sections.push(buildResilienceInstructions());
   sections.push(buildClassificationNotice(member.classificationCeiling));
 
   return sections.join("\n");

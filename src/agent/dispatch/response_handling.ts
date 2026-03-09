@@ -239,8 +239,9 @@ export function buildRecoveryNudge(
 
 /** The fallback response when the model returns empty/junk after all nudges. */
 export const FALLBACK_RESPONSE =
-  "I'm sorry, I wasn't able to generate a response. The language model returned empty or malformed output. " +
-  "This may be a temporary issue — please try again, or consider switching to a more capable model.";
+  "The language model did not produce a usable response after multiple attempts. " +
+  "This is typically caused by output token limits or provider issues. " +
+  "Try rephrasing the request or breaking it into smaller steps.";
 
 // ─── PRE_OUTPUT hook ─────────────────────────────────────────────────────────
 

@@ -151,9 +151,10 @@ async function executeTeamCreate(
     status: team.status,
     members: team.members.map((m) => ({
       role: m.role,
-      session_id: m.sessionId,
       is_lead: m.isLead,
+      status: m.status,
     })),
+    message: "Team created. Use team_status to check progress, team_message to communicate with members by role.",
   });
 }
 
@@ -189,7 +190,6 @@ async function executeTeamStatus(
     aggregate_taint: team.aggregateTaint,
     members: team.members.map((m) => ({
       role: m.role,
-      session_id: m.sessionId,
       is_lead: m.isLead,
       status: m.status,
       current_taint: m.currentTaint,

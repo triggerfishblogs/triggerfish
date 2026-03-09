@@ -75,10 +75,16 @@ export function createHealthTopicDispatcher(
   };
 }
 
+/** Data shape returned by the agent list provider. */
+interface AgentListData {
+  readonly sessions: Record<string, unknown>[];
+  readonly teams: Record<string, unknown>[];
+}
+
 /** Create a topic handler for the agents screen. */
 export function createAgentsTopicDispatcher(
   handler: TidepoolAgentsHandler,
-  sessionListProvider: () => Promise<Record<string, unknown>[]>,
+  agentListProvider: () => Promise<AgentListData>,
 ): TopicHandler {
   return (message, socket) => {
     const action = message.action as string;
@@ -86,8 +92,13 @@ export function createAgentsTopicDispatcher(
 
     if (action === "list_sessions") {
       handler.subscribeList(socket);
-      sessionListProvider().then((sessions) => {
-        reply(socket, { topic: "agents", type: "session_list", sessions });
+      agentListProvider().then((data) => {
+        reply(socket, {
+          topic: "agents",
+          type: "session_list",
+          sessions: data.sessions,
+          teams: data.teams,
+        });
       }).catch((err: unknown) => {
         log.warn("Agents session list dispatch failed", { operation: "list_sessions", err });
       });

@@ -103,14 +103,15 @@
     }
 
     var statusClass = session.status || "gray";
-    var timeStr = session.createdAt ? fmtTime(session.createdAt) : (session.lastActivity || "");
+    var timeStr = session.createdAt ? fmtTime(session.createdAt) : (session.lastActivity ? fmtTime(session.lastActivity) : "");
+    var outputPreview = session.lastOutput ? session.lastOutput.slice(0, 80) : "";
 
     el.innerHTML =
       '<div class="agents-card-top">' +
         '<span class="status-dot ' + statusClass + '"></span>' +
         '<span class="agents-card-label">' + escapeH(session.label) + '</span>' +
       '</div>' +
-      (session.model ? '<div class="agents-card-model">Model: ' + escapeH(session.model) + '</div>' : '') +
+      (outputPreview ? '<div class="agents-card-output">' + escapeH(outputPreview) + '</div>' : '') +
       '<div class="agents-card-taint">' +
         '<span class="taint-badge ' + (session.taint || "public").toLowerCase() + '">' +
           escapeH(session.taint || "PUBLIC") +
@@ -131,9 +132,11 @@
 
     var header = document.createElement("div");
     header.className = "agents-team-header";
+    var teamStatusLabel = team.rawStatus || "";
     header.innerHTML =
       '<span class="status-dot ' + (team.status || "gray") + '"></span>' +
       '<span class="agents-team-name">Team: ' + escapeH(team.name) + '</span>' +
+      (teamStatusLabel ? '<span class="agents-team-status-label">' + escapeH(teamStatusLabel) + '</span>' : '') +
       '<span class="taint-badge ' + (team.taint || "public").toLowerCase() + '">' +
         escapeH(team.taint || "PUBLIC") +
       '</span>';
@@ -160,10 +163,15 @@
       mainItems.appendChild(renderSessionCard(mainSessions[i]));
     }
 
-    // Teams
+    // Teams — active first, then inactive
     var teamList = teams || [];
-    for (var t = 0; t < teamList.length; t++) {
-      teamItems.appendChild(renderTeamCard(teamList[t]));
+    var activeTeams = teamList.filter(function (t) { return t.status === "green" || t.status === "yellow"; });
+    var inactiveTeams = teamList.filter(function (t) { return t.status !== "green" && t.status !== "yellow"; });
+    for (var t = 0; t < activeTeams.length; t++) {
+      teamItems.appendChild(renderTeamCard(activeTeams[t]));
+    }
+    for (var t2 = 0; t2 < inactiveTeams.length; t2++) {
+      teamItems.appendChild(renderTeamCard(inactiveTeams[t2]));
     }
 
     // Background (active)
