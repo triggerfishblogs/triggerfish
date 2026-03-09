@@ -53,6 +53,7 @@ function registerLogsHandler(
     "logs",
     createLogsTopicDispatcher(logSink),
   );
+  tidepoolHost.registerSocketCleanup((socket) => logSink.unsubscribe(socket));
   wireTidepoolLogSink(logSink);
 }
 
@@ -70,6 +71,9 @@ function registerHealthHandler(
     "health",
     createHealthTopicDispatcher(healthHandler),
   );
+  tidepoolHost.registerSocketCleanup((socket) =>
+    healthHandler.unsubscribeLive(socket)
+  );
 }
 
 /** Wire agents topic with session list provider. */
@@ -85,6 +89,9 @@ function registerAgentsHandler(
       agentsHandler,
       () => buildAgentSessionListAsync(coreInfra, toolInfra),
     ),
+  );
+  tidepoolHost.registerSocketCleanup((socket) =>
+    agentsHandler.removeSocket(socket)
   );
 }
 

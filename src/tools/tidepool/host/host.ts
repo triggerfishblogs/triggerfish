@@ -56,6 +56,7 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
     cachedHtml: null,
     lastMcpConnected: -1,
     lastMcpConfigured: 0,
+    socketCleanupCallbacks: [],
   };
 
   return {
@@ -134,6 +135,10 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
         state.topicHandlers = {};
       }
       state.topicHandlers[topic] = handler;
+    },
+
+    registerSocketCleanup(callback: (socket: WebSocket) => void): void {
+      state.socketCleanupCallbacks.push(callback);
     },
 
     get connections(): number {

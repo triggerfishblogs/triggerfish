@@ -47,6 +47,8 @@ export interface A2UIHost {
   broadcastChatEvent(event: ChatEvent): void;
   /** Register a handler for a WebSocket topic (e.g. "logs", "health", "agents"). */
   registerTopicHandler(topic: string, handler: TopicHandler): void;
+  /** Register a callback invoked when a socket disconnects, for subscriber cleanup. */
+  registerSocketCleanup(callback: (socket: WebSocket) => void): void;
   /** The number of currently connected WebSocket clients. */
   readonly connections: number;
 }
@@ -73,4 +75,6 @@ export interface A2UIHostState {
   lastMcpConfigured: number;
   /** Topic handler registry for non-chat topics. */
   topicHandlers?: Record<string, TopicHandler>;
+  /** Callbacks invoked when a socket disconnects, for subscriber cleanup. */
+  socketCleanupCallbacks: Array<(socket: WebSocket) => void>;
 }

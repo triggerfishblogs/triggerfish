@@ -86,15 +86,16 @@ function wireCleanupListeners(
   state: A2UIHostState,
   ref: AbortControllerRef,
 ): void {
-  socket.addEventListener("close", () => {
+  const cleanup = (): void => {
     state.clients.delete(socket);
     ref.current?.abort("client_disconnected");
-  });
+    for (const cb of state.socketCleanupCallbacks) {
+      cb(socket);
+    }
+  };
 
-  socket.addEventListener("error", () => {
-    state.clients.delete(socket);
-    ref.current?.abort("client_disconnected");
-  });
+  socket.addEventListener("close", cleanup);
+  socket.addEventListener("error", cleanup);
 }
 
 /** Route an inbound HTTP request to WebSocket upgrade or static HTML response. */
