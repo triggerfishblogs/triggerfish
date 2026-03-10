@@ -329,6 +329,7 @@ export default defineConfig({
             { text: "Notifications", link: "/features/notifications" },
             { text: "Logging", link: "/features/logging" },
             { text: "Agent Teams", link: "/features/agent-teams" },
+            { text: "Workflows", link: "/features/workflows" },
             { text: "Rate Limiting", link: "/features/rate-limiting" },
             { text: "Explore", link: "/features/explore" },
             { text: "Filesystem", link: "/features/filesystem" },
@@ -347,6 +348,7 @@ export default defineConfig({
           items: [
             { text: "Overview", link: "/reference/" },
             { text: "Config Schema", link: "/reference/config-yaml" },
+            { text: "Workflow DSL", link: "/reference/workflow-dsl" },
             { text: "Interfaces", link: "/reference/interfaces" },
             { text: "Glossary", link: "/reference/glossary" },
           ],
@@ -393,6 +395,10 @@ export default defineConfig({
             {
               text: "Secrets & Credentials",
               link: "/support/troubleshooting/secrets",
+            },
+            {
+              text: "Workflows",
+              link: "/support/troubleshooting/workflows",
             },
             {
               text: "Error Reference",
