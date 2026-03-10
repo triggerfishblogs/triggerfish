@@ -5,7 +5,10 @@
  */
 
 import type { AgentSessionCard } from "../screens/agents.ts";
-import { broadcastJsonToClients, trySendSocketPayload } from "./host_broadcast.ts";
+import {
+  broadcastJsonToClients,
+  trySendSocketPayload,
+} from "./host_broadcast.ts";
 
 /** Per-session transcript subscriber. */
 interface SessionSubscriber {

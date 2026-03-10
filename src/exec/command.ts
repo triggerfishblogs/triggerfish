@@ -96,9 +96,7 @@ export async function runShellCommand(
     });
     return {
       ok: false,
-      error: `Working directory does not exist: ${
-        perCallCwd ?? "."
-      }`,
+      error: `Working directory does not exist: ${perCallCwd ?? "."}`,
     };
   }
 

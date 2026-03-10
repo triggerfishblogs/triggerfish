@@ -20,9 +20,11 @@ const log = createLogger("policy:secret-access");
 export interface SecretAccessPolicyRule {
   readonly name: string;
   /** Condition expression evaluated against input context. */
-  readonly condition: (input: SecretAccessHookInput & {
-    readonly isBackground: boolean;
-  }) => boolean;
+  readonly condition: (
+    input: SecretAccessHookInput & {
+      readonly isBackground: boolean;
+    },
+  ) => boolean;
   readonly action: "ALLOW" | "DENY";
   readonly reason?: string;
 }

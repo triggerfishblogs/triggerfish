@@ -25,8 +25,7 @@ export type { SecretStore } from "../backends/secret_store.ts";
 
 /** Create a store that rejects all operations for unsupported platforms. */
 function createRejectingSecretStore(os: string): SecretStore {
-  const reason =
-    `Unsupported OS '${os}' for secrets storage. ` +
+  const reason = `Unsupported OS '${os}' for secrets storage. ` +
     "Set TRIGGERFISH_SECRETS_MEMORY_FALLBACK=true to use an " +
     "in-memory store (secrets will not persist across restarts).";
   return {
@@ -68,7 +67,9 @@ function selectNativeSecretStore(): SecretStore {
       log.info("Secret backend selected: Keychain (macOS)");
       return createMacKeychain();
     case "windows":
-      log.info("Secret backend selected: DPAPI with encrypted-file fallback (Windows)");
+      log.info(
+        "Secret backend selected: DPAPI with encrypted-file fallback (Windows)",
+      );
       return createWindowsKeychain();
     default: {
       const allowMemory = Deno.env.get(

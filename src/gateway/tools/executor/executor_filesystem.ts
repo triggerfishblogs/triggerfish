@@ -72,7 +72,9 @@ export async function executeWriteFile(
     return "Error: write_file requires a 'content' argument (string).";
   }
   if (isWriteProtected(path)) {
-    return `Error: ${basename(path)} is write-protected. Use the trigger_manage tool to update trigger instructions.`;
+    return `Error: ${
+      basename(path)
+    } is write-protected. Use the trigger_manage tool to update trigger instructions.`;
   }
   if (sandbox) {
     const resp = await sandbox.request({
@@ -261,7 +263,9 @@ export async function executeEditFile(
   if (validationError) return validationError;
   const path = input.path as string;
   if (isWriteProtected(path)) {
-    return `Error: ${basename(path)} is write-protected. Use the trigger_manage tool to update trigger instructions.`;
+    return `Error: ${
+      basename(path)
+    } is write-protected. Use the trigger_manage tool to update trigger instructions.`;
   }
   const oldText = input.old_text as string;
   const newText = input.new_text as string;

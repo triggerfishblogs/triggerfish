@@ -52,11 +52,23 @@ function buildTeamCreateDef(): ToolDefinition {
           type: "object",
           properties: {
             role: { type: "string", description: "Role identifier" },
-            description: { type: "string", description: "What this member does" },
-            is_lead: { type: "boolean", description: "Whether this is the team lead" },
+            description: {
+              type: "string",
+              description: "What this member does",
+            },
+            is_lead: {
+              type: "boolean",
+              description: "Whether this is the team lead",
+            },
             model: { type: "string", description: "Model override (optional)" },
-            classification_ceiling: { type: "string", description: "Max classification (optional)" },
-            initial_task: { type: "string", description: "Initial instructions (optional)" },
+            classification_ceiling: {
+              type: "string",
+              description: "Max classification (optional)",
+            },
+            initial_task: {
+              type: "string",
+              description: "Initial instructions (optional)",
+            },
           },
         },
       },
@@ -113,8 +125,7 @@ function buildTeamDisbandDef(): ToolDefinition {
 function buildTeamMessageDef(): ToolDefinition {
   return {
     name: "team_message",
-    description:
-      "Send a message to a team member from outside the team. " +
+    description: "Send a message to a team member from outside the team. " +
       "Useful for providing additional context, redirecting work, or asking for updates.",
     parameters: {
       team_id: {

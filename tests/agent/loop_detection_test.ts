@@ -62,7 +62,10 @@ Deno.test("recordToolCallsAndDetectLoop: no loop below threshold", () => {
       { name: "web_search", args: { query: "test" } },
     ]);
   }
-  assertEquals(history.calls.get(serializeToolCallKey("web_search", { query: "test" })), TOOL_LOOP_THRESHOLD - 1);
+  assertEquals(
+    history.calls.get(serializeToolCallKey("web_search", { query: "test" })),
+    TOOL_LOOP_THRESHOLD - 1,
+  );
 });
 
 Deno.test("recordToolCallsAndDetectLoop: detects loop at threshold", () => {

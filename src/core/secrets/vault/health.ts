@@ -117,7 +117,11 @@ export function collectVaultPatrolChecks(
 
     checks.push({
       name: "vault_auth_valid",
-      status: report.tokenTtlSeconds > 60 ? "HEALTHY" : report.tokenTtlSeconds > 0 ? "WARNING" : "CRITICAL",
+      status: report.tokenTtlSeconds > 60
+        ? "HEALTHY"
+        : report.tokenTtlSeconds > 0
+        ? "WARNING"
+        : "CRITICAL",
       message: report.tokenTtlSeconds > 0
         ? `Token TTL: ${report.tokenTtlSeconds}s (renewable: ${report.tokenRenewable})`
         : "Token expired or invalid",
@@ -131,8 +135,9 @@ export function collectVaultPatrolChecks(
     checks.push({
       name: "vault_cache_health",
       status: hitRate >= 0.5 ? "HEALTHY" : "WARNING",
-      message:
-        `Cache: ${report.cacheStats.entries} entries, ${(hitRate * 100).toFixed(0)}% hit rate, ${report.cacheStats.staleServes} stale serves`,
+      message: `Cache: ${report.cacheStats.entries} entries, ${
+        (hitRate * 100).toFixed(0)
+      }% hit rate, ${report.cacheStats.staleServes} stale serves`,
     });
   }
 

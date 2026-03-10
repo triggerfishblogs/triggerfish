@@ -42,7 +42,9 @@ async function loadTriggerHistory(
       key: TRIGGER_HISTORY_MEMORY_KEY,
     });
     const parsed: { found: boolean; content?: string } = JSON.parse(raw);
-    if (!parsed.found || !parsed.content || parsed.content.trim().length === 0) {
+    if (
+      !parsed.found || !parsed.content || parsed.content.trim().length === 0
+    ) {
       return null;
     }
     return parsed.content;
@@ -198,8 +200,8 @@ export async function runTriggerCallback(
     return;
   }
 
-  const { orchestrator, session, toolExecutor } =
-    await config.orchestratorFactory.create(
+  const { orchestrator, session, toolExecutor } = await config
+    .orchestratorFactory.create(
       "trigger",
       { isTrigger: true, ceiling: config.trigger.classificationCeiling },
     );

@@ -8,14 +8,17 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 import type { NotionClient } from "./client.ts";
 import type {
+  CreateDatabaseOptions,
   NotionDatabase,
   NotionError,
   NotionPage,
-  CreateDatabaseOptions,
   QueryDatabaseOptions,
 } from "./types.ts";
 import { transformRawDatabase, transformRawPage } from "./transform.ts";
@@ -28,7 +31,12 @@ export interface NotionDatabasesService {
     databaseId: string,
     opts: QueryDatabaseOptions | undefined,
     classification: ClassificationLevel,
-  ) => Promise<Result<{ results: readonly NotionPage[]; nextCursor: string | null }, NotionError>>;
+  ) => Promise<
+    Result<
+      { results: readonly NotionPage[]; nextCursor: string | null },
+      NotionError
+    >
+  >;
   readonly create: (
     parentPageId: string,
     opts: CreateDatabaseOptions,
@@ -47,7 +55,11 @@ interface RawQueryResponse {
 interface RawPageResult {
   readonly id: string;
   readonly url: string;
-  readonly parent: { readonly type: string; readonly database_id?: string; readonly page_id?: string };
+  readonly parent: {
+    readonly type: string;
+    readonly database_id?: string;
+    readonly page_id?: string;
+  };
   readonly archived: boolean;
   readonly properties: Readonly<Record<string, RawPropertyValue>>;
   readonly last_edited_time: string;
@@ -64,11 +76,18 @@ interface RawDatabaseResponse {
   readonly title: readonly { readonly plain_text: string }[];
   readonly url: string;
   readonly parent: { readonly page_id?: string };
-  readonly properties: Readonly<Record<string, { readonly id: string; readonly type: string; readonly name: string }>>;
+  readonly properties: Readonly<
+    Record<
+      string,
+      { readonly id: string; readonly type: string; readonly name: string }
+    >
+  >;
 }
 
 /** Create a NotionDatabasesService backed by a NotionClient. */
-export function createNotionDatabasesService(client: NotionClient): NotionDatabasesService {
+export function createNotionDatabasesService(
+  client: NotionClient,
+): NotionDatabasesService {
   return {
     query: (databaseId, opts, classification) =>
       queryDatabase(client, databaseId, opts, classification),
@@ -83,7 +102,12 @@ async function queryDatabase(
   databaseId: string,
   opts: QueryDatabaseOptions | undefined,
   classification: ClassificationLevel,
-): Promise<Result<{ results: readonly NotionPage[]; nextCursor: string | null }, NotionError>> {
+): Promise<
+  Result<
+    { results: readonly NotionPage[]; nextCursor: string | null },
+    NotionError
+  >
+> {
   const body: Record<string, unknown> = {};
   if (opts?.filter) body.filter = opts.filter;
   if (opts?.sorts) body.sorts = opts.sorts;
@@ -107,7 +131,9 @@ async function queryDatabase(
   return {
     ok: true,
     value: {
-      results: result.value.results.map((r) => transformRawPage(r, classification)),
+      results: result.value.results.map((r) =>
+        transformRawPage(r, classification)
+      ),
       nextCursor: result.value.next_cursor,
     },
   };
@@ -140,5 +166,8 @@ async function createDatabase(
     return result;
   }
 
-  return { ok: true, value: transformRawDatabase(result.value, classification) };
+  return {
+    ok: true,
+    value: transformRawDatabase(result.value, classification),
+  };
 }

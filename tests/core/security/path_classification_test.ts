@@ -355,7 +355,9 @@ Deno.test("path classification: hardcoded paths remain RESTRICTED with workspace
   const home = resolveHome();
   // No resolveCwd = no sandbox; hardcoded paths must not be remapped
   const classifier = createPathClassifier(makeConfig(), ws);
-  const result = classifier.classify(join(home, ".triggerfish", "data", "triggerfish.db"));
+  const result = classifier.classify(
+    join(home, ".triggerfish", "data", "triggerfish.db"),
+  );
   assertEquals(result.classification, "RESTRICTED");
   assertEquals(result.source, "hardcoded");
 });

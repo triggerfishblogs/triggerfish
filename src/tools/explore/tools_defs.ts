@@ -33,8 +33,7 @@ function buildExploreDef(): ToolDefinition {
       },
       depth: {
         type: "string",
-        description:
-          "How thorough: 'shallow', 'standard' (default), or 'deep'",
+        description: "How thorough: 'shallow', 'standard' (default), or 'deep'",
         required: false,
       },
     },

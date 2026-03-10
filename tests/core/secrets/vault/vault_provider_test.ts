@@ -9,7 +9,6 @@ import { createVaultProvider } from "../../../../src/core/secrets/vault/vault_pr
 import type { VaultClient } from "../../../../src/core/secrets/vault/vault_client.ts";
 import type { VaultAuth } from "../../../../src/core/secrets/vault/auth/mod.ts";
 
-
 function createMockAuth(): VaultAuth {
   return {
     authenticate: () =>

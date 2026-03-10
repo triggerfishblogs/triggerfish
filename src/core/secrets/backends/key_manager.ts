@@ -51,7 +51,9 @@ async function verifyKeyFilePermissions(
       if (strictness === "error") {
         log.error("Machine key file permissions too open", detail);
         return (
-          `Machine key file '${keyPath}' has permissions 0${perms.toString(8)} ` +
+          `Machine key file '${keyPath}' has permissions 0${
+            perms.toString(8)
+          } ` +
           "(expected 0600). Set TRIGGERFISH_SECRETS_PERMISSION_STRICTNESS=warn " +
           "or =ignore to override."
         );

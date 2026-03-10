@@ -4,16 +4,18 @@
  * @module
  */
 
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
-  formatToolCompactInProgress,
   formatEditFileDiff,
+  formatToolCompactInProgress,
 } from "../../src/cli/chat/render/tool_display.ts";
 
 // ─── formatToolCompactInProgress ─────────────────────────────
 
 Deno.test("formatToolCompactInProgress: shows tool name and running indicator", () => {
-  const result = formatToolCompactInProgress("run_command", { command: "ls -la" });
+  const result = formatToolCompactInProgress("run_command", {
+    command: "ls -la",
+  });
   assert(result.includes("Run"), "should use display name 'Run'");
   assert(result.includes("ls -la"), "should include lead argument");
   assert(result.includes("running"), "should show running indicator");
@@ -21,7 +23,9 @@ Deno.test("formatToolCompactInProgress: shows tool name and running indicator", 
 });
 
 Deno.test("formatToolCompactInProgress: uses display name mapping", () => {
-  const result = formatToolCompactInProgress("web_search", { query: "test query" });
+  const result = formatToolCompactInProgress("web_search", {
+    query: "test query",
+  });
   assert(result.includes("Web Search"), "should use display name 'Web Search'");
   assert(result.includes("test query"), "should include query");
 });
@@ -38,7 +42,9 @@ Deno.test("formatToolCompactInProgress: handles empty args", () => {
 });
 
 Deno.test("formatToolCompactInProgress: contains yellow bullet", () => {
-  const result = formatToolCompactInProgress("read_file", { path: "/tmp/test.ts" });
+  const result = formatToolCompactInProgress("read_file", {
+    path: "/tmp/test.ts",
+  });
   assert(result.includes("\u25cf"), "should include bullet character ●");
 });
 
@@ -50,8 +56,14 @@ Deno.test("formatEditFileDiff: shows removed and added lines", () => {
     'const updated = "value";',
     "Edited src/foo.ts (1245 bytes written)",
   );
-  assert(result.includes("- const old"), "should show removed line with - prefix");
-  assert(result.includes("+ const updated"), "should show added line with + prefix");
+  assert(
+    result.includes("- const old"),
+    "should show removed line with - prefix",
+  );
+  assert(
+    result.includes("+ const updated"),
+    "should show added line with + prefix",
+  );
   assert(result.includes("Edit"), "should include Edit header");
   assert(result.includes("1245 bytes"), "should include result summary");
 });
@@ -87,6 +99,12 @@ Deno.test("formatEditFileDiff: single line change stays compact", () => {
 Deno.test("formatEditFileDiff: contains ANSI color codes", () => {
   const result = formatEditFileDiff("old", "new", "Edited x.ts");
   // RED = \x1b[31m, GREEN = \x1b[32m
-  assert(result.includes("\x1b[31m"), "should include red ANSI code for removals");
-  assert(result.includes("\x1b[32m"), "should include green ANSI code for additions");
+  assert(
+    result.includes("\x1b[31m"),
+    "should include red ANSI code for removals",
+  );
+  assert(
+    result.includes("\x1b[32m"),
+    "should include green ANSI code for additions",
+  );
 });

@@ -9,12 +9,7 @@ export type { ChatScreenConfig } from "./chat.ts";
 export { createChatScreenLifecycle } from "./chat.ts";
 
 // Logs screen
-export type {
-  LogEntry,
-  LogFilter,
-  LogLevel,
-  LogSubscription,
-} from "./logs.ts";
+export type { LogEntry, LogFilter, LogLevel, LogSubscription } from "./logs.ts";
 export {
   createDefaultLogFilter,
   LOG_LEVEL_COLORS,
@@ -36,10 +31,7 @@ export type {
   HealthStatus,
   LiveMetricEvent,
 } from "./health.ts";
-export {
-  HEALTH_CARD_IDS,
-  resolveHealthStatusLevel,
-} from "./health.ts";
+export { HEALTH_CARD_IDS, resolveHealthStatusLevel } from "./health.ts";
 
 // Agents screen
 export type {
@@ -51,12 +43,8 @@ export type {
 } from "./agents.ts";
 
 // Settings screen
-export type {
-  SettingsSection,
-} from "./settings.ts";
-export {
-  SETTINGS_SECTIONS,
-} from "./settings.ts";
+export type { SettingsSection } from "./settings.ts";
+export { SETTINGS_SECTIONS } from "./settings.ts";
 
 // Settings fields
 export type {

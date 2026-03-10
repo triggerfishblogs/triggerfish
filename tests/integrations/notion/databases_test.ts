@@ -12,7 +12,11 @@ import { createNotionDatabasesService } from "../../../src/integrations/notion/d
 
 function createMockClient(responses: Record<string, unknown>): NotionClient {
   return {
-    request: <T>(_method: string, path: string, _body?: unknown): Promise<Result<T, NotionError>> => {
+    request: <T>(
+      _method: string,
+      path: string,
+      _body?: unknown,
+    ): Promise<Result<T, NotionError>> => {
       const key = Object.keys(responses).find((k) => path.includes(k));
       if (key) {
         return Promise.resolve({ ok: true, value: responses[key] as T });

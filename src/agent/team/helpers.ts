@@ -12,7 +12,10 @@ import { maxClassification } from "../../core/types/classification.ts";
 import type { TeamId, TeamInstance, TeamMemberInstance } from "./types.ts";
 import { TEAM_STORAGE_PREFIX } from "./types.ts";
 import type { TeamManagerDeps } from "./manager_types.ts";
-import { serializeTeamInstance, deserializeTeamInstance } from "./serialization.ts";
+import {
+  deserializeTeamInstance,
+  serializeTeamInstance,
+} from "./serialization.ts";
 import type { LifecycleMonitor } from "./lifecycle.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
@@ -107,13 +110,18 @@ export async function executeDisbandTeam(
     ...team,
     members: updatedMembers.map((m) => ({
       ...m,
-      status: m.status === "active" || m.status === "idle" ? "completed" as const : m.status,
+      status: m.status === "active" || m.status === "idle"
+        ? "completed" as const
+        : m.status,
     })),
     status: "disbanded",
     aggregateTaint: finalTaint,
   };
 
-  await deps.storage.set(buildStorageKey(opts.teamId), serializeTeamInstance(disbanded));
+  await deps.storage.set(
+    buildStorageKey(opts.teamId),
+    serializeTeamInstance(disbanded),
+  );
   monitor.stop(opts.teamId);
 
   log.info("Team disbanded", {

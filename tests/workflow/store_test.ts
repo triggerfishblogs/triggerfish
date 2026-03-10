@@ -190,7 +190,9 @@ Deno.test("WorkflowStore: list runs filtered by workflow name", async () => {
     workflowName: "beta",
   });
 
-  const alphaRuns = await store.listWorkflowRuns("RESTRICTED", { workflowName: "alpha" });
+  const alphaRuns = await store.listWorkflowRuns("RESTRICTED", {
+    workflowName: "alpha",
+  });
   assertEquals(alphaRuns.length, 1);
   assertEquals(alphaRuns[0].workflowName, "alpha");
 });

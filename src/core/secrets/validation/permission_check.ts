@@ -115,8 +115,7 @@ export async function verifyKeyFilePermissions(
       ok: false,
       error: {
         kind: "stat_failed",
-        message:
-          `Key file permission check failed for '${keyPath}': ${detail}`,
+        message: `Key file permission check failed for '${keyPath}': ${detail}`,
       },
     };
   }

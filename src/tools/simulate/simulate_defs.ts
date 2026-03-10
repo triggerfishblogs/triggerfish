@@ -21,7 +21,8 @@ function buildSimulateToolCallDef(): ToolDefinition {
     parameters: {
       tool_name: {
         type: "string",
-        description: "Name of the tool to simulate (e.g. 'read_file', 'github_list_repos').",
+        description:
+          "Name of the tool to simulate (e.g. 'read_file', 'github_list_repos').",
         required: true,
       },
       tool_args: {

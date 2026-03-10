@@ -41,8 +41,17 @@ export interface GatedKeychainOptions {
  * If the gate returns ALLOW with an `escalateTo` field, the
  * `onEscalate` callback is invoked before returning the secret.
  */
-export function createGatedKeychain(options: GatedKeychainOptions): SecretStore {
-  const { inner, gate, provider, getSessionTaint, getIsBackground, onEscalate } = options;
+export function createGatedKeychain(
+  options: GatedKeychainOptions,
+): SecretStore {
+  const {
+    inner,
+    gate,
+    provider,
+    getSessionTaint,
+    getIsBackground,
+    onEscalate,
+  } = options;
 
   return {
     getSecret: async (name: string): Promise<Result<string, string>> => {
@@ -58,7 +67,10 @@ export function createGatedKeychain(options: GatedKeychainOptions): SecretStore 
           secretName: name,
           err: accessResult.error,
         });
-        return { ok: false, error: `Secret access gate error: ${accessResult.error}` };
+        return {
+          ok: false,
+          error: `Secret access gate error: ${accessResult.error}`,
+        };
       }
 
       const decision = accessResult.value;

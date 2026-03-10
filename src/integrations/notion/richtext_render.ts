@@ -58,7 +58,9 @@ function renderBlock(block: NotionBlock, prefix: string): string | null {
         ? `${prefix}- [x] ${text}`
         : `${prefix}- [ ] ${text}`;
     case "code":
-      return `${prefix}\`\`\`${block.content.language ?? ""}\n${text}\n${prefix}\`\`\``;
+      return `${prefix}\`\`\`${
+        block.content.language ?? ""
+      }\n${text}\n${prefix}\`\`\``;
     case "quote":
       return `${prefix}> ${text}`;
     case "divider":

@@ -4,10 +4,13 @@
  * @module
  */
 
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { createMemoryStorage } from "../../../src/core/storage/memory.ts";
 import { createMemoryStore } from "../../../src/tools/memory/store.ts";
-import { loadPersonaContext, MAX_PERSONA_CHARS } from "../../../src/tools/memory/mod.ts";
+import {
+  loadPersonaContext,
+  MAX_PERSONA_CHARS,
+} from "../../../src/tools/memory/mod.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 
 const SESSION_ID = "test-session-1" as SessionId;
@@ -168,7 +171,10 @@ Deno.test("loadPersonaContext — enforces character budget", async () => {
       key: `rule-${i}`,
       agentId: AGENT_ID,
       sessionTaint: "PUBLIC",
-      content: `This is rule number ${i} with a lot of padding text to fill up the budget: ${"x".repeat(100)}`,
+      content:
+        `This is rule number ${i} with a lot of padding text to fill up the budget: ${
+          "x".repeat(100)
+        }`,
       tags: ["rule"],
       sourceSessionId: SESSION_ID,
     });
@@ -181,7 +187,10 @@ Deno.test("loadPersonaContext — enforces character budget", async () => {
     maxChars: 500,
   });
 
-  assert(result.length <= 500, `Result should be under 500 chars, got ${result.length}`);
+  assert(
+    result.length <= 500,
+    `Result should be under 500 chars, got ${result.length}`,
+  );
   assert(result.length > 0, "Result should not be empty");
   await storage.close();
 });
@@ -207,7 +216,10 @@ Deno.test("loadPersonaContext — respects default MAX_PERSONA_CHARS", async () 
     sessionTaint: "PUBLIC",
   });
 
-  assert(result.length <= MAX_PERSONA_CHARS, `Result should be under ${MAX_PERSONA_CHARS} chars, got ${result.length}`);
+  assert(
+    result.length <= MAX_PERSONA_CHARS,
+    `Result should be under ${MAX_PERSONA_CHARS} chars, got ${result.length}`,
+  );
   await storage.close();
 });
 
@@ -257,6 +269,10 @@ Deno.test("loadPersonaContext — multiple tags on same record appear in first m
   assert(result.includes("strict TypeScript"));
   // Count occurrences — must appear exactly once (deduplication)
   const occurrences = result.split("strict TypeScript").length - 1;
-  assertEquals(occurrences, 1, "Multi-tag record should not be duplicated across sections");
+  assertEquals(
+    occurrences,
+    1,
+    "Multi-tag record should not be duplicated across sections",
+  );
   await storage.close();
 });

@@ -169,7 +169,11 @@ export function createNotionClient(config: NotionClientConfig): NotionClient {
         body: body ? JSON.stringify(body) : undefined,
       });
     } catch (err) {
-      log.error("Notion API network request failed", { operation: "sendRequest", url, err });
+      log.error("Notion API network request failed", {
+        operation: "sendRequest",
+        url,
+        err,
+      });
       return {
         ok: false,
         error: {
@@ -183,7 +187,11 @@ export function createNotionClient(config: NotionClientConfig): NotionClient {
     }
 
     if (response.status === 429) {
-      log.warn("Notion API rate limited", { operation: "sendRequest", url, status: 429 });
+      log.warn("Notion API rate limited", {
+        operation: "sendRequest",
+        url,
+        status: 429,
+      });
       return {
         ok: false,
         error: {

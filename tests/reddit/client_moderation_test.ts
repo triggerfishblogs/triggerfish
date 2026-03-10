@@ -130,7 +130,10 @@ Deno.test("RedditClient: returns error for 404", async () => {
 
 Deno.test("RedditClient: returns error for network failure", async () => {
   let callCount = 0;
-  const fetchFn = (_url: string | URL | Request, _init?: RequestInit): Promise<Response> => {
+  const fetchFn = (
+    _url: string | URL | Request,
+    _init?: RequestInit,
+  ): Promise<Response> => {
     callCount++;
     if (callCount === 1) {
       return Promise.resolve(

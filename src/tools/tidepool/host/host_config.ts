@@ -96,7 +96,10 @@ export function createTidepoolConfigHandler(
       return {
         valid: false,
         errors: [
-          { field: "_", message: "Config updates not yet supported via Tidepool" },
+          {
+            field: "_",
+            message: "Config updates not yet supported via Tidepool",
+          },
         ],
       };
     },
@@ -147,9 +150,7 @@ function maskSecrets(
       k.toLowerCase().includes("secret") ||
       k.toLowerCase().includes("password")
     ) {
-      result[k] = typeof v === "string" && v.length > 0
-        ? "••••••••"
-        : v;
+      result[k] = typeof v === "string" && v.length > 0 ? "••••••••" : v;
     } else if (v && typeof v === "object" && !Array.isArray(v)) {
       result[k] = maskSecrets(v as Record<string, unknown>);
     } else {

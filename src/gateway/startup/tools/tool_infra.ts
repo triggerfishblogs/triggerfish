@@ -260,11 +260,12 @@ export async function buildSessionScopedExecutors(
   },
 ) {
   const { state, mainWorkspace, registry } = toolInfra;
-  const { memoryDb, memoryStore, memorySearchProvider, memoryExecutor } = await initializeMemorySystem(
-    coreInfra.dataDir,
-    coreInfra.storage,
-    state.session,
-  );
+  const { memoryDb, memoryStore, memorySearchProvider, memoryExecutor } =
+    await initializeMemorySystem(
+      coreInfra.dataDir,
+      coreInfra.storage,
+      state.session,
+    );
   const mainPlanExecutor = createPlanToolExecutor(
     createPlanManager({ plansDir: `${mainWorkspace.path}/plans` }),
     state.session.id,
@@ -277,7 +278,15 @@ export async function buildSessionScopedExecutors(
     registry,
   );
   const channels = buildSessionChannelExecutors(coreInfra, state);
-  return { memoryDb, memoryStore, memorySearchProvider, memoryExecutor, mainPlanExecutor, ...media, ...channels };
+  return {
+    memoryDb,
+    memoryStore,
+    memorySearchProvider,
+    memoryExecutor,
+    mainPlanExecutor,
+    ...media,
+    ...channels,
+  };
 }
 
 /** Build LLM, workspace, and path classifier foundation. */
@@ -376,8 +385,8 @@ export function buildCompositeToolExecutor(
       enabled: (sched?.enabled ?? true) &&
         (sched?.interval_minutes ?? 30) !== 0,
       intervalMinutes: sched?.interval_minutes ?? 30,
-      classificationCeiling:
-        (sched?.classification_ceiling ?? "CONFIDENTIAL") as ClassificationLevel,
+      classificationCeiling: (sched?.classification_ceiling ??
+        "CONFIDENTIAL") as ClassificationLevel,
     },
     triggerStore: coreInfra.triggerStore,
     memoryStore: sessionExecs.memoryStore,

@@ -47,7 +47,9 @@ function buildTeammateList(
 
   const lines = teammates.map(
     (m) =>
-      `- **${m.role}**${m.isLead ? " (lead)" : ""} (session: ${m.sessionId}): ${m.description}`,
+      `- **${m.role}**${
+        m.isLead ? " (lead)" : ""
+      } (session: ${m.sessionId}): ${m.description}`,
   );
 
   return ["", "**Your teammates:**", ...lines].join("\n");

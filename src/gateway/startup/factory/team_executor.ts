@@ -19,8 +19,8 @@ import type { OrchestratorFactory } from "../../../scheduler/service_types.ts";
 import type { EnhancedSessionManager } from "../../sessions.ts";
 import {
   createTeamManager,
-  type SpawnMemberOptions,
   type SpawnedMember,
+  type SpawnMemberOptions,
   type TeamManager,
 } from "../../../agent/team/manager.ts";
 import {
@@ -227,7 +227,8 @@ function buildSendMessage(
         });
         return {
           ok: false,
-          error: `Write-down blocked: ${senderTaint} cannot flow to ${live.session.taint}`,
+          error:
+            `Write-down blocked: ${senderTaint} cannot flow to ${live.session.taint}`,
         };
       }
 
@@ -343,7 +344,11 @@ export function buildTeamManager(opts: {
   readonly callerSessionId: SessionId;
 }): TeamManager {
   const registry = createSessionRegistry();
-  const sendMessage = buildSendMessage(registry, opts.sessionManager, opts.storage);
+  const sendMessage = buildSendMessage(
+    registry,
+    opts.sessionManager,
+    opts.storage,
+  );
 
   return createTeamManager({
     storage: opts.storage,

@@ -82,7 +82,9 @@ export interface ChatSessionConfig {
   /** Live getter for extra tools resolved at each LLM call (e.g. MCP servers). */
   readonly getExtraTools?: () => readonly ToolDefinition[];
   /** Live getter for extra system prompt sections resolved at each LLM call (e.g. MCP servers). */
-  readonly getExtraSystemPromptSections?: () => readonly string[] | Promise<readonly string[]>;
+  readonly getExtraSystemPromptSections?: () =>
+    | readonly string[]
+    | Promise<readonly string[]>;
   readonly toolExecutor?: ToolExecutor;
   readonly systemPromptSections?: readonly string[];
   readonly compactorConfig?: Partial<CompactorConfig>;

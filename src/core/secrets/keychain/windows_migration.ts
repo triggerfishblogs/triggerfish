@@ -39,7 +39,11 @@ async function legacyStoreExists(paths: {
     await Deno.stat(paths.keyPath);
     return true;
   } catch (err) {
-    log.debug("Legacy secrets file stat failed, treating as absent", { operation: "legacyStoreExists", secretsPath: paths.secretsPath, err });
+    log.debug("Legacy secrets file stat failed, treating as absent", {
+      operation: "legacyStoreExists",
+      secretsPath: paths.secretsPath,
+      err,
+    });
     return false;
   }
 }
@@ -99,7 +103,8 @@ export async function migrateEncryptedFileToDpapi(
   if (!listResult.ok) {
     return {
       ok: false,
-      error: `DPAPI migration failed to list legacy secrets: ${listResult.error}`,
+      error:
+        `DPAPI migration failed to list legacy secrets: ${listResult.error}`,
     };
   }
 
