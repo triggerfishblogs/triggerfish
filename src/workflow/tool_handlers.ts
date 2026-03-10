@@ -186,6 +186,12 @@ export async function executeWorkflowDelete(
     });
   }
 
+  const taint = ctx.getSessionTaint();
+  const stored = await ctx.store.loadWorkflowDefinition(name, taint);
+  if (!stored) {
+    return JSON.stringify({ error: `Workflow '${name}' not found` });
+  }
+
   await ctx.store.deleteWorkflowDefinition(name);
   return JSON.stringify({ deleted: name });
 }
