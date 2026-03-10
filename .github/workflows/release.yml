@@ -63,6 +63,7 @@ jobs:
           --include src/tools/tidepool/tmpl_settings.html
           --include src/tools/tidepool/tmpl_logs.html
           --include src/tools/tidepool/tmpl_memory.html
+          --include src/tools/tidepool/tmpl_workflows.html
           --output=${{ matrix.output }}
           src/cli/main.ts
 
