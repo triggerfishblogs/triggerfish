@@ -227,4 +227,5 @@ export interface WorkflowRunResult {
   readonly startedAt: string;
   readonly completedAt: string;
   readonly taskCount: number;
+  readonly classification?: ClassificationLevel;
 }

@@ -44,8 +44,12 @@ export interface WorkflowStore {
   ): Promise<readonly StoredWorkflow[]>;
   deleteWorkflowDefinition(name: string): Promise<void>;
   saveWorkflowRun(result: WorkflowRunResult): Promise<void>;
-  loadWorkflowRun(runId: string): Promise<WorkflowRunResult | null>;
+  loadWorkflowRun(
+    runId: string,
+    sessionTaint: ClassificationLevel,
+  ): Promise<WorkflowRunResult | null>;
   listWorkflowRuns(
+    sessionTaint: ClassificationLevel,
     options?: { readonly workflowName?: string; readonly limit?: number },
   ): Promise<readonly WorkflowRunResult[]>;
 }
@@ -64,8 +68,10 @@ export function createWorkflowStore(
     deleteWorkflowDefinition: (name) =>
       storage.delete(`${WORKFLOW_PREFIX}${name}`),
     saveWorkflowRun: (result) => saveRun(storage, result),
-    loadWorkflowRun: (runId) => loadRun(storage, runId),
-    listWorkflowRuns: (options) => listRuns(storage, options),
+    loadWorkflowRun: (runId, sessionTaint) =>
+      loadRun(storage, runId, sessionTaint),
+    listWorkflowRuns: (sessionTaint, options) =>
+      listRuns(storage, sessionTaint, options),
   };
 }
 
@@ -152,14 +158,26 @@ async function saveRun(
 async function loadRun(
   storage: StorageProvider,
   runId: string,
+  sessionTaint: ClassificationLevel,
 ): Promise<WorkflowRunResult | null> {
   const raw = await storage.get(`${RUN_PREFIX}${runId}`);
   if (!raw) return null;
-  return JSON.parse(raw) as WorkflowRunResult;
+  const run = JSON.parse(raw) as WorkflowRunResult;
+  if (run.classification && !canFlowTo(run.classification, sessionTaint)) {
+    log.warn("Workflow run load denied: classification exceeds session taint", {
+      operation: "loadWorkflowRun",
+      runId,
+      runClassification: run.classification,
+      sessionTaint,
+    });
+    return null;
+  }
+  return run;
 }
 
 async function listRuns(
   storage: StorageProvider,
+  sessionTaint: ClassificationLevel,
   options?: { readonly workflowName?: string; readonly limit?: number },
 ): Promise<readonly WorkflowRunResult[]> {
   const keys = await storage.list(RUN_PREFIX);
@@ -169,6 +187,9 @@ async function listRuns(
     const raw = await storage.get(key);
     if (!raw) continue;
     const run = JSON.parse(raw) as WorkflowRunResult;
+    if (run.classification && !canFlowTo(run.classification, sessionTaint)) {
+      continue;
+    }
     if (options?.workflowName && run.workflowName !== options.workflowName) {
       continue;
     }

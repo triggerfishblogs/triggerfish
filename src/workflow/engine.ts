@@ -11,8 +11,13 @@ import type { ClassificationLevel } from "../core/types/classification.ts";
 import { canFlowTo } from "../core/types/classification.ts";
 import { createLogger } from "../core/logger/logger.ts";
 import { createWorkflowContext, type WorkflowContext } from "./context.ts";
-
-const log = createLogger("workflow-engine");
+import {
+  applyInputTransform,
+  applyOutputTransform,
+  filterInternalKeys,
+  findTaskIndex,
+  resolveSwitchOrTaskFlow,
+} from "./helpers.ts";
 import {
   executeCallTask,
   executeEmitTask,
@@ -28,9 +33,10 @@ import type {
   WorkflowEvent,
   WorkflowRunResult,
   WorkflowStatus,
-  WorkflowTask,
   WorkflowTaskEntry,
 } from "./types.ts";
+
+const log = createLogger("workflow-engine");
 
 /** Maximum sub-workflow recursion depth. */
 const MAX_RECURSION_DEPTH = 5;
@@ -57,6 +63,8 @@ export interface ExecuteWorkflowOptions {
   ) => Promise<WorkflowDefinition | null>;
   /** Current recursion depth (internal — do not set). */
   readonly depth?: number;
+  /** Whether shell/script run tasks are allowed (default: true). */
+  readonly allowShellExecution?: boolean;
 }
 
 /** Result type for engine operations. */
@@ -142,7 +150,14 @@ export async function executeWorkflow(
   } catch (e: unknown) {
     status = "failed";
     error = e instanceof Error ? e.message : String(e);
+    log.error("Workflow execution threw unexpected error", {
+      operation: "executeWorkflow",
+      workflow: options.definition.document.name,
+      err: e,
+    });
   }
+
+  const output = filterInternalKeys(context.data);
 
   return {
     ok: true,
@@ -150,12 +165,13 @@ export async function executeWorkflow(
       runId,
       workflowName: options.definition.document.name,
       status,
-      output: context.data,
+      output,
       events,
       error,
       startedAt,
       completedAt: new Date().toISOString(),
       taskCount: tasks.length,
+      classification: options.getSessionTaint?.(),
     },
   };
 }
@@ -224,72 +240,11 @@ function checkCeiling(
     };
   }
 
+  log.debug("Workflow ceiling check passed", {
+    operation: "checkCeiling",
+    workflow: options.definition.document.name,
+    sessionTaint: taint,
+    ceiling,
+  });
   return { ok: true, value: undefined };
-}
-
-function applyInputTransform(
-  context: WorkflowContext,
-  transform:
-    | { readonly from?: string | Readonly<Record<string, string>> }
-    | undefined,
-): WorkflowContext {
-  if (!transform?.from) return context;
-
-  if (typeof transform.from === "string") {
-    const value = context.evaluate(transform.from);
-    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-      return context.merge(value as Record<string, unknown>);
-    }
-    return context;
-  }
-
-  const mapped: Record<string, unknown> = {};
-  for (const [key, expr] of Object.entries(transform.from)) {
-    mapped[key] = context.evaluate(expr);
-  }
-  return context.merge(mapped);
-}
-
-function applyOutputTransform(
-  context: WorkflowContext,
-  transform:
-    | { readonly from?: string | Readonly<Record<string, string>> }
-    | undefined,
-  taskName: string,
-): WorkflowContext {
-  if (!transform?.from) return context;
-
-  if (typeof transform.from === "string") {
-    const value = context.evaluate(transform.from);
-    return context.set(taskName, value);
-  }
-
-  const mapped: Record<string, unknown> = {};
-  for (const [key, expr] of Object.entries(transform.from)) {
-    mapped[key] = context.evaluate(expr);
-  }
-  return context.set(taskName, mapped);
-}
-
-/** Resolve flow directive, checking switch result first. */
-function resolveSwitchOrTaskFlow(
-  task: WorkflowTask,
-  context: WorkflowContext,
-): string {
-  if (task.type === "switch") {
-    const switchResult = context.resolve(".__switchResult") as
-      | { then: string }
-      | undefined;
-    if (switchResult?.then) return switchResult.then;
-  }
-
-  if (task.then) return task.then;
-  return "continue";
-}
-
-function findTaskIndex(
-  tasks: readonly WorkflowTaskEntry[],
-  name: string,
-): number {
-  return tasks.findIndex((t) => t.name === name);
 }

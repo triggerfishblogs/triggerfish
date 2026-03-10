@@ -7,7 +7,10 @@
  */
 
 import type { WorkflowContext } from "./context.ts";
+import { createLogger } from "../core/logger/logger.ts";
 import { isDispatchError, resolveCallDispatch } from "./dispatch.ts";
+
+const log = createLogger("workflow-task");
 import {
   executeRunScript,
   executeRunShell,
@@ -58,6 +61,11 @@ export async function executeCallTask(
     const newContext = context.set(taskName, parsed);
     return { ok: true, value: { context: newContext } };
   } catch (e: unknown) {
+    log.error("Call task execution failed", {
+      operation: "executeCallTask",
+      task: taskName,
+      err: e,
+    });
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, error: `Task '${taskName}' call failed: ${msg}` };
   }
@@ -184,9 +192,23 @@ export function executeRunTask(
   subWorkflowExecutor: SubWorkflowExecutor,
 ): Promise<EngineResult<TaskResult>> {
   if ("shell" in task.run) {
+    if (options.allowShellExecution === false) {
+      return Promise.resolve({
+        ok: false,
+        error:
+          `Task '${taskName}': shell execution not permitted in this session`,
+      });
+    }
     return executeRunShell(taskName, task.run.shell, context, options);
   }
   if ("script" in task.run) {
+    if (options.allowShellExecution === false) {
+      return Promise.resolve({
+        ok: false,
+        error:
+          `Task '${taskName}': script execution not permitted in this session`,
+      });
+    }
     return executeRunScript(taskName, task.run.script, context, options);
   }
   if ("workflow" in task.run) {

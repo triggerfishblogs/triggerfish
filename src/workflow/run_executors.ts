@@ -13,6 +13,9 @@ import type {
 } from "./engine.ts";
 import type { SubWorkflowExecutor } from "./task_runners.ts";
 import { parseToolResult } from "./task_runners.ts";
+import { createLogger } from "../core/logger/logger.ts";
+
+const log = createLogger("workflow-run");
 
 /** Execute a shell command via the tool executor. */
 export async function executeRunShell(
@@ -34,6 +37,11 @@ export async function executeRunShell(
     const newContext = context.set(taskName, parseToolResult(resultStr));
     return { ok: true, value: { context: newContext } };
   } catch (e: unknown) {
+    log.error("Shell execution failed", {
+      operation: "executeRunShell",
+      task: taskName,
+      err: e,
+    });
     const msg = e instanceof Error ? e.message : String(e);
     return {
       ok: false,
@@ -57,6 +65,11 @@ export async function executeRunScript(
     const newContext = context.set(taskName, parseToolResult(resultStr));
     return { ok: true, value: { context: newContext } };
   } catch (e: unknown) {
+    log.error("Script execution failed", {
+      operation: "executeRunScript",
+      task: taskName,
+      err: e,
+    });
     const msg = e instanceof Error ? e.message : String(e);
     return {
       ok: false,

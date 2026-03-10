@@ -73,6 +73,14 @@ export {
 } from "./validators.ts";
 
 export {
+  applyInputTransform,
+  applyOutputTransform,
+  filterInternalKeys,
+  findTaskIndex,
+  resolveSwitchOrTaskFlow,
+} from "./helpers.ts";
+
+export {
   executeWorkflowDelete,
   executeWorkflowGet,
   executeWorkflowHistory,

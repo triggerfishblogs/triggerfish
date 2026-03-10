@@ -223,6 +223,7 @@ export function assembleSchedulerToolExecutor(opts: {
       store: createWorkflowStore(storage),
       toolExecutor: (name, input) => compositeRef.current!(name, input),
       getSessionTaint: getTaint,
+      allowShellExecution: false,
     })
     : undefined;
 

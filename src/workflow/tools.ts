@@ -42,6 +42,8 @@ export interface WorkflowToolContext {
   readonly resolveSubWorkflow?: (
     name: string,
   ) => Promise<WorkflowDefinition | null>;
+  /** Whether shell/script run tasks are allowed (default: true). */
+  readonly allowShellExecution?: boolean;
 }
 
 /** Return all workflow tool definitions. */

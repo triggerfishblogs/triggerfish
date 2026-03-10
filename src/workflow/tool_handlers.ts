@@ -8,6 +8,9 @@ import type { WorkflowDefinition } from "./types.ts";
 import type { WorkflowToolContext } from "./tools.ts";
 import { executeWorkflow } from "./engine.ts";
 import { parseWorkflowYaml } from "./parser.ts";
+import { createLogger } from "../core/logger/logger.ts";
+
+const log = createLogger("workflow-tools");
 
 /** Resolve a workflow definition from inline YAML or a stored name. */
 export async function resolveWorkflowDefinition(
@@ -43,7 +46,11 @@ export function parseJsonInput(
   if (!raw) return undefined;
   try {
     return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
+  } catch (err) {
+    log.warn("Workflow input JSON parse failed", {
+      operation: "parseJsonInput",
+      err,
+    });
     return undefined;
   }
 }
@@ -81,6 +88,7 @@ export async function executeWorkflowRun(
     toolExecutor: ctx.toolExecutor,
     getSessionTaint: ctx.getSessionTaint,
     resolveSubWorkflow,
+    allowShellExecution: ctx.allowShellExecution,
   });
 
   if (!result.ok) {
@@ -113,6 +121,11 @@ export async function executeWorkflowSave(
   }
 
   const classification = ctx.getSessionTaint();
+  log.info("Saving workflow definition", {
+    operation: "executeWorkflowSave",
+    workflow: name,
+    classification,
+  });
   const description = input.description as string | undefined;
 
   await ctx.store.saveWorkflowDefinition(
@@ -192,6 +205,11 @@ export async function executeWorkflowDelete(
     return JSON.stringify({ error: `Workflow '${name}' not found` });
   }
 
+  log.info("Deleting workflow definition", {
+    operation: "executeWorkflowDelete",
+    workflow: name,
+    classification: stored.classification,
+  });
   await ctx.store.deleteWorkflowDefinition(name);
   return JSON.stringify({ deleted: name });
 }
@@ -203,8 +221,9 @@ export async function executeWorkflowHistory(
 ): Promise<string> {
   const workflowName = input.workflow_name as string | undefined;
   const limit = parseInt(String(input.limit ?? "10"), 10);
+  const taint = ctx.getSessionTaint();
 
-  const runs = await ctx.store.listWorkflowRuns({
+  const runs = await ctx.store.listWorkflowRuns(taint, {
     workflowName,
     limit: isNaN(limit) ? 10 : limit,
   });

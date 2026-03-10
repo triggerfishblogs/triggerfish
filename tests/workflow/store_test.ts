@@ -132,7 +132,7 @@ Deno.test("WorkflowStore: save and load run", async () => {
   };
 
   await store.saveWorkflowRun(run);
-  const loaded = await store.loadWorkflowRun("run-123");
+  const loaded = await store.loadWorkflowRun("run-123", "RESTRICTED");
 
   assertEquals(loaded !== null, true);
   assertEquals(loaded?.runId, "run-123");
@@ -163,7 +163,7 @@ Deno.test("WorkflowStore: list runs sorted by date descending", async () => {
   await store.saveWorkflowRun(run1);
   await store.saveWorkflowRun(run2);
 
-  const runs = await store.listWorkflowRuns();
+  const runs = await store.listWorkflowRuns("RESTRICTED");
   assertEquals(runs.length, 2);
   assertEquals(runs[0].runId, "run-2"); // Most recent first
   assertEquals(runs[1].runId, "run-1");
@@ -190,7 +190,7 @@ Deno.test("WorkflowStore: list runs filtered by workflow name", async () => {
     workflowName: "beta",
   });
 
-  const alphaRuns = await store.listWorkflowRuns({ workflowName: "alpha" });
+  const alphaRuns = await store.listWorkflowRuns("RESTRICTED", { workflowName: "alpha" });
   assertEquals(alphaRuns.length, 1);
   assertEquals(alphaRuns[0].workflowName, "alpha");
 });
@@ -217,6 +217,6 @@ Deno.test("WorkflowStore: list runs with limit", async () => {
     });
   }
 
-  const limited = await store.listWorkflowRuns({ limit: 3 });
+  const limited = await store.listWorkflowRuns("RESTRICTED", { limit: 3 });
   assertEquals(limited.length, 3);
 });
