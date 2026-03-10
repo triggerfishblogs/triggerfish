@@ -58,6 +58,7 @@ import type { wireMcpServers } from "../infra/mcp.ts";
 import {
   createWorkflowStore,
   createWorkflowToolExecutor,
+  type WorkflowRunRegistry,
 } from "../../../workflow/mod.ts";
 import type { MemoryStore } from "../../../tools/memory/store.ts";
 import { loadPersonaContext } from "../../../tools/memory/mod.ts";
@@ -177,6 +178,7 @@ export function assembleMainToolExecutor(
     readonly skillContextTracker?: SkillContextTracker;
     readonly simulateExecutor?: SubsystemExecutor;
     readonly teamExecutor?: ReturnType<typeof buildTeamExecutor>;
+    readonly workflowRunRegistry?: WorkflowRunRegistry;
   },
 ) {
   const aux = buildAuxiliaryExecutors(
@@ -195,6 +197,7 @@ export function assembleMainToolExecutor(
       store: createWorkflowStore(deps.storage),
       toolExecutor: (name, input) => compositeRef.current!(name, input),
       getSessionTaint: () => deps.state.session.taint,
+      registry: deps.workflowRunRegistry,
     })
     : undefined;
 

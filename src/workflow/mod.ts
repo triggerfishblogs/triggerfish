@@ -81,6 +81,7 @@ export {
 } from "./helpers.ts";
 
 export {
+  executeWorkflowControl,
   executeWorkflowDelete,
   executeWorkflowGet,
   executeWorkflowHistory,
@@ -88,6 +89,21 @@ export {
   executeWorkflowRun,
   executeWorkflowSave,
 } from "./tool_handlers.ts";
+
+export {
+  createWorkflowRunRegistry,
+  WorkflowCancelledError,
+} from "./registry.ts";
+export type {
+  ActiveRunSnapshot,
+  CompleteRunOptions,
+  RegisterRunOptions,
+  RegistryEvent,
+  RegistryListener,
+  RunRegistration,
+  TaskProgressOptions,
+  WorkflowRunRegistry,
+} from "./registry.ts";
 
 export { createWorkflowStore } from "./store.ts";
 export type { StoredWorkflow, WorkflowStore } from "./store.ts";

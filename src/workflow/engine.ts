@@ -65,6 +65,12 @@ export interface ExecuteWorkflowOptions {
   readonly depth?: number;
   /** Whether shell/script run tasks are allowed (default: true). */
   readonly allowShellExecution?: boolean;
+  /** Abort signal for cancellation from registry. */
+  readonly signal?: AbortSignal;
+  /** Async pause checkpoint called between tasks. */
+  readonly checkPause?: () => Promise<void>;
+  /** Callback to report task progress to the registry. */
+  readonly onTaskProgress?: (taskIndex: number, taskName: string) => void;
 }
 
 /** Result type for engine operations. */
@@ -105,6 +111,19 @@ export async function executeWorkflow(
   try {
     while (taskIndex < tasks.length && status === "running") {
       const entry = tasks[taskIndex];
+
+      const cancelResult = checkSignalAborted(options.signal);
+      if (cancelResult) {
+        status = "cancelled";
+        error = cancelResult;
+        break;
+      }
+
+      if (options.checkPause) await options.checkPause();
+
+      if (options.onTaskProgress) {
+        options.onTaskProgress(taskIndex, entry.name);
+      }
 
       const ceilingResult = checkCeiling(options);
       if (!ceilingResult.ok) {
@@ -148,13 +167,18 @@ export async function executeWorkflow(
 
     if (status === "running") status = "completed";
   } catch (e: unknown) {
-    status = "failed";
-    error = e instanceof Error ? e.message : String(e);
-    log.error("Workflow execution threw unexpected error", {
-      operation: "executeWorkflow",
-      workflow: options.definition.document.name,
-      err: e,
-    });
+    if (isWorkflowCancelled(e)) {
+      status = "cancelled";
+      error = e.message;
+    } else {
+      status = "failed";
+      error = e instanceof Error ? e.message : String(e);
+      log.error("Workflow execution threw unexpected error", {
+        operation: "executeWorkflow",
+        workflow: options.definition.document.name,
+        err: e,
+      });
+    }
   }
 
   const output = filterInternalKeys(context.data);
@@ -213,6 +237,17 @@ function dispatchTask(
 }
 
 // --- Helpers ---
+
+function checkSignalAborted(signal?: AbortSignal): string | null {
+  if (signal?.aborted) {
+    return "Workflow cancelled by user";
+  }
+  return null;
+}
+
+function isWorkflowCancelled(e: unknown): e is Error {
+  return e instanceof Error && e.name === "WorkflowCancelledError";
+}
 
 function checkCeiling(
   options: ExecuteWorkflowOptions,

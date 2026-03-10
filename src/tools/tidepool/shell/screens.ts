@@ -11,6 +11,7 @@
 export type ScreenId =
   | "chat"
   | "agents"
+  | "workflows"
   | "health"
   | "settings"
   | "logs"
@@ -20,6 +21,7 @@ export type ScreenId =
 export const SCREEN_IDS: readonly ScreenId[] = [
   "chat",
   "agents",
+  "workflows",
   "health",
   "settings",
   "logs",

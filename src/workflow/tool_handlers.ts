@@ -82,6 +82,13 @@ export async function executeWorkflowRun(
   const workflowInput = parseJsonInput(input.input as string | undefined);
   const resolveSubWorkflow = buildSubWorkflowResolver(ctx);
 
+  const runId = crypto.randomUUID();
+  const registration = ctx.registry?.registerRun({
+    runId,
+    workflowName: definition.document.name,
+    taint: ctx.getSessionTaint(),
+  });
+
   const result = await executeWorkflow({
     definition,
     input: workflowInput,
@@ -89,7 +96,24 @@ export async function executeWorkflowRun(
     getSessionTaint: ctx.getSessionTaint,
     resolveSubWorkflow,
     allowShellExecution: ctx.allowShellExecution,
+    signal: registration?.signal,
+    checkPause: registration?.checkPause,
+    onTaskProgress: ctx.registry
+      ? (taskIndex, taskName) =>
+        ctx.registry!.reportTaskProgress(runId, {
+          taskIndex,
+          taskName,
+          taint: ctx.getSessionTaint(),
+        })
+      : undefined,
   });
+
+  if (ctx.registry) {
+    ctx.registry.completeRun(runId, {
+      status: result.ok ? result.value.status : "failed",
+      error: result.ok ? result.value.error : result.error,
+    });
+  }
 
   if (!result.ok) {
     return JSON.stringify({ error: result.error });
@@ -239,6 +263,57 @@ export async function executeWorkflowHistory(
   }));
 
   return JSON.stringify({ runs: summary });
+}
+
+/** Control a running workflow: stop, pause, or unpause. */
+export function executeWorkflowControl(
+  ctx: WorkflowToolContext,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const runId = input.run_id as string | undefined;
+  const action = input.action as string | undefined;
+
+  if (!runId || !action) {
+    return Promise.resolve(JSON.stringify({
+      error: "Workflow control requires 'run_id' and 'action' parameters",
+    }));
+  }
+
+  if (!ctx.registry) {
+    return Promise.resolve(JSON.stringify({
+      error: "Workflow run registry not available",
+    }));
+  }
+
+  return Promise.resolve(dispatchControlAction(ctx.registry, runId, action));
+}
+
+function dispatchControlAction(
+  registry: import("./registry.ts").WorkflowRunRegistry,
+  runId: string,
+  action: string,
+): string {
+  if (action === "stop") {
+    const ok = registry.stopRun(runId);
+    return JSON.stringify(
+      ok ? { stopped: runId } : { error: `Workflow run not found: ${runId}` },
+    );
+  }
+  if (action === "pause") {
+    const ok = registry.pauseRun(runId);
+    return JSON.stringify(
+      ok ? { paused: runId } : { error: `Workflow run not pausable: ${runId}` },
+    );
+  }
+  if (action === "unpause") {
+    const ok = registry.unpauseRun(runId);
+    return JSON.stringify(
+      ok ? { unpaused: runId } : { error: `Workflow run not paused: ${runId}` },
+    );
+  }
+  return JSON.stringify({
+    error: `Unknown control action: ${action}. Use stop, pause, or unpause`,
+  });
 }
 
 // --- Internal helpers ---

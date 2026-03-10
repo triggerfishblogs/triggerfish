@@ -66,6 +66,10 @@ import { createTriggerManageExecutor } from "../../tools/trigger/trigger_manage_
 import type { ServiceAvailability } from "../../tools/defs/tool_profiles.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 import { buildTeamExecutor } from "../factory/team_executor.ts";
+import {
+  createWorkflowRunRegistry,
+  type WorkflowRunRegistry,
+} from "../../../workflow/mod.ts";
 
 const availabilityLog = createLogger("service-availability");
 const log = createLogger("tool-infra");
@@ -158,6 +162,8 @@ export interface ToolInfraResult {
   readonly skillContextTracker?: SkillContextTracker;
   /** Which external services are configured and have credentials. */
   readonly serviceAvailability: ServiceAvailability;
+  /** Shared workflow run registry for tracking active executions. */
+  readonly workflowRunRegistry: WorkflowRunRegistry;
 }
 
 /** Load persisted bumper preference from storage. */
@@ -366,6 +372,7 @@ export function buildCompositeToolExecutor(
   coreInfra: CoreInfraResult,
   sessionExecs: Awaited<ReturnType<typeof buildSessionScopedExecutors>>,
   integrations: Awaited<ReturnType<typeof buildIntegrationExecutors>>,
+  workflowRunRegistry: WorkflowRunRegistry,
 ) {
   const simulateExecutor = createSimulateToolExecutor({
     getSessionTaint: () => baseDeps.state.session.taint,
@@ -434,6 +441,7 @@ export function buildCompositeToolExecutor(
         getCallerTaint: () => baseDeps.state.session.taint,
       })
       : undefined,
+    workflowRunRegistry,
   });
 }
 
@@ -445,6 +453,7 @@ export function assembleToolInfraResult(
   integrations: Awaited<ReturnType<typeof buildIntegrationExecutors>>,
   toolExecutor: ReturnType<typeof createToolExecutor>,
   serviceAvailability: ServiceAvailability,
+  workflowRunRegistry: WorkflowRunRegistry,
 ): ToolInfraResult {
   return {
     registry: baseDeps.registry,
@@ -475,6 +484,7 @@ export function assembleToolInfraResult(
     tidepoolToolsRef: sessionExecs.tidepoolToolsRef,
     skillContextTracker: integrations.skillContextTracker,
     serviceAvailability,
+    workflowRunRegistry,
   };
 }
 
@@ -494,12 +504,14 @@ export async function initializeToolInfrastructure(
     coreInfra,
     { ...baseDeps, factory: coreInfra.factory },
   );
+  const workflowRunRegistry = createWorkflowRunRegistry();
   const toolExecutor = buildCompositeToolExecutor(
     bootstrap,
     baseDeps,
     coreInfra,
     sessionExecs,
     integrations,
+    workflowRunRegistry,
   );
   const serviceAvailability = await detectServiceAvailability(
     bootstrap.config,
@@ -512,5 +524,6 @@ export async function initializeToolInfrastructure(
     integrations,
     toolExecutor,
     serviceAvailability,
+    workflowRunRegistry,
   );
 }

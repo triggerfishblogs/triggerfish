@@ -18,12 +18,13 @@ Layer 1 — Single-dependency modules (import only core/)
   scheduler/   → core/
   mcp/         → core/
   plugin/      → core/
+  workflow/    → core/
   routing/     → (none — self-contained)
 
 Layer 2 — Multi-dependency modules
   integrations/ → core/, mcp/
   gateway/      → core/, agent/, exec/, tools/, channels/, scheduler/,
-                   mcp/, integrations/, cli/ (paths/constants only)
+                   workflow/, mcp/, integrations/, cli/ (paths/constants only)
   cli/          → core/, dive/, channels/ (cli/chat.ts only), gateway/ (startup only)
   dive/         → core/, cli/ (paths, config prompts)
 ```

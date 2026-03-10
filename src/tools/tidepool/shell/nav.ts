@@ -47,6 +47,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     title: "Active Agents",
   },
   {
+    id: "workflows",
+    label: "Workflows",
+    icon:
+      "M3 3h4v4H3V3zm5 1h9v2H8V4zM3 9h4v4H3V9zm5 1h9v2H8v-2zM3 15h4v4H3v-4zm5 1h9v2H8v-2z",
+    title: "Workflows",
+  },
+  {
     id: "health",
     label: "Health",
     icon:
@@ -80,6 +87,7 @@ export function createEmptyBadgeState(): NavBadgeState {
   return {
     chat: undefined,
     agents: undefined,
+    workflows: undefined,
     health: undefined,
     settings: undefined,
     logs: undefined,
