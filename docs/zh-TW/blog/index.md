@@ -19,7 +19,7 @@ import { data as posts } from './posts.data.ts'
       <span v-if="post.draft" class="draft-badge">Draft</span>
     </div>
     <div class="post-meta">
-      <time :datetime="post.date">{{ new Date(post.date).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' }) }}</time>
+      <time :datetime="post.date">{{ (() => { const [y,m,d] = String(post.date).split('T')[0].split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' }); })() }}</time>
       <span class="meta-sep">·</span>
       <span>{{ post.author }}</span>
     </div>

@@ -35,7 +35,8 @@ const blogLink = computed(() => {
 const formattedDate = computed(() => {
   if (!frontmatter.value.date) return ''
   const locale = dateLocaleMap[lang.value] || 'en-US'
-  return new Date(frontmatter.value.date).toLocaleDateString(locale, {
+  const [y, m, d] = String(frontmatter.value.date).split('T')[0].split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',

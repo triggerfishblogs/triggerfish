@@ -1,6 +1,6 @@
 ---
 title: I Built the AI Agent I Wished Existed
-date: 2026-03-09
+date: 2026-03-08
 description: I built Triggerfish because every AI agent I found trusted the
   model to enforce its own rules. That's not security. Here's what I did
   instead.
