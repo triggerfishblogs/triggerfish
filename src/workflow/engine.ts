@@ -9,7 +9,10 @@
 
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import { canFlowTo } from "../core/types/classification.ts";
+import { createLogger } from "../core/logger/logger.ts";
 import { createWorkflowContext, type WorkflowContext } from "./context.ts";
+
+const log = createLogger("workflow-engine");
 import {
   executeCallTask,
   executeEmitTask,
@@ -205,6 +208,15 @@ function checkCeiling(
 
   const taint = options.getSessionTaint();
   if (!canFlowTo(taint, ceiling)) {
+    log.warn(
+      "Workflow ceiling breached: session taint exceeds classification ceiling",
+      {
+        operation: "checkCeiling",
+        workflow: options.definition.document.name,
+        sessionTaint: taint,
+        ceiling,
+      },
+    );
     return {
       ok: false,
       error:

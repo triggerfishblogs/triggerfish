@@ -10,7 +10,10 @@
 import type { StorageProvider } from "../core/storage/provider.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
 import { canFlowTo } from "../core/types/classification.ts";
+import { createLogger } from "../core/logger/logger.ts";
 import type { WorkflowRunResult } from "./types.ts";
+
+const log = createLogger("workflow-store");
 
 const WORKFLOW_PREFIX = "workflows:";
 const RUN_PREFIX = "workflow-runs:";
@@ -96,6 +99,12 @@ async function loadDefinition(
 
   const stored = JSON.parse(raw) as StoredWorkflow;
   if (!canFlowTo(stored.classification, sessionTaint)) {
+    log.warn("Workflow load denied: classification exceeds session taint", {
+      operation: "loadWorkflowDefinition",
+      workflow: name,
+      workflowClassification: stored.classification,
+      sessionTaint,
+    });
     return null;
   }
   return stored;
@@ -114,6 +123,16 @@ async function listDefinitions(
     const stored = JSON.parse(raw) as StoredWorkflow;
     if (canFlowTo(stored.classification, sessionTaint)) {
       results.push(stored);
+    } else {
+      log.warn(
+        "Workflow filtered from listing: classification exceeds session taint",
+        {
+          operation: "listWorkflowDefinitions",
+          workflow: stored.name,
+          workflowClassification: stored.classification,
+          sessionTaint,
+        },
+      );
     }
   }
 
