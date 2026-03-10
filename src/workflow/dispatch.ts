@@ -35,7 +35,9 @@ export function resolveCallDispatch(
   }
 
   // CNCF standard types we don't support yet
-  if (callType === "grpc" || callType === "openapi" || callType === "asyncapi") {
+  if (
+    callType === "grpc" || callType === "openapi" || callType === "asyncapi"
+  ) {
     return { error: `Call type '${callType}' is not yet supported` };
   }
 
@@ -150,7 +152,9 @@ function resolveMemoryDispatch(
   const toolName = toolMap[operation];
   if (!toolName) {
     return {
-      error: `Unknown memory operation: ${operation}. Valid: ${Object.keys(toolMap).join(", ")}`,
+      error: `Unknown memory operation: ${operation}. Valid: ${
+        Object.keys(toolMap).join(", ")
+      }`,
     };
   }
 

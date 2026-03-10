@@ -13,7 +13,10 @@ function makeCallTask(call: string, args?: Record<string, unknown>): CallTask {
 Deno.test("resolveCallDispatch: http maps to web_fetch", () => {
   const ctx = createWorkflowContext({});
   const result = resolveCallDispatch(
-    makeCallTask("http", { endpoint: "https://api.example.com", method: "POST" }),
+    makeCallTask("http", {
+      endpoint: "https://api.example.com",
+      method: "POST",
+    }),
     ctx,
   );
   assertEquals(isDispatchError(result), false);
@@ -40,7 +43,10 @@ Deno.test("resolveCallDispatch: triggerfish:llm maps to llm_task", () => {
 Deno.test("resolveCallDispatch: triggerfish:agent maps to subagent", () => {
   const ctx = createWorkflowContext({});
   const result = resolveCallDispatch(
-    makeCallTask("triggerfish:agent", { prompt: "Do task", agent: "researcher" }),
+    makeCallTask("triggerfish:agent", {
+      prompt: "Do task",
+      agent: "researcher",
+    }),
     ctx,
   );
   assertEquals(isDispatchError(result), false);
@@ -53,7 +59,11 @@ Deno.test("resolveCallDispatch: triggerfish:agent maps to subagent", () => {
 Deno.test("resolveCallDispatch: triggerfish:memory save", () => {
   const ctx = createWorkflowContext({});
   const result = resolveCallDispatch(
-    makeCallTask("triggerfish:memory", { operation: "save", key: "k1", content: "v1" }),
+    makeCallTask("triggerfish:memory", {
+      operation: "save",
+      key: "k1",
+      content: "v1",
+    }),
     ctx,
   );
   assertEquals(isDispatchError(result), false);

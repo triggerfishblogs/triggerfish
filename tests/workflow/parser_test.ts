@@ -262,7 +262,9 @@ Deno.test("parseWorkflowYaml: rejects invalid YAML", () => {
 });
 
 Deno.test("parseWorkflowYaml: rejects missing document", () => {
-  const result = parseWorkflowYaml("do:\n  - step:\n      set:\n        x: 1\n");
+  const result = parseWorkflowYaml(
+    "do:\n  - step:\n      set:\n        x: 1\n",
+  );
   assertEquals(result.ok, false);
   if (!result.ok) {
     assertEquals(result.error.includes("document"), true);

@@ -1,6 +1,4 @@
 import { assertEquals } from "@std/assert";
-import { parseWorkflowYaml } from "../../src/workflow/parser.ts";
-import { executeWorkflow } from "../../src/workflow/engine.ts";
 import {
   createWorkflowStore,
   createWorkflowToolExecutor,
@@ -13,23 +11,27 @@ import type { ClassificationLevel } from "../../src/core/types/classification.ts
 function createMemoryStorage(): StorageProvider {
   const data = new Map<string, string>();
   return {
-    async set(key: string, value: string): Promise<void> {
+    set(key: string, value: string): Promise<void> {
       data.set(key, value);
+      return Promise.resolve();
     },
-    async get(key: string): Promise<string | null> {
-      return data.get(key) ?? null;
+    get(key: string): Promise<string | null> {
+      return Promise.resolve(data.get(key) ?? null);
     },
-    async delete(key: string): Promise<void> {
+    delete(key: string): Promise<void> {
       data.delete(key);
+      return Promise.resolve();
     },
-    async list(prefix?: string): Promise<string[]> {
+    list(prefix?: string): Promise<string[]> {
       const keys: string[] = [];
       for (const k of data.keys()) {
         if (!prefix || k.startsWith(prefix)) keys.push(k);
       }
-      return keys;
+      return Promise.resolve(keys);
     },
-    async close(): Promise<void> {},
+    close(): Promise<void> {
+      return Promise.resolve();
+    },
   };
 }
 
@@ -38,18 +40,22 @@ Deno.test("integration: full workflow lifecycle — save, run, history", async (
   const store = createWorkflowStore(storage);
   const toolCalls: { name: string; input: Record<string, unknown> }[] = [];
 
-  const toolExecutor = async (
+  const toolExecutor = (
     name: string,
     input: Record<string, unknown>,
   ): Promise<string> => {
     toolCalls.push({ name, input });
     if (name === "web_search") {
-      return JSON.stringify({ results: ["result1", "result2"] });
+      return Promise.resolve(
+        JSON.stringify({ results: ["result1", "result2"] }),
+      );
     }
     if (name === "llm_task") {
-      return JSON.stringify({ summary: "AI is advancing rapidly" });
+      return Promise.resolve(
+        JSON.stringify({ summary: "AI is advancing rapidly" }),
+      );
     }
-    return JSON.stringify({ ok: true });
+    return Promise.resolve(JSON.stringify({ ok: true }));
   };
 
   const executor = createWorkflowToolExecutor({
@@ -121,7 +127,7 @@ Deno.test("integration: classification ceiling halts workflow", async () => {
   const store = createWorkflowStore(storage);
   let currentTaint: ClassificationLevel = "PUBLIC";
 
-  const toolExecutor = async (
+  const toolExecutor = (
     name: string,
     _input: Record<string, unknown>,
   ): Promise<string> => {
@@ -129,7 +135,7 @@ Deno.test("integration: classification ceiling halts workflow", async () => {
     if (name === "web_fetch") {
       currentTaint = "CONFIDENTIAL";
     }
-    return JSON.stringify({ ok: true });
+    return Promise.resolve(JSON.stringify({ ok: true }));
   };
 
   const executor = createWorkflowToolExecutor({
@@ -166,8 +172,8 @@ Deno.test("integration: sub-workflow resolution from store", async () => {
   const storage = createMemoryStorage();
   const store = createWorkflowStore(storage);
 
-  const toolExecutor = async (): Promise<string> =>
-    JSON.stringify({ ok: true });
+  const toolExecutor = (): Promise<string> =>
+    Promise.resolve(JSON.stringify({ ok: true }));
 
   const executor = createWorkflowToolExecutor({
     store,
@@ -239,12 +245,12 @@ Deno.test("integration: for loop with call tasks", async () => {
   const store = createWorkflowStore(storage);
   const calls: string[] = [];
 
-  const toolExecutor = async (
+  const toolExecutor = (
     name: string,
     input: Record<string, unknown>,
   ): Promise<string> => {
     calls.push(`${name}:${input.query ?? input.task ?? ""}`);
-    return JSON.stringify({ result: "ok" });
+    return Promise.resolve(JSON.stringify({ result: "ok" }));
   };
 
   const executor = createWorkflowToolExecutor({

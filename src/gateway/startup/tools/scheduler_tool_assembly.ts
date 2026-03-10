@@ -214,12 +214,14 @@ export function assembleSchedulerToolExecutor(opts: {
   });
 
   // Workflow executor needs the composite tool executor for dispatching
-  // call tasks. Use late-binding to break the circular dependency.
-  let compositeExecutor: ((name: string, input: Record<string, unknown>) => Promise<string>) | undefined;
+  // call tasks. Use late-binding via mutable ref to break the circular dependency.
+  const compositeRef: {
+    current?: (name: string, input: Record<string, unknown>) => Promise<string>;
+  } = {};
   const workflowExecutor = storage
     ? createWorkflowToolExecutor({
       store: createWorkflowStore(storage),
-      toolExecutor: (name, input) => compositeExecutor!(name, input),
+      toolExecutor: (name, input) => compositeRef.current!(name, input),
       getSessionTaint: getTaint,
     })
     : undefined;
@@ -274,6 +276,6 @@ export function assembleSchedulerToolExecutor(opts: {
     }),
     workflowExecutor,
   });
-  compositeExecutor = toolExecutor;
+  compositeRef.current = toolExecutor;
   return toolExecutor;
 }

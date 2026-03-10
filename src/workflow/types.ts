@@ -77,7 +77,10 @@ export interface RunTask extends TaskBase {
 }
 
 /** Target for a run task. */
-export type RunTaskTarget = RunShellTarget | RunScriptTarget | RunWorkflowTarget;
+export type RunTaskTarget =
+  | RunShellTarget
+  | RunScriptTarget
+  | RunWorkflowTarget;
 
 export interface RunShellTarget {
   readonly shell: {

@@ -177,7 +177,9 @@ function parseTask(
     );
   }
 
-  return err(`${context}: task has no recognized type (call, run, set, switch, for, raise, emit, wait)`);
+  return err(
+    `${context}: task has no recognized type (call, run, set, switch, for, raise, emit, wait)`,
+  );
 }
 
 function parseTaskBase(raw: Record<string, unknown>): TaskBase {
@@ -218,7 +220,9 @@ function parseRunTask(
 ): ParseResult<RunTask> {
   const run = raw["run"];
   if (!isRecord(run)) {
-    return err(`${context}: 'run' must be an object with shell, script, or workflow`);
+    return err(
+      `${context}: 'run' must be an object with shell, script, or workflow`,
+    );
   }
 
   if ("shell" in run) {
@@ -346,9 +350,7 @@ function parseSwitchTask(
     }
     cases.push({
       name: caseName,
-      when: typeof caseDef["when"] === "string"
-        ? caseDef["when"]
-        : undefined,
+      when: typeof caseDef["when"] === "string" ? caseDef["when"] : undefined,
       then: caseDef["then"] as string,
     });
   }
@@ -483,7 +485,10 @@ function parseWaitTask(
 
 function parseTransform(
   raw: unknown,
-): { from?: string | Readonly<Record<string, string>>; schema?: Readonly<Record<string, unknown>> } | undefined {
+): {
+  from?: string | Readonly<Record<string, string>>;
+  schema?: Readonly<Record<string, unknown>>;
+} | undefined {
   if (!isRecord(raw)) return undefined;
   return {
     from: typeof raw["from"] === "string"
@@ -519,7 +524,9 @@ function parseCeiling(
   }
   if (!VALID_CLASSIFICATION_LEVELS.includes(raw)) {
     return err(
-      `classification_ceiling must be one of: ${VALID_CLASSIFICATION_LEVELS.join(", ")}`,
+      `classification_ceiling must be one of: ${
+        VALID_CLASSIFICATION_LEVELS.join(", ")
+      }`,
     );
   }
   return ok(raw as ClassificationLevel);

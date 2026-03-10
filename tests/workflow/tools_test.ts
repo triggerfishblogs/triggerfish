@@ -10,23 +10,27 @@ import type { ClassificationLevel } from "../../src/core/types/classification.ts
 function createMemoryStorage(): StorageProvider {
   const data = new Map<string, string>();
   return {
-    async set(key: string, value: string): Promise<void> {
+    set(key: string, value: string): Promise<void> {
       data.set(key, value);
+      return Promise.resolve();
     },
-    async get(key: string): Promise<string | null> {
-      return data.get(key) ?? null;
+    get(key: string): Promise<string | null> {
+      return Promise.resolve(data.get(key) ?? null);
     },
-    async delete(key: string): Promise<void> {
+    delete(key: string): Promise<void> {
       data.delete(key);
+      return Promise.resolve();
     },
-    async list(prefix?: string): Promise<string[]> {
+    list(prefix?: string): Promise<string[]> {
       const keys: string[] = [];
       for (const k of data.keys()) {
         if (!prefix || k.startsWith(prefix)) keys.push(k);
       }
-      return keys;
+      return Promise.resolve(keys);
     },
-    async close(): Promise<void> {},
+    close(): Promise<void> {
+      return Promise.resolve();
+    },
   };
 }
 
@@ -44,17 +48,20 @@ do:
 function createTestContext(
   taint: ClassificationLevel = "PUBLIC",
 ): {
-  executor: (name: string, input: Record<string, unknown>) => Promise<string | null>;
+  executor: (
+    name: string,
+    input: Record<string, unknown>,
+  ) => Promise<string | null>;
   toolCalls: { name: string; input: Record<string, unknown> }[];
 } {
   const toolCalls: { name: string; input: Record<string, unknown> }[] = [];
   const store = createWorkflowStore(createMemoryStorage());
-  const toolExecutor = async (
+  const toolExecutor = (
     name: string,
     input: Record<string, unknown>,
   ): Promise<string> => {
     toolCalls.push({ name, input });
-    return JSON.stringify({ ok: true });
+    return Promise.resolve(JSON.stringify({ ok: true }));
   };
 
   const executor = createWorkflowToolExecutor({
@@ -103,7 +110,7 @@ Deno.test("workflow tools: save + get round trip", async () => {
   const store = createWorkflowStore(createMemoryStorage());
   const executor = createWorkflowToolExecutor({
     store,
-    toolExecutor: async () => JSON.stringify({ ok: true }),
+    toolExecutor: () => Promise.resolve(JSON.stringify({ ok: true })),
     getSessionTaint: () => "PUBLIC" as ClassificationLevel,
   });
 
@@ -129,7 +136,7 @@ Deno.test("workflow tools: save + list", async () => {
   const store = createWorkflowStore(createMemoryStorage());
   const executor = createWorkflowToolExecutor({
     store,
-    toolExecutor: async () => JSON.stringify({ ok: true }),
+    toolExecutor: () => Promise.resolve(JSON.stringify({ ok: true })),
     getSessionTaint: () => "PUBLIC" as ClassificationLevel,
   });
 
@@ -146,7 +153,7 @@ Deno.test("workflow tools: save + delete + get returns not found", async () => {
   const store = createWorkflowStore(createMemoryStorage());
   const executor = createWorkflowToolExecutor({
     store,
-    toolExecutor: async () => JSON.stringify({ ok: true }),
+    toolExecutor: () => Promise.resolve(JSON.stringify({ ok: true })),
     getSessionTaint: () => "PUBLIC" as ClassificationLevel,
   });
 
@@ -162,7 +169,7 @@ Deno.test("workflow tools: run executes inline YAML", async () => {
   const store = createWorkflowStore(createMemoryStorage());
   const executor = createWorkflowToolExecutor({
     store,
-    toolExecutor: async () => JSON.stringify({ ok: true }),
+    toolExecutor: () => Promise.resolve(JSON.stringify({ ok: true })),
     getSessionTaint: () => "PUBLIC" as ClassificationLevel,
   });
 
@@ -177,7 +184,7 @@ Deno.test("workflow tools: run executes saved workflow by name", async () => {
   const store = createWorkflowStore(createMemoryStorage());
   const executor = createWorkflowToolExecutor({
     store,
-    toolExecutor: async () => JSON.stringify({ ok: true }),
+    toolExecutor: () => Promise.resolve(JSON.stringify({ ok: true })),
     getSessionTaint: () => "PUBLIC" as ClassificationLevel,
   });
 
@@ -201,7 +208,7 @@ Deno.test("workflow tools: history shows past runs", async () => {
   const store = createWorkflowStore(createMemoryStorage());
   const executor = createWorkflowToolExecutor({
     store,
-    toolExecutor: async () => JSON.stringify({ ok: true }),
+    toolExecutor: () => Promise.resolve(JSON.stringify({ ok: true })),
     getSessionTaint: () => "PUBLIC" as ClassificationLevel,
   });
 

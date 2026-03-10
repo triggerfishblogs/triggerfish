@@ -6,23 +6,27 @@ import type { WorkflowRunResult } from "../../src/workflow/types.ts";
 function createMemoryStorage(): StorageProvider {
   const data = new Map<string, string>();
   return {
-    async set(key: string, value: string): Promise<void> {
+    set(key: string, value: string): Promise<void> {
       data.set(key, value);
+      return Promise.resolve();
     },
-    async get(key: string): Promise<string | null> {
-      return data.get(key) ?? null;
+    get(key: string): Promise<string | null> {
+      return Promise.resolve(data.get(key) ?? null);
     },
-    async delete(key: string): Promise<void> {
+    delete(key: string): Promise<void> {
       data.delete(key);
+      return Promise.resolve();
     },
-    async list(prefix?: string): Promise<string[]> {
+    list(prefix?: string): Promise<string[]> {
       const keys: string[] = [];
       for (const k of data.keys()) {
         if (!prefix || k.startsWith(prefix)) keys.push(k);
       }
-      return keys;
+      return Promise.resolve(keys);
     },
-    async close(): Promise<void> {},
+    close(): Promise<void> {
+      return Promise.resolve();
+    },
   };
 }
 
@@ -40,7 +44,12 @@ do:
 Deno.test("WorkflowStore: save and load definition", async () => {
   const store = createWorkflowStore(createMemoryStorage());
 
-  await store.saveWorkflowDefinition("my-wf", SAMPLE_YAML, "PUBLIC", "A test workflow");
+  await store.saveWorkflowDefinition(
+    "my-wf",
+    SAMPLE_YAML,
+    "PUBLIC",
+    "A test workflow",
+  );
   const loaded = await store.loadWorkflowDefinition("my-wf", "PUBLIC");
 
   assertEquals(loaded !== null, true);
@@ -61,13 +70,22 @@ Deno.test("WorkflowStore: classification gating on load", async () => {
 
   await store.saveWorkflowDefinition("secret-wf", SAMPLE_YAML, "CONFIDENTIAL");
 
-  const publicSession = await store.loadWorkflowDefinition("secret-wf", "PUBLIC");
+  const publicSession = await store.loadWorkflowDefinition(
+    "secret-wf",
+    "PUBLIC",
+  );
   assertEquals(publicSession, null);
 
-  const confSession = await store.loadWorkflowDefinition("secret-wf", "CONFIDENTIAL");
+  const confSession = await store.loadWorkflowDefinition(
+    "secret-wf",
+    "CONFIDENTIAL",
+  );
   assertEquals(confSession !== null, true);
 
-  const restrictedSession = await store.loadWorkflowDefinition("secret-wf", "RESTRICTED");
+  const restrictedSession = await store.loadWorkflowDefinition(
+    "secret-wf",
+    "RESTRICTED",
+  );
   assertEquals(restrictedSession !== null, true);
 });
 
@@ -166,7 +184,11 @@ Deno.test("WorkflowStore: list runs filtered by workflow name", async () => {
   };
 
   await store.saveWorkflowRun(baseRun);
-  await store.saveWorkflowRun({ ...baseRun, runId: "run-b", workflowName: "beta" });
+  await store.saveWorkflowRun({
+    ...baseRun,
+    runId: "run-b",
+    workflowName: "beta",
+  });
 
   const alphaRuns = await store.listWorkflowRuns({ workflowName: "alpha" });
   assertEquals(alphaRuns.length, 1);

@@ -24,7 +24,9 @@ export interface WorkflowContext {
   /** Evaluate an expression as a boolean for conditionals. */
   evaluateCondition(expression: string): boolean;
   /** Deep-resolve all expression strings in an object tree. */
-  resolveObject(obj: Readonly<Record<string, unknown>>): Record<string, unknown>;
+  resolveObject(
+    obj: Readonly<Record<string, unknown>>,
+  ): Record<string, unknown>;
 }
 
 /** Create a new workflow data context with optional initial data. */
@@ -47,16 +49,22 @@ function buildContext(
     merge: (values: Readonly<Record<string, unknown>>): WorkflowContext =>
       buildContext(mergeValues(data, values)),
     resolve: (path: string): unknown => resolvePath(data, path),
-    evaluate: (expression: string): unknown => evaluateExpression(data, expression),
+    evaluate: (expression: string): unknown =>
+      evaluateExpression(data, expression),
     evaluateCondition: (expression: string): boolean =>
       evaluateConditionExpr(data, expression),
-    resolveObject: (obj: Readonly<Record<string, unknown>>): Record<string, unknown> =>
+    resolveObject: (
+      obj: Readonly<Record<string, unknown>>,
+    ): Record<string, unknown> =>
       deepResolve(data, obj) as Record<string, unknown>,
   };
 }
 
 /** Resolve a dot-path like `.result.items[0].name` against the data. */
-function resolvePath(data: Readonly<Record<string, unknown>>, path: string): unknown {
+function resolvePath(
+  data: Readonly<Record<string, unknown>>,
+  path: string,
+): unknown {
   const cleanPath = path.trim().replace(/^\$?\.\s*/, "");
   if (cleanPath === "" || cleanPath === "$") return data;
 

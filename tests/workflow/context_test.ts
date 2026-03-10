@@ -78,10 +78,10 @@ Deno.test("WorkflowContext: evaluate string interpolation", () => {
 
 Deno.test("WorkflowContext: evaluate comparison", () => {
   const ctx = createWorkflowContext({ x: 5 });
-  assertEquals(ctx.evaluate('${ .x > 3 }'), true);
-  assertEquals(ctx.evaluate('${ .x == 5 }'), true);
-  assertEquals(ctx.evaluate('${ .x != 5 }'), false);
-  assertEquals(ctx.evaluate('${ .x < 3 }'), false);
+  assertEquals(ctx.evaluate("${ .x > 3 }"), true);
+  assertEquals(ctx.evaluate("${ .x == 5 }"), true);
+  assertEquals(ctx.evaluate("${ .x != 5 }"), false);
+  assertEquals(ctx.evaluate("${ .x < 3 }"), false);
 });
 
 Deno.test("WorkflowContext: evaluate string comparison", () => {
@@ -111,7 +111,12 @@ Deno.test("WorkflowContext: evaluate non-expression string returns as-is", () =>
 });
 
 Deno.test("WorkflowContext: evaluateCondition truthy values", () => {
-  const ctx = createWorkflowContext({ yes: true, count: 5, name: "a", items: [1] });
+  const ctx = createWorkflowContext({
+    yes: true,
+    count: 5,
+    name: "a",
+    items: [1],
+  });
   assertEquals(ctx.evaluateCondition("${ .yes }"), true);
   assertEquals(ctx.evaluateCondition("${ .count }"), true);
   assertEquals(ctx.evaluateCondition("${ .name }"), true);
@@ -119,7 +124,12 @@ Deno.test("WorkflowContext: evaluateCondition truthy values", () => {
 });
 
 Deno.test("WorkflowContext: evaluateCondition falsy values", () => {
-  const ctx = createWorkflowContext({ no: false, zero: 0, empty: "", nothing: null });
+  const ctx = createWorkflowContext({
+    no: false,
+    zero: 0,
+    empty: "",
+    nothing: null,
+  });
   assertEquals(ctx.evaluateCondition("${ .no }"), false);
   assertEquals(ctx.evaluateCondition("${ .zero }"), false);
   assertEquals(ctx.evaluateCondition("${ .empty }"), false);

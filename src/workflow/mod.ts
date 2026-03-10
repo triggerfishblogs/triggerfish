@@ -30,9 +30,13 @@ export { createWorkflowContext } from "./context.ts";
 export type { WorkflowContext } from "./context.ts";
 
 export { executeWorkflow } from "./engine.ts";
-export type { EngineResult, ExecuteWorkflowOptions, WorkflowToolExecutor } from "./engine.ts";
+export type {
+  EngineResult,
+  ExecuteWorkflowOptions,
+  WorkflowToolExecutor,
+} from "./engine.ts";
 
-export { resolveCallDispatch, isDispatchError } from "./dispatch.ts";
+export { isDispatchError, resolveCallDispatch } from "./dispatch.ts";
 
 export { createWorkflowStore } from "./store.ts";
 export type { StoredWorkflow, WorkflowStore } from "./store.ts";

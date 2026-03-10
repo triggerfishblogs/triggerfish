@@ -12,12 +12,12 @@ function createMockExecutor(
   calls: { name: string; input: Record<string, unknown> }[];
 } {
   const calls: { name: string; input: Record<string, unknown> }[] = [];
-  const executor = async (
+  const executor = (
     name: string,
     input: Record<string, unknown>,
   ): Promise<string> => {
     calls.push({ name, input });
-    return responses?.[name] ?? JSON.stringify({ ok: true });
+    return Promise.resolve(responses?.[name] ?? JSON.stringify({ ok: true }));
   };
   return { executor, calls };
 }
@@ -42,7 +42,10 @@ do:
 `);
 
   const { executor } = createMockExecutor();
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -69,7 +72,10 @@ do:
     web_fetch: JSON.stringify({ data: [1, 2, 3] }),
   });
 
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -100,7 +106,10 @@ do:
     web_fetch: JSON.stringify({ items: ["a", "b"] }),
   });
 
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -137,7 +146,10 @@ do:
 `);
 
   const { executor } = createMockExecutor();
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -176,7 +188,10 @@ do:
 `);
 
   const { executor } = createMockExecutor();
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -202,7 +217,10 @@ do:
 `);
 
   const { executor } = createMockExecutor();
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -228,7 +246,10 @@ do:
 `);
 
   const { executor } = createMockExecutor();
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -257,7 +278,10 @@ do:
 `);
 
   const { executor } = createMockExecutor();
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -282,7 +306,10 @@ do:
 `);
 
   const { executor } = createMockExecutor();
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -310,7 +337,10 @@ do:
 `);
 
   const { executor } = createMockExecutor();
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -333,7 +363,10 @@ do:
 `);
 
   const { executor } = createMockExecutor();
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -406,14 +439,17 @@ do:
         endpoint: https://broken.example.com
 `);
 
-  const executor = async (
+  const executor = (
     _name: string,
     _input: Record<string, unknown>,
   ): Promise<string> => {
     throw new Error("Network timeout");
   };
 
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -475,16 +511,19 @@ do:
   const result = await executeWorkflow({
     definition: mainDef,
     toolExecutor: executor,
-    resolveSubWorkflow: async (name: string) => {
-      if (name === "sub") return subDef;
-      return null;
+    resolveSubWorkflow: (name: string) => {
+      if (name === "sub") return Promise.resolve(subDef);
+      return Promise.resolve(null);
     },
   });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
   assertEquals(result.value.status, "completed");
-  const delegateOutput = result.value.output.delegate as Record<string, unknown>;
+  const delegateOutput = result.value.output.delegate as Record<
+    string,
+    unknown
+  >;
   assertEquals(delegateOutput.result, "computed");
 });
 
@@ -505,7 +544,7 @@ do:
   const result = await executeWorkflow({
     definition: def,
     toolExecutor: executor,
-    resolveSubWorkflow: async () => def,
+    resolveSubWorkflow: () => Promise.resolve(def),
     depth: 5,
   });
 
@@ -531,7 +570,10 @@ do:
     run_command: JSON.stringify({ stdout: "hello\n", exitCode: 0 }),
   });
 
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -558,7 +600,10 @@ do:
     llm_task: JSON.stringify({ response: "Summary here" }),
   });
 
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;
@@ -594,7 +639,10 @@ do:
     llm_task: JSON.stringify({ analysis: "Looks good" }),
   });
 
-  const result = await executeWorkflow({ definition: def, toolExecutor: executor });
+  const result = await executeWorkflow({
+    definition: def,
+    toolExecutor: executor,
+  });
 
   assertEquals(result.ok, true);
   if (!result.ok) return;

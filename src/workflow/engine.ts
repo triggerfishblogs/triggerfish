@@ -67,7 +67,8 @@ export async function executeWorkflow(
   if (depth >= MAX_RECURSION_DEPTH) {
     return {
       ok: false,
-      error: `Workflow recursion depth exceeded maximum of ${MAX_RECURSION_DEPTH}`,
+      error:
+        `Workflow recursion depth exceeded maximum of ${MAX_RECURSION_DEPTH}`,
     };
   }
 
@@ -170,7 +171,8 @@ export function buildRunState(
 ): WorkflowRunState {
   return {
     id: runId,
-    workflowId: definition.document.name as unknown as import("./types.ts").WorkflowId,
+    workflowId: definition.document
+      .name as unknown as import("./types.ts").WorkflowId,
     workflowName: definition.document.name,
     status,
     currentTaskIndex: taskIndex,
@@ -187,7 +189,7 @@ interface TaskResult {
   readonly context: WorkflowContext;
 }
 
-async function executeTask(
+function executeTask(
   entry: WorkflowTaskEntry,
   context: WorkflowContext,
   events: WorkflowEvent[],
@@ -313,7 +315,9 @@ function executeRaiseTask(
   const e = task.raise.error;
   return Promise.resolve({
     ok: false,
-    error: `Workflow raised error [${e.status} ${e.type}]: ${e.title}${e.detail ? ` — ${e.detail}` : ""}`,
+    error: `Workflow raised error [${e.status} ${e.type}]: ${e.title}${
+      e.detail ? ` — ${e.detail}` : ""
+    }`,
   });
 }
 
@@ -342,7 +346,7 @@ async function executeWaitTask(
   return { ok: true, value: { context } };
 }
 
-async function executeRunTask(
+function executeRunTask(
   taskName: string,
   task: RunTask,
   context: WorkflowContext,
@@ -357,19 +361,26 @@ async function executeRunTask(
   if ("workflow" in task.run) {
     return executeRunSubWorkflow(taskName, task.run.workflow, context, options);
   }
-  return { ok: false, error: `Task '${taskName}': run target not recognized` };
+  return Promise.resolve({
+    ok: false,
+    error: `Task '${taskName}': run target not recognized`,
+  });
 }
 
 async function executeRunShell(
   taskName: string,
-  shell: { readonly command: string; readonly arguments?: Readonly<Record<string, string>> },
+  shell: {
+    readonly command: string;
+    readonly arguments?: Readonly<Record<string, string>>;
+  },
   context: WorkflowContext,
   options: ExecuteWorkflowOptions,
 ): Promise<EngineResult<TaskResult>> {
   try {
-    const command = typeof shell.command === "string" && shell.command.includes("${")
-      ? String(context.evaluate(shell.command))
-      : shell.command;
+    const command =
+      typeof shell.command === "string" && shell.command.includes("${")
+        ? String(context.evaluate(shell.command))
+        : shell.command;
 
     const resultStr = await options.toolExecutor("run_command", {
       command,
@@ -409,14 +420,18 @@ async function executeRunScript(
 
 async function executeRunSubWorkflow(
   taskName: string,
-  wf: { readonly name: string; readonly input?: Readonly<Record<string, unknown>> },
+  wf: {
+    readonly name: string;
+    readonly input?: Readonly<Record<string, unknown>>;
+  },
   context: WorkflowContext,
   options: ExecuteWorkflowOptions,
 ): Promise<EngineResult<TaskResult>> {
   if (!options.resolveSubWorkflow) {
     return {
       ok: false,
-      error: `Task '${taskName}': sub-workflow execution requires resolveSubWorkflow callback`,
+      error:
+        `Task '${taskName}': sub-workflow execution requires resolveSubWorkflow callback`,
     };
   }
 
@@ -428,9 +443,7 @@ async function executeRunSubWorkflow(
     };
   }
 
-  const subInput = wf.input
-    ? context.resolveObject(wf.input)
-    : context.data;
+  const subInput = wf.input ? context.resolveObject(wf.input) : context.data;
 
   const subResult = await executeWorkflow({
     definition: subDef,
@@ -444,14 +457,17 @@ async function executeRunSubWorkflow(
   if (!subResult.ok) {
     return {
       ok: false,
-      error: `Task '${taskName}': sub-workflow '${wf.name}' failed: ${subResult.error}`,
+      error:
+        `Task '${taskName}': sub-workflow '${wf.name}' failed: ${subResult.error}`,
     };
   }
 
   if (subResult.value.status === "failed") {
     return {
       ok: false,
-      error: `Task '${taskName}': sub-workflow '${wf.name}' failed: ${subResult.value.error ?? "unknown error"}`,
+      error: `Task '${taskName}': sub-workflow '${wf.name}' failed: ${
+        subResult.value.error ?? "unknown error"
+      }`,
     };
   }
 
@@ -473,7 +489,8 @@ function checkCeiling(
   if (!canFlowTo(taint, ceiling)) {
     return {
       ok: false,
-      error: `Workflow classification ceiling breached: session taint ${taint} exceeds ceiling ${ceiling}`,
+      error:
+        `Workflow classification ceiling breached: session taint ${taint} exceeds ceiling ${ceiling}`,
     };
   }
 
@@ -482,7 +499,9 @@ function checkCeiling(
 
 function applyInputTransform(
   context: WorkflowContext,
-  transform: { readonly from?: string | Readonly<Record<string, string>> } | undefined,
+  transform:
+    | { readonly from?: string | Readonly<Record<string, string>> }
+    | undefined,
 ): WorkflowContext {
   if (!transform?.from) return context;
 
@@ -504,7 +523,9 @@ function applyInputTransform(
 
 function applyOutputTransform(
   context: WorkflowContext,
-  transform: { readonly from?: string | Readonly<Record<string, string>> } | undefined,
+  transform:
+    | { readonly from?: string | Readonly<Record<string, string>> }
+    | undefined,
   taskName: string,
 ): WorkflowContext {
   if (!transform?.from) return context;
@@ -537,13 +558,6 @@ function resolveSwitchOrTaskFlow(
   // Otherwise use the task's own `then` directive
   if (task.then) return task.then;
   return "continue";
-}
-
-function resolveFlowDirective(
-  directive: string | undefined,
-): string {
-  if (!directive) return "continue";
-  return directive;
 }
 
 function findTaskIndex(

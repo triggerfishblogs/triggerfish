@@ -123,12 +123,12 @@ export function createWorkflowToolExecutor(
     workflow_history: (input) => executeWorkflowHistory(ctx, input),
   };
 
-  return async (
+  return (
     name: string,
     input: Record<string, unknown>,
   ): Promise<string | null> => {
     const handler = executors[name];
-    if (!handler) return null;
+    if (!handler) return Promise.resolve(null);
     return handler(input);
   };
 }
