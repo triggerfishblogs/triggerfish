@@ -138,7 +138,7 @@ export function createTidepoolWorkflowsHandler(
       };
     },
 
-    async startRun(name, sessionTaint) {
+    startRun(name, sessionTaint) {
       return dispatchStartRun(store, workflowExecutor, name, sessionTaint);
     },
 
