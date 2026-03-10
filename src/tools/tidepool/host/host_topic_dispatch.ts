@@ -8,6 +8,7 @@
  * @module
  */
 
+import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import type { TopicHandler } from "./host_types.ts";
 import type { TidepoolLogSink } from "./host_logs.ts";
 import type { TidepoolHealthHandler } from "./host_health.ts";
@@ -146,7 +147,7 @@ export function createMemoryTopicDispatcher(
           {
             query: (payload.query as string) ?? "",
             classification: payload.classification as
-              | import("../../../core/types/classification.ts").ClassificationLevel
+              | ClassificationLevel
               | undefined,
             tags: payload.tags as string[] | undefined,
             dateFrom: payload.dateFrom as string | undefined,
@@ -226,138 +227,188 @@ export function createWorkflowsTopicDispatcher(
     const action = message.action as string;
     const payload = (message.payload ?? {}) as Record<string, unknown>;
 
-    if (action === "list_workflows") {
-      handler
-        .fetchWorkflowList()
-        .then((data) => {
-          reply(socket, data);
-        })
-        .catch((err: unknown) => {
-          log.warn("Workflows list dispatch failed", {
-            operation: "list_workflows",
-            err,
-          });
-          reply(socket, {
-            topic: "workflows",
-            type: "workflow_list",
-            workflows: [],
-          });
-        });
-    } else if (action === "list_active") {
-      reply(socket, handler.fetchActiveRuns());
-    } else if (action === "subscribe_live") {
-      handler.subscribeLive(socket);
-      reply(socket, handler.fetchActiveRuns());
-    } else if (action === "unsubscribe_live") {
-      handler.unsubscribeLive(socket);
-    } else if (action === "control") {
-      const runId = payload.runId as string;
-      const controlAction = payload.action as string;
-      if (runId && controlAction) {
-        reply(socket, handler.controlRun(runId, controlAction));
-      }
-    } else if (action === "get_workflow") {
-      const name = payload.name as string;
-      if (name) {
-        handler
-          .fetchWorkflowDetail(
-            name,
-            "RESTRICTED" as import("../../../core/types/classification.ts").ClassificationLevel,
-          )
-          .then((data) => reply(socket, data))
-          .catch((err: unknown) => {
-            log.warn("Workflow detail fetch failed", {
-              operation: "get_workflow",
-              name,
-              err,
-            });
-            reply(socket, {
-              topic: "workflows",
-              type: "workflow_detail",
-              name,
-              found: false,
-            });
-          });
-      }
-    } else if (action === "get_history") {
-      const workflowName = payload.workflowName as string | undefined;
-      const limit = payload.limit as number | undefined;
-      handler
-        .fetchRunHistory(
-          "RESTRICTED" as import("../../../core/types/classification.ts").ClassificationLevel,
-          workflowName,
-          limit,
-        )
-        .then((data) => reply(socket, data))
-        .catch((err: unknown) => {
-          log.warn("Workflow run history fetch failed", {
-            operation: "get_history",
-            err,
-          });
-          reply(socket, { topic: "workflows", type: "run_history", runs: [] });
-        });
-    } else if (action === "start") {
-      const name = payload.name as string;
-      if (name) {
-        const taint = sessionTaintProvider();
-        handler
-          .startRun(
-            name,
-            taint as import("../../../core/types/classification.ts").ClassificationLevel,
-          )
-          .then((data) => reply(socket, data))
-          .catch((err: unknown) => {
-            log.warn("Workflow start dispatch failed", {
-              operation: "start",
-              name,
-              err,
-            });
-            reply(socket, {
-              topic: "workflows",
-              type: "start_result",
-              name,
-              ok: false,
-              error: "Start failed",
-            });
-          });
-      }
-    } else if (action === "schedule") {
-      const name = payload.name as string;
-      const expression = payload.expression as string;
-      const classification = (payload.classification as string) ||
-        sessionTaintProvider();
-      if (name && expression) {
-        reply(
-          socket,
-          handler.scheduleRun(
-            name,
-            expression,
-            classification as import("../../../core/types/classification.ts").ClassificationLevel,
-          ),
-        );
-      }
-    } else if (action === "delete_workflow") {
-      const name = payload.name as string;
-      if (name) {
-        handler
-          .deleteWorkflow(name)
-          .then((data) => reply(socket, data))
-          .catch((err: unknown) => {
-            log.warn("Workflow delete failed", {
-              operation: "delete_workflow",
-              name,
-              err,
-            });
-            reply(socket, {
-              topic: "workflows",
-              type: "workflow_deleted",
-              name,
-              ok: false,
-            });
-          });
-      }
-    }
+    const dispatch: Record<string, () => void> = {
+      list_workflows: () => dispatchListWorkflows(handler, socket),
+      list_active: () => reply(socket, handler.fetchActiveRuns()),
+      subscribe_live: () => dispatchSubscribeLive(handler, socket),
+      unsubscribe_live: () => handler.unsubscribeLive(socket),
+      control: () => dispatchControl(handler, socket, payload),
+      get_workflow: () => dispatchGetWorkflow(handler, socket, payload),
+      get_history: () => dispatchGetHistory(handler, socket, payload),
+      start: () =>
+        dispatchStart(handler, socket, payload, sessionTaintProvider),
+      schedule: () =>
+        dispatchSchedule(handler, socket, payload, sessionTaintProvider),
+      delete_workflow: () => dispatchDeleteWorkflow(handler, socket, payload),
+    };
+
+    dispatch[action]?.();
   };
+}
+
+/** Dispatch list_workflows action. */
+function dispatchListWorkflows(
+  handler: TidepoolWorkflowsHandler,
+  socket: WebSocket,
+): void {
+  handler.fetchWorkflowList().then((data) => reply(socket, data)).catch(
+    (err: unknown) => {
+      log.warn("Workflows list dispatch failed", {
+        operation: "list_workflows",
+        err,
+      });
+      reply(socket, {
+        topic: "workflows",
+        type: "workflow_list",
+        workflows: [],
+      });
+    },
+  );
+}
+
+/** Dispatch subscribe_live action. */
+function dispatchSubscribeLive(
+  handler: TidepoolWorkflowsHandler,
+  socket: WebSocket,
+): void {
+  handler.subscribeLive(socket);
+  reply(socket, handler.fetchActiveRuns());
+}
+
+/** Dispatch control action. */
+function dispatchControl(
+  handler: TidepoolWorkflowsHandler,
+  socket: WebSocket,
+  payload: Record<string, unknown>,
+): void {
+  const runId = payload.runId as string;
+  const controlAction = payload.action as string;
+  if (runId && controlAction) {
+    reply(socket, handler.controlRun(runId, controlAction));
+  }
+}
+
+/** Dispatch get_workflow action. */
+function dispatchGetWorkflow(
+  handler: TidepoolWorkflowsHandler,
+  socket: WebSocket,
+  payload: Record<string, unknown>,
+): void {
+  const name = payload.name as string;
+  if (!name) return;
+  handler
+    .fetchWorkflowDetail(name, "RESTRICTED" as ClassificationLevel)
+    .then((data) => reply(socket, data))
+    .catch((err: unknown) => {
+      log.warn("Workflow detail fetch failed", {
+        operation: "get_workflow",
+        name,
+        err,
+      });
+      reply(socket, {
+        topic: "workflows",
+        type: "workflow_detail",
+        name,
+        found: false,
+      });
+    });
+}
+
+/** Dispatch get_history action. */
+function dispatchGetHistory(
+  handler: TidepoolWorkflowsHandler,
+  socket: WebSocket,
+  payload: Record<string, unknown>,
+): void {
+  const workflowName = payload.workflowName as string | undefined;
+  const limit = payload.limit as number | undefined;
+  handler
+    .fetchRunHistory("RESTRICTED" as ClassificationLevel, workflowName, limit)
+    .then((data) => reply(socket, data))
+    .catch((err: unknown) => {
+      log.warn("Workflow run history fetch failed", {
+        operation: "get_history",
+        err,
+      });
+      reply(socket, { topic: "workflows", type: "run_history", runs: [] });
+    });
+}
+
+/** Dispatch start action. */
+function dispatchStart(
+  handler: TidepoolWorkflowsHandler,
+  socket: WebSocket,
+  payload: Record<string, unknown>,
+  sessionTaintProvider: () => string,
+): void {
+  const name = payload.name as string;
+  if (!name) return;
+  const taint = sessionTaintProvider();
+  handler
+    .startRun(name, taint as ClassificationLevel)
+    .then((data) => reply(socket, data))
+    .catch((err: unknown) => {
+      log.warn("Workflow start dispatch failed", {
+        operation: "start",
+        name,
+        err,
+      });
+      reply(socket, {
+        topic: "workflows",
+        type: "start_result",
+        name,
+        ok: false,
+        error: "Workflow start dispatch failed",
+      });
+    });
+}
+
+/** Dispatch schedule action. */
+function dispatchSchedule(
+  handler: TidepoolWorkflowsHandler,
+  socket: WebSocket,
+  payload: Record<string, unknown>,
+  sessionTaintProvider: () => string,
+): void {
+  const name = payload.name as string;
+  const expression = payload.expression as string;
+  const classification = (payload.classification as string) ||
+    sessionTaintProvider();
+  if (name && expression) {
+    reply(
+      socket,
+      handler.scheduleRun(
+        name,
+        expression,
+        classification as ClassificationLevel,
+      ),
+    );
+  }
+}
+
+/** Dispatch delete_workflow action. */
+function dispatchDeleteWorkflow(
+  handler: TidepoolWorkflowsHandler,
+  socket: WebSocket,
+  payload: Record<string, unknown>,
+): void {
+  const name = payload.name as string;
+  if (!name) return;
+  handler.deleteWorkflow(name).then((data) => reply(socket, data)).catch(
+    (err: unknown) => {
+      log.warn("Workflow delete dispatch failed", {
+        operation: "delete_workflow",
+        name,
+        err,
+      });
+      reply(socket, {
+        topic: "workflows",
+        type: "workflow_deleted",
+        name,
+        ok: false,
+      });
+    },
+  );
 }
 
 /** Create a topic handler for the settings screen. */
