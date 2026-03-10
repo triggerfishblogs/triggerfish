@@ -46,6 +46,7 @@ import { getAgentInlineDefinitions } from "./agent_tool_defs.ts";
 import { getCronInlineDefinitions } from "./cron_tool_defs.ts";
 import { getSimulateToolDefinitions } from "../../../tools/simulate/mod.ts";
 import { getTeamToolDefinitions } from "../../../agent/team/mod.ts";
+import { getWorkflowToolDefinitions } from "../../../workflow/mod.ts";
 
 /** Composable tool groups — each returns a focused set of ToolDefinitions. */
 export const TOOL_GROUPS = {
@@ -81,6 +82,7 @@ export const TOOL_GROUPS = {
   cron: getCronInlineDefinitions,
   simulate: getSimulateToolDefinitions,
   team: getTeamToolDefinitions,
+  workflow: getWorkflowToolDefinitions,
 } as const;
 
 /** Name of a tool group in TOOL_GROUPS. */
