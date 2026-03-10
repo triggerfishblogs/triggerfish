@@ -10,7 +10,6 @@
 import { join } from "@std/path";
 import type { TriggerFishConfig } from "../../../core/config.ts";
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
-import { parseClassification } from "../../../core/types/classification.ts";
 import {
   createSession,
   OWNER_MEMORY_AGENT_ID,
@@ -37,18 +36,6 @@ import {
 import { createWorkspace } from "../../../exec/workspace.ts";
 import type { ToolFloorRegistry } from "../../../core/security/tool_floors.ts";
 import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
-import {
-  createGatedKeychain,
-  createSecretAccessGate,
-  createSecretClassifier,
-} from "../../../core/secrets/classification/mod.ts";
-import type { SecretClassifier } from "../../../core/secrets/classification/mod.ts";
-import {
-  createDefaultSecretAccessRules,
-  evaluateSecretAccessPolicy,
-} from "../../../core/policy/hooks/secret_access_hook.ts";
-import type { SecretAccessPolicyRule } from "../../../core/policy/hooks/secret_access_hook.ts";
-import type { ClassificationMapping } from "../../../core/secrets/classification/secret_classifier.ts";
 import { TRIGGER_SESSION_SYSTEM_PROMPT } from "../../tools/trigger/trigger_tools.ts";
 import {
   buildWorkspacePrompt,
@@ -131,36 +118,6 @@ async function discoverSkillsOnce(
   }
 }
 
-/** Parse and validate a classification level string from config. */
-function parseConfigClassification(
-  value: string,
-  context: string,
-): ClassificationLevel {
-  const result = parseClassification(value);
-  if (!result.ok) {
-    throw new Error(
-      `Secret classification config invalid: ${context} "${value}" is not a valid level`,
-    );
-  }
-  return result.value;
-}
-
-/** Build a SecretClassifier from YAML config. */
-function buildSecretClassifier(
-  config: TriggerFishConfig,
-): SecretClassifier {
-  const classificationConfig = config.secrets?.classification;
-  const mappings: ClassificationMapping[] =
-    (classificationConfig?.mappings ?? []).map((m) => ({
-      path: m.path,
-      level: parseConfigClassification(m.level, `mapping path="${m.path}"`),
-    }));
-  const defaultLevel = classificationConfig?.default_level
-    ? parseConfigClassification(classificationConfig.default_level, "default_level")
-    : "INTERNAL";
-  return createSecretClassifier({ mappings, defaultLevel });
-}
-
 /** Initialize shared factory infrastructure from config. */
 function initializeFactoryInfra(
   config: TriggerFishConfig,
@@ -168,8 +125,6 @@ function initializeFactoryInfra(
 ): FactoryInfra & {
   readonly hookRunner: ReturnType<typeof createHookRunner>;
   readonly spinePath: string;
-  readonly secretClassifier: SecretClassifier;
-  readonly secretAccessRules: readonly SecretAccessPolicyRule[];
 } {
   const registry = createProviderRegistry();
   loadProvidersFromConfig(config.models as ModelsConfig, registry);
@@ -183,9 +138,6 @@ function initializeFactoryInfra(
     config,
   );
 
-  const secretClassifier = buildSecretClassifier(config);
-  const secretAccessRules = createDefaultSecretAccessRules();
-
   return {
     registry,
     hookRunner: createHookRunner(engine),
@@ -194,8 +146,6 @@ function initializeFactoryInfra(
     webFetcher,
     domainClassifier,
     keychain: createKeychain(),
-    secretClassifier,
-    secretAccessRules,
     ...(() => {
       const { all, integrations } = mapToolPrefixClassifications(config);
       return {
@@ -260,42 +210,19 @@ export function createOrchestratorFactory(
         channelId: channelId as ChannelId,
       });
 
-      const secretAccessGate = createSecretAccessGate({
-        classifier: infra.secretClassifier,
-        hookDispatcher: (input) =>
-          Promise.resolve(
-            evaluateSecretAccessPolicy(
-              input,
-              infra.secretAccessRules,
-              isTrigger,
-            ),
-          ),
-      });
-
-      const gatedKeychain = createGatedKeychain({
-        inner: infra.keychain,
-        gate: secretAccessGate,
-        provider: "keychain",
-        getSessionTaint: () => session.taint,
-        getIsBackground: () => isTrigger,
-        onEscalate: (level) => {
-          session = updateTaint(
-            session,
-            level,
-            `Secret access required taint escalation to ${level}`,
-          );
-        },
-      });
-
-      log.info("Secret access gate wired for session", {
-        operation: "createOrchestratorFactory",
-        channelId,
-        isTrigger,
-        agentId,
-      });
-
+      // ── IMPORTANT: infra.keychain for all integration executors ─────────
+      // Integration executors (GitHub, Google, Notion, CalDAV, etc.) access
+      // secrets as infrastructure plumbing — the agent is calling a tool, not
+      // a secret.  Tool taint comes from the tool's prefix classification or
+      // resource classification, NOT from the secret the tool uses internally.
+      //
+      // NEVER create a gated/classified keychain here and pass it to
+      // integration builders.  Doing so fires the secret-classification gate
+      // during factory setup, escalating the session to INTERNAL before the
+      // agent even runs.  The gated keychain belongs ONLY on the orchestrator's
+      // secretStore (for agent-facing secret tools like secret_list).
       const githubExecutor = await buildSchedulerGitHubExecutor({
-        keychain: gatedKeychain,
+        keychain: infra.keychain,
         config,
         sessionTaint: session.taint,
         sourceSessionId: session.id,

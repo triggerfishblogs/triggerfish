@@ -89,7 +89,15 @@ function buildSchedulerMemoryExecutor(opts: {
   });
 }
 
-/** Build GitHub tool executor for a scheduler agent. */
+/**
+ * Build GitHub tool executor for a scheduler agent.
+ *
+ * IMPORTANT: `keychain` must be the UNGATED keychain (infra.keychain).
+ * This function reads the GitHub PAT as infrastructure plumbing — the
+ * agent is not accessing a secret, the tool is.  Passing a gated keychain
+ * here triggers secret-classification taint escalation during factory
+ * setup, breaking the trigger session before the agent even runs.
+ */
 export async function buildSchedulerGitHubExecutor(opts: {
   readonly keychain: ReturnType<typeof createKeychain>;
   readonly config: TriggerFishConfig;
