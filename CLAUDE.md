@@ -46,6 +46,7 @@ src/
 ├── scheduler/       # Cron (cron/), triggers (triggers/), webhooks (webhooks/)
 ├── gateway/         # WebSocket server (server/), startup (startup/), notifications/, tools/
 ├── skills/          # Bundled skill definitions (SKILL.md files)
+├── workflow/        # CNCF Serverless Workflow DSL engine, store, registry
 ├── routing/         # Multi-agent routing
 ├── dive/            # Onboarding wizard + patrol diagnostics
 └── cli/             # Entry point, chat/, terminal/, config/, daemon/, commands/
