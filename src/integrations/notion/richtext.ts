@@ -169,7 +169,9 @@ function createBlock(
  * Supports headings, paragraphs, bullet/numbered lists, checkboxes,
  * code fences, blockquotes, dividers, and inline formatting.
  */
-export function markdownToNotionBlocks(markdown: string): readonly NotionBlock[] {
+export function markdownToNotionBlocks(
+  markdown: string,
+): readonly NotionBlock[] {
   const lines = markdown.split("\n");
   const blocks: NotionBlock[] = [];
   let i = 0;
@@ -186,7 +188,9 @@ export function markdownToNotionBlocks(markdown: string): readonly NotionBlock[]
     }
 
     // Divider
-    if (line.trim() === "---" || line.trim() === "***" || line.trim() === "___") {
+    if (
+      line.trim() === "---" || line.trim() === "***" || line.trim() === "___"
+    ) {
       blocks.push(createBlock("divider", {}));
       i++;
       continue;
@@ -286,4 +290,3 @@ function parseCodeFence(
     nextIndex: i,
   };
 }
-

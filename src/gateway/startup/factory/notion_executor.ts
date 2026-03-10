@@ -15,10 +15,10 @@ import { parseClassification } from "../../../core/types/classification.ts";
 import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
 import {
-  createNotionClient,
-  createNotionPagesService,
-  createNotionDatabasesService,
   createNotionBlocksService,
+  createNotionClient,
+  createNotionDatabasesService,
+  createNotionPagesService,
   createNotionToolExecutor,
   resolveNotionToken,
 } from "../../../integrations/notion/mod.ts";
@@ -36,7 +36,8 @@ export async function buildNotionExecutor(
   getSessionTaint: () => ClassificationLevel,
   sourceSessionId: SessionId,
 ): Promise<
-  ((name: string, input: Record<string, unknown>) => Promise<string | null>) | undefined
+  | ((name: string, input: Record<string, unknown>) => Promise<string | null>)
+  | undefined
 > {
   if (config.notion?.enabled !== true) {
     return undefined;

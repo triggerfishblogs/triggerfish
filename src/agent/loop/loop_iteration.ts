@@ -355,7 +355,8 @@ async function handleToolCallsIteration(
   ctx: AgentLoopContext,
   iter: IterationData & { parsedCalls: readonly ParsedToolCall[] },
 ): Promise<Result<void, string>> {
-  const cleanedContent = iter.completion.content.replace(THINK_TAG_REGEX, "").trim();
+  const cleanedContent = iter.completion.content.replace(THINK_TAG_REGEX, "")
+    .trim();
   const assistantContent = cleanedContent.length > 0
     ? cleanedContent
     : `(${iter.parsedCalls.length} tool call(s) executed — see results below)`;

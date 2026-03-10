@@ -14,7 +14,9 @@ import { createFilesystemSandbox } from "../../../src/exec/sandbox/client.ts";
 Deno.test("security: cannot read /etc/passwd via sandbox", async () => {
   const tmpDir = await Deno.makeTempDir({ prefix: "sandbox-sec-" });
 
-  const sandbox = createFilesystemSandbox({ resolveWorkspacePath: () => tmpDir });
+  const sandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () => tmpDir,
+  });
   try {
     const resp = await sandbox.request({
       id: "",
@@ -39,7 +41,9 @@ Deno.test("security: cannot read /etc/passwd via sandbox", async () => {
 Deno.test("security: cannot write to /tmp/outside via sandbox", async () => {
   const tmpDir = await Deno.makeTempDir({ prefix: "sandbox-sec-" });
 
-  const sandbox = createFilesystemSandbox({ resolveWorkspacePath: () => tmpDir });
+  const sandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () => tmpDir,
+  });
   try {
     const resp = await sandbox.request({
       id: "",
@@ -64,7 +68,9 @@ Deno.test("security: cannot write to /tmp/outside via sandbox", async () => {
 Deno.test("security: path traversal ../../etc/passwd blocked", async () => {
   const tmpDir = await Deno.makeTempDir({ prefix: "sandbox-sec-" });
 
-  const sandbox = createFilesystemSandbox({ resolveWorkspacePath: () => tmpDir });
+  const sandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () => tmpDir,
+  });
   try {
     const traversalPath = join(tmpDir, "..", "..", "etc", "passwd");
     const resp = await sandbox.request({
@@ -90,7 +96,9 @@ Deno.test("security: path traversal ../../etc/passwd blocked", async () => {
 Deno.test("security: cannot list root directory via sandbox", async () => {
   const tmpDir = await Deno.makeTempDir({ prefix: "sandbox-sec-" });
 
-  const sandbox = createFilesystemSandbox({ resolveWorkspacePath: () => tmpDir });
+  const sandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () => tmpDir,
+  });
   try {
     const resp = await sandbox.request({
       id: "",
@@ -115,7 +123,9 @@ Deno.test("security: cannot list root directory via sandbox", async () => {
 Deno.test("security: cannot edit file outside workspace", async () => {
   const tmpDir = await Deno.makeTempDir({ prefix: "sandbox-sec-" });
 
-  const sandbox = createFilesystemSandbox({ resolveWorkspacePath: () => tmpDir });
+  const sandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () => tmpDir,
+  });
   try {
     const resp = await sandbox.request({
       id: "",
@@ -144,7 +154,9 @@ Deno.test("security: cannot edit file outside workspace", async () => {
 Deno.test("security: search outside workspace blocked", async () => {
   const tmpDir = await Deno.makeTempDir({ prefix: "sandbox-sec-" });
 
-  const sandbox = createFilesystemSandbox({ resolveWorkspacePath: () => tmpDir });
+  const sandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () => tmpDir,
+  });
   try {
     const resp = await sandbox.request({
       id: "",
@@ -170,7 +182,9 @@ Deno.test("security: workspace operations still work alongside restrictions", as
   const tmpDir = await Deno.makeTempDir({ prefix: "sandbox-sec-" });
   await Deno.writeTextFile(join(tmpDir, "safe.txt"), "safe content");
 
-  const sandbox = createFilesystemSandbox({ resolveWorkspacePath: () => tmpDir });
+  const sandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () => tmpDir,
+  });
   try {
     // Read inside workspace works
     const readResp = await sandbox.request({

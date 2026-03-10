@@ -137,8 +137,7 @@ function buildGitHubPullsDef(): ToolDefinition {
       },
       event: {
         type: "string",
-        description:
-          "Review event: APPROVE, REQUEST_CHANGES, COMMENT (review)",
+        description: "Review event: APPROVE, REQUEST_CHANGES, COMMENT (review)",
         required: false,
       },
       method: {
@@ -229,8 +228,7 @@ function buildGitHubIssuesDef(): ToolDefinition {
       },
       sort: {
         type: "string",
-        description:
-          'Sort by: "created", "updated", "comments" (list)',
+        description: 'Sort by: "created", "updated", "comments" (list)',
         required: false,
       },
       direction: {

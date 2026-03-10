@@ -6,7 +6,10 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../core/types/classification.ts";
 import type { SessionId } from "../../core/types/session.ts";
 import type { StorageProvider } from "../../core/storage/provider.ts";
 import type {
@@ -21,7 +24,9 @@ export interface TeamManagerDeps {
   /** Storage for persisting team state. */
   readonly storage: StorageProvider;
   /** Spawns an isolated agent session for a team member. */
-  readonly spawnMemberSession: (options: SpawnMemberOptions) => Promise<SpawnedMember>;
+  readonly spawnMemberSession: (
+    options: SpawnMemberOptions,
+  ) => Promise<SpawnedMember>;
   /** Sends a message from one session to another with write-down enforcement. */
   readonly sendMessage: (
     fromId: SessionId,
@@ -29,7 +34,9 @@ export interface TeamManagerDeps {
     content: string,
   ) => Promise<Result<{ readonly delivered: true }, string>>;
   /** Retrieves current taint for a session. */
-  readonly getSessionTaint: (sessionId: SessionId) => Promise<ClassificationLevel | null>;
+  readonly getSessionTaint: (
+    sessionId: SessionId,
+  ) => Promise<ClassificationLevel | null>;
   /** Terminates a session. */
   readonly terminateSession: (sessionId: SessionId) => Promise<void>;
   /**

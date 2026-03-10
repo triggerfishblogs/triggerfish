@@ -9,7 +9,10 @@
  */
 
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
-import { canFlowTo, maxClassification } from "../../../core/types/classification.ts";
+import {
+  canFlowTo,
+  maxClassification,
+} from "../../../core/types/classification.ts";
 import type { PathClassifier } from "../../../core/security/path_classification.ts";
 import type { ToolFloorRegistry } from "../../../core/security/tool_floors.ts";
 import type { DomainClassifier } from "../../../core/types/domain.ts";
@@ -33,7 +36,10 @@ export interface SimulateToolContext {
   readonly isOwner: () => boolean;
   readonly isTrigger: () => boolean;
   readonly toolClassifications?: ReadonlyMap<string, ClassificationLevel>;
-  readonly integrationClassifications?: ReadonlyMap<string, ClassificationLevel>;
+  readonly integrationClassifications?: ReadonlyMap<
+    string,
+    ClassificationLevel
+  >;
   readonly pathClassifier?: PathClassifier;
   readonly domainClassifier?: DomainClassifier;
   readonly toolFloorRegistry?: ToolFloorRegistry;
@@ -128,7 +134,8 @@ function checkToolFloorBlock(
   const floor = hookInput.tool_floor as ClassificationLevel;
   return {
     blocked: true,
-    reason: `Tool floor: ${toolName} requires ${floor}, session would be at ${resultingTaint}.`,
+    reason:
+      `Tool floor: ${toolName} requires ${floor}, session would be at ${resultingTaint}.`,
   };
 }
 
@@ -141,7 +148,8 @@ function checkResourceWriteDownBlock(
   const rc = hookInput.resource_classification as ClassificationLevel;
   return {
     blocked: true,
-    reason: `Write-down: session taint ${resultingTaint} cannot write to ${rc} resource.`,
+    reason:
+      `Write-down: session taint ${resultingTaint} cannot write to ${rc} resource.`,
   };
 }
 
@@ -170,7 +178,8 @@ function checkIntegrationWriteDownBlock(
     if (!canFlowTo(resultingTaint, level)) {
       return {
         blocked: true,
-        reason: `Integration write-down: session taint ${resultingTaint} cannot flow to ${toolName} (classified ${level}).`,
+        reason:
+          `Integration write-down: session taint ${resultingTaint} cannot flow to ${toolName} (classified ${level}).`,
       };
     }
     break;
@@ -190,11 +199,15 @@ export function evaluateSimulatedBlocked(
   toolName: string,
   integrationClassifications?: ReadonlyMap<string, ClassificationLevel>,
 ): BlockResult {
-  return checkToolFloorBlock(hookInput, resultingTaint, toolName)
-    ?? checkResourceWriteDownBlock(hookInput, resultingTaint)
-    ?? checkReadCeilingBlock(hookInput)
-    ?? checkIntegrationWriteDownBlock(resultingTaint, toolName, integrationClassifications)
-    ?? NOT_BLOCKED;
+  return checkToolFloorBlock(hookInput, resultingTaint, toolName) ??
+    checkResourceWriteDownBlock(hookInput, resultingTaint) ??
+    checkReadCeilingBlock(hookInput) ??
+    checkIntegrationWriteDownBlock(
+      resultingTaint,
+      toolName,
+      integrationClassifications,
+    ) ??
+    NOT_BLOCKED;
 }
 
 // ─── Executor factory ────────────────────────────────────────────────────────

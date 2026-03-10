@@ -201,7 +201,9 @@ Deno.test("RedditClient: sends Bearer auth header after token refresh", async ()
   const tokenCall = captured.find((c) => c.url.includes("access_token"));
   assertEquals(tokenCall !== undefined, true);
 
-  const apiCall = captured.find((c) => c.url.includes("/about") && !c.url.includes("access_token"));
+  const apiCall = captured.find((c) =>
+    c.url.includes("/about") && !c.url.includes("access_token")
+  );
   const authHeader = (apiCall?.init?.headers as Record<string, string>)
     ?.Authorization;
   assertEquals(authHeader, "Bearer test_access_token");

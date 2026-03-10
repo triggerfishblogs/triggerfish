@@ -22,7 +22,11 @@ function drainStream(stream: ReadableStream<Uint8Array>, label: string): void {
       }
       pump();
     }).catch((err: unknown) => {
-      log.debug("Pipe drain ended", { operation: "drainStream", pipe: label, err });
+      log.debug("Pipe drain ended", {
+        operation: "drainStream",
+        pipe: label,
+        err,
+      });
       reader.releaseLock();
     });
   };
@@ -103,9 +107,7 @@ export async function startLinkProcess(
       const stderrReader = child.stderr.getReader();
       const { value: errBytes } = await stderrReader.read();
       stderrReader.releaseLock();
-      const stderrText = errBytes
-        ? decoder.decode(errBytes).trim()
-        : "(empty)";
+      const stderrText = errBytes ? decoder.decode(errBytes).trim() : "(empty)";
       log.error("signal-cli link did not produce a URI", {
         operation: "startLinkProcess",
         stderr: stderrText,
@@ -113,8 +115,7 @@ export async function startLinkProcess(
       });
       return {
         ok: false,
-        error:
-          `signal-cli link did not produce a URI. stderr: ${stderrText}`,
+        error: `signal-cli link did not produce a URI. stderr: ${stderrText}`,
       };
     }
 

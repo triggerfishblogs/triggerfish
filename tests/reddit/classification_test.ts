@@ -46,9 +46,21 @@ Deno.test("classification: PUBLIC < INTERNAL < CONFIDENTIAL ordering", () => {
   const modlogLevel = levels[redditContentClassification("modlog")];
   const piiLevel = levels[redditContentClassification("user_pii")];
 
-  assertEquals(publicLevel < modqueueLevel, true, "PUBLIC should be less than modqueue INTERNAL");
-  assertEquals(modqueueLevel === modlogLevel, true, "modqueue and modlog should both be INTERNAL");
-  assertEquals(modlogLevel < piiLevel, true, "INTERNAL should be less than CONFIDENTIAL");
+  assertEquals(
+    publicLevel < modqueueLevel,
+    true,
+    "PUBLIC should be less than modqueue INTERNAL",
+  );
+  assertEquals(
+    modqueueLevel === modlogLevel,
+    true,
+    "modqueue and modlog should both be INTERNAL",
+  );
+  assertEquals(
+    modlogLevel < piiLevel,
+    true,
+    "INTERNAL should be less than CONFIDENTIAL",
+  );
 });
 
 // ─── API Response Classification: Posts ──────────────────────────────────────

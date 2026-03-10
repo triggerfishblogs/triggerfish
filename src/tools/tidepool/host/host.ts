@@ -18,7 +18,12 @@ import type {
   CanvasRenderComponentMessage,
 } from "../canvas_protocol.ts";
 import { buildTidepoolHtml } from "../ui.ts";
-import type { A2UIHost, A2UIHostOptions, A2UIHostState, TopicHandler } from "./host_types.ts";
+import type {
+  A2UIHost,
+  A2UIHostOptions,
+  A2UIHostState,
+  TopicHandler,
+} from "./host_types.ts";
 import { broadcastJsonToClients } from "./host_broadcast.ts";
 import { routeHostRequest } from "./host_server.ts";
 import { closeAllClientSockets } from "./host_server.ts";

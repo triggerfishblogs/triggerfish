@@ -76,7 +76,9 @@ export interface RawComment {
   readonly body: string;
   readonly score: number;
   readonly created_utc: number;
-  readonly replies?: { readonly data?: { readonly children?: readonly RawCommentChild[] } };
+  readonly replies?: {
+    readonly data?: { readonly children?: readonly RawCommentChild[] };
+  };
 }
 
 /** @internal */

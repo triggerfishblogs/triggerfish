@@ -102,11 +102,14 @@ export async function verifyMountPoint(
         targetPath,
       });
     } else {
-      log.warn("Data directory is NOT a mount point — secrets may persist in container layer", {
-        operation: "verifyMountPoint",
-        targetPath,
-        hint: "Use 'docker run -v volume:/data' to mount a volume",
-      });
+      log.warn(
+        "Data directory is NOT a mount point — secrets may persist in container layer",
+        {
+          operation: "verifyMountPoint",
+          targetPath,
+          hint: "Use 'docker run -v volume:/data' to mount a volume",
+        },
+      );
     }
 
     return {
@@ -133,8 +136,7 @@ export async function verifyMountPoint(
     const message = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
-      error:
-        `Mount point check failed for '${targetPath}': ${message}`,
+      error: `Mount point check failed for '${targetPath}': ${message}`,
     };
   }
 }

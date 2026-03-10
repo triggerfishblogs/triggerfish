@@ -8,8 +8,8 @@
  */
 
 export {
-  createCheckoutSession,
   type CheckoutSessionResponse,
+  createCheckoutSession,
   type DeviceCodeResponse,
   type DevicePollResponse,
   type LicenseValidation,

@@ -6,8 +6,8 @@
 
 import { assertEquals } from "@std/assert";
 import {
-  generateVaultHealthReport,
   collectVaultPatrolChecks,
+  generateVaultHealthReport,
 } from "../../../../src/core/secrets/vault/health.ts";
 import type { VaultClient } from "../../../../src/core/secrets/vault/vault_client.ts";
 

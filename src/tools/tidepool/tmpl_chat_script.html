@@ -533,7 +533,10 @@
 
     function sendMessage() {
       var text = input.value.trim();
-      if (!text || !window.tidepoolWs || !window.tidepoolWs.isConnected() || processing) {
+      if (
+        !text || !window.tidepoolWs || !window.tidepoolWs.isConnected() ||
+        processing
+      ) {
         return;
       }
 

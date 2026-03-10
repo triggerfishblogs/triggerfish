@@ -5,7 +5,10 @@
  * classification ceiling enforcement, and aggregate taint computation.
  */
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
-import type { ClassificationLevel, Result } from "../../../src/core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../../src/core/types/classification.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 import type {
   SpawnedMember,
@@ -20,14 +23,27 @@ import type { TeamDefinition } from "../../../src/agent/team/types.ts";
 function createTestStorage(): import("../../../src/core/storage/provider.ts").StorageProvider {
   const store = new Map<string, string>();
   return {
-    set(key: string, value: string) { store.set(key, value); return Promise.resolve(); },
-    get(key: string) { return Promise.resolve(store.get(key) ?? null); },
-    delete(key: string) { store.delete(key); return Promise.resolve(); },
+    set(key: string, value: string) {
+      store.set(key, value);
+      return Promise.resolve();
+    },
+    get(key: string) {
+      return Promise.resolve(store.get(key) ?? null);
+    },
+    delete(key: string) {
+      store.delete(key);
+      return Promise.resolve();
+    },
     list(prefix?: string) {
       const keys = [...store.keys()];
-      return Promise.resolve(prefix ? keys.filter((k) => k.startsWith(prefix)) : keys);
+      return Promise.resolve(
+        prefix ? keys.filter((k) => k.startsWith(prefix)) : keys,
+      );
     },
-    close() { store.clear(); return Promise.resolve(); },
+    close() {
+      store.clear();
+      return Promise.resolve();
+    },
   };
 }
 
@@ -50,7 +66,9 @@ function createTestDeps(
 ): TeamManagerDeps {
   return {
     storage: createTestStorage(),
-    spawnMemberSession: (options: SpawnMemberOptions): Promise<SpawnedMember> => {
+    spawnMemberSession: (
+      options: SpawnMemberOptions,
+    ): Promise<SpawnedMember> => {
       sessionCounter++;
       const sessionId = `cls-session-${sessionCounter}` as SessionId;
       sessionTaints.set(sessionId, "PUBLIC");
@@ -71,7 +89,9 @@ function createTestDeps(
       });
       return Promise.resolve({ ok: true, value: { delivered: true } });
     },
-    getSessionTaint: (sessionId: SessionId): Promise<ClassificationLevel | null> => {
+    getSessionTaint: (
+      sessionId: SessionId,
+    ): Promise<ClassificationLevel | null> => {
       return Promise.resolve(sessionTaints.get(sessionId as string) ?? null);
     },
     terminateSession: (): Promise<void> => Promise.resolve(),
@@ -360,8 +380,7 @@ Deno.test("classification: non-lead without initialTask receives nothing", async
   );
 
   // Only the lead should have received a message
-  const workerMessages = sentMessages.filter((m) =>
-    m.to.includes("2") // second session spawned
+  const workerMessages = sentMessages.filter((m) => m.to.includes("2") // second session spawned
   );
   assertEquals(workerMessages.length, 0);
   manager.stopAllMonitors();

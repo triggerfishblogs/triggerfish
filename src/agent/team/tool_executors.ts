@@ -11,7 +11,7 @@
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { parseClassification } from "../../core/types/classification.ts";
 import type { SessionId } from "../../core/types/session.ts";
-import type { TeamMemberDefinition, TeamId, TeamInstance } from "./types.ts";
+import type { TeamId, TeamInstance, TeamMemberDefinition } from "./types.ts";
 import type { TeamToolContext } from "./tool_definitions.ts";
 import { TEAM_TOOL_NAMES } from "./tool_definitions.ts";
 import { createLogger } from "../../core/logger/logger.ts";
@@ -24,7 +24,10 @@ const MAX_TIMEOUT_SECONDS = 86_400;
 
 /** Clamp a timeout value to safe bounds. */
 function clampTimeout(value: number): number {
-  return Math.max(MIN_TIMEOUT_SECONDS, Math.min(MAX_TIMEOUT_SECONDS, Math.floor(value)));
+  return Math.max(
+    MIN_TIMEOUT_SECONDS,
+    Math.min(MAX_TIMEOUT_SECONDS, Math.floor(value)),
+  );
 }
 
 /** Check if a session is the team creator or a team member. */
@@ -154,7 +157,8 @@ async function executeTeamCreate(
       is_lead: m.isLead,
       status: m.status,
     })),
-    message: "Team created. Use team_status to check progress, team_message to communicate with members by role.",
+    message:
+      "Team created. Use team_status to check progress, team_message to communicate with members by role.",
   });
 }
 
@@ -276,7 +280,10 @@ async function executeTeamMessage(
 
 /** Map of team tool names to their executor functions. */
 const TEAM_EXECUTORS: Readonly<
-  Record<string, (ctx: TeamToolContext, input: Record<string, unknown>) => Promise<string>>
+  Record<
+    string,
+    (ctx: TeamToolContext, input: Record<string, unknown>) => Promise<string>
+  >
 > = {
   team_create: executeTeamCreate,
   team_status: executeTeamStatus,

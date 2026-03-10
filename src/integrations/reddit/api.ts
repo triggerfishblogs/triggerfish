@@ -56,7 +56,9 @@ export interface RefreshTokenOptions {
   readonly baseTokenUrl: string;
 }
 
-function buildTokenRequest(opts: RefreshTokenOptions): { url: string; init: RequestInit } {
+function buildTokenRequest(
+  opts: RefreshTokenOptions,
+): { url: string; init: RequestInit } {
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: opts.refreshToken,
@@ -67,7 +69,9 @@ function buildTokenRequest(opts: RefreshTokenOptions): { url: string; init: Requ
     init: {
       method: "POST",
       headers: {
-        "Authorization": `Basic ${btoa(`${opts.clientId}:${opts.clientSecret}`)}`,
+        "Authorization": `Basic ${
+          btoa(`${opts.clientId}:${opts.clientSecret}`)
+        }`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: body.toString(),
@@ -84,12 +88,17 @@ function parseTokenResponse(
   };
 }
 
-function wrapNetworkError(err: unknown, context: string): Result<never, RedditError> {
+function wrapNetworkError(
+  err: unknown,
+  context: string,
+): Result<never, RedditError> {
   return {
     ok: false,
     error: {
       status: 0,
-      message: `${context}: ${err instanceof Error ? err.message : String(err)}`,
+      message: `${context}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
     },
   };
 }
@@ -103,9 +112,18 @@ export async function refreshAccessToken(
   try {
     const response = await opts.fetchFn(url, init);
     if (!response.ok) {
-      return { ok: false, error: { status: response.status, message: `Token refresh failed: HTTP ${response.status}` } };
+      return {
+        ok: false,
+        error: {
+          status: response.status,
+          message: `Token refresh failed: HTTP ${response.status}`,
+        },
+      };
     }
-    const data = await response.json() as { access_token: string; expires_in: number };
+    const data = await response.json() as {
+      access_token: string;
+      expires_in: number;
+    };
     return { ok: true, value: parseTokenResponse(data) };
   } catch (err) {
     return wrapNetworkError(err, "Token refresh network error");
@@ -125,7 +143,9 @@ export interface RedditApiRequestOptions {
   readonly rateLimiter: RateLimiter;
 }
 
-function buildApiHeaders(opts: RedditApiRequestOptions): Record<string, string> {
+function buildApiHeaders(
+  opts: RedditApiRequestOptions,
+): Record<string, string> {
   return {
     "Authorization": `Bearer ${opts.accessToken}`,
     "User-Agent": `triggerfish:${opts.clientId}:1.0.0 (by /u/${opts.username})`,
@@ -164,7 +184,10 @@ async function parseApiErrorResponse<T>(
 
   let message: string;
   try {
-    const body = (await response.json()) as { message?: string; error?: string };
+    const body = (await response.json()) as {
+      message?: string;
+      error?: string;
+    };
     message = body.message ?? body.error ?? `HTTP ${response.status}`;
   } catch {
     message = `HTTP ${response.status}`;
@@ -172,6 +195,11 @@ async function parseApiErrorResponse<T>(
 
   return {
     ok: false,
-    error: { status: response.status, message, rateLimitRemaining: remaining, rateLimitReset: reset },
+    error: {
+      status: response.status,
+      message,
+      rateLimitRemaining: remaining,
+      rateLimitReset: reset,
+    },
   };
 }

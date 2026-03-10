@@ -14,7 +14,7 @@ import { LIFETIME_GRACE_PERIOD_SECONDS } from "./types.ts";
 import type { TeamManagerDeps } from "./manager_types.ts";
 import { serializeTeamInstance } from "./serialization.ts";
 import { deserializeTeamInstance } from "./serialization.ts";
-import { computeAggregateTaint, buildStorageKey } from "./helpers.ts";
+import { buildStorageKey, computeAggregateTaint } from "./helpers.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("team-lifecycle");
@@ -98,8 +98,15 @@ export function createLifecycleMonitor(
       const pausedMembers = team.members.map((m) =>
         m.isLead ? { ...m, status: "failed" as const } : m
       );
-      const paused: TeamInstance = { ...team, status: "paused", members: pausedMembers };
-      await deps.storage.set(buildStorageKey(teamId), serializeTeamInstance(paused));
+      const paused: TeamInstance = {
+        ...team,
+        status: "paused",
+        members: pausedMembers,
+      };
+      await deps.storage.set(
+        buildStorageKey(teamId),
+        serializeTeamInstance(paused),
+      );
       stopMonitor(teamId);
       return;
     }
@@ -124,7 +131,10 @@ export function createLifecycleMonitor(
         members: updatedMembers,
         aggregateTaint: computeAggregateTaint(updatedMembers),
       };
-      await deps.storage.set(buildStorageKey(teamId), serializeTeamInstance(updated));
+      await deps.storage.set(
+        buildStorageKey(teamId),
+        serializeTeamInstance(updated),
+      );
 
       const allIdle = updatedMembers
         .filter((m) => m.status === "active" || m.status === "idle")
@@ -133,7 +143,7 @@ export function createLifecycleMonitor(
         await deps.notifyCreator(
           team.createdBy,
           `All members of team "${team.name}" are inactive. ` +
-          `Use team_message to inject new instructions or team_disband to clean up.`,
+            `Use team_message to inject new instructions or team_disband to clean up.`,
         );
         stopMonitor(teamId);
       }
@@ -208,12 +218,14 @@ async function checkMemberIdle(
       idleSeconds: Math.floor(idleMs / 1_000),
     });
     const lead = team.members.find((m) => m.isLead);
-    const nudgeTarget = member.isLead ? "the lead" : lead?.role ?? "another teammate";
+    const nudgeTarget = member.isLead
+      ? "the lead"
+      : lead?.role ?? "another teammate";
     await deps.sendMessage(
       team.createdBy,
       member.sessionId,
       `You have been idle for ${Math.floor(idleMs / 1_000)} seconds. ` +
-      `If your work is complete, send your results to ${nudgeTarget}.`,
+        `If your work is complete, send your results to ${nudgeTarget}.`,
     );
     return member;
   }
@@ -263,7 +275,7 @@ async function checkLifetimeTimeout(
         team.createdBy,
         lead.sessionId,
         "Team lifetime limit reached. Wrapping up — you have " +
-        `${LIFETIME_GRACE_PERIOD_SECONDS} seconds to produce a final output.`,
+          `${LIFETIME_GRACE_PERIOD_SECONDS} seconds to produce a final output.`,
       );
     }
     return false;
@@ -286,7 +298,9 @@ async function checkLeadHealth(
   deps: TeamManagerDeps,
 ): Promise<boolean> {
   const lead = team.members.find((m) => m.isLead);
-  if (!lead || (lead.status !== "active" && lead.status !== "idle")) return false;
+  if (!lead || (lead.status !== "active" && lead.status !== "idle")) {
+    return false;
+  }
 
   const taint = await deps.getSessionTaint(lead.sessionId);
   if (taint !== null) return false;
@@ -301,7 +315,7 @@ async function checkLeadHealth(
     await deps.notifyCreator(
       team.createdBy,
       `Team "${team.name}" lead has failed. Team is paused. ` +
-      `Use team_disband to clean up or team_message to redirect work.`,
+        `Use team_disband to clean up or team_message to redirect work.`,
     );
   }
 
@@ -333,7 +347,7 @@ async function checkMemberHealth(
       team.createdBy,
       lead.sessionId,
       `Team member "${member.role}" has failed. ` +
-      `Continue with remaining members or disband the team.`,
+        `Continue with remaining members or disband the team.`,
     );
   }
 

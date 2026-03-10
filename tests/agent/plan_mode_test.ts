@@ -170,7 +170,10 @@ Deno.test("PlanManager: isToolBlocked false for read tools in plan mode", () => 
 Deno.test("PlanManager: isToolBlocked false in normal mode", () => {
   const mgr = createTestManager();
   assertEquals(mgr.isToolBlocked(TEST_SESSION, "write_file"), false);
-  assertEquals(mgr.isToolBlocked(TEST_SESSION, "cron", { action: "create" }), false);
+  assertEquals(
+    mgr.isToolBlocked(TEST_SESSION, "cron", { action: "create" }),
+    false,
+  );
 });
 
 Deno.test("PlanManager: isToolBlocked false in awaiting_approval mode", async () => {

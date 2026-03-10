@@ -10,6 +10,7 @@
 
 import type { Result } from "../../core/types/classification.ts";
 import type {
+  PostSort,
   RedditComment,
   RedditError,
   RedditModAction,
@@ -18,12 +19,11 @@ import type {
   RedditRule,
   RedditSubreddit,
   RedditUser,
-  PostSort,
   TimeFilter,
 } from "./types.ts";
 import type { RateLimiter } from "./rate_limiter.ts";
 import { createRateLimiter } from "./rate_limiter.ts";
-import type { TokenState, RefreshTokenOptions } from "./api.ts";
+import type { RefreshTokenOptions, TokenState } from "./api.ts";
 import { refreshAccessToken, sendRedditApiRequest } from "./api.ts";
 import {
   mapComment,
@@ -31,7 +31,6 @@ import {
   mapModQueueItem,
   mapPost,
   mapUser,
-  redditContentClassification,
   type RawCommentChild,
   type RawModAction,
   type RawModQueueItem,
@@ -39,6 +38,7 @@ import {
   type RawRule,
   type RawSubreddit,
   type RawUser,
+  redditContentClassification,
 } from "./mappers.ts";
 
 // Convenience re-exports so callers can import from client.ts directly
@@ -74,7 +74,15 @@ export interface RedditClient {
   ) => Promise<Result<readonly RedditPost[], RedditError>>;
   readonly fetchPost: (
     postId: string,
-  ) => Promise<Result<{ readonly post: RedditPost; readonly comments: readonly RedditComment[] }, RedditError>>;
+  ) => Promise<
+    Result<
+      {
+        readonly post: RedditPost;
+        readonly comments: readonly RedditComment[];
+      },
+      RedditError
+    >
+  >;
   readonly fetchModQueue: (
     subreddit: string,
     opts?: { readonly limit?: number },
@@ -156,7 +164,10 @@ export function createRedditClient(config: RedditClientConfig): RedditClient {
 
 type ApiGet = <T>(path: string) => Promise<Result<T, RedditError>>;
 
-function mapRawSubreddit(raw: RawSubreddit, rules: RedditRule[]): RedditSubreddit {
+function mapRawSubreddit(
+  raw: RawSubreddit,
+  rules: RedditRule[],
+): RedditSubreddit {
   return {
     name: raw.display_name,
     title: raw.title,
@@ -169,10 +180,17 @@ function mapRawSubreddit(raw: RawSubreddit, rules: RedditRule[]): RedditSubreddi
   };
 }
 
-function extractRules(rulesResult: Result<{ rules: readonly RawRule[] }, RedditError>): RedditRule[] {
+function extractRules(
+  rulesResult: Result<{ rules: readonly RawRule[] }, RedditError>,
+): RedditRule[] {
   if (!rulesResult.ok) return [];
   const rawRules = rulesResult.value.rules;
-  return rawRules ? rawRules.map((r) => ({ shortName: r.short_name, description: r.description })) : [];
+  return rawRules
+    ? rawRules.map((r) => ({
+      shortName: r.short_name,
+      description: r.description,
+    }))
+    : [];
 }
 
 async function fetchSubredditInfo(
@@ -180,26 +198,45 @@ async function fetchSubredditInfo(
   subreddit: string,
 ): Promise<Result<RedditSubreddit, RedditError>> {
   const encoded = encodeURIComponent(subreddit);
-  const aboutResult = await apiGet<{ data: RawSubreddit }>(`/r/${encoded}/about`);
+  const aboutResult = await apiGet<{ data: RawSubreddit }>(
+    `/r/${encoded}/about`,
+  );
   if (!aboutResult.ok) return aboutResult;
 
-  const rulesResult = await apiGet<{ rules: readonly RawRule[] }>(`/r/${encoded}/about/rules`);
-  return { ok: true, value: mapRawSubreddit(aboutResult.value.data, extractRules(rulesResult)) };
+  const rulesResult = await apiGet<{ rules: readonly RawRule[] }>(
+    `/r/${encoded}/about/rules`,
+  );
+  return {
+    ok: true,
+    value: mapRawSubreddit(aboutResult.value.data, extractRules(rulesResult)),
+  };
 }
 
 async function fetchPosts(
   apiGet: ApiGet,
   subreddit: string,
-  opts?: { readonly sort?: PostSort; readonly limit?: number; readonly time?: TimeFilter },
+  opts?: {
+    readonly sort?: PostSort;
+    readonly limit?: number;
+    readonly time?: TimeFilter;
+  },
 ): Promise<Result<readonly RedditPost[], RedditError>> {
   const sort = opts?.sort ?? "hot";
-  const params = new URLSearchParams({ limit: String(opts?.limit ?? 25), t: opts?.time ?? "day" });
+  const params = new URLSearchParams({
+    limit: String(opts?.limit ?? 25),
+    t: opts?.time ?? "day",
+  });
 
   type Listing = { data: { children: readonly { data: RawPost }[] } };
-  const result = await apiGet<Listing>(`/r/${encodeURIComponent(subreddit)}/${sort}?${params}`);
+  const result = await apiGet<Listing>(
+    `/r/${encodeURIComponent(subreddit)}/${sort}?${params}`,
+  );
   if (!result.ok) return result;
 
-  return { ok: true, value: result.value.data.children.map((c) => mapPost(c.data)) };
+  return {
+    ok: true,
+    value: result.value.data.children.map((c) => mapPost(c.data)),
+  };
 }
 
 type PostResponse = readonly [
@@ -207,7 +244,9 @@ type PostResponse = readonly [
   { data: { children: readonly RawCommentChild[] } },
 ];
 
-function extractComments(children: readonly RawCommentChild[]): RedditComment[] {
+function extractComments(
+  children: readonly RawCommentChild[],
+): RedditComment[] {
   const comments: RedditComment[] = [];
   for (const child of children) {
     if (child.kind === "t1") comments.push(mapComment(child.data));
@@ -218,16 +257,32 @@ function extractComments(children: readonly RawCommentChild[]): RedditComment[] 
 async function fetchPostWithComments(
   apiGet: ApiGet,
   postId: string,
-): Promise<Result<{ readonly post: RedditPost; readonly comments: readonly RedditComment[] }, RedditError>> {
-  const result = await apiGet<PostResponse>(`/comments/${encodeURIComponent(postId)}`);
+): Promise<
+  Result<
+    { readonly post: RedditPost; readonly comments: readonly RedditComment[] },
+    RedditError
+  >
+> {
+  const result = await apiGet<PostResponse>(
+    `/comments/${encodeURIComponent(postId)}`,
+  );
   if (!result.ok) return result;
 
   const rawPost = result.value[0].data.children[0]?.data;
   if (!rawPost) {
-    return { ok: false, error: { status: 404, message: `Post not found: ${postId}` } };
+    return {
+      ok: false,
+      error: { status: 404, message: `Post not found: ${postId}` },
+    };
   }
 
-  return { ok: true, value: { post: mapPost(rawPost), comments: extractComments(result.value[1].data.children) } };
+  return {
+    ok: true,
+    value: {
+      post: mapPost(rawPost),
+      comments: extractComments(result.value[1].data.children),
+    },
+  };
 }
 
 async function fetchModQueue(
@@ -236,14 +291,20 @@ async function fetchModQueue(
   opts?: { readonly limit?: number },
 ): Promise<Result<readonly RedditModQueueItem[], RedditError>> {
   const limit = opts?.limit ?? 25;
-  type Listing = { data: { children: readonly { kind: string; data: RawModQueueItem }[] } };
+  type Listing = {
+    data: { children: readonly { kind: string; data: RawModQueueItem }[] };
+  };
 
-  const result = await apiGet<Listing>(`/r/${encodeURIComponent(subreddit)}/about/modqueue?limit=${limit}`);
+  const result = await apiGet<Listing>(
+    `/r/${encodeURIComponent(subreddit)}/about/modqueue?limit=${limit}`,
+  );
   if (!result.ok) return result;
 
   return {
     ok: true,
-    value: result.value.data.children.map((c) => mapModQueueItem(c.data, c.kind === "t3" ? "post" : "comment")),
+    value: result.value.data.children.map((c) =>
+      mapModQueueItem(c.data, c.kind === "t3" ? "post" : "comment")
+    ),
   };
 }
 
@@ -255,17 +316,24 @@ async function fetchModLog(
   const limit = opts?.limit ?? 25;
   type LogResponse = { data: { children: readonly { data: RawModAction }[] } };
 
-  const result = await apiGet<LogResponse>(`/r/${encodeURIComponent(subreddit)}/about/log?limit=${limit}`);
+  const result = await apiGet<LogResponse>(
+    `/r/${encodeURIComponent(subreddit)}/about/log?limit=${limit}`,
+  );
   if (!result.ok) return result;
 
-  return { ok: true, value: result.value.data.children.map((c) => mapModAction(c.data)) };
+  return {
+    ok: true,
+    value: result.value.data.children.map((c) => mapModAction(c.data)),
+  };
 }
 
 async function fetchUserInfo(
   apiGet: ApiGet,
   username: string,
 ): Promise<Result<RedditUser, RedditError>> {
-  const result = await apiGet<{ data: RawUser }>(`/user/${encodeURIComponent(username)}/about`);
+  const result = await apiGet<{ data: RawUser }>(
+    `/user/${encodeURIComponent(username)}/about`,
+  );
   if (!result.ok) return result;
 
   return { ok: true, value: mapUser(result.value.data) };

@@ -12,7 +12,9 @@ Deno.test("client: lazy spawn — first request starts worker", async () => {
   const testFile = join(tmpDir, "lazy.txt");
   await Deno.writeTextFile(testFile, "lazy content");
 
-  const sandbox = createFilesystemSandbox({ resolveWorkspacePath: () => tmpDir });
+  const sandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () => tmpDir,
+  });
   try {
     const resp = await sandbox.request({
       id: "",
@@ -32,7 +34,9 @@ Deno.test("client: concurrent requests matched by id", async () => {
   await Deno.writeTextFile(join(tmpDir, "a.txt"), "aaa");
   await Deno.writeTextFile(join(tmpDir, "b.txt"), "bbb");
 
-  const sandbox = createFilesystemSandbox({ resolveWorkspacePath: () => tmpDir });
+  const sandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () => tmpDir,
+  });
   try {
     const [respA, respB] = await Promise.all([
       sandbox.request({
@@ -59,7 +63,9 @@ Deno.test("client: concurrent requests matched by id", async () => {
 Deno.test("client: write and read roundtrip", async () => {
   const tmpDir = await Deno.makeTempDir({ prefix: "sandbox-client-" });
 
-  const sandbox = createFilesystemSandbox({ resolveWorkspacePath: () => tmpDir });
+  const sandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () => tmpDir,
+  });
   try {
     const writeResp = await sandbox.request({
       id: "",
@@ -84,7 +90,9 @@ Deno.test("client: write and read roundtrip", async () => {
 Deno.test("client: error response for outside workspace", async () => {
   const tmpDir = await Deno.makeTempDir({ prefix: "sandbox-client-" });
 
-  const sandbox = createFilesystemSandbox({ resolveWorkspacePath: () => tmpDir });
+  const sandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () => tmpDir,
+  });
   try {
     const resp = await sandbox.request({
       id: "",
@@ -105,7 +113,9 @@ Deno.test("client: error response for outside workspace", async () => {
 Deno.test("client: shutdown rejects subsequent requests", async () => {
   const tmpDir = await Deno.makeTempDir({ prefix: "sandbox-client-" });
 
-  const sandbox = createFilesystemSandbox({ resolveWorkspacePath: () => tmpDir });
+  const sandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () => tmpDir,
+  });
   await sandbox.shutdown();
 
   let threw = false;
@@ -130,7 +140,9 @@ Deno.test("client: crash recovery — respawns after worker death", async () => 
   const tmpDir = await Deno.makeTempDir({ prefix: "sandbox-client-" });
   await Deno.writeTextFile(join(tmpDir, "survive.txt"), "survived");
 
-  const sandbox = createFilesystemSandbox({ resolveWorkspacePath: () => tmpDir });
+  const sandbox = createFilesystemSandbox({
+    resolveWorkspacePath: () => tmpDir,
+  });
   try {
     // First request to ensure worker is spawned
     const resp1 = await sandbox.request({

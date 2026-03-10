@@ -80,8 +80,14 @@ export function createAppRoleAuth(
     }, ssrfChecker);
 
     if (!fetchResult.ok) {
-      log.warn("AppRole login request failed", { operation: "login", err: fetchResult.error });
-      return { ok: false, error: `AppRole login request failed: ${fetchResult.error}` };
+      log.warn("AppRole login request failed", {
+        operation: "login",
+        err: fetchResult.error,
+      });
+      return {
+        ok: false,
+        error: `AppRole login request failed: ${fetchResult.error}`,
+      };
     }
 
     const response = fetchResult.value;
@@ -118,8 +124,14 @@ export function createAppRoleAuth(
     }, ssrfChecker);
 
     if (!fetchResult.ok) {
-      log.warn("Token renewal request failed", { operation: "renewToken", err: fetchResult.error });
-      return { ok: false, error: `Token renewal request failed: ${fetchResult.error}` };
+      log.warn("Token renewal request failed", {
+        operation: "renewToken",
+        err: fetchResult.error,
+      });
+      return {
+        ok: false,
+        error: `Token renewal request failed: ${fetchResult.error}`,
+      };
     }
 
     const response = fetchResult.value;

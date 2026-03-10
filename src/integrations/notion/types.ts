@@ -124,5 +124,7 @@ export interface QueryDatabaseOptions {
 /** Options for creating a Notion database. */
 export interface CreateDatabaseOptions {
   readonly title: string;
-  readonly properties: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+  readonly properties: Readonly<
+    Record<string, Readonly<Record<string, unknown>>>
+  >;
 }

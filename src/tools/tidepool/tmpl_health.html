@@ -1,8 +1,11 @@
 <div class="screen-health-container">
   <div class="health-status-bar" id="health-status-bar">
     <span class="health-overall-dot" id="health-overall-dot"></span>
-    <span class="health-overall-label" id="health-overall-label">Loading...</span>
-    <button class="health-refresh-btn" id="health-refresh-btn" title="Refresh">&#x21BB;</button>
+    <span class="health-overall-label" id="health-overall-label"
+    >Loading...</span>
+    <button class="health-refresh-btn" id="health-refresh-btn" title="Refresh">
+      &#x21BB;
+    </button>
   </div>
   <div class="health-cards" id="health-cards">
     <div class="health-card" data-card="gateway">
@@ -80,73 +83,96 @@
   </div>
 </div>
 <script>
-(function () {
-  var refreshBtn = document.getElementById("health-refresh-btn");
-  var overallDot = document.getElementById("health-overall-dot");
-  var overallLabel = document.getElementById("health-overall-label");
+  (function () {
+    var refreshBtn = document.getElementById("health-refresh-btn");
+    var overallDot = document.getElementById("health-overall-dot");
+    var overallLabel = document.getElementById("health-overall-label");
 
-  var STATUS_COLORS = { green: "var(--green)", yellow: "var(--yellow)", red: "var(--red)", gray: "var(--fg3)" };
-  var HEALTH_MAP = { HEALTHY: "green", WARNING: "yellow", CRITICAL: "red" };
-
-  function updateCard(cardId, status, value, detail) {
-    var dotEl = document.getElementById("health-dot-" + cardId);
-    var valEl = document.getElementById("health-val-" + cardId);
-    var detailEl = document.getElementById("health-detail-" + cardId);
-    if (dotEl) {
-      dotEl.className = "status-dot " + (status || "gray");
-    }
-    if (valEl) valEl.textContent = value || "--";
-    if (detailEl) detailEl.textContent = detail || "";
-  }
-
-  function updateOverall(status) {
-    var level = HEALTH_MAP[status] || "gray";
-    overallDot.className = "health-overall-dot " + level;
-    overallLabel.textContent = status || "UNKNOWN";
-    // Update nav badge
-    if (window.tidepoolBadge) {
-      window.tidepoolBadge.setStatus("health", level === "green" ? "" : level);
-    }
-  }
-
-  function requestSnapshot() {
-    if (window.tidepoolWs) {
-      window.tidepoolWs.send({ topic: "health", action: "snapshot" });
-    }
-  }
-
-  refreshBtn.addEventListener("click", requestSnapshot);
-
-  // Handle health topic messages
-  if (window.tidepoolMux) {
-    window.tidepoolMux.on("health", function (msg) {
-      if (msg.type === "snapshot") {
-        updateOverall(msg.overall);
-        var cards = msg.cards || [];
-        for (var i = 0; i < cards.length; i++) {
-          updateCard(cards[i].id, cards[i].status, cards[i].value, cards[i].detail);
-        }
-      } else if (msg.type === "metric_update") {
-        updateCard(msg.cardId, msg.status, msg.value, msg.detail);
-      }
-    });
-  }
-
-  // Register screen lifecycle
-  if (window.tidepoolScreens) {
-    window.tidepoolScreens.health = {
-      onMount: function () {
-        requestSnapshot();
-        if (window.tidepoolWs) {
-          window.tidepoolWs.send({ topic: "health", action: "subscribe_live" });
-        }
-      },
-      onUnmount: function () {
-        if (window.tidepoolWs) {
-          window.tidepoolWs.send({ topic: "health", action: "unsubscribe_live" });
-        }
-      }
+    var STATUS_COLORS = {
+      green: "var(--green)",
+      yellow: "var(--yellow)",
+      red: "var(--red)",
+      gray: "var(--fg3)",
     };
-  }
-})();
+    var HEALTH_MAP = {
+      HEALTHY: "green",
+      WARNING: "yellow",
+      CRITICAL: "red",
+    };
+
+    function updateCard(cardId, status, value, detail) {
+      var dotEl = document.getElementById("health-dot-" + cardId);
+      var valEl = document.getElementById("health-val-" + cardId);
+      var detailEl = document.getElementById("health-detail-" + cardId);
+      if (dotEl) {
+        dotEl.className = "status-dot " + (status || "gray");
+      }
+      if (valEl) valEl.textContent = value || "--";
+      if (detailEl) detailEl.textContent = detail || "";
+    }
+
+    function updateOverall(status) {
+      var level = HEALTH_MAP[status] || "gray";
+      overallDot.className = "health-overall-dot " + level;
+      overallLabel.textContent = status || "UNKNOWN";
+      // Update nav badge
+      if (window.tidepoolBadge) {
+        window.tidepoolBadge.setStatus(
+          "health",
+          level === "green" ? "" : level,
+        );
+      }
+    }
+
+    function requestSnapshot() {
+      if (window.tidepoolWs) {
+        window.tidepoolWs.send({ topic: "health", action: "snapshot" });
+      }
+    }
+
+    refreshBtn.addEventListener("click", requestSnapshot);
+
+    // Handle health topic messages
+    if (window.tidepoolMux) {
+      window.tidepoolMux.on("health", function (msg) {
+        if (msg.type === "snapshot") {
+          updateOverall(msg.overall);
+          var cards = msg.cards || [];
+          for (var i = 0; i < cards.length; i++) {
+            updateCard(
+              cards[i].id,
+              cards[i].status,
+              cards[i].value,
+              cards[i].detail,
+            );
+          }
+        } else if (msg.type === "metric_update") {
+          updateCard(msg.cardId, msg.status, msg.value, msg.detail);
+        }
+      });
+    }
+
+    // Register screen lifecycle
+    if (window.tidepoolScreens) {
+      window.tidepoolScreens.health = {
+        onMount: function () {
+          requestSnapshot();
+          if (window.tidepoolWs) {
+            window.tidepoolWs.send({
+              topic: "health",
+              action: "subscribe_live",
+            });
+          }
+        },
+        onUnmount: function () {
+          if (window.tidepoolWs) {
+            window.tidepoolWs.send({
+              topic: "health",
+              action: "unsubscribe_live",
+            });
+          }
+        },
+      };
+    }
+  })();
 </script>

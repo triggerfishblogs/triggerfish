@@ -57,11 +57,13 @@ function validateMemberCeilings(
     return { ok: true, value: true };
   }
 
-  const teamCeilingOrder = CLASSIFICATION_ORDER[definition.classificationCeiling];
+  const teamCeilingOrder =
+    CLASSIFICATION_ORDER[definition.classificationCeiling];
 
   for (const member of definition.members) {
     if (member.classificationCeiling) {
-      const memberCeilingOrder = CLASSIFICATION_ORDER[member.classificationCeiling];
+      const memberCeilingOrder =
+        CLASSIFICATION_ORDER[member.classificationCeiling];
       if (memberCeilingOrder > teamCeilingOrder) {
         return {
           ok: false,

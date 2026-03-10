@@ -97,7 +97,10 @@ async function buildSessionsCard(
       const managed = await coreInfra.enhancedSessionManager.sessionsList();
       count += managed.length;
     } catch (err: unknown) {
-      log.warn("Session count retrieval failed for health card", { operation: "buildSessionsCard", err });
+      log.warn("Session count retrieval failed for health card", {
+        operation: "buildSessionsCard",
+        err,
+      });
     }
   }
   return {

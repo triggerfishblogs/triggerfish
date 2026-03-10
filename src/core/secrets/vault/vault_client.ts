@@ -73,7 +73,9 @@ async function parseVaultError(
     const body = await response.json();
     const errors = body.errors as string[] | undefined;
     if (errors && errors.length > 0) {
-      return `Vault ${operation} failed (${response.status}): ${errors.join(", ")}`;
+      return `Vault ${operation} failed (${response.status}): ${
+        errors.join(", ")
+      }`;
     }
   } catch (err) {
     log.debug("Vault error response body not JSON", { operation, err });
@@ -236,7 +238,10 @@ export function createVaultClient(
         ssrfChecker,
       );
       if (!result.ok) {
-        return { ok: false, error: `Vault health check failed: ${result.error}` };
+        return {
+          ok: false,
+          error: `Vault health check failed: ${result.error}`,
+        };
       }
       const body = await result.value.json();
       return { ok: true, value: body as VaultHealth };

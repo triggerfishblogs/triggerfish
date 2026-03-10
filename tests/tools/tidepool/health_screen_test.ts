@@ -43,7 +43,12 @@ Deno.test("TidepoolHealthHandler uses custom snapshot provider", async () => {
   // deno-lint-ignore require-await
   handler.setSnapshotProvider(async () => ({
     overall: "WARNING",
-    cards: [{ id: "gateway", label: "Gateway", status: "yellow", value: "degraded" }],
+    cards: [{
+      id: "gateway",
+      label: "Gateway",
+      status: "yellow",
+      value: "degraded",
+    }],
     timestamp: "2026-03-08T12:00:00Z",
   }));
   const snapshot = await handler.snapshot();

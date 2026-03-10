@@ -25,9 +25,12 @@ function createTestStore(): SecretStore {
   return {
     getSecret: (name: string) =>
       Promise.resolve({ ok: true as const, value: `value-of-${name}` }),
-    setSecret: () => Promise.resolve({ ok: true as const, value: true as const }),
-    deleteSecret: () => Promise.resolve({ ok: true as const, value: true as const }),
-    listSecrets: () => Promise.resolve({ ok: true as const, value: [] as string[] }),
+    setSecret: () =>
+      Promise.resolve({ ok: true as const, value: true as const }),
+    deleteSecret: () =>
+      Promise.resolve({ ok: true as const, value: true as const }),
+    listSecrets: () =>
+      Promise.resolve({ ok: true as const, value: [] as string[] }),
   };
 }
 

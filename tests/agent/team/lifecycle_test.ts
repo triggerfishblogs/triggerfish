@@ -5,7 +5,10 @@
  * member failure handling, and lead failure handling.
  */
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
-import type { ClassificationLevel, Result } from "../../../src/core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../../src/core/types/classification.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 import type {
   SpawnedMember,
@@ -13,24 +16,34 @@ import type {
   TeamManagerDeps,
 } from "../../../src/agent/team/manager.ts";
 import { createTeamManager } from "../../../src/agent/team/manager.ts";
-import type {
-  TeamDefinition,
-  TeamId,
-} from "../../../src/agent/team/types.ts";
+import type { TeamDefinition, TeamId } from "../../../src/agent/team/types.ts";
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
 
 function createTestStorage(): import("../../../src/core/storage/provider.ts").StorageProvider {
   const store = new Map<string, string>();
   return {
-    set(key: string, value: string) { store.set(key, value); return Promise.resolve(); },
-    get(key: string) { return Promise.resolve(store.get(key) ?? null); },
-    delete(key: string) { store.delete(key); return Promise.resolve(); },
+    set(key: string, value: string) {
+      store.set(key, value);
+      return Promise.resolve();
+    },
+    get(key: string) {
+      return Promise.resolve(store.get(key) ?? null);
+    },
+    delete(key: string) {
+      store.delete(key);
+      return Promise.resolve();
+    },
     list(prefix?: string) {
       const keys = [...store.keys()];
-      return Promise.resolve(prefix ? keys.filter((k) => k.startsWith(prefix)) : keys);
+      return Promise.resolve(
+        prefix ? keys.filter((k) => k.startsWith(prefix)) : keys,
+      );
     },
-    close() { store.clear(); return Promise.resolve(); },
+    close() {
+      store.clear();
+      return Promise.resolve();
+    },
   };
 }
 
@@ -51,7 +64,9 @@ function createTestDeps(
 ): TeamManagerDeps {
   return {
     storage: createTestStorage(),
-    spawnMemberSession: (options: SpawnMemberOptions): Promise<SpawnedMember> => {
+    spawnMemberSession: (
+      options: SpawnMemberOptions,
+    ): Promise<SpawnedMember> => {
       if (spawnFailRole && options.role === spawnFailRole) {
         return Promise.reject(new Error(`Spawn failed for ${options.role}`));
       }
@@ -66,7 +81,9 @@ function createTestDeps(
     sendMessage: (): Promise<Result<{ readonly delivered: true }, string>> => {
       return Promise.resolve({ ok: true, value: { delivered: true } });
     },
-    getSessionTaint: (sessionId: SessionId): Promise<ClassificationLevel | null> => {
+    getSessionTaint: (
+      sessionId: SessionId,
+    ): Promise<ClassificationLevel | null> => {
       return Promise.resolve(sessionTaints.get(sessionId as string) ?? null);
     },
     terminateSession: (sessionId: SessionId): Promise<void> => {
@@ -146,7 +163,10 @@ Deno.test("lifecycle: disband marks all active members as completed", async () =
   resetTestState();
   const manager = createTeamManager(createTestDeps());
 
-  const createResult = await manager.createTeam(createThreePersonTeam(), CALLER);
+  const createResult = await manager.createTeam(
+    createThreePersonTeam(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   const disbandResult = await manager.disbandTeam(
@@ -164,7 +184,10 @@ Deno.test("lifecycle: disband terminates all member sessions", async () => {
   resetTestState();
   const manager = createTeamManager(createTestDeps());
 
-  const createResult = await manager.createTeam(createThreePersonTeam(), CALLER);
+  const createResult = await manager.createTeam(
+    createThreePersonTeam(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   await manager.disbandTeam(createResult.value.id, CALLER);
@@ -179,7 +202,10 @@ Deno.test("lifecycle: disband sets status to disbanded", async () => {
   resetTestState();
   const manager = createTeamManager(createTestDeps());
 
-  const createResult = await manager.createTeam(createThreePersonTeam(), CALLER);
+  const createResult = await manager.createTeam(
+    createThreePersonTeam(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   const disbandResult = await manager.disbandTeam(
@@ -194,7 +220,10 @@ Deno.test("lifecycle: disband stores reason when provided", async () => {
   resetTestState();
   const manager = createTeamManager(createTestDeps());
 
-  const createResult = await manager.createTeam(createThreePersonTeam(), CALLER);
+  const createResult = await manager.createTeam(
+    createThreePersonTeam(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   const result = await manager.disbandTeam(
@@ -212,7 +241,10 @@ Deno.test("lifecycle: only creator can disband", async () => {
   resetTestState();
   const manager = createTeamManager(createTestDeps());
 
-  const createResult = await manager.createTeam(createThreePersonTeam(), CALLER);
+  const createResult = await manager.createTeam(
+    createThreePersonTeam(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   const result = await manager.disbandTeam(
@@ -228,7 +260,10 @@ Deno.test("lifecycle: lead session can disband", async () => {
   resetTestState();
   const manager = createTeamManager(createTestDeps());
 
-  const createResult = await manager.createTeam(createThreePersonTeam(), CALLER);
+  const createResult = await manager.createTeam(
+    createThreePersonTeam(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   const lead = createResult.value.members.find((m) => m.isLead)!;
@@ -247,7 +282,10 @@ Deno.test("lifecycle: status returns disbanded team state", async () => {
   const storage = createTestStorage();
   const manager = createTeamManager(createTestDeps({ storage }));
 
-  const createResult = await manager.createTeam(createThreePersonTeam(), CALLER);
+  const createResult = await manager.createTeam(
+    createThreePersonTeam(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   await manager.disbandTeam(createResult.value.id, CALLER);
@@ -264,7 +302,10 @@ Deno.test("lifecycle: cannot send message to disbanded team", async () => {
   const storage = createTestStorage();
   const manager = createTeamManager(createTestDeps({ storage }));
 
-  const createResult = await manager.createTeam(createThreePersonTeam(), CALLER);
+  const createResult = await manager.createTeam(
+    createThreePersonTeam(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   await manager.disbandTeam(createResult.value.id, CALLER);
@@ -331,7 +372,9 @@ Deno.test("lifecycle: member model override is captured", async () => {
   resetTestState();
   let capturedModel: string | undefined;
   const deps = createTestDeps({
-    spawnMemberSession: (options: SpawnMemberOptions): Promise<SpawnedMember> => {
+    spawnMemberSession: (
+      options: SpawnMemberOptions,
+    ): Promise<SpawnedMember> => {
       if (options.role === "analyst") {
         capturedModel = options.model;
       }

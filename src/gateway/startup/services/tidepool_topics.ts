@@ -279,7 +279,10 @@ export async function buildAgentListDataAsync(
         });
       }
     } catch (err) {
-      log.warn("Session list retrieval failed", { operation: "sessionsList", err });
+      log.warn("Session list retrieval failed", {
+        operation: "sessionsList",
+        err,
+      });
     }
   }
 
@@ -443,9 +446,11 @@ async function buildTeamListFromStorage(
       }
     }
   } catch (err) {
-    log.warn("Team storage list failed", { operation: "buildTeamListFromStorage", err });
+    log.warn("Team storage list failed", {
+      operation: "buildTeamListFromStorage",
+      err,
+    });
   }
 
   return teams;
 }
-

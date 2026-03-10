@@ -94,7 +94,9 @@ export interface OrchestratorConfig {
    * Live getter for additional system prompt sections resolved at each LLM call.
    * Used for dynamically-connected sources such as MCP servers.
    */
-  readonly getExtraSystemPromptSections?: () => readonly string[] | Promise<readonly string[]>;
+  readonly getExtraSystemPromptSections?: () =>
+    | readonly string[]
+    | Promise<readonly string[]>;
   /** Callback to execute tool calls. */
   readonly toolExecutor?: ToolExecutor;
   /** Event callback for real-time progress reporting. */

@@ -9,7 +9,6 @@ import { createLogger } from "../../../core/logger/mod.ts";
 
 const log = createLogger("tidepool-logs");
 
-
 /** Maximum number of buffered log lines. */
 const MAX_BUFFER_SIZE = 500;
 

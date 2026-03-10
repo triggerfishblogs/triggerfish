@@ -65,7 +65,10 @@ export function createHealthTopicDispatcher(
       handler.snapshot().then((snap) => {
         reply(socket, { topic: "health", type: "snapshot", ...snap });
       }).catch((err: unknown) => {
-        log.warn("Health snapshot dispatch failed", { operation: "snapshot", err });
+        log.warn("Health snapshot dispatch failed", {
+          operation: "snapshot",
+          err,
+        });
       });
     } else if (action === "subscribe_live") {
       handler.subscribeLive(socket);
@@ -100,7 +103,10 @@ export function createAgentsTopicDispatcher(
           teams: data.teams,
         });
       }).catch((err: unknown) => {
-        log.warn("Agents session list dispatch failed", { operation: "list_sessions", err });
+        log.warn("Agents session list dispatch failed", {
+          operation: "list_sessions",
+          err,
+        });
       });
     } else if (action === "subscribe_session") {
       const sessionId = payload.sessionId as string;
@@ -138,7 +144,9 @@ export function createMemoryTopicDispatcher(
         .search(
           {
             query: (payload.query as string) ?? "",
-            classification: payload.classification as import("../../../core/types/classification.ts").ClassificationLevel | undefined,
+            classification: payload.classification as
+              | import("../../../core/types/classification.ts").ClassificationLevel
+              | undefined,
             tags: payload.tags as string[] | undefined,
             dateFrom: payload.dateFrom as string | undefined,
             dateTo: payload.dateTo as string | undefined,
@@ -149,7 +157,10 @@ export function createMemoryTopicDispatcher(
           reply(socket, { topic: "memory", type: "search_results", ...result });
         })
         .catch((err: unknown) => {
-          log.warn("Memory search dispatch failed", { operation: "search", err });
+          log.warn("Memory search dispatch failed", {
+            operation: "search",
+            err,
+          });
           reply(socket, {
             topic: "memory",
             type: "search_results",
@@ -176,7 +187,11 @@ export function createMemoryTopicDispatcher(
             reply(socket, { topic: "memory", type: "entry", entry });
           })
           .catch((err: unknown) => {
-            log.warn("Memory get dispatch failed", { operation: "get", id, err });
+            log.warn("Memory get dispatch failed", {
+              operation: "get",
+              id,
+              err,
+            });
             reply(socket, { topic: "memory", type: "entry", entry: null });
           });
       }
@@ -189,7 +204,11 @@ export function createMemoryTopicDispatcher(
             reply(socket, { topic: "memory", type: "deleted", id, ok });
           })
           .catch((err: unknown) => {
-            log.warn("Memory delete dispatch failed", { operation: "delete", id, err });
+            log.warn("Memory delete dispatch failed", {
+              operation: "delete",
+              id,
+              err,
+            });
             reply(socket, { topic: "memory", type: "deleted", id, ok: false });
           });
       }
@@ -208,7 +227,9 @@ export function createSettingsTopicDispatcher(
     if (action === "get_section") {
       const section = payload.section as string;
       handler
-        .getSection(section as Parameters<TidepoolConfigHandler["getSection"]>[0])
+        .getSection(
+          section as Parameters<TidepoolConfigHandler["getSection"]>[0],
+        )
         .then((data) => {
           reply(socket, {
             topic: "settings",
@@ -218,7 +239,11 @@ export function createSettingsTopicDispatcher(
           });
         })
         .catch((err: unknown) => {
-          log.warn("Settings get_section dispatch failed", { operation: "get_section", section, err });
+          log.warn("Settings get_section dispatch failed", {
+            operation: "get_section",
+            section,
+            err,
+          });
           const errMessage = err instanceof Error ? err.message : String(err);
           reply(socket, {
             topic: "settings",
@@ -245,7 +270,11 @@ export function createSettingsTopicDispatcher(
           });
         })
         .catch((err: unknown) => {
-          log.warn("Settings update dispatch failed", { operation: "update", section, err });
+          log.warn("Settings update dispatch failed", {
+            operation: "update",
+            section,
+            err,
+          });
           const errMessage = err instanceof Error ? err.message : String(err);
           reply(socket, {
             topic: "settings",
@@ -258,4 +287,3 @@ export function createSettingsTopicDispatcher(
     }
   };
 }
-

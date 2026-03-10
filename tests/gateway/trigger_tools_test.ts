@@ -237,4 +237,3 @@ Deno.test("trigger executor: returns error when context is undefined", async () 
   const result = await exec("trigger_add_to_context", {});
   assertStringIncludes(result as string, "not available");
 });
-

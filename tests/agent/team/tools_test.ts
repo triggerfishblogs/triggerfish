@@ -20,7 +20,9 @@ import type { TeamToolContext } from "../../../src/agent/team/tools.ts";
 
 const CALLER = "test-caller" as SessionId;
 
-function createMockTeamInstance(overrides?: Partial<TeamInstance>): TeamInstance {
+function createMockTeamInstance(
+  overrides?: Partial<TeamInstance>,
+): TeamInstance {
   return {
     id: "team-123" as TeamId,
     name: "Test Team",
@@ -59,26 +61,31 @@ function createMockTeamInstance(overrides?: Partial<TeamInstance>): TeamInstance
 
 function createMockManager(overrides?: Partial<TeamManager>): TeamManager {
   return {
-    createTeam: () => Promise.resolve({
-      ok: true as const,
-      value: createMockTeamInstance(),
-    }),
-    fetchTeamStatus: () => Promise.resolve({
-      ok: true as const,
-      value: createMockTeamInstance(),
-    }),
-    disbandTeam: () => Promise.resolve({
-      ok: true as const,
-      value: createMockTeamInstance({ status: "disbanded" }),
-    }),
-    deliverTeamMessage: () => Promise.resolve({
-      ok: true as const,
-      value: { delivered: true as const },
-    }),
-    forceDisbandTeam: () => Promise.resolve({
-      ok: true as const,
-      value: createMockTeamInstance({ status: "disbanded" }),
-    }),
+    createTeam: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: createMockTeamInstance(),
+      }),
+    fetchTeamStatus: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: createMockTeamInstance(),
+      }),
+    disbandTeam: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: createMockTeamInstance({ status: "disbanded" }),
+      }),
+    deliverTeamMessage: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: { delivered: true as const },
+      }),
+    forceDisbandTeam: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: createMockTeamInstance({ status: "disbanded" }),
+      }),
     listTeams: () => Promise.resolve([]),
     ...overrides,
   };
@@ -181,11 +188,15 @@ Deno.test("team_create: returns team_id on success", async () => {
 });
 
 Deno.test("team_create: parses classification_ceiling", async () => {
-  let receivedDef: { classificationCeiling?: ClassificationLevel } | null = null;
+  let receivedDef: { classificationCeiling?: ClassificationLevel } | null =
+    null;
   const exec = createTestExecutor({
     createTeam: (def) => {
       receivedDef = def;
-      return Promise.resolve({ ok: true as const, value: createMockTeamInstance() });
+      return Promise.resolve({
+        ok: true as const,
+        value: createMockTeamInstance(),
+      });
     },
   });
 
@@ -238,10 +249,11 @@ Deno.test("team_status: returns team state", async () => {
 
 Deno.test("team_status: returns error for missing team", async () => {
   const exec = createTestExecutor({
-    fetchTeamStatus: () => Promise.resolve({
-      ok: false as const,
-      error: "Team not found: missing-id",
-    }),
+    fetchTeamStatus: () =>
+      Promise.resolve({
+        ok: false as const,
+        error: "Team not found: missing-id",
+      }),
   });
 
   const result = await exec("team_status", { team_id: "missing-id" });

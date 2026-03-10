@@ -14,8 +14,7 @@ import type { ToolDefinition } from "../../core/types/tool.ts";
 function buildGoogleGmailDef(): ToolDefinition {
   return {
     name: "google_gmail",
-    description:
-      "Gmail operations. Actions: search, read, send, label.\n" +
+    description: "Gmail operations. Actions: search, read, send, label.\n" +
       "- search: find emails. Params: query (required), max_results?\n" +
       "- read: read full email. Params: message_id (required)\n" +
       "- send: send email. Params: to (required), subject (required), body (required), cc?, bcc?\n" +
@@ -88,8 +87,7 @@ function buildGoogleGmailDef(): ToolDefinition {
 function buildGoogleCalendarDef(): ToolDefinition {
   return {
     name: "google_calendar",
-    description:
-      "Calendar operations. Actions: list, create, update.\n" +
+    description: "Calendar operations. Actions: list, create, update.\n" +
       "- list: list upcoming events. Params: time_min?, time_max?, max_results?, calendar_id?\n" +
       "- create: create event. Params: summary (required), start (required), end (required), description?, location?, attendees?, calendar_id?\n" +
       "- update: update event. Params: event_id (required), summary?, start?, end?, description?, location?, attendees?, calendar_id?",
@@ -164,8 +162,7 @@ function buildGoogleCalendarDef(): ToolDefinition {
 function buildGoogleTasksDef(): ToolDefinition {
   return {
     name: "google_tasks",
-    description:
-      "Task operations. Actions: list, create, complete.\n" +
+    description: "Task operations. Actions: list, create, complete.\n" +
       "- list: list tasks. Params: task_list_id?, show_completed?, max_results?\n" +
       "- create: create task. Params: title (required), notes?, due?, task_list_id?\n" +
       "- complete: complete task. Params: task_id (required), task_list_id?",
@@ -219,8 +216,7 @@ function buildGoogleTasksDef(): ToolDefinition {
 function buildGoogleDriveDef(): ToolDefinition {
   return {
     name: "google_drive",
-    description:
-      "Drive operations. Actions: search, read.\n" +
+    description: "Drive operations. Actions: search, read.\n" +
       "- search: search for files. Params: query (required), max_results?\n" +
       "- read: read file content. Params: file_id (required)",
     parameters: {
@@ -254,8 +250,7 @@ function buildGoogleDriveDef(): ToolDefinition {
 function buildGoogleSheetsDef(): ToolDefinition {
   return {
     name: "google_sheets",
-    description:
-      "Sheets operations. Actions: read, write.\n" +
+    description: "Sheets operations. Actions: read, write.\n" +
       "- read: read cell range. Params: spreadsheet_id (required), range (required)\n" +
       "- write: write cell range. Params: spreadsheet_id (required), range (required), values (required)",
     parameters: {

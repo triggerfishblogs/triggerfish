@@ -4,7 +4,14 @@
     // Screen switching + hash routing
     // -------------------------------------------------------------------------
 
-    var SCREEN_IDS = ["chat", "agents", "health", "settings", "logs", "memory"];
+    var SCREEN_IDS = [
+      "chat",
+      "agents",
+      "health",
+      "settings",
+      "logs",
+      "memory",
+    ];
     var DEFAULT_SCREEN = "chat";
     var currentScreen = DEFAULT_SCREEN;
 
@@ -51,20 +58,23 @@
         window.tidepoolWs.send({
           topic: "shell",
           action: "screen_changed",
-          payload: { screen: screenId, previous: prevScreen }
+          payload: { screen: screenId, previous: prevScreen },
         });
       }
     }
 
     // Nav click handler
-    document.getElementById("nav-bar").addEventListener("click", function (e) {
-      var item = e.target.closest(".nav-item");
-      if (!item) return;
-      var screenId = item.getAttribute("data-screen");
-      if (screenId) {
-        location.hash = "#" + screenId;
-      }
-    });
+    document.getElementById("nav-bar").addEventListener(
+      "click",
+      function (e) {
+        var item = e.target.closest(".nav-item");
+        if (!item) return;
+        var screenId = item.getAttribute("data-screen");
+        if (screenId) {
+          location.hash = "#" + screenId;
+        }
+      },
+    );
 
     // Hash change listener
     window.addEventListener("hashchange", function () {
@@ -96,10 +106,14 @@
         var handlers = topicHandlers[topic];
         if (handlers) {
           for (var i = 0; i < handlers.length; i++) {
-            try { handlers[i](msg); } catch (err) { console.error("Topic handler error:", err); }
+            try {
+              handlers[i](msg);
+            } catch (err) {
+              console.error("Topic handler error:", err);
+            }
           }
         }
-      }
+      },
     };
 
     // -------------------------------------------------------------------------
@@ -117,11 +131,13 @@
         }
       },
       /** Get raw WebSocket reference. */
-      raw: function () { return ws; },
+      raw: function () {
+        return ws;
+      },
       /** Check if connected. */
       isConnected: function () {
         return ws && ws.readyState === WebSocket.OPEN;
-      }
+      },
     };
 
     function connectWs() {
@@ -132,13 +148,19 @@
         reconnectDelay = 1000;
         // Notify connection handlers
         if (window.tidepoolMux) {
-          window.tidepoolMux.dispatch({ topic: "shell", type: "ws_connected" });
+          window.tidepoolMux.dispatch({
+            topic: "shell",
+            type: "ws_connected",
+          });
         }
       };
 
       ws.onclose = function () {
         if (window.tidepoolMux) {
-          window.tidepoolMux.dispatch({ topic: "shell", type: "ws_disconnected" });
+          window.tidepoolMux.dispatch({
+            topic: "shell",
+            type: "ws_disconnected",
+          });
         }
         setTimeout(connectWs, reconnectDelay);
         reconnectDelay = Math.min(reconnectDelay * 2, 30000);
@@ -189,7 +211,7 @@
           window.tidepoolBadge.setCount(SCREEN_IDS[i], 0);
           window.tidepoolBadge.setStatus(SCREEN_IDS[i], "");
         }
-      }
+      },
     };
 
     // -------------------------------------------------------------------------
@@ -211,7 +233,9 @@
       if (initialScreen !== DEFAULT_SCREEN) {
         switchScreen(initialScreen);
       } else {
-        var defaultNav = document.querySelector('.nav-item[data-screen="chat"]');
+        var defaultNav = document.querySelector(
+          '.nav-item[data-screen="chat"]',
+        );
         if (defaultNav) defaultNav.classList.add("active");
       }
     });

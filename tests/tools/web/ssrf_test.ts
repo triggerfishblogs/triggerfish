@@ -258,7 +258,9 @@ Deno.test("resolveAndCheck: allows public IPv6 from AAAA record", async () => {
 });
 
 Deno.test("resolveAndCheck: works with AAAA-only host (no A records)", async () => {
-  using _stub = stubResolveDns(new Error("no A records"), ["2607:f8b0:4004:800::200e"]);
+  using _stub = stubResolveDns(new Error("no A records"), [
+    "2607:f8b0:4004:800::200e",
+  ]);
   const result = await resolveAndCheck("ipv6only.example.com");
   assertEquals(result.ok, true);
 });

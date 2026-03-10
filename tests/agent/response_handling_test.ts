@@ -102,7 +102,9 @@ Deno.test("classifyResponseQuality: normal response is not junk", () => {
 // ─── detectTrailingContinuationIntent ────────────────────────────────────────
 
 Deno.test("detectTrailingContinuationIntent: detects 'Let me create' at end of long response", () => {
-  const longBody = "Here is the first issue I created. It covers the bug in the login flow. ".repeat(5);
+  const longBody =
+    "Here is the first issue I created. It covers the bug in the login flow. "
+      .repeat(5);
   const text = longBody + "Let me create the second issue:";
   assertEquals(detectTrailingContinuationIntent(text), true);
 });
@@ -126,7 +128,10 @@ Deno.test("detectTrailingContinuationIntent: detects 'Next, I'll' at end", () =>
 });
 
 Deno.test("detectTrailingContinuationIntent: does not trigger on short text", () => {
-  assertEquals(detectTrailingContinuationIntent("Let me create the issue."), false);
+  assertEquals(
+    detectTrailingContinuationIntent("Let me create the issue."),
+    false,
+  );
 });
 
 Deno.test("detectTrailingContinuationIntent: does not trigger on clean ending", () => {
@@ -137,7 +142,8 @@ Deno.test("detectTrailingContinuationIntent: does not trigger on clean ending", 
 
 Deno.test("detectTrailingContinuationIntent: intent in the middle does not trigger", () => {
   const text = "First part. Let me create the issue. " +
-    "Actually, I already created it. Here are the details of the issue that was created. ".repeat(5);
+    "Actually, I already created it. Here are the details of the issue that was created. "
+      .repeat(5);
   assertEquals(detectTrailingContinuationIntent(text), false);
 });
 

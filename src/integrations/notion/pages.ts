@@ -8,15 +8,18 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 import type { NotionClient } from "./client.ts";
 import type {
+  CreatePageOptions,
   NotionBlock,
   NotionError,
   NotionPage,
   NotionSearchResult,
-  CreatePageOptions,
   UpdatePageOptions,
 } from "./types.ts";
 import {
@@ -35,12 +38,23 @@ const MAX_BLOCK_DEPTH = 3;
 export interface NotionPagesService {
   readonly search: (
     query: string,
-    opts?: { readonly type?: "page" | "database"; readonly pageSize?: number; readonly startCursor?: string },
-  ) => Promise<Result<{ results: readonly NotionSearchResult[]; nextCursor: string | null }, NotionError>>;
+    opts?: {
+      readonly type?: "page" | "database";
+      readonly pageSize?: number;
+      readonly startCursor?: string;
+    },
+  ) => Promise<
+    Result<
+      { results: readonly NotionSearchResult[]; nextCursor: string | null },
+      NotionError
+    >
+  >;
   readonly read: (
     pageId: string,
     classification: ClassificationLevel,
-  ) => Promise<Result<{ page: NotionPage; content: readonly NotionBlock[] }, NotionError>>;
+  ) => Promise<
+    Result<{ page: NotionPage; content: readonly NotionBlock[] }, NotionError>
+  >;
   readonly create: (
     opts: CreatePageOptions,
     classification: ClassificationLevel,
@@ -78,7 +92,11 @@ interface RawProperty {
 interface RawPageResponse {
   readonly id: string;
   readonly url: string;
-  readonly parent: { readonly type: string; readonly database_id?: string; readonly page_id?: string };
+  readonly parent: {
+    readonly type: string;
+    readonly database_id?: string;
+    readonly page_id?: string;
+  };
   readonly archived: boolean;
   readonly properties: Readonly<Record<string, RawProperty>>;
   readonly last_edited_time: string;
@@ -98,12 +116,15 @@ interface RawBlockItem {
 }
 
 /** Create a NotionPagesService backed by a NotionClient. */
-export function createNotionPagesService(client: NotionClient): NotionPagesService {
+export function createNotionPagesService(
+  client: NotionClient,
+): NotionPagesService {
   return {
     search: (query, opts) => searchPages(client, query, opts),
     read: (pageId, classification) => readPage(client, pageId, classification),
     create: (opts, classification) => createPage(client, opts, classification),
-    update: (pageId, opts, classification) => updatePage(client, pageId, opts, classification),
+    update: (pageId, opts, classification) =>
+      updatePage(client, pageId, opts, classification),
   };
 }
 
@@ -111,8 +132,17 @@ export function createNotionPagesService(client: NotionClient): NotionPagesServi
 async function searchPages(
   client: NotionClient,
   query: string,
-  opts?: { readonly type?: "page" | "database"; readonly pageSize?: number; readonly startCursor?: string },
-): Promise<Result<{ results: readonly NotionSearchResult[]; nextCursor: string | null }, NotionError>> {
+  opts?: {
+    readonly type?: "page" | "database";
+    readonly pageSize?: number;
+    readonly startCursor?: string;
+  },
+): Promise<
+  Result<
+    { results: readonly NotionSearchResult[]; nextCursor: string | null },
+    NotionError
+  >
+> {
   const body: Record<string, unknown> = { query };
   if (opts?.type) {
     body.filter = { value: opts.type, property: "object" };
@@ -120,9 +150,16 @@ async function searchPages(
   if (opts?.pageSize) body.page_size = opts.pageSize;
   if (opts?.startCursor) body.start_cursor = opts.startCursor;
 
-  const result = await client.request<RawSearchResponse>("POST", "/search", body);
+  const result = await client.request<RawSearchResponse>(
+    "POST",
+    "/search",
+    body,
+  );
   if (!result.ok) {
-    log.warn("Notion search pages failed", { operation: "searchPages", error: result.error });
+    log.warn("Notion search pages failed", {
+      operation: "searchPages",
+      error: result.error,
+    });
     return result;
   }
 
@@ -140,10 +177,19 @@ async function readPage(
   client: NotionClient,
   pageId: string,
   classification: ClassificationLevel,
-): Promise<Result<{ page: NotionPage; content: readonly NotionBlock[] }, NotionError>> {
-  const pageResult = await client.request<RawPageResponse>("GET", `/pages/${pageId}`);
+): Promise<
+  Result<{ page: NotionPage; content: readonly NotionBlock[] }, NotionError>
+> {
+  const pageResult = await client.request<RawPageResponse>(
+    "GET",
+    `/pages/${pageId}`,
+  );
   if (!pageResult.ok) {
-    log.warn("Notion read page failed", { operation: "readPage", pageId, error: pageResult.error });
+    log.warn("Notion read page failed", {
+      operation: "readPage",
+      pageId,
+      error: pageResult.error,
+    });
     return pageResult;
   }
 
@@ -227,7 +273,10 @@ async function createPage(
 
   const result = await client.request<RawPageResponse>("POST", "/pages", body);
   if (!result.ok) {
-    log.warn("Notion create page failed", { operation: "createPage", error: result.error });
+    log.warn("Notion create page failed", {
+      operation: "createPage",
+      error: result.error,
+    });
     return result;
   }
 
@@ -245,12 +294,19 @@ async function updatePage(
   if (opts.properties) body.properties = opts.properties;
   if (opts.archived !== undefined) body.archived = opts.archived;
 
-  const result = await client.request<RawPageResponse>("PATCH", `/pages/${pageId}`, body);
+  const result = await client.request<RawPageResponse>(
+    "PATCH",
+    `/pages/${pageId}`,
+    body,
+  );
   if (!result.ok) {
-    log.warn("Notion update page failed", { operation: "updatePage", pageId, error: result.error });
+    log.warn("Notion update page failed", {
+      operation: "updatePage",
+      pageId,
+      error: result.error,
+    });
     return result;
   }
 
   return { ok: true, value: transformRawPage(result.value, classification) };
 }
-

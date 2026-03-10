@@ -89,11 +89,13 @@ function buildPagesCreateDef(): ToolDefinition {
       },
       properties: {
         type: "object",
-        description: "Additional page properties (for database pages). Use Notion API property format.",
+        description:
+          "Additional page properties (for database pages). Use Notion API property format.",
       },
       content: {
         type: "string",
-        description: "Page body content as markdown. Will be converted to Notion blocks.",
+        description:
+          "Page body content as markdown. Will be converted to Notion blocks.",
       },
     },
   };
@@ -103,8 +105,7 @@ function buildPagesCreateDef(): ToolDefinition {
 function buildPagesUpdateDef(): ToolDefinition {
   return {
     name: "notion.pages.update",
-    description:
-      "Update a Notion page's properties or archive/unarchive it.",
+    description: "Update a Notion page's properties or archive/unarchive it.",
     parameters: {
       page_id: {
         type: "string",
@@ -137,11 +138,13 @@ function buildDatabasesQueryDef(): ToolDefinition {
       },
       filter: {
         type: "object",
-        description: "Notion API filter object. Example: { \"property\": \"Status\", \"select\": { \"equals\": \"Done\" } }",
+        description:
+          'Notion API filter object. Example: { "property": "Status", "select": { "equals": "Done" } }',
       },
       sorts: {
         type: "array",
-        description: "Array of sort objects. Example: [{ \"property\": \"Date\", \"direction\": \"descending\" }]",
+        description:
+          'Array of sort objects. Example: [{ "property": "Date", "direction": "descending" }]',
       },
       page_size: {
         type: "number",
@@ -149,7 +152,8 @@ function buildDatabasesQueryDef(): ToolDefinition {
       },
       start_cursor: {
         type: "string",
-        description: "Cursor for pagination (from previous query's next_cursor)",
+        description:
+          "Cursor for pagination (from previous query's next_cursor)",
       },
     },
   };
@@ -220,7 +224,8 @@ function buildBlocksAppendDef(): ToolDefinition {
       },
       content: {
         type: "string",
-        description: "Markdown content to append. Will be converted to Notion blocks.",
+        description:
+          "Markdown content to append. Will be converted to Notion blocks.",
         required: true,
       },
     },

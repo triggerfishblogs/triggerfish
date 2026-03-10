@@ -57,7 +57,9 @@ interface MinimalSearchProvider {
     readonly query: string;
     readonly sessionTaint: ClassificationLevel;
     readonly maxResults?: number;
-  }) => Promise<readonly { readonly record: MemoryRecordShape; readonly rank: number }[]>;
+  }) => Promise<
+    readonly { readonly record: MemoryRecordShape; readonly rank: number }[]
+  >;
 }
 
 /** Shape of a MemoryRecord without importing the concrete type. */
