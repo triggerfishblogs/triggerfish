@@ -1,6 +1,6 @@
 ---
 title: "Bumpers: Staying in Your Lane Without Thinking About It"
-date: 2026-03-09
+date: 2026-03-08
 description: Triggerfish bumpers keep your agent working at the level you're in.
   No accidental escalation, no surprises. Toggle them off when you need more. On
   by default.
