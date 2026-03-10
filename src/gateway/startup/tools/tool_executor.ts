@@ -55,6 +55,10 @@ import { createToolExecutor, TOOL_GROUPS } from "../../tools/agent_tools.ts";
 import type { SubsystemExecutor } from "../../tools/executor/executor_types.ts";
 import type { buildTeamExecutor } from "../factory/team_executor.ts";
 import type { wireMcpServers } from "../infra/mcp.ts";
+import {
+  createWorkflowStore,
+  createWorkflowToolExecutor,
+} from "../../../workflow/mod.ts";
 import type { MemoryStore } from "../../../tools/memory/store.ts";
 import { loadPersonaContext } from "../../../tools/memory/mod.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
@@ -180,7 +184,21 @@ export function assembleMainToolExecutor(
     deps.storage,
     deps.skillLoader,
   );
-  return createToolExecutor({
+
+  // Workflow executor needs the composite tool executor for dispatching
+  // call tasks. Use late-binding via mutable ref to break the circular dependency.
+  const compositeRef: {
+    current?: (name: string, input: Record<string, unknown>) => Promise<string>;
+  } = {};
+  const workflowExecutor = deps.storage
+    ? createWorkflowToolExecutor({
+      store: createWorkflowStore(deps.storage),
+      toolExecutor: (name, input) => compositeRef.current!(name, input),
+      getSessionTaint: () => deps.state.session.taint,
+    })
+    : undefined;
+
+  const toolExecutor = createToolExecutor({
     ...deps,
     googleExecutor: buildGoogleExecutor({
       getSessionTaint: () => deps.state.session.taint,
@@ -188,7 +206,10 @@ export function assembleMainToolExecutor(
     }),
     ...aux,
     providerRegistry: deps.registry,
+    workflowExecutor,
   });
+  compositeRef.current = toolExecutor;
+  return toolExecutor;
 }
 
 /** Build the dynamic extra tools getter for the chat session. */

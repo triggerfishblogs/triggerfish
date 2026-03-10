@@ -53,6 +53,10 @@ import type { buildWebTools } from "../factory/web_tools.ts";
 import { buildGoogleExecutor } from "../factory/google_executor.ts";
 import { resolveWorkspacePathForTaint } from "./tool_executor.ts";
 import { createSimulateToolExecutor } from "../../tools/simulate/mod.ts";
+import {
+  createWorkflowStore,
+  createWorkflowToolExecutor,
+} from "../../../workflow/mod.ts";
 
 /** Shared infrastructure captured once at factory creation. */
 export interface FactoryInfra {
@@ -209,7 +213,21 @@ export function assembleSchedulerToolExecutor(opts: {
       resolveWorkspacePathForTaint(getTaint(), workspacePaths),
   });
 
-  return createToolExecutor({
+  // Workflow executor needs the composite tool executor for dispatching
+  // call tasks. Use late-binding via mutable ref to break the circular dependency.
+  const compositeRef: {
+    current?: (name: string, input: Record<string, unknown>) => Promise<string>;
+  } = {};
+  const workflowExecutor = storage
+    ? createWorkflowToolExecutor({
+      store: createWorkflowStore(storage),
+      toolExecutor: (name, input) => compositeRef.current!(name, input),
+      getSessionTaint: getTaint,
+      allowShellExecution: false,
+    })
+    : undefined;
+
+  const toolExecutor = createToolExecutor({
     execTools: createExecTools(workspace, {
       cwdOverride: () =>
         resolveWorkspacePathForTaint(getTaint(), workspacePaths),
@@ -257,5 +275,8 @@ export function assembleSchedulerToolExecutor(opts: {
         : undefined,
       getWorkspacePath: () => workspace.path,
     }),
+    workflowExecutor,
   });
+  compositeRef.current = toolExecutor;
+  return toolExecutor;
 }
