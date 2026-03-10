@@ -18,7 +18,7 @@ tags:
   - triggerfish
 draft: true
 ---
-# AI Agents Are Exfiltrating Your Private Data. Who's Stopping Them?
+![](/blog/images/gemini_generated_image_i7ytlui7ytlui7yt.jpg)
 
 AI agents are useful because they can take action. That's the whole point. You give an agent access to your tools, and it can do things: send a message, update a record, search a file, run a query, push a commit. The demos are impressive. The actual deployments, if you look closely at the security model underneath them, are a different story.
 
@@ -29,6 +29,8 @@ That's the situation we're in.
 ## The problem with telling the model to behave
 
 When you deploy an AI agent today, the standard security practice is to write instructions into the system prompt. Tell the model what it's not allowed to do. Tell it which tools are off-limits. Tell it to ask before taking destructive actions. Some platforms let you configure these instructions through a UI rather than writing them manually, but the underlying mechanism is the same. You're giving the model a rulebook and trusting that it will follow along.
+
+![](/blog/images/gemini_generated_image_jmypkqjmypkqjmyp.jpg)
 
 This approach has a fundamental flaw. Language models don't execute rules. They predict tokens. The distinction matters because a sufficiently well-crafted prompt can shift what the model predicts, and therefore what it does. This is prompt injection. It's not a bug in any particular model. It's a property of how all of these systems work. If an attacker can get their text into the model's context, their instructions compete with yours. The model has no mechanism to identify which instructions came from the trusted system prompt and which came from a malicious document it was asked to summarize. It just sees tokens.
 
@@ -50,6 +52,8 @@ Data classification is a well-understood concept in security. Most platforms tha
 
 When an AI agent accesses a confidential document, that confidential data is now in its context. It can influence the agent's outputs and reasoning for the rest of the session. Even if the agent moves on to a different task, the confidential context is still there. If the agent then takes an action on a lower-classified channel, writing to a public Slack channel, sending an email to an external address, posting to a webhook, it can carry that confidential data along with it. This is data leakage, and access controls on the original resource did nothing to prevent it.
 
+![](/blog/images/robot-entry.jpg)
+
 Taint tracking is the mechanism that closes this gap. In Triggerfish, every session has a taint level that starts at PUBLIC. The moment the agent touches data at a higher classification level, the session is tainted to that level. Taint only goes up. It never goes down within a session. So if you access a CONFIDENTIAL document and then try to send a message to a PUBLIC channel, the write-down check fires against the tainted session level. The action is blocked not because of anything the model said, but because the system knows what data is in play.
 
 The model has no knowledge of this mechanism. It can't reference it, reason about it, or attempt to manipulate it. The taint level is a fact about the session that lives in the enforcement layer, not in the context.
@@ -69,6 +73,8 @@ The point of all of this is that the security properties of the system don't dep
 If something goes wrong with an AI agent deployment today, how would you know? Most platforms log the conversation. Some log tool calls. Very few log the security decisions made during a session in a way that lets you reconstruct exactly what data flowed where, at what classification level, and whether any policy was violated.
 
 This matters more than it might seem, because the question of whether an AI agent is secure isn't just about preventing attacks in real time. It's about being able to demonstrate, after the fact, that the agent behaved within defined boundaries. For any organization that handles sensitive data, that audit trail is not optional. It's how you prove compliance, respond to incidents, and build trust with the people whose data you're handling.
+
+![](/blog/images/glass.jpg)
 
 Triggerfish maintains full data lineage on every operation. Every piece of data that enters the system carries provenance metadata: where it came from, what classification it was assigned, what transformations it passed through, what session it was bound to. You can trace any output back through the chain of operations that produced it. You can ask which sources contributed to a given response. You can export the complete chain of custody for a regulatory review. This is not a logging system in the traditional sense. It's a provenance system that's maintained as a first-class concern throughout the entire data flow.
 
