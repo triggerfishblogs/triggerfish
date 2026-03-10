@@ -36,16 +36,19 @@ jobs:
         if: steps.changed.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
         run: |
-          cat <<'BODY' > /tmp/issue-body.md
-          @claude Translate the following blog post(s) into all 15 non-English locales for the Triggerfish docs site.
+          cat <<EOF > /tmp/issue-body.md
+          @claude Translate ONLY the following changed blog post(s) into all 15 non-English locales for the Triggerfish docs site.
 
-          Changed files:
-          ${{ steps.changed.outputs.files }}
+          **Changed files (translate ONLY these):**
+          \`\`\`
+          ${CHANGED_FILES}
+          \`\`\`
 
           TARGET LOCALES: en-GB, es-419, es-ES, fr-FR, zh-CN, zh-TW, ko-KR, hi-IN, ar-SA, fil-PH, he-IL, fa-IR, pt-BR, de-DE, it-IT
 
-          For each changed file (e.g., docs/blog/my-post.md), create a translated copy at docs/{locale}/blog/my-post.md for every locale.
+          For each changed file (e.g., docs/blog/my-post.md), create or update the translated copy at docs/{locale}/blog/my-post.md for every locale. Do NOT translate any files that are not listed above.
 
           RULES:
           - Read the English source file first
@@ -53,7 +56,8 @@ jobs:
           - Keep the frontmatter fields (date, author name, tags, draft) unchanged
           - Keep code blocks, CLI commands, URLs, and technical terms in English
           - Keep the filename in English
-          - Internal links should be prefixed with the locale (e.g., /fr-FR/guide/ not /guide/)
+          - Image paths must stay exactly as-is (e.g., /blog/images/foo.jpg) — do NOT add locale prefixes to image paths
+          - Internal doc links should be prefixed with the locale (e.g., /fr-FR/guide/ not /guide/)
           - en-GB: British spelling only, minimal changes
           - es-419: Latin American Spanish (ustedes)
           - es-ES: Castilian Spanish (vosotros)
@@ -72,11 +76,9 @@ jobs:
 
           Create the blog directory under each locale if it doesn't exist (e.g., docs/fr-FR/blog/).
 
-          After creating all translations, commit them to the current branch with the message:
+          After creating all translations, commit them and push to master with the message:
           "docs: translate blog post(s) into 15 locales"
-
-          Then push to master.
-          BODY
+          EOF
           gh issue create \
-            --title "Translate blog post(s) into 15 locales" \
+            --title "Translate blog: ${CHANGED_FILES%%$'\n'*}" \
             --body-file /tmp/issue-body.md
