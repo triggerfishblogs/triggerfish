@@ -19,70 +19,13 @@ import { parseWorkflowYaml } from "./parser.ts";
 /** System prompt section for workflow tools. */
 export const WORKFLOW_SYSTEM_PROMPT = `## Workflow Engine
 
-You can create, store, and execute CNCF Serverless Workflow DSL 1.0 workflows.
+CNCF Serverless Workflow DSL 1.0 — create, store, and execute workflows.
 
-### CRITICAL: Workflow Creation Process
+**Creating workflows:** Do NOT generate YAML from vague requests. Ask the user for: goal, inputs, outputs, step-by-step flow, services involved, error handling, and where results go. Once clear, use \`llm_task\` to design the YAML. Present the plan and get explicit approval before calling \`workflow_save\`.
 
-When a user asks you to create or build a workflow, you MUST follow this process.
-Do NOT skip steps. Do NOT generate a workflow immediately from a vague request.
-
-**Step 1 — Gather Requirements (MANDATORY)**
-Ask the user about ALL of the following before writing any YAML:
-- What is the goal? What problem does this solve?
-- What are the inputs? (What data does the workflow start with?)
-- What are the expected outputs? (What should the user get back?)
-- What is the step-by-step flow? (Walk through each action in order)
-- What services/APIs/data sources are involved?
-- What should happen on errors or edge cases?
-- Should results be saved to memory, sent to a channel, or returned directly?
-
-Do NOT assume defaults. Ask specific questions. A request like "build a workflow
-for checking GitHub issues" is NOT enough — you need: which repo, what filters,
-what to do with the results, where to send them, what format, etc.
-
-**Step 2 — Design with llm_task (MANDATORY)**
-Once you have the user's requirements, use \`llm_task\` to design the workflow.
-Give the sub-agent the full requirements and ask it to produce:
-- The complete task sequence with specific call types and parameters
-- Input schema (what the workflow expects)
-- Output schema (what it produces)
-- Error handling strategy
-- Any edge cases to address
-
-Review the design. If anything is unclear, ask the user before proceeding.
-
-**Step 3 — Present the Plan and Get Approval (MANDATORY)**
-Present the designed workflow to the user BEFORE saving. Show:
-- A summary of what each task does
-- The input parameters and their types
-- The expected output
-- Error handling behavior
-
-Then ask: "Does this look right? Should I save this workflow?"
-Do NOT call \`workflow_save\` until the user explicitly approves.
-
-**Step 4 — Save**
-Only after approval, use \`workflow_save\` to store it. This saves to the central
-database — the workflow is immediately available to all sessions, cron jobs, and
-triggers. Show the user the exact \`workflow_run\` command with example input.
-
-**Step 5 — Offer to Test or Schedule**
-Ask if the user wants to:
-- Run it now (ask for actual input values)
-- Schedule it with a cron job (use the \`cron\` tool with action \`create\`)
-
-### Task Types
-- \`call:\` — HTTP, triggerfish:llm, triggerfish:memory, triggerfish:web_search, triggerfish:web_fetch, triggerfish:mcp, triggerfish:message, triggerfish:agent
-- \`run:\` — Shell commands, scripts, sub-workflows
-- \`set:\` — Assign data context values
-- \`switch:\` — Conditional branching
-- \`for:\` — Iterate over collections
-- \`raise:\` — Halt with error
-- \`emit:\` — Record event
-- \`wait:\` — Pause
-
-### Expression Syntax
-\`\${ .path.to.value }\` for interpolation. Supports dot-paths, comparisons, arithmetic.
+**Call types:** http, triggerfish:llm, triggerfish:memory, triggerfish:web_search, triggerfish:web_fetch, triggerfish:mcp, triggerfish:message, triggerfish:agent
+**Task types:** call, run (shell/script/sub-workflow), set, switch, for, raise, emit, wait
+**Expressions:** \`\${ .path.to.value }\` — dot-paths, comparisons, arithmetic
 `;
 
 /** Context needed by the workflow tool executor. */
