@@ -14,6 +14,7 @@ import type { TidepoolHealthHandler } from "./host_health.ts";
 import type { TidepoolAgentsHandler } from "./host_agents.ts";
 import type { TidepoolMemoryHandler } from "./host_memory.ts";
 import type { TidepoolConfigHandler } from "./host_config.ts";
+import type { TidepoolWorkflowsHandler } from "./host_workflows.ts";
 import type { LogLevel } from "../screens/logs.ts";
 import { trySendSocketPayload } from "./host_broadcast.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
@@ -211,6 +212,52 @@ export function createMemoryTopicDispatcher(
             });
             reply(socket, { topic: "memory", type: "deleted", id, ok: false });
           });
+      }
+    }
+  };
+}
+
+/** Create a topic handler for the workflows screen. */
+export function createWorkflowsTopicDispatcher(
+  handler: TidepoolWorkflowsHandler,
+  sessionTaintProvider: () => string,
+): TopicHandler {
+  return (message, socket) => {
+    const action = message.action as string;
+    const payload = (message.payload ?? {}) as Record<string, unknown>;
+
+    if (action === "list_workflows") {
+      const taint = sessionTaintProvider();
+      handler
+        .fetchWorkflowList(
+          taint as import("../../../core/types/classification.ts").ClassificationLevel,
+        )
+        .then((data) => {
+          reply(socket, data);
+        })
+        .catch((err: unknown) => {
+          log.warn("Workflows list dispatch failed", {
+            operation: "list_workflows",
+            err,
+          });
+          reply(socket, {
+            topic: "workflows",
+            type: "workflow_list",
+            workflows: [],
+          });
+        });
+    } else if (action === "list_active") {
+      reply(socket, handler.fetchActiveRuns());
+    } else if (action === "subscribe_live") {
+      handler.subscribeLive(socket);
+      reply(socket, handler.fetchActiveRuns());
+    } else if (action === "unsubscribe_live") {
+      handler.unsubscribeLive(socket);
+    } else if (action === "control") {
+      const runId = payload.runId as string;
+      const controlAction = payload.action as string;
+      if (runId && controlAction) {
+        reply(socket, handler.controlRun(runId, controlAction));
       }
     }
   };

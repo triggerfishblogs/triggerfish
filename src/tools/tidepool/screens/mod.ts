@@ -53,3 +53,12 @@ export type {
   SettingsFieldValue,
   SettingsFormState,
 } from "./settings_fields.ts";
+
+// Workflows screen
+export type {
+  RunTreeNode,
+  WorkflowActiveRun,
+  WorkflowListEntry,
+  WorkflowRunTree,
+  WorkflowScreenEventType,
+} from "./workflows.ts";

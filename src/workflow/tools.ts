@@ -14,6 +14,7 @@ import type { WorkflowStore } from "./store.ts";
 import type { WorkflowToolExecutor } from "./engine.ts";
 import type { WorkflowDefinition } from "./types.ts";
 import {
+  executeWorkflowControl,
   executeWorkflowDelete,
   executeWorkflowGet,
   executeWorkflowHistory,
@@ -21,6 +22,7 @@ import {
   executeWorkflowRun,
   executeWorkflowSave,
 } from "./tool_handlers.ts";
+import type { WorkflowRunRegistry } from "./registry.ts";
 
 /** System prompt section for workflow tools. */
 export const WORKFLOW_SYSTEM_PROMPT = `## Workflow Engine
@@ -44,6 +46,8 @@ export interface WorkflowToolContext {
   ) => Promise<WorkflowDefinition | null>;
   /** Whether shell/script run tasks are allowed (default: true). */
   readonly allowShellExecution?: boolean;
+  /** Registry for tracking and controlling active workflow runs. */
+  readonly registry?: WorkflowRunRegistry;
 }
 
 /** Return all workflow tool definitions. */
@@ -55,6 +59,7 @@ export function getWorkflowToolDefinitions(): readonly ToolDefinition[] {
     buildWorkflowGetDef(),
     buildWorkflowDeleteDef(),
     buildWorkflowHistoryDef(),
+    buildWorkflowControlDef(),
   ];
 }
 
@@ -72,6 +77,7 @@ export function createWorkflowToolExecutor(
     workflow_get: (input) => executeWorkflowGet(ctx, input),
     workflow_delete: (input) => executeWorkflowDelete(ctx, input),
     workflow_history: (input) => executeWorkflowHistory(ctx, input),
+    workflow_control: (input) => executeWorkflowControl(ctx, input),
   };
 
   return (
@@ -183,6 +189,26 @@ function buildWorkflowHistoryDef(): ToolDefinition {
       limit: {
         type: "string",
         description: "Maximum number of results (default 10)",
+      },
+    },
+  };
+}
+
+function buildWorkflowControlDef(): ToolDefinition {
+  return {
+    name: "workflow_control",
+    description:
+      "Control a running workflow: stop, pause, or unpause. Pause/unpause waits for the current task to finish before taking effect.",
+    parameters: {
+      run_id: {
+        type: "string",
+        description: "The run ID of the workflow to control",
+        required: true,
+      },
+      action: {
+        type: "string",
+        description: 'Action to perform: "stop", "pause", or "unpause"',
+        required: true,
       },
     },
   };

@@ -59,6 +59,24 @@
               style="display: none"
             ></span>
           </button>
+          <button class="nav-item" data-screen="workflows" title="Workflows">
+            <svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor">
+              <path
+                d="M3 3h4v4H3V3zm5 1h9v2H8V4zM3 9h4v4H3V9zm5 1h9v2H8v-2zM3 15h4v4H3v-4zm5 1h9v2H8v-2z"
+              />
+            </svg>
+            <span class="nav-label">Workflows</span>
+            <span
+              class="nav-badge"
+              id="nav-badge-workflows"
+              style="display: none"
+            ></span>
+            <span
+              class="nav-status-dot"
+              id="nav-status-workflows"
+              style="display: none"
+            ></span>
+          </button>
           <button class="nav-item" data-screen="health" title="Health">
             <svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor">
               <path
@@ -142,6 +160,9 @@
         </div>
         <div id="screen-agents" class="screen" style="display: none">
           {{AGENTS_HTML}}
+        </div>
+        <div id="screen-workflows" class="screen" style="display: none">
+          {{WORKFLOWS_HTML}}
         </div>
         <div id="screen-health" class="screen" style="display: none">
           {{HEALTH_HTML}}

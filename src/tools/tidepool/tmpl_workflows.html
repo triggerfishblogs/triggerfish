@@ -1,0 +1,540 @@
+<div class="screen-workflows-container">
+  <div class="workflows-list-panel" id="workflows-list-panel">
+    <div class="workflows-list-header">
+      <span>Workflows</span>
+    </div>
+    <div class="workflows-sections" id="workflows-sections">
+      <!-- Active runs section -->
+      <div class="workflows-group" id="workflows-group-active">
+        <div class="workflows-group-header">RUNNING</div>
+        <div class="workflows-group-items" id="workflows-items-active"></div>
+      </div>
+      <!-- Saved workflows section -->
+      <div class="workflows-group" id="workflows-group-saved">
+        <div class="workflows-group-header">SAVED WORKFLOWS</div>
+        <div class="workflows-group-items" id="workflows-items-saved"></div>
+      </div>
+    </div>
+  </div>
+  <div class="workflows-detail-panel" id="workflows-detail-panel">
+    <div
+      class="workflows-detail-placeholder"
+      id="workflows-detail-placeholder"
+    >
+      <div class="screen-placeholder">
+        <svg viewBox="0 0 20 20" width="36" height="36" fill="var(--fg3)">
+          <path
+            d="M3 3h4v4H3V3zm5 1h9v2H8V4zM3 9h4v4H3V9zm5 1h9v2H8v-2zM3 15h4v4H3v-4zm5 1h9v2H8v-2z"
+          />
+        </svg>
+        <div>Select a workflow</div>
+      </div>
+    </div>
+    <div
+      class="workflows-detail-content"
+      id="workflows-detail-content"
+      style="display: none"
+    >
+      <div class="workflows-detail-header" id="workflows-detail-header"></div>
+      <div class="workflows-detail-meta" id="workflows-detail-meta"></div>
+      <div
+        class="workflows-detail-actions"
+        id="workflows-detail-actions"
+      >
+      </div>
+      <div
+        class="workflows-run-tree"
+        id="workflows-run-tree"
+        style="display: none"
+      >
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Context menu -->
+<div
+  class="workflows-context-menu"
+  id="workflows-context-menu"
+  style="display: none"
+>
+  <div class="workflows-ctx-item" data-action="stop">Stop</div>
+  <div class="workflows-ctx-item" data-action="pause">Pause</div>
+  <div class="workflows-ctx-item" data-action="unpause">Resume</div>
+</div>
+
+<script>
+  (function () {
+    var activeItems = document.getElementById("workflows-items-active");
+    var savedItems = document.getElementById("workflows-items-saved");
+    var detailPlaceholder = document.getElementById(
+      "workflows-detail-placeholder",
+    );
+    var detailContent = document.getElementById("workflows-detail-content");
+    var detailHeader = document.getElementById("workflows-detail-header");
+    var detailMeta = document.getElementById("workflows-detail-meta");
+    var detailActions = document.getElementById("workflows-detail-actions");
+    var runTreeEl = document.getElementById("workflows-run-tree");
+    var ctxMenu = document.getElementById("workflows-context-menu");
+
+    var TAINT_BORDERS = {
+      PUBLIC: "var(--green)",
+      INTERNAL: "var(--yellow)",
+      CONFIDENTIAL: "var(--orange)",
+      RESTRICTED: "var(--red)",
+    };
+
+    var TAINT_CLASSES = {
+      PUBLIC: "taint-public",
+      INTERNAL: "taint-internal",
+      CONFIDENTIAL: "taint-confidential",
+      RESTRICTED: "taint-restricted",
+    };
+
+    var STATUS_COLORS = {
+      running: "var(--green)",
+      paused: "var(--yellow)",
+      completed: "var(--accent)",
+      failed: "var(--red)",
+      cancelled: "var(--fg3)",
+      pending: "var(--fg3)",
+    };
+
+    var activeRuns = [];
+    var savedWorkflows = [];
+    var selectedRunId = null;
+    var selectedWorkflowName = null;
+    var ctxTargetRunId = null;
+
+    function escapeH(s) {
+      var d = document.createElement("div");
+      d.textContent = s || "";
+      return d.innerHTML;
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return "";
+      var d = new Date(iso);
+      return d.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+
+    // --- Active run cards ---
+    function renderActiveRunCard(run) {
+      var el = document.createElement("div");
+      el.className = "workflows-run-card";
+      el.setAttribute("data-run-id", run.runId);
+      var taintColor = TAINT_BORDERS[run.taint] || "var(--border)";
+      el.style.borderLeft = "3px solid " + taintColor;
+
+      if (run.runId === selectedRunId) el.classList.add("selected");
+
+      var statusDot = run.paused ? "yellow" : "green";
+      var statusLabel = run.paused ? "PAUSED" : "RUNNING";
+
+      el.innerHTML = '<div class="workflows-card-top">' +
+        '<span class="status-dot ' + statusDot + '"></span>' +
+        '<span class="workflows-card-label">' +
+        escapeH(run.workflowName) +
+        "</span>" +
+        "</div>" +
+        '<div class="workflows-card-task">' +
+        escapeH(
+          "Task " + run.currentTaskIndex + ": " + run.currentTaskName,
+        ) +
+        "</div>" +
+        '<div class="workflows-card-bottom">' +
+        '<span class="taint-badge ' +
+        (run.taint || "PUBLIC").toLowerCase() + '">' +
+        escapeH(run.taint || "PUBLIC") +
+        "</span>" +
+        '<span class="workflows-card-status">' + statusLabel + "</span>" +
+        "</div>";
+
+      el.addEventListener("click", function () {
+        selectActiveRun(run);
+      });
+      el.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+        showContextMenu(e, run);
+      });
+      return el;
+    }
+
+    function renderActiveRuns() {
+      activeItems.innerHTML = "";
+      if (activeRuns.length === 0) {
+        activeItems.innerHTML =
+          '<div class="workflows-empty">No running workflows</div>';
+        return;
+      }
+      for (var i = 0; i < activeRuns.length; i++) {
+        activeItems.appendChild(renderActiveRunCard(activeRuns[i]));
+      }
+    }
+
+    // --- Saved workflow cards ---
+    function renderSavedWorkflowCard(wf) {
+      var el = document.createElement("div");
+      el.className = "workflows-saved-card";
+      el.setAttribute("data-workflow-name", wf.name);
+
+      if (wf.name === selectedWorkflowName && !selectedRunId) {
+        el.classList.add("selected");
+      }
+
+      el.innerHTML = '<div class="workflows-card-top">' +
+        '<span class="workflows-card-label">' + escapeH(wf.name) +
+        "</span>" +
+        "</div>" +
+        (wf.description
+          ? '<div class="workflows-card-desc">' +
+            escapeH(wf.description) +
+            "</div>"
+          : "") +
+        '<div class="workflows-card-bottom">' +
+        '<span class="taint-badge ' +
+        (wf.classification || "PUBLIC").toLowerCase() + '">' +
+        escapeH(wf.classification || "PUBLIC") +
+        "</span>" +
+        '<span class="workflows-card-time">' +
+        escapeH(fmtTime(wf.savedAt)) +
+        "</span>" +
+        "</div>";
+
+      el.addEventListener("click", function () {
+        selectSavedWorkflow(wf);
+      });
+      return el;
+    }
+
+    function renderSavedWorkflows() {
+      savedItems.innerHTML = "";
+      if (savedWorkflows.length === 0) {
+        savedItems.innerHTML =
+          '<div class="workflows-empty">No saved workflows</div>';
+        return;
+      }
+      for (var i = 0; i < savedWorkflows.length; i++) {
+        savedItems.appendChild(renderSavedWorkflowCard(savedWorkflows[i]));
+      }
+    }
+
+    // --- Detail panel for active runs ---
+    function selectActiveRun(run) {
+      selectedRunId = run.runId;
+      selectedWorkflowName = null;
+
+      updateListSelection();
+      detailPlaceholder.style.display = "none";
+      detailContent.style.display = "flex";
+      runTreeEl.style.display = "block";
+
+      var taintColor = TAINT_BORDERS[run.taint] || "var(--border)";
+      var taintClass = TAINT_CLASSES[run.taint] || "taint-public";
+
+      detailHeader.className = "workflows-detail-header " + taintClass;
+      detailHeader.innerHTML = '<span class="status-dot ' +
+        (run.paused ? "yellow" : "green") +
+        '"></span>' +
+        '<span class="workflows-detail-label">' +
+        escapeH(run.workflowName) +
+        "</span>" +
+        '<span class="taint-badge ' +
+        (run.taint || "PUBLIC").toLowerCase() +
+        '">' +
+        escapeH(run.taint || "PUBLIC") +
+        "</span>";
+
+      detailMeta.innerHTML = "<div>Run ID: " +
+        escapeH(run.runId.slice(0, 8)) + "...</div>" +
+        "<div>Started: " + escapeH(fmtTime(run.startedAt)) + "</div>" +
+        "<div>Status: " + escapeH(run.paused ? "Paused" : "Running") +
+        "</div>" +
+        "<div>Current task: " + escapeH(run.currentTaskName) + "</div>";
+
+      renderRunActions(run);
+      renderRunTree(run);
+    }
+
+    function renderRunActions(run) {
+      detailActions.innerHTML = "";
+
+      if (run.paused) {
+        var resumeBtn = makeActionBtn("Resume", "workflows-action-primary");
+        resumeBtn.addEventListener("click", function () {
+          sendControl(run.runId, "unpause");
+        });
+        detailActions.appendChild(resumeBtn);
+      } else {
+        var pauseBtn = makeActionBtn("Pause", "workflows-action-warn");
+        pauseBtn.addEventListener("click", function () {
+          sendControl(run.runId, "pause");
+        });
+        detailActions.appendChild(pauseBtn);
+      }
+
+      var stopBtn = makeActionBtn("Stop", "workflows-action-danger");
+      stopBtn.addEventListener("click", function () {
+        sendControl(run.runId, "stop");
+      });
+      detailActions.appendChild(stopBtn);
+    }
+
+    function renderRunTree(run) {
+      runTreeEl.innerHTML =
+        '<div class="run-tree-header">Execution Tree</div>';
+      // Show a simple tree of task progress
+      var container = document.createElement("div");
+      container.className = "run-tree-nodes";
+
+      var nodeEl = document.createElement("div");
+      nodeEl.className = "run-tree-node run-tree-current";
+      var taintColor = TAINT_BORDERS[run.taint] || "var(--border)";
+      nodeEl.style.borderLeft = "3px solid " + taintColor;
+      nodeEl.innerHTML = '<span class="run-tree-index">' +
+        run.currentTaskIndex + "</span>" +
+        '<span class="run-tree-name">' + escapeH(run.currentTaskName) +
+        "</span>" +
+        '<span class="run-tree-status">' +
+        (run.paused ? "paused" : "running") + "</span>";
+      container.appendChild(nodeEl);
+
+      runTreeEl.appendChild(container);
+    }
+
+    // --- Detail panel for saved workflows ---
+    function selectSavedWorkflow(wf) {
+      selectedWorkflowName = wf.name;
+      selectedRunId = null;
+
+      updateListSelection();
+      detailPlaceholder.style.display = "none";
+      detailContent.style.display = "flex";
+      runTreeEl.style.display = "none";
+
+      detailHeader.className = "workflows-detail-header";
+      detailHeader.innerHTML = '<span class="workflows-detail-label">' +
+        escapeH(wf.name) +
+        "</span>" +
+        '<span class="taint-badge ' +
+        (wf.classification || "PUBLIC").toLowerCase() + '">' +
+        escapeH(wf.classification || "PUBLIC") +
+        "</span>";
+
+      detailMeta.innerHTML =
+        (wf.description
+          ? "<div>" + escapeH(wf.description) + "</div>"
+          : "") +
+        "<div>Saved: " + escapeH(fmtTime(wf.savedAt)) + "</div>" +
+        "<div>Classification: " + escapeH(wf.classification || "PUBLIC") +
+        "</div>";
+
+      detailActions.innerHTML = "";
+      var runBtn = makeActionBtn("Run", "workflows-action-primary");
+      runBtn.addEventListener("click", function () {
+        startWorkflow(wf.name);
+      });
+      detailActions.appendChild(runBtn);
+    }
+
+    function startWorkflow(name) {
+      // Send a chat message to have the agent run the workflow
+      if (window.tidepoolWs) {
+        window.tidepoolWs.send({
+          topic: "workflows",
+          action: "start",
+          payload: { name: name },
+        });
+      }
+    }
+
+    function sendControl(runId, action) {
+      if (window.tidepoolWs) {
+        window.tidepoolWs.send({
+          topic: "workflows",
+          action: "control",
+          payload: { runId: runId, action: action },
+        });
+      }
+    }
+
+    function makeActionBtn(label, className) {
+      var btn = document.createElement("button");
+      btn.className = "workflows-action-btn " + className;
+      btn.textContent = label;
+      return btn;
+    }
+
+    function updateListSelection() {
+      var cards = document.querySelectorAll(
+        ".workflows-run-card, .workflows-saved-card",
+      );
+      for (var i = 0; i < cards.length; i++) {
+        var card = cards[i];
+        var isSelected = false;
+        if (
+          selectedRunId &&
+          card.getAttribute("data-run-id") === selectedRunId
+        ) {
+          isSelected = true;
+        }
+        if (
+          selectedWorkflowName && !selectedRunId &&
+          card.getAttribute("data-workflow-name") === selectedWorkflowName
+        ) {
+          isSelected = true;
+        }
+        card.classList.toggle("selected", isSelected);
+      }
+    }
+
+    // --- Context menu ---
+    function showContextMenu(e, run) {
+      ctxTargetRunId = run.runId;
+
+      var pauseItem = ctxMenu.querySelector('[data-action="pause"]');
+      var unpauseItem = ctxMenu.querySelector('[data-action="unpause"]');
+      pauseItem.style.display = run.paused ? "none" : "";
+      unpauseItem.style.display = run.paused ? "" : "none";
+
+      ctxMenu.style.display = "block";
+      ctxMenu.style.left = e.clientX + "px";
+      ctxMenu.style.top = e.clientY + "px";
+    }
+
+    document.addEventListener("click", function () {
+      ctxMenu.style.display = "none";
+    });
+
+    ctxMenu.addEventListener("click", function (e) {
+      var action = e.target.getAttribute("data-action");
+      if (action && ctxTargetRunId) {
+        sendControl(ctxTargetRunId, action);
+      }
+      ctxMenu.style.display = "none";
+    });
+
+    // --- WebSocket message handling ---
+    if (window.tidepoolMux) {
+      window.tidepoolMux.on("workflows", function (msg) {
+        if (msg.type === "workflow_list") {
+          savedWorkflows = msg.workflows || [];
+          renderSavedWorkflows();
+          updateBadge();
+        } else if (msg.type === "active_runs") {
+          activeRuns = msg.runs || [];
+          renderActiveRuns();
+          refreshSelectedRun();
+          updateBadge();
+        } else if (msg.type === "run_event") {
+          handleRunEvent(msg.event);
+        } else if (msg.type === "control_result") {
+          // Refresh active runs after control action
+          requestActiveRuns();
+        }
+      });
+    }
+
+    function handleRunEvent(event) {
+      if (
+        event.type === "run_started" || event.type === "run_completed" ||
+        event.type === "run_stopped"
+      ) {
+        requestActiveRuns();
+        requestWorkflowList();
+      } else if (
+        event.type === "task_progress" || event.type === "run_paused" ||
+        event.type === "run_unpaused"
+      ) {
+        updateActiveRun(event);
+      }
+    }
+
+    function updateActiveRun(event) {
+      for (var i = 0; i < activeRuns.length; i++) {
+        if (activeRuns[i].runId === event.runId) {
+          activeRuns[i] = Object.assign({}, activeRuns[i], {
+            status: event.status,
+            currentTaskIndex: event.currentTaskIndex !== undefined
+              ? event.currentTaskIndex
+              : activeRuns[i].currentTaskIndex,
+            currentTaskName: event.currentTaskName ||
+              activeRuns[i].currentTaskName,
+            paused: event.status === "paused",
+            taint: event.taint || activeRuns[i].taint,
+          });
+          break;
+        }
+      }
+      renderActiveRuns();
+      refreshSelectedRun();
+    }
+
+    function refreshSelectedRun() {
+      if (!selectedRunId) return;
+      for (var i = 0; i < activeRuns.length; i++) {
+        if (activeRuns[i].runId === selectedRunId) {
+          selectActiveRun(activeRuns[i]);
+          return;
+        }
+      }
+      // Run no longer active
+      detailPlaceholder.style.display = "";
+      detailContent.style.display = "none";
+      selectedRunId = null;
+    }
+
+    function updateBadge() {
+      if (window.tidepoolBadge && activeRuns.length > 0) {
+        window.tidepoolBadge.setCount("workflows", activeRuns.length);
+        window.tidepoolBadge.setStatus("workflows", "green");
+      } else if (window.tidepoolBadge) {
+        window.tidepoolBadge.clearBadge("workflows");
+      }
+    }
+
+    function requestActiveRuns() {
+      if (window.tidepoolWs) {
+        window.tidepoolWs.send({
+          topic: "workflows",
+          action: "list_active",
+        });
+      }
+    }
+
+    function requestWorkflowList() {
+      if (window.tidepoolWs) {
+        window.tidepoolWs.send({
+          topic: "workflows",
+          action: "list_workflows",
+        });
+      }
+    }
+
+    // --- Screen lifecycle ---
+    if (window.tidepoolScreens) {
+      window.tidepoolScreens.workflows = {
+        onMount: function () {
+          if (window.tidepoolWs) {
+            window.tidepoolWs.send({
+              topic: "workflows",
+              action: "subscribe_live",
+            });
+            window.tidepoolWs.send({
+              topic: "workflows",
+              action: "list_workflows",
+            });
+          }
+        },
+        onUnmount: function () {
+          // Keep subscription alive for badge updates
+        },
+      };
+    }
+  })();
+</script>

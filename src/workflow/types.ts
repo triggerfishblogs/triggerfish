@@ -188,6 +188,7 @@ export interface WorkflowDefinition {
 export type WorkflowStatus =
   | "pending"
   | "running"
+  | "paused"
   | "completed"
   | "failed"
   | "cancelled";

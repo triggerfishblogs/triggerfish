@@ -57,6 +57,9 @@ export type {
 } from "./host_config.ts";
 export { createTidepoolConfigHandler } from "./host_config.ts";
 
+export type { TidepoolWorkflowsHandler } from "./host_workflows.ts";
+export { createTidepoolWorkflowsHandler } from "./host_workflows.ts";
+
 // Topic dispatch factories
 export {
   createAgentsTopicDispatcher,
@@ -64,4 +67,5 @@ export {
   createLogsTopicDispatcher,
   createMemoryTopicDispatcher,
   createSettingsTopicDispatcher,
+  createWorkflowsTopicDispatcher,
 } from "./host_topic_dispatch.ts";

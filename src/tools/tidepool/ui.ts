@@ -23,6 +23,7 @@ const CHAT_SCRIPT = readTemplate("./tmpl_chat_script.html");
 const CANVAS_SCRIPT = readTemplate("./tmpl_canvas_script.html");
 const SHELL_SCRIPT = readTemplate("./tmpl_shell_script.html");
 const COMPONENTS_SCRIPT = readTemplate("./tmpl_components.html");
+const WORKFLOWS_HTML = readTemplate("./tmpl_workflows.html");
 const AGENTS_HTML = readTemplate("./tmpl_agents.html");
 const HEALTH_HTML = readTemplate("./tmpl_health.html");
 const SETTINGS_HTML = readTemplate("./tmpl_settings.html");
@@ -42,6 +43,7 @@ export function buildTidepoolHtml(): string {
     .replace("{{STYLES}}", STYLES)
     .replace("{{CHAT_HTML}}", CHAT_HTML)
     .replace("{{CANVAS_HTML}}", CANVAS_HTML)
+    .replace("{{WORKFLOWS_HTML}}", WORKFLOWS_HTML)
     .replace("{{AGENTS_HTML}}", AGENTS_HTML)
     .replace("{{HEALTH_HTML}}", HEALTH_HTML)
     .replace("{{SETTINGS_HTML}}", SETTINGS_HTML)

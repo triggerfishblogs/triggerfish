@@ -73,9 +73,9 @@ function createTestContext(
   return { executor, toolCalls };
 }
 
-Deno.test("getWorkflowToolDefinitions: returns 6 tools", () => {
+Deno.test("getWorkflowToolDefinitions: returns 7 tools", () => {
   const defs = getWorkflowToolDefinitions();
-  assertEquals(defs.length, 6);
+  assertEquals(defs.length, 7);
 
   const names = defs.map((d) => d.name);
   assertEquals(names.includes("workflow_run"), true);
@@ -84,6 +84,7 @@ Deno.test("getWorkflowToolDefinitions: returns 6 tools", () => {
   assertEquals(names.includes("workflow_get"), true);
   assertEquals(names.includes("workflow_delete"), true);
   assertEquals(names.includes("workflow_history"), true);
+  assertEquals(names.includes("workflow_control"), true);
 });
 
 Deno.test("workflow tools: returns null for unknown tool", async () => {

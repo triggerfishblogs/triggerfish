@@ -115,12 +115,17 @@ export type {
   MemoryBrowserEntry,
   MemorySearchFilter,
   MemorySearchResult,
+  RunTreeNode,
   SessionGroup,
   SettingsField,
   SettingsFieldType,
   SettingsFieldValue,
   SettingsFormState,
   SettingsSection,
+  WorkflowActiveRun,
+  WorkflowListEntry,
+  WorkflowRunTree,
+  WorkflowScreenEventType,
 } from "./screens/mod.ts";
 export {
   createChatScreenLifecycle,
@@ -139,12 +144,14 @@ export type {
   TidepoolHealthHandler,
   TidepoolLogSink,
   TidepoolMemoryHandler,
+  TidepoolWorkflowsHandler,
 } from "./host/mod.ts";
 export {
   createTidepoolAgentsHandler,
   createTidepoolHealthHandler,
   createTidepoolLogSink,
   createTidepoolMemoryHandler,
+  createTidepoolWorkflowsHandler,
 } from "./host/mod.ts";
 
 // Legacy callback-based host and tools (backward compatibility)

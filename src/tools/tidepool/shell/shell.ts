@@ -11,6 +11,7 @@
 export type ShellTopic =
   | "chat"
   | "agents"
+  | "workflows"
   | "health"
   | "settings"
   | "logs"
@@ -20,6 +21,7 @@ export type ShellTopic =
 export const SHELL_TOPICS: readonly ShellTopic[] = [
   "chat",
   "agents",
+  "workflows",
   "health",
   "settings",
   "logs",
