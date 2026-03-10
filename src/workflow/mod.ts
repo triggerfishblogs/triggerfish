@@ -38,6 +38,49 @@ export type {
 
 export { isDispatchError, resolveCallDispatch } from "./dispatch.ts";
 
+export {
+  executeCallTask,
+  executeEmitTask,
+  executeForTask,
+  executeRaiseTask,
+  executeRunTask,
+  executeSetTask,
+  executeSwitchTask,
+  executeWaitTask,
+  parseDuration,
+  parseToolResult,
+} from "./task_runners.ts";
+export type { SubWorkflowExecutor } from "./task_runners.ts";
+
+export {
+  executeRunScript,
+  executeRunShell,
+  executeRunSubWorkflow,
+} from "./run_executors.ts";
+
+export {
+  evaluateConditionExpression,
+  evaluateExpression,
+  resolveDotPath,
+} from "./expressions.ts";
+
+export {
+  validateEmitTask,
+  validateRaiseTask,
+  validateRunTask,
+  validateSetTask,
+  validateSwitchTask,
+} from "./validators.ts";
+
+export {
+  executeWorkflowDelete,
+  executeWorkflowGet,
+  executeWorkflowHistory,
+  executeWorkflowList,
+  executeWorkflowRun,
+  executeWorkflowSave,
+} from "./tool_handlers.ts";
+
 export { createWorkflowStore } from "./store.ts";
 export type { StoredWorkflow, WorkflowStore } from "./store.ts";
 
