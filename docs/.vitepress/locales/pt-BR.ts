@@ -189,6 +189,10 @@ export const ptBR: LocaleSpecificConfig<DefaultTheme.Config> = {
               link: "/pt-BR/features/agent-teams",
             },
             {
+              text: "Fluxos de trabalho",
+              link: "/pt-BR/features/workflows",
+            },
+            {
               text: "Limitação de Taxa",
               link: "/pt-BR/features/rate-limiting",
             },
@@ -217,6 +221,10 @@ export const ptBR: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "Schema de Configuração",
               link: "/pt-BR/reference/config-yaml",
+            },
+            {
+              text: "DSL de fluxos de trabalho",
+              link: "/pt-BR/reference/workflow-dsl",
             },
             { text: "Interfaces", link: "/pt-BR/reference/interfaces" },
             { text: "Glossário", link: "/pt-BR/reference/glossary" },
@@ -273,6 +281,10 @@ export const ptBR: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "Segredos e Credenciais",
               link: "/pt-BR/support/troubleshooting/secrets",
+            },
+            {
+              text: "Fluxos de trabalho",
+              link: "/pt-BR/support/troubleshooting/workflows",
             },
             {
               text: "Referência de Erros",

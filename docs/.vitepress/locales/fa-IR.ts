@@ -183,6 +183,7 @@ export const faIR: LocaleSpecificConfig<DefaultTheme.Config> = {
             { text: "اعلان‌ها", link: "/fa-IR/features/notifications" },
             { text: "ثبت رویداد", link: "/fa-IR/features/logging" },
             { text: "تیم‌های عامل", link: "/fa-IR/features/agent-teams" },
+            { text: "گردش کار", link: "/fa-IR/features/workflows" },
             {
               text: "محدودیت نرخ",
               link: "/fa-IR/features/rate-limiting",
@@ -210,6 +211,7 @@ export const faIR: LocaleSpecificConfig<DefaultTheme.Config> = {
               text: "شمای پیکربندی",
               link: "/fa-IR/reference/config-yaml",
             },
+            { text: "DSL گردش کار", link: "/fa-IR/reference/workflow-dsl" },
             { text: "رابط‌ها", link: "/fa-IR/reference/interfaces" },
             { text: "واژه‌نامه", link: "/fa-IR/reference/glossary" },
           ],
@@ -265,6 +267,10 @@ export const faIR: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "اسرار و اعتبارنامه‌ها",
               link: "/fa-IR/support/troubleshooting/secrets",
+            },
+            {
+              text: "گردش کار",
+              link: "/fa-IR/support/troubleshooting/workflows",
             },
             {
               text: "مرجع خطاها",

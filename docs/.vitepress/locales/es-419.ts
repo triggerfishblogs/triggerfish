@@ -189,6 +189,10 @@ export const es419: LocaleSpecificConfig<DefaultTheme.Config> = {
               link: "/es-419/features/agent-teams",
             },
             {
+              text: "Flujos de trabajo",
+              link: "/es-419/features/workflows",
+            },
+            {
               text: "Límite de velocidad",
               link: "/es-419/features/rate-limiting",
             },
@@ -217,6 +221,10 @@ export const es419: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "Esquema de configuración",
               link: "/es-419/reference/config-yaml",
+            },
+            {
+              text: "DSL de flujos de trabajo",
+              link: "/es-419/reference/workflow-dsl",
             },
             { text: "Interfaces", link: "/es-419/reference/interfaces" },
             { text: "Glosario", link: "/es-419/reference/glossary" },
@@ -273,6 +281,10 @@ export const es419: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "Secretos y credenciales",
               link: "/es-419/support/troubleshooting/secrets",
+            },
+            {
+              text: "Flujos de trabajo",
+              link: "/es-419/support/troubleshooting/workflows",
             },
             {
               text: "Referencia de errores",

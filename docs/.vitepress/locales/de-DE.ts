@@ -192,6 +192,10 @@ export const deDE: LocaleSpecificConfig<DefaultTheme.Config> = {
               link: "/de-DE/features/agent-teams",
             },
             {
+              text: "Workflows",
+              link: "/de-DE/features/workflows",
+            },
+            {
               text: "Ratenbegrenzung",
               link: "/de-DE/features/rate-limiting",
             },
@@ -217,6 +221,10 @@ export const deDE: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "Konfigurationsschema",
               link: "/de-DE/reference/config-yaml",
+            },
+            {
+              text: "Workflow-DSL",
+              link: "/de-DE/reference/workflow-dsl",
             },
             { text: "Schnittstellen", link: "/de-DE/reference/interfaces" },
             { text: "Glossar", link: "/de-DE/reference/glossary" },
@@ -273,6 +281,10 @@ export const deDE: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "Geheimnisse und Anmeldedaten",
               link: "/de-DE/support/troubleshooting/secrets",
+            },
+            {
+              text: "Workflows",
+              link: "/de-DE/support/troubleshooting/workflows",
             },
             {
               text: "Fehlerreferenz",
