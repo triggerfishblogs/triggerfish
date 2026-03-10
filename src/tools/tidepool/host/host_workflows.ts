@@ -112,9 +112,7 @@ export interface TidepoolWorkflowsHandler {
   /** Unsubscribe a WebSocket client. */
   unsubscribeLive(socket: WebSocket): void;
   /** Fetch the workflow list for a client. */
-  fetchWorkflowList(
-    sessionTaint: ClassificationLevel,
-  ): Promise<Record<string, unknown>>;
+  fetchWorkflowList(): Promise<Record<string, unknown>>;
   /** Fetch a single workflow definition with full YAML. */
   fetchWorkflowDetail(
     name: string,
@@ -191,8 +189,8 @@ export function createTidepoolWorkflowsHandler(
       subscribers.delete(socket);
     },
 
-    async fetchWorkflowList(sessionTaint) {
-      const workflows = await store.listWorkflowDefinitions(sessionTaint);
+    async fetchWorkflowList() {
+      const workflows = await store.listWorkflowDefinitions("RESTRICTED");
       return {
         topic: "workflows",
         type: "workflow_list",

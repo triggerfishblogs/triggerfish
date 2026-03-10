@@ -227,11 +227,8 @@ export function createWorkflowsTopicDispatcher(
     const payload = (message.payload ?? {}) as Record<string, unknown>;
 
     if (action === "list_workflows") {
-      const taint = sessionTaintProvider();
       handler
-        .fetchWorkflowList(
-          taint as import("../../../core/types/classification.ts").ClassificationLevel,
-        )
+        .fetchWorkflowList()
         .then((data) => {
           reply(socket, data);
         })
@@ -262,11 +259,10 @@ export function createWorkflowsTopicDispatcher(
     } else if (action === "get_workflow") {
       const name = payload.name as string;
       if (name) {
-        const taint = sessionTaintProvider();
         handler
           .fetchWorkflowDetail(
             name,
-            taint as import("../../../core/types/classification.ts").ClassificationLevel,
+            "RESTRICTED" as import("../../../core/types/classification.ts").ClassificationLevel,
           )
           .then((data) => reply(socket, data))
           .catch((err: unknown) => {
@@ -284,12 +280,11 @@ export function createWorkflowsTopicDispatcher(
           });
       }
     } else if (action === "get_history") {
-      const taint = sessionTaintProvider();
       const workflowName = payload.workflowName as string | undefined;
       const limit = payload.limit as number | undefined;
       handler
         .fetchRunHistory(
-          taint as import("../../../core/types/classification.ts").ClassificationLevel,
+          "RESTRICTED" as import("../../../core/types/classification.ts").ClassificationLevel,
           workflowName,
           limit,
         )
