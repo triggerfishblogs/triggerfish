@@ -140,6 +140,7 @@ export const koKR: LocaleSpecificConfig<DefaultTheme.Config> = {
             { text: "알림", link: "/ko-KR/features/notifications" },
             { text: "로깅", link: "/ko-KR/features/logging" },
             { text: "에이전트 팀", link: "/ko-KR/features/agent-teams" },
+            { text: "워크플로", link: "/ko-KR/features/workflows" },
             { text: "속도 제한", link: "/ko-KR/features/rate-limiting" },
             { text: "탐색", link: "/ko-KR/features/explore" },
             { text: "파일 시스템", link: "/ko-KR/features/filesystem" },
@@ -158,6 +159,7 @@ export const koKR: LocaleSpecificConfig<DefaultTheme.Config> = {
           items: [
             { text: "개요", link: "/ko-KR/reference/" },
             { text: "구성 스키마", link: "/ko-KR/reference/config-yaml" },
+            { text: "워크플로 DSL", link: "/ko-KR/reference/workflow-dsl" },
             { text: "인터페이스", link: "/ko-KR/reference/interfaces" },
             { text: "용어집", link: "/ko-KR/reference/glossary" },
           ],
@@ -204,6 +206,10 @@ export const koKR: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "시크릿 및 자격 증명",
               link: "/ko-KR/support/troubleshooting/secrets",
+            },
+            {
+              text: "워크플로",
+              link: "/ko-KR/support/troubleshooting/workflows",
             },
             {
               text: "오류 레퍼런스",

@@ -182,6 +182,7 @@ export const filPH: LocaleSpecificConfig<DefaultTheme.Config> = {
             },
             { text: "Logging", link: "/fil-PH/features/logging" },
             { text: "Mga Agent Team", link: "/fil-PH/features/agent-teams" },
+            { text: "Mga Workflow", link: "/fil-PH/features/workflows" },
             { text: "Rate Limiting", link: "/fil-PH/features/rate-limiting" },
             { text: "Tuklasin", link: "/fil-PH/features/explore" },
             { text: "Filesystem", link: "/fil-PH/features/filesystem" },
@@ -203,6 +204,7 @@ export const filPH: LocaleSpecificConfig<DefaultTheme.Config> = {
           items: [
             { text: "Pangkalahatang-tanaw", link: "/fil-PH/reference/" },
             { text: "Config Schema", link: "/fil-PH/reference/config-yaml" },
+            { text: "Workflow DSL", link: "/fil-PH/reference/workflow-dsl" },
             { text: "Mga Interface", link: "/fil-PH/reference/interfaces" },
             { text: "Talasalitaan", link: "/fil-PH/reference/glossary" },
           ],
@@ -258,6 +260,10 @@ export const filPH: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "Mga Secret at Credential",
               link: "/fil-PH/support/troubleshooting/secrets",
+            },
+            {
+              text: "Mga Workflow",
+              link: "/fil-PH/support/troubleshooting/workflows",
             },
             {
               text: "Sanggunian ng mga Error",

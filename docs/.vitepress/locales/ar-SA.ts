@@ -171,6 +171,7 @@ export const arSA: LocaleSpecificConfig<DefaultTheme.Config> = {
             { text: "الإشعارات", link: "/ar-SA/features/notifications" },
             { text: "التسجيل", link: "/ar-SA/features/logging" },
             { text: "فرق الوكلاء", link: "/ar-SA/features/agent-teams" },
+            { text: "سير العمل", link: "/ar-SA/features/workflows" },
             {
               text: "تحديد المعدل",
               link: "/ar-SA/features/rate-limiting",
@@ -198,6 +199,7 @@ export const arSA: LocaleSpecificConfig<DefaultTheme.Config> = {
           items: [
             { text: "نظرة عامة", link: "/ar-SA/reference/" },
             { text: "مخطط الإعدادات", link: "/ar-SA/reference/config-yaml" },
+            { text: "DSL سير العمل", link: "/ar-SA/reference/workflow-dsl" },
             { text: "الواجهات", link: "/ar-SA/reference/interfaces" },
             { text: "المصطلحات", link: "/ar-SA/reference/glossary" },
           ],
@@ -250,6 +252,10 @@ export const arSA: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "الأسرار وبيانات الاعتماد",
               link: "/ar-SA/support/troubleshooting/secrets",
+            },
+            {
+              text: "سير العمل",
+              link: "/ar-SA/support/troubleshooting/workflows",
             },
             {
               text: "مرجع الأخطاء",

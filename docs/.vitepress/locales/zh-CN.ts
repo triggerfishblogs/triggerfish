@@ -149,6 +149,7 @@ export const zhCN: LocaleSpecificConfig<DefaultTheme.Config> = {
             { text: "会话", link: "/zh-CN/features/sessions" },
             { text: "网页搜索", link: "/zh-CN/features/web-search" },
             { text: "子代理", link: "/zh-CN/features/subagents" },
+            { text: "工作流", link: "/zh-CN/features/workflows" },
           ],
         },
       ],
@@ -158,6 +159,7 @@ export const zhCN: LocaleSpecificConfig<DefaultTheme.Config> = {
           items: [
             { text: "概览", link: "/zh-CN/reference/" },
             { text: "配置模式", link: "/zh-CN/reference/config-yaml" },
+            { text: "工作流 DSL", link: "/zh-CN/reference/workflow-dsl" },
             { text: "接口", link: "/zh-CN/reference/interfaces" },
             { text: "术语表", link: "/zh-CN/reference/glossary" },
           ],
@@ -205,6 +207,7 @@ export const zhCN: LocaleSpecificConfig<DefaultTheme.Config> = {
               text: "密钥与凭据",
               link: "/zh-CN/support/troubleshooting/secrets",
             },
+            { text: "工作流", link: "/zh-CN/support/troubleshooting/workflows" },
             {
               text: "错误参考",
               link: "/zh-CN/support/troubleshooting/error-reference",

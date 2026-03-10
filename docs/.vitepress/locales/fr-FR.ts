@@ -209,6 +209,10 @@ export const frFR: LocaleSpecificConfig<DefaultTheme.Config> = {
             { text: "Sessions", link: "/fr-FR/features/sessions" },
             { text: "Recherche web", link: "/fr-FR/features/web-search" },
             { text: "Sous-agents", link: "/fr-FR/features/subagents" },
+            {
+              text: "Flux de travail",
+              link: "/fr-FR/features/workflows",
+            },
           ],
         },
       ],
@@ -220,6 +224,10 @@ export const frFR: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "Schéma de configuration",
               link: "/fr-FR/reference/config-yaml",
+            },
+            {
+              text: "DSL de flux de travail",
+              link: "/fr-FR/reference/workflow-dsl",
             },
             { text: "Interfaces", link: "/fr-FR/reference/interfaces" },
             { text: "Glossaire", link: "/fr-FR/reference/glossary" },
@@ -276,6 +284,10 @@ export const frFR: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "Secrets et identifiants",
               link: "/fr-FR/support/troubleshooting/secrets",
+            },
+            {
+              text: "Flux de travail",
+              link: "/fr-FR/support/troubleshooting/workflows",
             },
             {
               text: "Référence des erreurs",

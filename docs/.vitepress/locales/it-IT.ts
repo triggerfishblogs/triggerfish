@@ -189,6 +189,10 @@ export const itIT: LocaleSpecificConfig<DefaultTheme.Config> = {
               link: "/it-IT/features/agent-teams",
             },
             {
+              text: "Flussi di lavoro",
+              link: "/it-IT/features/workflows",
+            },
+            {
               text: "Limitazione della frequenza",
               link: "/it-IT/features/rate-limiting",
             },
@@ -214,6 +218,10 @@ export const itIT: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "Schema di configurazione",
               link: "/it-IT/reference/config-yaml",
+            },
+            {
+              text: "DSL flussi di lavoro",
+              link: "/it-IT/reference/workflow-dsl",
             },
             { text: "Interfacce", link: "/it-IT/reference/interfaces" },
             { text: "Glossario", link: "/it-IT/reference/glossary" },
@@ -270,6 +278,10 @@ export const itIT: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "Segreti e credenziali",
               link: "/it-IT/support/troubleshooting/secrets",
+            },
+            {
+              text: "Flussi di lavoro",
+              link: "/it-IT/support/troubleshooting/workflows",
             },
             {
               text: "Riferimento degli errori",

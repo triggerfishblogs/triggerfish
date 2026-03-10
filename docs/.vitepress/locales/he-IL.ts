@@ -183,6 +183,7 @@ export const heIL: LocaleSpecificConfig<DefaultTheme.Config> = {
             { text: "התראות", link: "/he-IL/features/notifications" },
             { text: "רישום", link: "/he-IL/features/logging" },
             { text: "צוותי סוכנים", link: "/he-IL/features/agent-teams" },
+            { text: "תהליכי עבודה", link: "/he-IL/features/workflows" },
             {
               text: "הגבלת קצב",
               link: "/he-IL/features/rate-limiting",
@@ -210,6 +211,7 @@ export const heIL: LocaleSpecificConfig<DefaultTheme.Config> = {
               text: "סכמת הגדרות",
               link: "/he-IL/reference/config-yaml",
             },
+            { text: "Workflow DSL", link: "/he-IL/reference/workflow-dsl" },
             { text: "ממשקים", link: "/he-IL/reference/interfaces" },
             { text: "מילון מונחים", link: "/he-IL/reference/glossary" },
           ],
@@ -265,6 +267,10 @@ export const heIL: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "סודות ואישורים",
               link: "/he-IL/support/troubleshooting/secrets",
+            },
+            {
+              text: "תהליכי עבודה",
+              link: "/he-IL/support/troubleshooting/workflows",
             },
             {
               text: "הפניית שגיאות",

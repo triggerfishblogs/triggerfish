@@ -176,6 +176,7 @@ export const enGB: LocaleSpecificConfig<DefaultTheme.Config> = {
             },
             { text: "Logging", link: "/en-GB/features/logging" },
             { text: "Agent Teams", link: "/en-GB/features/agent-teams" },
+            { text: "Workflows", link: "/en-GB/features/workflows" },
             {
               text: "Rate Limiting",
               link: "/en-GB/features/rate-limiting",
@@ -200,6 +201,7 @@ export const enGB: LocaleSpecificConfig<DefaultTheme.Config> = {
           items: [
             { text: "Overview", link: "/en-GB/reference/" },
             { text: "Config Schema", link: "/en-GB/reference/config-yaml" },
+            { text: "Workflow DSL", link: "/en-GB/reference/workflow-dsl" },
             { text: "Interfaces", link: "/en-GB/reference/interfaces" },
             { text: "Glossary", link: "/en-GB/reference/glossary" },
           ],
@@ -252,6 +254,10 @@ export const enGB: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "Secrets & Credentials",
               link: "/en-GB/support/troubleshooting/secrets",
+            },
+            {
+              text: "Workflows",
+              link: "/en-GB/support/troubleshooting/workflows",
             },
             {
               text: "Error Reference",

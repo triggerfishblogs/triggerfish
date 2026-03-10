@@ -149,6 +149,7 @@ export const zhTW: LocaleSpecificConfig<DefaultTheme.Config> = {
             { text: "工作階段", link: "/zh-TW/features/sessions" },
             { text: "網頁搜尋", link: "/zh-TW/features/web-search" },
             { text: "子代理", link: "/zh-TW/features/subagents" },
+            { text: "工作流程", link: "/zh-TW/features/workflows" },
           ],
         },
       ],
@@ -158,6 +159,7 @@ export const zhTW: LocaleSpecificConfig<DefaultTheme.Config> = {
           items: [
             { text: "概覽", link: "/zh-TW/reference/" },
             { text: "設定架構", link: "/zh-TW/reference/config-yaml" },
+            { text: "工作流程 DSL", link: "/zh-TW/reference/workflow-dsl" },
             { text: "介面", link: "/zh-TW/reference/interfaces" },
             { text: "詞彙表", link: "/zh-TW/reference/glossary" },
           ],
@@ -205,6 +207,7 @@ export const zhTW: LocaleSpecificConfig<DefaultTheme.Config> = {
               text: "密鑰與憑證",
               link: "/zh-TW/support/troubleshooting/secrets",
             },
+            { text: "工作流程", link: "/zh-TW/support/troubleshooting/workflows" },
             {
               text: "錯誤參考",
               link: "/zh-TW/support/troubleshooting/error-reference",

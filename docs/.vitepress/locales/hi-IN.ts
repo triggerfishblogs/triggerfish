@@ -170,6 +170,7 @@ export const hiIN: LocaleSpecificConfig<DefaultTheme.Config> = {
             { text: "सूचनाएँ", link: "/hi-IN/features/notifications" },
             { text: "लॉगिंग", link: "/hi-IN/features/logging" },
             { text: "एजेंट टीम", link: "/hi-IN/features/agent-teams" },
+            { text: "वर्कफ़्लो", link: "/hi-IN/features/workflows" },
             { text: "दर सीमा", link: "/hi-IN/features/rate-limiting" },
             { text: "अन्वेषण", link: "/hi-IN/features/explore" },
             { text: "फ़ाइल सिस्टम", link: "/hi-IN/features/filesystem" },
@@ -188,6 +189,7 @@ export const hiIN: LocaleSpecificConfig<DefaultTheme.Config> = {
           items: [
             { text: "अवलोकन", link: "/hi-IN/reference/" },
             { text: "कॉन्फ़िग स्कीमा", link: "/hi-IN/reference/config-yaml" },
+            { text: "वर्कफ़्लो DSL", link: "/hi-IN/reference/workflow-dsl" },
             { text: "इंटरफ़ेस", link: "/hi-IN/reference/interfaces" },
             { text: "शब्दावली", link: "/hi-IN/reference/glossary" },
           ],
@@ -246,6 +248,10 @@ export const hiIN: LocaleSpecificConfig<DefaultTheme.Config> = {
             {
               text: "सीक्रेट और क्रेडेंशियल",
               link: "/hi-IN/support/troubleshooting/secrets",
+            },
+            {
+              text: "वर्कफ़्लो",
+              link: "/hi-IN/support/troubleshooting/workflows",
             },
             {
               text: "त्रुटि संदर्भ",
