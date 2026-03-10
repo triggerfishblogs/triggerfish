@@ -14,6 +14,7 @@ import {
   createTidepoolHealthHandler,
   createTidepoolLogSink,
   createTidepoolMemoryHandler,
+  createTidepoolWorkflowsHandler,
 } from "../../../tools/tidepool/host/mod.ts";
 import {
   createAgentsTopicDispatcher,
@@ -21,7 +22,9 @@ import {
   createLogsTopicDispatcher,
   createMemoryTopicDispatcher,
   createSettingsTopicDispatcher,
+  createWorkflowsTopicDispatcher,
 } from "../../../tools/tidepool/host/host_topic_dispatch.ts";
+import { createWorkflowStore } from "../../../workflow/mod.ts";
 import type { BootstrapResult } from "../bootstrap.ts";
 import type { CoreInfraResult } from "../infra/core_infra.ts";
 import type { ToolInfraResult } from "../tools/tool_infra.ts";
@@ -42,6 +45,7 @@ export function registerTidepoolTopicHandlers(
   registerAgentsHandler(tidepoolHost, coreInfra, toolInfra);
   registerMemoryHandler(tidepoolHost, toolInfra);
   registerSettingsHandler(tidepoolHost, bootstrap);
+  registerWorkflowsHandler(tidepoolHost, coreInfra, toolInfra);
 }
 
 /** Wire logs topic: create sink, register handler, pipe log file. */
@@ -126,6 +130,31 @@ function registerSettingsHandler(
     "settings",
     createSettingsTopicDispatcher(configHandler),
   );
+}
+
+/** Wire workflows topic with store, run registry, executor, and cron. */
+function registerWorkflowsHandler(
+  tidepoolHost: Awaited<ReturnType<typeof startTidepoolHost>>,
+  coreInfra: CoreInfraResult,
+  toolInfra: ToolInfraResult,
+): void {
+  const store = createWorkflowStore(coreInfra.storage);
+  const handler = createTidepoolWorkflowsHandler(
+    store,
+    toolInfra.workflowRunRegistry,
+    {
+      workflowExecutor: toolInfra.toolExecutor,
+      cronManager: coreInfra.cronManager,
+    },
+  );
+  tidepoolHost.registerTopicHandler(
+    "workflows",
+    createWorkflowsTopicDispatcher(
+      handler,
+      () => toolInfra.state.session.taint,
+    ),
+  );
+  tidepoolHost.registerSocketCleanup((socket) => handler.removeSocket(socket));
 }
 
 /** Pipe structured log entries to the Tidepool log sink via log file polling. */
