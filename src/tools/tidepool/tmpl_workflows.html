@@ -118,7 +118,11 @@
 </div>
 
 <!-- Schedule dialog -->
-<div class="workflows-modal-overlay" id="workflows-schedule-overlay" style="display: none">
+<div
+  class="workflows-modal-overlay"
+  id="workflows-schedule-overlay"
+  style="display: none"
+>
   <div class="workflows-modal">
     <div class="workflows-modal-header">Schedule Workflow</div>
     <div class="workflows-modal-body">
@@ -130,27 +134,54 @@
         <label>Type</label>
         <div class="workflows-modal-radios">
           <label class="workflows-radio">
-            <input type="radio" name="schedule-type" value="cron" checked /> Recurring (cron)
+            <input type="radio" name="schedule-type" value="cron" checked />
+            Recurring (cron)
           </label>
           <label class="workflows-radio">
-            <input type="radio" name="schedule-type" value="once" /> One-time (run at)
+            <input type="radio" name="schedule-type" value="once" /> One-time
+            (run at)
           </label>
         </div>
       </div>
       <div class="workflows-modal-field" id="schedule-cron-field">
         <label>Cron Expression</label>
-        <input type="text" id="schedule-cron-input" class="workflows-modal-input" placeholder="0 9 * * *" />
+        <input
+          type="text"
+          id="schedule-cron-input"
+          class="workflows-modal-input"
+          placeholder="0 9 * * *"
+        />
         <div class="workflows-modal-hint">minute hour day month weekday</div>
       </div>
-      <div class="workflows-modal-field" id="schedule-once-field" style="display: none">
+      <div
+        class="workflows-modal-field"
+        id="schedule-once-field"
+        style="display: none"
+      >
         <label>Run At</label>
-        <input type="datetime-local" id="schedule-once-input" class="workflows-modal-input" />
+        <input
+          type="datetime-local"
+          id="schedule-once-input"
+          class="workflows-modal-input"
+        />
       </div>
-      <div class="workflows-modal-error" id="schedule-error" style="display: none"></div>
+      <div
+        class="workflows-modal-error"
+        id="schedule-error"
+        style="display: none"
+      >
+      </div>
     </div>
     <div class="workflows-modal-footer">
-      <button class="workflows-action-btn" id="schedule-cancel-btn">Cancel</button>
-      <button class="workflows-action-btn workflows-action-primary" id="schedule-confirm-btn">Schedule</button>
+      <button class="workflows-action-btn" id="schedule-cancel-btn">
+        Cancel
+      </button>
+      <button
+        class="workflows-action-btn workflows-action-primary"
+        id="schedule-confirm-btn"
+      >
+        Schedule
+      </button>
     </div>
   </div>
 </div>
@@ -834,7 +865,9 @@
     var scheduleOnceField = document.getElementById("schedule-once-field");
     var scheduleError = document.getElementById("schedule-error");
     var scheduleCancelBtn = document.getElementById("schedule-cancel-btn");
-    var scheduleConfirmBtn = document.getElementById("schedule-confirm-btn");
+    var scheduleConfirmBtn = document.getElementById(
+      "schedule-confirm-btn",
+    );
     var scheduleTargetName = null;
 
     var scheduleTypeRadios = document.querySelectorAll(
@@ -1026,13 +1059,22 @@
             showToast("Workflow '" + msg.name + "' started", "success");
             requestActiveRuns();
           } else {
-            showToast("Start failed: " + (msg.error || "Unknown error"), "error");
+            showToast(
+              "Start failed: " + (msg.error || "Unknown error"),
+              "error",
+            );
           }
         } else if (msg.type === "schedule_result") {
           if (msg.ok) {
-            showToast("Scheduled '" + msg.name + "' (" + msg.expression + ")", "success");
+            showToast(
+              "Scheduled '" + msg.name + "' (" + msg.expression + ")",
+              "success",
+            );
           } else {
-            showToast("Schedule failed: " + (msg.error || "Unknown error"), "error");
+            showToast(
+              "Schedule failed: " + (msg.error || "Unknown error"),
+              "error",
+            );
           }
         }
       });
@@ -1093,7 +1135,11 @@
         if (event.status === "completed") {
           showToast("'" + event.workflowName + "' completed", "success");
         } else if (event.status === "failed" || event.error) {
-          showToast("'" + event.workflowName + "' failed: " + (event.error || "unknown"), "error");
+          showToast(
+            "'" + event.workflowName + "' failed: " +
+              (event.error || "unknown"),
+            "error",
+          );
         } else {
           showToast("'" + event.workflowName + "' stopped", "success");
         }

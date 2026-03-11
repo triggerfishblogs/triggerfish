@@ -35,3 +35,7 @@ IMPLEMENTATION_PLAN.md
 
 # Setup scripts (local only)
 setup-phase-*.sh
+
+# Tidepool UI build artifacts
+src/tools/tidepool/dist/
+tidepool-ui/node_modules/

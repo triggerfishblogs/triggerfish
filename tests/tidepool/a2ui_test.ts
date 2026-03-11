@@ -628,12 +628,13 @@ Deno.test("executor: lazy getter works after wiring", async () => {
 // buildTidepoolHtml
 // ---------------------------------------------------------------------------
 
-Deno.test("buildTidepoolHtml: returns HTML with expected panel IDs", () => {
+Deno.test("buildTidepoolHtml: returns HTML with expected structure", () => {
   const html = buildTidepoolHtml();
-  assert(html.includes("chat-panel"), "should contain chat-panel");
   assert(html.includes("canvas-panel"), "should contain canvas-panel");
   assert(html.includes("canvas-frame"), "should contain canvas-frame");
-  assert(html.includes("canvas-history"), "should contain canvas-history");
-  assert(html.includes("<!DOCTYPE html>"), "should be valid HTML document");
-  assert(html.includes("tidepoolCanvas"), "should contain canvas JS module");
+  assert(
+    html.includes("<!doctype html>") || html.includes("<!DOCTYPE html>"),
+    "should be valid HTML document",
+  );
+  assert(html.includes('<div id="app">'), "should contain app mount point");
 });

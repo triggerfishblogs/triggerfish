@@ -9,26 +9,92 @@
 
 import type { BootstrapResult } from "../bootstrap.ts";
 import type { CoreInfraResult } from "../infra/core_infra.ts";
-import type { HealthSnapshot } from "../../../tools/tidepool/screens/health.ts";
-import type { HealthMetricCard } from "../../../tools/tidepool/screens/health.ts";
+import type {
+  HealthMetricCard,
+  HealthSnapshot,
+  TimeSeriesPoint,
+} from "../../../tools/tidepool/screens/health.ts";
 import type { StatusLevel } from "../../../tools/tidepool/components/status_dot.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
 
 const log = createLogger("tidepool-health");
+
+/** Max data points retained per series (~2h at 60s intervals). */
+const MAX_POINTS = 120;
+
+/** In-memory ring buffer for time-series data. */
+interface SeriesBuffer {
+  readonly id: string;
+  readonly label: string;
+  readonly points: TimeSeriesPoint[];
+}
+
+/** Push a value into a ring-buffered series. */
+function pushPoint(buf: SeriesBuffer, value: number): void {
+  buf.points.push({ t: new Date().toISOString(), v: value });
+  if (buf.points.length > MAX_POINTS) {
+    buf.points.splice(0, buf.points.length - MAX_POINTS);
+  }
+}
 
 /** Create a health snapshot provider from available services. */
 export function createHealthSnapshotProvider(
   coreInfra: CoreInfraResult,
   bootstrap: BootstrapResult,
 ): () => Promise<HealthSnapshot> {
+  const agentsSeries: SeriesBuffer = {
+    id: "agents",
+    label: "Active Agents",
+    points: [],
+  };
+  const cronSeries: SeriesBuffer = {
+    id: "cron_jobs",
+    label: "Cron Jobs",
+    points: [],
+  };
+  const memorySeries: SeriesBuffer = {
+    id: "heap_mb",
+    label: "Heap (MB)",
+    points: [],
+  };
+
   return async () => {
     const cards = await buildHealthCards(bootstrap, coreInfra);
+
+    const sessionCount = await countSessions(coreInfra);
+    pushPoint(agentsSeries, sessionCount);
+
+    const cronCount = coreInfra.schedulerService.cronManager.list()
+      .filter((j) => j.enabled).length;
+    pushPoint(cronSeries, cronCount);
+
+    const heapMb = Math.round(Deno.memoryUsage().heapUsed / 1_048_576);
+    pushPoint(memorySeries, heapMb);
+
     return {
       overall: deriveOverallStatus(cards),
       cards,
+      timeSeries: [agentsSeries, cronSeries, memorySeries],
       timestamp: new Date().toISOString(),
     };
   };
+}
+
+/** Count active sessions (main + managed). */
+async function countSessions(coreInfra: CoreInfraResult): Promise<number> {
+  let count = 1;
+  if (coreInfra.enhancedSessionManager) {
+    try {
+      const managed = await coreInfra.enhancedSessionManager.sessionsList();
+      count += managed.length;
+    } catch (err: unknown) {
+      log.warn("Session count retrieval failed for time-series", {
+        operation: "countSessions",
+        err,
+      });
+    }
+  }
+  return count;
 }
 
 /** Derive the overall status from the worst card status. */
@@ -48,14 +114,17 @@ async function buildHealthCards(
   const rawConfig = bootstrap.config as unknown as Record<string, unknown>;
   return [
     buildGatewayCard(rawConfig),
+    buildUptimeCard(),
+    buildMemoryCard(),
     buildLlmCard(bootstrap),
     await buildSessionsCard(coreInfra),
     buildChannelsCard(bootstrap),
-    buildPolicyCard(bootstrap),
     buildSkillsCard(rawConfig),
     buildSecretsCard(),
     buildSecurityCard(rawConfig),
-    buildSchedulerCard(bootstrap),
+    buildCronCard(coreInfra),
+    buildTriggerCard(bootstrap),
+    buildWebhooksCard(bootstrap),
   ];
 }
 
@@ -91,18 +160,7 @@ function buildLlmCard(bootstrap: BootstrapResult): HealthMetricCard {
 async function buildSessionsCard(
   coreInfra: CoreInfraResult,
 ): Promise<HealthMetricCard> {
-  let count = 1; // main session always exists
-  if (coreInfra.enhancedSessionManager) {
-    try {
-      const managed = await coreInfra.enhancedSessionManager.sessionsList();
-      count += managed.length;
-    } catch (err: unknown) {
-      log.warn("Session count retrieval failed for health card", {
-        operation: "buildSessionsCard",
-        err,
-      });
-    }
-  }
+  const count = await countSessions(coreInfra);
   return {
     id: "sessions",
     label: "Sessions",
@@ -119,17 +177,6 @@ function buildChannelsCard(bootstrap: BootstrapResult): HealthMetricCard {
     label: "Channels",
     status: (channelKeys.length > 0 ? "green" : "yellow") as StatusLevel,
     value: `${channelKeys.length} configured`,
-  };
-}
-
-/** Policy card. */
-function buildPolicyCard(bootstrap: BootstrapResult): HealthMetricCard {
-  const classMode = bootstrap.config.classification?.mode;
-  return {
-    id: "policy",
-    label: "Policy",
-    status: "green" as StatusLevel,
-    value: classMode ? `Mode: ${classMode}` : "Default",
   };
 }
 
@@ -175,15 +222,86 @@ function buildSecurityCard(
   };
 }
 
-/** Scheduler card. */
-function buildSchedulerCard(bootstrap: BootstrapResult): HealthMetricCard {
-  const trigger = bootstrap.config.scheduler?.trigger;
+/** Daemon uptime card. */
+function buildUptimeCard(): HealthMetricCard {
+  const uptimeSec = Math.floor(performance.now() / 1000);
+  return {
+    id: "uptime",
+    label: "Uptime",
+    status: "green" as StatusLevel,
+    value: formatUptime(uptimeSec),
+  };
+}
+
+/** Format seconds into a human-readable uptime string. */
+function formatUptime(totalSec: number): string {
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+/** Memory usage card. */
+function buildMemoryCard(): HealthMetricCard {
+  const mem = Deno.memoryUsage();
+  const heapMb = (mem.heapUsed / 1_048_576).toFixed(0);
+  const rssMb = (mem.rss / 1_048_576).toFixed(0);
+  const status: StatusLevel = mem.heapUsed > 512 * 1_048_576
+    ? "red"
+    : mem.heapUsed > 256 * 1_048_576
+    ? "yellow"
+    : "green";
+  return {
+    id: "memory",
+    label: "Memory",
+    status,
+    value: `${heapMb} MB`,
+    detail: `RSS ${rssMb} MB`,
+  };
+}
+
+/** Cron jobs card. */
+function buildCronCard(coreInfra: CoreInfraResult): HealthMetricCard {
+  const jobs = coreInfra.schedulerService.cronManager.list();
+  const activeJobs = jobs.filter((j) => j.enabled);
   return {
     id: "cron",
-    label: "Scheduler",
-    status: (trigger?.enabled ? "green" : "yellow") as StatusLevel,
-    value: trigger?.enabled
-      ? `Trigger every ${trigger.interval_minutes ?? 30}m`
+    label: "Cron Jobs",
+    status: "green" as StatusLevel,
+    value: `${activeJobs.length} active`,
+    detail: jobs.length !== activeJobs.length
+      ? `${jobs.length - activeJobs.length} paused`
+      : undefined,
+  };
+}
+
+/** Trigger card. */
+function buildTriggerCard(bootstrap: BootstrapResult): HealthMetricCard {
+  const trigger = bootstrap.config.scheduler?.trigger;
+  const enabled = (trigger?.enabled ?? true) &&
+    (trigger?.interval_minutes ?? 30) !== 0;
+  const interval = trigger?.interval_minutes ?? 30;
+  return {
+    id: "triggers",
+    label: "Triggers",
+    status: (enabled ? "green" : "yellow") as StatusLevel,
+    value: enabled ? `Every ${interval}m` : "Disabled",
+  };
+}
+
+/** Webhooks card. */
+function buildWebhooksCard(bootstrap: BootstrapResult): HealthMetricCard {
+  const webhooks = bootstrap.config.scheduler?.webhooks;
+  const enabled = webhooks?.enabled ?? false;
+  const sourceCount = Object.keys(webhooks?.sources ?? {}).length;
+  return {
+    id: "webhooks",
+    label: "Webhooks",
+    status: (enabled ? "green" : "gray") as StatusLevel,
+    value: enabled
+      ? `${sourceCount} source${sourceCount !== 1 ? "s" : ""}`
       : "Disabled",
   };
 }
