@@ -10,6 +10,9 @@
 
 import type { Result } from "../types/classification.ts";
 import type { StorageProvider } from "../storage/provider.ts";
+import { createLogger } from "../logger/mod.ts";
+
+const log = createLogger("conversation-store");
 import type {
   ConversationAppendInput,
   ConversationRecord,
@@ -183,7 +186,8 @@ export function createMessageStore(storage: StorageProvider): MessageStore {
               await storage.delete(key);
               deletedCount++;
             }
-          } catch {
+          } catch (err: unknown) {
+            log.warn("Conversation record deserialization failed during retention", { operation: "applyRetention", key, err });
             continue;
           }
         }

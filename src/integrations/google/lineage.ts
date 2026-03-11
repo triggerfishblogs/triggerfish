@@ -8,6 +8,9 @@
  */
 
 import type { GoogleToolContext } from "./auth/types_context.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("google-lineage");
 
 /**
  * Record a lineage entry for a Google API response.
@@ -38,7 +41,7 @@ export async function recordGoogleLineage(
       },
       sessionId: ctx.sourceSessionId,
     });
-  } catch {
-    // Lineage failure must not block the tool operation
+  } catch (err: unknown) {
+    log.warn("Google lineage record creation failed", { operation: "recordGoogleLineage", serviceName, err });
   }
 }

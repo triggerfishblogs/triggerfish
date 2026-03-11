@@ -13,6 +13,9 @@
 import type { StorageProvider } from "../storage/provider.ts";
 import type { ClassificationLevel, Result } from "../types/classification.ts";
 import { canFlowTo } from "../types/classification.ts";
+import { createLogger } from "../logger/mod.ts";
+
+const log = createLogger("lineage-store");
 import type { SessionId } from "../types/session.ts";
 import type {
   LineageCreateInput,
@@ -234,7 +237,8 @@ async function evaluateAndPurge(
       return 1;
     }
     return 0;
-  } catch {
+  } catch (err: unknown) {
+    log.warn("Lineage record evaluation failed during retention", { operation: "evaluateAndPurge", key, err });
     return 0;
   }
 }
