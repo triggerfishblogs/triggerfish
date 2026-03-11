@@ -18,7 +18,12 @@ import type {
   CanvasRenderComponentMessage,
 } from "../canvas_protocol.ts";
 import { buildTidepoolHtml } from "../ui.ts";
-import type { A2UIHost, A2UIHostOptions, A2UIHostState } from "./host_types.ts";
+import type {
+  A2UIHost,
+  A2UIHostOptions,
+  A2UIHostState,
+  TopicHandler,
+} from "./host_types.ts";
 import { broadcastJsonToClients } from "./host_broadcast.ts";
 import { routeHostRequest } from "./host_server.ts";
 import { closeAllClientSockets } from "./host_server.ts";
@@ -56,6 +61,7 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
     cachedHtml: null,
     lastMcpConnected: -1,
     lastMcpConfigured: 0,
+    socketCleanupCallbacks: [],
   };
 
   return {
@@ -127,6 +133,17 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
       event: import("../../../core/types/chat_event.ts").ChatEvent,
     ): void {
       broadcastJsonToClients(state.clients, JSON.stringify(event));
+    },
+
+    registerTopicHandler(topic: string, handler: TopicHandler): void {
+      if (!state.topicHandlers) {
+        state.topicHandlers = {};
+      }
+      state.topicHandlers[topic] = handler;
+    },
+
+    registerSocketCleanup(callback: (socket: WebSocket) => void): void {
+      state.socketCleanupCallbacks.push(callback);
     },
 
     get connections(): number {

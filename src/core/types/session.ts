@@ -48,12 +48,16 @@ export interface SessionState {
   readonly taint: ClassificationLevel;
   readonly createdAt: Date;
   readonly history: readonly TaintEvent[];
+  /** Whether taint escalation bumpers are enabled. Default: true. */
+  readonly bumpersEnabled: boolean;
 }
 
 /** Options for creating a new session. */
 export interface CreateSessionOptions {
   readonly userId: UserId;
   readonly channelId: ChannelId;
+  /** Initial bumper state. Defaults to true (bumpers deployed). */
+  readonly bumpersEnabled?: boolean;
 }
 
 /**
@@ -67,6 +71,7 @@ export function createSession(options: CreateSessionOptions): SessionState {
     taint: "PUBLIC",
     createdAt: new Date(),
     history: [],
+    bumpersEnabled: options.bumpersEnabled ?? true,
   };
 }
 

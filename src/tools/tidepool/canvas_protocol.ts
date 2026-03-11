@@ -8,6 +8,7 @@
  */
 
 import type { ComponentTree } from "./components.ts";
+import type { ScreenId } from "./shell/screens.ts";
 
 /** Render a component tree in the canvas. */
 export interface CanvasRenderComponentMessage {
@@ -18,6 +19,8 @@ export interface CanvasRenderComponentMessage {
   readonly label: string;
   /** The component tree to render. */
   readonly tree: ComponentTree;
+  /** Target screen for this push. Defaults to "chat" canvas. */
+  readonly target?: ScreenId;
 }
 
 /** Render raw HTML/SVG in the canvas. */
@@ -29,6 +32,8 @@ export interface CanvasRenderHtmlMessage {
   readonly label: string;
   /** Raw HTML string to render in the iframe. */
   readonly html: string;
+  /** Target screen for this push. Defaults to "chat" canvas. */
+  readonly target?: ScreenId;
 }
 
 /** Render a file with preview and download in the canvas. */
@@ -44,6 +49,8 @@ export interface CanvasRenderFileMessage {
   readonly mime: string;
   /** Base64-encoded file data. */
   readonly data: string;
+  /** Target screen for this push. Defaults to "chat" canvas. */
+  readonly target?: ScreenId;
 }
 
 /** Update an existing component tree in the canvas (full patched tree). */

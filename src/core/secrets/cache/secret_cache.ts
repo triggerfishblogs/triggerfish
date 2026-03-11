@@ -112,15 +112,28 @@ export function createSecretCache(
   let misses = 0;
   let staleServes = 0;
 
-  type CacheResult = Result<{ value: string; metadata?: SecretMetadata }, string>;
+  type CacheResult = Result<
+    { value: string; metadata?: SecretMetadata },
+    string
+  >;
 
-  function serveFreshEntry(name: string, entry: CacheEntry, now: number): CacheResult {
+  function serveFreshEntry(
+    name: string,
+    entry: CacheEntry,
+    now: number,
+  ): CacheResult {
     cache.set(name, { ...entry, lastAccessedAt: now });
     hits++;
-    return { ok: true, value: { value: entry.value, metadata: entry.metadata } };
+    return {
+      ok: true,
+      value: { value: entry.value, metadata: entry.metadata },
+    };
   }
 
-  function triggerBackgroundRefetch(name: string, fetcher: SecretFetcher): void {
+  function triggerBackgroundRefetch(
+    name: string,
+    fetcher: SecretFetcher,
+  ): void {
     fetcher(name).then((result) => {
       if (result.ok) {
         const now = Date.now();
@@ -140,11 +153,19 @@ export function createSecretCache(
     });
   }
 
-  function serveStaleEntry(name: string, entry: CacheEntry, now: number, fetcher: SecretFetcher): CacheResult {
+  function serveStaleEntry(
+    name: string,
+    entry: CacheEntry,
+    now: number,
+    fetcher: SecretFetcher,
+  ): CacheResult {
     cache.set(name, { ...entry, lastAccessedAt: now });
     staleServes++;
     triggerBackgroundRefetch(name, fetcher);
-    return { ok: true, value: { value: entry.value, metadata: entry.metadata } };
+    return {
+      ok: true,
+      value: { value: entry.value, metadata: entry.metadata },
+    };
   }
 
   async function fetchAndPopulate(
@@ -159,7 +180,10 @@ export function createSecretCache(
     if (!result.ok) {
       if (existing) {
         staleServes++;
-        return { ok: true, value: { value: existing.value, metadata: existing.metadata } };
+        return {
+          ok: true,
+          value: { value: existing.value, metadata: existing.metadata },
+        };
       }
       return result;
     }

@@ -72,17 +72,26 @@ export function createVaultProvider(
   let authInFlight: Promise<Result<true, string>> | undefined;
 
   async function doAuthenticate(): Promise<Result<true, string>> {
-    log.info("Vault authentication attempt", { operation: "ensureAuthenticated" });
+    log.info("Vault authentication attempt", {
+      operation: "ensureAuthenticated",
+    });
     const result = await auth.authenticate();
     if (!result.ok) {
-      log.warn("Vault authentication failed", { operation: "ensureAuthenticated", err: result.error });
+      log.warn("Vault authentication failed", {
+        operation: "ensureAuthenticated",
+        err: result.error,
+      });
       return result;
     }
     authenticated = true;
-    log.info("Vault authentication succeeded", { operation: "ensureAuthenticated" });
+    log.info("Vault authentication succeeded", {
+      operation: "ensureAuthenticated",
+    });
     if (auth.scheduleRenewal) {
       auth.scheduleRenewal(
-        () => { authenticated = false; },
+        () => {
+          authenticated = false;
+        },
         result.value.lease_duration,
       );
     }
@@ -94,7 +103,9 @@ export function createVaultProvider(
       return Promise.resolve({ ok: true as const, value: true as const });
     }
     if (authInFlight) return authInFlight;
-    authInFlight = doAuthenticate().finally(() => { authInFlight = undefined; });
+    authInFlight = doAuthenticate().finally(() => {
+      authInFlight = undefined;
+    });
     return authInFlight;
   }
 
@@ -206,8 +217,8 @@ export function createVaultProvider(
     };
   };
 
-  const fetchSecretWithMetadata: ExternalSecretProvider["fetchSecretWithMetadata"] =
-    async (name) => {
+  const fetchSecretWithMetadata:
+    ExternalSecretProvider["fetchSecretWithMetadata"] = async (name) => {
       const authResult = await ensureAuthenticated();
       if (!authResult.ok) return authResult;
 

@@ -1,0 +1,28 @@
+backend:
+  name: github
+  repo: greghavens/triggerfish
+  branch: master
+  open_authoring: true
+  base_url: https://cms-auth.trigger.fish
+
+publish_mode: editorial_workflow
+
+media_folder: docs/blog/images
+public_folder: /blog/images
+
+collections:
+  - name: blog
+    label: Blog
+    folder: docs/blog
+    create: true
+    slug: "{{slug}}"
+    extension: md
+    format: yaml-frontmatter
+    fields:
+      - { label: Title, name: title, widget: string }
+      - { label: Date, name: date, widget: datetime, format: "YYYY-MM-DD", date_format: "YYYY-MM-DD", time_format: false }
+      - { label: Description, name: description, widget: text, hint: "Keep under 160 characters for SEO." }
+      - { label: Author, name: author, widget: string }
+      - { label: Tags, name: tags, widget: list, required: false }
+      - { label: Draft, name: draft, widget: boolean, default: false, required: false }
+      - { label: Body, name: body, widget: markdown }

@@ -65,7 +65,11 @@ export async function migrateSecrets(
   for (const name of names) {
     const readResult = await from.getSecret(name);
     if (!readResult.ok) {
-      log.warn("Secret read failed during migration", { operation: "migrateSecrets", name, err: readResult.error });
+      log.warn("Secret read failed during migration", {
+        operation: "migrateSecrets",
+        name,
+        err: readResult.error,
+      });
       failed.push(name);
       onProgress?.(name, "failed");
       continue;
@@ -74,7 +78,12 @@ export async function migrateSecrets(
     const targetName = pathPrefix ? `${pathPrefix}${name}` : name;
     const writeResult = await to.setSecret(targetName, readResult.value);
     if (!writeResult.ok) {
-      log.warn("Secret write failed during migration", { operation: "migrateSecrets", name, targetName, err: writeResult.error });
+      log.warn("Secret write failed during migration", {
+        operation: "migrateSecrets",
+        name,
+        targetName,
+        err: writeResult.error,
+      });
       failed.push(name);
       onProgress?.(name, "failed");
       continue;
@@ -82,7 +91,11 @@ export async function migrateSecrets(
 
     const verifyResult = await to.getSecret(targetName);
     if (!verifyResult.ok || verifyResult.value !== readResult.value) {
-      log.warn("Secret verification failed during migration", { operation: "migrateSecrets", name, targetName });
+      log.warn("Secret verification failed during migration", {
+        operation: "migrateSecrets",
+        name,
+        targetName,
+      });
       failed.push(name);
       onProgress?.(name, "failed");
       continue;

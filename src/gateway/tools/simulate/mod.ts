@@ -5,8 +5,8 @@
  */
 
 export {
-  createSimulateToolExecutor,
   computeSimulatedTaint,
+  createSimulateToolExecutor,
   evaluateSimulatedBlocked,
 } from "./simulate_executor.ts";
 export type { SimulateToolContext } from "./simulate_executor.ts";

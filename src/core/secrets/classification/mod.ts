@@ -22,3 +22,6 @@ export type {
   SecretAccessHookInput,
   SecretAccessHookResult,
 } from "./secret_access_gate.ts";
+
+export { createGatedKeychain } from "./gated_keychain.ts";
+export type { GatedKeychainOptions } from "./gated_keychain.ts";

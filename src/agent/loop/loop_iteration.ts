@@ -282,12 +282,15 @@ function attemptRecoveryNudge(
   return { action: "continue" };
 }
 
+/** Regex to strip `<think>...</think>` tags the LLM emits as raw text. */
+const THINK_TAG_REGEX = /<think>[\s\S]*?<\/think>/g;
+
 /** Handle the case when no tool calls were returned. */
 async function handleNoToolCallsIteration(
   ctx: AgentLoopContext,
   iter: IterationData & { hasTools: boolean },
 ): Promise<IterationOutcome> {
-  const finalText = iter.completion.content.trim();
+  const finalText = iter.completion.content.replace(THINK_TAG_REGEX, "").trim();
   traceLog(
     ctx.state,
     `iter${iter.iteration} finalText`,
@@ -352,8 +355,10 @@ async function handleToolCallsIteration(
   ctx: AgentLoopContext,
   iter: IterationData & { parsedCalls: readonly ParsedToolCall[] },
 ): Promise<Result<void, string>> {
-  const assistantContent = iter.completion.content.trim().length > 0
-    ? iter.completion.content
+  const cleanedContent = iter.completion.content.replace(THINK_TAG_REGEX, "")
+    .trim();
+  const assistantContent = cleanedContent.length > 0
+    ? cleanedContent
     : `(${iter.parsedCalls.length} tool call(s) executed — see results below)`;
   ctx.history.push({ role: "assistant", content: assistantContent });
   const maxIter = ctx.state.config.maxIterations ?? MAX_TOOL_ITERATIONS;

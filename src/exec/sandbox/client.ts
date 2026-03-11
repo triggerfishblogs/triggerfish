@@ -125,7 +125,9 @@ export function createFilesystemSandbox(
   /** Terminate the current worker and clear state. */
   function terminateWorker(): void {
     if (worker) {
-      try { worker.terminate(); } catch (err) {
+      try {
+        worker.terminate();
+      } catch (err) {
         log.debug("Sandbox worker already terminated", { err });
       }
       worker = null;

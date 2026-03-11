@@ -72,7 +72,10 @@ Deno.test("ResponseCache: evicts oldest entry at capacity", () => {
   // First entry should be evicted
   assertEquals(cache.get(ids[0]), undefined);
   // Last entry should still be present
-  assertEquals(cache.get(ids[MAX_CACHE_ENTRIES])?.fullText, `entry-${MAX_CACHE_ENTRIES}`);
+  assertEquals(
+    cache.get(ids[MAX_CACHE_ENTRIES])?.fullText,
+    `entry-${MAX_CACHE_ENTRIES}`,
+  );
 });
 
 // ─── capToolResponse ─────────────────────────────────────────────────────────
@@ -94,12 +97,18 @@ Deno.test("capToolResponse: empty string passes through", () => {
 Deno.test("capToolResponse: over-budget response is truncated with marker", () => {
   const cache = new ResponseCache();
   // Build a response that exceeds the budget
-  const lines = Array.from({ length: 200 }, (_, i) => `line ${i}: ${"x".repeat(80)}`);
+  const lines = Array.from(
+    { length: 200 },
+    (_, i) => `line ${i}: ${"x".repeat(80)}`,
+  );
   const text = lines.join("\n");
   const result = capToolResponse("some_tool", text, cache, 500);
   // Should be truncated
   assertEquals(result.length < text.length, true);
-  assertMatch(result, /… \[truncated — \d+ chars remaining, use read_more\(cache_id="[a-f0-9]{6}"\) to continue\]/);
+  assertMatch(
+    result,
+    /… \[truncated — \d+ chars remaining, use read_more\(cache_id="[a-f0-9]{6}"\) to continue\]/,
+  );
   assertEquals(cache.size, 1);
 });
 
@@ -212,7 +221,12 @@ Deno.test("readMoreFromCache: handles long newline-free segments without cursor 
 
 Deno.test("readMoreFromCache: offset past end returns helpful message", () => {
   const cache = new ResponseCache();
-  const id = cache.store({ fullText: "short", toolName: "t", budget: 10, cursor: 10 });
+  const id = cache.store({
+    fullText: "short",
+    toolName: "t",
+    budget: 10,
+    cursor: 10,
+  });
   const result = readMoreFromCache(cache, id, 999);
   assertMatch(result, /No more content/);
 });
@@ -247,7 +261,10 @@ Deno.test("getReadMoreToolDefinition: has correct shape", () => {
 Deno.test("integration: cap + read_more retrieves all content", () => {
   const cache = new ResponseCache();
   const budget = 50;
-  const lines = Array.from({ length: 20 }, (_, i) => `line-${i}: ${"x".repeat(10)}`);
+  const lines = Array.from(
+    { length: 20 },
+    (_, i) => `line-${i}: ${"x".repeat(10)}`,
+  );
   const fullText = lines.join("\n");
 
   const capped = capToolResponse("test_tool", fullText, cache, budget);

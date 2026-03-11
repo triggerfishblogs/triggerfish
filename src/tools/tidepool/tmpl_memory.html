@@ -1,0 +1,204 @@
+<div class="screen-memory-container">
+  <div class="memory-toolbar">
+    <input
+      type="text"
+      class="memory-search"
+      id="memory-search"
+      placeholder="Search memories..."
+      autocomplete="off"
+    >
+    <select
+      class="memory-classification-filter"
+      id="memory-classification-filter"
+    >
+      <option value="">All levels</option>
+      <option value="PUBLIC">PUBLIC</option>
+      <option value="INTERNAL">INTERNAL</option>
+      <option value="CONFIDENTIAL">CONFIDENTIAL</option>
+      <option value="RESTRICTED">RESTRICTED</option>
+    </select>
+    <select class="memory-tag-filter" id="memory-tag-filter">
+      <option value="">All tags</option>
+    </select>
+    <button class="memory-search-btn" id="memory-search-btn">Search</button>
+  </div>
+  <div
+    class="memory-visibility-note"
+    id="memory-visibility-note"
+    style="display: none"
+  >
+    Some memories are hidden due to your session's classification level.
+  </div>
+  <div class="memory-results" id="memory-results">
+    <div class="screen-placeholder">
+      <div>Search memories to browse</div>
+    </div>
+  </div>
+  <div
+    class="memory-detail-panel"
+    id="memory-detail-panel"
+    style="display: none"
+  >
+    <div class="memory-detail-header">
+      <button class="memory-detail-close" id="memory-detail-close">
+        &larr; Back
+      </button>
+      <span
+        class="memory-detail-classification"
+        id="memory-detail-classification"
+      ></span>
+    </div>
+    <div class="memory-detail-content" id="memory-detail-content"></div>
+    <div class="memory-detail-meta" id="memory-detail-meta"></div>
+    <div class="memory-detail-actions">
+      <button class="memory-action-btn" id="memory-edit-btn">Edit</button>
+      <button
+        class="memory-action-btn memory-action-danger"
+        id="memory-delete-btn"
+      >
+        Delete
+      </button>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var searchInput = document.getElementById("memory-search");
+    var classificationFilter = document.getElementById(
+      "memory-classification-filter",
+    );
+    var tagFilter = document.getElementById("memory-tag-filter");
+    var searchBtn = document.getElementById("memory-search-btn");
+    var results = document.getElementById("memory-results");
+    var detailPanel = document.getElementById("memory-detail-panel");
+    var detailClose = document.getElementById("memory-detail-close");
+    var detailContent = document.getElementById("memory-detail-content");
+    var detailMeta = document.getElementById("memory-detail-meta");
+    var detailClassification = document.getElementById(
+      "memory-detail-classification",
+    );
+    var visibilityNote = document.getElementById("memory-visibility-note");
+
+    function escapeH(s) {
+      var d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function doSearch() {
+      var query = searchInput.value.trim();
+      var classification = classificationFilter.value || undefined;
+      var tag = tagFilter.value || undefined;
+
+      if (window.tidepoolWs) {
+        window.tidepoolWs.send({
+          topic: "memory",
+          action: "search",
+          payload: {
+            query: query,
+            classification: classification,
+            tags: tag ? [tag] : undefined,
+          },
+        });
+      }
+    }
+
+    searchBtn.addEventListener("click", doSearch);
+    searchInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") doSearch();
+    });
+
+    detailClose.addEventListener("click", function () {
+      detailPanel.style.display = "none";
+      results.style.display = "";
+    });
+
+    function renderResults(entries, hasRestricted) {
+      results.innerHTML = "";
+      if (hasRestricted) {
+        visibilityNote.style.display = "";
+      }
+      if (!entries || entries.length === 0) {
+        results.innerHTML =
+          '<div class="screen-placeholder"><div>No results found</div></div>';
+        return;
+      }
+      for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
+        var el = document.createElement("div");
+        el.className = "memory-result-card";
+        el.setAttribute("data-id", entry.id);
+        var tags = (entry.tags || []).map(function (t) {
+          return '<span class="memory-tag">' + escapeH(t) + "</span>";
+        }).join("");
+        el.innerHTML = '<div class="memory-result-header">' +
+          '<span class="taint-badge ' +
+          (entry.classification || "public").toLowerCase() + '">' +
+          escapeH(entry.classification || "PUBLIC") +
+          "</span>" +
+          '<span class="memory-result-date">' +
+          escapeH((entry.updatedAt || "").split("T")[0]) + "</span>" +
+          "</div>" +
+          '<div class="memory-result-content">' +
+          escapeH((entry.content || "").slice(0, 200)) + "</div>" +
+          '<div class="memory-result-tags">' + tags + "</div>";
+        el.addEventListener(
+          "click",
+          (function (e) {
+            return function () {
+              showDetail(e);
+            };
+          })(entry),
+        );
+        results.appendChild(el);
+      }
+    }
+
+    function showDetail(entry) {
+      results.style.display = "none";
+      detailPanel.style.display = "";
+      detailClassification.className = "taint-badge " +
+        (entry.classification || "public").toLowerCase();
+      detailClassification.textContent = entry.classification || "PUBLIC";
+      detailContent.textContent = entry.content || "";
+      detailMeta.innerHTML = "<div>ID: " + escapeH(entry.id) + "</div>" +
+        "<div>Created: " + escapeH(entry.createdAt || "") + "</div>" +
+        "<div>Updated: " + escapeH(entry.updatedAt || "") + "</div>" +
+        "<div>Tags: " + escapeH((entry.tags || []).join(", ")) + "</div>" +
+        (entry.sessionId
+          ? "<div>Session: " + escapeH(entry.sessionId) + "</div>"
+          : "");
+    }
+
+    // Listen for memory topic messages
+    if (window.tidepoolMux) {
+      window.tidepoolMux.on("memory", function (msg) {
+        if (msg.type === "search_results") {
+          renderResults(msg.entries, msg.hasRestricted);
+        } else if (msg.type === "tags") {
+          tagFilter.innerHTML = '<option value="">All tags</option>';
+          var tags = msg.tags || [];
+          for (var i = 0; i < tags.length; i++) {
+            var opt = document.createElement("option");
+            opt.value = tags[i];
+            opt.textContent = tags[i];
+            tagFilter.appendChild(opt);
+          }
+        }
+      });
+    }
+
+    // Register screen lifecycle
+    if (window.tidepoolScreens) {
+      window.tidepoolScreens.memory = {
+        onMount: function () {
+          // Load tags on first mount
+          if (window.tidepoolWs) {
+            window.tidepoolWs.send({ topic: "memory", action: "tags" });
+          }
+        },
+        onUnmount: function () {},
+      };
+    }
+  })();
+</script>

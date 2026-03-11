@@ -88,5 +88,5 @@ export async function initializeMemorySystem(
     sourceSessionId: opts.session.id,
     lineageStore: opts.lineageStore,
   });
-  return { memoryDb, memoryStore, memoryExecutor };
+  return { memoryDb, memoryStore, memorySearchProvider, memoryExecutor };
 }

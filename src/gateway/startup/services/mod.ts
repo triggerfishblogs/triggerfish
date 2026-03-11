@@ -37,3 +37,8 @@ export type {
   ConfigWatcherOptions,
 } from "./config_watcher.ts";
 export { createConfigWatcher } from "./config_watcher.ts";
+export {
+  buildAgentSessionListAsync,
+  registerTidepoolTopicHandlers,
+} from "./tidepool_topics.ts";
+export { createHealthSnapshotProvider } from "./tidepool_health.ts";

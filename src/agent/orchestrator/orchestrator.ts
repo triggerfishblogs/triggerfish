@@ -79,7 +79,9 @@ export interface OrchestratorState {
   readonly config: OrchestratorConfig;
   readonly baseTools: readonly ToolDefinition[];
   readonly getExtraTools: (() => readonly ToolDefinition[]) | undefined;
-  readonly getExtraSystemPromptSections: (() => readonly string[] | Promise<readonly string[]>) | undefined;
+  readonly getExtraSystemPromptSections:
+    | (() => readonly string[] | Promise<readonly string[]>)
+    | undefined;
   readonly baseSystemPromptSections: readonly string[];
   readonly planManager: PlanManager | undefined;
   readonly visionProvider: LlmProvider | undefined;

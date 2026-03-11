@@ -1,0 +1,84 @@
+name: Translate Blog Posts
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "docs/blog/*.md"
+      - "!docs/blog/index.md"
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Get changed blog posts
+        id: changed
+        run: |
+          files=$(git diff --name-only HEAD~1 HEAD -- 'docs/blog/*.md' | grep -v 'docs/blog/index.md' || true)
+          if [ -z "$files" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "files<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$files" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create translation issue
+        if: steps.changed.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
+        run: |
+          cat <<EOF > /tmp/issue-body.md
+          @claude Translate ONLY the following changed blog post(s) into all 15 non-English locales for the Triggerfish docs site.
+
+          **Changed files (translate ONLY these):**
+          \`\`\`
+          ${CHANGED_FILES}
+          \`\`\`
+
+          TARGET LOCALES: en-GB, es-419, es-ES, fr-FR, zh-CN, zh-TW, ko-KR, hi-IN, ar-SA, fil-PH, he-IL, fa-IR, pt-BR, de-DE, it-IT
+
+          For each changed file (e.g., docs/blog/my-post.md), create or update the translated copy at docs/{locale}/blog/my-post.md for every locale. Do NOT translate any files that are not listed above.
+
+          RULES:
+          - Read the English source file first
+          - Translate the frontmatter (title, description) and all prose content
+          - Keep the frontmatter fields (date, author name, tags, draft) unchanged
+          - Keep code blocks, CLI commands, URLs, and technical terms in English
+          - Keep the filename in English
+          - Image paths must stay exactly as-is (e.g., /blog/images/foo.jpg) — do NOT add locale prefixes to image paths
+          - Internal doc links should be prefixed with the locale (e.g., /fr-FR/guide/ not /guide/)
+          - en-GB: British spelling only, minimal changes
+          - es-419: Latin American Spanish (ustedes)
+          - es-ES: Castilian Spanish (vosotros)
+          - fr-FR: French (vous, ecriture epicene)
+          - zh-CN: Simplified Chinese
+          - zh-TW: Traditional Chinese
+          - ko-KR: Korean (formal register)
+          - hi-IN: Hindi (Devanagari)
+          - ar-SA: Arabic (MSA)
+          - fil-PH: Filipino (Taglish)
+          - he-IL: Hebrew
+          - fa-IR: Farsi
+          - pt-BR: Brazilian Portuguese
+          - de-DE: German (formal Sie)
+          - it-IT: Italian (formal)
+
+          Create the blog directory under each locale if it doesn't exist (e.g., docs/fr-FR/blog/).
+
+          After creating all translations, commit them and push to master with the message:
+          "docs: translate blog post(s) into 15 locales"
+          EOF
+          gh issue create \
+            --title "Translate blog: ${CHANGED_FILES%%$'\n'*}" \
+            --body-file /tmp/issue-body.md

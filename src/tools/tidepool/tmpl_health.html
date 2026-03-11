@@ -1,0 +1,178 @@
+<div class="screen-health-container">
+  <div class="health-status-bar" id="health-status-bar">
+    <span class="health-overall-dot" id="health-overall-dot"></span>
+    <span class="health-overall-label" id="health-overall-label"
+    >Loading...</span>
+    <button class="health-refresh-btn" id="health-refresh-btn" title="Refresh">
+      &#x21BB;
+    </button>
+  </div>
+  <div class="health-cards" id="health-cards">
+    <div class="health-card" data-card="gateway">
+      <div class="health-card-header">
+        <span class="status-dot gray" id="health-dot-gateway"></span>
+        <span class="health-card-label">Gateway</span>
+      </div>
+      <div class="health-card-value" id="health-val-gateway">--</div>
+      <div class="health-card-detail" id="health-detail-gateway"></div>
+    </div>
+    <div class="health-card" data-card="channels">
+      <div class="health-card-header">
+        <span class="status-dot gray" id="health-dot-channels"></span>
+        <span class="health-card-label">Channels</span>
+      </div>
+      <div class="health-card-value" id="health-val-channels">--</div>
+      <div class="health-card-detail" id="health-detail-channels"></div>
+    </div>
+    <div class="health-card" data-card="sessions">
+      <div class="health-card-header">
+        <span class="status-dot gray" id="health-dot-sessions"></span>
+        <span class="health-card-label">Sessions</span>
+      </div>
+      <div class="health-card-value" id="health-val-sessions">--</div>
+      <div class="health-card-detail" id="health-detail-sessions"></div>
+    </div>
+    <div class="health-card" data-card="llm">
+      <div class="health-card-header">
+        <span class="status-dot gray" id="health-dot-llm"></span>
+        <span class="health-card-label">LLM Provider</span>
+      </div>
+      <div class="health-card-value" id="health-val-llm">--</div>
+      <div class="health-card-detail" id="health-detail-llm"></div>
+    </div>
+    <div class="health-card" data-card="policy">
+      <div class="health-card-header">
+        <span class="status-dot gray" id="health-dot-policy"></span>
+        <span class="health-card-label">Policy</span>
+      </div>
+      <div class="health-card-value" id="health-val-policy">--</div>
+      <div class="health-card-detail" id="health-detail-policy"></div>
+    </div>
+    <div class="health-card" data-card="skills">
+      <div class="health-card-header">
+        <span class="status-dot gray" id="health-dot-skills"></span>
+        <span class="health-card-label">Skills</span>
+      </div>
+      <div class="health-card-value" id="health-val-skills">--</div>
+      <div class="health-card-detail" id="health-detail-skills"></div>
+    </div>
+    <div class="health-card" data-card="secrets">
+      <div class="health-card-header">
+        <span class="status-dot gray" id="health-dot-secrets"></span>
+        <span class="health-card-label">Secrets</span>
+      </div>
+      <div class="health-card-value" id="health-val-secrets">--</div>
+      <div class="health-card-detail" id="health-detail-secrets"></div>
+    </div>
+    <div class="health-card" data-card="security">
+      <div class="health-card-header">
+        <span class="status-dot gray" id="health-dot-security"></span>
+        <span class="health-card-label">Security</span>
+      </div>
+      <div class="health-card-value" id="health-val-security">--</div>
+      <div class="health-card-detail" id="health-detail-security"></div>
+    </div>
+    <div class="health-card" data-card="cron">
+      <div class="health-card-header">
+        <span class="status-dot gray" id="health-dot-cron"></span>
+        <span class="health-card-label">Cron</span>
+      </div>
+      <div class="health-card-value" id="health-val-cron">--</div>
+      <div class="health-card-detail" id="health-detail-cron"></div>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var refreshBtn = document.getElementById("health-refresh-btn");
+    var overallDot = document.getElementById("health-overall-dot");
+    var overallLabel = document.getElementById("health-overall-label");
+
+    var STATUS_COLORS = {
+      green: "var(--green)",
+      yellow: "var(--yellow)",
+      red: "var(--red)",
+      gray: "var(--fg3)",
+    };
+    var HEALTH_MAP = {
+      HEALTHY: "green",
+      WARNING: "yellow",
+      CRITICAL: "red",
+    };
+
+    function updateCard(cardId, status, value, detail) {
+      var dotEl = document.getElementById("health-dot-" + cardId);
+      var valEl = document.getElementById("health-val-" + cardId);
+      var detailEl = document.getElementById("health-detail-" + cardId);
+      if (dotEl) {
+        dotEl.className = "status-dot " + (status || "gray");
+      }
+      if (valEl) valEl.textContent = value || "--";
+      if (detailEl) detailEl.textContent = detail || "";
+    }
+
+    function updateOverall(status) {
+      var level = HEALTH_MAP[status] || "gray";
+      overallDot.className = "health-overall-dot " + level;
+      overallLabel.textContent = status || "UNKNOWN";
+      // Update nav badge
+      if (window.tidepoolBadge) {
+        window.tidepoolBadge.setStatus(
+          "health",
+          level === "green" ? "" : level,
+        );
+      }
+    }
+
+    function requestSnapshot() {
+      if (window.tidepoolWs) {
+        window.tidepoolWs.send({ topic: "health", action: "snapshot" });
+      }
+    }
+
+    refreshBtn.addEventListener("click", requestSnapshot);
+
+    // Handle health topic messages
+    if (window.tidepoolMux) {
+      window.tidepoolMux.on("health", function (msg) {
+        if (msg.type === "snapshot") {
+          updateOverall(msg.overall);
+          var cards = msg.cards || [];
+          for (var i = 0; i < cards.length; i++) {
+            updateCard(
+              cards[i].id,
+              cards[i].status,
+              cards[i].value,
+              cards[i].detail,
+            );
+          }
+        } else if (msg.type === "metric_update") {
+          updateCard(msg.cardId, msg.status, msg.value, msg.detail);
+        }
+      });
+    }
+
+    // Register screen lifecycle
+    if (window.tidepoolScreens) {
+      window.tidepoolScreens.health = {
+        onMount: function () {
+          requestSnapshot();
+          if (window.tidepoolWs) {
+            window.tidepoolWs.send({
+              topic: "health",
+              action: "subscribe_live",
+            });
+          }
+        },
+        onUnmount: function () {
+          if (window.tidepoolWs) {
+            window.tidepoolWs.send({
+              topic: "health",
+              action: "unsubscribe_live",
+            });
+          }
+        },
+      };
+    }
+  })();
+</script>

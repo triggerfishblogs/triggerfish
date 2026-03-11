@@ -40,6 +40,34 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            CRITICAL PR REVIEW RULES — VIOLATIONS CAUSE PRODUCTION BUGS:
+
+            1. NEVER suggest changes to security enforcement logic. The classification system,
+               taint propagation, canFlowTo checks, policy hooks, sandbox boundaries, and
+               SSRF prevention are ALL intentionally designed. You do NOT understand the
+               security architecture well enough to suggest changes. Every time you have
+               suggested "this should block" or "this shouldn't block", you have been WRONG
+               and introduced a bug.
+
+            2. What you SHOULD review:
+               - Actual coding bugs (null refs, off-by-one, logic errors, race conditions)
+               - Type errors, missing awaits, incorrect function signatures
+               - Import violations (check .claude/rules/dependency-layers.md)
+               - Dead code, unused variables, missing error handling
+               - Style violations (check .claude/rules/code-style.md)
+               - Test coverage gaps
+
+            3. What you MUST NOT review or suggest changes to:
+               - Whether a tool call should be blocked or allowed
+               - Whether a classification level is correct
+               - Whether taint should escalate in a given scenario
+               - Whether a sandbox should permit or deny an operation
+               - Whether SSRF checks are too strict or too lenient
+               - Any "security improvement" suggestions whatsoever
+
+            4. If you see security code you don't understand, SKIP IT. Do not comment.
+               Do not suggest alternatives. The security architecture is correct.
           settings: |
             {
               "model": "claude-opus-4-6"

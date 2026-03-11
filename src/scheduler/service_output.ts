@@ -114,7 +114,10 @@ export async function deliverSchedulerOutput(
   // Strip <think>...</think> tags before checking for NO_ACTION — the LLM
   // may wrap reasoning around the token.
   const stripped = text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-  if (stripped === "NO_ACTION" || stripped.startsWith("NO_ACTION\n") || stripped.endsWith("NO_ACTION")) {
+  if (
+    stripped === "NO_ACTION" || stripped.startsWith("NO_ACTION\n") ||
+    stripped.endsWith("NO_ACTION")
+  ) {
     log.debug(`[${source}] LLM returned NO_ACTION — nothing to report`);
     await persistTriggerResult(outputOpts);
     return;

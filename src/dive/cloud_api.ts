@@ -290,4 +290,3 @@ export async function pollDeviceCodeLoop(
 
   return { ok: false, error: "Device code expired. Please try again." };
 }
-

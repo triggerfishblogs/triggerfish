@@ -94,7 +94,8 @@ async function verifyNotionToken(token: string): Promise<string | null> {
     const user = await resp.json();
     return (user as Record<string, string>).name ??
       (user as { bot?: { owner?: { user?: { name?: string } } } }).bot?.owner
-        ?.user?.name ?? "Notion Bot";
+        ?.user?.name ??
+      "Notion Bot";
   } catch (err: unknown) {
     log.error("Notion API response parse failed", {
       operation: "connectNotion",

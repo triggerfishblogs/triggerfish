@@ -25,8 +25,7 @@ export interface KubernetesAuthOptions {
 }
 
 /** Default path for the Kubernetes service account token. */
-const DEFAULT_JWT_PATH =
-  "/var/run/secrets/kubernetes.io/serviceaccount/token";
+const DEFAULT_JWT_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token";
 
 /**
  * Create a Kubernetes service account authenticator.
@@ -52,10 +51,16 @@ export function createKubernetesAuth(
       const jwt = await Deno.readTextFile(jwtPath);
       return { ok: true, value: jwt.trim() };
     } catch (err: unknown) {
-      log.warn("Kubernetes JWT read failed", { operation: "readJwt", jwtPath, err });
+      log.warn("Kubernetes JWT read failed", {
+        operation: "readJwt",
+        jwtPath,
+        err,
+      });
       return {
         ok: false,
-        error: `Kubernetes JWT read failed at ${jwtPath}: ${err instanceof Error ? err.message : String(err)}`,
+        error: `Kubernetes JWT read failed at ${jwtPath}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
       };
     }
   }
@@ -86,8 +91,14 @@ export function createKubernetesAuth(
     }, ssrfChecker);
 
     if (!fetchResult.ok) {
-      log.warn("Kubernetes auth login request failed", { operation: "authenticate", err: fetchResult.error });
-      return { ok: false, error: `Kubernetes auth login request failed: ${fetchResult.error}` };
+      log.warn("Kubernetes auth login request failed", {
+        operation: "authenticate",
+        err: fetchResult.error,
+      });
+      return {
+        ok: false,
+        error: `Kubernetes auth login request failed: ${fetchResult.error}`,
+      };
     }
 
     const response = fetchResult.value;

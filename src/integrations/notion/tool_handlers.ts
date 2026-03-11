@@ -7,7 +7,10 @@
  * @module
  */
 
-import { compareClassification, type ClassificationLevel } from "../../core/types/classification.ts";
+import {
+  type ClassificationLevel,
+  compareClassification,
+} from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 import { formatNotionError } from "./client.ts";
 import { markdownToNotionBlocks, notionBlocksToMarkdown } from "./richtext.ts";
@@ -24,7 +27,10 @@ export async function executeSearch(
   if (typeof query !== "string" || query.length === 0) {
     return "Error: notion.search requires a non-empty 'query' argument.";
   }
-  log.info("Notion search", { operation: "executeSearch", query: String(input.query).slice(0, 100) });
+  log.info("Notion search", {
+    operation: "executeSearch",
+    query: String(input.query).slice(0, 100),
+  });
   const type = typeof input.type === "string"
     ? input.type as "page" | "database"
     : undefined;
@@ -92,9 +98,10 @@ export async function executePagesCreate(
   const children = typeof input.content === "string"
     ? markdownToNotionBlocks(input.content)
     : undefined;
-  const properties = typeof input.properties === "object" && input.properties !== null
-    ? input.properties as Readonly<Record<string, unknown>>
-    : undefined;
+  const properties =
+    typeof input.properties === "object" && input.properties !== null
+      ? input.properties as Readonly<Record<string, unknown>>
+      : undefined;
   const classification = resolveNotionClassification(ctx);
   const result = await ctx.pages.create(
     { parentId, parentType, title, properties, children },
@@ -118,16 +125,23 @@ export async function executePagesUpdate(
   if (typeof pageId !== "string" || pageId.length === 0) {
     return "Error: notion.pages.update requires a 'page_id' argument.";
   }
-  const properties = typeof input.properties === "object" && input.properties !== null
-    ? input.properties as Readonly<Record<string, unknown>>
+  const properties =
+    typeof input.properties === "object" && input.properties !== null
+      ? input.properties as Readonly<Record<string, unknown>>
+      : undefined;
+  const archived = typeof input.archived === "boolean"
+    ? input.archived
     : undefined;
-  const archived = typeof input.archived === "boolean" ? input.archived : undefined;
   if (!properties && archived === undefined) {
     return "Error: notion.pages.update requires at least one of 'properties' or 'archived'.";
   }
   log.info("Notion pages.update", { operation: "executePagesUpdate", pageId });
   const classification = resolveNotionClassification(ctx);
-  const result = await ctx.pages.update(pageId, { properties, archived }, classification);
+  const result = await ctx.pages.update(
+    pageId,
+    { properties, archived },
+    classification,
+  );
   if (!result.ok) return formatNotionError(result.error);
   return JSON.stringify({
     id: result.value.id,
@@ -147,14 +161,19 @@ export async function executeDatabasesQuery(
   if (typeof databaseId !== "string" || databaseId.length === 0) {
     return "Error: notion.databases.query requires a 'database_id' argument.";
   }
-  log.info("Notion databases.query", { operation: "executeDatabasesQuery", databaseId });
+  log.info("Notion databases.query", {
+    operation: "executeDatabasesQuery",
+    databaseId,
+  });
   const filter = typeof input.filter === "object" && input.filter !== null
     ? input.filter as Readonly<Record<string, unknown>>
     : undefined;
   const sorts = Array.isArray(input.sorts)
     ? input.sorts as readonly Readonly<Record<string, unknown>>[]
     : undefined;
-  const pageSize = typeof input.page_size === "number" ? input.page_size : undefined;
+  const pageSize = typeof input.page_size === "number"
+    ? input.page_size
+    : undefined;
   const startCursor = typeof input.start_cursor === "string"
     ? input.start_cursor
     : undefined;
@@ -200,7 +219,9 @@ export async function executeDatabasesCreate(
     parentPageId,
     {
       title,
-      properties: properties as Readonly<Record<string, Readonly<Record<string, unknown>>>>,
+      properties: properties as Readonly<
+        Record<string, Readonly<Record<string, unknown>>>
+      >,
     },
     classification,
   );
@@ -223,11 +244,16 @@ export async function executeBlocksRead(
     return "Error: notion.blocks.read requires a 'block_id' argument.";
   }
   log.info("Notion blocks.read", { operation: "executeBlocksRead", blockId });
-  const pageSize = typeof input.page_size === "number" ? input.page_size : undefined;
+  const pageSize = typeof input.page_size === "number"
+    ? input.page_size
+    : undefined;
   const startCursor = typeof input.start_cursor === "string"
     ? input.start_cursor
     : undefined;
-  const result = await ctx.blocks.readChildren(blockId, { pageSize, startCursor });
+  const result = await ctx.blocks.readChildren(blockId, {
+    pageSize,
+    startCursor,
+  });
   if (!result.ok) return formatNotionError(result.error);
   const classification = resolveNotionClassification(ctx);
   const markdown = notionBlocksToMarkdown(result.value.results);
@@ -252,7 +278,10 @@ export async function executeBlocksAppend(
   if (typeof content !== "string" || content.length === 0) {
     return "Error: notion.blocks.append requires a non-empty 'content' argument.";
   }
-  log.info("Notion blocks.append", { operation: "executeBlocksAppend", blockId });
+  log.info("Notion blocks.append", {
+    operation: "executeBlocksAppend",
+    blockId,
+  });
   const notionBlocks = markdownToNotionBlocks(content);
   const result = await ctx.blocks.append(blockId, notionBlocks);
   if (!result.ok) return formatNotionError(result.error);
@@ -264,7 +293,9 @@ export async function executeBlocksAppend(
 }
 
 /** Resolve the effective classification from context, honouring floor. */
-export function resolveNotionClassification(ctx: NotionToolContext): ClassificationLevel {
+export function resolveNotionClassification(
+  ctx: NotionToolContext,
+): ClassificationLevel {
   const taint = ctx.sessionTaint();
   if (!ctx.classificationFloor) return taint;
   if (compareClassification(ctx.classificationFloor, taint) > 0) {
@@ -281,7 +312,9 @@ export function resolveNotionClassification(ctx: NotionToolContext): Classificat
 
 /** Format properties for JSON output (simplified for LLM readability). */
 export function formatProperties(
-  props: Readonly<Record<string, { readonly type: string; readonly value: unknown }>>,
+  props: Readonly<
+    Record<string, { readonly type: string; readonly value: unknown }>
+  >,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, prop] of Object.entries(props)) {

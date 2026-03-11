@@ -12,11 +12,17 @@ import type { LlmProvider } from "../../src/agent/llm.ts";
 // ─── isRetryableError ────────────────────────────────────────────────────────
 
 Deno.test("isRetryableError: detects 429 status", () => {
-  assertEquals(isRetryableError(new Error("Request failed (429): rate limited")), true);
+  assertEquals(
+    isRetryableError(new Error("Request failed (429): rate limited")),
+    true,
+  );
 });
 
 Deno.test("isRetryableError: detects 502 status", () => {
-  assertEquals(isRetryableError(new Error("Proxy error (502): bad gateway")), true);
+  assertEquals(
+    isRetryableError(new Error("Proxy error (502): bad gateway")),
+    true,
+  );
 });
 
 Deno.test("isRetryableError: detects 503 status", () => {
@@ -46,7 +52,12 @@ Deno.test("executeWithRetry: succeeds on first attempt", async () => {
       attempts++;
       return Promise.resolve("ok");
     },
-    { maxRetries: 2, baseDelayMs: 1, providerName: "test", operation: "complete" },
+    {
+      maxRetries: 2,
+      baseDelayMs: 1,
+      providerName: "test",
+      operation: "complete",
+    },
   );
   assertEquals(result, "ok");
   assertEquals(attempts, 1);
@@ -57,10 +68,17 @@ Deno.test("executeWithRetry: retries on 429 and succeeds", async () => {
   const result = await executeWithRetry(
     () => {
       attempts++;
-      if (attempts < 3) return Promise.reject(new Error("Overloaded (429): try later"));
+      if (attempts < 3) {
+        return Promise.reject(new Error("Overloaded (429): try later"));
+      }
       return Promise.resolve("recovered");
     },
-    { maxRetries: 2, baseDelayMs: 1, providerName: "test", operation: "complete" },
+    {
+      maxRetries: 2,
+      baseDelayMs: 1,
+      providerName: "test",
+      operation: "complete",
+    },
   );
   assertEquals(result, "recovered");
   assertEquals(attempts, 3);
@@ -75,7 +93,12 @@ Deno.test("executeWithRetry: throws after exhausting retries", async () => {
           attempts++;
           return Promise.reject(new Error("Service unavailable (503)"));
         },
-        { maxRetries: 2, baseDelayMs: 1, providerName: "test", operation: "complete" },
+        {
+          maxRetries: 2,
+          baseDelayMs: 1,
+          providerName: "test",
+          operation: "complete",
+        },
       ),
     Error,
     "(503)",
@@ -92,7 +115,12 @@ Deno.test("executeWithRetry: does not retry non-retryable errors", async () => {
           attempts++;
           return Promise.reject(new Error("Invalid API key (401)"));
         },
-        { maxRetries: 2, baseDelayMs: 1, providerName: "test", operation: "complete" },
+        {
+          maxRetries: 2,
+          baseDelayMs: 1,
+          providerName: "test",
+          operation: "complete",
+        },
       ),
     Error,
     "(401)",
@@ -151,7 +179,9 @@ Deno.test("withRetry: retries complete() on transient failure", async () => {
     supportsStreaming: false,
     complete: () => {
       attempts++;
-      if (attempts === 1) return Promise.reject(new Error("Overloaded (429): try again"));
+      if (attempts === 1) {
+        return Promise.reject(new Error("Overloaded (429): try again"));
+      }
       return Promise.resolve({
         content: "hello",
         toolCalls: [],
@@ -196,7 +226,11 @@ Deno.test("withRetry: stream retries initial connection on transient failure", a
       if (attempts === 1) throw new Error("Bad gateway (502)");
       return (async function* () {
         yield { text: "hello", done: false };
-        yield { text: "", done: true, usage: { inputTokens: 5, outputTokens: 3 } };
+        yield {
+          text: "",
+          done: true,
+          usage: { inputTokens: 5, outputTokens: 3 },
+        };
       })();
     },
   };

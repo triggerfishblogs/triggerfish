@@ -20,7 +20,12 @@ export interface NotionBlocksService {
   readonly readChildren: (
     blockId: string,
     opts?: { readonly startCursor?: string; readonly pageSize?: number },
-  ) => Promise<Result<{ results: readonly NotionBlock[]; nextCursor: string | null }, NotionError>>;
+  ) => Promise<
+    Result<
+      { results: readonly NotionBlock[]; nextCursor: string | null },
+      NotionError
+    >
+  >;
   readonly append: (
     blockId: string,
     children: readonly NotionBlock[],
@@ -47,7 +52,9 @@ interface RawAppendResponse {
 }
 
 /** Create a NotionBlocksService backed by a NotionClient. */
-export function createNotionBlocksService(client: NotionClient): NotionBlocksService {
+export function createNotionBlocksService(
+  client: NotionClient,
+): NotionBlocksService {
   return {
     readChildren: (blockId, opts) => readBlockChildren(client, blockId, opts),
     append: (blockId, children) => appendBlocks(client, blockId, children),
@@ -59,10 +66,17 @@ async function readBlockChildren(
   client: NotionClient,
   blockId: string,
   opts?: { readonly startCursor?: string; readonly pageSize?: number },
-): Promise<Result<{ results: readonly NotionBlock[]; nextCursor: string | null }, NotionError>> {
+): Promise<
+  Result<
+    { results: readonly NotionBlock[]; nextCursor: string | null },
+    NotionError
+  >
+> {
   const params: string[] = [];
   if (opts?.pageSize) params.push(`page_size=${opts.pageSize}`);
-  if (opts?.startCursor) params.push(`start_cursor=${encodeURIComponent(opts.startCursor)}`);
+  if (opts?.startCursor) {
+    params.push(`start_cursor=${encodeURIComponent(opts.startCursor)}`);
+  }
   const query = params.length > 0 ? `?${params.join("&")}` : "";
 
   const result = await client.request<RawBlocksResponse>(
@@ -116,4 +130,3 @@ async function appendBlocks(
     value: result.value.results.map((r) => transformRawBlock(r)),
   };
 }
-

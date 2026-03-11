@@ -32,13 +32,14 @@ export function mockUnprotect(base64: string): string {
  * and an in-memory map instead of a JSON file on disk.
  */
 export function createMockDpapiStore(): {
-  readonly store: import("../../src/core/secrets/backends/secret_store.ts").SecretStore;
+  readonly store:
+    import("../../src/core/secrets/backends/secret_store.ts").SecretStore;
   readonly entries: Map<string, string>;
 } {
   const entries = new Map<string, string>();
 
-  const store: import("../../src/core/secrets/backends/secret_store.ts").SecretStore =
-    {
+  const store:
+    import("../../src/core/secrets/backends/secret_store.ts").SecretStore = {
       getSecret(
         name: string,
       ): Promise<
@@ -51,7 +52,10 @@ export function createMockDpapiStore(): {
             error: `Secret '${name}' not found in DPAPI store`,
           });
         }
-        return Promise.resolve({ ok: true as const, value: mockUnprotect(entry) });
+        return Promise.resolve({
+          ok: true as const,
+          value: mockUnprotect(entry),
+        });
       },
 
       setSecret(
@@ -80,9 +84,15 @@ export function createMockDpapiStore(): {
       },
 
       listSecrets(): Promise<
-        import("../../src/core/types/classification.ts").Result<string[], string>
+        import("../../src/core/types/classification.ts").Result<
+          string[],
+          string
+        >
       > {
-        return Promise.resolve({ ok: true as const, value: [...entries.keys()] });
+        return Promise.resolve({
+          ok: true as const,
+          value: [...entries.keys()],
+        });
       },
     };
 

@@ -212,6 +212,17 @@ export function createOrchestratorFactory(
         channelId: channelId as ChannelId,
       });
 
+      // ── IMPORTANT: infra.keychain for all integration executors ─────────
+      // Integration executors (GitHub, Google, Notion, CalDAV, etc.) access
+      // secrets as infrastructure plumbing — the agent is calling a tool, not
+      // a secret.  Tool taint comes from the tool's prefix classification or
+      // resource classification, NOT from the secret the tool uses internally.
+      //
+      // NEVER create a gated/classified keychain here and pass it to
+      // integration builders.  Doing so fires the secret-classification gate
+      // during factory setup, escalating the session to INTERNAL before the
+      // agent even runs.  The gated keychain belongs ONLY on the orchestrator's
+      // secretStore (for agent-facing secret tools like secret_list).
       const githubExecutor = await buildSchedulerGitHubExecutor({
         keychain: infra.keychain,
         config,

@@ -175,7 +175,9 @@ async function handleSearch(
   const output = await proc.output();
   const stdout = new TextDecoder().decode(output.stdout).trim();
   if (stdout.length === 0) {
-    return isContentSearch ? "No matches found." : "No files found matching pattern.";
+    return isContentSearch
+      ? "No matches found."
+      : "No files found matching pattern.";
   }
   // Strip workspace prefix from all paths in grep/find output
   return stdout.split("\n").map((line) => toRelativePath(line)).join("\n");
@@ -213,7 +215,9 @@ async function handleEdit(
   }
   const updated = content.replace(oldText, newText);
   await Deno.writeTextFile(resolved.path, updated);
-  return `Edited ${toRelativePath(resolved.path)} (${updated.length} bytes written)`;
+  return `Edited ${
+    toRelativePath(resolved.path)
+  } (${updated.length} bytes written)`;
 }
 
 // ─── Dispatch ───────────────────────────────────────────────────────────────
@@ -284,11 +288,15 @@ workerScope.onmessage = async (event: MessageEvent) => {
   // Initialization message — sets workspace root (once only)
   if (data?.type === "init") {
     if (!workspaceRoot) {
-      if (typeof data.workspacePath !== "string" || data.workspacePath.length === 0) {
+      if (
+        typeof data.workspacePath !== "string" ||
+        data.workspacePath.length === 0
+      ) {
         workerScope.postMessage({
           id: "unknown",
           ok: false,
-          error: "Sandbox init failed: workspacePath must be a non-empty string",
+          error:
+            "Sandbox init failed: workspacePath must be a non-empty string",
         });
         return;
       }

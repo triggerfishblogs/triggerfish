@@ -194,7 +194,9 @@ async function collectTriggerfishKeyViaCheckout(): Promise<{
 
   try {
     const checkoutUrl =
-      `${siteUrl}/setup/checkout?flow_id=${flowId}&port=${server.port}&gateway=${encodeURIComponent(gatewayUrl)}`;
+      `${siteUrl}/setup/checkout?flow_id=${flowId}&port=${server.port}&gateway=${
+        encodeURIComponent(gatewayUrl)
+      }`;
 
     console.log("");
     console.log("  Opening the plan picker in your browser...");

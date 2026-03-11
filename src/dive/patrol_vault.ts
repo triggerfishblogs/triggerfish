@@ -11,8 +11,8 @@ import type { Result } from "../core/types/classification.ts";
 import type { VaultClient } from "../core/secrets/vault/mod.ts";
 import type { SecretCache } from "../core/secrets/cache/mod.ts";
 import {
-  generateVaultHealthReport,
   collectVaultPatrolChecks,
+  generateVaultHealthReport,
 } from "../core/secrets/vault/mod.ts";
 import type { PatrolCheckResult } from "../core/secrets/vault/mod.ts";
 

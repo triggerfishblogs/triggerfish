@@ -23,15 +23,9 @@ export type {
   TimeFilter,
 } from "./types.ts";
 
-export type {
-  RedditClient,
-  RedditClientConfig,
-} from "./client.ts";
+export type { RedditClient, RedditClientConfig } from "./client.ts";
 
-export {
-  createRedditClient,
-  redditContentClassification,
-} from "./client.ts";
+export { createRedditClient, redditContentClassification } from "./client.ts";
 
 export type { RateLimiter } from "./rate_limiter.ts";
 
@@ -44,8 +38,8 @@ export { resolveRedditToken } from "./api.ts";
 export type { RedditToolContext } from "./tools.ts";
 
 export {
+  buildRedditToolDefinitions,
   createRedditToolExecutor,
   formatRedditError,
-  buildRedditToolDefinitions,
   REDDIT_TOOLS_SYSTEM_PROMPT,
 } from "./tools.ts";

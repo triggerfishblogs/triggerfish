@@ -123,6 +123,7 @@ export function assembleOrchestratorConfig(
     filterTools: filterToolsForRole,
     messageStore: config.messageStore,
     lineageStore: config.lineageStore,
+    checkBumpersBlock: config.checkBumpersBlock,
   };
 }
 

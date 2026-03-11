@@ -134,7 +134,10 @@ export function serializeToolCallKey(
  */
 export function recordToolCallsAndDetectLoop(
   history: ToolCallHistory,
-  calls: readonly { readonly name: string; readonly args: Record<string, unknown> }[],
+  calls: readonly {
+    readonly name: string;
+    readonly args: Record<string, unknown>;
+  }[],
 ): boolean {
   let detected = false;
   for (const call of calls) {

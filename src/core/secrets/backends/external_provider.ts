@@ -8,7 +8,10 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../types/classification.ts";
 import type { SecretStore } from "./secret_store.ts";
 
 /** Metadata attached to a secret retrieved from an external provider. */

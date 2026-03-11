@@ -82,6 +82,7 @@ function buildExtendedSubsystems(
     opts.releaseNotesExecutor,
     opts.simulateExecutor,
     opts.teamExecutor,
+    opts.workflowExecutor,
     webExecutor,
   ];
 }

@@ -118,7 +118,14 @@ export async function buildExternalServiceExecutors(
     keychain,
     lineageStore,
   );
-  return { githubExecutor, caldavExecutor, notionExecutor, keychain, obsidianExecutor, ...mcp };
+  return {
+    githubExecutor,
+    caldavExecutor,
+    notionExecutor,
+    keychain,
+    obsidianExecutor,
+    ...mcp,
+  };
 }
 
 /** Build trigger executor with session taint escalation. */

@@ -5,7 +5,10 @@
  * and team listing through the TeamManager interface.
  */
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
-import type { ClassificationLevel, Result } from "../../../src/core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../../src/core/types/classification.ts";
 import type { SessionId } from "../../../src/core/types/session.ts";
 import type {
   SpawnedMember,
@@ -13,10 +16,7 @@ import type {
   TeamManagerDeps,
 } from "../../../src/agent/team/manager.ts";
 import { createTeamManager } from "../../../src/agent/team/manager.ts";
-import type {
-  TeamDefinition,
-  TeamId,
-} from "../../../src/agent/team/types.ts";
+import type { TeamDefinition, TeamId } from "../../../src/agent/team/types.ts";
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
 
@@ -24,14 +24,27 @@ import type {
 function createTestStorage(): import("../../../src/core/storage/provider.ts").StorageProvider {
   const store = new Map<string, string>();
   return {
-    set(key: string, value: string) { store.set(key, value); return Promise.resolve(); },
-    get(key: string) { return Promise.resolve(store.get(key) ?? null); },
-    delete(key: string) { store.delete(key); return Promise.resolve(); },
+    set(key: string, value: string) {
+      store.set(key, value);
+      return Promise.resolve();
+    },
+    get(key: string) {
+      return Promise.resolve(store.get(key) ?? null);
+    },
+    delete(key: string) {
+      store.delete(key);
+      return Promise.resolve();
+    },
     list(prefix?: string) {
       const keys = [...store.keys()];
-      return Promise.resolve(prefix ? keys.filter((k) => k.startsWith(prefix)) : keys);
+      return Promise.resolve(
+        prefix ? keys.filter((k) => k.startsWith(prefix)) : keys,
+      );
     },
-    close() { store.clear(); return Promise.resolve(); },
+    close() {
+      store.clear();
+      return Promise.resolve();
+    },
   };
 }
 
@@ -50,7 +63,9 @@ function createTestDeps(
 ): TeamManagerDeps {
   return {
     storage: createTestStorage(),
-    spawnMemberSession: (options: SpawnMemberOptions): Promise<SpawnedMember> => {
+    spawnMemberSession: (
+      options: SpawnMemberOptions,
+    ): Promise<SpawnedMember> => {
       sessionCounter++;
       const sessionId = `test-session-${sessionCounter}` as SessionId;
       sessionTaints.set(sessionId, "PUBLIC");
@@ -66,7 +81,9 @@ function createTestDeps(
     ): Promise<Result<{ readonly delivered: true }, string>> => {
       return Promise.resolve({ ok: true, value: { delivered: true } });
     },
-    getSessionTaint: (sessionId: SessionId): Promise<ClassificationLevel | null> => {
+    getSessionTaint: (
+      sessionId: SessionId,
+    ): Promise<ClassificationLevel | null> => {
       return Promise.resolve(sessionTaints.get(sessionId as string) ?? null);
     },
     terminateSession: (sessionId: SessionId): Promise<void> => {
@@ -294,7 +311,10 @@ Deno.test("fetchTeamStatus: returns current team state", async () => {
   const deps = createTestDeps();
   const manager = createTeamManager(deps);
 
-  const createResult = await manager.createTeam(createValidDefinition(), CALLER);
+  const createResult = await manager.createTeam(
+    createValidDefinition(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   const statusResult = await manager.fetchTeamStatus(createResult.value.id);
@@ -318,11 +338,15 @@ Deno.test("fetchTeamStatus: refreshes member taints", async () => {
   const deps = createTestDeps();
   const manager = createTeamManager(deps);
 
-  const createResult = await manager.createTeam(createValidDefinition(), CALLER);
+  const createResult = await manager.createTeam(
+    createValidDefinition(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   // Escalate taint for a member
-  const leadSession = createResult.value.members.find((m) => m.isLead)!.sessionId;
+  const leadSession =
+    createResult.value.members.find((m) => m.isLead)!.sessionId;
   sessionTaints.set(leadSession as string, "CONFIDENTIAL");
 
   const statusResult = await manager.fetchTeamStatus(createResult.value.id);
@@ -338,7 +362,10 @@ Deno.test("disbandTeam: creator can disband", async () => {
   const deps = createTestDeps();
   const manager = createTeamManager(deps);
 
-  const createResult = await manager.createTeam(createValidDefinition(), CALLER);
+  const createResult = await manager.createTeam(
+    createValidDefinition(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   const disbandResult = await manager.disbandTeam(
@@ -356,7 +383,10 @@ Deno.test("disbandTeam: terminates all member sessions", async () => {
   const deps = createTestDeps();
   const manager = createTeamManager(deps);
 
-  const createResult = await manager.createTeam(createValidDefinition(), CALLER);
+  const createResult = await manager.createTeam(
+    createValidDefinition(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   await manager.disbandTeam(createResult.value.id, CALLER);
@@ -371,7 +401,10 @@ Deno.test("disbandTeam: rejects unauthorized caller", async () => {
   const deps = createTestDeps();
   const manager = createTeamManager(deps);
 
-  const createResult = await manager.createTeam(createValidDefinition(), CALLER);
+  const createResult = await manager.createTeam(
+    createValidDefinition(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   const result = await manager.disbandTeam(
@@ -389,7 +422,10 @@ Deno.test("disbandTeam: rejects already disbanded team", async () => {
   const deps = createTestDeps();
   const manager = createTeamManager(deps);
 
-  const createResult = await manager.createTeam(createValidDefinition(), CALLER);
+  const createResult = await manager.createTeam(
+    createValidDefinition(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   await manager.disbandTeam(createResult.value.id, CALLER);
@@ -407,15 +443,23 @@ Deno.test("deliverTeamMessage: sends to specified role", async () => {
   const deps = createTestDeps({
     sendMessage: (_from, to, _content) => {
       sentTo = to;
-      return Promise.resolve({ ok: true as const, value: { delivered: true as const } });
+      return Promise.resolve({
+        ok: true as const,
+        value: { delivered: true as const },
+      });
     },
   });
   const manager = createTeamManager(deps);
 
-  const createResult = await manager.createTeam(createValidDefinition(), CALLER);
+  const createResult = await manager.createTeam(
+    createValidDefinition(),
+    CALLER,
+  );
   assert(createResult.ok);
 
-  const researcher = createResult.value.members.find((m) => m.role === "researcher")!;
+  const researcher = createResult.value.members.find((m) =>
+    m.role === "researcher"
+  )!;
 
   const result = await manager.deliverTeamMessage(
     createResult.value.id,
@@ -435,12 +479,18 @@ Deno.test("deliverTeamMessage: defaults to lead when no role specified", async (
   const deps = createTestDeps({
     sendMessage: (_from, to, _content) => {
       sentTo = to;
-      return Promise.resolve({ ok: true as const, value: { delivered: true as const } });
+      return Promise.resolve({
+        ok: true as const,
+        value: { delivered: true as const },
+      });
     },
   });
   const manager = createTeamManager(deps);
 
-  const createResult = await manager.createTeam(createValidDefinition(), CALLER);
+  const createResult = await manager.createTeam(
+    createValidDefinition(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   const lead = createResult.value.members.find((m) => m.isLead)!;
@@ -462,7 +512,10 @@ Deno.test("deliverTeamMessage: rejects unknown role", async () => {
   const deps = createTestDeps();
   const manager = createTeamManager(deps);
 
-  const createResult = await manager.createTeam(createValidDefinition(), CALLER);
+  const createResult = await manager.createTeam(
+    createValidDefinition(),
+    CALLER,
+  );
   assert(createResult.ok);
 
   const result = await manager.deliverTeamMessage(
@@ -489,7 +542,10 @@ Deno.test("listTeams: returns only teams created by caller", async () => {
 
   await manager.createTeam(createValidDefinition({ name: "Team A" }), CALLER);
   await manager.createTeam(createValidDefinition({ name: "Team B" }), CALLER);
-  await manager.createTeam(createValidDefinition({ name: "Team C" }), otherCaller);
+  await manager.createTeam(
+    createValidDefinition({ name: "Team C" }),
+    otherCaller,
+  );
 
   const callerTeams = await manager.listTeams(CALLER);
   assertEquals(callerTeams.length, 2);

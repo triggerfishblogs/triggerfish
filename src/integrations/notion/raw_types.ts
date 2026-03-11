@@ -10,7 +10,10 @@
 /** Raw rich text from the Notion API. */
 export interface RawRichText {
   readonly type?: string;
-  readonly text?: { readonly content?: string; readonly link?: { readonly url?: string } | null };
+  readonly text?: {
+    readonly content?: string;
+    readonly link?: { readonly url?: string } | null;
+  };
   readonly plain_text?: string;
   readonly annotations?: {
     readonly bold?: boolean;
@@ -30,12 +33,18 @@ export interface RawPropertyValue {
   readonly number?: number | null;
   readonly select?: { readonly name: string } | null;
   readonly multi_select?: readonly { readonly name: string }[];
-  readonly date?: { readonly start: string; readonly end?: string | null } | null;
+  readonly date?:
+    | { readonly start: string; readonly end?: string | null }
+    | null;
   readonly checkbox?: boolean;
   readonly url?: string | null;
   readonly email?: string | null;
   readonly phone_number?: string | null;
-  readonly formula?: { readonly type: string; readonly string?: string; readonly number?: number };
+  readonly formula?: {
+    readonly type: string;
+    readonly string?: string;
+    readonly number?: number;
+  };
   readonly relation?: readonly { readonly id: string }[];
   readonly status?: { readonly name: string } | null;
   readonly [key: string]: unknown;

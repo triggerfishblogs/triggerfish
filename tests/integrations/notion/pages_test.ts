@@ -12,7 +12,11 @@ import { createNotionPagesService } from "../../../src/integrations/notion/pages
 
 function createMockClient(responses: Record<string, unknown>): NotionClient {
   return {
-    request: <T>(_method: string, path: string, _body?: unknown): Promise<Result<T, NotionError>> => {
+    request: <T>(
+      _method: string,
+      path: string,
+      _body?: unknown,
+    ): Promise<Result<T, NotionError>> => {
       const key = Object.keys(responses).find((k) => path.includes(k));
       if (key) {
         return Promise.resolve({ ok: true, value: responses[key] as T });
@@ -57,7 +61,11 @@ Deno.test("search: returns search results", async () => {
 Deno.test("search: passes filter for type", async () => {
   let capturedBody: unknown = null;
   const client: NotionClient = {
-    request: <T>(_method: string, path: string, body?: unknown): Promise<Result<T, NotionError>> => {
+    request: <T>(
+      _method: string,
+      path: string,
+      body?: unknown,
+    ): Promise<Result<T, NotionError>> => {
       if (path.includes("/search")) {
         capturedBody = body;
         return Promise.resolve({
@@ -128,7 +136,10 @@ Deno.test("read: returns page with content", async () => {
   assertEquals(result.value.page.classification, "INTERNAL");
   assertEquals(result.value.content.length, 1);
   assertEquals(result.value.content[0].type, "paragraph");
-  assertEquals(result.value.content[0].content.richText?.[0].text, "Hello world");
+  assertEquals(
+    result.value.content[0].content.richText?.[0].text,
+    "Hello world",
+  );
 });
 
 Deno.test("create: sends parent and title", async () => {
@@ -175,7 +186,9 @@ Deno.test("update: sends properties", async () => {
   const service = createNotionPagesService(client);
   const result = await service.update(
     "p1",
-    { properties: { Name: { title: [{ text: { content: "Updated Page" } }] } } },
+    {
+      properties: { Name: { title: [{ text: { content: "Updated Page" } }] } },
+    },
     "CONFIDENTIAL",
   );
 

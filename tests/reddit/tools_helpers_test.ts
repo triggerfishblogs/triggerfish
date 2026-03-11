@@ -23,14 +23,15 @@ type ClientOverrides = Partial<
 >;
 
 /** Create a mock RedditToolContext with optional client method overrides. */
-export function createMockToolContext(overrides?: ClientOverrides): RedditToolContext {
-  const defaultMethod = () =>
-    Promise.resolve({ ok: true as const, value: [] });
+export function createMockToolContext(
+  overrides?: ClientOverrides,
+): RedditToolContext {
+  const defaultMethod = () => Promise.resolve({ ok: true as const, value: [] });
 
   const client: RedditClient = {
-    fetchSubredditInfo: overrides?.fetchSubredditInfo as
-      RedditClient["fetchSubredditInfo"] ??
-      defaultMethod as unknown as RedditClient["fetchSubredditInfo"],
+    fetchSubredditInfo:
+      overrides?.fetchSubredditInfo as RedditClient["fetchSubredditInfo"] ??
+        defaultMethod as unknown as RedditClient["fetchSubredditInfo"],
     fetchPosts: overrides?.fetchPosts as RedditClient["fetchPosts"] ??
       defaultMethod as unknown as RedditClient["fetchPosts"],
     fetchPost: overrides?.fetchPost as RedditClient["fetchPost"] ??

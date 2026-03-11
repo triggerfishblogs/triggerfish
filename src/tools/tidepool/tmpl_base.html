@@ -8,7 +8,175 @@
   </head>
   <body>
     <div id="app">
-      {{CHAT_HTML}} {{CANVAS_HTML}}
+      <!-- Nav bar -->
+      <nav id="nav-bar">
+        <div class="nav-brand">
+          <svg
+            viewBox="0 0 24 24"
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+            <path d="M2 17l10 5 10-5" />
+            <path d="M2 12l10 5 10-5" />
+          </svg>
+        </div>
+        <div class="nav-items">
+          <button class="nav-item active" data-screen="chat" title="Chat">
+            <svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor">
+              <path
+                d="M2 4a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H6l-4 4V4z"
+              />
+            </svg>
+            <span class="nav-label">Chat</span>
+            <span
+              class="nav-badge"
+              id="nav-badge-chat"
+              style="display: none"
+            ></span>
+            <span
+              class="nav-status-dot"
+              id="nav-status-chat"
+              style="display: none"
+            ></span>
+          </button>
+          <button class="nav-item" data-screen="agents" title="Active Agents">
+            <svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor">
+              <path d="M10 2a4 4 0 100 8 4 4 0 000-8zM2 18a8 8 0 0116 0H2z" />
+            </svg>
+            <span class="nav-label">Agents</span>
+            <span
+              class="nav-badge"
+              id="nav-badge-agents"
+              style="display: none"
+            ></span>
+            <span
+              class="nav-status-dot"
+              id="nav-status-agents"
+              style="display: none"
+            ></span>
+          </button>
+          <button class="nav-item" data-screen="workflows" title="Workflows">
+            <svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor">
+              <path
+                d="M3 3h4v4H3V3zm5 1h9v2H8V4zM3 9h4v4H3V9zm5 1h9v2H8v-2zM3 15h4v4H3v-4zm5 1h9v2H8v-2z"
+              />
+            </svg>
+            <span class="nav-label">Workflows</span>
+            <span
+              class="nav-badge"
+              id="nav-badge-workflows"
+              style="display: none"
+            ></span>
+            <span
+              class="nav-status-dot"
+              id="nav-status-workflows"
+              style="display: none"
+            ></span>
+          </button>
+          <button class="nav-item" data-screen="health" title="Health">
+            <svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor">
+              <path
+                d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"
+              />
+            </svg>
+            <span class="nav-label">Health</span>
+            <span
+              class="nav-badge"
+              id="nav-badge-health"
+              style="display: none"
+            ></span>
+            <span
+              class="nav-status-dot"
+              id="nav-status-health"
+              style="display: none"
+            ></span>
+          </button>
+          <button class="nav-item" data-screen="settings" title="Settings">
+            <svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor">
+              <path
+                d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+              />
+            </svg>
+            <span class="nav-label">Settings</span>
+            <span
+              class="nav-badge"
+              id="nav-badge-settings"
+              style="display: none"
+            ></span>
+            <span
+              class="nav-status-dot"
+              id="nav-status-settings"
+              style="display: none"
+            ></span>
+          </button>
+          <button class="nav-item" data-screen="logs" title="Logs">
+            <svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor">
+              <path d="M3 4h14v2H3V4zm0 5h14v2H3V9zm0 5h8v2H3v-2z" />
+            </svg>
+            <span class="nav-label">Logs</span>
+            <span
+              class="nav-badge"
+              id="nav-badge-logs"
+              style="display: none"
+            ></span>
+            <span
+              class="nav-status-dot"
+              id="nav-status-logs"
+              style="display: none"
+            ></span>
+          </button>
+          <button class="nav-item" data-screen="memory" title="Memory">
+            <svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor">
+              <path
+                d="M3 3a2 2 0 00-2 2v2a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2H3zm0 8a2 2 0 00-2 2v2a2 2 0 002 2h14a2 2 0 002-2v-2a2 2 0 00-2-2H3z"
+              />
+            </svg>
+            <span class="nav-label">Memory</span>
+            <span
+              class="nav-badge"
+              id="nav-badge-memory"
+              style="display: none"
+            ></span>
+            <span
+              class="nav-status-dot"
+              id="nav-status-memory"
+              style="display: none"
+            ></span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Shell + components scripts (must run before screen scripts that register on tidepoolMux) -->
+      {{SHELL_SCRIPT}} {{COMPONENTS_SCRIPT}}
+
+      <!-- Screen containers -->
+      <div id="screens">
+        <div id="screen-chat" class="screen" style="display: flex">
+          {{CHAT_HTML}} {{CANVAS_HTML}}
+        </div>
+        <div id="screen-agents" class="screen" style="display: none">
+          {{AGENTS_HTML}}
+        </div>
+        <div id="screen-workflows" class="screen" style="display: none">
+          {{WORKFLOWS_HTML}}
+        </div>
+        <div id="screen-health" class="screen" style="display: none">
+          {{HEALTH_HTML}}
+        </div>
+        <div id="screen-settings" class="screen" style="display: none">
+          {{SETTINGS_HTML}}
+        </div>
+        <div id="screen-logs" class="screen" style="display: none">
+          {{LOGS_HTML}}
+        </div>
+        <div id="screen-memory" class="screen" style="display: none">
+          {{MEMORY_HTML}}
+        </div>
+      </div>
     </div>
 
     {{CHAT_SCRIPT}} {{CANVAS_SCRIPT}}

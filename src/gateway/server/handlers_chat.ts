@@ -75,6 +75,10 @@ function handleChatSocketOpen(
   chatSockets.add(socket);
   sendConnectionInfo(socket, chat);
   sendMcpStatus(socket, chat);
+  sendSafeWebSocket(socket, {
+    type: "bumpers_status",
+    enabled: chat.bumpersEnabled,
+  });
 }
 
 /** Handle cancel, clear, and secret_prompt_response message types. */
@@ -126,6 +130,11 @@ function handleControlMessage(
       msg.accepted,
       createWebSocketSender(socket),
     );
+    return true;
+  }
+  if (msg.type === "bumpers") {
+    const enabled = chat.toggleBumpers();
+    sendSafeWebSocket(socket, { type: "bumpers_status", enabled });
     return true;
   }
   return false;

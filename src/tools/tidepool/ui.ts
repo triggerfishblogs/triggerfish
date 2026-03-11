@@ -1,45 +1,53 @@
 /**
  * Tidepool browser HTML compositor.
  *
- * Embeds the 6 template fragments at module load time so the HTML is
- * available in all execution contexts (deno run, compiled binary, tests).
- * The templates are resolved relative to this module via import.meta.url,
- * which Deno compile handles automatically when the files are in --include.
+ * Lazily reads the compiled Svelte output on first call to
+ * `buildTidepoolHtml()`. The file is resolved relative to this module
+ * via import.meta.url, which Deno compile handles automatically when
+ * the file is in --include.
  *
  * @module
  */
 
-/** Read a sibling template file using URL resolution. */
-function readTemplate(name: string): string {
-  return Deno.readTextFileSync(new URL(name, import.meta.url));
-}
+import { createLogger } from "../../core/logger/mod.ts";
 
-// Eagerly load all templates at module init
-const BASE = readTemplate("./tmpl_base.html");
-const STYLES = readTemplate("./tmpl_styles.html");
-const CHAT_HTML = readTemplate("./tmpl_chat.html");
-const CANVAS_HTML = readTemplate("./tmpl_canvas.html");
-const CHAT_SCRIPT = readTemplate("./tmpl_chat_script.html");
-const CANVAS_SCRIPT = readTemplate("./tmpl_canvas_script.html");
+const log = createLogger("tidepool-ui");
+
+/** Cached HTML string, loaded on first access. */
+let cachedHtml: string | null = null;
+
+/** Resolve the path to the compiled dist/index.html. */
+const DIST_URL = new URL("./dist/index.html", import.meta.url);
+
+/** Error page shown when the compiled UI bundle is missing. */
+const MISSING_UI_HTML = `<!DOCTYPE html>
+<html><head><title>Tidepool — Build Required</title></head>
+<body style="font-family:system-ui;padding:2rem">
+<h1>Tidepool UI not built</h1>
+<p>Run <code>cd tidepool-ui &amp;&amp; npm run build</code> to compile the UI.</p>
+</body></html>`;
 
 /**
- * Build the complete Tidepool HTML by compositing embedded template fragments.
+ * Build the complete Tidepool HTML.
  *
- * All templates are loaded once at module init — this function is a pure
- * string operation with no I/O.
+ * Lazily reads the pre-compiled Svelte output on first call. Returns
+ * a helpful error page if the compiled file does not exist.
  *
  * @returns The complete HTML string ready to serve
  */
 export function buildTidepoolHtml(): string {
-  return BASE
-    .replace("{{STYLES}}", STYLES)
-    .replace("{{CHAT_HTML}}", CHAT_HTML)
-    .replace("{{CANVAS_HTML}}", CANVAS_HTML)
-    .replace("{{CHAT_SCRIPT}}", CHAT_SCRIPT)
-    .replace("{{CANVAS_SCRIPT}}", CANVAS_SCRIPT);
-}
+  if (cachedHtml !== null) return cachedHtml;
 
-/**
- * @deprecated Use `buildTidepoolHtml()` instead. Retained for backward compatibility.
- */
-export const TIDEPOOL_HTML = "";
+  try {
+    cachedHtml = Deno.readTextFileSync(DIST_URL);
+  } catch (err: unknown) {
+    log.warn("Tidepool compiled UI not found, serving fallback page", {
+      operation: "buildTidepoolHtml",
+      path: DIST_URL.pathname,
+      err,
+    });
+    cachedHtml = MISSING_UI_HTML;
+  }
+
+  return cachedHtml;
+}

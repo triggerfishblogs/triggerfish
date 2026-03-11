@@ -91,7 +91,10 @@ async function executeView(ctx: TriggerManageContext): Promise<string> {
     ctx.agentId,
   );
   if (memoryInstructions) {
-    return JSON.stringify({ source: "memory", instructions: memoryInstructions });
+    return JSON.stringify({
+      source: "memory",
+      instructions: memoryInstructions,
+    });
   }
   const fileInstructions = await loadFileInstructions(ctx.triggerMdPath);
   if (fileInstructions) {
@@ -126,12 +129,12 @@ async function executeStatus(ctx: TriggerManageContext): Promise<string> {
       : "none",
     lastRun: lastResult
       ? {
-          firedAt: lastResult.firedAt,
-          classification: lastResult.classification,
-          messagePreview: lastResult.message.length > 200
-            ? lastResult.message.slice(0, 200) + "..."
-            : lastResult.message,
-        }
+        firedAt: lastResult.firedAt,
+        classification: lastResult.classification,
+        messagePreview: lastResult.message.length > 200
+          ? lastResult.message.slice(0, 200) + "..."
+          : lastResult.message,
+      }
       : null,
   });
 }

@@ -26,7 +26,10 @@ export function isTodoTool(name: string): boolean {
 }
 
 /** Check whether a tool call is plan exit (requires full display). */
-export function isPlanExitTool(name: string, args?: Record<string, unknown>): boolean {
+export function isPlanExitTool(
+  name: string,
+  args?: Record<string, unknown>,
+): boolean {
   return name === "plan_manage" && args?.action === "exit";
 }
 
@@ -239,7 +242,9 @@ function capDiffLines(
     `  ${color}${prefix} ${l}${RESET}`
   );
   const omitted = lines.length - HEAD - TAIL;
-  head.push(`  ${DIM}  ... ${omitted} more line${omitted !== 1 ? "s" : ""}${RESET}`);
+  head.push(
+    `  ${DIM}  ... ${omitted} more line${omitted !== 1 ? "s" : ""}${RESET}`,
+  );
   const tail = lines.slice(-TAIL).map((l) =>
     `  ${color}${prefix} ${l}${RESET}`
   );

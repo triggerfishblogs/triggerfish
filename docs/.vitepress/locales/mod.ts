@@ -1,0 +1,16 @@
+export { enUS } from "./en-US.ts";
+export { enGB } from "./en-GB.ts";
+export { es419 } from "./es-419.ts";
+export { esES } from "./es-ES.ts";
+export { frFR } from "./fr-FR.ts";
+export { zhCN } from "./zh-CN.ts";
+export { zhTW } from "./zh-TW.ts";
+export { koKR } from "./ko-KR.ts";
+export { hiIN } from "./hi-IN.ts";
+export { arSA } from "./ar-SA.ts";
+export { filPH } from "./fil-PH.ts";
+export { heIL } from "./he-IL.ts";
+export { faIR } from "./fa-IR.ts";
+export { ptBR } from "./pt-BR.ts";
+export { deDE } from "./de-DE.ts";
+export { itIT } from "./it-IT.ts";

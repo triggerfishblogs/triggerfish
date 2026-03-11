@@ -34,7 +34,10 @@ interface RedditApiError {
 
 /** Format a Reddit API error into a user-friendly string. */
 export function formatRedditError(error: RedditApiError): string {
-  if (error.status === 429 || (error.status === 403 && error.rateLimitRemaining === 0)) {
+  if (
+    error.status === 429 ||
+    (error.status === 403 && error.rateLimitRemaining === 0)
+  ) {
     const resetSec = error.rateLimitReset ?? 0;
     return `Reddit rate limit exceeded. Resets in ${resetSec} seconds.`;
   }

@@ -31,6 +31,7 @@ import { VERSION } from "../../../cli/version.ts";
 import type { createAutoLaunchBrowserExecutor } from "../../../tools/browser/mod.ts";
 import type { createTidepoolToolExecutor } from "../../../tools/tidepool/mod.ts";
 import { TIDEPOOL_SYSTEM_PROMPT } from "../../../tools/tidepool/mod.ts";
+import { BUMPERS_SYSTEM_PROMPT } from "../../../core/session/bumpers.ts";
 import type { createImageToolExecutor } from "../../../tools/image/mod.ts";
 import type { createExploreToolExecutor } from "../../../tools/explore/mod.ts";
 import type { createSessionToolExecutor } from "../../tools/session/session_tools.ts";
@@ -54,6 +55,11 @@ import { createToolExecutor, TOOL_GROUPS } from "../../tools/agent_tools.ts";
 import type { SubsystemExecutor } from "../../tools/executor/executor_types.ts";
 import type { buildTeamExecutor } from "../factory/team_executor.ts";
 import type { wireMcpServers } from "../infra/mcp.ts";
+import {
+  createWorkflowStore,
+  createWorkflowToolExecutor,
+  type WorkflowRunRegistry,
+} from "../../../workflow/mod.ts";
 import type { MemoryStore } from "../../../tools/memory/store.ts";
 import { loadPersonaContext } from "../../../tools/memory/mod.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
@@ -172,6 +178,7 @@ export function assembleMainToolExecutor(
     readonly skillContextTracker?: SkillContextTracker;
     readonly simulateExecutor?: SubsystemExecutor;
     readonly teamExecutor?: ReturnType<typeof buildTeamExecutor>;
+    readonly workflowRunRegistry?: WorkflowRunRegistry;
   },
 ) {
   const aux = buildAuxiliaryExecutors(
@@ -179,7 +186,22 @@ export function assembleMainToolExecutor(
     deps.storage,
     deps.skillLoader,
   );
-  return createToolExecutor({
+
+  // Workflow executor needs the composite tool executor for dispatching
+  // call tasks. Use late-binding via mutable ref to break the circular dependency.
+  const compositeRef: {
+    current?: (name: string, input: Record<string, unknown>) => Promise<string>;
+  } = {};
+  const workflowExecutor = deps.storage
+    ? createWorkflowToolExecutor({
+      store: createWorkflowStore(deps.storage),
+      toolExecutor: (name, input) => compositeRef.current!(name, input),
+      getSessionTaint: () => deps.state.session.taint,
+      registry: deps.workflowRunRegistry,
+    })
+    : undefined;
+
+  const toolExecutor = createToolExecutor({
     ...deps,
     googleExecutor: buildGoogleExecutor({
       getSessionTaint: () => deps.state.session.taint,
@@ -187,7 +209,10 @@ export function assembleMainToolExecutor(
     }),
     ...aux,
     providerRegistry: deps.registry,
+    workflowExecutor,
   });
+  compositeRef.current = toolExecutor;
+  return toolExecutor;
 }
 
 /** Build the dynamic extra tools getter for the chat session. */
@@ -222,6 +247,7 @@ export function buildExtraSystemPromptGetter(
   getSessionTaint: () => ClassificationLevel,
   workspacePaths: WorkspacePaths,
   personaOptions?: PersonaRecallOptions,
+  getBumpersEnabled?: () => boolean,
 ) {
   // Cache persona context with a short TTL to avoid querying the store
   // on every single LLM iteration within a rapid tool loop.
@@ -236,6 +262,7 @@ export function buildExtraSystemPromptGetter(
       if (mcpPrompt) sections.push(mcpPrompt);
     }
     if (isTidepoolCallRef.value) sections.push(TIDEPOOL_SYSTEM_PROMPT);
+    if (getBumpersEnabled?.()) sections.push(BUMPERS_SYSTEM_PROMPT);
     sections.push(buildWorkspacePrompt(getSessionTaint(), workspacePaths));
 
     if (personaOptions && personaOptions.isOwnerSession()) {

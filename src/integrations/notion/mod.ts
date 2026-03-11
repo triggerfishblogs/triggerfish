@@ -8,32 +8,36 @@
  * @module
  */
 
-export type { RawPropertySchema, RawPropertyValue, RawRichText } from "./raw_types.ts";
+export type {
+  RawPropertySchema,
+  RawPropertyValue,
+  RawRichText,
+} from "./raw_types.ts";
 
 export type {
-  NotionError,
-  NotionRichText,
+  CreateDatabaseOptions,
+  CreatePageOptions,
   NotionAnnotations,
   NotionBlock,
   NotionBlockContent,
-  NotionPage,
   NotionDatabase,
-  NotionSearchResult,
-  NotionPropertyValue,
+  NotionError,
+  NotionPage,
   NotionPropertySchema,
-  CreatePageOptions,
-  UpdatePageOptions,
+  NotionPropertyValue,
+  NotionRichText,
+  NotionSearchResult,
   QueryDatabaseOptions,
-  CreateDatabaseOptions,
+  UpdatePageOptions,
 } from "./types.ts";
 
-export type { NotionClientConfig, NotionClient } from "./client.ts";
+export type { NotionClient, NotionClientConfig } from "./client.ts";
 
 export { createNotionClient, formatNotionError } from "./client.ts";
 
 export type { ResolveNotionTokenOptions } from "./auth.ts";
 
-export { resolveNotionToken, isValidNotionTokenFormat } from "./auth.ts";
+export { isValidNotionTokenFormat, resolveNotionToken } from "./auth.ts";
 
 export type { NotionPagesService } from "./pages.ts";
 
@@ -55,6 +59,9 @@ export {
 
 export type { NotionToolContext } from "./tool_context.ts";
 
-export { getNotionToolDefinitions, NOTION_TOOLS_SYSTEM_PROMPT } from "./tool_defs.ts";
+export {
+  getNotionToolDefinitions,
+  NOTION_TOOLS_SYSTEM_PROMPT,
+} from "./tool_defs.ts";
 
 export { createNotionToolExecutor } from "./tools.ts";

@@ -10,42 +10,41 @@
 import type { Result } from "../../core/types/classification.ts";
 import type { SessionId } from "../../core/types/session.ts";
 import { createLogger } from "../../core/logger/logger.ts";
-import type {
-  TeamDefinition,
-  TeamId,
-  TeamInstance,
-} from "./types.ts";
+import type { TeamDefinition, TeamId, TeamInstance } from "./types.ts";
 import {
   DEFAULT_IDLE_TIMEOUT_SECONDS,
   DEFAULT_MAX_LIFETIME_SECONDS,
   TEAM_STORAGE_PREFIX,
 } from "./types.ts";
 import { validateTeamDefinition } from "./validation.ts";
-import { serializeTeamInstance, deserializeTeamInstance } from "./serialization.ts";
 import {
-  spawnAllMembers,
+  deserializeTeamInstance,
+  serializeTeamInstance,
+} from "./serialization.ts";
+import {
   buildPlaceholderMembers,
   deliverInitialTasks,
+  spawnAllMembers,
 } from "./spawning.ts";
 import {
-  computeAggregateTaint,
   buildStorageKey,
-  refreshMemberTaints,
+  computeAggregateTaint,
+  executeDisbandTeam,
   findLeadMember,
   findMemberByRole,
-  executeDisbandTeam,
+  refreshMemberTaints,
 } from "./helpers.ts";
 import { createLifecycleMonitor } from "./lifecycle.ts";
 
 // Re-export types so existing importers of manager.ts still work.
 export type {
-  TeamManagerDeps,
-  SpawnMemberOptions,
   SpawnedMember,
+  SpawnMemberOptions,
   TeamManager,
+  TeamManagerDeps,
 } from "./manager_types.ts";
 
-import type { TeamManagerDeps, TeamManager } from "./manager_types.ts";
+import type { TeamManager, TeamManagerDeps } from "./manager_types.ts";
 
 const log = createLogger("team-manager");
 
@@ -86,12 +85,17 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
           aggregateTaint: computeAggregateTaint(members),
           createdAt: new Date(),
           createdBy,
-          idleTimeoutSeconds: definition.idleTimeoutSeconds ?? DEFAULT_IDLE_TIMEOUT_SECONDS,
-          maxLifetimeSeconds: definition.maxLifetimeSeconds ?? DEFAULT_MAX_LIFETIME_SECONDS,
+          idleTimeoutSeconds: definition.idleTimeoutSeconds ??
+            DEFAULT_IDLE_TIMEOUT_SECONDS,
+          maxLifetimeSeconds: definition.maxLifetimeSeconds ??
+            DEFAULT_MAX_LIFETIME_SECONDS,
           classificationCeiling: definition.classificationCeiling,
         };
 
-        await deps.storage.set(buildStorageKey(teamId), serializeTeamInstance(team));
+        await deps.storage.set(
+          buildStorageKey(teamId),
+          serializeTeamInstance(team),
+        );
         deliverInitialTasks(definition, members, createdBy, deps);
 
         log.info("Team created", {
@@ -112,7 +116,9 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
         });
         return {
           ok: false,
-          error: `Team member spawning failed: ${err instanceof Error ? err.message : String(err)}`,
+          error: `Team member spawning failed: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
         };
       }
     },
@@ -133,8 +139,15 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
 
       const updatedMembers = await refreshMemberTaints(team.members, deps);
       const aggregateTaint = computeAggregateTaint(updatedMembers);
-      const updated: TeamInstance = { ...team, members: updatedMembers, aggregateTaint };
-      await deps.storage.set(buildStorageKey(teamId), serializeTeamInstance(updated));
+      const updated: TeamInstance = {
+        ...team,
+        members: updatedMembers,
+        aggregateTaint,
+      };
+      await deps.storage.set(
+        buildStorageKey(teamId),
+        serializeTeamInstance(updated),
+      );
 
       return { ok: true, value: updated };
     },
@@ -152,7 +165,10 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
       const team = deserializeTeamInstance(raw);
 
       if (team.status !== "running" && team.status !== "paused") {
-        return { ok: false, error: `Team cannot be disbanded in status: ${team.status}` };
+        return {
+          ok: false,
+          error: `Team cannot be disbanded in status: ${team.status}`,
+        };
       }
 
       const isCreator = callerSessionId === team.createdBy;
@@ -168,7 +184,8 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
         });
         return {
           ok: false,
-          error: "Team disband denied: only the lead or creating session can disband",
+          error:
+            "Team disband denied: only the lead or creating session can disband",
         };
       }
 
@@ -192,7 +209,10 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
       const team = deserializeTeamInstance(raw);
 
       if (team.status !== "running" && team.status !== "paused") {
-        return { ok: false, error: `Team cannot be disbanded in status: ${team.status}` };
+        return {
+          ok: false,
+          error: `Team cannot be disbanded in status: ${team.status}`,
+        };
       }
 
       const disbanded = await executeDisbandTeam(
@@ -217,7 +237,10 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
       const team = deserializeTeamInstance(raw);
 
       if (team.status !== "running") {
-        return { ok: false, error: `Team message delivery denied: team status is ${team.status}` };
+        return {
+          ok: false,
+          error: `Team message delivery denied: team status is ${team.status}`,
+        };
       }
 
       const target = role ? findMemberByRole(team, role) : findLeadMember(team);
@@ -226,13 +249,19 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
       }
 
       if (target.status !== "active" && target.status !== "idle") {
-        return { ok: false, error: `Team member "${target.role}" is not active (status: ${target.status})` };
+        return {
+          ok: false,
+          error:
+            `Team member "${target.role}" is not active (status: ${target.status})`,
+        };
       }
 
       return deps.sendMessage(callerSessionId, target.sessionId, message);
     },
 
-    async listTeams(callerSessionId: SessionId): Promise<readonly TeamInstance[]> {
+    async listTeams(
+      callerSessionId: SessionId,
+    ): Promise<readonly TeamInstance[]> {
       const keys = await deps.storage.list(TEAM_STORAGE_PREFIX);
       const teams: TeamInstance[] = [];
 
@@ -246,7 +275,12 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
             teams.push(team);
           }
         } catch (err: unknown) {
-          log.warn("Team deserialization failed", { operation: "listTeams", callerSessionId, key, err });
+          log.warn("Team deserialization failed", {
+            operation: "listTeams",
+            callerSessionId,
+            key,
+            err,
+          });
         }
       }
 
@@ -266,7 +300,10 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
     },
   };
 
-  const monitor = createLifecycleMonitor(deps, manager.forceDisbandTeam.bind(manager));
+  const monitor = createLifecycleMonitor(
+    deps,
+    manager.forceDisbandTeam.bind(manager),
+  );
 
   return manager;
 }

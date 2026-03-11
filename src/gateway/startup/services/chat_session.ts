@@ -11,6 +11,12 @@
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import { createSession, updateTaint } from "../../../core/types/session.ts";
 import type { ChannelId, UserId } from "../../../core/types/session.ts";
+import {
+  BUMPER_BLOCK_MESSAGE,
+  toggleBumpers,
+  wouldBumpersBlock,
+} from "../../../core/session/bumpers.ts";
+import type { StorageProvider } from "../../../core/storage/provider.ts";
 import type { TriggerFishConfig } from "../../../core/config.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
 import type { createProviderRegistry } from "../../../agent/llm.ts";
@@ -69,11 +75,12 @@ import type {
   WhatsAppChannelConfig,
 } from "../channels/channels.ts";
 
-/** Build session lifecycle callbacks (escalate, reset). */
+/** Build session lifecycle callbacks (escalate, reset, bumpers). */
 export function buildSessionLifecycleCallbacks(
   state: MainSessionState,
   browserHandle: ReturnType<typeof createAutoLaunchBrowserExecutor>,
   log: ReturnType<typeof createLogger>,
+  opts?: { readonly storage?: StorageProvider; readonly ownerId?: string },
 ) {
   return {
     getSessionTaint: () => state.session.taint,
@@ -91,6 +98,36 @@ export function buildSessionLifecycleCallbacks(
         });
       });
     },
+    checkBumpersBlock: (level: ClassificationLevel): string | null => {
+      if (wouldBumpersBlock(state.session, level)) {
+        log.warn("Bumpers blocked taint escalation", {
+          operation: "checkBumpersBlock",
+          currentTaint: state.session.taint,
+          requestedLevel: level,
+        });
+        return BUMPER_BLOCK_MESSAGE;
+      }
+      return null;
+    },
+    toggleSessionBumpers: (): boolean => {
+      state.session = toggleBumpers(state.session);
+      log.warn("Bumpers toggled", {
+        operation: "toggleSessionBumpers",
+        bumpersEnabled: state.session.bumpersEnabled,
+      });
+      if (opts?.storage && opts?.ownerId) {
+        const key = `prefs:${opts.ownerId}:bumpers_default`;
+        const value = JSON.stringify(state.session.bumpersEnabled);
+        opts.storage.set(key, value).catch((err: unknown) => {
+          log.error("Bumper preference persistence failed", {
+            operation: "toggleSessionBumpers",
+            err,
+          });
+        });
+      }
+      return state.session.bumpersEnabled;
+    },
+    getBumpersEnabled: () => state.session.bumpersEnabled,
   };
 }
 
@@ -146,6 +183,10 @@ export interface ChatSessionDeps {
   readonly messageStore?: import("../../../core/conversation/mod.ts").MessageStore;
   /** Lineage store for automatic data provenance tracking. */
   readonly lineageStore?: import("../../../core/session/lineage.ts").LineageStore;
+  /** Storage provider for bumper preference persistence. */
+  readonly storage?: StorageProvider;
+  /** Owner identifier for bumper preference storage key. */
+  readonly ownerId?: string;
 }
 
 /** Build the dynamic getter and prompt options for the chat session. */
@@ -169,6 +210,7 @@ export function buildChatSessionDynamicOptions(deps: ChatSessionDeps) {
       () => deps.state.session.taint,
       deps.workspacePaths,
       deps.personaOptions,
+      () => deps.state.session.bumpersEnabled,
     ),
     systemPromptSections: [
       TOOL_BEHAVIOR_PROMPT,
@@ -191,6 +233,7 @@ export function assembleChatSession(deps: ChatSessionDeps) {
     deps.state,
     deps.browserHandle,
     deps.log,
+    { storage: deps.storage, ownerId: deps.ownerId },
   );
   const filteredProfile = filterProfileByAvailability(
     TOOL_PROFILES.cli,
@@ -250,6 +293,9 @@ export function wrapChatSessionForTidepool(
     },
     get sessionTaint() {
       return chatSession.sessionTaint;
+    },
+    get bumpersEnabled() {
+      return chatSession.bumpersEnabled;
     },
     executeAgentTurn: (
       content: Parameters<typeof chatSession.executeAgentTurn>[0],
@@ -317,6 +363,9 @@ export function wrapChatSessionForGateway(
     },
     get sessionTaint() {
       return chatSession.sessionTaint;
+    },
+    get bumpersEnabled() {
+      return chatSession.bumpersEnabled;
     },
     executeAgentTurn: (
       content: Parameters<typeof chatSession.executeAgentTurn>[0],

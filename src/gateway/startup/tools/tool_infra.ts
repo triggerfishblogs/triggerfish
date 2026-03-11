@@ -66,8 +66,13 @@ import { createTriggerManageExecutor } from "../../tools/trigger/trigger_manage_
 import type { ServiceAvailability } from "../../tools/defs/tool_profiles.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 import { buildTeamExecutor } from "../factory/team_executor.ts";
+import {
+  createWorkflowRunRegistry,
+  type WorkflowRunRegistry,
+} from "../../../workflow/mod.ts";
 
 const availabilityLog = createLogger("service-availability");
+const log = createLogger("tool-infra");
 
 /**
  * Detect which external services have credentials/config available.
@@ -130,6 +135,9 @@ export interface ToolInfraResult {
   readonly memoryStore: Awaited<
     ReturnType<typeof initializeMemorySystem>
   >["memoryStore"];
+  readonly memorySearchProvider: Awaited<
+    ReturnType<typeof initializeMemorySystem>
+  >["memorySearchProvider"];
   readonly browserHandle: ReturnType<typeof initializeBrowserExecutor>;
   readonly channelAdapters: Map<string, RegisteredChannel>;
   readonly toolClassifications: Map<string, ClassificationLevel>;
@@ -154,10 +162,30 @@ export interface ToolInfraResult {
   readonly skillContextTracker?: SkillContextTracker;
   /** Which external services are configured and have credentials. */
   readonly serviceAvailability: ServiceAvailability;
+  /** Shared workflow run registry for tracking active executions. */
+  readonly workflowRunRegistry: WorkflowRunRegistry;
+}
+
+/** Load persisted bumper preference from storage. */
+async function loadBumpersPreference(
+  storage: ReturnType<typeof createSqliteStorage>,
+): Promise<boolean | undefined> {
+  try {
+    const raw = await storage.get("prefs:owner:bumpers_default");
+    if (raw !== null) return JSON.parse(raw) as boolean;
+  } catch (err: unknown) {
+    log.warn("Bumper preference load failed, using default", {
+      operation: "loadBumpersPreference",
+      err,
+    });
+  }
+  return undefined;
 }
 
 /** Create the main session state and core session-level executors. */
-export function initializeMainSessionState(): {
+export function initializeMainSessionState(opts?: {
+  readonly bumpersEnabled?: boolean;
+}): {
   state: MainSessionState;
   cliSecretPrompt: SecretPromptCallback;
   cliCredentialPrompt: CredentialPromptCallback;
@@ -166,6 +194,7 @@ export function initializeMainSessionState(): {
     session: createSession({
       userId: "owner" as UserId,
       channelId: "daemon" as ChannelId,
+      bumpersEnabled: opts?.bumpersEnabled,
     }),
     activeSecretPrompt: createCliSecretPrompt(),
     activeCredentialPrompt: createCliCredentialPrompt(),
@@ -237,12 +266,13 @@ export async function buildSessionScopedExecutors(
   },
 ) {
   const { state, mainWorkspace, registry } = toolInfra;
-  const { memoryDb, memoryStore, memoryExecutor } = await initializeMemorySystem({
-    dataDir: coreInfra.dataDir,
-    storage: coreInfra.storage,
-    session: state.session,
-    lineageStore: coreInfra.lineageStore,
-  });
+  const { memoryDb, memoryStore, memorySearchProvider, memoryExecutor } =
+    await initializeMemorySystem({
+      dataDir: coreInfra.dataDir,
+      storage: coreInfra.storage,
+      session: state.session,
+      lineageStore: coreInfra.lineageStore,
+    });
   const mainPlanExecutor = createPlanToolExecutor(
     createPlanManager({ plansDir: `${mainWorkspace.path}/plans` }),
     state.session.id,
@@ -255,7 +285,15 @@ export async function buildSessionScopedExecutors(
     registry,
   );
   const channels = buildSessionChannelExecutors(coreInfra, state);
-  return { memoryDb, memoryStore, memoryExecutor, mainPlanExecutor, ...media, ...channels };
+  return {
+    memoryDb,
+    memoryStore,
+    memorySearchProvider,
+    memoryExecutor,
+    mainPlanExecutor,
+    ...media,
+    ...channels,
+  };
 }
 
 /** Build LLM, workspace, and path classifier foundation. */
@@ -278,8 +316,9 @@ export async function initializeBaseToolDeps(
   coreInfra: CoreInfraResult,
 ) {
   const foundation = await buildLlmAndWorkspaceFoundation(bootstrap);
+  const bumpersDefault = await loadBumpersPreference(coreInfra.storage);
   const { state, cliSecretPrompt, cliCredentialPrompt } =
-    initializeMainSessionState();
+    initializeMainSessionState({ bumpersEnabled: bumpersDefault });
   const workspace = foundation.mainWorkspace;
   const workspacePaths: WorkspacePaths = {
     publicPath: workspace.publicPath,
@@ -334,6 +373,7 @@ export function buildCompositeToolExecutor(
   coreInfra: CoreInfraResult,
   sessionExecs: Awaited<ReturnType<typeof buildSessionScopedExecutors>>,
   integrations: Awaited<ReturnType<typeof buildIntegrationExecutors>>,
+  workflowRunRegistry: WorkflowRunRegistry,
 ) {
   const simulateExecutor = createSimulateToolExecutor({
     getSessionTaint: () => baseDeps.state.session.taint,
@@ -353,8 +393,8 @@ export function buildCompositeToolExecutor(
       enabled: (sched?.enabled ?? true) &&
         (sched?.interval_minutes ?? 30) !== 0,
       intervalMinutes: sched?.interval_minutes ?? 30,
-      classificationCeiling:
-        (sched?.classification_ceiling ?? "CONFIDENTIAL") as ClassificationLevel,
+      classificationCeiling: (sched?.classification_ceiling ??
+        "CONFIDENTIAL") as ClassificationLevel,
     },
     triggerStore: coreInfra.triggerStore,
     memoryStore: sessionExecs.memoryStore,
@@ -402,6 +442,7 @@ export function buildCompositeToolExecutor(
         getCallerTaint: () => baseDeps.state.session.taint,
       })
       : undefined,
+    workflowRunRegistry,
   });
 }
 
@@ -413,6 +454,7 @@ export function assembleToolInfraResult(
   integrations: Awaited<ReturnType<typeof buildIntegrationExecutors>>,
   toolExecutor: ReturnType<typeof createToolExecutor>,
   serviceAvailability: ServiceAvailability,
+  workflowRunRegistry: WorkflowRunRegistry,
 ): ToolInfraResult {
   return {
     registry: baseDeps.registry,
@@ -426,6 +468,7 @@ export function assembleToolInfraResult(
     cliCredentialPrompt: baseDeps.cliCredentialPrompt,
     memoryDb: sessionExecs.memoryDb,
     memoryStore: sessionExecs.memoryStore,
+    memorySearchProvider: sessionExecs.memorySearchProvider,
     browserHandle: sessionExecs.browserHandle,
     channelAdapters: sessionExecs.channelAdapters,
     toolClassifications: baseDeps.toolClassifications,
@@ -442,6 +485,7 @@ export function assembleToolInfraResult(
     tidepoolToolsRef: sessionExecs.tidepoolToolsRef,
     skillContextTracker: integrations.skillContextTracker,
     serviceAvailability,
+    workflowRunRegistry,
   };
 }
 
@@ -461,12 +505,14 @@ export async function initializeToolInfrastructure(
     coreInfra,
     { ...baseDeps, factory: coreInfra.factory },
   );
+  const workflowRunRegistry = createWorkflowRunRegistry();
   const toolExecutor = buildCompositeToolExecutor(
     bootstrap,
     baseDeps,
     coreInfra,
     sessionExecs,
     integrations,
+    workflowRunRegistry,
   );
   const serviceAvailability = await detectServiceAvailability(
     bootstrap.config,
@@ -479,5 +525,6 @@ export async function initializeToolInfrastructure(
     integrations,
     toolExecutor,
     serviceAvailability,
+    workflowRunRegistry,
   );
 }

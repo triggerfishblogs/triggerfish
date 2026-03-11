@@ -53,8 +53,7 @@ export interface SessionToolContext {
 function buildSessionsListDef(): ToolDefinition {
   return {
     name: "sessions_list",
-    description:
-      "List all active sessions visible to the current session. " +
+    description: "List all active sessions visible to the current session. " +
       "If session_id is provided, returns detailed status for that specific session.",
     parameters: {
       session_id: {
@@ -84,8 +83,7 @@ function buildSessionsHistoryDef(): ToolDefinition {
 function buildSessionsSendDef(): ToolDefinition {
   return {
     name: "sessions_send",
-    description:
-      "Send content to another session or a connected channel. " +
+    description: "Send content to another session or a connected channel. " +
       "Subject to write-down enforcement.\n" +
       "- To send to a session: provide session_id and content.\n" +
       "- To send to a channel: provide channel, recipient, and text. " +

@@ -9,7 +9,6 @@ import { isExternalProvider } from "../../../src/core/secrets/backends/external_
 import { createMemorySecretStore } from "../../../src/core/secrets/backends/memory_store.ts";
 import type { ExternalSecretProvider } from "../../../src/core/secrets/backends/external_provider.ts";
 
-
 function createMockExternalProvider(): ExternalSecretProvider {
   const store = createMemorySecretStore();
   return {

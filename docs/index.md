@@ -40,6 +40,8 @@ features:
     details: Apache 2.0 licensed. Security-critical components fully open for audit. Don't trust us — verify the code.
 ---
 
+<LatestRelease />
+
 ## Install in one command
 
 ::: code-group

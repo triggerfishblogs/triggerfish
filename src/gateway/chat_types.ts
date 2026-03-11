@@ -84,7 +84,9 @@ export interface ChatSessionConfig {
   /** Live getter for extra tools resolved at each LLM call (e.g. MCP servers). */
   readonly getExtraTools?: () => readonly ToolDefinition[];
   /** Live getter for extra system prompt sections resolved at each LLM call (e.g. MCP servers). */
-  readonly getExtraSystemPromptSections?: () => readonly string[] | Promise<readonly string[]>;
+  readonly getExtraSystemPromptSections?: () =>
+    | readonly string[]
+    | Promise<readonly string[]>;
   readonly toolExecutor?: ToolExecutor;
   readonly systemPromptSections?: readonly string[];
   readonly compactorConfig?: Partial<CompactorConfig>;
@@ -166,6 +168,15 @@ export interface ChatSessionConfig {
   readonly messageStore?: MessageStore;
   /** Lineage store for automatic data provenance tracking. */
   readonly lineageStore?: LineageStore;
+  /**
+   * Check if bumpers would block taint escalation to the given level.
+   * Returns the block message if blocked, null otherwise.
+   */
+  readonly checkBumpersBlock?: (level: ClassificationLevel) => string | null;
+  /** Toggle session bumpers on/off. Returns the new enabled state. */
+  readonly toggleSessionBumpers?: () => boolean;
+  /** Read whether bumpers are currently enabled. */
+  readonly getBumpersEnabled?: () => boolean;
 }
 
 /** Shared chat session that serializes access to the orchestrator. */
@@ -296,4 +307,8 @@ export interface ChatSession {
    * Called by the daemon when MCP connection state changes.
    */
   setMcpStatus?: (connected: number, configured: number) => void;
+  /** Toggle bumpers on/off and return the new enabled state. */
+  toggleBumpers(): boolean;
+  /** Read whether bumpers are currently enabled. */
+  readonly bumpersEnabled: boolean;
 }

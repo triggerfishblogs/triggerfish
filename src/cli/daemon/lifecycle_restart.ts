@@ -56,14 +56,18 @@ export async function restartDaemon(
 ): Promise<DaemonResult> {
   const stopResult = await deps.stopDaemon();
   if (!stopResult.ok) {
-    return { ok: false, message: `Restart failed (stop): ${stopResult.message}` };
+    return {
+      ok: false,
+      message: `Restart failed (stop): ${stopResult.message}`,
+    };
   }
 
   const stopped = await awaitDaemonStopped(deps);
   if (!stopped) {
     return {
       ok: false,
-      message: `Restart failed: daemon did not stop within ${deps.pollTimeoutMs}ms`,
+      message:
+        `Restart failed: daemon did not stop within ${deps.pollTimeoutMs}ms`,
     };
   }
 

@@ -276,11 +276,20 @@ Deno.test("GatewayServer: chat WebSocket rejects messages exceeding 256KB", asyn
 
     ws.send(JSON.stringify({ type: "message", content: "A".repeat(300_000) }));
 
-    const responseText = await new Promise<string>((resolve) =>
-      ws.addEventListener("message", (e) => resolve(e.data as string))
+    // Drain messages until we find the error response (server sends
+    // connected, mcp_status, and bumpers_status before our error).
+    const parsed = await new Promise<{ type: string; message?: string }>(
+      (resolve) => {
+        ws.addEventListener("message", function handler(e) {
+          const msg = JSON.parse(e.data as string);
+          if (msg.type === "error") {
+            ws.removeEventListener("message", handler);
+            resolve(msg);
+          }
+        });
+      },
     );
     ws.close();
-    const parsed = JSON.parse(responseText);
     assertEquals(parsed.type, "error");
     assert((parsed.message as string).includes("too large"));
   } finally {

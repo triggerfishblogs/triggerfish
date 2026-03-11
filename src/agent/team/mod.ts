@@ -48,22 +48,22 @@ export type { LifecycleMonitor } from "./lifecycle.ts";
 export { createLifecycleMonitor } from "./lifecycle.ts";
 
 export {
-  computeAggregateTaint,
   buildStorageKey,
+  computeAggregateTaint,
   findLeadMember,
   findMemberByRole,
   refreshMemberTaints,
 } from "./helpers.ts";
 
 export {
-  serializeTeamInstance,
   deserializeTeamInstance,
+  serializeTeamInstance,
 } from "./serialization.ts";
 
 export { validateTeamDefinition } from "./validation.ts";
 
 export {
-  spawnAllMembers,
   buildPlaceholderMembers,
   deliverInitialTasks,
+  spawnAllMembers,
 } from "./spawning.ts";

@@ -19,8 +19,8 @@ import type { OrchestratorFactory } from "../../../scheduler/service_types.ts";
 import type { EnhancedSessionManager } from "../../sessions.ts";
 import {
   createTeamManager,
-  type SpawnMemberOptions,
   type SpawnedMember,
+  type SpawnMemberOptions,
   type TeamManager,
 } from "../../../agent/team/manager.ts";
 import {
@@ -121,6 +121,14 @@ function buildSpawnMemberSession(
 /** Max length for lastOutput stored per member. */
 const MAX_LAST_OUTPUT_LENGTH = 500;
 
+/** Regex to strip `<think>...</think>` tags from LLM output. */
+const THINK_TAG_REGEX = /<think>[\s\S]*?<\/think>/g;
+
+/** Strip thinking tags and leading whitespace from LLM output. */
+function stripThinkingTags(output: string): string {
+  return output.replace(THINK_TAG_REGEX, "").trimStart();
+}
+
 /**
  * Update a member's lastOutput and lastActivityAt in persisted team state.
  *
@@ -143,9 +151,10 @@ async function persistMemberOutput(
     );
     if (idx === -1) continue;
 
-    const truncated = output.length > MAX_LAST_OUTPUT_LENGTH
-      ? output.slice(0, MAX_LAST_OUTPUT_LENGTH) + "..."
-      : output;
+    const cleaned = stripThinkingTags(output);
+    const truncated = cleaned.length > MAX_LAST_OUTPUT_LENGTH
+      ? cleaned.slice(0, MAX_LAST_OUTPUT_LENGTH) + "..."
+      : cleaned;
     const updated = {
       ...team,
       members: team.members.map((m, i) =>
@@ -218,7 +227,8 @@ function buildSendMessage(
         });
         return {
           ok: false,
-          error: `Write-down blocked: ${senderTaint} cannot flow to ${live.session.taint}`,
+          error:
+            `Write-down blocked: ${senderTaint} cannot flow to ${live.session.taint}`,
         };
       }
 
@@ -334,7 +344,11 @@ export function buildTeamManager(opts: {
   readonly callerSessionId: SessionId;
 }): TeamManager {
   const registry = createSessionRegistry();
-  const sendMessage = buildSendMessage(registry, opts.sessionManager, opts.storage);
+  const sendMessage = buildSendMessage(
+    registry,
+    opts.sessionManager,
+    opts.storage,
+  );
 
   return createTeamManager({
     storage: opts.storage,

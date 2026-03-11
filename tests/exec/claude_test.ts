@@ -472,7 +472,10 @@ Deno.test("createClaudeToolExecutor: claude_session send validates session_id", 
   });
   const executor = createClaudeToolExecutor(manager);
 
-  const result = await executor("claude_session", { action: "send", input: "test" });
+  const result = await executor("claude_session", {
+    action: "send",
+    input: "test",
+  });
   assertExists(result);
   assertStringIncludes(result!, "Error");
 });
@@ -520,7 +523,10 @@ Deno.test("createClaudeToolExecutor: claude_session start success returns JSON w
   const executor = createClaudeToolExecutor(manager);
 
   try {
-    const result = await executor("claude_session", { action: "start", prompt: "Hello!" });
+    const result = await executor("claude_session", {
+      action: "start",
+      prompt: "Hello!",
+    });
     assertExists(result);
     assert(!result!.startsWith("Error"));
     const parsed = JSON.parse(result!);
@@ -544,7 +550,10 @@ Deno.test("createClaudeToolExecutor: claude_session status returns JSON for vali
   const executor = createClaudeToolExecutor(manager);
 
   try {
-    const startResult = await executor("claude_session", { action: "start", prompt: "Hello" });
+    const startResult = await executor("claude_session", {
+      action: "start",
+      prompt: "Hello",
+    });
     assertExists(startResult);
     const started = JSON.parse(startResult!);
 

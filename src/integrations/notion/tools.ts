@@ -10,14 +10,14 @@
 
 import type { NotionToolContext } from "./tool_context.ts";
 import {
-  executeSearch,
-  executePagesRead,
-  executePagesCreate,
-  executePagesUpdate,
-  executeDatabasesQuery,
-  executeDatabasesCreate,
-  executeBlocksRead,
   executeBlocksAppend,
+  executeBlocksRead,
+  executeDatabasesCreate,
+  executeDatabasesQuery,
+  executePagesCreate,
+  executePagesRead,
+  executePagesUpdate,
+  executeSearch,
 } from "./tool_handlers.ts";
 
 /** Tool handler function type. */
@@ -53,7 +53,9 @@ export function createNotionToolExecutor(
     input: Record<string, unknown>,
   ): Promise<string | null> => {
     if (!name.startsWith("notion.")) return null;
-    if (!ctx) return "Notion is not configured. Run: triggerfish connect notion";
+    if (!ctx) {
+      return "Notion is not configured. Run: triggerfish connect notion";
+    }
     const handler = TOOL_HANDLERS[name];
     if (!handler) return null;
     return handler(ctx, input);

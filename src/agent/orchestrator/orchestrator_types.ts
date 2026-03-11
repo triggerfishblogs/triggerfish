@@ -96,7 +96,9 @@ export interface OrchestratorConfig {
    * Live getter for additional system prompt sections resolved at each LLM call.
    * Used for dynamically-connected sources such as MCP servers.
    */
-  readonly getExtraSystemPromptSections?: () => readonly string[] | Promise<readonly string[]>;
+  readonly getExtraSystemPromptSections?: () =>
+    | readonly string[]
+    | Promise<readonly string[]>;
   /** Callback to execute tool calls. */
   readonly toolExecutor?: ToolExecutor;
   /** Event callback for real-time progress reporting. */
@@ -190,6 +192,11 @@ export interface OrchestratorConfig {
    * When absent, lineage recording is disabled (backward compatible).
    */
   readonly lineageStore?: LineageStore;
+  /**
+   * Check if bumpers would block taint escalation to the given level.
+   * Returns the block message if blocked, null otherwise.
+   */
+  readonly checkBumpersBlock?: (level: ClassificationLevel) => string | null;
 }
 
 /** Config shape for building integration/plugin/channel classification map. */

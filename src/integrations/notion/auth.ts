@@ -32,8 +32,7 @@ export async function resolveNotionToken(
 
   return {
     ok: false,
-    error:
-      "Notion token not found in keychain. Run:\n" +
+    error: "Notion token not found in keychain. Run:\n" +
       "  triggerfish connect notion",
   };
 }

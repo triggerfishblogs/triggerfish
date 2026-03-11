@@ -19,7 +19,11 @@ import type {
   NotionRichText,
   NotionSearchResult,
 } from "./types.ts";
-import type { RawPropertySchema, RawPropertyValue, RawRichText } from "./raw_types.ts";
+import type {
+  RawPropertySchema,
+  RawPropertyValue,
+  RawRichText,
+} from "./raw_types.ts";
 
 // ─── Transformers ───────────────────────────────────────────────────────────
 
@@ -48,7 +52,12 @@ function transformAnnotations(
 
 /** Transform a raw block item from the API. */
 export function transformRawBlock(
-  raw: { readonly id: string; readonly type: string; readonly has_children: boolean; readonly [key: string]: unknown },
+  raw: {
+    readonly id: string;
+    readonly type: string;
+    readonly has_children: boolean;
+    readonly [key: string]: unknown;
+  },
   children?: readonly NotionBlock[],
 ): NotionBlock {
   const typeData = raw[raw.type] as Record<string, unknown> | undefined;
@@ -114,7 +123,11 @@ export function transformRawPage(
   raw: {
     readonly id: string;
     readonly url: string;
-    readonly parent: { readonly type: string; readonly database_id?: string; readonly page_id?: string };
+    readonly parent: {
+      readonly type: string;
+      readonly database_id?: string;
+      readonly page_id?: string;
+    };
     readonly archived: boolean;
     readonly properties: Readonly<Record<string, RawPropertyValue>>;
     readonly last_edited_time: string;
@@ -161,15 +174,24 @@ function transformProperties(
 function transformPropertyValue(raw: RawPropertyValue): NotionPropertyValue {
   switch (raw.type) {
     case "title":
-      return { type: "title", value: raw.title?.map((t) => t.plain_text).join("") ?? "" };
+      return {
+        type: "title",
+        value: raw.title?.map((t) => t.plain_text).join("") ?? "",
+      };
     case "rich_text":
-      return { type: "rich_text", value: raw.rich_text?.map((t) => t.plain_text).join("") ?? "" };
+      return {
+        type: "rich_text",
+        value: raw.rich_text?.map((t) => t.plain_text).join("") ?? "",
+      };
     case "number":
       return { type: "number", value: raw.number };
     case "select":
       return { type: "select", value: raw.select?.name ?? null };
     case "multi_select":
-      return { type: "multi_select", value: raw.multi_select?.map((s) => s.name) ?? [] };
+      return {
+        type: "multi_select",
+        value: raw.multi_select?.map((s) => s.name) ?? [],
+      };
     case "date":
       return { type: "date", value: raw.date };
     case "checkbox":

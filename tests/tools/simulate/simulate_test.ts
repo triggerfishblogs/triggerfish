@@ -10,8 +10,8 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { ClassificationLevel } from "../../../src/core/types/classification.ts";
 import type { PathClassifier } from "../../../src/core/security/path_classification.ts";
 import {
-  createSimulateToolExecutor,
   computeSimulatedTaint,
+  createSimulateToolExecutor,
   evaluateSimulatedBlocked,
 } from "../../../src/gateway/tools/simulate/mod.ts";
 import type { SimulateToolContext } from "../../../src/gateway/tools/simulate/mod.ts";
@@ -19,7 +19,9 @@ import type { SimulateToolContext } from "../../../src/gateway/tools/simulate/mo
 // ─── Test helpers ────────────────────────────────────────────────────────────
 
 /** Build a SimulateToolContext with sensible defaults. */
-function buildContext(overrides: Partial<SimulateToolContext> = {}): SimulateToolContext {
+function buildContext(
+  overrides: Partial<SimulateToolContext> = {},
+): SimulateToolContext {
   return {
     getSessionTaint: () => "PUBLIC" as ClassificationLevel,
     isOwner: () => true,
@@ -52,7 +54,9 @@ Deno.test("simulate_tool_call: rejects missing tool_name", async () => {
 
 Deno.test("simulate_tool_call: rejects missing tool_args", async () => {
   const executor = createSimulateToolExecutor(buildContext());
-  const result = await executor("simulate_tool_call", { tool_name: "read_file" });
+  const result = await executor("simulate_tool_call", {
+    tool_name: "read_file",
+  });
   assertStringIncludes(result!, "tool_args");
 });
 
@@ -259,7 +263,12 @@ Deno.test("computeSimulatedTaint: falls back to prefix when no resource classifi
 });
 
 Deno.test("computeSimulatedTaint: returns current taint when no classification found", () => {
-  const result = computeSimulatedTaint("INTERNAL", null, "unknown_tool", new Map());
+  const result = computeSimulatedTaint(
+    "INTERNAL",
+    null,
+    "unknown_tool",
+    new Map(),
+  );
   assertEquals(result, "INTERNAL");
 });
 

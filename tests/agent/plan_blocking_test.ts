@@ -148,7 +148,10 @@ Deno.test("Blocking: write_file is blocked in plan mode", async () => {
   // LLM response 1: enter plan mode, then try to write
   const responses = [
     // First call: LLM enters plan mode
-    toolResponse({ name: "plan_manage", args: { action: "enter", goal: "Build feature" } }),
+    toolResponse({
+      name: "plan_manage",
+      args: { action: "enter", goal: "Build feature" },
+    }),
     // Second call: LLM tries to write a file (should be blocked)
     toolResponse({
       name: "write_file",
@@ -189,7 +192,10 @@ Deno.test("Blocking: read_file is allowed in plan mode", async () => {
 
   const responses = [
     // Enter plan mode then read a file
-    toolResponse({ name: "plan_manage", args: { action: "enter", goal: "Explore codebase" } }),
+    toolResponse({
+      name: "plan_manage",
+      args: { action: "enter", goal: "Explore codebase" },
+    }),
     // Read a file (should be allowed)
     toolResponse({ name: "read_file", args: { path: "/tmp/test.txt" } }),
     // Final response
@@ -241,9 +247,15 @@ Deno.test("Blocking: tools unblocked after plan_exit", async () => {
 
   const responses = [
     // Enter plan mode
-    toolResponse({ name: "plan_manage", args: { action: "enter", goal: "Build" } }),
+    toolResponse({
+      name: "plan_manage",
+      args: { action: "enter", goal: "Build" },
+    }),
     // Exit plan mode with plan
-    toolResponse({ name: "plan_manage", args: { action: "exit", plan: JSON.parse(planJson) } }),
+    toolResponse({
+      name: "plan_manage",
+      args: { action: "exit", plan: JSON.parse(planJson) },
+    }),
     // Now in awaiting_approval — write should be allowed
     toolResponse({
       name: "write_file",
@@ -279,7 +291,10 @@ Deno.test("Blocking: plan_enter itself is never blocked", async () => {
   const pm = createPlanManager({ plansDir: `${tmpDir}/plans` });
 
   const responses = [
-    toolResponse({ name: "plan_manage", args: { action: "enter", goal: "Build" } }),
+    toolResponse({
+      name: "plan_manage",
+      args: { action: "enter", goal: "Build" },
+    }),
     textResponse("In plan mode now."),
   ];
 
@@ -378,7 +393,10 @@ Deno.test("Blocking: cron create action blocked in plan mode", async () => {
 
   const cronResult = toolResults.find((r) => r.name === "cron");
   assert(cronResult !== undefined);
-  assert(cronResult!.blocked, "cron create action should be blocked in plan mode");
+  assert(
+    cronResult!.blocked,
+    "cron create action should be blocked in plan mode",
+  );
 });
 
 // Helper to avoid unused variable lint

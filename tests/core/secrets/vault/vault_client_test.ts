@@ -60,7 +60,11 @@ Deno.test("VaultClient: kvRead returns secret data", () =>
       }),
     async () => {
       const client = createVaultClient(
-        { address: "http://127.0.0.1:8200", requestTimeoutMs: 5000, ssrfChecker: allowAllSsrf },
+        {
+          address: "http://127.0.0.1:8200",
+          requestTimeoutMs: 5000,
+          ssrfChecker: allowAllSsrf,
+        },
         () => "test-token",
       );
 
@@ -78,7 +82,11 @@ Deno.test("VaultClient: kvRead returns error for 404", () =>
     () => jsonResponse({ errors: ["no secret found"] }, 404),
     async () => {
       const client = createVaultClient(
-        { address: "http://127.0.0.1:8200", requestTimeoutMs: 5000, ssrfChecker: allowAllSsrf },
+        {
+          address: "http://127.0.0.1:8200",
+          requestTimeoutMs: 5000,
+          ssrfChecker: allowAllSsrf,
+        },
         () => "test-token",
       );
 
@@ -95,7 +103,11 @@ Deno.test("VaultClient: kvPut writes secret data", () =>
       }),
     async () => {
       const client = createVaultClient(
-        { address: "http://127.0.0.1:8200", requestTimeoutMs: 5000, ssrfChecker: allowAllSsrf },
+        {
+          address: "http://127.0.0.1:8200",
+          requestTimeoutMs: 5000,
+          ssrfChecker: allowAllSsrf,
+        },
         () => "test-token",
       );
 
@@ -112,7 +124,11 @@ Deno.test("VaultClient: kvDelete deletes a secret", () =>
     () => new Response(null, { status: 204 }),
     async () => {
       const client = createVaultClient(
-        { address: "http://127.0.0.1:8200", requestTimeoutMs: 5000, ssrfChecker: allowAllSsrf },
+        {
+          address: "http://127.0.0.1:8200",
+          requestTimeoutMs: 5000,
+          ssrfChecker: allowAllSsrf,
+        },
         () => "test-token",
       );
 
@@ -126,7 +142,11 @@ Deno.test("VaultClient: kvList returns secret keys", () =>
     () => jsonResponse({ data: { keys: ["secret-a", "secret-b"] } }),
     async () => {
       const client = createVaultClient(
-        { address: "http://127.0.0.1:8200", requestTimeoutMs: 5000, ssrfChecker: allowAllSsrf },
+        {
+          address: "http://127.0.0.1:8200",
+          requestTimeoutMs: 5000,
+          ssrfChecker: allowAllSsrf,
+        },
         () => "test-token",
       );
 
@@ -143,7 +163,11 @@ Deno.test("VaultClient: kvList returns empty array for 404", () =>
     () => jsonResponse({ errors: [] }, 404),
     async () => {
       const client = createVaultClient(
-        { address: "http://127.0.0.1:8200", requestTimeoutMs: 5000, ssrfChecker: allowAllSsrf },
+        {
+          address: "http://127.0.0.1:8200",
+          requestTimeoutMs: 5000,
+          ssrfChecker: allowAllSsrf,
+        },
         () => "test-token",
       );
 
@@ -165,7 +189,11 @@ Deno.test("VaultClient: healthCheck returns server status", () =>
       }),
     async () => {
       const client = createVaultClient(
-        { address: "http://127.0.0.1:8200", requestTimeoutMs: 5000, ssrfChecker: allowAllSsrf },
+        {
+          address: "http://127.0.0.1:8200",
+          requestTimeoutMs: 5000,
+          ssrfChecker: allowAllSsrf,
+        },
         () => "test-token",
       );
 
@@ -201,7 +229,11 @@ Deno.test("VaultClient: tokenLookupSelf returns token info", () =>
       }),
     async () => {
       const client = createVaultClient(
-        { address: "http://127.0.0.1:8200", requestTimeoutMs: 5000, ssrfChecker: allowAllSsrf },
+        {
+          address: "http://127.0.0.1:8200",
+          requestTimeoutMs: 5000,
+          ssrfChecker: allowAllSsrf,
+        },
         () => "test-token",
       );
 
@@ -219,7 +251,17 @@ Deno.test("VaultClient: sends namespace header when configured", () =>
     (_url, init) => {
       const headers = init?.headers as Record<string, string>;
       assertEquals(headers["X-Vault-Namespace"], "my-ns");
-      return jsonResponse({ data: { data: {}, metadata: { version: 1, created_time: "", deletion_time: "", destroyed: false } } });
+      return jsonResponse({
+        data: {
+          data: {},
+          metadata: {
+            version: 1,
+            created_time: "",
+            deletion_time: "",
+            destroyed: false,
+          },
+        },
+      });
     },
     async () => {
       const client = createVaultClient(
@@ -241,7 +283,11 @@ Deno.test("VaultClient: handles Vault error responses", () =>
     () => jsonResponse({ errors: ["permission denied"] }, 403),
     async () => {
       const client = createVaultClient(
-        { address: "http://127.0.0.1:8200", requestTimeoutMs: 5000, ssrfChecker: allowAllSsrf },
+        {
+          address: "http://127.0.0.1:8200",
+          requestTimeoutMs: 5000,
+          ssrfChecker: allowAllSsrf,
+        },
         () => "bad-token",
       );
 
@@ -257,7 +303,11 @@ Deno.test("VaultClient: handles Vault error responses", () =>
 
 Deno.test("VaultClient: SSRF blocks vaultFetch to private IP", async () => {
   const client = createVaultClient(
-    { address: "http://10.0.0.1:8200", requestTimeoutMs: 5000, ssrfChecker: blockAllSsrf },
+    {
+      address: "http://10.0.0.1:8200",
+      requestTimeoutMs: 5000,
+      ssrfChecker: blockAllSsrf,
+    },
     () => "test-token",
   );
 
@@ -270,7 +320,11 @@ Deno.test("VaultClient: SSRF blocks vaultFetch to private IP", async () => {
 
 Deno.test("VaultClient: SSRF blocks healthCheck to private IP", async () => {
   const client = createVaultClient(
-    { address: "http://192.168.1.1:8200", requestTimeoutMs: 5000, ssrfChecker: blockAllSsrf },
+    {
+      address: "http://192.168.1.1:8200",
+      requestTimeoutMs: 5000,
+      ssrfChecker: blockAllSsrf,
+    },
     () => "test-token",
   );
 
@@ -289,10 +343,25 @@ Deno.test("VaultClient: SSRF checker is invoked with correct hostname", async ()
   };
 
   await withMockFetch(
-    () => jsonResponse({ data: { data: {}, metadata: { version: 1, created_time: "", deletion_time: "", destroyed: false } } }),
+    () =>
+      jsonResponse({
+        data: {
+          data: {},
+          metadata: {
+            version: 1,
+            created_time: "",
+            deletion_time: "",
+            destroyed: false,
+          },
+        },
+      }),
     async () => {
       const client = createVaultClient(
-        { address: "http://vault.example.com:8200", requestTimeoutMs: 5000, ssrfChecker: trackingSsrf },
+        {
+          address: "http://vault.example.com:8200",
+          requestTimeoutMs: 5000,
+          ssrfChecker: trackingSsrf,
+        },
         () => "test-token",
       );
 

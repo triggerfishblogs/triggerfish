@@ -260,6 +260,12 @@ function extractAttachedRedirectTarget(token: string): string | null {
  * Resolves each path (expanding `~` and resolving relative paths against
  * `workspaceCwd`), classifies via the provided `PathClassifier`, and
  * returns the highest classification found.
+ *
+ * CRITICAL: Uses classifyRealPath(), NOT classify(). run_command operates
+ * on the real filesystem — "/" is the real root, not the sandbox workspace.
+ * Using classify() would remap "/" to workspacePaths.basePath → PUBLIC,
+ * bypassing taint escalation entirely. This bug has regressed multiple
+ * times. DO NOT change classifyRealPath back to classify.
  */
 export function classifyCommandPaths(opts: {
   readonly paths: readonly string[];
@@ -276,7 +282,8 @@ export function classifyCommandPaths(opts: {
       ? expanded
       : resolve(workspaceCwd, expanded);
     resolvedPaths.push(absolute);
-    const result = classifier.classify(absolute);
+    // CRITICAL: classifyRealPath — NOT classify(). See JSDoc above.
+    const result = classifier.classifyRealPath(absolute);
     highest = maxClassification(highest, result.classification);
   }
 

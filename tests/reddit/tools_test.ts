@@ -5,8 +5,8 @@
  */
 import { assertEquals } from "@std/assert";
 import {
-  createRedditToolExecutor,
   buildRedditToolDefinitions,
+  createRedditToolExecutor,
   REDDIT_TOOLS_SYSTEM_PROMPT,
 } from "../../src/integrations/reddit/tools.ts";
 import { createMockToolContext } from "./tools_helpers_test.ts";
