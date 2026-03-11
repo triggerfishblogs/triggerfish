@@ -5,6 +5,7 @@
  */
 
 export type {
+  ActiveSkillContext,
   ClassificationMapConfig,
   CompactResult,
   HistoryEntry,
@@ -15,6 +16,7 @@ export type {
   ParsedToolCall,
   ProcessMessageOptions,
   ProcessMessageResult,
+  ToolClassificationMaps,
   ToolDefinition,
   ToolExecutor,
 } from "./orchestrator_types.ts";
@@ -25,6 +27,7 @@ export {
   mapToolPrefixClassifications,
   MAX_TOOL_ITERATIONS,
   SOFT_LIMIT_ITERATIONS,
+  TRAILING_CONTINUATION_PATTERN,
 } from "./orchestrator_types.ts";
 
 export type { OrchestratorState, TokenAccumulator } from "./orchestrator.ts";

@@ -12,8 +12,9 @@ export { runAgentTurn } from "./agent_turn.ts";
 export {
   callLlmAndRecordUsage,
   consumeProviderStream,
-  dispatchIterationOutcome,
-} from "./loop_iteration.ts";
+} from "./llm_streaming.ts";
+
+export { dispatchIterationOutcome } from "./loop_iteration.ts";
 
 export type {
   AgentLoopContext,

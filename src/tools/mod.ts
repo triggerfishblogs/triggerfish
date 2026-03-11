@@ -64,3 +64,8 @@ export type {
   ReleaseNotesFetcher,
   ReleaseNoteSummary,
 } from "./release_notes.ts";
+
+export type {
+  CredentialPromptCallback,
+  SecretPromptCallback,
+} from "./secrets.ts";

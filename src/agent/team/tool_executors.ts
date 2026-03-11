@@ -1,5 +1,5 @@
 /**
- * Team tool executor — input parsing, execution, and dispatch.
+ * Team tool executor — execution and dispatch.
  *
  * Handles team_create, team_status, team_disband, and team_message
  * tool calls from the LLM. Returns null for unrecognized tool names
@@ -11,92 +11,19 @@
 import type { ClassificationLevel } from "../../core/types/classification.ts";
 import { parseClassification } from "../../core/types/classification.ts";
 import type { SessionId } from "../../core/types/session.ts";
-import type { TeamId, TeamInstance, TeamMemberDefinition } from "./types.ts";
+import type { TeamId, TeamInstance } from "./types.ts";
 import type { TeamToolContext } from "./tool_definitions.ts";
 import { TEAM_TOOL_NAMES } from "./tool_definitions.ts";
+import { clampTimeout, parseMembersInput } from "./tool_input_parsing.ts";
 import { createLogger } from "../../core/logger/logger.ts";
 
 const log = createLogger("team-tools");
-
-/** Min/max bounds for timeout values (seconds). */
-const MIN_TIMEOUT_SECONDS = 60;
-const MAX_TIMEOUT_SECONDS = 86_400;
-
-/** Clamp a timeout value to safe bounds. */
-function clampTimeout(value: number): number {
-  return Math.max(
-    MIN_TIMEOUT_SECONDS,
-    Math.min(MAX_TIMEOUT_SECONDS, Math.floor(value)),
-  );
-}
 
 /** Check if a session is the team creator or a team member. */
 function isCreatorOrMember(team: TeamInstance, sessionId: SessionId): boolean {
   if (team.createdBy === sessionId) return true;
   return team.members.some((m) => m.sessionId === sessionId);
 }
-
-// ─── Input parsing ───────────────────────────────────────────────────────────
-
-/** Parse a member definition from LLM input. */
-function parseMemberInput(
-  raw: Record<string, unknown>,
-): TeamMemberDefinition | string {
-  const role = raw.role;
-  if (typeof role !== "string" || role.length === 0) {
-    return "Member role must be a non-empty string";
-  }
-
-  const description = raw.description;
-  if (typeof description !== "string" || description.length === 0) {
-    return "Member description must be a non-empty string";
-  }
-
-  const isLead = raw.is_lead === true;
-  const model = typeof raw.model === "string" ? raw.model : undefined;
-  const initialTask = typeof raw.initial_task === "string"
-    ? raw.initial_task
-    : undefined;
-
-  let classificationCeiling: ClassificationLevel | undefined;
-  if (typeof raw.classification_ceiling === "string") {
-    const parsed = parseClassification(raw.classification_ceiling);
-    if (!parsed.ok) return parsed.error;
-    classificationCeiling = parsed.value;
-  }
-
-  return {
-    role,
-    description,
-    isLead,
-    model,
-    classificationCeiling,
-    initialTask,
-  };
-}
-
-/** Parse members array from LLM input. */
-function parseMembersInput(
-  raw: unknown,
-): readonly TeamMemberDefinition[] | string {
-  if (!Array.isArray(raw) || raw.length === 0) {
-    return "Members must be a non-empty array";
-  }
-
-  const members: TeamMemberDefinition[] = [];
-  for (const item of raw) {
-    if (typeof item !== "object" || item === null) {
-      return "Each member must be an object";
-    }
-    const parsed = parseMemberInput(item as Record<string, unknown>);
-    if (typeof parsed === "string") return parsed;
-    members.push(parsed);
-  }
-
-  return members;
-}
-
-// ─── Executors ───────────────────────────────────────────────────────────────
 
 /** Execute team_create. */
 async function executeTeamCreate(

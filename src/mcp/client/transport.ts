@@ -1,8 +1,7 @@
 /**
- * MCP Transport Layer
+ * Defines the Transport interface and stdio/SSE implementations for communicating with MCP servers.
  *
- * Defines the Transport interface and implementations for communicating
- * with MCP servers via different transport mechanisms.
+ * @module
  */
 
 import type { Result } from "../../core/types/classification.ts";

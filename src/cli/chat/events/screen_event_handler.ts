@@ -1,275 +1,31 @@
 /**
- * Screen-manager-aware orchestrator event handler.
+ * Screen-manager-aware orchestrator event handler factory.
  *
  * Routes all output through ScreenManager and supports
- * compact/expanded tool display modes. Handles response_chunk
- * events for live streaming display with thinking-tag filtering.
+ * compact/expanded tool display modes. Delegates to streaming
+ * and tool sub-handlers.
  * @module
  */
 
 import type { OrchestratorEvent } from "../../../agent/orchestrator/orchestrator_types.ts";
 import type { ScreenManager } from "../../terminal/screen.ts";
-import {
-  extractTodosFromEvent,
-  formatTodoListAnsi,
-} from "../../../tools/todo.ts";
-import { DIM, RED, RESET, YELLOW } from "../render/ansi.ts";
 import type { ToolDisplayMode } from "../render/ansi.ts";
-import { formatResponse } from "../render/format.ts";
-import {
-  type EventCallback,
-  formatEditFileDiff,
-  formatPlanMarkdown,
-  formatToolCallExpanded,
-  formatToolCompact,
-  formatToolCompactInProgress,
-  formatToolResultExpanded,
-  isPlanExitTool,
-  isTodoTool,
-} from "../render/tool_display.ts";
-import { createSpinner } from "../render/spinner.ts";
+import type { EventCallback } from "../render/tool_display.ts";
 import {
   buildScreenHandlerState,
-  ensureStreamingActive,
-  resetScreenStreamingState,
-  type ScreenHandlerState,
   stopSpinnerFallback,
-  writeIndentedChunk,
-  writeStreamingHeader,
 } from "./event_handler_state.ts";
-
-// ─── Screen event case handlers ──────────────────────────────────────────────
-
-/** Handle llm_start event. */
-function handleScreenLlmStart(
-  state: ScreenHandlerState,
-  screen: ScreenManager,
-  event: { iteration: number; maxIterations: number },
-): void {
-  if (screen.isTty) {
-    screen.startSpinner(
-      event.iteration > 1
-        ? `step ${event.iteration}/${event.maxIterations}`
-        : "",
-    );
-  } else {
-    state.spinner = createSpinner(
-      event.iteration === 1
-        ? "Thinking\u2026"
-        : `Thinking\u2026 (step ${event.iteration}/${event.maxIterations})`,
-    );
-  }
-}
-
-/** Handle llm_complete event. */
-function handleScreenLlmComplete(
-  state: ScreenHandlerState,
-  screen: ScreenManager,
-  hasToolCalls: boolean,
-): void {
-  stopSpinnerFallback(state, screen);
-  if (hasToolCalls) {
-    if (state.isStreaming) screen.writeChunk("\n");
-    resetScreenStreamingState(state);
-  }
-}
-
-/** Handle thinking content from a response chunk. */
-function handleThinkingChunk(
-  state: ScreenHandlerState,
-  screen: ScreenManager,
-  thinking: string,
-  enteredThinking: boolean,
-  exitedThinking: boolean,
-): void {
-  ensureStreamingActive(state, screen);
-  writeStreamingHeader(state, screen);
-  if (enteredThinking && !state.thinkingHeaderWritten) {
-    screen.writeChunk(`  ${DIM}`);
-    state.thinkingHeaderWritten = true;
-  }
-  if (thinking.length > 0) {
-    state.atLineStart = writeIndentedChunk(screen, thinking, state.atLineStart);
-  }
-  if (exitedThinking) {
-    screen.writeChunk(`${RESET}\n`);
-    state.atLineStart = true;
-    state.thinkingHeaderWritten = false;
-  }
-}
-
-/** Handle response_chunk event (streaming text). */
-function handleScreenResponseChunk(
-  state: ScreenHandlerState,
-  screen: ScreenManager,
-  getDisplayMode: () => ToolDisplayMode,
-  text: string,
-): void {
-  const { visible, thinking, enteredThinking, exitedThinking } = state
-    .thinkFilter.filter(text);
-
-  const hasThinkingContent = thinking.length > 0 || enteredThinking ||
-    exitedThinking;
-  if (hasThinkingContent && getDisplayMode() === "expanded") {
-    handleThinkingChunk(
-      state,
-      screen,
-      thinking,
-      enteredThinking,
-      exitedThinking,
-    );
-  }
-
-  if (visible.length > 0) {
-    ensureStreamingActive(state, screen);
-    writeStreamingHeader(state, screen);
-    state.atLineStart = writeIndentedChunk(
-      screen,
-      visible,
-      state.atLineStart,
-    );
-  }
-}
-
-// ─── edit_file helpers ───────────────────────────────────────────────────────
-
-/** Check whether edit_file args contain old_text and new_text strings. */
-function hasEditFileDiffArgs(args: Record<string, unknown>): boolean {
-  return typeof args.old_text === "string" && typeof args.new_text === "string";
-}
-
-/** Truncate a tool result to a single summary line. */
-function truncateResultLine(result: string): string {
-  const first = result.split("\n")[0];
-  return first.length > 80 ? first.slice(0, 80) + "\u2026" : first;
-}
-
-// ─── Tool result sub-handlers ────────────────────────────────────────────────
-
-/** Handle tool_call event. */
-function handleScreenToolCall(
-  state: ScreenHandlerState,
-  screen: ScreenManager,
-  getDisplayMode: () => ToolDisplayMode,
-  event: { name: string; args: Record<string, unknown> },
-): void {
-  state.pendingToolCall = { name: event.name, args: event.args };
-  if (isTodoTool(event.name) || isPlanExitTool(event.name, event.args)) {
-    // stored above — no display until result arrives
-  } else if (getDisplayMode() === "compact") {
-    screen.writeOutput(formatToolCompactInProgress(event.name, event.args));
-  } else if (event.name !== "edit_file") {
-    screen.writeOutput(formatToolCallExpanded(event.name, event.args));
-  }
-  if (screen.isTty) screen.startSpinner(event.name);
-}
-
-/** Handle tool_result for todo tools. */
-function handleTodoToolResult(
-  state: ScreenHandlerState,
-  screen: ScreenManager,
-  event: { name: string; result: string },
-): void {
-  const todos = extractTodosFromEvent(event.name, {
-    args: state.pendingToolCall?.args,
-    result: event.result,
-  });
-  state.pendingToolCall = null;
-  if (todos) screen.writeOutput(formatTodoListAnsi(todos) + "\n");
-}
-
-/** Handle tool_result for plan_manage(exit) tool. */
-function handlePlanExitToolResult(
-  state: ScreenHandlerState,
-  screen: ScreenManager,
-  event: { result: string; blocked: boolean },
-): void {
-  state.pendingToolCall = null;
-  if (!event.blocked) {
-    screen.writeOutput(formatPlanMarkdown(event.result));
-  } else {
-    screen.writeOutput(
-      `  ${YELLOW}\u26a1${RESET} plan_manage(exit)  ${RED}\u2717${RESET} ${DIM}blocked${RESET}`,
-    );
-  }
-}
-
-/** Handle tool_result event dispatch. */
-function handleScreenToolResult(
-  state: ScreenHandlerState,
-  screen: ScreenManager,
-  getDisplayMode: () => ToolDisplayMode,
-  event: { name: string; result: string; blocked: boolean },
-): void {
-  if (isTodoTool(event.name)) {
-    handleTodoToolResult(state, screen, event);
-  } else if (isPlanExitTool(event.name, state.pendingToolCall?.args)) {
-    handlePlanExitToolResult(state, screen, event);
-  } else if (
-    state.pendingToolCall?.name === "edit_file" &&
-    !event.blocked &&
-    hasEditFileDiffArgs(state.pendingToolCall.args)
-  ) {
-    const diffDisplay = formatEditFileDiff(
-      state.pendingToolCall.args.old_text as string,
-      state.pendingToolCall.args.new_text as string,
-      truncateResultLine(event.result),
-    );
-    if (getDisplayMode() === "compact") {
-      // In-progress was 2 lines; diff is taller — replaceLastOutput falls back to append
-      screen.replaceLastOutput(diffDisplay);
-    } else {
-      screen.writeOutput(diffDisplay);
-    }
-    state.pendingToolCall = null;
-  } else if (getDisplayMode() === "compact" && state.pendingToolCall) {
-    screen.replaceLastOutput(
-      formatToolCompact(
-        state.pendingToolCall.name,
-        state.pendingToolCall.args,
-        event.result,
-        event.blocked,
-      ),
-    );
-    state.pendingToolCall = null;
-  } else {
-    screen.writeOutput(formatToolResultExpanded(event.result, event.blocked));
-  }
-}
-
-/** Handle vision_start event. */
-function handleScreenVisionStart(
-  state: ScreenHandlerState,
-  screen: ScreenManager,
-  event: { imageCount: number },
-): void {
-  const label = event.imageCount === 1
-    ? "Analyzing image"
-    : `Analyzing ${event.imageCount} images`;
-  if (screen.isTty) {
-    screen.startSpinner(label);
-  } else {
-    state.spinner = createSpinner(label + "\u2026");
-  }
-}
-
-/** Handle response event (final response). */
-function handleScreenResponse(
-  state: ScreenHandlerState,
-  screen: ScreenManager,
-  text: string,
-): void {
-  if (screen.isTty) screen.stopSpinner();
-  if (state.isStreaming) {
-    screen.writeOutput("");
-    resetScreenStreamingState(state);
-  } else {
-    screen.writeOutput(formatResponse(text));
-    state.thinkFilter.reset();
-  }
-}
-
-// ─── Public factory ──────────────────────────────────────────────────────────
+import {
+  handleScreenLlmComplete,
+  handleScreenLlmStart,
+  handleScreenResponse,
+  handleScreenResponseChunk,
+  handleScreenVisionStart,
+} from "./screen_event_streaming.ts";
+import {
+  handleScreenToolCall,
+  handleScreenToolResult,
+} from "./screen_event_tools.ts";
 
 /**
  * Create a screen-manager-aware event handler.
@@ -286,7 +42,7 @@ export function createScreenEventHandler(
   screen: ScreenManager,
   getDisplayMode: () => ToolDisplayMode,
 ): EventCallback {
-  const state: ScreenHandlerState = buildScreenHandlerState();
+  const state = buildScreenHandlerState();
 
   return (event: OrchestratorEvent) => {
     switch (event.type) {

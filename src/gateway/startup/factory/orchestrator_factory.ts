@@ -16,26 +16,9 @@ import {
   updateTaint,
 } from "../../../core/types/session.ts";
 import type { ChannelId, UserId } from "../../../core/types/session.ts";
-import { createProviderRegistry } from "../../../agent/llm.ts";
-import {
-  loadProvidersFromConfig,
-  resolveVisionProvider,
-} from "../../../agent/providers/config.ts";
-import type { ModelsConfig } from "../../../agent/providers/config.ts";
-import {
-  createOrchestrator,
-} from "../../../agent/orchestrator/orchestrator.ts";
-import {
-  mapToolPrefixClassifications,
-} from "../../../agent/orchestrator/orchestrator_types.ts";
-import { createPolicyEngine } from "../../../core/policy/engine.ts";
-import {
-  createDefaultRules,
-  createHookRunner,
-} from "../../../core/policy/hooks/hooks.ts";
+import { createOrchestrator } from "../../../agent/orchestrator/orchestrator.ts";
 import { createWorkspace } from "../../../exec/workspace.ts";
 import type { ToolFloorRegistry } from "../../../core/security/tool_floors.ts";
-import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
 import { TRIGGER_SESSION_SYSTEM_PROMPT } from "../../tools/trigger/trigger_tools.ts";
 import {
   buildWorkspacePrompt,
@@ -46,11 +29,7 @@ import type { CronManager } from "../../../scheduler/cron/parser.ts";
 import type { StorageProvider } from "../../../core/storage/provider.ts";
 import { createMessageStore } from "../../../core/conversation/mod.ts";
 import { createLineageStore } from "../../../core/session/lineage.ts";
-import type {
-  OrchestratorCreateOptions,
-  OrchestratorFactory,
-} from "../../../scheduler/service_types.ts";
-import { buildSkillsSystemPrompt } from "../../../tools/skills/prompts.ts";
+import type { OrchestratorCreateOptions, OrchestratorFactory } from "../../../scheduler/service_types.ts";
 import {
   resolvePromptsForProfile,
   resolveToolsForProfile,
@@ -62,106 +41,17 @@ import {
 import { TOOL_BEHAVIOR_PROMPT } from "../../../agent/orchestrator/tool_behavior_prompt.ts";
 import type { ServiceAvailability } from "../../tools/defs/tool_profiles.ts";
 import { detectServiceAvailability } from "../tools/tool_infra.ts";
-import { buildWebTools } from "./web_tools.ts";
-import type { FactoryInfra } from "../tools/scheduler_tool_assembly.ts";
 import {
   assembleSchedulerToolExecutor,
   buildSchedulerGitHubExecutor,
   buildSchedulerPathClassifier,
-  buildSchedulerSkillLoader,
 } from "../tools/scheduler_tool_assembly.ts";
 import { createSkillContextTracker } from "../../../tools/skills/mod.ts";
-import { createLogger } from "../../../core/logger/logger.ts";
-
-const log = createLogger("orchestrator-factory");
-
-/** Symlink SPINE.md into a workspace directory. */
-async function symlinkSpineToWorkspace(
-  spinePath: string,
-  workspacePath: string,
-): Promise<void> {
-  try {
-    const workspaceSpine = join(workspacePath, "SPINE.md");
-    try {
-      await Deno.remove(workspaceSpine);
-    } catch (err: unknown) {
-      log.debug("Workspace SPINE.md symlink not present for removal", {
-        operation: "symlinkSpineToWorkspace",
-        workspacePath,
-        err,
-      });
-    }
-    await Deno.symlink(spinePath, workspaceSpine);
-  } catch (err: unknown) {
-    log.debug("SPINE.md symlink to workspace skipped", {
-      operation: "symlinkSpineToWorkspace",
-      spinePath,
-      workspacePath,
-      err,
-    });
-  }
-}
-
-/** Lazily discover skills and build a system prompt from them. */
-async function discoverSkillsOnce(
-  loader: ReturnType<typeof buildSchedulerSkillLoader>,
-  state: { discovered: boolean; prompt: string },
-): Promise<void> {
-  if (state.discovered) return;
-  state.discovered = true;
-  try {
-    const skills = await loader.discover();
-    state.prompt = buildSkillsSystemPrompt(skills);
-  } catch (err: unknown) {
-    log.warn("Skill discovery failed during orchestrator creation", {
-      operation: "discoverSkillsOnce",
-      err,
-    });
-  }
-}
-
-/** Initialize shared factory infrastructure from config. */
-function initializeFactoryInfra(
-  config: TriggerFishConfig,
-  baseDir: string,
-): FactoryInfra & {
-  readonly hookRunner: ReturnType<typeof createHookRunner>;
-  readonly spinePath: string;
-} {
-  const registry = createProviderRegistry();
-  loadProvidersFromConfig(config.models as ModelsConfig, registry);
-
-  const engine = createPolicyEngine();
-  for (const rule of createDefaultRules()) {
-    engine.addRule(rule);
-  }
-
-  const { searchProvider, webFetcher, domainClassifier } = buildWebTools(
-    config,
-  );
-
-  return {
-    registry,
-    hookRunner: createHookRunner(engine),
-    spinePath: join(baseDir, "SPINE.md"),
-    searchProvider,
-    webFetcher,
-    domainClassifier,
-    keychain: createKeychain(),
-    ...(() => {
-      const { all, integrations } = mapToolPrefixClassifications(config);
-      return {
-        toolClassifications: all,
-        integrationClassifications: integrations,
-      };
-    })(),
-    visionProvider: resolveVisionProvider(config.models as ModelsConfig),
-    skillLoader: buildSchedulerSkillLoader(
-      baseDir,
-      import.meta.dirname ?? ".",
-    ),
-  };
-}
+import {
+  discoverSkillsOnce,
+  initializeFactoryInfra,
+  symlinkSpineToWorkspace,
+} from "./orchestrator_factory_infra.ts";
 
 /**
  * Create an OrchestratorFactory from config.
@@ -213,16 +103,8 @@ export function createOrchestratorFactory(
       });
 
       // ── IMPORTANT: infra.keychain for all integration executors ─────────
-      // Integration executors (GitHub, Google, Notion, CalDAV, etc.) access
-      // secrets as infrastructure plumbing — the agent is calling a tool, not
-      // a secret.  Tool taint comes from the tool's prefix classification or
-      // resource classification, NOT from the secret the tool uses internally.
-      //
-      // NEVER create a gated/classified keychain here and pass it to
-      // integration builders.  Doing so fires the secret-classification gate
-      // during factory setup, escalating the session to INTERNAL before the
-      // agent even runs.  The gated keychain belongs ONLY on the orchestrator's
-      // secretStore (for agent-facing secret tools like secret_list).
+      // Integration executors access secrets as infrastructure plumbing.
+      // NEVER create a gated/classified keychain here.
       const githubExecutor = await buildSchedulerGitHubExecutor({
         keychain: infra.keychain,
         config,

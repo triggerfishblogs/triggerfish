@@ -1,0 +1,92 @@
+/**
+ * Orchestrator events, patterns, and skill context types.
+ *
+ * Defines the event types emitted during message processing,
+ * regex patterns for detecting leaked intent and trailing continuation,
+ * the ParsedToolCall interface, and the ActiveSkillContext type.
+ *
+ * @module
+ */
+
+import type { ClassificationLevel } from "../../core/types/classification.ts";
+
+/**
+ * Pattern detecting leaked tool-intent narration in LLM responses.
+ * Matches phrases like "I'll search", "Let me fetch", "I need to look up", etc.
+ * Used as a defense-in-depth guard — the primary fix is prompt hardening.
+ */
+export const LEAKED_INTENT_PATTERN =
+  /\b(?:(?:I(?:'ll| will| need to| should| can| am going to)\s+(?:search|fetch|look up|find|check|browse|retrieve|use web_))|(?:(?:Let|let) me (?:search|fetch|look|find|check|browse|retrieve|use))|(?:(?:We|I) need to (?:fetch|search|look up|find|check|browse|retrieve)))/i;
+
+/**
+ * Pattern detecting trailing continuation intent at the end of a long response.
+ *
+ * Matches phrases like "Let me now create", "I'll search", "Next, I'll fetch"
+ * when they appear in the tail of a response. Unlike LEAKED_INTENT_PATTERN
+ * (which checks short responses entirely), this catches the case where the LLM
+ * writes a long valid response but then trails off with unfulfilled intent.
+ */
+export const TRAILING_CONTINUATION_PATTERN =
+  /(?:Let me (?:now |also |next )?(?:create|search|fetch|look|find|check|browse|retrieve|proceed|do|make|add|set up|handle|update|generate|build|write|run|open|close|delete|send|post|submit|call))|(?:I(?:'ll| will| am going to) (?:now |also |next )?(?:create|search|fetch|look|find|check|browse|retrieve|proceed|do|make|add|set up|handle|update|generate|build|write|run|open|close|delete|send|post|submit|call))|(?:Next,? I(?:'ll| will))|(?:Now (?:let me|I'll|I will))/i;
+
+/**
+ * Structural snapshot of an active skill's capability declarations.
+ *
+ * Defined here (not in tools/) to avoid layer violations per dependency-layers.md.
+ * Satisfied by Skill from src/tools/skills/loader.ts at the gateway wiring layer.
+ */
+export interface ActiveSkillContext {
+  readonly name: string;
+  /**
+   * Tools the skill declared it needs.
+   * null = not declared (unrestricted). [] = declared empty (no tool access).
+   */
+  readonly requiresTools: readonly string[] | null;
+  /**
+   * Network domains the skill declared it needs.
+   * null = not declared (unrestricted). [] = declared empty (no network access).
+   */
+  readonly networkDomains: readonly string[] | null;
+  readonly classificationCeiling: ClassificationLevel;
+}
+
+/** Events emitted by the orchestrator during message processing. */
+export type OrchestratorEvent =
+  | {
+    readonly type: "llm_start";
+    readonly iteration: number;
+    readonly maxIterations: number;
+  }
+  | {
+    readonly type: "llm_complete";
+    readonly iteration: number;
+    readonly hasToolCalls: boolean;
+  }
+  | {
+    readonly type: "tool_call";
+    readonly name: string;
+    readonly args: Record<string, unknown>;
+  }
+  | {
+    readonly type: "tool_result";
+    readonly name: string;
+    readonly result: string;
+    readonly blocked: boolean;
+  }
+  | { readonly type: "response"; readonly text: string }
+  | {
+    readonly type: "response_chunk";
+    readonly text: string;
+    readonly done: boolean;
+  }
+  | { readonly type: "vision_start"; readonly imageCount: number }
+  | { readonly type: "vision_complete"; readonly imageCount: number };
+
+/** Callback for real-time orchestrator event reporting. */
+export type OrchestratorEventCallback = (event: OrchestratorEvent) => void;
+
+/** A parsed tool call from LLM text output. */
+export interface ParsedToolCall {
+  readonly name: string;
+  readonly args: Record<string, unknown>;
+}

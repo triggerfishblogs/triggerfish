@@ -11,16 +11,19 @@ export {
   buildExtraSystemPromptGetter,
   buildExtraToolsGetter,
 } from "./tool_executor.ts";
-export type { TidepoolToolsRef, ToolInfraResult } from "./tool_infra.ts";
+export type { TidepoolToolsRef, ToolInfraResult } from "./tool_infra_types.ts";
+export { detectServiceAvailability } from "./tool_infra_types.ts";
+export {
+  buildMediaExecutors,
+  buildSessionChannelExecutors,
+  buildSessionScopedExecutors,
+  initializeMainSessionState,
+} from "./tool_infra_session.ts";
 export {
   assembleToolInfraResult,
   buildCompositeToolExecutor,
   buildLlmAndWorkspaceFoundation,
-  buildMediaExecutors,
-  buildSessionChannelExecutors,
-  buildSessionScopedExecutors,
   initializeBaseToolDeps,
-  initializeMainSessionState,
   initializeToolInfrastructure,
 } from "./tool_infra.ts";
 export type { FactoryInfra } from "./scheduler_tool_assembly.ts";

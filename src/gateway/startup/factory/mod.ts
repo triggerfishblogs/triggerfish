@@ -14,3 +14,4 @@ export { buildCalDavExecutor } from "./caldav_executor.ts";
 export { buildNotionExecutor } from "./notion_executor.ts";
 export { buildTeamExecutor, buildTeamManager } from "./team_executor.ts";
 export type { TeamExecutorOptions } from "./team_executor.ts";
+export { createSessionRegistry } from "./team_session_registry.ts";
