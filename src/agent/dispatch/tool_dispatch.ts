@@ -268,7 +268,7 @@ async function dispatchSingleToolCall(
 }
 
 /** Determine the lineage source_type from a tool name. */
-function determineSourceType(toolName: string): string {
+export function determineSourceType(toolName: string): string {
   if (toolName.startsWith("web_")) return "web_request";
   if (toolName.startsWith("browser_")) return "browser_session";
   if (toolName.startsWith("memory_")) return "memory_access";
@@ -295,7 +295,7 @@ function determineSourceType(toolName: string): string {
 }
 
 /** Record lineage and persist a tool_call conversation record. */
-async function recordToolCallLineageAndPersist(
+export async function recordToolCallLineageAndPersist(
   call: ParsedToolCall,
   resultText: string,
   blocked: boolean,

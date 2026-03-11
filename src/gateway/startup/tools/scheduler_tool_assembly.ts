@@ -42,6 +42,7 @@ import { createSessionToolExecutor } from "../../tools/session/session_tools.ts"
 import type { EnhancedSessionManager } from "../../sessions.ts";
 import type { CronManager } from "../../../scheduler/cron/parser.ts";
 import type { StorageProvider } from "../../../core/storage/provider.ts";
+import type { LineageStore } from "../../../core/session/lineage_types.ts";
 import { createSkillLoader } from "../../../tools/skills/loader.ts";
 import {
   createSkillScanner,
@@ -75,6 +76,7 @@ function buildSchedulerMemoryExecutor(opts: {
   readonly agentId: string;
   readonly sessionTaint: ClassificationLevel;
   readonly sourceSessionId: SessionId;
+  readonly lineageStore?: LineageStore;
 }) {
   const store = createMemoryStore({ storage: opts.storage });
   return createMemoryToolExecutor({
@@ -82,6 +84,7 @@ function buildSchedulerMemoryExecutor(opts: {
     agentId: opts.agentId,
     sessionTaint: opts.sessionTaint,
     sourceSessionId: opts.sourceSessionId,
+    lineageStore: opts.lineageStore,
   });
 }
 
@@ -177,6 +180,7 @@ export function assembleSchedulerToolExecutor(opts: {
   readonly getSessionTaint?: () => ClassificationLevel;
   /** Override memory namespace (e.g. triggers share the owner namespace). */
   readonly memoryAgentId?: string;
+  readonly lineageStore?: LineageStore;
 }) {
   const { infra, session, workspace, agentId, storage } = opts;
 
@@ -186,6 +190,7 @@ export function assembleSchedulerToolExecutor(opts: {
       agentId: opts.memoryAgentId ?? agentId,
       sessionTaint: session.taint,
       sourceSessionId: session.id,
+      lineageStore: opts.lineageStore,
     })
     : undefined;
 

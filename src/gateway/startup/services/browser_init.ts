@@ -29,6 +29,7 @@ import { createExploreToolExecutor } from "../../../tools/explore/mod.ts";
 import type { createHookRunner } from "../../../core/policy/hooks/hooks.ts";
 import { wireMcpServers } from "../infra/mcp.ts";
 import type { McpBroadcastRefs } from "../infra/mcp.ts";
+import type { LineageStore } from "../../../core/session/lineage_types.ts";
 import { buildSubagentFactory } from "../factory/subagent.ts";
 
 /** Build browser domain policy from web config. */
@@ -120,6 +121,7 @@ export function initializeMcpServers(
   integrationClassifications: Map<string, ClassificationLevel>,
   mcpBroadcastRefs: McpBroadcastRefs,
   keychain: ReturnType<typeof createKeychain>,
+  lineageStore: LineageStore,
 ) {
   if (!config.mcp_servers || Object.keys(config.mcp_servers).length === 0) {
     return { mcpExecutor: undefined, mcpWiring: null };
@@ -132,6 +134,7 @@ export function initializeMcpServers(
     integrationClassifications,
     mcpBroadcastRefs,
     keychain,
+    lineageStore,
   );
   return { mcpExecutor: mcpWiring.executor, mcpWiring };
 }

@@ -17,6 +17,7 @@ import type { SessionId } from "../types/session.ts";
 import type {
   LineageCreateInput,
   LineageRecord,
+  LineageRetentionConfig,
   LineageStore,
 } from "./lineage_types.ts";
 import {
@@ -162,6 +163,82 @@ async function traceLineageBackward(
   return results;
 }
 
+/** Check whether a lineage record has exceeded the retention age. */
+function isLineageRecordExpired(
+  record: LineageRecord,
+  referenceTime: Date,
+  maxAgeMs: number,
+): boolean {
+  const accessedAt = new Date(record.origin.accessed_at).getTime();
+  if (isNaN(accessedAt)) return false;
+  return referenceTime.getTime() - accessedAt > maxAgeMs;
+}
+
+/** Delete a lineage record and all associated index entries. */
+async function purgeLineageRecord(
+  storage: StorageProvider,
+  record: LineageRecord,
+): Promise<void> {
+  await storage.delete(lineageRecordKey(record.lineage_id));
+  await storage.delete(
+    lineageSessionIndexKey(record.sessionId, record.lineage_id),
+  );
+  await storage.delete(lineageHashIndexKey(record.content_hash));
+  await purgeForwardIndexEntries(storage, record);
+}
+
+/** Delete forward-trace index entries where this record is a child. */
+async function purgeForwardIndexEntries(
+  storage: StorageProvider,
+  record: LineageRecord,
+): Promise<void> {
+  if (!record.inputLineageIds) return;
+  for (const parentId of record.inputLineageIds) {
+    await storage.delete(lineageFwdIndexKey(parentId, record.lineage_id));
+  }
+}
+
+/** Scan all lineage records and purge those exceeding the retention age. */
+async function executeLineageRetention(
+  storage: StorageProvider,
+  config: LineageRetentionConfig,
+  now: Date,
+): Promise<Result<number, string>> {
+  const maxAgeMs = config.maxAgeDays * 24 * 60 * 60 * 1000;
+  try {
+    const keys = await storage.list("lineage:");
+    let deletedCount = 0;
+    for (const key of keys) {
+      deletedCount += await evaluateAndPurge(storage, key, now, maxAgeMs);
+    }
+    return { ok: true, value: deletedCount };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: `Lineage retention policy failed: ${message}` };
+  }
+}
+
+/** Evaluate a single record key and purge if expired. Returns 1 if deleted, 0 otherwise. */
+async function evaluateAndPurge(
+  storage: StorageProvider,
+  key: string,
+  referenceTime: Date,
+  maxAgeMs: number,
+): Promise<number> {
+  const json = await storage.get(key);
+  if (json === null) return 0;
+  try {
+    const record = deserialiseLineageRecord(json);
+    if (isLineageRecordExpired(record, referenceTime, maxAgeMs)) {
+      await purgeLineageRecord(storage, record);
+      return 1;
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** Look up content by SHA-256 hash with classification enforcement. */
 async function lookupByHash(
   storage: StorageProvider,
@@ -207,38 +284,11 @@ export function createLineageStore(
     async export(sessionId: SessionId): Promise<LineageRecord[]> {
       return fetchLineageRecordsBySession(storage, sessionId);
     },
-    async applyLineageRetention(
-      config: { readonly maxAgeDays: number },
+    applyLineageRetention(
+      config: LineageRetentionConfig,
       now?: Date,
     ): Promise<Result<number, string>> {
-      const referenceTime = now ?? new Date();
-      const maxAgeMs = config.maxAgeDays * 24 * 60 * 60 * 1000;
-      try {
-        const keys = await storage.list("lineage:");
-        let deletedCount = 0;
-        for (const key of keys) {
-          const json = await storage.get(key);
-          if (json === null) continue;
-          try {
-            const record = deserialiseLineageRecord(json);
-            const accessedAt = new Date(record.origin.accessed_at).getTime();
-            if (isNaN(accessedAt)) continue;
-            if (referenceTime.getTime() - accessedAt > maxAgeMs) {
-              await storage.delete(key);
-              deletedCount++;
-            }
-          } catch {
-            continue;
-          }
-        }
-        return { ok: true, value: deletedCount };
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        return {
-          ok: false,
-          error: `Lineage retention policy failed: ${message}`,
-        };
-      }
+      return executeLineageRetention(storage, config, now ?? new Date());
     },
   };
 }

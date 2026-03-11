@@ -14,6 +14,7 @@ export type {
   LineageLocation,
   LineageOrigin,
   LineageRecord,
+  LineageRetentionConfig,
   LineageStore,
   LineageTransformation,
 } from "./lineage_types.ts";

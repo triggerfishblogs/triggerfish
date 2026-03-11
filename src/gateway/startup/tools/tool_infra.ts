@@ -237,11 +237,12 @@ export async function buildSessionScopedExecutors(
   },
 ) {
   const { state, mainWorkspace, registry } = toolInfra;
-  const { memoryDb, memoryStore, memoryExecutor } = await initializeMemorySystem(
-    coreInfra.dataDir,
-    coreInfra.storage,
-    state.session,
-  );
+  const { memoryDb, memoryStore, memoryExecutor } = await initializeMemorySystem({
+    dataDir: coreInfra.dataDir,
+    storage: coreInfra.storage,
+    session: state.session,
+    lineageStore: coreInfra.lineageStore,
+  });
   const mainPlanExecutor = createPlanToolExecutor(
     createPlanManager({ plansDir: `${mainWorkspace.path}/plans` }),
     state.session.id,

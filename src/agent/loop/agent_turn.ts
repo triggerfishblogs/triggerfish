@@ -68,7 +68,7 @@ function recordToHistoryEntry(record: ConversationRecord): HistoryEntry {
 }
 
 /** Restore session history from MessageStore if history is empty. */
-async function restoreSessionHistoryIfEmpty(
+export async function restoreSessionHistoryIfEmpty(
   config: OrchestratorConfig,
   histories: Map<string, HistoryEntry[]>,
   sessionKey: string,

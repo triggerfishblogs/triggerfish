@@ -382,7 +382,7 @@ Deno.test("integration: executor returns clear error when not connected", async 
     tasks: createTasksService(apiClient),
     drive: createDriveService(apiClient),
     sheets: createSheetsService(apiClient),
-    sessionTaint: "INTERNAL" as ClassificationLevel,
+    sessionTaint: () => "INTERNAL" as ClassificationLevel,
     sourceSessionId: "no-auth-session" as SessionId,
   });
 

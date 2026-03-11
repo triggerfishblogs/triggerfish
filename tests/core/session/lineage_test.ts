@@ -6,11 +6,26 @@
 import { assert, assertEquals, assertExists } from "@std/assert";
 import { createLineageStore } from "../../src/core/session/lineage.ts";
 import { createMemoryStorage } from "../../src/core/storage/memory.ts";
+import type { StorageProvider } from "../../src/core/storage/provider.ts";
 import type { SessionId } from "../../src/core/types/session.ts";
 
 function makeStore() {
   const storage = createMemoryStorage();
   return createLineageStore(storage);
+}
+
+/** Create a store and return both store and underlying storage for index inspection. */
+function makeStoreWithStorage(): {
+  store: ReturnType<typeof createLineageStore>;
+  storage: StorageProvider;
+} {
+  const storage = createMemoryStorage();
+  return { store: createLineageStore(storage), storage };
+}
+
+/** Build an ISO date string N days before a reference date. */
+function daysAgo(days: number, from: Date = new Date()): string {
+  return new Date(from.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
 Deno.test("LineageStore: create returns record with lineage_id and content_hash", async () => {
@@ -344,4 +359,168 @@ Deno.test("LineageStore: hash index enables O(1) lookup", async () => {
   const result = await store.getByHash(record.content_hash, "RESTRICTED");
   assertExists(result);
   assertEquals(result!.record.lineage_id, record.lineage_id);
+});
+
+// ─── Lineage retention tests ─────────────────────────────────────────────────
+
+Deno.test("applyLineageRetention: deletes records older than maxAgeDays", async () => {
+  const { store } = makeStoreWithStorage();
+  const now = new Date("2026-06-01T00:00:00Z");
+  await store.create({
+    content: "old data",
+    origin: {
+      source_type: "api",
+      source_name: "crm",
+      accessed_at: daysAgo(100, now),
+      accessed_by: "agent",
+      access_method: "api",
+    },
+    classification: { level: "PUBLIC", reason: "test" },
+    sessionId: "s1" as SessionId,
+  });
+  await store.create({
+    content: "recent data",
+    origin: {
+      source_type: "api",
+      source_name: "crm",
+      accessed_at: daysAgo(10, now),
+      accessed_by: "agent",
+      access_method: "api",
+    },
+    classification: { level: "PUBLIC", reason: "test" },
+    sessionId: "s1" as SessionId,
+  });
+
+  const result = await store.applyLineageRetention({ maxAgeDays: 90 }, now);
+  assert(result.ok);
+  assertEquals(result.ok && result.value, 1);
+});
+
+Deno.test("applyLineageRetention: keeps records within maxAgeDays", async () => {
+  const { store } = makeStoreWithStorage();
+  const now = new Date("2026-06-01T00:00:00Z");
+  const created = await store.create({
+    content: "fresh data",
+    origin: {
+      source_type: "web",
+      source_name: "example.com",
+      accessed_at: daysAgo(30, now),
+      accessed_by: "agent",
+      access_method: "fetch",
+    },
+    classification: { level: "PUBLIC", reason: "test" },
+    sessionId: "s1" as SessionId,
+  });
+
+  const result = await store.applyLineageRetention({ maxAgeDays: 90 }, now);
+  assert(result.ok);
+  assertEquals(result.ok && result.value, 0);
+
+  const fetched = await store.get(created.lineage_id);
+  assertExists(fetched);
+});
+
+Deno.test("applyLineageRetention: cleans up session index entries", async () => {
+  const { store, storage } = makeStoreWithStorage();
+  const now = new Date("2026-06-01T00:00:00Z");
+  const sid = "sess-cleanup" as SessionId;
+  await store.create({
+    content: "stale",
+    origin: {
+      source_type: "api",
+      source_name: "crm",
+      accessed_at: daysAgo(100, now),
+      accessed_by: "agent",
+      access_method: "api",
+    },
+    classification: { level: "PUBLIC", reason: "test" },
+    sessionId: sid,
+  });
+
+  await store.applyLineageRetention({ maxAgeDays: 90 }, now);
+
+  const sessionKeys = await storage.list(`lineage-session:${sid}:`);
+  assertEquals(sessionKeys.length, 0);
+});
+
+Deno.test("applyLineageRetention: cleans up hash index entries", async () => {
+  const { store, storage } = makeStoreWithStorage();
+  const now = new Date("2026-06-01T00:00:00Z");
+  const record = await store.create({
+    content: "hashable content",
+    origin: {
+      source_type: "api",
+      source_name: "test",
+      accessed_at: daysAgo(100, now),
+      accessed_by: "agent",
+      access_method: "api",
+    },
+    classification: { level: "PUBLIC", reason: "test" },
+    sessionId: "s1" as SessionId,
+  });
+
+  await store.applyLineageRetention({ maxAgeDays: 90 }, now);
+
+  const hashKey = `lineage-hash:${record.content_hash}`;
+  const hashEntry = await storage.get(hashKey);
+  assertEquals(hashEntry, null);
+});
+
+Deno.test("applyLineageRetention: cleans up forward-trace index entries", async () => {
+  const { store, storage } = makeStoreWithStorage();
+  const now = new Date("2026-06-01T00:00:00Z");
+  const parent = await store.create({
+    content: "parent",
+    origin: {
+      source_type: "api",
+      source_name: "src",
+      accessed_at: daysAgo(10, now),
+      accessed_by: "agent",
+      access_method: "api",
+    },
+    classification: { level: "PUBLIC", reason: "test" },
+    sessionId: "s1" as SessionId,
+  });
+  await store.create({
+    content: "expired child",
+    origin: {
+      source_type: "llm",
+      source_name: "claude",
+      accessed_at: daysAgo(100, now),
+      accessed_by: "agent",
+      access_method: "api",
+    },
+    classification: { level: "PUBLIC", reason: "derived" },
+    sessionId: "s1" as SessionId,
+    inputLineageIds: [parent.lineage_id],
+  });
+
+  await store.applyLineageRetention({ maxAgeDays: 90 }, now);
+
+  const fwdKeys = await storage.list(`lineage-fwd:${parent.lineage_id}:`);
+  assertEquals(fwdKeys.length, 0);
+});
+
+Deno.test("applyLineageRetention: skips records with invalid timestamps", async () => {
+  const { store } = makeStoreWithStorage();
+  const now = new Date("2026-06-01T00:00:00Z");
+  const record = await store.create({
+    content: "bad timestamp",
+    origin: {
+      source_type: "api",
+      source_name: "test",
+      accessed_at: "not-a-date",
+      accessed_by: "agent",
+      access_method: "api",
+    },
+    classification: { level: "PUBLIC", reason: "test" },
+    sessionId: "s1" as SessionId,
+  });
+
+  const result = await store.applyLineageRetention({ maxAgeDays: 90 }, now);
+  assert(result.ok);
+  assertEquals(result.ok && result.value, 0);
+
+  const fetched = await store.get(record.lineage_id);
+  assertExists(fetched);
 });

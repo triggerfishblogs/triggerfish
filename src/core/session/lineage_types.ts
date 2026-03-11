@@ -67,6 +67,11 @@ export interface LineageCreateInput {
   readonly current_location?: LineageLocation;
 }
 
+/** Configuration for lineage retention policy. */
+export interface LineageRetentionConfig {
+  readonly maxAgeDays: number;
+}
+
 /** Store for creating, querying, and tracing data lineage records. */
 export interface LineageStore {
   /** Create a new lineage record. Computes content_hash and generates lineage_id. */
@@ -103,10 +108,11 @@ export interface LineageStore {
   /** Export the full lineage chain for a session (compliance). */
   export(sessionId: SessionId): Promise<LineageRecord[]>;
 
-  /** Delete lineage records older than maxAgeDays. */
-  applyLineageRetention(config: {
-    readonly maxAgeDays: number;
-  }, now?: Date): Promise<import("../types/classification.ts").Result<number, string>>;
+  /** Delete lineage records older than maxAgeDays. Returns count of purged records. */
+  applyLineageRetention(
+    config: LineageRetentionConfig,
+    now?: Date,
+  ): Promise<import("../types/classification.ts").Result<number, string>>;
 }
 
 /** Stored shape for a single transformation (timestamp as ISO string). */

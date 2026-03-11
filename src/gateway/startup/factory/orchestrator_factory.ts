@@ -222,6 +222,13 @@ export function createOrchestratorFactory(
 
       const skillContextTracker = createSkillContextTracker();
 
+      const factoryMessageStore = storage
+        ? createMessageStore(storage)
+        : undefined;
+      const factoryLineageStore = storage
+        ? createLineageStore(storage)
+        : undefined;
+
       const toolExecutor = assembleSchedulerToolExecutor({
         infra,
         session,
@@ -234,6 +241,7 @@ export function createOrchestratorFactory(
         skillContextTracker,
         getSessionTaint: () => session.taint,
         memoryAgentId: isTrigger ? OWNER_MEMORY_AGENT_ID : undefined,
+        lineageStore: factoryLineageStore,
       });
 
       const baseProfileName = isTrigger ? "triggerSession" : "cronJob";
@@ -248,13 +256,6 @@ export function createOrchestratorFactory(
         confidentialPath: workspace.confidentialPath,
         restrictedPath: workspace.restrictedPath,
       };
-
-      const factoryMessageStore = storage
-        ? createMessageStore(storage)
-        : undefined;
-      const factoryLineageStore = storage
-        ? createLineageStore(storage)
-        : undefined;
 
       const orchestrator = createOrchestrator({
         hookRunner: infra.hookRunner,

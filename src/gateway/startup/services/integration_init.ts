@@ -38,6 +38,7 @@ import { buildObsidianExecutor, discoverSkills } from "../infra/subsystems.ts";
 import type { ObsidianPluginConfig } from "../infra/subsystems.ts";
 import type { BootstrapResult } from "../bootstrap.ts";
 import type { CoreInfraResult } from "../infra/core_infra.ts";
+import type { LineageStore } from "../../../core/session/lineage_types.ts";
 import type { MainSessionState } from "../tools/tool_executor.ts";
 import {
   buildExploreExecutor,
@@ -56,6 +57,7 @@ export function initializeMcpInfrastructure(
   toolClassifications: Map<string, ClassificationLevel>,
   integrationClassifications: Map<string, ClassificationLevel>,
   keychain: ReturnType<typeof createKeychain>,
+  lineageStore: LineageStore,
 ) {
   const mcpBroadcastRefs: McpBroadcastRefs = {
     chatSession: null,
@@ -70,6 +72,7 @@ export function initializeMcpInfrastructure(
     integrationClassifications,
     mcpBroadcastRefs,
     keychain,
+    lineageStore,
   );
   return { mcpBroadcastRefs, mcpExecutor, mcpWiring };
 }
@@ -81,6 +84,7 @@ export async function buildExternalServiceExecutors(
   state: MainSessionState,
   toolClassifications: Map<string, ClassificationLevel>,
   integrationClassifications: Map<string, ClassificationLevel>,
+  lineageStore: LineageStore,
   opts?: { readonly workspacePath?: string },
 ) {
   const { executor: githubExecutor, keychain } = await buildGitHubExecutor(
@@ -112,6 +116,7 @@ export async function buildExternalServiceExecutors(
     toolClassifications,
     integrationClassifications,
     keychain,
+    lineageStore,
   );
   return { githubExecutor, caldavExecutor, notionExecutor, keychain, obsidianExecutor, ...mcp };
 }
@@ -240,6 +245,7 @@ export async function buildIntegrationExecutors(
     state,
     toolInfra.toolClassifications,
     toolInfra.integrationClassifications,
+    coreInfra.lineageStore,
     { workspacePath: mainWorkspace.path },
   );
   const skillAndAgent = await buildSkillAndAgentExecutors(
