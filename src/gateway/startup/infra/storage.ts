@@ -15,6 +15,8 @@ import { createSessionManager } from "../../../core/session/manager.ts";
 import { createEnhancedSessionManager } from "../../sessions.ts";
 import { createNotificationService } from "../../notifications/notifications.ts";
 import { createTriggerStore } from "../../../scheduler/triggers/store.ts";
+import { createMessageStore } from "../../../core/conversation/mod.ts";
+import { createLineageStore } from "../../../core/session/lineage.ts";
 import { createProviderRegistry } from "../../../agent/llm.ts";
 import { loadProvidersFromConfig } from "../../../agent/providers/config.ts";
 import type { ModelsConfig } from "../../../agent/providers/config.ts";
@@ -42,7 +44,7 @@ export async function initializePersistentStorage(
   return { dataDir, storage, pairingService, cronManager };
 }
 
-/** Create session manager, notification service, and trigger store. */
+/** Create session manager, notification service, trigger store, message store, and lineage store. */
 export function initializeSessionInfrastructure(
   storage: ReturnType<typeof createSqliteStorage>,
 ) {
@@ -52,7 +54,15 @@ export function initializeSessionInfrastructure(
   );
   const notificationService = createNotificationService(storage);
   const triggerStore = createTriggerStore(storage);
-  return { enhancedSessionManager, notificationService, triggerStore };
+  const messageStore = createMessageStore(storage);
+  const lineageStore = createLineageStore(storage);
+  return {
+    enhancedSessionManager,
+    notificationService,
+    triggerStore,
+    messageStore,
+    lineageStore,
+  };
 }
 
 /** Build LLM provider registry, policy engine, and hook runner. */

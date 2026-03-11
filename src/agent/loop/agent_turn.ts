@@ -7,7 +7,8 @@
  * @module
  */
 
-import type { Result } from "../../core/types/classification.ts";
+import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import { canFlowTo } from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 import type { SessionState } from "../../core/types/session.ts";
 import type { MessageContent } from "../../core/image/content.ts";
@@ -23,6 +24,7 @@ import type {
   ProcessMessageResult,
 } from "../orchestrator/orchestrator_types.ts";
 import type { OrchestratorState } from "../orchestrator/orchestrator.ts";
+import type { ConversationRecord } from "../../core/conversation/mod.ts";
 
 const log = createLogger("agent-turn");
 
@@ -43,6 +45,80 @@ async function firePreContextHook(
     return { ok: false, error: result.message ?? "Input blocked by policy" };
   }
   return { ok: true, value: undefined };
+}
+
+/** Convert a ConversationRecord to a HistoryEntry for session restoration. */
+function recordToHistoryEntry(record: ConversationRecord): HistoryEntry {
+  switch (record.role) {
+    case "user":
+      return { role: "user", content: record.content };
+    case "assistant":
+      return { role: "assistant", content: record.content };
+    case "compaction_summary":
+      return {
+        role: "user",
+        content: `[CONTEXT SUMMARY]\n${record.content}`,
+      };
+    case "tool_call":
+      return {
+        role: "assistant",
+        content: record.tool_args ? JSON.stringify(record.tool_args) : "",
+      };
+  }
+}
+
+/** Restore session history from MessageStore if history is empty. */
+export async function restoreSessionHistoryIfEmpty(
+  config: OrchestratorConfig,
+  histories: Map<string, HistoryEntry[]>,
+  sessionKey: string,
+  sessionTaint: ClassificationLevel,
+): Promise<void> {
+  if (!config.messageStore) return;
+  const existing = histories.get(sessionKey);
+  if (existing && existing.length > 0) return;
+
+  const records = await config.messageStore.loadActive(sessionKey);
+  if (records.length === 0) return;
+
+  // Check for compaction summary — if present, use only that
+  const summaryRecord = records.find((r) => r.role === "compaction_summary");
+  const toRestore = summaryRecord ? [summaryRecord] : records;
+
+  const entries: HistoryEntry[] = [];
+  for (const record of toRestore) {
+    if (!canFlowTo(record.classification, sessionTaint)) {
+      log.warn("Skipping record above current taint on restore", {
+        operation: "restoreSessionHistoryIfEmpty",
+        sessionId: sessionKey,
+        recordClassification: record.classification,
+        sessionTaint,
+        sequence: record.sequence,
+      });
+      continue;
+    }
+    entries.push(recordToHistoryEntry(record));
+    // Add tool result placeholder after tool_call entries
+    if (record.role === "tool_call") {
+      const toolName = record.tool_name ?? "unknown";
+      const lineageRef = record.lineage_id
+        ? ` — see lineage ${record.lineage_id}`
+        : "";
+      entries.push({
+        role: "user",
+        content: `[TOOL_RESULT name="${toolName}"]\n(result not available${lineageRef})\n[/TOOL_RESULT]`,
+      });
+    }
+  }
+
+  if (entries.length > 0) {
+    histories.set(sessionKey, entries);
+    log.info("Session history restored from message store", {
+      operation: "restoreSessionHistoryIfEmpty",
+      sessionId: sessionKey,
+      recordCount: entries.length,
+    });
+  }
 }
 
 /** Get or create conversation history for a session. */
@@ -92,16 +168,72 @@ function autoCompactHistory(
   }
 }
 
+/** Persist a user message to the message store. */
+async function persistUserMessage(
+  config: OrchestratorConfig,
+  sessionKey: string,
+  message: MessageContent,
+  sessionTaint: ClassificationLevel,
+): Promise<void> {
+  if (!config.messageStore) return;
+  const text = extractText(message);
+  await config.messageStore.append({
+    session_id: sessionKey,
+    role: "user",
+    content: text,
+    classification: sessionTaint,
+    token_count: countTokens(text),
+  });
+}
+
+/** Create a lineage record for a user message. */
+async function recordUserMessageLineage(
+  config: OrchestratorConfig,
+  session: SessionState,
+  message: MessageContent,
+): Promise<void> {
+  if (!config.lineageStore) return;
+  const text = extractText(message);
+  await config.lineageStore.create({
+    content: text,
+    origin: {
+      source_type: "channel_message",
+      source_name: session.channelId as string,
+      accessed_at: new Date().toISOString(),
+      accessed_by: session.userId as string,
+      access_method: "user_input",
+    },
+    classification: {
+      level: config.getSessionTaint?.() ?? session.taint,
+      reason: "User message",
+    },
+    sessionId: session.id,
+  });
+}
+
 /** Prepare system prompt, history, and vision fallback for the turn. */
 async function prepareAgentTurnContext(
   state: OrchestratorState,
+  session: SessionState,
   sessionKey: string,
   message: MessageContent,
   signal: AbortSignal | undefined,
 ): Promise<{ systemPrompt: string; history: HistoryEntry[] }> {
+  const sessionTaint = state.config.getSessionTaint?.() ?? session.taint;
+  await restoreSessionHistoryIfEmpty(
+    state.config,
+    state.histories,
+    sessionKey,
+    sessionTaint,
+  );
+
   let systemPrompt = await buildFullSystemPrompt(state, sessionKey);
   const history = ensureSessionHistory(state.histories, sessionKey);
   history.push({ role: "user", content: message });
+
+  // Persist user message and create lineage record (fire-and-forget safe)
+  await persistUserMessage(state.config, sessionKey, message, sessionTaint);
+  await recordUserMessageLineage(state.config, session, message);
 
   const visionAddendum = await processVisionFallback(
     state,
@@ -144,7 +276,7 @@ export async function runAgentTurn(
   if (!guard.ok) return guard;
 
   const sessionKey = session.id as string;
-  const ctx = await prepareAgentTurnContext(state, sessionKey, message, signal);
+  const ctx = await prepareAgentTurnContext(state, session, sessionKey, message, signal);
   return runAgentLoop({
     state,
     session,

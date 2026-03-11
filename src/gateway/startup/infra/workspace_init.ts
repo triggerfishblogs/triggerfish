@@ -14,6 +14,7 @@ import { createPathClassifier } from "../../../core/security/path_classification
 import { createSqliteStorage } from "../../../core/storage/sqlite.ts";
 import { OWNER_MEMORY_AGENT_ID } from "../../../core/types/session.ts";
 import type { createSession } from "../../../core/types/session.ts";
+import type { LineageStore } from "../../../core/session/lineage_types.ts";
 import {
   createFts5SearchProvider,
   createMemoryStore,
@@ -59,26 +60,33 @@ export function buildMainPathClassifier(
   );
 }
 
+/** Options for initializing the memory system. */
+export interface InitializeMemoryOptions {
+  readonly dataDir: string;
+  readonly storage: ReturnType<typeof createSqliteStorage>;
+  readonly session: ReturnType<typeof createSession>;
+  readonly lineageStore?: LineageStore;
+}
+
 /** Initialize memory system with FTS5 search. */
 export async function initializeMemorySystem(
-  dataDir: string,
-  storage: ReturnType<typeof createSqliteStorage>,
-  session: ReturnType<typeof createSession>,
+  opts: InitializeMemoryOptions,
 ) {
   const { Database } = await import("@db/sqlite");
-  const memoryDb = new Database(join(dataDir, "triggerfish.db"));
+  const memoryDb = new Database(join(opts.dataDir, "triggerfish.db"));
   memoryDb.exec("PRAGMA journal_mode=WAL");
   const memorySearchProvider = createFts5SearchProvider(memoryDb);
   const memoryStore = createMemoryStore({
-    storage,
+    storage: opts.storage,
     searchProvider: memorySearchProvider,
   });
   const memoryExecutor = createMemoryToolExecutor({
     store: memoryStore,
     searchProvider: memorySearchProvider,
     agentId: OWNER_MEMORY_AGENT_ID,
-    sessionTaint: session.taint,
-    sourceSessionId: session.id,
+    sessionTaint: opts.session.taint,
+    sourceSessionId: opts.session.id,
+    lineageStore: opts.lineageStore,
   });
   return { memoryDb, memoryStore, memorySearchProvider, memoryExecutor };
 }

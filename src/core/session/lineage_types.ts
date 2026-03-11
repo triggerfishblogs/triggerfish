@@ -52,6 +52,8 @@ export interface LineageRecord {
   readonly inputLineageIds?: readonly string[];
   readonly transformations?: readonly LineageTransformation[];
   readonly current_location?: LineageLocation;
+  /** Content stored only when classification.level === "PUBLIC". */
+  readonly content?: string;
 }
 
 /** Input for creating a new lineage record. */
@@ -63,6 +65,11 @@ export interface LineageCreateInput {
   readonly inputLineageIds?: readonly string[];
   readonly transformations?: readonly LineageTransformation[];
   readonly current_location?: LineageLocation;
+}
+
+/** Configuration for lineage retention policy. */
+export interface LineageRetentionConfig {
+  readonly maxAgeDays: number;
 }
 
 /** Store for creating, querying, and tracing data lineage records. */
@@ -79,11 +86,33 @@ export interface LineageStore {
   /** Forward trace: find all records that were derived from this record. */
   trace_forward(id: string): Promise<LineageRecord[]>;
 
+  /**
+   * Forward trace using reverse index — O(k) where k = number of children.
+   * Preferred over trace_forward() which scans all records.
+   */
+  trace_forward_indexed(id: string): Promise<LineageRecord[]>;
+
   /** Backward trace: find all source records that contributed to this record. */
   trace_backward(id: string): Promise<LineageRecord[]>;
 
+  /**
+   * Retrieve content by its SHA-256 hash, gated by classification.
+   * Returns content only when `canFlowTo(record.classification.level, taint)` passes
+   * and the record has stored content (PUBLIC classification only).
+   */
+  getByHash(
+    hash: string,
+    taint: ClassificationLevel,
+  ): Promise<{ content: string; record: LineageRecord } | null>;
+
   /** Export the full lineage chain for a session (compliance). */
   export(sessionId: SessionId): Promise<LineageRecord[]>;
+
+  /** Delete lineage records older than maxAgeDays. Returns count of purged records. */
+  applyLineageRetention(
+    config: LineageRetentionConfig,
+    now?: Date,
+  ): Promise<import("../types/classification.ts").Result<number, string>>;
 }
 
 /** Stored shape for a single transformation (timestamp as ISO string). */
@@ -105,4 +134,6 @@ export interface StoredLineageRecord {
   readonly inputLineageIds?: readonly string[];
   readonly transformations?: readonly StoredTransformation[];
   readonly current_location?: LineageLocation;
+  /** Content stored only when classification.level === "PUBLIC". */
+  readonly content?: string;
 }

@@ -11,8 +11,13 @@
 
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import type { SessionId } from "../../../core/types/session.ts";
+import type { LineageStore } from "../../../core/session/lineage_types.ts";
 import type { MemoryStore } from "../store.ts";
 import type { MemorySearchProvider } from "../search/mod.ts";
+import type { MemoryRecord } from "../types.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+
+const log = createLogger("memory-lineage");
 
 /** Context required by the memory tool executor. */
 export interface MemoryToolContext {
@@ -21,6 +26,66 @@ export interface MemoryToolContext {
   readonly agentId: string;
   readonly sessionTaint: ClassificationLevel;
   readonly sourceSessionId: SessionId;
+  readonly lineageStore?: LineageStore;
+}
+
+// ─── Lineage Helpers ─────────────────────────────────────────────────────────
+
+/** Record a lineage entry for a memory write operation. Returns the lineage_id or undefined. */
+async function recordSaveLineage(
+  ctx: MemoryToolContext,
+  key: string,
+  content: string,
+): Promise<string | undefined> {
+  if (!ctx.lineageStore) return undefined;
+  try {
+    const record = await ctx.lineageStore.create({
+      content,
+      origin: {
+        source_type: "memory_access",
+        source_name: key,
+        accessed_at: new Date().toISOString(),
+        accessed_by: ctx.agentId,
+        access_method: "memory_save",
+      },
+      classification: { level: ctx.sessionTaint, reason: `Memory save: ${key}` },
+      sessionId: ctx.sourceSessionId,
+    });
+    return record.lineage_id;
+  } catch (err) {
+    log.error("Lineage record creation failed for memory_save", { operation: "recordSaveLineage", err });
+    return undefined;
+  }
+}
+
+/** Record a lineage entry for a memory read operation. */
+async function recordReadLineage(
+  ctx: MemoryToolContext,
+  accessMethod: string,
+  key: string,
+  records: readonly MemoryRecord[],
+): Promise<void> {
+  if (!ctx.lineageStore) return;
+  const inputLineageIds = records
+    .map((r) => r.lineageId)
+    .filter((id): id is string => id !== undefined);
+  try {
+    await ctx.lineageStore.create({
+      content: key,
+      origin: {
+        source_type: "memory_access",
+        source_name: key,
+        accessed_at: new Date().toISOString(),
+        accessed_by: ctx.agentId,
+        access_method: accessMethod,
+      },
+      classification: { level: ctx.sessionTaint, reason: `Memory read: ${key}` },
+      sessionId: ctx.sourceSessionId,
+      ...(inputLineageIds.length > 0 ? { inputLineageIds } : {}),
+    });
+  } catch (err) {
+    log.error("Lineage record creation failed for memory read", { operation: "recordReadLineage", err });
+  }
 }
 
 // ─── Executor Helpers ──────────────────────────────────────────────────────────
@@ -42,6 +107,8 @@ async function executeMemorySave(
     ? input.tags.filter((t): t is string => typeof t === "string")
     : [];
 
+  const lineageId = await recordSaveLineage(ctx, key, content);
+
   const result = await ctx.store.save({
     key,
     agentId: ctx.agentId,
@@ -49,6 +116,7 @@ async function executeMemorySave(
     content,
     tags,
     sourceSessionId: ctx.sourceSessionId,
+    ...(lineageId !== undefined ? { lineageId } : {}),
   });
 
   if (!result.ok) {
@@ -80,6 +148,8 @@ async function executeMemoryGet(
   if (record === null) {
     return JSON.stringify({ found: false, key });
   }
+
+  await recordReadLineage(ctx, "memory_get", key, [record]);
 
   return JSON.stringify({
     found: true,
@@ -118,6 +188,13 @@ async function executeMemorySearch(
   if (results.length === 0) {
     return JSON.stringify({ results: [], query });
   }
+
+  await recordReadLineage(
+    ctx,
+    "memory_search",
+    query,
+    results.map((r) => r.record),
+  );
 
   return formatSearchResults(results, query);
 }

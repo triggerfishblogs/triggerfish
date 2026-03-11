@@ -51,3 +51,5 @@ export {
   getGoogleToolDefinitions,
   GOOGLE_TOOLS_SYSTEM_PROMPT,
 } from "./tools.ts";
+
+export { recordGoogleLineage } from "./lineage.ts";

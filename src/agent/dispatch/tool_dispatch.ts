@@ -317,6 +317,79 @@ async function dispatchSingleToolCall(
   );
 }
 
+/** Determine the lineage source_type from a tool name. */
+export function determineSourceType(toolName: string): string {
+  if (toolName.startsWith("web_")) return "web_request";
+  if (toolName.startsWith("browser_")) return "browser_session";
+  if (toolName.startsWith("memory_")) return "memory_access";
+  if (toolName.startsWith("google_") || toolName.startsWith("gmail_") ||
+      toolName.startsWith("calendar_") || toolName.startsWith("drive_") ||
+      toolName.startsWith("sheets_") || toolName.startsWith("tasks_")) {
+    return "google_api";
+  }
+  if (toolName.startsWith("github_")) return "github_api";
+  if (toolName.startsWith("obsidian_")) return "obsidian_vault";
+  if (toolName.startsWith("file_") || toolName === "read_file" ||
+      toolName === "write_file" || toolName === "edit_file" ||
+      toolName === "list_directory" || toolName === "search_files") {
+    return "filesystem";
+  }
+  if (toolName.startsWith("mcp_")) return "mcp_server";
+  if (toolName.startsWith("skill_") || toolName === "read_skill") {
+    return "skill_execution";
+  }
+  if (toolName.startsWith("cron_") || toolName.startsWith("trigger_")) {
+    return "scheduler";
+  }
+  return "tool_response";
+}
+
+/** Record lineage and persist a tool_call conversation record. */
+export async function recordToolCallLineageAndPersist(
+  call: ParsedToolCall,
+  resultText: string,
+  blocked: boolean,
+  config: OrchestratorConfig,
+  session: SessionState,
+  sessionKey: string,
+): Promise<void> {
+  if (blocked || call.name === "read_more") return;
+
+  let lineageId: string | undefined;
+  if (config.lineageStore) {
+    const sessionTaint = config.getSessionTaint?.() ?? session.taint;
+    const record = await config.lineageStore.create({
+      content: resultText,
+      origin: {
+        source_type: determineSourceType(call.name),
+        source_name: call.name,
+        accessed_at: new Date().toISOString(),
+        accessed_by: session.userId as string,
+        access_method: call.name,
+      },
+      classification: {
+        level: sessionTaint,
+        reason: `Tool call: ${call.name}`,
+      },
+      sessionId: session.id,
+    });
+    lineageId = record.lineage_id;
+  }
+
+  if (config.messageStore) {
+    const sessionTaint = config.getSessionTaint?.() ?? session.taint;
+    await config.messageStore.append({
+      session_id: sessionKey,
+      role: "tool_call",
+      content: "",
+      classification: sessionTaint,
+      tool_name: call.name,
+      tool_args: call.args,
+      lineage_id: lineageId,
+    });
+  }
+}
+
 /** Execute a single tool call with event emission and format the result. */
 async function executeAndFormatToolCall(
   call: ParsedToolCall,
@@ -350,6 +423,17 @@ async function executeAndFormatToolCall(
     result: cappedText,
     blocked,
   });
+
+  // Record lineage and persist tool_call (non-blocking for the dispatch pipeline)
+  await recordToolCallLineageAndPersist(
+    call,
+    resultText,
+    blocked,
+    orchestratorState.config,
+    session,
+    sessionKey,
+  );
+
   return `[TOOL_RESULT name="${call.name}"]\n${cappedText}\n[/TOOL_RESULT]`;
 }
 

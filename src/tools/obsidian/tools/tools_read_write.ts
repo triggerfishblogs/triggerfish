@@ -30,6 +30,7 @@ export function resolveNotePath(name: string): string {
 export async function recordLineage(
   ctx: ObsidianToolContext,
   notePath: string,
+  noteContent: string,
   classification: ClassificationLevel,
   operation: string,
 ): Promise<void> {
@@ -50,7 +51,7 @@ export async function recordLineage(
 
   try {
     await ctx.lineageStore.create({
-      content: notePath,
+      content: noteContent,
       origin,
       classification: lineageClassification,
       sessionId: ctx.sessionId,
@@ -89,7 +90,7 @@ export async function executeObsidianRead(
   if (!result.ok) return `Error: ${result.error}`;
 
   if (ctx.lineageStore) {
-    await recordLineage(ctx, notePath, noteClassification, "read");
+    await recordLineage(ctx, notePath, result.value.content, noteClassification, "read");
   }
 
   return JSON.stringify({
@@ -165,7 +166,8 @@ export async function executeObsidianWrite(
   if (!result.ok) return `Error: ${result.error}`;
 
   if (ctx.lineageStore) {
-    await recordLineage(ctx, notePath, folderClassification, "write");
+    const writeContent = content ?? append ?? prepend ?? "";
+    await recordLineage(ctx, notePath, writeContent, folderClassification, "write");
   }
 
   return JSON.stringify({

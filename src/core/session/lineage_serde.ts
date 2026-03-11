@@ -60,6 +60,7 @@ export function serialiseLineageRecord(record: LineageRecord): string {
     ...(record.current_location !== undefined
       ? { current_location: record.current_location }
       : {}),
+    ...(record.content !== undefined ? { content: record.content } : {}),
   };
   return JSON.stringify(stored);
 }
@@ -99,6 +100,7 @@ export function deserialiseLineageRecord(json: string): LineageRecord {
     ...(stored.current_location !== undefined
       ? { current_location: stored.current_location }
       : {}),
+    ...(stored.content !== undefined ? { content: stored.content } : {}),
   };
 }
 
@@ -113,4 +115,19 @@ export function lineageSessionIndexKey(
   lineageId: string,
 ): string {
   return `lineage-session:${sessionId as string}:${lineageId}`;
+}
+
+/** Storage key for a forward-trace reverse index entry. */
+export function lineageFwdIndexKey(parentId: string, childId: string): string {
+  return `lineage-fwd:${parentId}:${childId}`;
+}
+
+/** Storage key prefix for listing all children of a parent record. */
+export function lineageFwdPrefixKey(parentId: string): string {
+  return `lineage-fwd:${parentId}:`;
+}
+
+/** Storage key for the content-hash-to-lineage-id index. */
+export function lineageHashIndexKey(hash: string): string {
+  return `lineage-hash:${hash}`;
 }

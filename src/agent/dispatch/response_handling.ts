@@ -315,6 +315,38 @@ export async function handleFinalResponse(
     content: responseText.length > 0 ? responseText : completion.content,
   });
 
+  // Persist assistant response and create lineage record
+  const sessionKey = session.id as string;
+  const sessionTaint = state.config.getSessionTaint?.() ?? session.taint;
+
+  if (state.config.messageStore) {
+    await state.config.messageStore.append({
+      session_id: sessionKey,
+      role: "assistant",
+      content: responseText,
+      classification: sessionTaint,
+      token_count: tokens.outputTokens,
+    });
+  }
+
+  if (state.config.lineageStore) {
+    await state.config.lineageStore.create({
+      content: responseText,
+      origin: {
+        source_type: "agent_response",
+        source_name: "assistant",
+        accessed_at: new Date().toISOString(),
+        accessed_by: session.userId as string,
+        access_method: "llm_generation",
+      },
+      classification: {
+        level: sessionTaint,
+        reason: "Assistant response",
+      },
+      sessionId: session.id,
+    });
+  }
+
   return {
     ok: true,
     value: {

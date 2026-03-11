@@ -12,6 +12,7 @@ import type { ClassificationLevel } from "../../../core/types/classification.ts"
 import type { HookRunner } from "../../../core/policy/hooks/hooks.ts";
 import type { SessionState } from "../../../core/types/session.ts";
 import type { SecretStore } from "../../../core/secrets/keychain/keychain.ts";
+import type { LineageStore } from "../../../core/session/lineage_types.ts";
 import type { ChatSession } from "../../chat.ts";
 import type { GatewayServer } from "../../server/server.ts";
 import type { A2UIHost } from "../../../tools/tidepool/host/mod.ts";
@@ -84,6 +85,7 @@ export function wireMcpServers(
   integrationClassifications: Map<string, ClassificationLevel>,
   broadcastRefs: McpBroadcastRefs,
   keychain: SecretStore,
+  lineageStore: LineageStore,
 ): McpWiringResult {
   const mcpManager = createMcpServerManager();
 
@@ -106,7 +108,7 @@ export function wireMcpServers(
   }
 
   // Create MCP gateway for policy enforcement
-  const mcpGateway = createMcpGateway({ hookRunner });
+  const mcpGateway = createMcpGateway({ hookRunner, lineageStore });
 
   // Create MCP executor with live getter
   const executor = createMcpExecutor({

@@ -9,6 +9,7 @@
  */
 
 import type { GoogleToolContext } from "./types.ts";
+import { recordGoogleLineage } from "./lineage.ts";
 
 import {
   executeGmailLabel,
@@ -46,14 +47,32 @@ export {
 
 type ActionHandler = (input: Record<string, unknown>) => Promise<string>;
 
+/** Wrap an executor call so lineage is recorded after a successful response. */
+function withLineage(
+  ctx: GoogleToolContext,
+  service: string,
+  action: string,
+  handler: (input: Record<string, unknown>) => Promise<string>,
+): ActionHandler {
+  return async (input) => {
+    const result = await handler(input);
+    await recordGoogleLineage(ctx, service, action, result);
+    return result;
+  };
+}
+
 function buildGmailDispatch(
   ctx: GoogleToolContext,
 ): Readonly<Record<string, ActionHandler>> {
   return {
-    search: (input) => executeGmailSearch(ctx.gmail, input),
-    read: (input) => executeGmailRead(ctx.gmail, input),
-    send: (input) => executeGmailSend(ctx.gmail, input),
-    label: (input) => executeGmailLabel(ctx.gmail, input),
+    search: withLineage(ctx, "gmail", "search", (i) =>
+      executeGmailSearch(ctx.gmail, i)),
+    read: withLineage(ctx, "gmail", "read", (i) =>
+      executeGmailRead(ctx.gmail, i)),
+    send: withLineage(ctx, "gmail", "send", (i) =>
+      executeGmailSend(ctx.gmail, i)),
+    label: withLineage(ctx, "gmail", "label", (i) =>
+      executeGmailLabel(ctx.gmail, i)),
   };
 }
 
@@ -61,9 +80,12 @@ function buildCalendarDispatch(
   ctx: GoogleToolContext,
 ): Readonly<Record<string, ActionHandler>> {
   return {
-    list: (input) => executeCalendarList(ctx.calendar, input),
-    create: (input) => executeCalendarCreate(ctx.calendar, input),
-    update: (input) => executeCalendarUpdate(ctx.calendar, input),
+    list: withLineage(ctx, "calendar", "list", (i) =>
+      executeCalendarList(ctx.calendar, i)),
+    create: withLineage(ctx, "calendar", "create", (i) =>
+      executeCalendarCreate(ctx.calendar, i)),
+    update: withLineage(ctx, "calendar", "update", (i) =>
+      executeCalendarUpdate(ctx.calendar, i)),
   };
 }
 
@@ -71,9 +93,12 @@ function buildTasksDispatch(
   ctx: GoogleToolContext,
 ): Readonly<Record<string, ActionHandler>> {
   return {
-    list: (input) => executeTasksList(ctx.tasks, input),
-    create: (input) => executeTasksCreate(ctx.tasks, input),
-    complete: (input) => executeTasksComplete(ctx.tasks, input),
+    list: withLineage(ctx, "tasks", "list", (i) =>
+      executeTasksList(ctx.tasks, i)),
+    create: withLineage(ctx, "tasks", "create", (i) =>
+      executeTasksCreate(ctx.tasks, i)),
+    complete: withLineage(ctx, "tasks", "complete", (i) =>
+      executeTasksComplete(ctx.tasks, i)),
   };
 }
 
@@ -81,8 +106,10 @@ function buildDriveDispatch(
   ctx: GoogleToolContext,
 ): Readonly<Record<string, ActionHandler>> {
   return {
-    search: (input) => executeDriveSearch(ctx.drive, input),
-    read: (input) => executeDriveRead(ctx.drive, input),
+    search: withLineage(ctx, "drive", "search", (i) =>
+      executeDriveSearch(ctx.drive, i)),
+    read: withLineage(ctx, "drive", "read", (i) =>
+      executeDriveRead(ctx.drive, i)),
   };
 }
 
@@ -90,8 +117,10 @@ function buildSheetsDispatch(
   ctx: GoogleToolContext,
 ): Readonly<Record<string, ActionHandler>> {
   return {
-    read: (input) => executeSheetsRead(ctx.sheets, input),
-    write: (input) => executeSheetsWrite(ctx.sheets, input),
+    read: withLineage(ctx, "sheets", "read", (i) =>
+      executeSheetsRead(ctx.sheets, i)),
+    write: withLineage(ctx, "sheets", "write", (i) =>
+      executeSheetsWrite(ctx.sheets, i)),
   };
 }
 

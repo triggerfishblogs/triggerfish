@@ -179,6 +179,10 @@ export interface ChatSessionDeps {
   readonly personaOptions?: PersonaRecallOptions;
   /** Mutable ref toggled by non-owner turn wrappers. */
   readonly isOwnerTurnRef?: { value: boolean };
+  /** Message store for conversation persistence. */
+  readonly messageStore?: import("../../../core/conversation/mod.ts").MessageStore;
+  /** Lineage store for automatic data provenance tracking. */
+  readonly lineageStore?: import("../../../core/session/lineage.ts").LineageStore;
   /** Storage provider for bumper preference persistence. */
   readonly storage?: StorageProvider;
   /** Owner identifier for bumper preference storage key. */
@@ -260,6 +264,8 @@ export function assembleChatSession(deps: ChatSessionDeps) {
     workspacePath: deps.workspacePaths.publicPath,
     getWorkspacePath: deps.getWorkspacePath,
     isOwnerTurnRef: deps.isOwnerTurnRef,
+    messageStore: deps.messageStore,
+    lineageStore: deps.lineageStore,
   });
 }
 

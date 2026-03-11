@@ -16,6 +16,7 @@ export {
   initializePersistentStorage,
   initializeSessionInfrastructure,
 } from "./storage.ts";
+export type { InitializeMemoryOptions } from "./workspace_init.ts";
 export {
   buildMainPathClassifier,
   initializeMainWorkspace,
