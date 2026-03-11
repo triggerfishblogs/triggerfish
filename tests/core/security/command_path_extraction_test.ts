@@ -249,3 +249,120 @@ Deno.test("classifyCommandPaths: empty paths returns PUBLIC", () => {
   assertEquals(result.classification, "PUBLIC");
   assertEquals(result.resolvedPaths.length, 0);
 });
+
+// ─── CRITICAL REGRESSION: run_command must NOT bypass taint escalation ───────
+//
+// These tests use a classifier WITH resolveCwd (sandbox-aware), which is the
+// exact configuration used in production. The bug: remapSandboxPath maps "/"
+// to workspacePaths.basePath → PUBLIC, so "ls -al /" succeeds in a PUBLIC
+// session without escalation. classifyCommandPaths must use classifyRealPath
+// to bypass sandbox remapping.
+
+Deno.test("classifyCommandPaths: root '/' classifies as CONFIDENTIAL (default), NOT PUBLIC — even with sandbox-aware classifier", () => {
+  const workspace = "/tmp/test-workspace";
+  const workspacePaths = makeWorkspacePaths(workspace);
+  // Create classifier WITH resolveCwd — same as production
+  const classifier = createPathClassifier(
+    makeConfig(),
+    workspacePaths,
+    { resolveCwd: () => workspace },
+  );
+
+  const result = classifyCommandPaths({
+    paths: ["/"],
+    classifier,
+    workspaceCwd: workspace,
+  });
+  // "/" is the REAL filesystem root, not the sandbox workspace.
+  // It must NOT classify as PUBLIC. Default is CONFIDENTIAL.
+  assertEquals(
+    result.classification,
+    "CONFIDENTIAL",
+    "REGRESSION: '/' was remapped to workspace basePath via sandbox remapping. " +
+      "classifyCommandPaths must use classifyRealPath, not classify.",
+  );
+});
+
+Deno.test("classifyCommandPaths: /etc/passwd classifies as CONFIDENTIAL with sandbox-aware classifier", () => {
+  const workspace = "/tmp/test-workspace";
+  const workspacePaths = makeWorkspacePaths(workspace);
+  const classifier = createPathClassifier(
+    makeConfig(),
+    workspacePaths,
+    { resolveCwd: () => workspace },
+  );
+
+  const result = classifyCommandPaths({
+    paths: ["/etc/passwd"],
+    classifier,
+    workspaceCwd: workspace,
+  });
+  assertEquals(
+    result.classification,
+    "CONFIDENTIAL",
+    "Real filesystem paths outside workspace must classify at default level, not PUBLIC",
+  );
+});
+
+Deno.test("classifyCommandPaths: workspace paths still classify correctly with sandbox-aware classifier", () => {
+  const workspace = "/tmp/test-workspace";
+  const workspacePaths = makeWorkspacePaths(workspace);
+  const classifier = createPathClassifier(
+    makeConfig(),
+    workspacePaths,
+    { resolveCwd: () => workspace },
+  );
+
+  const result = classifyCommandPaths({
+    paths: [join(workspace, "restricted", "secret.txt")],
+    classifier,
+    workspaceCwd: workspace,
+  });
+  assertEquals(result.classification, "RESTRICTED");
+});
+
+Deno.test("classifyCommandPaths: workspace public dir classifies as PUBLIC (commands CAN run in workspace root)", () => {
+  const workspace = "/tmp/test-workspace";
+  const workspacePaths = makeWorkspacePaths(workspace);
+  const classifier = createPathClassifier(
+    makeConfig(),
+    workspacePaths,
+    { resolveCwd: () => workspace },
+  );
+
+  // Simulates no-path command fallback: targetPaths = [workspacePath]
+  // where workspacePath is the taint-aware public/ subdir
+  const result = classifyCommandPaths({
+    paths: [workspacePaths.publicPath],
+    classifier,
+    workspaceCwd: workspace,
+  });
+  assertEquals(
+    result.classification,
+    "PUBLIC",
+    "Workspace public path must classify as PUBLIC — commands must run freely in the workspace",
+  );
+});
+
+Deno.test("classifyCommandPaths: relative path in workspace classifies at workspace level, not default", () => {
+  const workspace = "/tmp/test-workspace";
+  const workspacePaths = makeWorkspacePaths(workspace);
+  const classifier = createPathClassifier(
+    makeConfig(),
+    workspacePaths,
+    { resolveCwd: () => workspace },
+  );
+
+  // "./myfile.txt" resolved against workspaceCwd → /tmp/test-workspace/myfile.txt
+  // workspace basePath is /tmp/test-workspace → classified as PUBLIC (workspace root)
+  const result = classifyCommandPaths({
+    paths: ["./myfile.txt"],
+    classifier,
+    workspaceCwd: workspace,
+  });
+  assertEquals(
+    result.classification,
+    "PUBLIC",
+    "Relative paths within workspace must classify at workspace level",
+  );
+});
