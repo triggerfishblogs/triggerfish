@@ -14,13 +14,7 @@ tags:
   - open source
   - triggerfish
   - owasp
-  - agent securityAlso - you used different headers or formatting than the last
-    one so I can't copy /paste it into my blog10:33 PMScrutinizing formatting
-    inconsistencies between blog postsScrutinizing formatting inconsistencies
-    between blog postsLooking across all the posts
-  - "blogs #1 and #9 have no section headers at all"
-  - "while #6 and #2 both use ## headers. Which style do you want to standardize
-    on?"
+  - agent security
 draft: false
 ---
 Prompt injection has been OWASP's number one vulnerability for LLM applications since they started tracking it. Every major AI platform has published guidance on it. Researchers have produced dozens of proposed defenses. None of them have solved it, and the pattern of why they keep failing points to something fundamental about where the problem actually lives.
