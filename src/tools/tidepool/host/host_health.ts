@@ -57,6 +57,7 @@ export function createTidepoolHealthHandler(): TidepoolHealthHandler {
       return {
         overall: "HEALTHY" as HealthStatus,
         cards: [],
+        timeSeries: [],
         timestamp: new Date().toISOString(),
       };
     },

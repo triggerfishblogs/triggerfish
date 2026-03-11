@@ -18,10 +18,24 @@ export interface HealthMetricCard {
   readonly detail?: string;
 }
 
+/** A single time-series data point. */
+export interface TimeSeriesPoint {
+  readonly t: string;
+  readonly v: number;
+}
+
+/** Named time-series for dashboard charts. */
+export interface TimeSeries {
+  readonly id: string;
+  readonly label: string;
+  readonly points: readonly TimeSeriesPoint[];
+}
+
 /** Health snapshot from patrol diagnostics. */
 export interface HealthSnapshot {
   readonly overall: HealthStatus;
   readonly cards: readonly HealthMetricCard[];
+  readonly timeSeries: readonly TimeSeries[];
   readonly timestamp: string;
 }
 
@@ -52,6 +66,8 @@ export function resolveHealthStatusLevel(
 /** Metric card IDs for the health dashboard. */
 export const HEALTH_CARD_IDS = [
   "gateway",
+  "uptime",
+  "memory",
   "channels",
   "sessions",
   "llm",
@@ -60,6 +76,8 @@ export const HEALTH_CARD_IDS = [
   "secrets",
   "security",
   "cron",
+  "triggers",
+  "webhooks",
 ] as const;
 
 export type HealthCardId = typeof HEALTH_CARD_IDS[number];
