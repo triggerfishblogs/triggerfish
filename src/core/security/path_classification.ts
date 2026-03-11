@@ -28,8 +28,21 @@ export interface PathClassificationResult {
 
 /** Classifier that resolves a filesystem path to a classification level. */
 export interface PathClassifier {
-  /** Classify an absolute or relative path. */
+  /** Classify an absolute or relative path (sandbox-aware when resolveCwd is set). */
   classify(absolutePath: string): PathClassificationResult;
+  /**
+   * Classify a REAL filesystem path — NO sandbox remapping.
+   *
+   * CRITICAL: run_command operates on the real filesystem, not inside the
+   * sandbox. Paths extracted from shell commands (e.g. "/" from "ls -al /")
+   * are real paths. Using classify() would remap "/" to the workspace
+   * basePath via remapSandboxPath, misclassifying the real root as PUBLIC
+   * and bypassing taint escalation entirely.
+   *
+   * DO NOT REMOVE THIS METHOD. DO NOT ROUTE run_command PATHS THROUGH
+   * classify(). This is the ONLY correct way to classify shell command paths.
+   */
+  classifyRealPath(absolutePath: string): PathClassificationResult;
 }
 
 /** Configuration for filesystem security. */
@@ -262,6 +275,28 @@ export function createPathClassifier(
         ? remapSandboxPath(expanded, workspacePaths) ??
           resolve(opts.resolveCwd(), expanded)
         : resolve(expanded);
+      return resolvePathClassification(
+        absolutePath,
+        homeDir,
+        config,
+        workspacePaths,
+      );
+    },
+
+    /**
+     * Classify a REAL filesystem path — bypasses sandbox remapping.
+     *
+     * CRITICAL — DO NOT REMOVE OR MERGE WITH classify().
+     * run_command executes on the real filesystem. "/" means the real root,
+     * not the sandbox workspace root. Without this method, remapSandboxPath
+     * converts "/" → workspacePaths.basePath → PUBLIC, which lets
+     * "ls -al /" succeed in a PUBLIC session without taint escalation.
+     * This has regressed multiple times. The separate method exists so it
+     * CANNOT regress from changes to sandbox remapping logic.
+     */
+    classifyRealPath(inputPath: string): PathClassificationResult {
+      const expanded = expandTilde(inputPath);
+      const absolutePath = resolve(expanded);
       return resolvePathClassification(
         absolutePath,
         homeDir,
