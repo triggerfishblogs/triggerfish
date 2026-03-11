@@ -16,7 +16,7 @@ tags:
   - agent security
   - openclaw
   - triggerfish
-draft: true
+draft: false
 ---
 ![](/blog/images/gemini_generated_image_i7ytlui7ytlui7yt.jpg)
 
