@@ -44,7 +44,7 @@ export type { A2UIHost, A2UIHostOptions } from "./host/mod.ts";
 export { createA2UIHost } from "./host/mod.ts";
 
 // Tidepool browser HTML compositor
-export { buildTidepoolHtml, TIDEPOOL_HTML } from "./ui.ts";
+export { buildTidepoolHtml } from "./ui.ts";
 
 // A2UI canvas tools (Result-based)
 export type { RenderFileOptions, TidePoolTools } from "./tools/mod.ts";

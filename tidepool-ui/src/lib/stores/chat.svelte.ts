@@ -267,3 +267,12 @@ function handleMessage(msg: Record<string, unknown>): void {
 }
 
 onTopic("chat", handleMessage);
+
+/** Reset thinking state when the WebSocket disconnects. */
+function handleShellMessage(msg: Record<string, unknown>): void {
+  if (msg.type === "ws_disconnected") {
+    _thinking = false;
+  }
+}
+
+onTopic("shell", handleShellMessage);

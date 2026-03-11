@@ -66,7 +66,7 @@ export function connect(): void {
   if (ws) return;
 
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  const url = `${protocol}//${location.host}/ws`;
+  const url = `${protocol}//${location.host}/`;
 
   _connectionState = "connecting";
   ws = new WebSocket(url);

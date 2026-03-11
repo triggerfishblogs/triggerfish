@@ -59,9 +59,8 @@ export function createHealthSnapshotProvider(
   };
 
   return async () => {
-    const cards = await buildHealthCards(bootstrap, coreInfra);
-
     const sessionCount = await countSessions(coreInfra);
+    const cards = buildHealthCards(bootstrap, coreInfra, sessionCount);
     pushPoint(agentsSeries, sessionCount);
 
     const cronCount = coreInfra.schedulerService.cronManager.list()
@@ -74,7 +73,11 @@ export function createHealthSnapshotProvider(
     return {
       overall: deriveOverallStatus(cards),
       cards,
-      timeSeries: [agentsSeries, cronSeries, memorySeries],
+      timeSeries: [agentsSeries, cronSeries, memorySeries].map((s) => ({
+        id: s.id,
+        label: s.label,
+        points: [...s.points],
+      })),
       timestamp: new Date().toISOString(),
     };
   };
@@ -107,17 +110,18 @@ function deriveOverallStatus(
 }
 
 /** Assemble all health metric cards. */
-async function buildHealthCards(
+function buildHealthCards(
   bootstrap: BootstrapResult,
   coreInfra: CoreInfraResult,
-): Promise<HealthMetricCard[]> {
+  sessionCount: number,
+): HealthMetricCard[] {
   const rawConfig = bootstrap.config as unknown as Record<string, unknown>;
   return [
     buildGatewayCard(rawConfig),
     buildUptimeCard(),
     buildMemoryCard(),
     buildLlmCard(bootstrap),
-    await buildSessionsCard(coreInfra),
+    buildSessionsCard(sessionCount),
     buildChannelsCard(bootstrap),
     buildSkillsCard(rawConfig),
     buildSecretsCard(),
@@ -156,16 +160,13 @@ function buildLlmCard(bootstrap: BootstrapResult): HealthMetricCard {
   };
 }
 
-/** Active sessions card with live count from session manager. */
-async function buildSessionsCard(
-  coreInfra: CoreInfraResult,
-): Promise<HealthMetricCard> {
-  const count = await countSessions(coreInfra);
+/** Active sessions card using a pre-computed count. */
+function buildSessionsCard(sessionCount: number): HealthMetricCard {
   return {
     id: "sessions",
     label: "Sessions",
     status: "green" as StatusLevel,
-    value: String(count),
+    value: String(sessionCount),
   };
 }
 
