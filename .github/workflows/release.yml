@@ -38,6 +38,13 @@ jobs:
         with:
           deno-version: v2.x
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Tidepool UI
+        run: cd tidepool-ui && npm install && npm run build
+
       - name: Stamp version
         shell: bash
         run: |
@@ -50,20 +57,7 @@ jobs:
           --include config/
           --include src/skills/
           --include src/exec/sandbox/worker.ts
-          --include src/tools/tidepool/tmpl_base.html
-          --include src/tools/tidepool/tmpl_styles.html
-          --include src/tools/tidepool/tmpl_chat.html
-          --include src/tools/tidepool/tmpl_canvas.html
-          --include src/tools/tidepool/tmpl_chat_script.html
-          --include src/tools/tidepool/tmpl_canvas_script.html
-          --include src/tools/tidepool/tmpl_shell_script.html
-          --include src/tools/tidepool/tmpl_components.html
-          --include src/tools/tidepool/tmpl_agents.html
-          --include src/tools/tidepool/tmpl_health.html
-          --include src/tools/tidepool/tmpl_settings.html
-          --include src/tools/tidepool/tmpl_logs.html
-          --include src/tools/tidepool/tmpl_memory.html
-          --include src/tools/tidepool/tmpl_workflows.html
+          --include src/tools/tidepool/dist/index.html
           --output=${{ matrix.output }}
           src/cli/main.ts
 
