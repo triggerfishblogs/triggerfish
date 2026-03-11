@@ -34,7 +34,7 @@ function makeConfig(
 function makeWorkspacePaths(basePath: string): WorkspacePaths {
   return {
     basePath,
-    publicPath: basePath,
+    publicPath: join(basePath, "public"),
     internalPath: join(basePath, "internal"),
     confidentialPath: join(basePath, "confidential"),
     restrictedPath: join(basePath, "restricted"),
@@ -344,7 +344,7 @@ Deno.test("classifyCommandPaths: workspace public dir classifies as PUBLIC (comm
   );
 });
 
-Deno.test("classifyCommandPaths: relative path in workspace classifies at workspace level, not default", () => {
+Deno.test("classifyCommandPaths: relative path in workspace root classifies at default level without classification subdir", () => {
   const workspace = "/tmp/test-workspace";
   const workspacePaths = makeWorkspacePaths(workspace);
   const classifier = createPathClassifier(
@@ -354,7 +354,10 @@ Deno.test("classifyCommandPaths: relative path in workspace classifies at worksp
   );
 
   // "./myfile.txt" resolved against workspaceCwd → /tmp/test-workspace/myfile.txt
-  // workspace basePath is /tmp/test-workspace → classified as PUBLIC (workspace root)
+  // This is inside basePath but NOT in any classification subdirectory (public/,
+  // internal/, confidential/, restricted/), so it falls through to the default
+  // classification (CONFIDENTIAL). Only basePath itself classifies as PUBLIC
+  // (structural ancestor rule), not files directly under basePath.
   const result = classifyCommandPaths({
     paths: ["./myfile.txt"],
     classifier,
@@ -362,7 +365,7 @@ Deno.test("classifyCommandPaths: relative path in workspace classifies at worksp
   });
   assertEquals(
     result.classification,
-    "PUBLIC",
-    "Relative paths within workspace must classify at workspace level",
+    "CONFIDENTIAL",
+    "Files directly under workspace root (not in a classification subdir) classify at default level",
   );
 });
