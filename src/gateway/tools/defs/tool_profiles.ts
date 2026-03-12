@@ -31,6 +31,7 @@ import { HEALTHCHECK_SYSTEM_PROMPT } from "../../../tools/healthcheck.ts";
 import { SIMULATE_SYSTEM_PROMPT } from "../../../tools/simulate/mod.ts";
 import { TEAM_SYSTEM_PROMPT } from "../../../agent/team/mod.ts";
 import { WORKFLOW_SYSTEM_PROMPT } from "../../../workflow/mod.ts";
+import { SSH_SYSTEM_PROMPT } from "../../../tools/ssh/mod.ts";
 import { TOOL_GROUPS, type ToolGroupName } from "./tool_groups.ts";
 import type { ToolDefinition } from "../../../core/types/tool.ts";
 
@@ -75,6 +76,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "simulate",
     "team",
     "workflow",
+    "ssh",
   ],
   /** CLI chat — everything except tidepool canvas tools. */
   cli: [
@@ -109,6 +111,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "simulate",
     "team",
     "workflow",
+    "ssh",
   ],
   /** Trigger sessions — sandboxed file tools only, no run_command. */
   triggerSession: [
@@ -216,6 +219,7 @@ export const TOOL_GROUP_PROMPTS: Partial<
   simulate: SIMULATE_SYSTEM_PROMPT,
   team: TEAM_SYSTEM_PROMPT,
   workflow: WORKFLOW_SYSTEM_PROMPT,
+  ssh: SSH_SYSTEM_PROMPT,
 };
 
 /**

@@ -161,3 +161,72 @@ Deno.test("tool floor: PUBLIC session can invoke unfloored tools", () => {
   assertEquals(registry.canInvoke("read_file", "PUBLIC"), true);
   assertEquals(registry.canInvoke("memory_get", "PUBLIC"), true);
 });
+
+// --- SSH tool floor enforcement ---
+
+Deno.test("tool floor: all SSH tools have INTERNAL floor", () => {
+  const registry = createToolFloorRegistry();
+  const sshTools = [
+    "ssh_execute",
+    "ssh_session_open",
+    "ssh_session_write",
+    "ssh_session_read",
+    "ssh_session_close",
+  ];
+  for (const tool of sshTools) {
+    assertEquals(registry.getFloor(tool), "INTERNAL", `${tool} should have INTERNAL floor`);
+  }
+});
+
+Deno.test("tool floor: PUBLIC session cannot invoke SSH tools", () => {
+  const registry = createToolFloorRegistry();
+  const sshTools = [
+    "ssh_execute",
+    "ssh_session_open",
+    "ssh_session_write",
+    "ssh_session_read",
+    "ssh_session_close",
+  ];
+  for (const tool of sshTools) {
+    assertEquals(registry.canInvoke(tool, "PUBLIC"), false, `PUBLIC should not invoke ${tool}`);
+  }
+});
+
+Deno.test("tool floor: INTERNAL session can invoke SSH tools", () => {
+  const registry = createToolFloorRegistry();
+  const sshTools = [
+    "ssh_execute",
+    "ssh_session_open",
+    "ssh_session_write",
+    "ssh_session_read",
+    "ssh_session_close",
+  ];
+  for (const tool of sshTools) {
+    assertEquals(registry.canInvoke(tool, "INTERNAL"), true, `INTERNAL should invoke ${tool}`);
+  }
+});
+
+Deno.test("tool floor: CONFIDENTIAL session can invoke SSH tools", () => {
+  const registry = createToolFloorRegistry();
+  assertEquals(registry.canInvoke("ssh_execute", "CONFIDENTIAL"), true);
+});
+
+Deno.test("tool floor: enterprise CANNOT lower SSH floor below INTERNAL", () => {
+  const overrides = new Map<string, ClassificationLevel>([
+    ["ssh_execute", "PUBLIC"],
+  ]);
+  const registry = createToolFloorRegistry(overrides);
+  // Hardcoded INTERNAL floor wins over enterprise PUBLIC override
+  assertEquals(registry.getFloor("ssh_execute"), "INTERNAL");
+  assertEquals(registry.canInvoke("ssh_execute", "PUBLIC"), false);
+});
+
+Deno.test("tool floor: enterprise can raise SSH floor above INTERNAL", () => {
+  const overrides = new Map<string, ClassificationLevel>([
+    ["ssh_execute", "RESTRICTED"],
+  ]);
+  const registry = createToolFloorRegistry(overrides);
+  assertEquals(registry.getFloor("ssh_execute"), "RESTRICTED");
+  assertEquals(registry.canInvoke("ssh_execute", "INTERNAL"), false);
+  assertEquals(registry.canInvoke("ssh_execute", "RESTRICTED"), true);
+});

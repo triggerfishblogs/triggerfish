@@ -83,6 +83,7 @@ function buildExtendedSubsystems(
     opts.simulateExecutor,
     opts.teamExecutor,
     opts.workflowExecutor,
+    opts.sshExecutor,
     webExecutor,
   ];
 }

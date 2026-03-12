@@ -62,6 +62,7 @@ import {
 } from "../../../workflow/mod.ts";
 import type { MemoryStore } from "../../../tools/memory/store.ts";
 import { loadPersonaContext } from "../../../tools/memory/mod.ts";
+import { createSshToolExecutor } from "../../../tools/ssh/mod.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 
 const log = createLogger("persona-prompt");
@@ -201,6 +202,8 @@ export function assembleMainToolExecutor(
     })
     : undefined;
 
+  const sshExecutor = createSshToolExecutor();
+
   const toolExecutor = createToolExecutor({
     ...deps,
     googleExecutor: buildGoogleExecutor({
@@ -210,6 +213,7 @@ export function assembleMainToolExecutor(
     ...aux,
     providerRegistry: deps.registry,
     workflowExecutor,
+    sshExecutor,
   });
   compositeRef.current = toolExecutor;
   return toolExecutor;

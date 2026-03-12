@@ -128,6 +128,9 @@ function resolveTriggerFishDispatch(
         },
       };
 
+    case "ssh":
+      return resolveSshDispatch(input);
+
     default:
       return { error: `Unknown triggerfish call type: triggerfish:${subType}` };
   }
@@ -153,6 +156,47 @@ function resolveMemoryDispatch(
   if (!toolName) {
     return {
       error: `Unknown memory operation: ${operation}. Valid: ${
+        Object.keys(toolMap).join(", ")
+      }`,
+    };
+  }
+
+  const { operation: _op, ...rest } = input;
+  return { toolName, input: rest };
+}
+
+function resolveSshDispatch(
+  input: Record<string, unknown>,
+): DispatchTarget | DispatchError {
+  const operation = input.operation as string | undefined;
+
+  // Default to ssh_execute when no operation is specified (most common workflow use).
+  if (!operation || operation === "execute") {
+    return {
+      toolName: "ssh_execute",
+      input: {
+        host: input.host ?? "",
+        command: input.command ?? "",
+        timeout_ms: input.timeout_ms,
+        port: input.port,
+        key: input.key,
+        password: input.password,
+        passphrase: input.passphrase,
+      },
+    };
+  }
+
+  const toolMap: Record<string, string> = {
+    session_open: "ssh_session_open",
+    session_write: "ssh_session_write",
+    session_read: "ssh_session_read",
+    session_close: "ssh_session_close",
+  };
+
+  const toolName = toolMap[operation];
+  if (!toolName) {
+    return {
+      error: `Unknown ssh operation: ${operation}. Valid: execute, ${
         Object.keys(toolMap).join(", ")
       }`,
     };
