@@ -258,10 +258,11 @@ const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<
   ["trigger_", "PUBLIC"],
   // Skills — read_skill is read-only, works at all classification levels
   ["read_skill", "PUBLIC"],
-  // Subagent / agents — owner-only
+  // Subagent / agents — owner-only (claude_ omitted: HARDCODED_TOOL_FLOORS
+  // defines INTERNAL floor for claude_session/claude_output; floor registry
+  // provides the classification fallback for all consumers)
   ["subagent", "PUBLIC"],
   ["agents_", "PUBLIC"],
-  ["claude_", "PUBLIC"],
   ["sessions_", "PUBLIC"],
   ["signal_", "PUBLIC"],
   ["channels_", "PUBLIC"],
@@ -285,8 +286,8 @@ const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<
   ["llm_task", "PUBLIC"],
   ["log_read", "PUBLIC"],
   ["simulate_tool_call", "PUBLIC"],
-  // SSH — remote access requires INTERNAL minimum (matches HARDCODED_TOOL_FLOORS)
-  ["ssh_", "INTERNAL"],
+  // ssh_ omitted: HARDCODED_TOOL_FLOORS defines INTERNAL floor for all ssh_*
+  // tools; floor registry provides the classification fallback for all consumers.
 ];
 
 /** Return type of mapToolPrefixClassifications. */

@@ -207,6 +207,18 @@ function checkBumpersForToolCall(
       }
     }
   }
+  const floor = config.toolFloorRegistry?.getFloor(call.name) ?? null;
+  if (floor !== null) {
+    const blocked = config.checkBumpersBlock(floor);
+    if (blocked) {
+      log.warn("Bumpers blocked tool call via floor registry", {
+        operation: "checkBumpersForToolCall",
+        toolName: call.name,
+        classificationLevel: floor,
+      });
+      return blocked;
+    }
+  }
   log.debug("Bumpers allowed tool call", {
     operation: "checkBumpersForToolCall",
     toolName: call.name,
@@ -262,6 +274,7 @@ async function executeSecurityEnforcedToolCall(
       call.name,
       config.toolClassifications,
       config.escalateTaint,
+      config.toolFloorRegistry,
     );
   }
 

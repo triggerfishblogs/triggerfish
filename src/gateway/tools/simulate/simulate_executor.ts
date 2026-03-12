@@ -94,12 +94,14 @@ function resolveToolPrefixClassification(
  * Mirrors the escalation logic in `tool_dispatch.ts`:
  * 1. If resource classification is available, use it (pre-escalation for owner/trigger).
  * 2. Otherwise, fall back to tool prefix classification.
+ * 3. If no prefix match, fall back to tool floor registry.
  */
 export function computeSimulatedTaint(
   currentTaint: ClassificationLevel,
   resourceClassification: ClassificationLevel | null,
   toolName: string,
   toolClassifications?: ReadonlyMap<string, ClassificationLevel>,
+  toolFloorRegistry?: ToolFloorRegistry,
 ): ClassificationLevel {
   if (resourceClassification !== null) {
     return maxClassification(currentTaint, resourceClassification);
@@ -110,6 +112,10 @@ export function computeSimulatedTaint(
   );
   if (prefixLevel !== null) {
     return maxClassification(currentTaint, prefixLevel);
+  }
+  const floor = toolFloorRegistry?.getFloor(toolName) ?? null;
+  if (floor !== null) {
+    return maxClassification(currentTaint, floor);
   }
   return currentTaint;
 }
@@ -253,6 +259,7 @@ function executeSimulation(
     secCtx.resourceClassification,
     toolName,
     ctx.toolClassifications,
+    ctx.toolFloorRegistry,
   );
   const hookInputWithTaint = { ...hookInput, session_taint: resultingTaint };
 

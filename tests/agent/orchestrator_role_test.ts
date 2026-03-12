@@ -10,6 +10,7 @@ import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import { resolveActiveToolList } from "../../src/agent/loop/loop_types.ts";
 import {
   enforceNonOwnerToolCeiling,
+  enforceTriggerToolCeiling,
   escalateToolPrefixTaint,
 } from "../../src/agent/dispatch/access_control.ts";
 import {
@@ -18,6 +19,7 @@ import {
 import type { OrchestratorState } from "../../src/agent/orchestrator/orchestrator.ts";
 import type { ToolDefinition } from "../../src/core/types/tool.ts";
 import type { ClassificationLevel } from "../../src/core/types/classification.ts";
+import { createToolFloorRegistry } from "../../src/core/security/tool_floors.ts";
 import { createLogger } from "../../src/core/logger/mod.ts";
 
 /** Build a minimal ToolDefinition stub. */
@@ -393,13 +395,23 @@ Deno.test("escalateToolPrefixTaint: write_file escalates to PUBLIC (no-op)", () 
   );
 });
 
-Deno.test("mapToolPrefixClassifications: ssh_ classified INTERNAL", () => {
+// ─── Floor registry fallback ────────────────────────────────────────────────
+// ssh_ and claude_ are NOT in the prefix map. Their classification comes
+// from HARDCODED_TOOL_FLOORS via the ToolFloorRegistry fallback.
+
+Deno.test("mapToolPrefixClassifications: ssh_ NOT in prefix map (uses floor registry)", () => {
   const map = mapToolPrefixClassifications({}).all;
-  assertEquals(map.get("ssh_"), "INTERNAL");
+  assertEquals(map.has("ssh_"), false, "ssh_ should not be in prefix map");
 });
 
-Deno.test("escalateToolPrefixTaint: ssh_execute escalates to INTERNAL", () => {
+Deno.test("mapToolPrefixClassifications: claude_ NOT in prefix map (uses floor registry)", () => {
   const map = mapToolPrefixClassifications({}).all;
+  assertEquals(map.has("claude_"), false, "claude_ should not be in prefix map");
+});
+
+Deno.test("escalateToolPrefixTaint: ssh_execute escalates via floor registry fallback", () => {
+  const map = mapToolPrefixClassifications({}).all;
+  const registry = createToolFloorRegistry();
   let escalatedLevel: ClassificationLevel | null = null;
   escalateToolPrefixTaint(
     "ssh_execute",
@@ -407,41 +419,94 @@ Deno.test("escalateToolPrefixTaint: ssh_execute escalates to INTERNAL", () => {
     (level: ClassificationLevel, _reason: string) => {
       escalatedLevel = level;
     },
+    registry,
   );
   assertEquals(
     escalatedLevel,
     "INTERNAL",
-    "ssh_execute should escalate session taint to INTERNAL",
+    "ssh_execute should escalate to INTERNAL via floor registry",
   );
 });
 
-Deno.test("escalateToolPrefixTaint: ssh_session_open escalates to INTERNAL", () => {
+Deno.test("escalateToolPrefixTaint: claude_session escalates via floor registry fallback", () => {
   const map = mapToolPrefixClassifications({}).all;
+  const registry = createToolFloorRegistry();
   let escalatedLevel: ClassificationLevel | null = null;
   escalateToolPrefixTaint(
-    "ssh_session_open",
+    "claude_session",
     map,
     (level: ClassificationLevel, _reason: string) => {
       escalatedLevel = level;
     },
+    registry,
   );
   assertEquals(
     escalatedLevel,
     "INTERNAL",
-    "ssh_session_open should escalate session taint to INTERNAL",
+    "claude_session should escalate to INTERNAL via floor registry",
   );
 });
 
-Deno.test("enforceNonOwnerToolCeiling: non-owner with PUBLIC ceiling blocks ssh_execute", () => {
+Deno.test("escalateToolPrefixTaint: no escalation when neither prefix nor floor match", () => {
   const map = mapToolPrefixClassifications({}).all;
+  const registry = createToolFloorRegistry();
+  let escalated = false;
+  escalateToolPrefixTaint(
+    "unknown_tool_xyz",
+    map,
+    (_level: ClassificationLevel, _reason: string) => {
+      escalated = true;
+    },
+    registry,
+  );
+  assertEquals(escalated, false, "Unknown tool should not trigger escalation");
+});
+
+Deno.test("enforceNonOwnerToolCeiling: blocks ssh_execute via floor registry fallback", () => {
+  const map = mapToolPrefixClassifications({}).all;
+  const registry = createToolFloorRegistry();
   const err = enforceNonOwnerToolCeiling(
     "ssh_execute",
     "PUBLIC" as ClassificationLevel,
     map,
+    registry,
   );
-  assertNotEquals(
-    err,
-    null,
-    "ssh_execute (INTERNAL) should be blocked for PUBLIC ceiling",
+  assertNotEquals(err, null, "ssh_execute should be blocked for PUBLIC ceiling");
+  assert(err!.includes("INTERNAL"), "Error should mention INTERNAL classification");
+});
+
+Deno.test("enforceNonOwnerToolCeiling: allows ssh_execute at INTERNAL ceiling via floor fallback", () => {
+  const map = mapToolPrefixClassifications({}).all;
+  const registry = createToolFloorRegistry();
+  const err = enforceNonOwnerToolCeiling(
+    "ssh_execute",
+    "INTERNAL" as ClassificationLevel,
+    map,
+    registry,
   );
+  assertEquals(err, null, "ssh_execute should be allowed at INTERNAL ceiling");
+});
+
+Deno.test("enforceTriggerToolCeiling: blocks ssh_execute at PUBLIC ceiling via floor fallback", () => {
+  const map = mapToolPrefixClassifications({}).all;
+  const registry = createToolFloorRegistry();
+  const err = enforceTriggerToolCeiling(
+    "ssh_execute",
+    "PUBLIC" as ClassificationLevel,
+    map,
+    registry,
+  );
+  assertNotEquals(err, null, "ssh_execute should be blocked for PUBLIC trigger ceiling");
+});
+
+Deno.test("enforceTriggerToolCeiling: allows ssh_execute at INTERNAL ceiling via floor fallback", () => {
+  const map = mapToolPrefixClassifications({}).all;
+  const registry = createToolFloorRegistry();
+  const err = enforceTriggerToolCeiling(
+    "ssh_execute",
+    "INTERNAL" as ClassificationLevel,
+    map,
+    registry,
+  );
+  assertEquals(err, null, "ssh_execute should be allowed at INTERNAL trigger ceiling");
 });

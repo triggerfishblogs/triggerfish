@@ -18,6 +18,7 @@ import type {
   OrchestratorConfig,
   ToolExecutor,
 } from "../orchestrator/orchestrator_types.ts";
+import type { ToolFloorRegistry } from "../../core/security/tool_floors.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("access-control");
@@ -31,6 +32,7 @@ export function enforceTriggerToolCeiling(
   toolClassifications:
     | ReadonlyMap<string, ClassificationLevel>
     | undefined,
+  toolFloorRegistry?: ToolFloorRegistry,
 ): string | null {
   if (ceiling === null || !toolClassifications) return null;
   for (const [prefix, level] of toolClassifications) {
@@ -38,8 +40,12 @@ export function enforceTriggerToolCeiling(
       if (!canFlowTo(level, ceiling)) {
         return `Error: ${name} (classified ${level}) exceeds trigger ceiling ${ceiling}. Access denied.`;
       }
-      break;
+      return null;
     }
+  }
+  const floor = toolFloorRegistry?.getFloor(name) ?? null;
+  if (floor !== null && !canFlowTo(floor, ceiling)) {
+    return `Error: ${name} (classified ${floor}) exceeds trigger ceiling ${ceiling}. Access denied.`;
   }
   return null;
 }
@@ -51,28 +57,31 @@ export function enforceNonOwnerToolCeiling(
   toolClassifications:
     | ReadonlyMap<string, ClassificationLevel>
     | undefined,
+  toolFloorRegistry?: ToolFloorRegistry,
 ): string | null {
   if (ceiling === null) {
     return `Error: Tool calls are not available in this session.`;
   }
   if (!toolClassifications) return null;
-  let matched = false;
   for (const [prefix, level] of toolClassifications) {
     if (name.startsWith(prefix)) {
-      matched = true;
       if (!canFlowTo(level, ceiling)) {
         return `Error: ${name} (classified ${level}) exceeds session ceiling ${ceiling}. Access denied.`;
       }
-      break;
+      return null;
     }
   }
-  if (!matched) {
-    return `Error: Tool calls are not available in this session.`;
+  const floor = toolFloorRegistry?.getFloor(name) ?? null;
+  if (floor !== null) {
+    if (!canFlowTo(floor, ceiling)) {
+      return `Error: ${name} (classified ${floor}) exceeds session ceiling ${ceiling}. Access denied.`;
+    }
+    return null;
   }
-  return null;
+  return `Error: Tool calls are not available in this session.`;
 }
 
-/** Escalate session taint when calling a classified tool prefix. */
+/** Escalate session taint when calling a classified tool prefix or floored tool. */
 export function escalateToolPrefixTaint(
   name: string,
   toolClassifications:
@@ -81,18 +90,30 @@ export function escalateToolPrefixTaint(
   escalateTaint:
     | ((level: ClassificationLevel, reason: string) => void)
     | undefined,
+  toolFloorRegistry?: ToolFloorRegistry,
 ): void {
-  if (!toolClassifications || !escalateTaint) return;
-  for (const [prefix, level] of toolClassifications) {
-    if (name.startsWith(prefix)) {
-      log.warn("Escalating taint from tool prefix match", {
-        operation: "escalateToolPrefixTaint",
-        toolName: name,
-        classificationLevel: level,
-      });
-      escalateTaint(level, `Tool call: ${name}`);
-      break;
+  if (!escalateTaint) return;
+  if (toolClassifications) {
+    for (const [prefix, level] of toolClassifications) {
+      if (name.startsWith(prefix)) {
+        log.warn("Escalating taint from tool prefix match", {
+          operation: "escalateToolPrefixTaint",
+          toolName: name,
+          classificationLevel: level,
+        });
+        escalateTaint(level, `Tool call: ${name}`);
+        return;
+      }
     }
+  }
+  const floor = toolFloorRegistry?.getFloor(name) ?? null;
+  if (floor !== null) {
+    log.warn("Escalating taint from tool floor", {
+      operation: "escalateToolFloorTaint",
+      toolName: name,
+      classificationLevel: floor,
+    });
+    escalateTaint(floor, `Tool call: ${name}`);
   }
 }
 
@@ -129,6 +150,7 @@ function enforceAccessControl(
       name,
       config.getNonOwnerCeiling?.() ?? null,
       config.toolClassifications,
+      config.toolFloorRegistry,
     );
   }
   if (config.isOwnerSession && !config.isOwnerSession()) {
@@ -136,6 +158,7 @@ function enforceAccessControl(
       name,
       config.getNonOwnerCeiling?.() ?? null,
       config.toolClassifications,
+      config.toolFloorRegistry,
     );
   }
   return null;
