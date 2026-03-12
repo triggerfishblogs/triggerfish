@@ -180,6 +180,7 @@ function isPathLikeToken(token: string): boolean {
   if (token.length === 0) return false;
   if (token.startsWith("-")) return false;
   if (token.includes("://")) return false;
+  if (token === "." || token === "..") return true;
   if (token.startsWith("/")) return true;
   if (token.startsWith("./") || token.startsWith("../")) return true;
   if (token === "~" || token.startsWith("~/") || token.startsWith("~\\")) {

@@ -170,14 +170,16 @@ function classifyWorkspacePath(
     }
   }
 
-  // Workspace basePath and ancestors are structural (contain classification
-  // dirs but are not classified data themselves). Classify as PUBLIC so
-  // paths like ".." from the sandbox root don't falsely escalate taint.
+  // Workspace basePath contains ALL classification directories (public/,
+  // internal/, confidential/, restricted/). Listing it reveals their names
+  // and structure. Ancestors are even broader. Classify as RESTRICTED to
+  // prevent a PUBLIC session from discovering classified directory layout
+  // via `ls ..` or similar commands.
   if (
     absolutePath === workspacePaths.basePath ||
     workspacePaths.basePath.startsWith(absolutePath + "/")
   ) {
-    return { classification: "PUBLIC", source: "workspace" };
+    return { classification: "RESTRICTED", source: "workspace" };
   }
 
   return null;
