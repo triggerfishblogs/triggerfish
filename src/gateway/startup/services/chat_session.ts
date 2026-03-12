@@ -39,7 +39,11 @@ import type { createSchedulerService } from "../../../scheduler/service.ts";
 import type { createPairingService } from "../../../channels/pairing.ts";
 import type { RegisteredChannel } from "../../tools/session/session_tools.ts";
 import type { TriggerStore } from "../../../scheduler/triggers/store.ts";
-import { TIDEPOOL_PORT } from "../../../cli/constants.ts";
+import {
+  daemonStatePath,
+  type DaemonState,
+  TIDEPOOL_PORT,
+} from "../../../cli/constants.ts";
 import {
   resolvePromptsForProfile,
   resolveToolsForProfile,
@@ -326,10 +330,28 @@ export async function startTidepoolHost(
   notificationService: ReturnType<typeof createNotificationService>,
   log: ReturnType<typeof createLogger>,
 ) {
-  const tidepoolHost = createA2UIHost({ chatSession: tidepoolChatSession });
+  const sessionKey = crypto.randomUUID();
+  const tidepoolHost = createA2UIHost({
+    chatSession: tidepoolChatSession,
+    sessionKey,
+  });
   await tidepoolHost.start(TIDEPOOL_PORT);
-  log.info(`Tidepool listening on http://127.0.0.1:${TIDEPOOL_PORT}`);
-  console.log(`  Tidepool: http://127.0.0.1:${TIDEPOOL_PORT}`);
+  const tidepoolUrl = `http://127.0.0.1:${TIDEPOOL_PORT}?key=${sessionKey}`;
+  log.info(`Tidepool listening on ${tidepoolUrl}`);
+  console.log(`  Tidepool: ${tidepoolUrl}`);
+
+  const state: DaemonState = {
+    tidepoolUrl,
+    startedAt: new Date().toISOString(),
+  };
+  try {
+    await Deno.writeTextFile(daemonStatePath(), JSON.stringify(state));
+  } catch (err) {
+    log.warn("Daemon state file write failed", {
+      operation: "writeDaemonState",
+      err,
+    });
+  }
   notificationService.registerChannel({
     name: "tidepool",
     // deno-lint-ignore require-await

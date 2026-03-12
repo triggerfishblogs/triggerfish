@@ -98,6 +98,24 @@ function wireCleanupListeners(
   socket.addEventListener("error", cleanup);
 }
 
+/** Validate the `key` query parameter against the session key. Returns 401 Response on failure, null on success. */
+function rejectUnauthorized(
+  request: Request,
+  state: A2UIHostState,
+): Response | null {
+  if (!state.sessionKey) return null;
+  const url = new URL(request.url);
+  const provided = url.searchParams.get("key");
+  if (provided === state.sessionKey) return null;
+  log.warn("Tidepool request rejected: invalid session key", {
+    operation: "rejectUnauthorized",
+    providedKey: provided ?? "(none)",
+    isWebSocket: request.headers.get("upgrade") === "websocket",
+    url: request.url,
+  });
+  return new Response("Unauthorized", { status: 401 });
+}
+
 /** Route an inbound HTTP request to WebSocket upgrade or static HTML response. */
 export function routeHostRequest(
   request: Request,
@@ -105,10 +123,31 @@ export function routeHostRequest(
   chatSession: ChatSession | undefined,
 ): Response {
   if (request.headers.get("upgrade") === "websocket") {
+    const rejection = rejectUnauthorized(request, state);
+    if (rejection) {
+      // Cannot return a plain HTTP response for a WS upgrade — browsers hang.
+      // Accept the upgrade then immediately close with 4401 (custom auth error).
+      const { socket, response } = Deno.upgradeWebSocket(request);
+      socket.addEventListener("open", () => {
+        socket.close(4401, "Unauthorized");
+      });
+      return response;
+    }
     return upgradeWebSocketClient(request, state, chatSession);
   }
+
+  const rejection = rejectUnauthorized(request, state);
+  if (rejection) return rejection;
   if (state.cachedHtml) {
-    return new Response(state.cachedHtml, {
+    // Inject the session key so the Svelte app can forward it on the
+    // WebSocket connection without relying on location.search.
+    let html = state.cachedHtml;
+    if (state.sessionKey) {
+      const keyMeta =
+        `<meta name="tidepool-key" content=${JSON.stringify(state.sessionKey)}>`;
+      html = html.replace(/<head>/i, `<head>${keyMeta}`);
+    }
+    return new Response(html, {
       status: 200,
       headers: { "content-type": "text/html; charset=utf-8" },
     });

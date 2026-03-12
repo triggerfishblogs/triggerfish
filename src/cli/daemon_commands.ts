@@ -17,7 +17,7 @@ import {
   tailLogs,
   updateTriggerfish,
 } from "./daemon/daemon.ts";
-import { TIDEPOOL_PORT } from "./constants.ts";
+import { daemonStatePath, type DaemonState, TIDEPOOL_PORT } from "./constants.ts";
 import { fetchChangelogRange } from "./daemon/updater/changelog.ts";
 import { formatChangelogPlainText } from "./daemon/updater/changelog_format.ts";
 import { createLogger } from "../core/logger/mod.ts";
@@ -43,14 +43,54 @@ export async function runDaemonStatus(): Promise<void> {
 
 // ─── Daemon start / stop ──────────────────────────────────────────────────────
 
+/** Remove stale daemon state file so we only read fresh state after start. */
+async function clearDaemonState(): Promise<void> {
+  try {
+    await Deno.remove(daemonStatePath());
+  } catch {
+    // File may not exist — that's fine.
+  }
+}
+
+/**
+ * Poll for the daemon state file until it appears or timeout.
+ *
+ * The daemon writes `daemon.json` after Tidepool is listening.
+ * Returns null if the file does not appear within the deadline.
+ */
+async function waitForDaemonState(
+  timeoutMs: number = 10_000,
+): Promise<DaemonState | null> {
+  const statePath = daemonStatePath();
+  const deadline = Date.now() + timeoutMs;
+  const pollMs = 500;
+
+  while (Date.now() < deadline) {
+    try {
+      const text = await Deno.readTextFile(statePath);
+      return JSON.parse(text) as DaemonState;
+    } catch {
+      // Not ready yet — wait and retry.
+    }
+    await new Promise<void>((r) => setTimeout(r, pollMs));
+  }
+  return null;
+}
+
 /** Install the Triggerfish daemon and start it. */
 export async function runDaemonStart(): Promise<void> {
+  await clearDaemonState();
   const result = await installAndStartDaemon(Deno.execPath());
   if (result.ok) {
     console.log("✓ Daemon installed and started");
-    console.log(
-      `  Tidepool: http://127.0.0.1:${TIDEPOOL_PORT} (available once daemon is ready)`,
-    );
+    const state = await waitForDaemonState();
+    if (state) {
+      console.log(`  Tidepool: ${state.tidepoolUrl}`);
+    } else {
+      console.log(
+        `  Tidepool: http://127.0.0.1:${TIDEPOOL_PORT} (waiting for daemon — run 'triggerfish status' to check)`,
+      );
+    }
   } else {
     log.error("Daemon start failed", {
       operation: "startDaemon",
