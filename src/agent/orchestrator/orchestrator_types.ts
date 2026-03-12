@@ -285,6 +285,8 @@ const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<
   ["llm_task", "PUBLIC"],
   ["log_read", "PUBLIC"],
   ["simulate_tool_call", "PUBLIC"],
+  // SSH — remote access requires INTERNAL minimum (matches HARDCODED_TOOL_FLOORS)
+  ["ssh_", "INTERNAL"],
 ];
 
 /** Return type of mapToolPrefixClassifications. */

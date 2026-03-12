@@ -6,7 +6,7 @@
  * tool classifications, and that memory_save/memory_delete do not
  * trigger taint escalation (they operate at session taint level).
  */
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import { resolveActiveToolList } from "../../src/agent/loop/loop_types.ts";
 import {
   enforceNonOwnerToolCeiling,
@@ -390,5 +390,58 @@ Deno.test("escalateToolPrefixTaint: write_file escalates to PUBLIC (no-op)", () 
     escalatedLevel,
     "PUBLIC",
     "write_file should escalate to PUBLIC — taint comes from resource",
+  );
+});
+
+Deno.test("mapToolPrefixClassifications: ssh_ classified INTERNAL", () => {
+  const map = mapToolPrefixClassifications({}).all;
+  assertEquals(map.get("ssh_"), "INTERNAL");
+});
+
+Deno.test("escalateToolPrefixTaint: ssh_execute escalates to INTERNAL", () => {
+  const map = mapToolPrefixClassifications({}).all;
+  let escalatedLevel: ClassificationLevel | null = null;
+  escalateToolPrefixTaint(
+    "ssh_execute",
+    map,
+    (level: ClassificationLevel, _reason: string) => {
+      escalatedLevel = level;
+    },
+  );
+  assertEquals(
+    escalatedLevel,
+    "INTERNAL",
+    "ssh_execute should escalate session taint to INTERNAL",
+  );
+});
+
+Deno.test("escalateToolPrefixTaint: ssh_session_open escalates to INTERNAL", () => {
+  const map = mapToolPrefixClassifications({}).all;
+  let escalatedLevel: ClassificationLevel | null = null;
+  escalateToolPrefixTaint(
+    "ssh_session_open",
+    map,
+    (level: ClassificationLevel, _reason: string) => {
+      escalatedLevel = level;
+    },
+  );
+  assertEquals(
+    escalatedLevel,
+    "INTERNAL",
+    "ssh_session_open should escalate session taint to INTERNAL",
+  );
+});
+
+Deno.test("enforceNonOwnerToolCeiling: non-owner with PUBLIC ceiling blocks ssh_execute", () => {
+  const map = mapToolPrefixClassifications({}).all;
+  const err = enforceNonOwnerToolCeiling(
+    "ssh_execute",
+    "PUBLIC" as ClassificationLevel,
+    map,
+  );
+  assertNotEquals(
+    err,
+    null,
+    "ssh_execute (INTERNAL) should be blocked for PUBLIC ceiling",
   );
 });
