@@ -256,6 +256,74 @@ Deno.test("WebFetcher: falls back to raw when Readability extracts too little", 
   }
 });
 
+// ─── Stripped-Text Fallback ──────────────────────────────────────────────────
+
+Deno.test("WebFetcher: falls back to stripped text when Readability fails on JS-heavy page", async () => {
+  const textContent = "Important page content that the user needs to read. ".repeat(5);
+  const html = `<html><head><title>App</title></head><body>
+    <script>var x = "noisy javascript code";</script>
+    <style>.foo { color: red; }</style>
+    <div id="app">${textContent}</div>
+    <script>console.log("more noise");</script>
+  </body></html>`;
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mockFetch(
+    new Response(html, {
+      status: 200,
+      headers: { "Content-Type": "text/html" },
+    }),
+  );
+
+  try {
+    const fetcher = createWebFetcher({
+      domainPolicy: openPolicy(),
+      dnsChecker: allowAllDns,
+    });
+    const result = await fetcher.fetch("https://example.com/app");
+    assertEquals(result.ok, true);
+    if (result.ok) {
+      // Should NOT contain script/style noise
+      assertEquals(result.value.content.includes("<script"), false);
+      assertEquals(result.value.content.includes("<style"), false);
+      assertEquals(result.value.content.includes("noisy javascript"), false);
+      // Should contain the actual text
+      assertEquals(result.value.content.includes("Important page content"), true);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("WebFetcher: raw mode bypasses extraction for API responses", async () => {
+  const json = JSON.stringify({ status: "ok", data: [1, 2, 3] });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mockFetch(
+    new Response(json, {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+
+  try {
+    const fetcher = createWebFetcher({
+      domainPolicy: openPolicy(),
+      dnsChecker: allowAllDns,
+    });
+    const result = await fetcher.fetch("https://api.example.com/v1/data", {
+      mode: "raw",
+    });
+    assertEquals(result.ok, true);
+    if (result.ok) {
+      assertEquals(result.value.content, json);
+      assertEquals(result.value.mode, "raw");
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 // ─── Streaming OOM Protection ────────────────────────────────────────────────
 
 Deno.test("WebFetcher: streaming read enforces byte budget before full allocation", async () => {

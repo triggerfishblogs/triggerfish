@@ -229,7 +229,34 @@ async function fetchPageContent(
   };
 }
 
-/** Extract readable content from HTML, falling back to raw on failure. */
+/**
+ * Extract plain text from HTML using DOM parsing.
+ * Removes script/style elements, then returns textContent with collapsed whitespace.
+ * Uses linkedom (already imported) to avoid ReDoS risk from regex on untrusted HTML.
+ */
+function extractPlainTextFromHtml(html: string): string {
+  try {
+    // deno-lint-ignore no-explicit-any
+    const { document } = parseHTML(html) as any;
+    for (const tag of ["script", "style"]) {
+      for (const el of document.querySelectorAll(tag)) {
+        el.remove();
+      }
+    }
+    const text: string = document.body?.textContent ?? document.textContent ?? "";
+    return text.replace(/\s{2,}/g, " ").trim();
+  } catch {
+    // If DOM parsing fails, fall through — caller will use raw HTML
+    return "";
+  }
+}
+
+/**
+ * Extract readable content from HTML.
+ *
+ * Fallback chain: Readability article → stripped text → raw HTML.
+ * Non-HTML content and raw mode bypass extraction entirely.
+ */
 function extractPageContent(
   rawBody: string,
   contentType: string,
@@ -238,6 +265,9 @@ function extractPageContent(
   if (mode !== "readability" || !contentType.includes("text/html")) {
     return { title: extractTitleFromHtml(rawBody), content: rawBody };
   }
+
+  const title = extractTitleFromHtml(rawBody);
+
   try {
     // deno-lint-ignore no-explicit-any
     const { document } = parseHTML(rawBody) as any;
@@ -247,14 +277,27 @@ function extractPageContent(
       article?.textContent &&
       article.textContent.length >= MIN_READABILITY_LENGTH
     ) {
-      return { title: article.title ?? "", content: article.textContent };
+      return { title: article.title ?? title, content: article.textContent };
     }
   } catch (err) {
-    log.debug("Readability parse failed, falling back to raw content", {
+    log.debug("Readability parse failed, falling back to stripped text", {
+      operation: "extractPageContent",
       error: err,
     });
   }
-  return { title: extractTitleFromHtml(rawBody), content: rawBody };
+
+  // Fallback: strip tags to avoid dumping raw JS/CSS to the LLM
+  const stripped = extractPlainTextFromHtml(rawBody);
+  if (stripped.length >= MIN_READABILITY_LENGTH) {
+    log.debug("Using stripped-text fallback", {
+      operation: "extractPageContent",
+      strippedLength: stripped.length,
+    });
+    return { title, content: stripped };
+  }
+
+  // Final fallback: raw content (very little text on page)
+  return { title, content: rawBody };
 }
 
 /**
