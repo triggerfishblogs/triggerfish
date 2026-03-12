@@ -30,6 +30,19 @@ import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("tool-dispatch");
 
+/**
+ * Canned response emitted to the user when bumpers block a tool call.
+ *
+ * The turn is force-ended so the LLM never sees the block result and
+ * cannot silently retry with a different tool. This message is injected
+ * into history as an assistant message and emitted as the response event.
+ */
+export const BUMPERS_BLOCK_USER_RESPONSE =
+  "That action was blocked by **bumpers** — it would access resources " +
+  "above your current session classification level.\n\n" +
+  "Run `/bumpers` to disable bumpers and allow taint escalation, " +
+  "then try again.";
+
 /** Check plan mode blocking and execute plan tools. */
 async function executePlanModeToolCall(
   planManager: PlanManager,
@@ -322,20 +335,16 @@ export function determineSourceType(toolName: string): string {
   if (toolName.startsWith("web_")) return "web_request";
   if (toolName.startsWith("browser_")) return "browser_session";
   if (toolName.startsWith("memory_")) return "memory_access";
-  if (
-    toolName.startsWith("google_") || toolName.startsWith("gmail_") ||
-    toolName.startsWith("calendar_") || toolName.startsWith("drive_") ||
-    toolName.startsWith("sheets_") || toolName.startsWith("tasks_")
-  ) {
+  if (toolName.startsWith("google_") || toolName.startsWith("gmail_") ||
+      toolName.startsWith("calendar_") || toolName.startsWith("drive_") ||
+      toolName.startsWith("sheets_") || toolName.startsWith("tasks_")) {
     return "google_api";
   }
   if (toolName.startsWith("github_")) return "github_api";
   if (toolName.startsWith("obsidian_")) return "obsidian_vault";
-  if (
-    toolName.startsWith("file_") || toolName === "read_file" ||
-    toolName === "write_file" || toolName === "edit_file" ||
-    toolName === "list_directory" || toolName === "search_files"
-  ) {
+  if (toolName.startsWith("file_") || toolName === "read_file" ||
+      toolName === "write_file" || toolName === "edit_file" ||
+      toolName === "list_directory" || toolName === "search_files") {
     return "filesystem";
   }
   if (toolName.startsWith("mcp_")) return "mcp_server";
@@ -394,13 +403,19 @@ export async function recordToolCallLineageAndPersist(
   }
 }
 
+/** Result of formatting a single tool call execution. */
+interface FormattedToolCallResult {
+  readonly text: string;
+  readonly bumpersBlocked: boolean;
+}
+
 /** Execute a single tool call with event emission and format the result. */
 async function executeAndFormatToolCall(
   call: ParsedToolCall,
   orchestratorState: OrchestratorState,
   session: SessionState,
   sessionKey: string,
-): Promise<string> {
+): Promise<FormattedToolCallResult> {
   orchestratorState.emit({
     type: "tool_call",
     name: call.name,
@@ -421,6 +436,7 @@ async function executeAndFormatToolCall(
       orchestratorState.responseCache,
       orchestratorState.config.maxToolResponseChars,
     );
+  const bumpersBlocked = blocked && resultText.startsWith("[Bumpers]");
   orchestratorState.emit({
     type: "tool_result",
     name: call.name,
@@ -438,7 +454,16 @@ async function executeAndFormatToolCall(
     sessionKey,
   );
 
-  return `[TOOL_RESULT name="${call.name}"]\n${cappedText}\n[/TOOL_RESULT]`;
+  return {
+    text: `[TOOL_RESULT name="${call.name}"]\n${cappedText}\n[/TOOL_RESULT]`,
+    bumpersBlocked,
+  };
+}
+
+/** Result of processing a batch of tool calls. */
+export interface ToolCallBatchResult {
+  readonly resultParts: readonly string[];
+  readonly bumpersBlocked: boolean;
 }
 
 /** Process all tool calls for one iteration and return result parts. */
@@ -448,20 +473,21 @@ export async function processToolCallBatch(
   session: SessionState,
   sessionKey: string,
   signal: AbortSignal | undefined,
-): Promise<Result<string[], string>> {
+): Promise<Result<ToolCallBatchResult, string>> {
   const resultParts: string[] = [];
+  let bumpersBlocked = false;
   for (const call of parsedCalls) {
     if (signal?.aborted) {
       return { ok: false, error: "Operation cancelled by user" };
     }
-    resultParts.push(
-      await executeAndFormatToolCall(
-        call,
-        orchestratorState,
-        session,
-        sessionKey,
-      ),
+    const result = await executeAndFormatToolCall(
+      call,
+      orchestratorState,
+      session,
+      sessionKey,
     );
+    resultParts.push(result.text);
+    if (result.bumpersBlocked) bumpersBlocked = true;
   }
-  return { ok: true, value: resultParts };
+  return { ok: true, value: { resultParts, bumpersBlocked } };
 }
