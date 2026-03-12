@@ -158,6 +158,7 @@ export function clearChat(): void {
   _partialText = "";
   _todoItems = [];
   _visionActive = false;
+  _bumpersTogglePending = false;
 }
 
 /** Add a pasted image. */
@@ -305,10 +306,11 @@ function handleMessage(msg: Record<string, unknown>): void {
 
 onTopic("chat", handleMessage);
 
-/** Reset thinking state when the WebSocket disconnects. */
+/** Reset thinking and pending flags when the WebSocket disconnects. */
 function handleShellMessage(msg: Record<string, unknown>): void {
   if (msg.type === "ws_disconnected") {
     _thinking = false;
+    _bumpersTogglePending = false;
   }
 }
 

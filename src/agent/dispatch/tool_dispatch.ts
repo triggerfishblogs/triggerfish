@@ -26,6 +26,7 @@ import {
 import type { SecurityContext } from "./security_context.ts";
 import { escalateToolPrefixTaint } from "./access_control.ts";
 import { capToolResponse, readMoreFromCache } from "./response_cap.ts";
+import { BUMPER_BLOCK_MESSAGE } from "../../core/session/bumpers.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("tool-dispatch");
@@ -436,7 +437,7 @@ async function executeAndFormatToolCall(
       orchestratorState.responseCache,
       orchestratorState.config.maxToolResponseChars,
     );
-  const bumpersBlocked = blocked && resultText.startsWith("[Bumpers]");
+  const bumpersBlocked = blocked && resultText === BUMPER_BLOCK_MESSAGE;
   orchestratorState.emit({
     type: "tool_result",
     name: call.name,

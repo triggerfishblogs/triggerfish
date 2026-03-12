@@ -90,8 +90,9 @@ export function dispatchClientChatMessage(
       trySendSocketPayload(ctx.socket, JSON.stringify(evt));
     };
     ctx.chatSession.compact(send).catch((err: unknown) => {
-      log.debug("Compact failed in tidepool chat dispatch", {
-        error: err,
+      log.warn("Compact failed in tidepool chat dispatch", {
+        operation: "dispatchCompact",
+        err,
       });
     });
     return;
