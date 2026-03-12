@@ -40,8 +40,8 @@ import type { createPairingService } from "../../../channels/pairing.ts";
 import type { RegisteredChannel } from "../../tools/session/session_tools.ts";
 import type { TriggerStore } from "../../../scheduler/triggers/store.ts";
 import {
-  daemonStatePath,
   type DaemonState,
+  daemonStatePath,
   TIDEPOOL_PORT,
 } from "../../../cli/constants.ts";
 import {
@@ -184,9 +184,11 @@ export interface ChatSessionDeps {
   /** Mutable ref toggled by non-owner turn wrappers. */
   readonly isOwnerTurnRef?: { value: boolean };
   /** Message store for conversation persistence. */
-  readonly messageStore?: import("../../../core/conversation/mod.ts").MessageStore;
+  readonly messageStore?:
+    import("../../../core/conversation/mod.ts").MessageStore;
   /** Lineage store for automatic data provenance tracking. */
-  readonly lineageStore?: import("../../../core/session/lineage.ts").LineageStore;
+  readonly lineageStore?:
+    import("../../../core/session/lineage.ts").LineageStore;
   /** Storage provider for bumper preference persistence. */
   readonly storage?: StorageProvider;
   /** Owner identifier for bumper preference storage key. */

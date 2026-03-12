@@ -65,14 +65,30 @@ function buildGmailDispatch(
   ctx: GoogleToolContext,
 ): Readonly<Record<string, ActionHandler>> {
   return {
-    search: withLineage(ctx, "gmail", "search", (i) =>
-      executeGmailSearch(ctx.gmail, i)),
-    read: withLineage(ctx, "gmail", "read", (i) =>
-      executeGmailRead(ctx.gmail, i)),
-    send: withLineage(ctx, "gmail", "send", (i) =>
-      executeGmailSend(ctx.gmail, i)),
-    label: withLineage(ctx, "gmail", "label", (i) =>
-      executeGmailLabel(ctx.gmail, i)),
+    search: withLineage(
+      ctx,
+      "gmail",
+      "search",
+      (i) => executeGmailSearch(ctx.gmail, i),
+    ),
+    read: withLineage(
+      ctx,
+      "gmail",
+      "read",
+      (i) => executeGmailRead(ctx.gmail, i),
+    ),
+    send: withLineage(
+      ctx,
+      "gmail",
+      "send",
+      (i) => executeGmailSend(ctx.gmail, i),
+    ),
+    label: withLineage(
+      ctx,
+      "gmail",
+      "label",
+      (i) => executeGmailLabel(ctx.gmail, i),
+    ),
   };
 }
 
@@ -80,12 +96,24 @@ function buildCalendarDispatch(
   ctx: GoogleToolContext,
 ): Readonly<Record<string, ActionHandler>> {
   return {
-    list: withLineage(ctx, "calendar", "list", (i) =>
-      executeCalendarList(ctx.calendar, i)),
-    create: withLineage(ctx, "calendar", "create", (i) =>
-      executeCalendarCreate(ctx.calendar, i)),
-    update: withLineage(ctx, "calendar", "update", (i) =>
-      executeCalendarUpdate(ctx.calendar, i)),
+    list: withLineage(
+      ctx,
+      "calendar",
+      "list",
+      (i) => executeCalendarList(ctx.calendar, i),
+    ),
+    create: withLineage(
+      ctx,
+      "calendar",
+      "create",
+      (i) => executeCalendarCreate(ctx.calendar, i),
+    ),
+    update: withLineage(
+      ctx,
+      "calendar",
+      "update",
+      (i) => executeCalendarUpdate(ctx.calendar, i),
+    ),
   };
 }
 
@@ -93,12 +121,24 @@ function buildTasksDispatch(
   ctx: GoogleToolContext,
 ): Readonly<Record<string, ActionHandler>> {
   return {
-    list: withLineage(ctx, "tasks", "list", (i) =>
-      executeTasksList(ctx.tasks, i)),
-    create: withLineage(ctx, "tasks", "create", (i) =>
-      executeTasksCreate(ctx.tasks, i)),
-    complete: withLineage(ctx, "tasks", "complete", (i) =>
-      executeTasksComplete(ctx.tasks, i)),
+    list: withLineage(
+      ctx,
+      "tasks",
+      "list",
+      (i) => executeTasksList(ctx.tasks, i),
+    ),
+    create: withLineage(
+      ctx,
+      "tasks",
+      "create",
+      (i) => executeTasksCreate(ctx.tasks, i),
+    ),
+    complete: withLineage(
+      ctx,
+      "tasks",
+      "complete",
+      (i) => executeTasksComplete(ctx.tasks, i),
+    ),
   };
 }
 
@@ -106,10 +146,18 @@ function buildDriveDispatch(
   ctx: GoogleToolContext,
 ): Readonly<Record<string, ActionHandler>> {
   return {
-    search: withLineage(ctx, "drive", "search", (i) =>
-      executeDriveSearch(ctx.drive, i)),
-    read: withLineage(ctx, "drive", "read", (i) =>
-      executeDriveRead(ctx.drive, i)),
+    search: withLineage(
+      ctx,
+      "drive",
+      "search",
+      (i) => executeDriveSearch(ctx.drive, i),
+    ),
+    read: withLineage(
+      ctx,
+      "drive",
+      "read",
+      (i) => executeDriveRead(ctx.drive, i),
+    ),
   };
 }
 
@@ -117,10 +165,18 @@ function buildSheetsDispatch(
   ctx: GoogleToolContext,
 ): Readonly<Record<string, ActionHandler>> {
   return {
-    read: withLineage(ctx, "sheets", "read", (i) =>
-      executeSheetsRead(ctx.sheets, i)),
-    write: withLineage(ctx, "sheets", "write", (i) =>
-      executeSheetsWrite(ctx.sheets, i)),
+    read: withLineage(
+      ctx,
+      "sheets",
+      "read",
+      (i) => executeSheetsRead(ctx.sheets, i),
+    ),
+    write: withLineage(
+      ctx,
+      "sheets",
+      "write",
+      (i) => executeSheetsWrite(ctx.sheets, i),
+    ),
   };
 }
 

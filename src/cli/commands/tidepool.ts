@@ -7,7 +7,11 @@
  * @module
  */
 
-import { daemonStatePath, type DaemonState, TIDEPOOL_PORT } from "../constants.ts";
+import {
+  type DaemonState,
+  daemonStatePath,
+  TIDEPOOL_PORT,
+} from "../constants.ts";
 
 /**
  * Read the daemon state file to get the authenticated Tidepool URL.

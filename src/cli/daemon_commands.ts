@@ -17,7 +17,11 @@ import {
   tailLogs,
   updateTriggerfish,
 } from "./daemon/daemon.ts";
-import { daemonStatePath, type DaemonState, TIDEPOOL_PORT } from "./constants.ts";
+import {
+  type DaemonState,
+  daemonStatePath,
+  TIDEPOOL_PORT,
+} from "./constants.ts";
 import { fetchChangelogRange } from "./daemon/updater/changelog.ts";
 import { formatChangelogPlainText } from "./daemon/updater/changelog_format.ts";
 import { createLogger } from "../core/logger/mod.ts";

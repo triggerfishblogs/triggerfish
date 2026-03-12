@@ -143,8 +143,9 @@ export function routeHostRequest(
     // WebSocket connection without relying on location.search.
     let html = state.cachedHtml;
     if (state.sessionKey) {
-      const keyMeta =
-        `<meta name="tidepool-key" content=${JSON.stringify(state.sessionKey)}>`;
+      const keyMeta = `<meta name="tidepool-key" content=${
+        JSON.stringify(state.sessionKey)
+      }>`;
       html = html.replace(/<head>/i, `<head>${keyMeta}`);
     }
     return new Response(html, {

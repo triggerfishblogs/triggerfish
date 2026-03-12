@@ -250,8 +250,12 @@ Deno.test("e2e: compaction marks records and creates summary with inputLineageId
 
   // Create a lineage record for the compaction summary
   const summaryLineage = await linStore.create(makeLineageInput({
-    content: "Conversation summary: user asked about weather, agent checked and reported sunny.",
-    classification: { level: "PUBLIC", reason: "summary of public conversation" },
+    content:
+      "Conversation summary: user asked about weather, agent checked and reported sunny.",
+    classification: {
+      level: "PUBLIC",
+      reason: "summary of public conversation",
+    },
     sessionId: SESSION_A,
   }));
 
@@ -278,7 +282,11 @@ Deno.test("e2e: compaction marks records and creates summary with inputLineageId
 
   // Full session still has all records
   const full = await msgStore.loadSession(SESSION_A);
-  assertEquals(full.length, 5, "All 5 records in full session (4 original + 1 summary)");
+  assertEquals(
+    full.length,
+    5,
+    "All 5 records in full session (4 original + 1 summary)",
+  );
 });
 
 Deno.test("e2e: message retention deletes old records without touching lineage", async () => {
@@ -328,7 +336,11 @@ Deno.test("e2e: message retention deletes old records without touching lineage",
 
   // Lineage untouched
   const lineageStillExists = await linStore.get(lineageRec.lineage_id);
-  assertNotEquals(lineageStillExists, null, "Lineage record survives message retention");
+  assertNotEquals(
+    lineageStillExists,
+    null,
+    "Lineage record survives message retention",
+  );
 });
 
 Deno.test("e2e: lineage retention independent of message retention", async () => {
@@ -382,7 +394,11 @@ Deno.test("e2e: lineage retention independent of message retention", async () =>
 
   // Message still intact
   const messages = await msgStore.loadSession(SESSION_A);
-  assertEquals(messages.length, 1, "Message retention not affected by lineage retention");
+  assertEquals(
+    messages.length,
+    1,
+    "Message retention not affected by lineage retention",
+  );
 });
 
 Deno.test("e2e: restored history skips records above session taint", async () => {
@@ -439,5 +455,9 @@ Deno.test("e2e: restored history skips records above session taint", async () =>
   const confFiltered = allRecords.filter(
     (r) => publicOrder[r.classification] <= publicOrder[confTaint],
   );
-  assertEquals(confFiltered.length, 3, "CONFIDENTIAL session sees all 3 records");
+  assertEquals(
+    confFiltered.length,
+    3,
+    "CONFIDENTIAL session sees all 3 records",
+  );
 });

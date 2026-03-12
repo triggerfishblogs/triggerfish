@@ -208,7 +208,8 @@ async function compactChatHistory(
     // Persist compaction to message store
     if (config.messageStore && result.messagesAfter > 0) {
       const sessionId = getSession().id as string;
-      const sessionTaint = config.getSessionTaint?.() ?? "PUBLIC" as ClassificationLevel;
+      const sessionTaint = config.getSessionTaint?.() ??
+        "PUBLIC" as ClassificationLevel;
       // Mark all prior records as compacted
       await config.messageStore.markCompacted(
         sessionId,
@@ -219,7 +220,8 @@ async function compactChatHistory(
       await config.messageStore.append({
         session_id: sessionId,
         role: "compaction_summary",
-        content: `[Compaction] ${result.messagesBefore} → ${result.messagesAfter} messages, ${result.tokensBefore} → ${result.tokensAfter} tokens`,
+        content:
+          `[Compaction] ${result.messagesBefore} → ${result.messagesAfter} messages, ${result.tokensBefore} → ${result.tokensAfter} tokens`,
         classification: sessionTaint,
       });
     }

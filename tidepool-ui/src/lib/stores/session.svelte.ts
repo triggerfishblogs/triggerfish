@@ -14,6 +14,9 @@ let _provider: string = $state("");
 /** Current LLM model name. */
 let _model: string = $state("");
 
+/** Whether taint escalation bumpers are enabled. */
+let _bumpersEnabled: boolean = $state(true);
+
 /** MCP servers connected / configured. */
 let _mcpConnected: number = $state(0);
 let _mcpConfigured: number = $state(0);
@@ -43,6 +46,11 @@ export function getMcpConfigured(): number {
   return _mcpConfigured;
 }
 
+/** Get whether taint escalation bumpers are enabled. */
+export function getBumpersEnabled(): boolean {
+  return _bumpersEnabled;
+}
+
 /** Handle session-related messages. */
 function handleMessage(msg: Record<string, unknown>): void {
   switch (msg.type) {
@@ -57,6 +65,9 @@ function handleMessage(msg: Record<string, unknown>): void {
     case "mcp_status":
       _mcpConnected = msg.connected as number;
       _mcpConfigured = msg.configured as number;
+      break;
+    case "bumpers_status":
+      _bumpersEnabled = msg.enabled as boolean;
       break;
   }
 }

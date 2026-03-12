@@ -680,7 +680,7 @@ Deno.test({
       );
       assertEquals(res.status, 200);
       const body = await res.text();
-      assertStringIncludes(body, 'tidepool-key');
+      assertStringIncludes(body, "tidepool-key");
       assertStringIncludes(body, "secret-key-123");
     } finally {
       await host.stop();

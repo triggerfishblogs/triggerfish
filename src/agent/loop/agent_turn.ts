@@ -7,7 +7,10 @@
  * @module
  */
 
-import type { ClassificationLevel, Result } from "../../core/types/classification.ts";
+import type {
+  ClassificationLevel,
+  Result,
+} from "../../core/types/classification.ts";
 import { canFlowTo } from "../../core/types/classification.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 import type { SessionState } from "../../core/types/session.ts";
@@ -106,7 +109,8 @@ export async function restoreSessionHistoryIfEmpty(
         : "";
       entries.push({
         role: "user",
-        content: `[TOOL_RESULT name="${toolName}"]\n(result not available${lineageRef})\n[/TOOL_RESULT]`,
+        content:
+          `[TOOL_RESULT name="${toolName}"]\n(result not available${lineageRef})\n[/TOOL_RESULT]`,
       });
     }
   }
@@ -276,7 +280,13 @@ export async function runAgentTurn(
   if (!guard.ok) return guard;
 
   const sessionKey = session.id as string;
-  const ctx = await prepareAgentTurnContext(state, session, sessionKey, message, signal);
+  const ctx = await prepareAgentTurnContext(
+    state,
+    session,
+    sessionKey,
+    message,
+    signal,
+  );
   return runAgentLoop({
     state,
     session,

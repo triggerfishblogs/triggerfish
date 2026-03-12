@@ -322,16 +322,20 @@ export function determineSourceType(toolName: string): string {
   if (toolName.startsWith("web_")) return "web_request";
   if (toolName.startsWith("browser_")) return "browser_session";
   if (toolName.startsWith("memory_")) return "memory_access";
-  if (toolName.startsWith("google_") || toolName.startsWith("gmail_") ||
-      toolName.startsWith("calendar_") || toolName.startsWith("drive_") ||
-      toolName.startsWith("sheets_") || toolName.startsWith("tasks_")) {
+  if (
+    toolName.startsWith("google_") || toolName.startsWith("gmail_") ||
+    toolName.startsWith("calendar_") || toolName.startsWith("drive_") ||
+    toolName.startsWith("sheets_") || toolName.startsWith("tasks_")
+  ) {
     return "google_api";
   }
   if (toolName.startsWith("github_")) return "github_api";
   if (toolName.startsWith("obsidian_")) return "obsidian_vault";
-  if (toolName.startsWith("file_") || toolName === "read_file" ||
-      toolName === "write_file" || toolName === "edit_file" ||
-      toolName === "list_directory" || toolName === "search_files") {
+  if (
+    toolName.startsWith("file_") || toolName === "read_file" ||
+    toolName === "write_file" || toolName === "edit_file" ||
+    toolName === "list_directory" || toolName === "search_files"
+  ) {
     return "filesystem";
   }
   if (toolName.startsWith("mcp_")) return "mcp_server";
