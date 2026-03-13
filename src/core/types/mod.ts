@@ -75,3 +75,15 @@ export type {
   SkillLoader,
   SkillSource,
 } from "./skills.ts";
+
+export type {
+  HealingEventType,
+  HealingNotifyEvent,
+  HealingPhase,
+  InterventionCategory,
+  PauseOnIntervention,
+  PauseTimeoutPolicy,
+  SelfHealingConfig,
+  SoftSignalConfig,
+  WorkflowHealth,
+} from "./healing.ts";

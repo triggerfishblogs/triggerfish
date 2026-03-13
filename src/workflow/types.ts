@@ -4,6 +4,8 @@
  */
 
 import type { ClassificationLevel } from "../core/types/classification.ts";
+import type { SelfHealingConfig } from "../core/types/healing.ts";
+import type { RuntimeDeviation } from "./healing/types.ts";
 
 /** Branded workflow identifier. */
 export type WorkflowId = string & { readonly __brand: "WorkflowId" };
@@ -182,6 +184,7 @@ export interface WorkflowDefinition {
   readonly timeout?: TaskTimeout;
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly classificationCeiling?: ClassificationLevel;
+  readonly selfHealing?: SelfHealingConfig;
 }
 
 /** Execution status of a workflow run. */
@@ -229,4 +232,5 @@ export interface WorkflowRunResult {
   readonly completedAt: string;
   readonly taskCount: number;
   readonly classification?: ClassificationLevel;
+  readonly runtimeDeviations?: readonly RuntimeDeviation[];
 }

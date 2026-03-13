@@ -12,6 +12,7 @@ import type {
   WorkflowTaskEntry,
 } from "./types.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
+import type { SelfHealingConfig } from "../core/types/healing.ts";
 import {
   validateEmitTask,
   validateRaiseTask,
@@ -19,6 +20,10 @@ import {
   validateSetTask,
   validateSwitchTask,
 } from "./validators.ts";
+import {
+  enforceStepMetadataRequirements,
+  parseSelfHealingConfig,
+} from "./healing/metadata_validator.ts";
 
 /** Result type for parser operations. */
 export type ParseResult<T> =
@@ -108,17 +113,41 @@ export function parseWorkflowYaml(
   }
   const ceiling = parseCeiling(root["classification_ceiling"]);
   if (!ceiling.ok) return ceiling;
+
+  const metadata = isRecord(root["metadata"])
+    ? (root["metadata"] as Readonly<Record<string, unknown>>)
+    : undefined;
+
+  const selfHealingResult = extractSelfHealingConfig(metadata);
+  if (!selfHealingResult.ok) return selfHealingResult;
+
+  if (selfHealingResult.value?.enabled) {
+    const metaReq = enforceStepMetadataRequirements(tasksResult.value);
+    if (!metaReq.ok) return metaReq;
+  }
+
   return ok({
     document: docResult.value,
     do: tasksResult.value,
     input: parseTransform(root["input"]),
     output: parseTransform(root["output"]),
     timeout: parseTimeout(root["timeout"]),
-    metadata: isRecord(root["metadata"])
-      ? (root["metadata"] as Readonly<Record<string, unknown>>)
-      : undefined,
+    metadata,
     classificationCeiling: ceiling.value,
+    selfHealing: selfHealingResult.value,
   });
+}
+
+/** Extract and parse self-healing config from workflow metadata. */
+function extractSelfHealingConfig(
+  metadata: Readonly<Record<string, unknown>> | undefined,
+): ParseResult<SelfHealingConfig | undefined> {
+  if (!metadata) return ok(undefined);
+  const tf = metadata["triggerfish"];
+  if (!isRecord(tf)) return ok(undefined);
+  const healingRaw = tf["self_healing"];
+  if (healingRaw === undefined || healingRaw === null) return ok(undefined);
+  return parseSelfHealingConfig(healingRaw);
 }
 
 function parseYamlSafe(yaml: string): ParseResult<unknown> {

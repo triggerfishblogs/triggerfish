@@ -114,3 +114,37 @@ export {
   WORKFLOW_SYSTEM_PROMPT,
 } from "./tools.ts";
 export type { WorkflowToolContext } from "./tools.ts";
+
+export type {
+  BranchTakenEvent,
+  LastRunOutcome,
+  PendingApprovalSummary,
+  RichWorkflowEvent,
+  RuntimeDeviation,
+  StepCompletedEvent,
+  StepFailedEvent,
+  StepMetadata,
+  StepSkippedEvent,
+  StepStartedEvent,
+  VersionStatus,
+  WorkflowCompletedEvent,
+  WorkflowFaultedEvent,
+  WorkflowPausedEvent,
+  WorkflowResumedEvent,
+  WorkflowState,
+  WorkflowStatusDetail,
+  WorkflowStatusEvent,
+  WorkflowVersion,
+} from "./healing/mod.ts";
+
+export {
+  createScopedPauseController,
+  createWorkflowVersionStore,
+  enforceStepMetadataRequirements,
+  parseSelfHealingConfig,
+  validateStepMetadata,
+} from "./healing/mod.ts";
+export type {
+  ScopedPauseController,
+  WorkflowVersionStore,
+} from "./healing/mod.ts";
