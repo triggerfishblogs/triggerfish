@@ -27,7 +27,7 @@ import { join } from "@std/path";
 const log = createLogger("reef-registry");
 
 /** Default base URL for The Reef static site (GitHub Pages). */
-const DEFAULT_BASE_URL = "https://greghavens.github.io/reef-registry";
+const DEFAULT_BASE_URL = "https://reef.trigger.fish";
 
 /** Default catalog cache TTL in milliseconds (1 hour). */
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;

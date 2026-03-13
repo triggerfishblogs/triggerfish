@@ -909,7 +909,7 @@ reef.install("weather", "~/.triggerfish/plugins/")
 **Catalog structure** (served from GitHub Pages):
 
 ```
-https://greghavens.github.io/reef-registry/plugins/
+https://reef.trigger.fish/plugins/
   index/catalog.json              # full catalog with all plugin entries
   weather/1.0.0/mod.ts            # plugin source
   weather/1.0.0/metadata.json     # name, version, checksum, author, tags

@@ -20,7 +20,7 @@ import { validatePluginManifest } from "./loader.ts";
 const log = createLogger("plugin-reef");
 
 /** Default base URL for The Reef static site. */
-const DEFAULT_BASE_URL = "https://greghavens.github.io/reef-registry";
+const DEFAULT_BASE_URL = "https://reef.trigger.fish";
 
 /** Default catalog cache TTL in milliseconds (1 hour). */
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
