@@ -476,3 +476,117 @@ trabalho armazenado em `CONFIDENTIAL` a partir de uma sessao `PUBLIC`. A
 ferramenta `workflow_delete` carrega o fluxo de trabalho primeiro e retorna
 "nao encontrado" se a verificacao de classificacao falhar.
 :::
+
+## Self-Healing
+
+Os fluxos de trabalho podem ter opcionalmente um agente de recuperacao autonoma
+que observa a execucao em tempo real, diagnostica falhas e propoe correcoes.
+Quando self-healing esta habilitado, um agente lider e gerado junto a execucao
+do fluxo de trabalho. Ele observa cada evento de etapa, faz a triagem de falhas
+e coordena equipes de especialistas para resolver os problemas.
+
+### Habilitando Self-Healing
+
+Adicione um bloco `self_healing` a secao `metadata.triggerfish` do fluxo de
+trabalho:
+
+```yaml
+document:
+  dsl: "1.0"
+  namespace: ops
+  name: data-pipeline
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+do:
+  - fetch-data:
+      call: http
+      with:
+        endpoint: "https://api.example.com/data"
+      metadata:
+        description: "Fetch raw invoice data from billing API"
+        expects: "API returns JSON array of invoice objects"
+        produces: "Array of {id, amount, status, date} objects"
+```
+
+Quando `enabled: true`, cada etapa **deve** incluir tres campos de metadados:
+
+| Field         | Descricao                                            |
+| ------------- | ---------------------------------------------------- |
+| `description` | O que a etapa faz e por que existe                   |
+| `expects`     | Forma de entrada ou precondicoes que a etapa precisa |
+| `produces`    | Forma de saida que a etapa gera                      |
+
+O analisador rejeita fluxos de trabalho onde qualquer etapa estiver sem esses
+campos.
+
+### Opcoes de configuracao
+
+| Option                    | Type    | Default              | Descricao |
+| ------------------------- | ------- | -------------------- | --------- |
+| `enabled`                 | boolean | —                    | Obrigatorio. Habilita o agente de recuperacao. |
+| `retry_budget`            | number  | `3`                  | Tentativas maximas de intervencao antes de escalar como irresoluvel. |
+| `approval_required`       | boolean | `true`               | Se as correcoes propostas ao fluxo de trabalho requerem aprovacao humana. |
+| `pause_on_intervention`   | string  | `"blocking_only"`    | Quando pausar as tarefas descendentes: `always`, `never` ou `blocking_only`. |
+| `pause_timeout_seconds`   | number  | `300`                | Segundos de espera durante uma pausa antes da politica de timeout ser acionada. |
+| `pause_timeout_policy`    | string  | `"escalate_and_halt"`| O que acontece ao expirar o timeout: `escalate_and_halt`, `escalate_and_skip` ou `escalate_and_fail`. |
+| `notify_on`               | array   | `[]`                 | Eventos que acionam notificacoes: `intervention`, `escalation`, `approval_required`. |
+
+### Como funciona
+
+1. **Observacao.** O agente lider de recuperacao recebe um fluxo em tempo real de
+   eventos de etapa (started, completed, failed, skipped) enquanto o fluxo de
+   trabalho e executado.
+
+2. **Triagem.** Quando uma etapa falha, o lider classifica a falha em uma de
+   cinco categorias:
+
+   | Category              | Meaning                                                |
+   | --------------------- | ------------------------------------------------------ |
+   | `transient_retry`     | Problema temporario (erro de rede, rate limit, 503)    |
+   | `runtime_workaround`  | Erro desconhecido pela primeira vez, pode ser contornado |
+   | `structural_fix`      | Falha recorrente que necessita de alteracao na definicao do fluxo |
+   | `plugin_gap`          | Problema de autenticacao/credenciais que requer uma nova integracao |
+   | `unresolvable`        | Orcamento de tentativas esgotado ou fundamentalmente quebrado |
+
+3. **Equipes de especialistas.** Com base na categoria de triagem, o lider gera
+   uma equipe de agentes especialistas (diagnosticador, coordenador de
+   tentativas, corretor de definicao, autor de plugins, etc.) para investigar e
+   resolver o problema.
+
+4. **Propostas de versao.** Quando uma correcao estrutural e necessaria, a equipe
+   propoe uma nova versao do fluxo de trabalho. Se `approval_required` for true,
+   a proposta aguarda revisao humana via `workflow_version_approve` ou
+   `workflow_version_reject`.
+
+5. **Pausa com escopo limitado.** Quando `pause_on_intervention` esta habilitado,
+   apenas as tarefas descendentes sao pausadas — ramos independentes continuam
+   sendo executados.
+
+### Ferramentas de recuperacao
+
+Quatro ferramentas adicionais estao disponiveis para gerenciar o estado de
+recuperacao:
+
+| Tool                       | Descricao                                            |
+| -------------------------- | ---------------------------------------------------- |
+| `workflow_version_list`    | Listar versoes propostas/aprovadas/rejeitadas        |
+| `workflow_version_approve` | Aprovar uma versao proposta                          |
+| `workflow_version_reject`  | Rejeitar uma versao proposta com motivo               |
+| `workflow_healing_status`  | Status atual de recuperacao de uma execucao do fluxo  |
+
+### Seguranca
+
+- O agente de recuperacao **nao pode modificar sua propria configuracao
+  `self_healing`**. Versoes propostas que alterem o bloco de configuracao sao
+  rejeitadas.
+- O agente lider e todos os membros da equipe herdam o nivel de taint do fluxo
+  de trabalho e escalam em sincronia.
+- Todas as acoes dos agentes passam pela cadeia padrao de hooks de politica —
+  sem excecoes.
+- As versoes propostas sao armazenadas no nivel de classificacao do fluxo de
+  trabalho.

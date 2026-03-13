@@ -82,7 +82,57 @@ do:
 | `output`   | transform | कार्य निष्पादन के बाद लागू ट्रांसफ़ॉर्म             |
 | `timeout`  | object    | कार्य टाइमआउट: `after: <ISO 8601 अवधि>`            |
 | `then`     | string    | प्रवाह निर्देश: `continue`, `end` या कार्य नाम      |
-| `metadata` | object    | मनमाना कुंजी-मान मेटाडेटा (इंजन द्वारा अप्रयुक्त)  |
+| `metadata` | object    | मनमाना कुंजी-मान मेटाडेटा। स्व-उपचार सक्षम होने पर `description`, `expects`, `produces` आवश्यक हैं। |
+
+---
+
+## स्व-उपचार कॉन्फ़िगरेशन
+
+`metadata.triggerfish.self_healing` ब्लॉक वर्कफ़्लो के लिए एक स्वायत्त उपचार एजेंट सक्षम करता है। पूर्ण गाइड के लिए [स्व-उपचार](/hi-IN/features/workflows#स्व-उपचार) देखें।
+
+```yaml
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+      pause_timeout_seconds: 300
+      pause_timeout_policy: escalate_and_halt
+      notify_on: [intervention, escalation, approval_required]
+```
+
+| Field                   | Type    | Required | Default              | विवरण |
+| ----------------------- | ------- | -------- | -------------------- | ----- |
+| `enabled`               | boolean | yes      | —                    | उपचार एजेंट सक्षम करें |
+| `retry_budget`          | number  | no       | `3`                  | अधिकतम हस्तक्षेप प्रयास |
+| `approval_required`     | boolean | no       | `true`               | सुधारों के लिए मानव अनुमोदन आवश्यक |
+| `pause_on_intervention` | string  | no       | `"blocking_only"`    | `always` \| `never` \| `blocking_only` |
+| `pause_timeout_seconds` | number  | no       | `300`                | टाइमआउट नीति ट्रिगर होने से पहले सेकंड |
+| `pause_timeout_policy`  | string  | no       | `"escalate_and_halt"`| `escalate_and_halt` \| `escalate_and_skip` \| `escalate_and_fail` |
+| `notify_on`             | array   | no       | `[]`                 | `intervention` \| `escalation` \| `approval_required` |
+
+### चरण मेटाडेटा (स्व-उपचार सक्षम होने पर आवश्यक)
+
+जब `self_healing.enabled` `true` है, तो हर कार्य में ये metadata फ़ील्ड शामिल होने चाहिए। पार्सर उन वर्कफ़्लो को अस्वीकार करता है जिनमें इनमें से कोई भी गायब है।
+
+| Field         | Type   | विवरण                                        |
+| ------------- | ------ | -------------------------------------------- |
+| `description` | string | चरण क्या करता है और क्यों                   |
+| `expects`     | string | आवश्यक इनपुट आकार या पूर्व शर्तें          |
+| `produces`    | string | उत्पन्न आउटपुट आकार                        |
+
+```yaml
+- fetch-invoices:
+    call: http
+    with:
+      endpoint: "https://api.example.com/invoices"
+    metadata:
+      description: "Fetch open invoices from billing API"
+      expects: "API available, returns JSON array"
+      produces: "Array of {id, amount, status} objects"
+```
 
 ---
 

@@ -221,3 +221,60 @@ workflow_history with workflow_name: "my-workflow" and limit: "5"
 이는 의도된 것입니다 — 분류된 워크플로의 존재는 더 낮은 분류 세션에 공개되지 않습니다.
 
 **해결 방법:** 삭제하기 전에 세션 taint를 워크플로의 분류 수준과 일치하거나 초과하도록 높이십시오. 또는 원래 저장된 것과 동일한 세션 유형에서 삭제하십시오.
+
+---
+
+## 자가 치유
+
+### "Step metadata missing on task 'X': self-healing requires description, expects, produces"
+
+`self_healing.enabled`가 `true`인 경우 모든 작업에 세 가지 메타데이터 필드가 모두 포함되어야 합니다. 파서는 저장 시 누락된 필드가 있으면 워크플로를 거부합니다.
+
+**해결 방법:** 모든 작업의 `metadata` 블록에 `description`, `expects`, `produces`를 추가하십시오:
+
+```yaml
+- my-task:
+    call: http
+    with:
+      endpoint: "https://example.com/api"
+    metadata:
+      description: "What this step does and why"
+      expects: "What this step needs as input"
+      produces: "What this step outputs"
+```
+
+---
+
+### "Self-healing config mutation rejected in version proposal"
+
+치유 에이전트가 `self_healing` 설정 블록을 수정하는 새 워크플로 버전을 제안했습니다. 이는 금지되어 있습니다 — 에이전트는 자체 치유 설정을 변경할 수 없습니다.
+
+이는 의도된 동작입니다. `workflow_save`를 통해 새 버전을 직접 저장하여 `self_healing` 설정을 수정할 수 있는 것은 사람뿐입니다.
+
+---
+
+### 치유 에이전트가 생성되지 않음
+
+워크플로가 실행되지만 치유 에이전트가 나타나지 않습니다. 다음을 확인하십시오:
+
+1. **`enabled`가 `true`** — `metadata.triggerfish.self_healing`에서 확인합니다.
+2. **설정이 올바른 위치에 있음** — 최상위가 아닌 `metadata.triggerfish.self_healing` 아래에 중첩되어야 합니다.
+3. **모든 단계에 메타데이터가 있음** — 저장 시 유효성 검사에 실패하면 워크플로가 자가 치유 없이 저장된 것입니다.
+
+---
+
+### 제안된 수정이 대기 중 상태로 유지됨
+
+`approval_required`가 `true`(기본값)이면 제안된 버전은 사람의 검토를 기다립니다. `workflow_version_list`를 사용하여 대기 중인 제안을 확인하고 `workflow_version_approve` 또는 `workflow_version_reject`로 조치하십시오.
+
+---
+
+### "Retry budget exhausted" / 해결 불가능 에스컬레이션
+
+치유 에이전트가 문제를 해결하지 못한 채 모든 개입 시도(기본 3회)를 소진했습니다. `unresolvable`로 에스컬레이션하고 수정 시도를 중단합니다.
+
+**해결 방법:**
+
+- `workflow_healing_status`를 확인하여 어떤 개입이 시도되었는지 확인하십시오.
+- 근본적인 문제를 수동으로 검토하고 수정하십시오.
+- 더 많은 시도를 허용하려면 자가 치유 설정에서 `retry_budget`을 늘리고 워크플로를 다시 저장하십시오.

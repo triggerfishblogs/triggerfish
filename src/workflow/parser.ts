@@ -3,22 +3,27 @@
 import { parse as parseYaml } from "@std/yaml";
 import type {
   CallTask,
-  ForTask,
   TaskBase,
-  WaitTask,
   WorkflowDefinition,
   WorkflowDocument,
   WorkflowTask,
   WorkflowTaskEntry,
 } from "./types.ts";
 import type { ClassificationLevel } from "../core/types/classification.ts";
+import type { SelfHealingConfig } from "../core/types/healing.ts";
 import {
   validateEmitTask,
+  validateForTask,
   validateRaiseTask,
   validateRunTask,
   validateSetTask,
   validateSwitchTask,
+  validateWaitTask,
 } from "./validators.ts";
+import {
+  enforceStepMetadataRequirements,
+  parseSelfHealingConfig,
+} from "./healing/metadata_validator.ts";
 
 /** Result type for parser operations. */
 export type ParseResult<T> =
@@ -84,13 +89,6 @@ export function parseTaskBase(raw: Record<string, unknown>): TaskBase {
   };
 }
 
-const VALID_CLASSIFICATION_LEVELS: readonly string[] = [
-  "PUBLIC",
-  "INTERNAL",
-  "CONFIDENTIAL",
-  "RESTRICTED",
-];
-
 /** Parse a YAML string into a validated WorkflowDefinition. */
 export function parseWorkflowYaml(
   yaml: string,
@@ -108,17 +106,41 @@ export function parseWorkflowYaml(
   }
   const ceiling = parseCeiling(root["classification_ceiling"]);
   if (!ceiling.ok) return ceiling;
+
+  const metadata = isRecord(root["metadata"])
+    ? (root["metadata"] as Readonly<Record<string, unknown>>)
+    : undefined;
+
+  const selfHealingResult = extractSelfHealingConfig(metadata);
+  if (!selfHealingResult.ok) return selfHealingResult;
+
+  if (selfHealingResult.value?.enabled) {
+    const metaReq = enforceStepMetadataRequirements(tasksResult.value);
+    if (!metaReq.ok) return metaReq;
+  }
+
   return ok({
     document: docResult.value,
     do: tasksResult.value,
     input: parseTransform(root["input"]),
     output: parseTransform(root["output"]),
     timeout: parseTimeout(root["timeout"]),
-    metadata: isRecord(root["metadata"])
-      ? (root["metadata"] as Readonly<Record<string, unknown>>)
-      : undefined,
+    metadata,
     classificationCeiling: ceiling.value,
+    selfHealing: selfHealingResult.value,
   });
+}
+
+/** Extract and parse self-healing config from workflow metadata. */
+function extractSelfHealingConfig(
+  metadata: Readonly<Record<string, unknown>> | undefined,
+): ParseResult<SelfHealingConfig | undefined> {
+  if (!metadata) return ok(undefined);
+  const tf = metadata["triggerfish"];
+  if (!isRecord(tf)) return ok(undefined);
+  const healingRaw = tf["self_healing"];
+  if (healingRaw === undefined || healingRaw === null) return ok(undefined);
+  return parseSelfHealingConfig(healingRaw);
 }
 
 function parseYamlSafe(yaml: string): ParseResult<unknown> {
@@ -207,7 +229,7 @@ function dispatchTaskType(
   if ("run" in raw) return validateRunTask(raw, base, context);
   if ("set" in raw) return validateSetTask(raw, base, context);
   if ("switch" in raw) return validateSwitchTask(raw, base, context);
-  if ("for" in raw) return validateForTask(raw, base, context);
+  if ("for" in raw) return validateForTask(raw, base, context, validateDoBlock);
   if ("raise" in raw) return validateRaiseTask(raw, base, context);
   if ("emit" in raw) return validateEmitTask(raw, base, context);
   if ("wait" in raw) return validateWaitTask(raw, base);
@@ -237,46 +259,12 @@ function validateCallTask(
   });
 }
 
-function validateForTask(
-  raw: Record<string, unknown>,
-  base: TaskBase,
-  context: string,
-): ParseResult<ForTask> {
-  const forDef = raw["for"];
-  if (!isRecord(forDef)) {
-    return err(`${context}: 'for' must be an object with 'each' and 'in'`);
-  }
-  if (typeof forDef["each"] !== "string") {
-    return err(`${context}: for.each must be a string (variable name)`);
-  }
-  if (typeof forDef["in"] !== "string") {
-    return err(
-      `${context}: for.in must be a string (expression referencing a collection)`,
-    );
-  }
-  const doResult = validateDoBlock(raw["do"], `${context}.for`);
-  if (!doResult.ok) return doResult;
-  return ok({
-    ...base,
-    type: "for" as const,
-    for: {
-      each: forDef["each"] as string,
-      in: forDef["in"] as string,
-      at: typeof forDef["at"] === "string" ? forDef["at"] : undefined,
-    },
-    do: doResult.value,
-  });
-}
-
-function validateWaitTask(
-  raw: Record<string, unknown>,
-  base: TaskBase,
-): ParseResult<WaitTask> {
-  if (typeof raw["wait"] !== "string") {
-    return err("Wait task requires a duration string (e.g., 'PT5S')");
-  }
-  return ok({ ...base, type: "wait" as const, wait: raw["wait"] as string });
-}
+const VALID_CLASSIFICATION_LEVELS = [
+  "PUBLIC",
+  "INTERNAL",
+  "CONFIDENTIAL",
+  "RESTRICTED",
+];
 
 function parseCeiling(
   raw: unknown,

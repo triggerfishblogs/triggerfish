@@ -295,3 +295,77 @@ mit niedrigerem Klassifizierungslevel nicht offenbart.
 Klassifizierungslevel des Workflows entspricht oder es ubertrifft, bevor Sie ihn
 loschen. Oder loschen Sie ihn aus demselben Sitzungstyp, in dem er ursprunglich
 gespeichert wurde.
+
+---
+
+## Self-Healing
+
+### "Step metadata missing on task 'X': self-healing requires description, expects, produces"
+
+Wenn `self_healing.enabled` auf `true` steht, muss jede Aufgabe alle drei
+Metadatenfelder besitzen. Der Parser lehnt den Workflow beim Speichern ab, wenn
+eines davon fehlt.
+
+**Behebung:** Fugen Sie `description`, `expects` und `produces` zu jedem
+`metadata`-Block jeder Aufgabe hinzu:
+
+```yaml
+- my-task:
+    call: http
+    with:
+      endpoint: "https://example.com/api"
+    metadata:
+      description: "What this step does and why"
+      expects: "What this step needs as input"
+      produces: "What this step outputs"
+```
+
+---
+
+### "Self-healing config mutation rejected in version proposal"
+
+Der Healing-Agent hat eine neue Workflow-Version vorgeschlagen, die den
+`self_healing`-Konfigurationsblock verandert. Dies ist verboten -- der Agent
+kann seine eigene Healing-Konfiguration nicht andern.
+
+Dies ist beabsichtigtes Verhalten. Nur Menschen konnen die `self_healing`-
+Konfiguration andern, indem sie eine neue Version des Workflows direkt uber
+`workflow_save` speichern.
+
+---
+
+### Healing-Agent wird nicht gestartet
+
+Der Workflow lauft, aber kein Healing-Agent erscheint. Prufen Sie:
+
+1. **`enabled` ist `true`** in `metadata.triggerfish.self_healing`.
+2. **Konfiguration ist am richtigen Ort** -- muss unter
+   `metadata.triggerfish.self_healing` verschachtelt sein, nicht auf der
+   obersten Ebene.
+3. **Alle Schritte haben Metadaten** -- wenn die Validierung beim Speichern
+   fehlschlagt, wurde der Workflow ohne aktiviertes Self-Healing gespeichert.
+
+---
+
+### Vorgeschlagene Korrekturen bleiben im Status "pending" hangen
+
+Wenn `approval_required` auf `true` steht (Standard), warten vorgeschlagene
+Versionen auf eine menschliche Prufung. Verwenden Sie `workflow_version_list`,
+um ausstehende Vorschlage einzusehen, und `workflow_version_approve` oder
+`workflow_version_reject`, um darauf zu reagieren.
+
+---
+
+### "Retry budget exhausted" / Nicht losbare Eskalation
+
+Der Healing-Agent hat alle Interventionsversuche (Standard 3) aufgebraucht,
+ohne das Problem zu losen. Er eskaliert als `unresolvable` und stellt weitere
+Korrekturversuche ein.
+
+**Behebung:**
+
+- Prufen Sie `workflow_healing_status`, um zu sehen, welche Interventionen
+  versucht wurden.
+- Uberprufen und beheben Sie das zugrundeliegende Problem manuell.
+- Um weitere Versuche zu ermoglichen, erhohen Sie `retry_budget` in der
+  Self-Healing-Konfiguration und speichern Sie den Workflow erneut.

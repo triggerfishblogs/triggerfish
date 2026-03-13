@@ -82,7 +82,59 @@ do:
 | `output`   | transform | تحويل مطبق بعد تنفيذ المهمة                         |
 | `timeout`  | object    | مهلة المهمة: `after: <مدة ISO 8601>`                 |
 | `then`     | string    | توجيه التدفق: `continue`، `end`، أو اسم مهمة        |
-| `metadata` | object    | بيانات وصفية عشوائية (لا يستخدمها المحرك)            |
+| `metadata` | object    | بيانات وصفية عشوائية بنمط مفتاح-قيمة. عند تمكين الإصلاح الذاتي، تتطلب `description` و `expects` و `produces`. |
+
+---
+
+## تكوين الإصلاح الذاتي
+
+تمكّن كتلة `metadata.triggerfish.self_healing` وكيل إصلاح مستقل لسير العمل.
+راجع [الإصلاح الذاتي](/ar-SA/features/workflows#الإصلاح-الذاتي) للدليل الكامل.
+
+```yaml
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+      pause_timeout_seconds: 300
+      pause_timeout_policy: escalate_and_halt
+      notify_on: [intervention, escalation, approval_required]
+```
+
+| Field                   | Type    | Required | Default              | الوصف |
+| ----------------------- | ------- | -------- | -------------------- | ----- |
+| `enabled`               | boolean | yes      | —                    | تمكين وكيل الإصلاح |
+| `retry_budget`          | number  | no       | `3`                  | الحد الأقصى لمحاولات التدخل |
+| `approval_required`     | boolean | no       | `true`               | طلب موافقة بشرية للإصلاحات |
+| `pause_on_intervention` | string  | no       | `"blocking_only"`    | `always` \| `never` \| `blocking_only` |
+| `pause_timeout_seconds` | number  | no       | `300`                | الثواني قبل تفعيل سياسة المهلة |
+| `pause_timeout_policy`  | string  | no       | `"escalate_and_halt"`| `escalate_and_halt` \| `escalate_and_skip` \| `escalate_and_fail` |
+| `notify_on`             | array   | no       | `[]`                 | `intervention` \| `escalation` \| `approval_required` |
+
+### بيانات الخطوة الوصفية (مطلوبة عند تمكين الإصلاح الذاتي)
+
+عندما يكون `self_healing.enabled` مضبوطاً على `true`، يجب أن تتضمن كل مهمة
+حقول البيانات الوصفية التالية. يرفض المحلل سير العمل التي تفتقد أياً منها.
+
+| Field         | Type   | الوصف                                        |
+| ------------- | ------ | -------------------------------------------- |
+| `description` | string | ما تفعله الخطوة ولماذا                       |
+| `expects`     | string | شكل الإدخال أو الشروط المسبقة المطلوبة       |
+| `produces`    | string | شكل الإخراج المُنتج                          |
+
+```yaml
+- fetch-invoices:
+    call: http
+    with:
+      endpoint: "https://api.example.com/invoices"
+    metadata:
+      description: "Fetch open invoices from billing API"
+      expects: "API available, returns JSON array"
+      produces: "Array of {id, amount, status} objects"
+```
 
 ---
 

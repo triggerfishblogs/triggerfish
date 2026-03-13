@@ -294,3 +294,76 @@ divulguée aux sessions de classification inférieure.
 **Correction :** Augmentez le taint de votre session pour égaler ou dépasser le
 niveau de classification du flux de travail avant de le supprimer. Ou
 supprimez-le depuis le même type de session où il a été initialement enregistré.
+
+---
+
+## Self-Healing
+
+### « Step metadata missing on task 'X': self-healing requires description, expects, produces »
+
+Lorsque `self_healing.enabled` est `true`, chaque tâche doit posséder les trois
+champs de métadonnées. L'analyseur rejette le flux de travail au moment de
+l'enregistrement si l'un d'entre eux est absent.
+
+**Correction :** Ajoutez `description`, `expects` et `produces` au bloc
+`metadata` de chaque tâche :
+
+```yaml
+- my-task:
+    call: http
+    with:
+      endpoint: "https://example.com/api"
+    metadata:
+      description: "What this step does and why"
+      expects: "What this step needs as input"
+      produces: "What this step outputs"
+```
+
+---
+
+### « Self-healing config mutation rejected in version proposal »
+
+L'agent de guérison a proposé une nouvelle version du flux de travail qui
+modifie le bloc de configuration `self_healing`. Ceci est interdit -- l'agent ne
+peut pas modifier sa propre configuration de guérison.
+
+Ce comportement est intentionnel. Seuls les humains peuvent modifier la
+configuration `self_healing` en enregistrant une nouvelle version du flux de
+travail directement via `workflow_save`.
+
+---
+
+### L'agent de guérison ne se lance pas
+
+Le flux de travail s'exécute mais aucun agent de guérison n'apparaît. Vérifiez :
+
+1. **`enabled` est `true`** dans `metadata.triggerfish.self_healing`.
+2. **La configuration est au bon endroit** -- doit être imbriquée sous
+   `metadata.triggerfish.self_healing`, pas au niveau supérieur.
+3. **Toutes les étapes ont des métadonnées** -- si la validation échoue au
+   moment de l'enregistrement, le flux de travail a été enregistré sans
+   self-healing activé.
+
+---
+
+### Les corrections proposées restent en attente
+
+Si `approval_required` est `true` (par défaut), les versions proposées attendent
+une revue humaine. Utilisez `workflow_version_list` pour voir les propositions en
+attente et `workflow_version_approve` ou `workflow_version_reject` pour agir.
+
+---
+
+### « Retry budget exhausted » / Escalade non résolvable
+
+L'agent de guérison a utilisé toutes ses tentatives d'intervention (par défaut
+3) sans résoudre le problème. Il escalade en `unresolvable` et cesse les
+tentatives de correction.
+
+**Correction :**
+
+- Consultez `workflow_healing_status` pour voir quelles interventions ont été
+  tentées.
+- Examinez et corrigez le problème sous-jacent manuellement.
+- Pour autoriser plus de tentatives, augmentez `retry_budget` dans la
+  configuration du self-healing et réenregistrez le flux de travail.

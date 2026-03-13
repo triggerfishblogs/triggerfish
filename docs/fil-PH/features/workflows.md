@@ -479,3 +479,110 @@ naka-store sa `CONFIDENTIAL` mula sa isang `PUBLIC` session. Lino-load muna ng
 `workflow_delete` tool ang workflow at nagbabalik ng "not found" kapag nabigo ang
 classification check.
 :::
+
+## Self-Healing
+
+Puwedeng magkaroon ang mga workflow ng opsyonal na autonomous healing agent na
+nagmo-monitor ng execution sa real time, nagdi-diagnose ng mga failure, at
+nagpo-propose ng mga fix. Kapag naka-enable ang self-healing, isang lead agent
+ang sine-spawn kasabay ng workflow run. Ino-observe nito ang bawat step event,
+tini-triage ang mga failure, at kino-coordinate ang mga specialist team para
+resolbahin ang mga isyu.
+
+### Pag-enable ng Self-Healing
+
+Magdagdag ng `self_healing` block sa `metadata.triggerfish` section ng workflow:
+
+```yaml
+document:
+  dsl: "1.0"
+  namespace: ops
+  name: data-pipeline
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+do:
+  - fetch-data:
+      call: http
+      with:
+        endpoint: "https://api.example.com/data"
+      metadata:
+        description: "Fetch raw invoice data from billing API"
+        expects: "API returns JSON array of invoice objects"
+        produces: "Array of {id, amount, status, date} objects"
+```
+
+Kapag `enabled: true`, bawat step ay **kailangang** may tatlong metadata field:
+
+| Field         | Description                                    |
+| ------------- | ---------------------------------------------- |
+| `description` | Ano ang ginagawa ng step at bakit ito umiiral  |
+| `expects`     | Anyo ng input o mga precondition na kailangan ng step |
+| `produces`    | Anyo ng output na ginagawa ng step             |
+
+Rini-reject ng parser ang mga workflow kung saan may step na kulang sa mga field na ito.
+
+### Mga Configuration Option
+
+| Option                    | Type    | Default              | Description |
+| ------------------------- | ------- | -------------------- | ----------- |
+| `enabled`                 | boolean | —                    | Kailangan. Ine-enable ang healing agent. |
+| `retry_budget`            | number  | `3`                  | Maximum na intervention attempt bago i-escalate bilang unresolvable. |
+| `approval_required`       | boolean | `true`               | Kung kailangan ba ng human approval ang mga proposed workflow fix. |
+| `pause_on_intervention`   | string  | `"blocking_only"`    | Kailan i-pause ang mga downstream task: `always`, `never`, o `blocking_only`. |
+| `pause_timeout_seconds`   | number  | `300`                | Mga segundo ng paghihintay habang naka-pause bago mag-trigger ang timeout policy. |
+| `pause_timeout_policy`    | string  | `"escalate_and_halt"`| Ano ang mangyayari kapag nag-timeout: `escalate_and_halt`, `escalate_and_skip`, o `escalate_and_fail`. |
+| `notify_on`               | array   | `[]`                 | Mga event na nagti-trigger ng notification: `intervention`, `escalation`, `approval_required`. |
+
+### Paano Ito Gumagana
+
+1. **Pag-observe.** Tumatanggap ang healing lead agent ng real-time stream ng
+   mga step event (started, completed, failed, skipped) habang nag-e-execute
+   ang workflow.
+
+2. **Pag-triage.** Kapag nabigo ang isang step, tini-triage ng lead ang failure
+   sa isa sa limang kategorya:
+
+   | Kategorya             | Kahulugan                                        |
+   | --------------------- | ------------------------------------------------ |
+   | `transient_retry`     | Pansamantalang isyu (network error, rate limit, 503) |
+   | `runtime_workaround`  | Unang beses na unknown error, puwedeng may workaround |
+   | `structural_fix`      | Paulit-ulit na failure na nangangailangan ng pagbabago sa workflow definition |
+   | `plugin_gap`          | Isyu sa auth/credential na nangangailangan ng bagong integration |
+   | `unresolvable`        | Naubos na ang retry budget o fundamentally sira  |
+
+3. **Mga specialist team.** Batay sa kategorya ng triage, sine-spawn ng lead ang
+   isang team ng mga specialist agent (diagnostician, retry coordinator,
+   definition fixer, plugin author, atbp.) para mag-imbestiga at resolbahin ang
+   isyu.
+
+4. **Mga version proposal.** Kapag kailangan ng structural fix, nagpo-propose
+   ang team ng bagong workflow version. Kung `approval_required` ay true, ang
+   proposal ay naghihintay ng human review sa pamamagitan ng
+   `workflow_version_approve` o `workflow_version_reject`.
+
+5. **Scoped pause.** Kapag naka-enable ang `pause_on_intervention`, ang mga
+   downstream task lang ang napa-pause — patuloy na nag-e-execute ang mga
+   independent branch.
+
+### Mga Healing Tool
+
+Apat na karagdagang tool ang available para sa pamamahala ng healing state:
+
+| Tool                       | Description                                |
+| -------------------------- | ------------------------------------------ |
+| `workflow_version_list`    | I-list ang mga proposed/approved/rejected na version |
+| `workflow_version_approve` | I-approve ang isang proposed version       |
+| `workflow_version_reject`  | I-reject ang isang proposed version na may dahilan |
+| `workflow_healing_status`  | Kasalukuyang healing status para sa isang workflow run |
+
+### Seguridad
+
+- Ang healing agent ay **hindi puwedeng baguhin ang sarili nitong `self_healing` config**. Rini-reject ang mga proposed version na nagbabago ng config block.
+- Ang lead agent at lahat ng team member ay nag-i-inherit ng taint level ng workflow at nag-e-escalate nang sabay-sabay.
+- Lahat ng agent action ay dumadaan sa standard policy hook chain — walang bypass.
+- Ang mga proposed version ay naka-store sa classification level ng workflow.

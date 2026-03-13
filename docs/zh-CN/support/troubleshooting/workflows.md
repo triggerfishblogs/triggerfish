@@ -252,3 +252,68 @@ workflow_history with workflow_name: "my-workflow" and limit: "5"
 
 **修复：** 在删除前将会话 taint 提升到等于或超过工作流的分类级别。或从最初保存
 工作流的相同会话类型中删除它。
+
+---
+
+## 自修复
+
+### "Step metadata missing on task 'X': self-healing requires description, expects, produces"
+
+当 `self_healing.enabled` 为 `true` 时，每个任务必须包含全部三个元数据字段。
+解析器在保存时如果发现任何字段缺失，将拒绝该工作流。
+
+**修复：** 为每个任务的 `metadata` 块添加 `description`、`expects` 和
+`produces`：
+
+```yaml
+- my-task:
+    call: http
+    with:
+      endpoint: "https://example.com/api"
+    metadata:
+      description: "What this step does and why"
+      expects: "What this step needs as input"
+      produces: "What this step outputs"
+```
+
+---
+
+### "Self-healing config mutation rejected in version proposal"
+
+修复代理提议的新工作流版本修改了 `self_healing` 配置块。这是被禁止的——代理无法
+更改自身的修复配置。
+
+这是预期行为。只有人类可以通过 `workflow_save` 直接保存新版本来修改
+`self_healing` 配置。
+
+---
+
+### 修复代理未生成
+
+工作流运行但没有修复代理出现。请检查：
+
+1. **`enabled` 为 `true`** — 在 `metadata.triggerfish.self_healing` 中。
+2. **配置在正确的位置** — 必须嵌套在 `metadata.triggerfish.self_healing` 下，
+   而不是顶层。
+3. **所有步骤都有元数据** — 如果保存时验证失败，工作流在保存时未启用自修复。
+
+---
+
+### 提议的修复停留在待处理状态
+
+如果 `approval_required` 为 `true`（默认值），提议的版本会等待人工审查。使用
+`workflow_version_list` 查看待处理的提议，并使用 `workflow_version_approve` 或
+`workflow_version_reject` 进行操作。
+
+---
+
+### "Retry budget exhausted" / 无法解决的升级
+
+修复代理已用完所有干预尝试（默认 3 次）但未能解决问题。它会升级为 `unresolvable`
+并停止尝试修复。
+
+**修复：**
+
+- 使用 `workflow_healing_status` 查看尝试了哪些干预。
+- 手动审查并修复根本问题。
+- 要允许更多尝试，请增加自修复配置中的 `retry_budget` 并重新保存工作流。

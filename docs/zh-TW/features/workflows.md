@@ -441,3 +441,101 @@ classification_ceiling: INTERNAL
 工作階段中刪除儲存在 `CONFIDENTIAL` 級別的工作流程。`workflow_delete` 工具會先
 載入工作流程，如果分類檢查失敗則傳回「未找到」。
 :::
+
+## 自修復
+
+工作流程可以選擇配備一個自主修復代理，該代理即時監控執行過程、診斷故障並提出
+修復方案。啟用自修復後，會在工作流程執行時產生一個主導代理。它觀察每個步驟事件、
+對故障進行分類並協調專家團隊解決問題。
+
+### 啟用自修復
+
+在工作流程的 `metadata.triggerfish` 區段新增 `self_healing` 區塊：
+
+```yaml
+document:
+  dsl: "1.0"
+  namespace: ops
+  name: data-pipeline
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+do:
+  - fetch-data:
+      call: http
+      with:
+        endpoint: "https://api.example.com/data"
+      metadata:
+        description: "Fetch raw invoice data from billing API"
+        expects: "API returns JSON array of invoice objects"
+        produces: "Array of {id, amount, status, date} objects"
+```
+
+當 `enabled: true` 時，每個步驟**必須**包含三個中繼資料欄位：
+
+| Field         | Description                                    |
+| ------------- | ---------------------------------------------- |
+| `description` | 該步驟的功能及其存在的原因                     |
+| `expects`     | 該步驟需要的輸入形式或前置條件                 |
+| `produces`    | 該步驟產生的輸出形式                           |
+
+解析器會拒絕任何步驟缺少這些欄位的工作流程。
+
+### 設定選項
+
+| Option                    | Type    | Default              | Description |
+| ------------------------- | ------- | -------------------- | ----------- |
+| `enabled`                 | boolean | —                    | 必需。啟用修復代理。 |
+| `retry_budget`            | number  | `3`                  | 升級為無法解決之前的最大介入嘗試次數。 |
+| `approval_required`       | boolean | `true`               | 提議的工作流程修復是否需要人工審批。 |
+| `pause_on_intervention`   | string  | `"blocking_only"`    | 何時暫停下游任務：`always`、`never` 或 `blocking_only`。 |
+| `pause_timeout_seconds`   | number  | `300`                | 暫停期間逾時策略觸發前的等待秒數。 |
+| `pause_timeout_policy`    | string  | `"escalate_and_halt"`| 逾時後的行為：`escalate_and_halt`、`escalate_and_skip` 或 `escalate_and_fail`。 |
+| `notify_on`               | array   | `[]`                 | 觸發通知的事件：`intervention`、`escalation`、`approval_required`。 |
+
+### 運作方式
+
+1. **觀察。** 修復主導代理接收工作流程執行過程中的即時步驟事件串流（started、
+   completed、failed、skipped）。
+
+2. **分類。** 當步驟失敗時，主導代理將故障分為五個類別：
+
+   | 類別                  | 含義                                             |
+   | --------------------- | ------------------------------------------------ |
+   | `transient_retry`     | 暫時性問題（網路錯誤、速率限制、503）            |
+   | `runtime_workaround`  | 首次出現的未知錯誤，可能可以繞過                 |
+   | `structural_fix`      | 需要修改工作流程定義的反覆出現的故障             |
+   | `plugin_gap`          | 需要新整合的驗證/憑證問題                        |
+   | `unresolvable`        | 重試預算已耗盡或根本無法修復                     |
+
+3. **專家團隊。** 根據分類類別，主導代理產生專家代理團隊（診斷師、重試協調器、
+   定義修復器、外掛作者等）來調查和解決問題。
+
+4. **版本提議。** 當需要結構性修復時，團隊會提議新的工作流程版本。如果
+   `approval_required` 為 true，提議將等待人工透過 `workflow_version_approve`
+   或 `workflow_version_reject` 進行審查。
+
+5. **範圍暫停。** 當 `pause_on_intervention` 啟用時，只有下游任務被暫停——
+   獨立分支繼續執行。
+
+### 修復工具
+
+四個額外的工具可用於管理修復狀態：
+
+| Tool                       | Description                                |
+| -------------------------- | ------------------------------------------ |
+| `workflow_version_list`    | 列出已提議/已核准/已拒絕的版本             |
+| `workflow_version_approve` | 核准一個提議的版本                         |
+| `workflow_version_reject`  | 拒絕一個提議的版本並說明原因               |
+| `workflow_healing_status`  | 工作流程執行的當前修復狀態                 |
+
+### 安全
+
+- 修復代理**無法修改自身的 `self_healing` 設定**。修改設定區塊的版本提議會被拒絕。
+- 主導代理和所有團隊成員繼承工作流程的 taint 級別，並同步升級。
+- 所有代理操作通過標準策略掛鉤鏈——不允許繞過。
+- 提議的版本以工作流程的分類級別儲存。

@@ -480,3 +480,118 @@ un flux de travail stocké au niveau `CONFIDENTIAL` depuis une session `PUBLIC`.
 L'outil `workflow_delete` charge d'abord le flux de travail et renvoie
 « introuvable » si la vérification de classification échoue.
 :::
+
+## Self-Healing
+
+Les flux de travail peuvent optionnellement disposer d'un agent de guérison
+autonome qui surveille l'exécution en temps réel, diagnostique les échecs et
+propose des corrections. Lorsque le self-healing est activé, un agent principal
+est lancé parallèlement à l'exécution du flux de travail. Il observe chaque
+événement d'étape, trie les échecs et coordonne des équipes de spécialistes pour
+résoudre les problèmes.
+
+### Activer le Self-Healing
+
+Ajoutez un bloc `self_healing` dans la section `metadata.triggerfish` du flux de
+travail :
+
+```yaml
+document:
+  dsl: "1.0"
+  namespace: ops
+  name: data-pipeline
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+do:
+  - fetch-data:
+      call: http
+      with:
+        endpoint: "https://api.example.com/data"
+      metadata:
+        description: "Fetch raw invoice data from billing API"
+        expects: "API returns JSON array of invoice objects"
+        produces: "Array of {id, amount, status, date} objects"
+```
+
+Lorsque `enabled: true`, chaque étape **doit** inclure trois champs de
+métadonnées :
+
+| Field         | Description                                    |
+| ------------- | ---------------------------------------------- |
+| `description` | Ce que fait l'étape et pourquoi elle existe    |
+| `expects`     | Forme des entrées ou préconditions nécessaires |
+| `produces`    | Forme de la sortie générée par l'étape         |
+
+L'analyseur rejette les flux de travail dans lesquels une étape ne possède pas
+ces champs.
+
+### Options de configuration
+
+| Option                    | Type    | Par défaut           | Description |
+| ------------------------- | ------- | -------------------- | ----------- |
+| `enabled`                 | boolean | —                    | Requis. Active l'agent de guérison. |
+| `retry_budget`            | number  | `3`                  | Nombre maximum de tentatives d'intervention avant escalade en non résolvable. |
+| `approval_required`       | boolean | `true`               | Si les corrections de flux de travail proposées nécessitent une approbation humaine. |
+| `pause_on_intervention`   | string  | `"blocking_only"`    | Quand mettre en pause les tâches en aval : `always`, `never` ou `blocking_only`. |
+| `pause_timeout_seconds`   | number  | `300`                | Secondes d'attente pendant une pause avant le déclenchement de la politique de temporisation. |
+| `pause_timeout_policy`    | string  | `"escalate_and_halt"`| Que se passe-t-il en cas d'expiration : `escalate_and_halt`, `escalate_and_skip` ou `escalate_and_fail`. |
+| `notify_on`               | array   | `[]`                 | Événements déclenchant des notifications : `intervention`, `escalation`, `approval_required`. |
+
+### Fonctionnement
+
+1. **Observation.** L'agent principal de guérison reçoit un flux en temps réel
+   d'événements d'étape (démarrée, terminée, échouée, ignorée) pendant
+   l'exécution du flux de travail.
+
+2. **Triage.** Lorsqu'une étape échoue, l'agent principal classe l'échec dans
+   l'une des cinq catégories :
+
+   | Catégorie             | Signification                                    |
+   | --------------------- | ------------------------------------------------ |
+   | `transient_retry`     | Problème temporaire (erreur réseau, limite de débit, 503) |
+   | `runtime_workaround`  | Erreur inconnue apparaissant pour la première fois, possiblement contournable |
+   | `structural_fix`      | Échec récurrent nécessitant une modification de la définition du flux de travail |
+   | `plugin_gap`          | Problème d'authentification/identifiants nécessitant une nouvelle intégration |
+   | `unresolvable`        | Budget de réessai épuisé ou fondamentalement cassé |
+
+3. **Équipes de spécialistes.** Selon la catégorie de triage, l'agent principal
+   lance une équipe d'agents spécialistes (diagnosticien, coordinateur de
+   réessai, correcteur de définition, auteur de plugin, etc.) pour enquêter et
+   résoudre le problème.
+
+4. **Propositions de version.** Lorsqu'une correction structurelle est
+   nécessaire, l'équipe propose une nouvelle version du flux de travail. Si
+   `approval_required` est vrai, la proposition attend une revue humaine via
+   `workflow_version_approve` ou `workflow_version_reject`.
+
+5. **Pause ciblée.** Lorsque `pause_on_intervention` est activé, seules les
+   tâches en aval sont mises en pause -- les branches indépendantes continuent
+   leur exécution.
+
+### Outils de guérison
+
+Quatre outils supplémentaires sont disponibles pour gérer l'état de guérison :
+
+| Outil                      | Description                                |
+| -------------------------- | ------------------------------------------ |
+| `workflow_version_list`    | Lister les versions proposées/approuvées/rejetées |
+| `workflow_version_approve` | Approuver une version proposée             |
+| `workflow_version_reject`  | Rejeter une version proposée avec motif    |
+| `workflow_healing_status`  | Statut de guérison actuel d'une exécution de flux de travail |
+
+### Sécurité
+
+- L'agent de guérison **ne peut pas modifier sa propre configuration
+  `self_healing`**. Les propositions de version qui altèrent le bloc de
+  configuration sont rejetées.
+- L'agent principal et tous les membres de l'équipe héritent du niveau de taint
+  du flux de travail et escaladent de manière synchronisée.
+- Toutes les actions des agents passent par la chaîne de hooks de politique
+  standard -- aucun contournement.
+- Les versions proposées sont stockées au niveau de classification du flux de
+  travail.
