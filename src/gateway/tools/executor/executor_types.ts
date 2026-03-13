@@ -68,6 +68,8 @@ export interface ToolExecutorOptions {
   readonly workflowExecutor?: SubsystemExecutor;
   /** Executor for ssh_execute, ssh_session_open, ssh_session_write, ssh_session_read, ssh_session_close. */
   readonly sshExecutor?: SubsystemExecutor;
+  /** Composite executor for dynamically loaded plugins (`plugin_<name>_<tool>`). */
+  readonly pluginExecutor?: SubsystemExecutor;
   /**
    * Skill context tracker for the session. When provided, web_fetch domain
    * restrictions are enforced per the active skill's networkDomains declaration.

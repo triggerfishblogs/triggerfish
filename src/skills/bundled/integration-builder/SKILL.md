@@ -519,140 +519,207 @@ const runResult = await tools.run("deno run hello.ts");
 
 ---
 
-## Pattern 6: Plugin (TypeScript or Python)
+## Pattern 6: Dynamic Plugin
 
-Plugins extend the agent with custom code that runs in a double sandbox (Deno +
-WASM). TypeScript plugins run directly in the Deno sandbox. Python plugins run
-in Pyodide (WASM Python) inside the Deno sandbox.
+Plugins are external tool providers loaded from `~/.triggerfish/plugins/<name>/`
+at startup. Each plugin exports a manifest, tool definitions, and an executor
+factory from its `mod.ts` entry point. Tools are namespaced as
+`plugin_<name>_<toolName>` (like MCP's `mcp_<serverId>_<toolName>`) and routed
+through the same hook/classification/taint enforcement as built-in tools.
 
 ### Interfaces
 
-Defined in `src/plugin/sandbox.ts` and `src/plugin/sdk.ts`:
+Defined in `src/plugin/types.ts`:
 
 ```typescript
-interface SandboxConfig {
-  readonly name: string;
-  readonly version: string;
-  readonly declaredEndpoints: readonly string[];
-  readonly maxClassification: ClassificationLevel;
+/** Plugin manifest declaring identity, capabilities, and security properties. */
+interface PluginManifest {
+  readonly name: string;              // alphanumeric + hyphens, matches directory name
+  readonly version: string;           // semantic version
+  readonly description: string;
+  readonly classification: ClassificationLevel;  // classification for all tools
+  readonly trust: "sandboxed" | "trusted";       // requested trust level
+  readonly declaredEndpoints: readonly string[]; // network allowlist (for sandbox)
 }
 
-interface Sandbox {
-  execute(code: string): Promise<unknown>;
-  destroy(): Promise<void>;
+/** Context provided to plugin executor factories at initialization. */
+interface PluginContext {
+  readonly pluginName: string;
+  readonly getSessionTaint: () => ClassificationLevel;
+  readonly escalateTaint: (level: ClassificationLevel) => void;
+  readonly log: PluginLogger;        // structured logger scoped to the plugin
+  readonly config: Readonly<Record<string, unknown>>;  // from triggerfish.yaml
 }
 
-interface PluginSdk {
-  emitData(payload: EmitDataPayload): Result<void, string>;
-  queryAsUser(query: string): Promise<QueryResult>;
-}
-
-interface EmitDataPayload {
-  readonly content?: string;
-  readonly classification?: ClassificationLevel; // REQUIRED
-}
-
-interface QueryResult {
-  readonly classification: ClassificationLevel;
-  readonly data: unknown;
+/** Shape of a plugin's mod.ts exports. */
+interface PluginExports {
+  readonly manifest: PluginManifest;
+  readonly toolDefinitions: readonly ToolDefinition[];
+  readonly createExecutor: (
+    context: PluginContext,
+  ) => SubsystemExecutor | Promise<SubsystemExecutor>;
+  readonly systemPrompt?: string;    // optional agent prompt section
 }
 ```
 
-### How to Build a TypeScript Plugin
+### How to Build a Plugin
 
-```typescript
-import type { PluginResult, PluginSdk } from "triggerfish/plugin";
+**1. Create the plugin directory:**
 
-export async function execute(sdk: PluginSdk): Promise<PluginResult> {
-  if (!await sdk.has_user_connection("acme-api")) {
-    return { success: false, error: "Acme API not connected" };
-  }
-
-  const data = await sdk.query_as_user("acme-api", {
-    endpoint: "/api/v1/tasks",
-    method: "GET",
-  });
-
-  sdk.emitData({
-    classification: "INTERNAL",
-    payload: data,
-    source: "acme-api",
-  });
-
-  return { success: true };
-}
+```
+~/.triggerfish/plugins/my-plugin/
+  mod.ts    # entry point — must export manifest, toolDefinitions, createExecutor
 ```
 
-### How to Build a Python Plugin
-
-```python
-async def execute(sdk):
-    if not await sdk.has_user_connection("analytics-db"):
-        return {"success": False, "error": "Analytics DB not connected"}
-
-    results = await sdk.query_as_user("analytics-db", {
-        "endpoint": "/rest/v1/metrics",
-        "method": "GET",
-        "params": {"period": "7d"}
-    })
-
-    sdk.emit_data({
-        "classification": "CONFIDENTIAL",
-        "payload": results,
-        "source": "analytics-db"
-    })
-
-    return {"success": True}
-```
-
-### Key Details
-
-- **Double sandbox**: Plugin code cannot access the host filesystem, make
-  undeclared network calls, or escape isolation
-- **Network allowlist**: Only endpoints declared in `declaredEndpoints` are
-  reachable. All others are blocked at the fetch level
-- **Classification enforcement**: `emitData()` rejects data without a
-  classification label and data that exceeds the plugin's ceiling
-- **Auto-taint**: `queryAsUser()` returns data tagged with the plugin's
-  classification level. Session taint escalates automatically
-- **Python constraints**: No native C extensions (psycopg2, mysqlclient). Use
-  HTTP-based database APIs instead. See the `mastering-python` skill for details
-- **Plugin lifecycle**: Created → UNTRUSTED → owner review → CLASSIFIED
-  (active). Plugins cannot self-activate
-
-### Sandbox Creation and Execution
+**2. Write mod.ts:**
 
 ```typescript
-// 1. Create sandbox
-const sandbox = await createSandbox({
+import type { PluginContext } from "triggerfish/plugin/types.ts";
+
+export const manifest = {
   name: "my-plugin",
-  version: "1.0",
-  declaredEndpoints: ["https://api.acme.com"],
-  maxClassification: "CONFIDENTIAL",
-});
+  version: "1.0.0",
+  description: "Does useful things",
+  classification: "INTERNAL" as const,
+  trust: "sandboxed" as const,
+  declaredEndpoints: ["https://api.example.com"],
+};
 
-// 2. Create SDK
-const sdk = createPluginSdk({
-  pluginName: "my-plugin",
-  maxClassification: "CONFIDENTIAL",
-});
+export const toolDefinitions = [
+  {
+    name: "fetch_data",
+    description: "Fetches data from the example API.",
+    parameters: {
+      query: {
+        type: "string",
+        description: "Search query",
+        required: true,
+      },
+    },
+  },
+];
 
-// 3. Execute
-const result = await sandbox.execute(pluginCode);
+export const systemPrompt = "## My Plugin\nUse `fetch_data` to query the example API.";
 
-// 4. Cleanup
-await sandbox.destroy();
+export function createExecutor(context: PluginContext) {
+  return async (
+    name: string,
+    input: Record<string, unknown>,
+  ): Promise<string | null> => {
+    switch (name) {
+      case "fetch_data": {
+        const query = input.query as string;
+        context.log.info("Fetching data", { query });
+        const resp = await fetch(
+          `https://api.example.com/search?q=${encodeURIComponent(query)}`,
+        );
+        return await resp.text();
+      }
+      default:
+        return null;
+    }
+  };
+}
 ```
 
-### File Organization
+**3. Enable in triggerfish.yaml:**
+
+```yaml
+plugins:
+  my-plugin:
+    enabled: true
+    classification: INTERNAL
+    trust: sandboxed        # or "trusted" to grant full Deno permissions
+    # any additional keys are passed as context.config to the plugin
+    api_key: ${MY_PLUGIN_API_KEY}
+```
+
+### Trust Model
+
+Trust requires both sides to agree:
+
+```
+effectiveTrust = (manifest.trust === "trusted" AND config.trust === "trusted")
+                 ? "trusted" : "sandboxed"
+```
+
+- **Sandboxed** (default): Executor errors are caught and returned as tool
+  results. Network is restricted to `declaredEndpoints`. Use this for untrusted
+  or third-party plugins.
+- **Trusted**: Executor runs with normal Deno permissions. Use this for plugins
+  that need system APIs like `Deno.hostname()` or `Deno.memoryUsage()`.
+
+A plugin declaring `trust: "sandboxed"` always runs sandboxed regardless of
+config. A plugin declaring `trust: "trusted"` runs sandboxed unless the user
+explicitly grants `trust: "trusted"` in config.
+
+### How It Works at Startup
+
+1. Loader scans `~/.triggerfish/plugins/` for subdirectories with `mod.ts`
+2. Each module is dynamically `import()`ed and validated
+3. Only plugins listed as `enabled: true` in config are initialized
+4. Trust level is resolved (both manifest and config must agree on "trusted")
+5. `createExecutor(context)` is called to build the tool handler
+6. Tools are namespaced as `plugin_<name>_<toolName>` and registered
+7. Classifications are injected into the tool classification maps
+8. The composite plugin executor is added to the subsystem dispatch chain
+
+### Tool Namespacing
+
+Tools are automatically prefixed to prevent collisions:
+
+- Plugin tool `fetch_data` in plugin `my-plugin` becomes `plugin_my_plugin_fetch_data`
+- The executor decodes the prefix (longest-match-first) and delegates to the
+  correct plugin with the original tool name
+
+### Classification and Taint
+
+Plugin tools follow the same classification rules as all other tools:
+
+- The manifest's `classification` level is registered as a tool prefix
+  classification (`plugin_<name>_` → level)
+- Session taint escalates when plugin tools return data at a higher level
+- Write-down prevention applies: a plugin classified CONFIDENTIAL cannot have
+  its data flow to a PUBLIC channel
+- All hook enforcement (PRE_TOOL_CALL, POST_TOOL_RESPONSE) applies unchanged
+
+### Reference Plugin
+
+See `examples/plugins/system-info/mod.ts` for a complete working example with
+two tools (`system_info` and `system_time`), trust declaration, and system
+prompt.
+
+### File Organization (Plugin Author)
+
+```
+~/.triggerfish/plugins/my-plugin/
+  mod.ts           # entry point: manifest, toolDefinitions, createExecutor
+  helpers.ts       # optional helper modules
+  README.md        # optional documentation
+```
+
+### File Organization (Loader Infrastructure)
 
 ```
 src/plugin/
-  sandbox.ts   # createSandbox factory
-  sdk.ts       # createPluginSdk factory
-  mod.ts       # barrel exports
-tests/plugin/sandbox_test.ts
+  types.ts              # PluginManifest, PluginContext, PluginExports, etc.
+  namespace.ts          # encode/decode plugin tool names
+  loader.ts             # scan, import, validate plugins
+  registry.ts           # runtime plugin registry
+  executor.ts           # composite dispatcher
+  sandboxed_executor.ts # trust resolution and sandbox wrapping
+  sandbox.ts            # low-level sandbox (code execution)
+  sdk.ts                # plugin SDK (data emission/query)
+  mod.ts                # barrel exports
 ```
+
+### Legacy: Inline Plugin Execution
+
+The `Sandbox` and `PluginSdk` interfaces in `src/plugin/sandbox.ts` and
+`src/plugin/sdk.ts` support inline code execution (TypeScript via `new Function`
+or Python via Pyodide WASM). This is used for embedded/managed plugins. Dynamic
+plugins loaded from `~/.triggerfish/plugins/` use the `createExecutor` factory
+pattern instead.
 
 ---
 

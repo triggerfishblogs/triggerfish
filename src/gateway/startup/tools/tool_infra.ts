@@ -70,9 +70,23 @@ import {
   createWorkflowRunRegistry,
   type WorkflowRunRegistry,
 } from "../../../workflow/mod.ts";
+import {
+  createPluginExecutor,
+  createPluginRegistry,
+  initializePluginExecutor,
+  loadPluginsFromDirectory,
+  namespaceToolDefinitions,
+  resolveEffectiveTrust,
+} from "../../../plugin/mod.ts";
+import type {
+  PluginContext,
+  PluginRegistry,
+  PluginTrustLevel,
+} from "../../../plugin/mod.ts";
 
 const availabilityLog = createLogger("service-availability");
 const log = createLogger("tool-infra");
+const pluginLog = createLogger("plugin-init");
 
 /**
  * Detect which external services have credentials/config available.
@@ -164,6 +178,8 @@ export interface ToolInfraResult {
   readonly serviceAvailability: ServiceAvailability;
   /** Shared workflow run registry for tracking active executions. */
   readonly workflowRunRegistry: WorkflowRunRegistry;
+  /** Registry of dynamically loaded plugins. */
+  readonly pluginRegistry: PluginRegistry;
 }
 
 /** Load persisted bumper preference from storage. */
@@ -374,6 +390,7 @@ export function buildCompositeToolExecutor(
   sessionExecs: Awaited<ReturnType<typeof buildSessionScopedExecutors>>,
   integrations: Awaited<ReturnType<typeof buildIntegrationExecutors>>,
   workflowRunRegistry: WorkflowRunRegistry,
+  pluginRegistry?: PluginRegistry,
 ) {
   const simulateExecutor = createSimulateToolExecutor({
     getSessionTaint: () => baseDeps.state.session.taint,
@@ -443,6 +460,9 @@ export function buildCompositeToolExecutor(
       })
       : undefined,
     workflowRunRegistry,
+    pluginExecutor: pluginRegistry
+      ? createPluginExecutor(pluginRegistry)
+      : undefined,
   });
 }
 
@@ -455,6 +475,7 @@ export function assembleToolInfraResult(
   toolExecutor: ReturnType<typeof createToolExecutor>,
   serviceAvailability: ServiceAvailability,
   workflowRunRegistry: WorkflowRunRegistry,
+  pluginRegistry?: PluginRegistry,
 ): ToolInfraResult {
   return {
     registry: baseDeps.registry,
@@ -486,7 +507,112 @@ export function assembleToolInfraResult(
     skillContextTracker: integrations.skillContextTracker,
     serviceAvailability,
     workflowRunRegistry,
+    pluginRegistry: pluginRegistry ?? createPluginRegistry(),
   };
+}
+
+/**
+ * Initialize dynamically loaded plugins from `~/.triggerfish/plugins/`.
+ *
+ * Scans the plugins directory, filters by config-enabled plugins,
+ * enforces trust levels, creates executors, and registers them.
+ */
+export async function initializePlugins(
+  config: TriggerFishConfig,
+  getSessionTaint: () => ClassificationLevel,
+  toolClassifications: Map<string, ClassificationLevel>,
+  integrationClassifications: Map<string, ClassificationLevel>,
+): Promise<PluginRegistry> {
+  const registry = createPluginRegistry();
+  const homeDir = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? "";
+  const pluginsDir = `${homeDir}/.triggerfish/plugins`;
+
+  const loadResult = await loadPluginsFromDirectory(pluginsDir);
+  if (!loadResult.ok) {
+    pluginLog.warn("Plugin directory load failed", {
+      operation: "initializePlugins",
+      error: loadResult.error,
+    });
+    return registry;
+  }
+
+  const loaded = loadResult.value;
+  if (loaded.length === 0) return registry;
+
+  const pluginsConfig = (config.plugins ?? {}) as Record<
+    string,
+    { enabled?: boolean; trust?: PluginTrustLevel; classification?: string } | undefined
+  >;
+
+  for (const plugin of loaded) {
+    const name = plugin.exports.manifest.name;
+    const pluginCfg = pluginsConfig[name];
+    if (!pluginCfg?.enabled) {
+      pluginLog.info("Plugin skipped: not enabled in config", {
+        operation: "initializePlugins",
+        plugin: name,
+      });
+      continue;
+    }
+
+    const configTrust: PluginTrustLevel = pluginCfg.trust ?? "sandboxed";
+    const effectiveTrust = resolveEffectiveTrust(
+      plugin.exports.manifest.trust,
+      configTrust,
+    );
+
+    const context: PluginContext = {
+      pluginName: name,
+      getSessionTaint,
+      escalateTaint: () => {
+        // Taint escalation is handled by the hook runner at the gateway layer.
+        // Plugins cannot directly escalate taint — this is a no-op placeholder.
+      },
+      log: {
+        debug: (msg, ctx) =>
+          pluginLog.debug(msg, { ...ctx, plugin: name }),
+        info: (msg, ctx) =>
+          pluginLog.info(msg, { ...ctx, plugin: name }),
+        warn: (msg, ctx) =>
+          pluginLog.warn(msg, { ...ctx, plugin: name }),
+        error: (msg, ctx) =>
+          pluginLog.error(msg, { ...ctx, plugin: name }),
+      },
+      config: (pluginCfg as Record<string, unknown>) ?? {},
+    };
+
+    try {
+      const executor = await initializePluginExecutor(
+        plugin,
+        context,
+        effectiveTrust,
+      );
+      const namespacedTools = namespaceToolDefinitions(
+        name,
+        plugin.exports.toolDefinitions,
+      );
+
+      registry.registerPlugin({
+        loaded: plugin,
+        executor,
+        namespacedTools,
+      });
+
+      // Inject plugin classifications into the mutable maps
+      const classification = plugin.exports.manifest.classification;
+      const prefix = `plugin_${name}_`;
+      toolClassifications.set(prefix, classification);
+      integrationClassifications.set(prefix, classification);
+    } catch (err) {
+      pluginLog.error("Plugin initialization failed", {
+        operation: "initializePlugins",
+        plugin: name,
+        err,
+      });
+    }
+  }
+
+  return registry;
 }
 
 /** Wire all tool infrastructure: LLM providers, executors, integrations. */
@@ -506,6 +632,12 @@ export async function initializeToolInfrastructure(
     { ...baseDeps, factory: coreInfra.factory },
   );
   const workflowRunRegistry = createWorkflowRunRegistry();
+  const pluginRegistry = await initializePlugins(
+    bootstrap.config,
+    () => baseDeps.state.session.taint,
+    baseDeps.toolClassifications,
+    baseDeps.integrationClassifications,
+  );
   const toolExecutor = buildCompositeToolExecutor(
     bootstrap,
     baseDeps,
@@ -513,6 +645,7 @@ export async function initializeToolInfrastructure(
     sessionExecs,
     integrations,
     workflowRunRegistry,
+    pluginRegistry,
   );
   const serviceAvailability = await detectServiceAvailability(
     bootstrap.config,
@@ -526,5 +659,6 @@ export async function initializeToolInfrastructure(
     toolExecutor,
     serviceAvailability,
     workflowRunRegistry,
+    pluginRegistry,
   );
 }

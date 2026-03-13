@@ -10,6 +10,14 @@ import { parse as parseYaml } from "@std/yaml";
 import { resolveConfigSecrets } from "./secrets/resolver.ts";
 import type { SecretStore } from "./secrets/keychain/keychain.ts";
 
+/** Generic plugin configuration entry for dynamically loaded plugins. */
+export interface PluginConfigEntry {
+  readonly enabled?: boolean;
+  readonly classification?: string;
+  readonly trust?: "sandboxed" | "trusted";
+  readonly [key: string]: unknown;
+}
+
 /** Triggerfish YAML configuration shape. */
 export interface TriggerFishConfig {
   readonly models: {
@@ -115,7 +123,7 @@ export interface TriggerFishConfig {
       >;
     };
   };
-  readonly plugins?: {
+  readonly plugins?: Readonly<Record<string, PluginConfigEntry>> & {
     readonly obsidian?: {
       readonly enabled?: boolean;
       readonly vault_path?: string;

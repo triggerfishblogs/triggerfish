@@ -55,6 +55,7 @@ import { createToolExecutor, TOOL_GROUPS } from "../../tools/agent_tools.ts";
 import type { SubsystemExecutor } from "../../tools/executor/executor_types.ts";
 import type { buildTeamExecutor } from "../factory/team_executor.ts";
 import type { wireMcpServers } from "../infra/mcp.ts";
+import type { PluginRegistry } from "../../../plugin/registry.ts";
 import {
   createWorkflowStore,
   createWorkflowToolExecutor,
@@ -180,6 +181,7 @@ export function assembleMainToolExecutor(
     readonly simulateExecutor?: SubsystemExecutor;
     readonly teamExecutor?: ReturnType<typeof buildTeamExecutor>;
     readonly workflowRunRegistry?: WorkflowRunRegistry;
+    readonly pluginExecutor?: SubsystemExecutor;
   },
 ) {
   const aux = buildAuxiliaryExecutors(
@@ -226,9 +228,11 @@ export function buildExtraToolsGetter(
   tidepoolToolsRef: {
     value: import("../../../tools/tidepool/mod.ts").TidePoolTools | undefined;
   },
+  pluginRegistry?: PluginRegistry,
 ) {
   return () => [
     ...(mcpWiring ? mcpWiring.getToolDefinitions() : []),
+    ...(pluginRegistry ? pluginRegistry.getToolDefinitions() : []),
     ...(isTidepoolCallRef.value && tidepoolToolsRef.value
       ? TOOL_GROUPS.tidepool()
       : []),
@@ -252,6 +256,7 @@ export function buildExtraSystemPromptGetter(
   workspacePaths: WorkspacePaths,
   personaOptions?: PersonaRecallOptions,
   getBumpersEnabled?: () => boolean,
+  pluginRegistry?: PluginRegistry,
 ) {
   // Cache persona context with a short TTL to avoid querying the store
   // on every single LLM iteration within a rapid tool loop.
@@ -267,6 +272,9 @@ export function buildExtraSystemPromptGetter(
     }
     if (isTidepoolCallRef.value) sections.push(TIDEPOOL_SYSTEM_PROMPT);
     if (getBumpersEnabled?.()) sections.push(BUMPERS_SYSTEM_PROMPT);
+    if (pluginRegistry) {
+      sections.push(...pluginRegistry.getSystemPrompts());
+    }
     sections.push(buildWorkspacePrompt(getSessionTaint(), workspacePaths));
 
     if (personaOptions && personaOptions.isOwnerSession()) {
