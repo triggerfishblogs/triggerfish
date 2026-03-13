@@ -286,3 +286,77 @@ mas mababang classification session.
 **Solusyon:** I-escalate ang iyong session taint para tumugma o lumampas sa
 classification level ng workflow bago ito i-delete. O i-delete ito mula sa
 parehong uri ng session kung saan ito orihinal na na-save.
+
+---
+
+## Self-Healing
+
+### "Step metadata missing on task 'X': self-healing requires description, expects, produces"
+
+Kapag `true` ang `self_healing.enabled`, kailangang may tatlong metadata field
+ang bawat task. Rini-reject ng parser ang workflow sa oras ng pag-save kapag
+kulang ang alinman.
+
+**Solusyon:** Idagdag ang `description`, `expects`, at `produces` sa `metadata`
+block ng bawat task:
+
+```yaml
+- my-task:
+    call: http
+    with:
+      endpoint: "https://example.com/api"
+    metadata:
+      description: "What this step does and why"
+      expects: "What this step needs as input"
+      produces: "What this step outputs"
+```
+
+---
+
+### "Self-healing config mutation rejected in version proposal"
+
+Nag-propose ang healing agent ng bagong workflow version na nagbabago ng
+`self_healing` config block. Ipinagbabawal ito — hindi puwedeng baguhin ng
+agent ang sarili nitong healing configuration.
+
+Gumagana ito ayon sa intensyon. Mga tao lang ang puwedeng magbago ng
+`self_healing` config sa pamamagitan ng direktang pag-save ng bagong version ng
+workflow gamit ang `workflow_save`.
+
+---
+
+### Hindi nag-i-spawn ang healing agent
+
+Tumatakbo ang workflow pero walang lumalabas na healing agent. I-check ang mga
+sumusunod:
+
+1. **`enabled` ay `true`** sa `metadata.triggerfish.self_healing`.
+2. **Nasa tamang lokasyon ang config** — kailangang naka-nest sa ilalim ng
+   `metadata.triggerfish.self_healing`, hindi sa top level.
+3. **Lahat ng step ay may metadata** — kung nabigo ang validation sa oras ng
+   pag-save, na-save ang workflow nang walang naka-enable na self-healing.
+
+---
+
+### Mga proposed fix na natigil sa pending
+
+Kung `true` ang `approval_required` (ang default), naghihintay ang mga proposed
+version ng human review. Gamitin ang `workflow_version_list` para makita ang mga
+pending proposal at `workflow_version_approve` o `workflow_version_reject` para
+kumilos sa mga ito.
+
+---
+
+### "Retry budget exhausted" / Escalation bilang unresolvable
+
+Nagamit na ng healing agent ang lahat ng intervention attempt nito (default 3)
+nang hindi nareresolba ang isyu. Ine-escalate ito bilang `unresolvable` at
+humihinto sa pag-attempt ng mga fix.
+
+**Solusyon:**
+
+- I-check ang `workflow_healing_status` para makita kung anong mga intervention
+  ang sinubukan.
+- Suriin at ayusin ang pinagmumulang isyu nang manu-mano.
+- Para payagan ang mas maraming attempt, dagdagan ang `retry_budget` sa
+  self-healing config at i-re-save ang workflow.

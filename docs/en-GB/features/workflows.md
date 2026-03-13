@@ -466,3 +466,106 @@ session's classification level. You cannot delete a workflow stored at
 `CONFIDENTIAL` from a `PUBLIC` session. The `workflow_delete` tool loads the
 workflow first and returns "not found" if the classification check fails.
 :::
+
+## Self-Healing
+
+Workflows can optionally have an autonomous healing agent that watches execution
+in real time, diagnoses failures, and proposes fixes. When self-healing is
+enabled, a lead agent is spawned alongside the workflow run. It observes every
+step event, triages failures, and coordinates specialist teams to resolve issues.
+
+### Enabling Self-Healing
+
+Add a `self_healing` block to the workflow's `metadata.triggerfish` section:
+
+```yaml
+document:
+  dsl: "1.0"
+  namespace: ops
+  name: data-pipeline
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+do:
+  - fetch-data:
+      call: http
+      with:
+        endpoint: "https://api.example.com/data"
+      metadata:
+        description: "Fetch raw invoice data from billing API"
+        expects: "API returns JSON array of invoice objects"
+        produces: "Array of {id, amount, status, date} objects"
+```
+
+When `enabled: true`, every step **must** include three metadata fields:
+
+| Field         | Description                                    |
+| ------------- | ---------------------------------------------- |
+| `description` | What the step does and why it exists           |
+| `expects`     | Input shape or preconditions the step needs    |
+| `produces`    | Output shape the step generates                |
+
+The parser rejects workflows where any step is missing these fields.
+
+### Configuration Options
+
+| Option                    | Type    | Default              | Description |
+| ------------------------- | ------- | -------------------- | ----------- |
+| `enabled`                 | boolean | —                    | Required. Enables the healing agent. |
+| `retry_budget`            | number  | `3`                  | Maximum intervention attempts before escalating as unresolvable. |
+| `approval_required`       | boolean | `true`               | Whether proposed workflow fixes require human approval. |
+| `pause_on_intervention`   | string  | `"blocking_only"`    | When to pause downstream tasks: `always`, `never`, or `blocking_only`. |
+| `pause_timeout_seconds`   | number  | `300`                | Seconds to wait during a pause before the timeout policy triggers. |
+| `pause_timeout_policy`    | string  | `"escalate_and_halt"`| What happens on timeout: `escalate_and_halt`, `escalate_and_skip`, or `escalate_and_fail`. |
+| `notify_on`               | array   | `[]`                 | Events that trigger notifications: `intervention`, `escalation`, `approval_required`. |
+
+### How It Works
+
+1. **Observation.** The healing lead agent receives a real-time stream of step
+   events (started, completed, failed, skipped) as the workflow executes.
+
+2. **Triage.** When a step fails, the lead triages the failure into one of five
+   categories:
+
+   | Category              | Meaning                                          |
+   | --------------------- | ------------------------------------------------ |
+   | `transient_retry`     | Temporary issue (network error, rate limit, 503) |
+   | `runtime_workaround`  | First-time unknown error, may be worked around   |
+   | `structural_fix`      | Recurring failure needing a workflow definition change |
+   | `plugin_gap`          | Auth/credential issue requiring a new integration |
+   | `unresolvable`        | Retry budget exhausted or fundamentally broken   |
+
+3. **Specialist teams.** Based on the triage category, the lead spawns a team of
+   specialist agents (diagnostician, retry coordinator, definition fixer, plugin
+   author, etc.) to investigate and resolve the issue.
+
+4. **Version proposals.** When a structural fix is needed, the team proposes a
+   new workflow version. If `approval_required` is true, the proposal waits for
+   human review via `workflow_version_approve` or `workflow_version_reject`.
+
+5. **Scoped pause.** When `pause_on_intervention` is enabled, only downstream
+   tasks are paused — independent branches continue executing.
+
+### Healing Tools
+
+Four additional tools are available for managing healing state:
+
+| Tool                       | Description                                |
+| -------------------------- | ------------------------------------------ |
+| `workflow_version_list`    | List proposed/approved/rejected versions   |
+| `workflow_version_approve` | Approve a proposed version                 |
+| `workflow_version_reject`  | Reject a proposed version with reason      |
+| `workflow_healing_status`  | Current healing status for a workflow run   |
+
+### Security
+
+- The healing agent **cannot modify its own `self_healing` config**. Proposed
+  versions that alter the config block are rejected.
+- The lead agent and all team members inherit the workflow's taint level and
+  escalate in lockstep.
+- All agent actions pass through the standard policy hook chain — no bypasses.
+- Proposed versions are stored at the workflow's classification level.

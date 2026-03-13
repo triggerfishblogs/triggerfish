@@ -262,3 +262,70 @@ workflow_history with workflow_name: "my-workflow" and limit: "5"
 
 **פתרון:** הסלם את taint הסשן שלך כך שיתאים או יעלה על רמת הסיווג של תהליך
 העבודה לפני מחיקתו. או מחק אותו מאותו סוג סשן שבו נשמר במקור.
+
+---
+
+## ריפוי עצמי
+
+### "Step metadata missing on task 'X': self-healing requires description, expects, produces"
+
+כאשר `self_healing.enabled` הוא `true`, כל משימה חייבת לכלול את כל שלושת שדות
+המטא-נתונים. המנתח דוחה את תהליך העבודה בזמן השמירה אם חסר כל אחד מהם.
+
+**פתרון:** הוסף `description`, `expects` ו-`produces` לבלוק `metadata` של כל
+משימה:
+
+```yaml
+- my-task:
+    call: http
+    with:
+      endpoint: "https://example.com/api"
+    metadata:
+      description: "What this step does and why"
+      expects: "What this step needs as input"
+      produces: "What this step outputs"
+```
+
+---
+
+### "Self-healing config mutation rejected in version proposal"
+
+סוכן הריפוי הציע גרסה חדשה של תהליך העבודה שמשנה את בלוק התצורה של
+`self_healing`. זה אסור -- הסוכן אינו יכול לשנות את תצורת הריפוי שלו עצמו.
+
+זה עובד כמתוכנן. רק בני אדם יכולים לשנות את תצורת `self_healing` על ידי
+שמירת גרסה חדשה של תהליך העבודה ישירות דרך `workflow_save`.
+
+---
+
+### סוכן הריפוי לא נוצר
+
+תהליך העבודה רץ אך סוכן ריפוי לא מופיע. בדוק:
+
+1. **`enabled` הוא `true`** ב-`metadata.triggerfish.self_healing`.
+2. **התצורה במיקום הנכון** -- חייבת להיות מקוננת תחת
+   `metadata.triggerfish.self_healing`, לא ברמה העליונה.
+3. **לכל השלבים יש מטא-נתונים** -- אם האימות נכשל בזמן השמירה, תהליך העבודה
+   נשמר ללא הפעלת ריפוי עצמי.
+
+---
+
+### תיקונים מוצעים תקועים בהמתנה
+
+אם `approval_required` הוא `true` (ברירת המחדל), גרסאות מוצעות ממתינות
+לסקירה אנושית. השתמש ב-`workflow_version_list` כדי לראות הצעות ממתינות
+וב-`workflow_version_approve` או `workflow_version_reject` כדי לפעול עליהן.
+
+---
+
+### "Retry budget exhausted" / הסלמה בלתי ניתנת לפתרון
+
+סוכן הריפוי השתמש בכל ניסיונות ההתערבות שלו (ברירת מחדל 3) מבלי לפתור את
+הבעיה. הוא מסלים כ-`unresolvable` ומפסיק לנסות לתקן.
+
+**פתרון:**
+
+- בדוק את `workflow_healing_status` כדי לראות אילו התערבויות נוסו.
+- סקור ותקן את הבעיה הבסיסית ידנית.
+- כדי לאפשר ניסיונות נוספים, הגדל את `retry_budget` בתצורת הריפוי העצמי
+  ושמור מחדש את תהליך העבודה.

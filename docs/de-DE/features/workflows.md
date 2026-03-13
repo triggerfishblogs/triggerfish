@@ -480,3 +480,115 @@ Workflow loschen, der auf `CONFIDENTIAL` gespeichert ist, aus einer
 `PUBLIC`-Sitzung. Das Werkzeug `workflow_delete` ladt den Workflow zuerst und
 gibt "nicht gefunden" zuruck, wenn die Klassifizierungsprufung fehlschlagt.
 :::
+
+## Self-Healing
+
+Workflows konnen optional einen autonomen Healing-Agenten haben, der die
+Ausfuhrung in Echtzeit uberwacht, Fehler diagnostiziert und Korrekturen
+vorschlagt. Wenn Self-Healing aktiviert ist, wird ein Lead-Agent parallel zur
+Workflow-Ausfuhrung gestartet. Dieser beobachtet jedes Schrittereignis, stuft
+Fehler ein und koordiniert Spezialistenteams zur Problemlosung.
+
+### Self-Healing aktivieren
+
+Fugen Sie einen `self_healing`-Block im Abschnitt `metadata.triggerfish` des
+Workflows hinzu:
+
+```yaml
+document:
+  dsl: "1.0"
+  namespace: ops
+  name: data-pipeline
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+do:
+  - fetch-data:
+      call: http
+      with:
+        endpoint: "https://api.example.com/data"
+      metadata:
+        description: "Fetch raw invoice data from billing API"
+        expects: "API returns JSON array of invoice objects"
+        produces: "Array of {id, amount, status, date} objects"
+```
+
+Wenn `enabled: true` ist, **muss** jeder Schritt drei Metadatenfelder enthalten:
+
+| Field         | Beschreibung                                   |
+| ------------- | ---------------------------------------------- |
+| `description` | Was der Schritt tut und warum er existiert     |
+| `expects`     | Eingabeform oder Vorbedingungen des Schritts   |
+| `produces`    | Ausgabeform, die der Schritt erzeugt           |
+
+Der Parser lehnt Workflows ab, in denen bei einem Schritt diese Felder fehlen.
+
+### Konfigurationsoptionen
+
+| Option                    | Type    | Standard             | Beschreibung |
+| ------------------------- | ------- | -------------------- | ------------ |
+| `enabled`                 | boolean | —                    | Erforderlich. Aktiviert den Healing-Agenten. |
+| `retry_budget`            | number  | `3`                  | Maximale Interventionsversuche, bevor als unlosbar eskaliert wird. |
+| `approval_required`       | boolean | `true`               | Ob vorgeschlagene Workflow-Korrekturen eine menschliche Genehmigung erfordern. |
+| `pause_on_intervention`   | string  | `"blocking_only"`    | Wann nachgelagerte Aufgaben pausiert werden: `always`, `never` oder `blocking_only`. |
+| `pause_timeout_seconds`   | number  | `300`                | Sekunden, die bei einer Pause gewartet wird, bevor die Timeout-Richtlinie greift. |
+| `pause_timeout_policy`    | string  | `"escalate_and_halt"`| Was bei Timeout geschieht: `escalate_and_halt`, `escalate_and_skip` oder `escalate_and_fail`. |
+| `notify_on`               | array   | `[]`                 | Ereignisse, die Benachrichtigungen auslosen: `intervention`, `escalation`, `approval_required`. |
+
+### Funktionsweise
+
+1. **Beobachtung.** Der Healing-Lead-Agent empfangt einen Echtzeit-Strom von
+   Schrittereignissen (gestartet, abgeschlossen, fehlgeschlagen, ubersprungen)
+   wahrend der Workflow-Ausfuhrung.
+
+2. **Triage.** Wenn ein Schritt fehlschlagt, stuft der Lead den Fehler in eine
+   von funf Kategorien ein:
+
+   | Kategorie             | Bedeutung                                        |
+   | --------------------- | ------------------------------------------------ |
+   | `transient_retry`     | Vorubergehendes Problem (Netzwerkfehler, Rate-Limit, 503) |
+   | `runtime_workaround`  | Erstmaliger unbekannter Fehler, mogliche Umgehung |
+   | `structural_fix`      | Wiederkehrender Fehler, der eine Workflow-Definitionsanderung erfordert |
+   | `plugin_gap`          | Authentifizierungs-/Anmeldedatenproblem, das eine neue Integration erfordert |
+   | `unresolvable`        | Retry-Budget erschopft oder grundlegend defekt   |
+
+3. **Spezialistenteams.** Basierend auf der Triage-Kategorie startet der Lead
+   ein Team von Spezialagenten (Diagnostiker, Retry-Koordinator,
+   Definitionsfixer, Plugin-Autor usw.) zur Untersuchung und Behebung des
+   Problems.
+
+4. **Versionsvorschlage.** Wenn eine strukturelle Korrektur notig ist, schlagt
+   das Team eine neue Workflow-Version vor. Wenn `approval_required` auf true
+   steht, wartet der Vorschlag auf eine menschliche Prufung uber
+   `workflow_version_approve` oder `workflow_version_reject`.
+
+5. **Begrenzte Pause.** Wenn `pause_on_intervention` aktiviert ist, werden nur
+   nachgelagerte Aufgaben pausiert -- unabhangige Zweige laufen weiter.
+
+### Healing-Werkzeuge
+
+Vier zusatzliche Werkzeuge stehen zur Verwaltung des Healing-Status zur
+Verfugung:
+
+| Werkzeug                   | Beschreibung                               |
+| -------------------------- | ------------------------------------------ |
+| `workflow_version_list`    | Vorgeschlagene/genehmigte/abgelehnte Versionen auflisten |
+| `workflow_version_approve` | Eine vorgeschlagene Version genehmigen     |
+| `workflow_version_reject`  | Eine vorgeschlagene Version mit Begrundung ablehnen |
+| `workflow_healing_status`  | Aktueller Healing-Status einer Workflow-Ausfuhrung |
+
+### Sicherheit
+
+- Der Healing-Agent **kann seine eigene `self_healing`-Konfiguration nicht
+  andern**. Versionsvorschlage, die den Config-Block verandern, werden
+  abgelehnt.
+- Der Lead-Agent und alle Teammitglieder erben das Taint-Level des Workflows
+  und eskalieren synchron.
+- Alle Agentenaktionen durchlaufen die Standard-Policy-Hook-Kette -- keine
+  Umgehungen.
+- Vorgeschlagene Versionen werden auf dem Klassifizierungslevel des Workflows
+  gespeichert.

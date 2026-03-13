@@ -456,3 +456,105 @@ classification_ceiling: INTERNAL
 כלי `workflow_delete` טוען את תהליך העבודה תחילה ומחזיר "not found" אם בדיקת
 הסיווג נכשלת.
 :::
+
+## ריפוי עצמי
+
+תהליכי עבודה יכולים לכלול באופן אופציונלי סוכן ריפוי אוטונומי שצופה בהרצה
+בזמן אמת, מאבחן כשלונות ומציע תיקונים. כאשר ריפוי עצמי מופעל, סוכן מוביל
+נוצר לצד הרצת תהליך העבודה. הוא צופה בכל אירוע שלב, ממיין כשלונות ומתאם
+צוותות מומחים לפתרון בעיות.
+
+### הפעלת ריפוי עצמי
+
+הוסף בלוק `self_healing` לסעיף `metadata.triggerfish` של תהליך העבודה:
+
+```yaml
+document:
+  dsl: "1.0"
+  namespace: ops
+  name: data-pipeline
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+do:
+  - fetch-data:
+      call: http
+      with:
+        endpoint: "https://api.example.com/data"
+      metadata:
+        description: "Fetch raw invoice data from billing API"
+        expects: "API returns JSON array of invoice objects"
+        produces: "Array of {id, amount, status, date} objects"
+```
+
+כאשר `enabled: true`, כל שלב **חייב** לכלול שלושה שדות metadata:
+
+| Field         | Description                                    |
+| ------------- | ---------------------------------------------- |
+| `description` | מה השלב עושה ולמה הוא קיים                    |
+| `expects`     | צורת הקלט או תנאים מוקדמים שהשלב צריך         |
+| `produces`    | צורת הפלט שהשלב מייצר                          |
+
+המנתח דוחה תהליכי עבודה שבהם חסרים שדות אלה בכל שלב.
+
+### אפשרויות תצורה
+
+| Option                    | Type    | Default              | Description |
+| ------------------------- | ------- | -------------------- | ----------- |
+| `enabled`                 | boolean | —                    | נדרש. מפעיל את סוכן הריפוי. |
+| `retry_budget`            | number  | `3`                  | מספר מקסימלי של ניסיונות התערבות לפני הסלמה כבלתי ניתן לפתרון. |
+| `approval_required`       | boolean | `true`               | האם תיקוני תהליך עבודה מוצעים דורשים אישור אנושי. |
+| `pause_on_intervention`   | string  | `"blocking_only"`    | מתי להשהות משימות downstream: `always`, `never` או `blocking_only`. |
+| `pause_timeout_seconds`   | number  | `300`                | שניות המתנה במהלך השהיה לפני שמדיניות ה-timeout מופעלת. |
+| `pause_timeout_policy`    | string  | `"escalate_and_halt"`| מה קורה ב-timeout: `escalate_and_halt`, `escalate_and_skip` או `escalate_and_fail`. |
+| `notify_on`               | array   | `[]`                 | אירועים שמפעילים התראות: `intervention`, `escalation`, `approval_required`. |
+
+### כיצד זה עובד
+
+1. **תצפית.** סוכן הריפוי המוביל מקבל זרם בזמן אמת של אירועי שלבים
+   (התחיל, הושלם, נכשל, דולג) בזמן שתהליך העבודה מתבצע.
+
+2. **מיון.** כאשר שלב נכשל, המוביל ממיין את הכשל לאחת מחמש קטגוריות:
+
+   | קטגוריה              | משמעות                                           |
+   | --------------------- | ------------------------------------------------ |
+   | `transient_retry`     | בעיה זמנית (שגיאת רשת, הגבלת קצב, 503)          |
+   | `runtime_workaround`  | שגיאה לא מוכרת בפעם הראשונה, ייתכן שניתן לעקוף  |
+   | `structural_fix`      | כשל חוזר הדורש שינוי בהגדרת תהליך העבודה         |
+   | `plugin_gap`          | בעיית אימות/הרשאות הדורשת אינטגרציה חדשה        |
+   | `unresolvable`        | תקציב ניסיונות חוזרים מוצה או שבור מיסודו        |
+
+3. **צוותות מומחים.** על סמך קטגוריית המיון, המוביל יוצר צוות של סוכנים
+   מומחים (מאבחן, מתאם ניסיונות חוזרים, מתקן הגדרות, מחבר plugin וכו')
+   לחקירה ופתרון הבעיה.
+
+4. **הצעות גרסה.** כאשר נדרש תיקון מבני, הצוות מציע גרסה חדשה של תהליך
+   העבודה. אם `approval_required` מוגדר כ-true, ההצעה ממתינה לסקירה אנושית
+   דרך `workflow_version_approve` או `workflow_version_reject`.
+
+5. **השהיה ממוקדת.** כאשר `pause_on_intervention` מופעל, רק משימות downstream
+   מושהות -- ענפים עצמאיים ממשיכים לפעול.
+
+### כלי ריפוי
+
+ארבעה כלים נוספים זמינים לניהול מצב הריפוי:
+
+| כלי                        | Description                                |
+| -------------------------- | ------------------------------------------ |
+| `workflow_version_list`    | הצגת גרסאות מוצעות/מאושרות/נדחות          |
+| `workflow_version_approve` | אישור גרסה מוצעת                           |
+| `workflow_version_reject`  | דחיית גרסה מוצעת עם סיבה                   |
+| `workflow_healing_status`  | מצב ריפוי נוכחי עבור הרצת תהליך עבודה     |
+
+### אבטחה
+
+- סוכן הריפוי **אינו יכול לשנות את תצורת `self_healing` שלו**. גרסאות מוצעות
+  שמשנות את בלוק התצורה נדחות.
+- הסוכן המוביל וכל חברי הצוות יורשים את רמת ה-taint של תהליך העבודה ומסלימים
+  בצעד נעילה.
+- כל פעולות הסוכנים עוברות דרך שרשרת ה-policy hook הסטנדרטית -- ללא עקיפות.
+- גרסאות מוצעות נשמרות ברמת הסיווג של תהליך העבודה.

@@ -286,3 +286,74 @@ divulgada para sessoes de classificacao inferior.
 **Correcao:** Escale o taint da sua sessao para corresponder ou exceder o nivel
 de classificacao do fluxo de trabalho antes de exclui-lo. Ou exclua-o a partir
 do mesmo tipo de sessao onde foi originalmente salvo.
+
+---
+
+## Self-Healing
+
+### "Step metadata missing on task 'X': self-healing requires description, expects, produces"
+
+Quando `self_healing.enabled` e `true`, cada tarefa deve ter os tres campos de
+metadados. O analisador rejeita o fluxo de trabalho no momento de salva-lo se
+algum estiver ausente.
+
+**Correcao:** Adicione `description`, `expects` e `produces` ao bloco `metadata`
+de cada tarefa:
+
+```yaml
+- my-task:
+    call: http
+    with:
+      endpoint: "https://example.com/api"
+    metadata:
+      description: "What this step does and why"
+      expects: "What this step needs as input"
+      produces: "What this step outputs"
+```
+
+---
+
+### "Self-healing config mutation rejected in version proposal"
+
+O agente de recuperacao propôs uma nova versao do fluxo de trabalho que modifica
+o bloco de configuracao `self_healing`. Isto e proibido — o agente nao pode
+alterar sua propria configuracao de recuperacao.
+
+Isto esta funcionando conforme o esperado. Apenas humanos podem modificar a
+configuracao `self_healing` salvando uma nova versao do fluxo de trabalho
+diretamente via `workflow_save`.
+
+---
+
+### O agente de recuperacao nao e gerado
+
+O fluxo de trabalho executa, mas nenhum agente de recuperacao aparece. Verifique:
+
+1. **`enabled` e `true`** em `metadata.triggerfish.self_healing`.
+2. **A configuracao esta na localizacao correta** — deve estar aninhada sob
+   `metadata.triggerfish.self_healing`, nao no nivel superior.
+3. **Todas as etapas tem metadados** — se a validacao falhou no momento de
+   salvar, o fluxo de trabalho foi salvo sem self-healing habilitado.
+
+---
+
+### Correcoes propostas presas em pendente
+
+Se `approval_required` e `true` (o padrao), as versoes propostas aguardam
+revisao humana. Use `workflow_version_list` para ver propostas pendentes e
+`workflow_version_approve` ou `workflow_version_reject` para agir sobre elas.
+
+---
+
+### "Retry budget exhausted" / Escalacao irresoluvel
+
+O agente de recuperacao utilizou todas as suas tentativas de intervencao (padrao
+3) sem resolver o problema. Ele escala como `unresolvable` e para de tentar
+correcoes.
+
+**Correcao:**
+
+- Consulte `workflow_healing_status` para ver quais intervencoes foram tentadas.
+- Revise e corrija o problema subjacente manualmente.
+- Para permitir mais tentativas, aumente `retry_budget` na configuracao de
+  self-healing e salve novamente o fluxo de trabalho.

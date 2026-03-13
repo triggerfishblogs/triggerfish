@@ -86,7 +86,61 @@ do:
 | `output`   | transform | تبدیل اعمال‌شده بعد از اجرای وظیفه                          |
 | `timeout`  | object    | timeout وظیفه: `after: <ISO 8601 duration>`                  |
 | `then`     | string    | دستورالعمل جریان: `continue`، `end` یا نام وظیفه            |
-| `metadata` | object    | فراداده دلخواه کلید-مقدار (توسط موتور استفاده نمی‌شود)      |
+| `metadata` | object    | فراداده دلخواه کلید-مقدار. وقتی خوددرمانی فعال باشد، نیاز به `description`، `expects`، `produces` دارد. |
+
+---
+
+## پیکربندی خوددرمانی
+
+بلوک `metadata.triggerfish.self_healing` یک عامل درمان‌گر مستقل برای گردش کار
+فعال می‌کند. برای راهنمای کامل
+[خوددرمانی](/fa-IR/features/workflows#خوددرمانی) را ببینید.
+
+```yaml
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+      pause_timeout_seconds: 300
+      pause_timeout_policy: escalate_and_halt
+      notify_on: [intervention, escalation, approval_required]
+```
+
+| Field                   | Type    | Required | Default              | Description |
+| ----------------------- | ------- | -------- | -------------------- | ----------- |
+| `enabled`               | boolean | yes      | —                    | فعال‌سازی عامل درمان‌گر |
+| `retry_budget`          | number  | no       | `3`                  | حداکثر تلاش‌های مداخله |
+| `approval_required`     | boolean | no       | `true`               | نیاز به تأیید انسانی برای اصلاحات |
+| `pause_on_intervention` | string  | no       | `"blocking_only"`    | `always` \| `never` \| `blocking_only` |
+| `pause_timeout_seconds` | number  | no       | `300`                | ثانیه‌ها قبل از فعال شدن سیاست timeout |
+| `pause_timeout_policy`  | string  | no       | `"escalate_and_halt"`| `escalate_and_halt` \| `escalate_and_skip` \| `escalate_and_fail` |
+| `notify_on`             | array   | no       | `[]`                 | `intervention` \| `escalation` \| `approval_required` |
+
+### فراداده مرحله (الزامی وقتی خوددرمانی فعال باشد)
+
+وقتی `self_healing.enabled` روی `true` باشد، هر وظیفه باید شامل این فیلدهای
+فراداده باشد. تجزیه‌کننده گردش کارهایی را که هر کدام را نداشته باشند رد
+می‌کند.
+
+| Field         | Type   | Description                                  |
+| ------------- | ------ | -------------------------------------------- |
+| `description` | string | مرحله چه کاری انجام می‌دهد و چرا             |
+| `expects`     | string | شکل ورودی یا پیش‌شرط‌های مورد نیاز           |
+| `produces`    | string | شکل خروجی تولیدشده                           |
+
+```yaml
+- fetch-invoices:
+    call: http
+    with:
+      endpoint: "https://api.example.com/invoices"
+    metadata:
+      description: "Fetch open invoices from billing API"
+      expects: "API available, returns JSON array"
+      produces: "Array of {id, amount, status} objects"
+```
 
 ---
 

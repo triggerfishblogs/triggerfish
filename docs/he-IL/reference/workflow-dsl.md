@@ -86,7 +86,59 @@ do:
 | `output`   | transform | טרנספורמציה המיושמת לאחר הרצת המשימה                    |
 | `timeout`  | object    | timeout משימה: `after: <ISO 8601 duration>`              |
 | `then`     | string    | הנחיית זרימה: `continue`, `end` או שם משימה              |
-| `metadata` | object    | מטא-נתונים שרירותיים (לא בשימוש המנוע)                  |
+| `metadata` | object    | מטא-נתונים שרירותיים של מפתח-ערך. כאשר ריפוי עצמי מופעל, דורש `description`, `expects`, `produces`. |
+
+---
+
+## תצורת ריפוי עצמי
+
+בלוק `metadata.triggerfish.self_healing` מפעיל סוכן ריפוי אוטונומי עבור תהליך
+העבודה. ראה [ריפוי עצמי](/he-IL/features/workflows#ריפוי-עצמי) למדריך מלא.
+
+```yaml
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+      pause_timeout_seconds: 300
+      pause_timeout_policy: escalate_and_halt
+      notify_on: [intervention, escalation, approval_required]
+```
+
+| Field                   | Type    | Required | Default              | Description |
+| ----------------------- | ------- | -------- | -------------------- | ----------- |
+| `enabled`               | boolean | yes      | —                    | הפעלת סוכן הריפוי |
+| `retry_budget`          | number  | no       | `3`                  | מספר מקסימלי של ניסיונות התערבות |
+| `approval_required`     | boolean | no       | `true`               | דרישת אישור אנושי לתיקונים |
+| `pause_on_intervention` | string  | no       | `"blocking_only"`    | `always` \| `never` \| `blocking_only` |
+| `pause_timeout_seconds` | number  | no       | `300`                | שניות לפני הפעלת מדיניות timeout |
+| `pause_timeout_policy`  | string  | no       | `"escalate_and_halt"`| `escalate_and_halt` \| `escalate_and_skip` \| `escalate_and_fail` |
+| `notify_on`             | array   | no       | `[]`                 | `intervention` \| `escalation` \| `approval_required` |
+
+### מטא-נתוני שלב (נדרש כאשר ריפוי עצמי מופעל)
+
+כאשר `self_healing.enabled` הוא `true`, כל משימה חייבת לכלול שדות מטא-נתונים
+אלה. המנתח דוחה תהליכי עבודה שחסר בהם כל אחד מהם.
+
+| Field         | Type   | Description                                  |
+| ------------- | ------ | -------------------------------------------- |
+| `description` | string | מה השלב עושה ולמה                            |
+| `expects`     | string | צורת קלט או תנאים מוקדמים נדרשים             |
+| `produces`    | string | צורת פלט שנוצרת                              |
+
+```yaml
+- fetch-invoices:
+    call: http
+    with:
+      endpoint: "https://api.example.com/invoices"
+    metadata:
+      description: "Fetch open invoices from billing API"
+      expects: "API available, returns JSON array"
+      produces: "Array of {id, amount, status} objects"
+```
 
 ---
 

@@ -416,3 +416,94 @@ classification_ceiling: INTERNAL
 ::: danger 보안
 워크플로 삭제에는 현재 세션의 분류 수준에서 워크플로에 접근할 수 있어야 합니다. `PUBLIC` 세션에서 `CONFIDENTIAL`로 저장된 워크플로를 삭제할 수 없습니다. `workflow_delete` 도구는 먼저 워크플로를 로드하고 분류 확인에 실패하면 "찾을 수 없음"을 반환합니다.
 :::
+
+## 자가 치유
+
+워크플로는 선택적으로 실행을 실시간으로 감시하고, 장애를 진단하고, 수정을 제안하는 자율 치유 에이전트를 가질 수 있습니다. 자가 치유가 활성화되면 워크플로 실행과 함께 리드 에이전트가 생성됩니다. 리드 에이전트는 모든 단계 이벤트를 관찰하고, 장애를 분류하고, 전문가 팀을 조율하여 문제를 해결합니다.
+
+### 자가 치유 활성화
+
+워크플로의 `metadata.triggerfish` 섹션에 `self_healing` 블록을 추가합니다:
+
+```yaml
+document:
+  dsl: "1.0"
+  namespace: ops
+  name: data-pipeline
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+do:
+  - fetch-data:
+      call: http
+      with:
+        endpoint: "https://api.example.com/data"
+      metadata:
+        description: "Fetch raw invoice data from billing API"
+        expects: "API returns JSON array of invoice objects"
+        produces: "Array of {id, amount, status, date} objects"
+```
+
+`enabled: true`인 경우 모든 단계에 세 가지 메타데이터 필드가 **반드시** 포함되어야 합니다:
+
+| Field         | 설명                                           |
+| ------------- | ---------------------------------------------- |
+| `description` | 해당 단계의 기능과 존재 이유                   |
+| `expects`     | 해당 단계에 필요한 입력 형태 또는 전제 조건    |
+| `produces`    | 해당 단계가 생성하는 출력 형태                 |
+
+파서는 이러한 필드가 누락된 단계가 있는 워크플로를 거부합니다.
+
+### 구성 옵션
+
+| Option                    | Type    | Default              | 설명 |
+| ------------------------- | ------- | -------------------- | ---- |
+| `enabled`                 | boolean | —                    | 필수. 치유 에이전트를 활성화합니다. |
+| `retry_budget`            | number  | `3`                  | 해결 불가로 에스컬레이션하기 전 최대 개입 시도 횟수. |
+| `approval_required`       | boolean | `true`               | 제안된 워크플로 수정에 사람의 승인이 필요한지 여부. |
+| `pause_on_intervention`   | string  | `"blocking_only"`    | 다운스트림 작업을 일시 중지하는 시점: `always`, `never` 또는 `blocking_only`. |
+| `pause_timeout_seconds`   | number  | `300`                | 일시 중지 중 타임아웃 정책이 실행되기까지의 대기 시간(초). |
+| `pause_timeout_policy`    | string  | `"escalate_and_halt"`| 타임아웃 시 동작: `escalate_and_halt`, `escalate_and_skip` 또는 `escalate_and_fail`. |
+| `notify_on`               | array   | `[]`                 | 알림을 트리거하는 이벤트: `intervention`, `escalation`, `approval_required`. |
+
+### 작동 방식
+
+1. **관찰.** 치유 리드 에이전트는 워크플로 실행 중 단계 이벤트의 실시간 스트림(started, completed, failed, skipped)을 수신합니다.
+
+2. **분류.** 단계가 실패하면 리드 에이전트가 장애를 다섯 가지 범주 중 하나로 분류합니다:
+
+   | 범주                  | 의미                                             |
+   | --------------------- | ------------------------------------------------ |
+   | `transient_retry`     | 일시적 문제 (네트워크 오류, 속도 제한, 503)      |
+   | `runtime_workaround`  | 처음 발생한 알 수 없는 오류, 우회할 수 있을 가능성 있음 |
+   | `structural_fix`      | 워크플로 정의 변경이 필요한 반복적 장애          |
+   | `plugin_gap`          | 새로운 통합이 필요한 인증/자격 증명 문제         |
+   | `unresolvable`        | 재시도 예산 소진 또는 근본적으로 해결 불가능      |
+
+3. **전문가 팀.** 분류 범주에 따라 리드 에이전트가 전문가 에이전트 팀(진단자, 재시도 조정자, 정의 수정자, 플러그인 작성자 등)을 생성하여 문제를 조사하고 해결합니다.
+
+4. **버전 제안.** 구조적 수정이 필요한 경우 팀이 새로운 워크플로 버전을 제안합니다. `approval_required`가 true이면 제안은 `workflow_version_approve` 또는 `workflow_version_reject`를 통한 사람의 검토를 기다립니다.
+
+5. **범위 제한 일시 중지.** `pause_on_intervention`이 활성화되면 다운스트림 작업만 일시 중지됩니다 — 독립적인 분기는 계속 실행됩니다.
+
+### 치유 도구
+
+치유 상태를 관리하기 위한 네 가지 추가 도구를 사용할 수 있습니다:
+
+| Tool                       | 설명                                       |
+| -------------------------- | ------------------------------------------ |
+| `workflow_version_list`    | 제안/승인/거부된 버전 목록 조회             |
+| `workflow_version_approve` | 제안된 버전 승인                           |
+| `workflow_version_reject`  | 사유와 함께 제안된 버전 거부               |
+| `workflow_healing_status`  | 워크플로 실행의 현재 치유 상태 확인        |
+
+### 보안
+
+- 치유 에이전트는 **자체 `self_healing` 설정을 수정할 수 없습니다**. 설정 블록을 변경하는 버전 제안은 거부됩니다.
+- 리드 에이전트와 모든 팀 멤버는 워크플로의 taint 수준을 상속하며 동기화하여 에스컬레이션합니다.
+- 모든 에이전트 행위는 표준 정책 훅 체인을 통과합니다 — 우회는 없습니다.
+- 제안된 버전은 워크플로의 분류 수준으로 저장됩니다.

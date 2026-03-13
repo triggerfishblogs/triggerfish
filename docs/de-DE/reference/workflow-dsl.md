@@ -87,7 +87,62 @@ Alle Aufgabentypen teilen diese optionalen Felder:
 | `output`   | transform | Transformation nach der Aufgabenausfuhrung          |
 | `timeout`  | object    | Aufgaben-Timeout: `after: <ISO 8601-Dauer>`         |
 | `then`     | string    | Flussdirektive: `continue`, `end` oder Aufgabenname |
-| `metadata` | object    | Beliebige Schlussel-Wert-Metadaten (nicht von der Engine verwendet) |
+| `metadata` | object    | Beliebige Schlussel-Wert-Metadaten. Bei aktiviertem Self-Healing sind `description`, `expects`, `produces` erforderlich. |
+
+---
+
+## Self-Healing-Konfiguration
+
+Der Block `metadata.triggerfish.self_healing` aktiviert einen autonomen
+Healing-Agenten fur den Workflow. Siehe
+[Self-Healing](/de-DE/features/workflows#self-healing) fur eine vollstandige
+Anleitung.
+
+```yaml
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+      pause_timeout_seconds: 300
+      pause_timeout_policy: escalate_and_halt
+      notify_on: [intervention, escalation, approval_required]
+```
+
+| Field                   | Type    | Required | Standard             | Beschreibung |
+| ----------------------- | ------- | -------- | -------------------- | ------------ |
+| `enabled`               | boolean | yes      | —                    | Aktiviert den Healing-Agenten |
+| `retry_budget`          | number  | no       | `3`                  | Maximale Interventionsversuche |
+| `approval_required`     | boolean | no       | `true`               | Menschliche Genehmigung fur Korrekturen erforderlich |
+| `pause_on_intervention` | string  | no       | `"blocking_only"`    | `always` \| `never` \| `blocking_only` |
+| `pause_timeout_seconds` | number  | no       | `300`                | Sekunden bis die Timeout-Richtlinie greift |
+| `pause_timeout_policy`  | string  | no       | `"escalate_and_halt"`| `escalate_and_halt` \| `escalate_and_skip` \| `escalate_and_fail` |
+| `notify_on`             | array   | no       | `[]`                 | `intervention` \| `escalation` \| `approval_required` |
+
+### Schritt-Metadaten (Erforderlich bei aktiviertem Self-Healing)
+
+Wenn `self_healing.enabled` auf `true` steht, muss jede Aufgabe diese
+Metadatenfelder enthalten. Der Parser lehnt Workflows ab, in denen eines davon
+fehlt.
+
+| Field         | Type   | Beschreibung                                 |
+| ------------- | ------ | -------------------------------------------- |
+| `description` | string | Was der Schritt tut und warum                |
+| `expects`     | string | Benotigter Eingabeform oder Vorbedingungen   |
+| `produces`    | string | Erzeugte Ausgabeform                         |
+
+```yaml
+- fetch-invoices:
+    call: http
+    with:
+      endpoint: "https://api.example.com/invoices"
+    metadata:
+      description: "Fetch open invoices from billing API"
+      expects: "API available, returns JSON array"
+      produces: "Array of {id, amount, status} objects"
+```
 
 ---
 

@@ -89,7 +89,61 @@ Todos los tipos de tareas comparten estos campos opcionales:
 | `output`   | transform | Transformación aplicada después de la ejecución de la tarea       |
 | `timeout`  | object    | Timeout de tarea: `after: <duración ISO 8601>`                    |
 | `then`     | string    | Directiva de flujo: `continue`, `end`, o nombre de tarea          |
-| `metadata` | object    | Metadatos arbitrarios de clave-valor (no usados por el motor)     |
+| `metadata` | object    | Metadatos arbitrarios de clave-valor. Cuando self-healing está habilitado, requiere `description`, `expects`, `produces`. |
+
+---
+
+## Configuración de Self-Healing
+
+El bloque `metadata.triggerfish.self_healing` habilita un agente de recuperación
+autónoma para el flujo de trabajo. Consulta
+[Self-Healing](/es-419/features/workflows#self-healing) para una guía completa.
+
+```yaml
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+      pause_timeout_seconds: 300
+      pause_timeout_policy: escalate_and_halt
+      notify_on: [intervention, escalation, approval_required]
+```
+
+| Field                   | Type    | Required | Default              | Description |
+| ----------------------- | ------- | -------- | -------------------- | ----------- |
+| `enabled`               | boolean | yes      | —                    | Habilita el agente de recuperación |
+| `retry_budget`          | number  | no       | `3`                  | Intentos máximos de intervención |
+| `approval_required`     | boolean | no       | `true`               | Requiere aprobación humana para las correcciones |
+| `pause_on_intervention` | string  | no       | `"blocking_only"`    | `always` \| `never` \| `blocking_only` |
+| `pause_timeout_seconds` | number  | no       | `300`                | Segundos antes de que la política de timeout se active |
+| `pause_timeout_policy`  | string  | no       | `"escalate_and_halt"`| `escalate_and_halt` \| `escalate_and_skip` \| `escalate_and_fail` |
+| `notify_on`             | array   | no       | `[]`                 | `intervention` \| `escalation` \| `approval_required` |
+
+### Metadatos de paso (obligatorios cuando Self-Healing está habilitado)
+
+Cuando `self_healing.enabled` es `true`, cada tarea debe incluir estos campos de
+metadatos. El analizador rechaza flujos de trabajo que carezcan de cualquiera de
+ellos.
+
+| Field         | Type   | Description                                    |
+| ------------- | ------ | ---------------------------------------------- |
+| `description` | string | Qué hace el paso y por qué                    |
+| `expects`     | string | Forma de entrada o precondiciones necesarias   |
+| `produces`    | string | Forma de salida generada                       |
+
+```yaml
+- fetch-invoices:
+    call: http
+    with:
+      endpoint: "https://api.example.com/invoices"
+    metadata:
+      description: "Fetch open invoices from billing API"
+      expects: "API available, returns JSON array"
+      produces: "Array of {id, amount, status} objects"
+```
 
 ---
 
