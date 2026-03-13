@@ -34,5 +34,14 @@ export {
 export { createWorkflowVersionStore } from "./version_store.ts";
 export type { WorkflowVersionStore } from "./version_store.ts";
 
+export {
+  extractSelfHealingBlock,
+  validateConfigImmutability,
+} from "./version_validation.ts";
+
+export type { VersionRecord } from "./version_records.ts";
+
 export { createScopedPauseController } from "./scoped_pause.ts";
 export type { ScopedPauseController } from "./scoped_pause.ts";
+
+export { SELF_HEALING_SYSTEM_PROMPT } from "./system_prompt.ts";

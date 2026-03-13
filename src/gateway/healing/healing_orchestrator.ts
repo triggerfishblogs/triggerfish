@@ -124,12 +124,32 @@ export async function orchestrateHealingRun(
     }
 
     if (category === "unresolvable") {
+      log.warn("Escalating unresolvable intervention to owner", {
+        operation: "processLeadEvent",
+        workflowName: options.workflowName,
+        taskName: event.taskName,
+        interventionCount,
+      });
       await notifyOwner(options, `Escalation: ${event.taskName} unresolvable after ${interventionCount} attempts`);
       return;
     }
 
-    if (shouldPause(options.config, category)) {
+    const pausing = shouldPause(options.config, category);
+    if (pausing) {
+      log.info("Pausing workflow run for intervention", {
+        operation: "processLeadEvent",
+        workflowName: options.workflowName,
+        runId: options.runId,
+        category,
+      });
       options.registry.pauseRun(options.runId);
+    } else {
+      log.debug("Continuing workflow run without pause", {
+        operation: "processLeadEvent",
+        workflowName: options.workflowName,
+        runId: options.runId,
+        category,
+      });
     }
 
     activeTeam = await spawnHealingTeam({

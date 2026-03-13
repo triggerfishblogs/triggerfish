@@ -62,7 +62,13 @@ export function createHealingEventBridge(
 
   return {
     enqueueEvent(event: RichWorkflowEvent): void {
-      if (tornDown) return;
+      if (tornDown) {
+        log.debug("Dropping event after teardown", {
+          operation: "enqueueEvent",
+          eventType: event.type,
+        });
+        return;
+      }
       pending.push(event);
 
       const isTerminal = event.type === "WORKFLOW_COMPLETED" ||

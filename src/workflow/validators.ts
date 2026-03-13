@@ -8,11 +8,14 @@
 
 import type {
   EmitTask,
+  ForTask,
   RaiseTask,
   RunTask,
   SetTask,
   SwitchTask,
   TaskBase,
+  WaitTask,
+  WorkflowTaskEntry,
 } from "./types.ts";
 import { err, isRecord, ok, type ParseResult } from "./parser.ts";
 
@@ -242,3 +245,51 @@ export function validateRunTask(
     `${context}: run task must have 'shell', 'script', or 'workflow' target`,
   );
 }
+
+/** Validate and parse a for-loop task. */
+export function validateForTask(
+  raw: Record<string, unknown>,
+  base: TaskBase,
+  context: string,
+  validateDoBlock: (
+    raw: unknown,
+    ctx: string,
+  ) => ParseResult<readonly WorkflowTaskEntry[]>,
+): ParseResult<ForTask> {
+  const forDef = raw["for"];
+  if (!isRecord(forDef)) {
+    return err(`${context}: 'for' must be an object with 'each' and 'in'`);
+  }
+  if (typeof forDef["each"] !== "string") {
+    return err(`${context}: for.each must be a string (variable name)`);
+  }
+  if (typeof forDef["in"] !== "string") {
+    return err(
+      `${context}: for.in must be a string (expression referencing a collection)`,
+    );
+  }
+  const doResult = validateDoBlock(raw["do"], `${context}.for`);
+  if (!doResult.ok) return doResult;
+  return ok({
+    ...base,
+    type: "for" as const,
+    for: {
+      each: forDef["each"] as string,
+      in: forDef["in"] as string,
+      at: typeof forDef["at"] === "string" ? forDef["at"] : undefined,
+    },
+    do: doResult.value,
+  });
+}
+
+/** Validate and parse a wait task. */
+export function validateWaitTask(
+  raw: Record<string, unknown>,
+  base: TaskBase,
+): ParseResult<WaitTask> {
+  if (typeof raw["wait"] !== "string") {
+    return err("Wait task requires a duration string (e.g., 'PT5S')");
+  }
+  return ok({ ...base, type: "wait" as const, wait: raw["wait"] as string });
+}
+

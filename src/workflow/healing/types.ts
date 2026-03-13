@@ -146,7 +146,6 @@ export interface RuntimeDeviation {
 /** Required metadata fields for each step when self-healing is enabled. */
 export interface StepMetadata {
   readonly description: string;
-  readonly intent: string;
   readonly expects: string;
   readonly produces: string;
 }

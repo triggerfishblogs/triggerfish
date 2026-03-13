@@ -148,3 +148,5 @@ export type {
   ScopedPauseController,
   WorkflowVersionStore,
 } from "./healing/mod.ts";
+
+export { WORKFLOW_CREATION_PROMPT } from "./creation_prompt.ts";

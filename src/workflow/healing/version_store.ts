@@ -1,9 +1,6 @@
 /**
  * Workflow version store — full-snapshot versioning with approval lifecycle.
- *
- * Versions are stored as complete definition snapshots. The lead agent
- * cannot modify the self_healing config block — the validator rejects
- * any proposed version that differs from the canonical config.
+ * Validation logic lives in version_validation.ts; record persistence in version_records.ts.
  * @module
  */
 
@@ -14,11 +11,19 @@ import { createLogger } from "../../core/logger/logger.ts";
 import type { ParseResult } from "../parser.ts";
 import { err, ok, parseWorkflowYaml } from "../parser.ts";
 import type { WorkflowStore } from "../store.ts";
-import type { VersionStatus, WorkflowVersion } from "./types.ts";
+import type { WorkflowVersion } from "./types.ts";
+import { validateConfigImmutability } from "./version_validation.ts";
+import {
+  computeNextVersionNumber,
+  loadVersionRecordById,
+  saveVersionRecord,
+  supersedeExistingProposals,
+  type VersionRecord,
+  versionKeyPrefix,
+  workflowVersionKeyPrefix,
+} from "./version_records.ts";
 
 const log = createLogger("workflow-version-store");
-
-const VERSION_PREFIX = "workflow-versions:";
 
 /** Options for proposing a new workflow version. */
 export interface ProposeVersionOptions {
@@ -87,8 +92,6 @@ export function createWorkflowVersionStore(options: {
   };
 }
 
-// --- Internal implementations ---
-
 async function proposeVersion(
   storage: StorageProvider,
   workflowStore: WorkflowStore,
@@ -122,7 +125,7 @@ async function proposeVersion(
     proposedAt: new Date().toISOString(),
   };
 
-  await saveVersion(storage, version, opts.classification);
+  await saveVersionRecord(storage, version, opts.classification);
 
   log.info("Workflow version proposed", {
     operation: "proposeWorkflowVersion",
@@ -141,7 +144,7 @@ async function approveVersion(
   versionId: string,
   reviewedBy: string,
 ): Promise<ParseResult<WorkflowVersion>> {
-  const record = await loadVersionRecord(storage, versionId);
+  const record = await loadVersionRecordById(storage, versionId);
   if (!record) {
     return err(`Workflow version not found: ${versionId}`);
   }
@@ -159,7 +162,7 @@ async function approveVersion(
     resolvedBy: reviewedBy,
   };
 
-  await saveVersion(storage, approved, record.classification);
+  await saveVersionRecord(storage, approved, record.classification);
 
   const parsed = parseWorkflowYaml(approved.definition);
   if (parsed.ok) {
@@ -168,6 +171,13 @@ async function approveVersion(
       approved.definition,
       record.classification,
     );
+  } else {
+    log.warn("Approved workflow version has unparseable YAML definition", {
+      operation: "approveWorkflowVersion",
+      versionId,
+      workflowName: approved.workflowName,
+      parseError: parsed.error,
+    });
   }
 
   log.info("Workflow version approved", {
@@ -186,7 +196,7 @@ async function rejectVersion(
   reviewedBy: string,
   reason: string,
 ): Promise<ParseResult<WorkflowVersion>> {
-  const record = await loadVersionRecord(storage, versionId);
+  const record = await loadVersionRecordById(storage, versionId);
   if (!record) {
     return err(`Workflow version not found: ${versionId}`);
   }
@@ -204,7 +214,7 @@ async function rejectVersion(
     resolvedBy: `${reviewedBy}: ${reason}`,
   };
 
-  await saveVersion(storage, rejected, record.classification);
+  await saveVersionRecord(storage, rejected, record.classification);
 
   log.info("Workflow version rejected", {
     operation: "rejectWorkflowVersion",
@@ -222,14 +232,22 @@ async function listVersions(
   workflowName: string,
   sessionTaint: ClassificationLevel,
 ): Promise<readonly WorkflowVersion[]> {
-  const keys = await storage.list(`${VERSION_PREFIX}${workflowName}:`);
+  const keys = await storage.list(workflowVersionKeyPrefix(workflowName));
   const versions: WorkflowVersion[] = [];
 
   for (const key of keys) {
     const raw = await storage.get(key);
     if (!raw) continue;
     const record = JSON.parse(raw) as VersionRecord;
-    if (!canFlowTo(record.classification, sessionTaint)) continue;
+    if (!canFlowTo(record.classification, sessionTaint)) {
+      log.debug("Workflow version filtered: classification exceeds session taint", {
+        operation: "listWorkflowVersions",
+        versionId: record.version.versionId,
+        classification: record.classification,
+        sessionTaint,
+      });
+      continue;
+    }
     versions.push(record.version);
   }
 
@@ -241,7 +259,7 @@ async function loadVersion(
   versionId: string,
   sessionTaint: ClassificationLevel,
 ): Promise<WorkflowVersion | null> {
-  const keys = await storage.list(VERSION_PREFIX);
+  const keys = await storage.list(versionKeyPrefix());
   for (const key of keys) {
     if (!key.includes(versionId)) continue;
     const raw = await storage.get(key);
@@ -266,7 +284,7 @@ async function loadRejected(
   storage: StorageProvider,
   workflowName: string,
 ): Promise<readonly WorkflowVersion[]> {
-  const keys = await storage.list(`${VERSION_PREFIX}${workflowName}:`);
+  const keys = await storage.list(workflowVersionKeyPrefix(workflowName));
   const rejected: WorkflowVersion[] = [];
 
   for (const key of keys) {
@@ -279,121 +297,4 @@ async function loadRejected(
   }
 
   return rejected.sort((a, b) => b.versionNumber - a.versionNumber);
-}
-
-// --- Helpers ---
-
-interface VersionRecord {
-  readonly version: WorkflowVersion;
-  readonly classification: ClassificationLevel;
-}
-
-function storageKey(workflowName: string, versionId: string): string {
-  return `${VERSION_PREFIX}${workflowName}:${versionId}`;
-}
-
-async function saveVersion(
-  storage: StorageProvider,
-  version: WorkflowVersion,
-  classification: ClassificationLevel,
-): Promise<void> {
-  const record: VersionRecord = { version, classification };
-  await storage.set(
-    storageKey(version.workflowName, version.versionId),
-    JSON.stringify(record),
-  );
-}
-
-async function loadVersionRecord(
-  storage: StorageProvider,
-  versionId: string,
-): Promise<VersionRecord | null> {
-  const keys = await storage.list(VERSION_PREFIX);
-  for (const key of keys) {
-    if (!key.includes(versionId)) continue;
-    const raw = await storage.get(key);
-    if (!raw) continue;
-    const record = JSON.parse(raw) as VersionRecord;
-    if (record.version.versionId === versionId) return record;
-  }
-  return null;
-}
-
-async function computeNextVersionNumber(
-  storage: StorageProvider,
-  workflowName: string,
-): Promise<number> {
-  const keys = await storage.list(`${VERSION_PREFIX}${workflowName}:`);
-  let max = 0;
-  for (const key of keys) {
-    const raw = await storage.get(key);
-    if (!raw) continue;
-    const record = JSON.parse(raw) as VersionRecord;
-    if (record.version.versionNumber > max) {
-      max = record.version.versionNumber;
-    }
-  }
-  return max + 1;
-}
-
-async function supersedeExistingProposals(
-  storage: StorageProvider,
-  workflowName: string,
-): Promise<void> {
-  const keys = await storage.list(`${VERSION_PREFIX}${workflowName}:`);
-  for (const key of keys) {
-    const raw = await storage.get(key);
-    if (!raw) continue;
-    const record = JSON.parse(raw) as VersionRecord;
-    if (record.version.status === "PROPOSED") {
-      const superseded: VersionRecord = {
-        ...record,
-        version: {
-          ...record.version,
-          status: "SUPERSEDED" as VersionStatus,
-          resolvedAt: new Date().toISOString(),
-          resolvedBy: "system",
-        },
-      };
-      await storage.set(key, JSON.stringify(superseded));
-    }
-  }
-}
-
-async function validateConfigImmutability(
-  workflowStore: WorkflowStore,
-  workflowName: string,
-  proposedDefinition: string,
-  sessionTaint: ClassificationLevel,
-): Promise<ParseResult<void>> {
-  const canonical = await workflowStore.loadWorkflowDefinition(
-    workflowName,
-    sessionTaint,
-  );
-  if (!canonical) return ok(undefined);
-
-  const canonicalConfig = extractSelfHealingBlock(canonical.yaml);
-  const proposedConfig = extractSelfHealingBlock(proposedDefinition);
-
-  if (JSON.stringify(canonicalConfig) !== JSON.stringify(proposedConfig)) {
-    log.warn("Self-healing config mutation rejected in version proposal", {
-      operation: "validateConfigImmutability",
-      workflowName,
-    });
-    return err(
-      `Workflow version rejected: self_healing config block must not be modified by lead agent`,
-    );
-  }
-
-  return ok(undefined);
-}
-
-function extractSelfHealingBlock(yaml: string): unknown {
-  const parsed = parseWorkflowYaml(yaml);
-  if (!parsed.ok) return null;
-  const meta = parsed.value.metadata;
-  if (!meta) return null;
-  const tf = meta["triggerfish"];
-  if (typeof tf !== "object" || tf === null) return null;
-  return (tf as Record<string, unknown>)["self_healing"] ?? null;
 }

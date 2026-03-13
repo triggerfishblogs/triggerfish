@@ -95,11 +95,11 @@ export function validateStepMetadata(
   const meta = taskEntry.task.metadata;
   if (!isRecord(meta)) {
     return err(
-      `Step metadata missing on task '${taskEntry.name}': self-healing requires description, intent, expects, produces`,
+      `Step metadata missing on task '${taskEntry.name}': self-healing requires description, expects, produces`,
     );
   }
 
-  const fields = ["description", "intent", "expects", "produces"] as const;
+  const fields = ["description", "expects", "produces"] as const;
   for (const field of fields) {
     if (typeof meta[field] !== "string" || (meta[field] as string).length === 0) {
       return err(
@@ -110,7 +110,6 @@ export function validateStepMetadata(
 
   return ok({
     description: meta["description"] as string,
-    intent: meta["intent"] as string,
     expects: meta["expects"] as string,
     produces: meta["produces"] as string,
   });

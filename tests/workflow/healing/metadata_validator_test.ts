@@ -85,7 +85,7 @@ function makeTaskEntry(
 
 Deno.test("validateStepMetadata: valid metadata passes", () => {
   const r = validateStepMetadata(makeTaskEntry("a", {
-    description: "d", intent: "i", expects: "e", produces: "p",
+    description: "d", expects: "e", produces: "p",
   }));
   assertEquals(r.ok, true);
   if (r.ok) assertEquals(r.value.description, "d");
@@ -99,18 +99,18 @@ Deno.test("validateStepMetadata: missing metadata rejected", () => {
 
 Deno.test("validateStepMetadata: empty field rejected", () => {
   const r = validateStepMetadata(makeTaskEntry("a", {
-    description: "", intent: "i", expects: "e", produces: "p",
+    description: "", expects: "e", produces: "p",
   }));
   assertEquals(r.ok, false);
   if (!r.ok) assertEquals(r.error.includes("description"), true);
 });
 
-Deno.test("validateStepMetadata: missing intent rejected", () => {
+Deno.test("validateStepMetadata: missing expects rejected", () => {
   const r = validateStepMetadata(makeTaskEntry("a", {
-    description: "d", expects: "e", produces: "p",
+    description: "d", produces: "p",
   }));
   assertEquals(r.ok, false);
-  if (!r.ok) assertEquals(r.error.includes("intent"), true);
+  if (!r.ok) assertEquals(r.error.includes("expects"), true);
 });
 
 // --- enforceStepMetadataRequirements ---

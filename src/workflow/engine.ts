@@ -35,9 +35,16 @@ import type {
   WorkflowStatus,
   WorkflowTaskEntry,
 } from "./types.ts";
-import type { RichWorkflowEvent } from "./healing/types.ts";
 import type { RuntimeDeviation } from "./healing/types.ts";
 import type { ScopedPauseController } from "./healing/scoped_pause.ts";
+import type { StepEventCallback } from "./engine_events.ts";
+import {
+  emitCompleteEvent,
+  emitFailEvent,
+  emitSkipEvent,
+  emitStartEvent,
+  emitTerminalEvent,
+} from "./engine_events.ts";
 
 const log = createLogger("workflow-engine");
 
@@ -75,7 +82,7 @@ export interface ExecuteWorkflowOptions {
   /** Callback to report task progress to the registry. */
   readonly onTaskProgress?: (taskIndex: number, taskName: string) => void;
   /** Optional callback for rich step-level event emission (self-healing). */
-  readonly onStepEvent?: (event: RichWorkflowEvent) => void;
+  readonly onStepEvent?: StepEventCallback;
   /** Optional scoped pause controller (self-healing). */
   readonly scopedPause?: ScopedPauseController;
   /** Optional callback to record runtime deviations (self-healing). */
@@ -155,31 +162,13 @@ export async function executeWorkflow(
       }
 
       if (entry.task.if && !context.evaluateCondition(entry.task.if)) {
-        emitStepEvent(options, {
-          type: "STEP_SKIPPED",
-          runId,
-          workflowName,
-          timestamp: new Date().toISOString(),
-          taskName: entry.name,
-          taskIndex,
-          reason: `Condition '${entry.task.if}' evaluated to false`,
-        });
+        emitSkipEvent(options.onStepEvent, runId, workflowName, entry, taskIndex);
         taskIndex++;
         continue;
       }
 
       const taintBefore = options.getSessionTaint?.() ?? "PUBLIC";
-      emitStepEvent(options, {
-        type: "STEP_STARTED",
-        runId,
-        workflowName,
-        timestamp: new Date().toISOString(),
-        taskName: entry.name,
-        taskIndex,
-        taskDef: entry,
-        input: context.data,
-        runningTaint: taintBefore,
-      });
+      emitStartEvent(options.onStepEvent, runId, workflowName, entry, taskIndex, context.data, taintBefore);
 
       context = applyInputTransform(context, entry.task.input);
 
@@ -188,17 +177,7 @@ export async function executeWorkflow(
       const stepDuration = Date.now() - stepStart;
 
       if (!result.ok) {
-        emitStepEvent(options, {
-          type: "STEP_FAILED",
-          runId,
-          workflowName,
-          timestamp: new Date().toISOString(),
-          taskName: entry.name,
-          taskIndex,
-          error: result.error,
-          input: context.data,
-          attemptNumber: 1,
-        });
+        emitFailEvent(options.onStepEvent, runId, workflowName, entry, taskIndex, result.error, context.data);
         status = "failed";
         error = result.error;
         failedTaskName = entry.name;
@@ -210,17 +189,7 @@ export async function executeWorkflow(
       context = applyOutputTransform(context, entry.task.output, entry.name);
 
       const taintAfter = options.getSessionTaint?.() ?? "PUBLIC";
-      emitStepEvent(options, {
-        type: "STEP_COMPLETED",
-        runId,
-        workflowName,
-        timestamp: new Date().toISOString(),
-        taskName: entry.name,
-        taskIndex,
-        output: context.resolve(entry.name),
-        duration: stepDuration,
-        taintAfter,
-      });
+      emitCompleteEvent(options.onStepEvent, runId, workflowName, entry, taskIndex, context.resolve(entry.name), stepDuration, taintAfter);
 
       const flow = resolveSwitchOrTaskFlow(entry.task, context);
       if (flow === "end") break;
@@ -254,7 +223,7 @@ export async function executeWorkflow(
     }
   }
 
-  emitTerminalEvent(options, runId, workflowName, status, error, context, tasks.length, failedTaskName, failedTaskIndex);
+  emitTerminalEvent(options.onStepEvent, runId, workflowName, status, error, context, tasks.length, failedTaskName, failedTaskIndex);
 
   const output = filterInternalKeys(context.data);
 
@@ -360,54 +329,3 @@ function checkCeiling(
   return { ok: true, value: undefined };
 }
 
-function emitStepEvent(
-  options: ExecuteWorkflowOptions,
-  event: RichWorkflowEvent,
-): void {
-  if (!options.onStepEvent) return;
-  try {
-    options.onStepEvent(event);
-  } catch (err) {
-    log.warn("Step event callback threw", {
-      operation: "emitStepEvent",
-      eventType: event.type,
-      err,
-    });
-  }
-}
-
-function emitTerminalEvent(
-  options: ExecuteWorkflowOptions,
-  runId: string,
-  workflowName: string,
-  status: WorkflowStatus,
-  error: string | undefined,
-  context: WorkflowContext,
-  taskCount: number,
-  failedTaskName: string | undefined,
-  failedTaskIndex: number | undefined,
-): void {
-  if (!options.onStepEvent) return;
-
-  const timestamp = new Date().toISOString();
-  if (status === "completed") {
-    emitStepEvent(options, {
-      type: "WORKFLOW_COMPLETED",
-      runId,
-      workflowName,
-      timestamp,
-      output: filterInternalKeys(context.data),
-      taskCount,
-    });
-  } else if (status === "failed") {
-    emitStepEvent(options, {
-      type: "WORKFLOW_FAULTED",
-      runId,
-      workflowName,
-      timestamp,
-      error: error ?? "Unknown error",
-      failedTaskName,
-      failedTaskIndex,
-    });
-  }
-}

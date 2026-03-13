@@ -63,6 +63,12 @@ export async function executeVersionApprove(
 
   const result = await ctx.versionStore.approveWorkflowVersion(versionId, reviewedBy);
   if (!result.ok) {
+    log.warn("Workflow version approval failed", {
+      operation: "executeVersionApprove",
+      versionId,
+      reviewedBy,
+      error: result.error,
+    });
     return JSON.stringify({ error: result.error });
   }
 
@@ -94,6 +100,12 @@ export async function executeVersionReject(
 
   const result = await ctx.versionStore.rejectWorkflowVersion(versionId, reviewedBy, reason);
   if (!result.ok) {
+    log.warn("Workflow version rejection failed", {
+      operation: "executeVersionReject",
+      versionId,
+      reviewedBy,
+      error: result.error,
+    });
     return JSON.stringify({ error: result.error });
   }
 
