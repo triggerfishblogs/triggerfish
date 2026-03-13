@@ -705,13 +705,256 @@ src/plugin/
   types.ts              # PluginManifest, PluginContext, PluginExports, etc.
   namespace.ts          # encode/decode plugin tool names
   loader.ts             # scan, import, validate plugins
-  registry.ts           # runtime plugin registry
-  executor.ts           # composite dispatcher
+  registry.ts           # runtime plugin registry (register/unregister/get)
+  executor.ts           # composite dispatcher (routes by tool name prefix)
   sandboxed_executor.ts # trust resolution and sandbox wrapping
+  tools.ts              # LLM-callable management tools (list/install/reload)
+  scanner.ts            # security scanner (heuristic pattern matching)
+  reef.ts               # Reef marketplace client (search/install/publish)
   sandbox.ts            # low-level sandbox (code execution)
   sdk.ts                # plugin SDK (data emission/query)
   mod.ts                # barrel exports
+src/cli/commands/
+  plugin.ts             # CLI plugin subcommands (search/install/update/publish/scan/list)
 ```
+
+### Hot-Reload: Runtime Plugin Management
+
+Plugins can be installed, reloaded, and inspected at runtime without restarting
+Triggerfish. Three LLM-callable management tools are registered automatically:
+
+| Tool             | Description                               |
+| ---------------- | ----------------------------------------- |
+| `plugin_list`    | List all registered plugins with metadata |
+| `plugin_install` | Install a plugin from disk at runtime     |
+| `plugin_reload`  | Reload a running plugin (hot-swap)        |
+
+**How hot-reload works:**
+
+The registry's `getExtraTools` reads live from an internal `Map`. When a plugin
+is reloaded, the old entry is unregistered and a fresh version is re-imported,
+validated, and registered. The next LLM turn sees the updated tools immediately.
+
+```
+plugin_reload("my-plugin")
+  → unregister old plugin
+  → re-scan & re-import mod.ts
+  → validate manifest + exports
+  → security scan (if scanner configured)
+  → create new executor
+  → register new version
+  → update classification maps
+```
+
+If any step fails, the old plugin version is rolled back into the registry so
+the system never enters a state with a half-loaded plugin.
+
+**Implementation:** `src/plugin/tools.ts`
+
+```typescript
+interface PluginToolsOptions {
+  readonly registry: PluginRegistry;
+  readonly getSessionTaint: () => ClassificationLevel;
+  readonly pluginsConfig: Readonly<Record<string, PluginConfigEntry>>;
+  readonly toolClassifications: Map<string, ClassificationLevel>;
+  readonly integrationClassifications: Map<string, ClassificationLevel>;
+  readonly scanPlugin?: (dir: string) => Promise<PluginScanResult>;
+}
+
+function createPluginToolExecutor(opts: PluginToolsOptions): SubsystemExecutor;
+```
+
+The `scanPlugin` option is optional — when provided, both `plugin_install` and
+`plugin_reload` run a security scan before accepting the plugin.
+
+**Install flow at runtime:**
+
+1. Check plugin is enabled in `triggerfish.yaml` (`pluginsConfig`)
+2. Check plugin is not already registered (prevents duplicates)
+3. Security scan the plugin directory (if scanner configured)
+4. Dynamic `import()` the mod.ts
+5. Validate manifest and exports
+6. Create executor via `createExecutor(context)`
+7. Register in the plugin registry
+8. Inject tool classifications into the mutable classification maps
+
+### Security Scanning
+
+Every plugin is scanned for dangerous patterns before loading. The scanner runs
+at two points: **startup** (in `initializePlugins`) and **runtime** (when using
+`plugin_install` or `plugin_reload`).
+
+**Implementation:** `src/plugin/scanner.ts`
+
+```typescript
+interface PluginScanResult {
+  readonly ok: boolean;           // false if plugin should be rejected
+  readonly warnings: readonly string[];  // human-readable warning messages
+  readonly scannedFiles: readonly string[];  // files that were checked
+}
+
+function scanPluginDirectory(pluginDir: string): Promise<PluginScanResult>;
+```
+
+**Scoring model:**
+
+Each pattern has a weight (1–3). The scanner aggregates scores across all `.ts`
+files in the plugin directory. A plugin fails if:
+
+- Any **critical pattern** (weight ≥ 3) is detected, OR
+- The **cumulative score** reaches the threshold (≥ 4)
+
+This means a single critical violation (like `eval()`) causes immediate
+rejection, while multiple moderate violations (like `Deno.env` + filesystem
+access) also trigger failure through score accumulation.
+
+**Detected patterns:**
+
+| Category              | Pattern                       | Weight | Why It's Dangerous                              |
+| --------------------- | ----------------------------- | ------ | ----------------------------------------------- |
+| Code execution        | `eval()`                      | 3      | Arbitrary code execution                        |
+| Code execution        | `new Function()`              | 3      | Dynamic code generation                         |
+| Code execution        | Subprocess (`Deno.command`)   | 3      | Shell escape                                    |
+| Code execution        | `atob` / base64 decode        | 3      | Obfuscated payload delivery                     |
+| Prompt injection      | "ignore previous instructions"| 3      | LLM manipulation                                |
+| Prompt injection      | Identity/role override        | 3      | "you are now..." style attacks                  |
+| Prompt injection      | Secret extraction requests    | 3      | "reveal your system prompt" attacks             |
+| Prompt injection      | Constraint bypass attempts    | 3      | "disregard safety" attacks                      |
+| Steganography         | Zero-width characters         | 3      | Hidden payloads invisible to code review        |
+| Network               | Network listeners (Deno.listen)| 3     | Opens ports for C2 or exfiltration              |
+| Environment           | `Deno.env` access             | 2      | Secret/credential leakage                       |
+| Filesystem            | Raw `Deno.readTextFile` etc.  | 2      | Filesystem access outside sandbox               |
+| Imports               | Dynamic external `import()`   | 2      | Supply chain attacks via remote code            |
+| Obfuscation           | ROT13 / base64 encoding       | 2      | Indicates intent to hide behavior               |
+
+**Example: scanning a plugin from code:**
+
+```typescript
+import { scanPluginDirectory } from "triggerfish/plugin/scanner.ts";
+
+const result = await scanPluginDirectory("/path/to/my-plugin");
+if (!result.ok) {
+  console.error("Plugin rejected:", result.warnings.join("; "));
+}
+```
+
+**Example: CLI scanning:**
+
+```bash
+triggerfish plugin scan /path/to/my-plugin
+```
+
+### The Reef: Plugin Marketplace
+
+Plugins can be published to and installed from The Reef, the same marketplace
+used for skills. The Reef serves a static JSON catalog from GitHub Pages with
+SHA-256 integrity verification on every install.
+
+**Implementation:** `src/plugin/reef.ts`
+
+```typescript
+interface PluginReefRegistry {
+  /** Search for plugins by name, description, or tags. */
+  readonly search: (query: string) => Promise<Result<readonly ReefPluginListing[], string>>;
+  /** Install a plugin from The Reef to the local plugins directory. */
+  readonly install: (name: string, targetDir: string) => Promise<Result<string, string>>;
+  /** Check installed plugins for available updates. */
+  readonly checkUpdates: (
+    installed: readonly { readonly name: string; readonly version?: string }[],
+  ) => Promise<Result<readonly string[], string>>;
+  /** Validate and prepare a plugin for Reef publishing. */
+  readonly publish: (pluginDir: string) => Promise<Result<string, string>>;
+}
+
+function createPluginReefRegistry(options?: PluginReefOptions): PluginReefRegistry;
+```
+
+**Install flow from The Reef:**
+
+```
+reef.install("weather", "~/.triggerfish/plugins/")
+  → fetch catalog.json (cached 1 hour)
+  → find latest version of "weather"
+  → download mod.ts from /plugins/weather/1.0.0/mod.ts
+  → verify SHA-256 checksum matches catalog entry
+  → write to ~/.triggerfish/plugins/weather/mod.ts
+  → security scan the downloaded plugin
+  → if scan fails: remove plugin directory, return error
+  → write .plugin-hash.json integrity record
+```
+
+**Catalog structure** (served from GitHub Pages):
+
+```
+https://greghavens.github.io/reef-registry/plugins/
+  index/catalog.json              # full catalog with all plugin entries
+  weather/1.0.0/mod.ts            # plugin source
+  weather/1.0.0/metadata.json     # name, version, checksum, author, tags
+```
+
+**Catalog entry format:**
+
+```typescript
+interface ReefPluginCatalogEntry {
+  readonly name: string;
+  readonly version: string;
+  readonly description: string;
+  readonly author: string;
+  readonly classification: string;     // e.g. "PUBLIC", "INTERNAL"
+  readonly trust: string;              // "sandboxed" or "trusted"
+  readonly tags: readonly string[];    // searchable tags
+  readonly checksum: string;           // SHA-256 of mod.ts content
+  readonly publishedAt: string;        // ISO 8601 timestamp
+  readonly declaredEndpoints: readonly string[];  // network allowlist
+}
+```
+
+**Publishing a plugin to The Reef:**
+
+```bash
+triggerfish plugin publish /path/to/my-plugin
+```
+
+The publish flow:
+1. Read and dynamically import `mod.ts`
+2. Validate manifest (name pattern, version, classification, etc.)
+3. Validate required exports (`toolDefinitions`, `createExecutor`)
+4. Run security scan — reject if scan fails
+5. Compute SHA-256 checksum of `mod.ts`
+6. Generate a publish directory structure with `mod.ts` + `metadata.json`
+7. Output the directory path for manual upload to the Reef repository
+
+**Security guarantees:**
+
+- All Reef URLs are validated: must use HTTPS and match the expected hostname
+- SHA-256 checksums are verified before writing any file to disk
+- Security scanner runs on every installed plugin — a plugin passing Reef
+  review can still be rejected locally if patterns are detected
+- Stale catalogs are served from cache if the network request fails (graceful
+  degradation), but fresh installs always verify checksums
+- The catalog is cached in-memory for 1 hour to reduce network requests
+
+**Update checking:**
+
+```typescript
+const reef = createPluginReefRegistry();
+const updates = await reef.checkUpdates([
+  { name: "weather", version: "1.0.0" },
+  { name: "database", version: "2.1.0" },
+]);
+// updates.value = ["weather"]  (if 1.1.0 is available)
+```
+
+**CLI commands:**
+
+| Command                                  | Description                               |
+| ---------------------------------------- | ----------------------------------------- |
+| `triggerfish plugin search <query>`      | Search The Reef for plugins               |
+| `triggerfish plugin install <name>`      | Install a plugin from The Reef            |
+| `triggerfish plugin update`              | Check all installed plugins for updates   |
+| `triggerfish plugin publish <dir>`       | Prepare a plugin for Reef publishing      |
+| `triggerfish plugin scan <dir>`          | Run security scanner on a plugin          |
+| `triggerfish plugin list`                | List locally installed plugins            |
 
 ### Legacy: Inline Plugin Execution
 

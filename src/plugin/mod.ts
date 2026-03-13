@@ -65,3 +65,21 @@ export {
   initializePluginExecutor,
   resolveEffectiveTrust,
 } from "./sandboxed_executor.ts";
+
+export {
+  createPluginToolExecutor,
+  PLUGIN_TOOL_DEFINITIONS,
+} from "./tools.ts";
+export type { PluginToolsOptions } from "./tools.ts";
+
+export { createPluginScanner, scanPluginDirectory } from "./scanner.ts";
+export type { PluginScanResult } from "./scanner.ts";
+
+export { createPluginReefRegistry } from "./reef.ts";
+export type {
+  PluginReefOptions,
+  PluginReefRegistry,
+  ReefPluginCatalog,
+  ReefPluginCatalogEntry,
+  ReefPluginListing,
+} from "./reef.ts";
