@@ -14,6 +14,7 @@ export {
   createKeychain,
   createLinuxKeychain,
   createMacKeychain,
+  parseLinuxSecretSearchOutput,
   resolveDockerKeyPath,
   runCommand,
 } from "./keychain/mod.ts";
