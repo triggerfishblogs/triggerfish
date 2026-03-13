@@ -73,10 +73,13 @@ import {
 import {
   createPluginExecutor,
   createPluginRegistry,
+  createPluginScanner,
+  createPluginToolExecutor,
   initializePluginExecutor,
   loadPluginsFromDirectory,
   namespaceToolDefinitions,
   resolveEffectiveTrust,
+  scanPluginDirectory,
 } from "../../../plugin/mod.ts";
 import type {
   PluginContext,
@@ -463,6 +466,20 @@ export function buildCompositeToolExecutor(
     pluginExecutor: pluginRegistry
       ? createPluginExecutor(pluginRegistry)
       : undefined,
+    pluginToolExecutor: pluginRegistry
+      ? createPluginToolExecutor({
+        registry: pluginRegistry,
+        getSessionTaint: () => baseDeps.state.session.taint,
+        pluginsConfig: (bootstrap.config.plugins ?? {}) as Record<
+          string,
+          | { enabled?: boolean; trust?: PluginTrustLevel; classification?: string }
+          | undefined
+        >,
+        toolClassifications: baseDeps.toolClassifications,
+        integrationClassifications: baseDeps.integrationClassifications,
+        scanPlugin: createPluginScanner(),
+      })
+      : undefined,
   });
 }
 
@@ -551,6 +568,18 @@ export async function initializePlugins(
       pluginLog.info("Plugin skipped: not enabled in config", {
         operation: "initializePlugins",
         plugin: name,
+      });
+      continue;
+    }
+
+    // Security scan before initialization
+    const pluginDir = plugin.sourcePath.replace(/\/mod\.ts$/, "");
+    const scanResult = await scanPluginDirectory(pluginDir);
+    if (!scanResult.ok) {
+      pluginLog.warn("Plugin blocked by security scanner", {
+        operation: "initializePlugins",
+        plugin: name,
+        warnings: scanResult.warnings,
       });
       continue;
     }

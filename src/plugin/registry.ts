@@ -21,6 +21,8 @@ export interface PluginRegistry {
   readonly registerPlugin: (
     plugin: RegisteredPlugin,
   ) => void;
+  /** Unregister a plugin by name. Returns true if removed, false if not found. */
+  readonly unregisterPlugin: (name: string) => boolean;
   /** Get a registered plugin by name. */
   readonly getPlugin: (name: string) => RegisteredPlugin | undefined;
   /** Get all registered plugins. */
@@ -56,6 +58,17 @@ export function createPluginRegistry(): PluginRegistry {
         version: plugin.loaded.exports.manifest.version,
         toolCount: plugin.namespacedTools.length,
       });
+    },
+
+    unregisterPlugin(name: string): boolean {
+      const existed = plugins.delete(name);
+      if (existed) {
+        log.info("Plugin unregistered", {
+          operation: "unregisterPlugin",
+          plugin: name,
+        });
+      }
+      return existed;
     },
 
     getPlugin(name: string): RegisteredPlugin | undefined {

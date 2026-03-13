@@ -56,6 +56,7 @@ import type { SubsystemExecutor } from "../../tools/executor/executor_types.ts";
 import type { buildTeamExecutor } from "../factory/team_executor.ts";
 import type { wireMcpServers } from "../infra/mcp.ts";
 import type { PluginRegistry } from "../../../plugin/registry.ts";
+import { PLUGIN_TOOL_DEFINITIONS } from "../../../plugin/tools.ts";
 import {
   createWorkflowStore,
   createWorkflowToolExecutor,
@@ -182,6 +183,7 @@ export function assembleMainToolExecutor(
     readonly teamExecutor?: ReturnType<typeof buildTeamExecutor>;
     readonly workflowRunRegistry?: WorkflowRunRegistry;
     readonly pluginExecutor?: SubsystemExecutor;
+    readonly pluginToolExecutor?: SubsystemExecutor;
   },
 ) {
   const aux = buildAuxiliaryExecutors(
@@ -233,6 +235,7 @@ export function buildExtraToolsGetter(
   return () => [
     ...(mcpWiring ? mcpWiring.getToolDefinitions() : []),
     ...(pluginRegistry ? pluginRegistry.getToolDefinitions() : []),
+    ...(pluginRegistry ? PLUGIN_TOOL_DEFINITIONS : []),
     ...(isTidepoolCallRef.value && tidepoolToolsRef.value
       ? TOOL_GROUPS.tidepool()
       : []),
