@@ -718,18 +718,60 @@ src/cli/commands/
   plugin.ts             # CLI plugin subcommands (search/install/update/publish/scan/list)
 ```
 
-### Hot-Reload: Runtime Plugin Management
+### Agent Build→Load Flow
 
-Plugins can be installed, reloaded, and inspected at runtime without restarting
-Triggerfish. Three LLM-callable management tools are registered automatically:
+The primary plugin workflow is the agent building a plugin and loading it in the
+same conversation. The agent uses the exec environment to write plugin code,
+scans it for security issues, then loads it — no config entry or restart needed.
 
-| Tool             | Description                               |
-| ---------------- | ----------------------------------------- |
-| `plugin_list`    | List all registered plugins with metadata |
-| `plugin_install` | Install a plugin from disk at runtime     |
-| `plugin_reload`  | Reload a running plugin (hot-swap)        |
+**Example agent workflow:**
 
-**How hot-reload works:**
+```
+1. Agent writes mod.ts to workspace (using exec write tool)
+2. Agent calls plugin_scan({ path: "/path/to/workspace/my-plugin" })
+   → scanner reports ok or lists warnings to fix
+3. Agent calls plugin_install({ name: "my-plugin", path: "/path/to/workspace/my-plugin" })
+   → security scan (mandatory), import, validate, register
+   → plugin tools immediately available on the next turn
+4. Agent (or user) can now call plugin_my-plugin_<tool>
+```
+
+No `triggerfish.yaml` entry is required. Plugins loaded without config default
+to **sandboxed** trust and use the classification declared in their manifest.
+
+### Runtime Plugin Management Tools
+
+Four LLM-callable management tools are registered automatically:
+
+| Tool             | Description                                                      |
+| ---------------- | ---------------------------------------------------------------- |
+| `plugin_list`    | List all registered plugins with metadata and source paths       |
+| `plugin_install` | Load a plugin by name or path — no config required               |
+| `plugin_reload`  | Hot-swap a running plugin from its original source path          |
+| `plugin_scan`    | Security-scan a plugin directory before loading                  |
+
+**`plugin_install` parameters:**
+
+| Parameter | Required | Description                                                           |
+| --------- | -------- | --------------------------------------------------------------------- |
+| `name`    | yes      | Plugin name. Used as the tool prefix (`plugin_<name>_`)               |
+| `path`    | no       | Absolute path to plugin directory. Defaults to `~/.triggerfish/plugins/<name>` |
+
+When `path` is provided, the plugin is loaded from that directory — this is how
+the agent loads a plugin it just built in its workspace. When omitted, it loads
+from the standard plugins directory.
+
+**`plugin_scan` parameters:**
+
+| Parameter | Required | Description                                    |
+| --------- | -------- | ---------------------------------------------- |
+| `path`    | yes      | Absolute path to plugin directory to scan      |
+
+Returns a JSON object with `ok`, `warnings`, and `scannedFiles` fields. The
+agent should call this before `plugin_install` to identify and fix any security
+issues in code it just wrote.
+
+**Hot-reload with `plugin_reload`:**
 
 The registry's `getExtraTools` reads live from an internal `Map`. When a plugin
 is reloaded, the old entry is unregistered and a fresh version is re-imported,
@@ -738,9 +780,9 @@ validated, and registered. The next LLM turn sees the updated tools immediately.
 ```
 plugin_reload("my-plugin")
   → unregister old plugin
-  → re-scan & re-import mod.ts
+  → security scan from original source path
+  → re-import mod.ts
   → validate manifest + exports
-  → security scan (if scanner configured)
   → create new executor
   → register new version
   → update classification maps
@@ -749,34 +791,15 @@ plugin_reload("my-plugin")
 If any step fails, the old plugin version is rolled back into the registry so
 the system never enters a state with a half-loaded plugin.
 
-**Implementation:** `src/plugin/tools.ts`
-
-```typescript
-interface PluginToolsOptions {
-  readonly registry: PluginRegistry;
-  readonly getSessionTaint: () => ClassificationLevel;
-  readonly pluginsConfig: Readonly<Record<string, PluginConfigEntry>>;
-  readonly toolClassifications: Map<string, ClassificationLevel>;
-  readonly integrationClassifications: Map<string, ClassificationLevel>;
-  readonly scanPlugin?: (dir: string) => Promise<PluginScanResult>;
-}
-
-function createPluginToolExecutor(opts: PluginToolsOptions): SubsystemExecutor;
-```
-
-The `scanPlugin` option is optional — when provided, both `plugin_install` and
-`plugin_reload` run a security scan before accepting the plugin.
-
 **Install flow at runtime:**
 
-1. Check plugin is enabled in `triggerfish.yaml` (`pluginsConfig`)
-2. Check plugin is not already registered (prevents duplicates)
-3. Security scan the plugin directory (if scanner configured)
-4. Dynamic `import()` the mod.ts
-5. Validate manifest and exports
-6. Create executor via `createExecutor(context)`
-7. Register in the plugin registry
-8. Inject tool classifications into the mutable classification maps
+1. Security scan the plugin directory (mandatory — scanner is the gatekeeper)
+2. Dynamic `import()` the mod.ts
+3. Validate manifest and exports
+4. Resolve trust level (sandboxed unless both manifest and config say "trusted")
+5. Create executor via `createExecutor(context)`
+6. Register in the plugin registry
+7. Inject tool classifications into the mutable classification maps
 
 ### Security Scanning
 

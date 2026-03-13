@@ -256,6 +256,6 @@ export async function scanPluginDirectory(
  */
 export function createPluginScanner(): (
   pluginDir: string,
-) => Promise<{ readonly ok: boolean; readonly warnings: readonly string[] }> {
+) => Promise<PluginScanResult> {
   return scanPluginDirectory;
 }
