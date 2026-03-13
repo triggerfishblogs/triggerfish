@@ -100,7 +100,13 @@ export function assembleOrchestratorConfig(
     getExtraSystemPromptSections: config.getExtraSystemPromptSections,
     toolExecutor: config.toolExecutor,
     onEvent: (event) => {
-      if (state.activeSend) state.activeSend(event as ChatEvent);
+      if (!state.activeSend) return;
+      const evt = event as ChatEvent;
+      if (evt.type === "response") {
+        state.activeSend({ ...evt, taint: getSessionTaint() });
+      } else {
+        state.activeSend(evt);
+      }
     },
     compactorConfig: config.compactorConfig,
     systemPromptSections: config.systemPromptSections,

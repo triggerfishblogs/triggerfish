@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ChatMessage } from "../../lib/types.js";
+  import { classificationColor } from "../../lib/types.js";
   import { renderMarkdown } from "../../lib/utils/markdown.js";
   import { formatTimestamp } from "../../lib/utils/formatTime.js";
   import ToolCall from "./ToolCall.svelte";
@@ -13,6 +14,12 @@
 
   const html = $derived(
     message.role === "user" ? message.text : renderMarkdown(message.text),
+  );
+
+  const taintStyle = $derived(
+    message.taint && message.taint !== "PUBLIC"
+      ? `border-color: ${classificationColor(message.taint)}; box-shadow: 0 0 8px ${classificationColor(message.taint)}`
+      : undefined,
   );
 </script>
 
@@ -28,7 +35,13 @@
       {/each}
     </div>
   {/if}
-  <div class="message" class:user={message.role === "user"} class:assistant={message.role === "assistant"} class:error={message.role === "error"}>
+  <div
+    class="message"
+    class:user={message.role === "user"}
+    class:assistant={message.role === "assistant"}
+    class:error={message.role === "error"}
+    style={taintStyle}
+  >
     {#if message.role === "user"}
       <div class="message-content user-content">{message.text}</div>
     {:else}
