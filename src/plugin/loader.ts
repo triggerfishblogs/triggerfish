@@ -164,7 +164,11 @@ export async function importPluginModule(
   modPath: string,
 ): Promise<Result<PluginExports, string>> {
   try {
-    const mod = await import(modPath);
+    // Append cache-busting query to force re-import on reload.
+    // Deno caches dynamic imports by URL — without this, overwritten
+    // files return the stale cached module.
+    const cacheBust = `?t=${Date.now()}`;
+    const mod = await import(`${modPath}${cacheBust}`);
     return validatePluginExports(mod, modPath);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
