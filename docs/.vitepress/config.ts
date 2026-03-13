@@ -9,6 +9,9 @@ const recentPostsLabel: Record<string, string> = {
   "hi-IN": "हालिया पोस्ट", "ar-SA": "أحدث المقالات", "fil-PH": "Mga Kamakailang Post",
   "he-IL": "פוסטים אחרונים", "fa-IR": "مطالب اخیر", "pt-BR": "Publicações recentes",
   "de-DE": "Neueste Beiträge", "it-IT": "Articoli recenti",
+  "ja-JP": "最近の投稿", "nb-NO": "Nylige innlegg", "nl-NL": "Recente berichten",
+  "sv-SE": "Senaste inlägg", "ur-PK": "حالیہ پوسٹس", "kn-IN": "ಇತ್ತೀಚಿನ ಪೋಸ್ಟ್‌ಗಳು",
+  "mr-IN": "अलीकडील पोस्ट", "ta-IN": "சமீபத்திய இடுகைகள்", "ms-MY": "Siaran Terkini",
 };
 
 const tagsLabel: Record<string, string> = {
@@ -18,6 +21,9 @@ const tagsLabel: Record<string, string> = {
   "hi-IN": "टैग", "ar-SA": "الوسوم", "fil-PH": "Mga Tag",
   "he-IL": "תגיות", "fa-IR": "برچسب‌ها", "pt-BR": "Tags",
   "de-DE": "Schlagwörter", "it-IT": "Tag",
+  "ja-JP": "タグ", "nb-NO": "Tagger", "nl-NL": "Tags",
+  "sv-SE": "Taggar", "ur-PK": "ٹیگز", "kn-IN": "ಟ್ಯಾಗ್‌ಗಳು",
+  "mr-IN": "टॅग", "ta-IN": "குறிச்சொற்கள்", "ms-MY": "Tag",
 };
 
 function getBlogSidebar(locale = "") {
@@ -98,6 +104,15 @@ import {
   ptBR,
   deDE,
   itIT,
+  jaJP,
+  nbNO,
+  nlNL,
+  svSE,
+  urPK,
+  knIN,
+  mrIN,
+  taIN,
+  msMY,
 } from "./locales/mod.ts";
 
 export default defineConfig({
@@ -174,6 +189,9 @@ export default defineConfig({
         ["zh-CN", zhCN], ["zh-TW", zhTW], ["ko-KR", koKR], ["hi-IN", hiIN],
         ["ar-SA", arSA], ["fil-PH", filPH], ["he-IL", heIL], ["fa-IR", faIR],
         ["pt-BR", ptBR], ["de-DE", deDE], ["it-IT", itIT],
+        ["ja-JP", jaJP], ["nb-NO", nbNO], ["nl-NL", nlNL],
+        ["sv-SE", svSE], ["ur-PK", urPK], ["kn-IN", knIN],
+        ["mr-IN", mrIN], ["ta-IN", taIN], ["ms-MY", msMY],
       ].map(([key, cfg]) => [
         key,
         {
@@ -757,6 +775,177 @@ export default defineConfig({
                   selectText: "per selezionare",
                   navigateText: "per navigare",
                   closeText: "per chiudere",
+                },
+              },
+            },
+          },
+          "ja-JP": {
+            translations: {
+              button: {
+                buttonText: "検索",
+                buttonAriaLabel: "検索",
+              },
+              modal: {
+                displayDetails: "詳細リストを表示",
+                resetButtonTitle: "検索をリセット",
+                backButtonTitle: "検索を閉じる",
+                noResultsText: "結果なし",
+                footer: {
+                  selectText: "選択",
+                  navigateText: "ナビゲート",
+                  closeText: "閉じる",
+                },
+              },
+            },
+          },
+          "nb-NO": {
+            translations: {
+              button: {
+                buttonText: "Søk",
+                buttonAriaLabel: "Søk",
+              },
+              modal: {
+                displayDetails: "Vis detaljert liste",
+                resetButtonTitle: "Tilbakestill søk",
+                backButtonTitle: "Lukk søk",
+                noResultsText: "Ingen resultater for",
+                footer: {
+                  selectText: "for å velge",
+                  navigateText: "for å navigere",
+                  closeText: "for å lukke",
+                },
+              },
+            },
+          },
+          "nl-NL": {
+            translations: {
+              button: {
+                buttonText: "Zoeken",
+                buttonAriaLabel: "Zoeken",
+              },
+              modal: {
+                displayDetails: "Gedetailleerde lijst weergeven",
+                resetButtonTitle: "Zoekopdracht resetten",
+                backButtonTitle: "Zoekopdracht sluiten",
+                noResultsText: "Geen resultaten voor",
+                footer: {
+                  selectText: "om te selecteren",
+                  navigateText: "om te navigeren",
+                  closeText: "om te sluiten",
+                },
+              },
+            },
+          },
+          "sv-SE": {
+            translations: {
+              button: {
+                buttonText: "Sök",
+                buttonAriaLabel: "Sök",
+              },
+              modal: {
+                displayDetails: "Visa detaljerad lista",
+                resetButtonTitle: "Återställ sökning",
+                backButtonTitle: "Stäng sökning",
+                noResultsText: "Inga resultat för",
+                footer: {
+                  selectText: "för att välja",
+                  navigateText: "för att navigera",
+                  closeText: "för att stänga",
+                },
+              },
+            },
+          },
+          "ur-PK": {
+            translations: {
+              button: {
+                buttonText: "تلاش",
+                buttonAriaLabel: "تلاش",
+              },
+              modal: {
+                displayDetails: "تفصیلی فہرست دکھائیں",
+                resetButtonTitle: "تلاش ری سیٹ کریں",
+                backButtonTitle: "تلاش بند کریں",
+                noResultsText: "کوئی نتائج نہیں",
+                footer: {
+                  selectText: "منتخب کرنے کے لیے",
+                  navigateText: "نیویگیٹ کرنے کے لیے",
+                  closeText: "بند کرنے کے لیے",
+                },
+              },
+            },
+          },
+          "kn-IN": {
+            translations: {
+              button: {
+                buttonText: "ಹುಡುಕಿ",
+                buttonAriaLabel: "ಹುಡುಕಿ",
+              },
+              modal: {
+                displayDetails: "ವಿವರವಾದ ಪಟ್ಟಿ ತೋರಿಸಿ",
+                resetButtonTitle: "ಹುಡುಕಾಟ ಮರುಹೊಂದಿಸಿ",
+                backButtonTitle: "ಹುಡುಕಾಟ ಮುಚ್ಚಿ",
+                noResultsText: "ಯಾವುದೇ ಫಲಿತಾಂಶವಿಲ್ಲ",
+                footer: {
+                  selectText: "ಆಯ್ಕೆ ಮಾಡಲು",
+                  navigateText: "ನ್ಯಾವಿಗೇಟ್ ಮಾಡಲು",
+                  closeText: "ಮುಚ್ಚಲು",
+                },
+              },
+            },
+          },
+          "mr-IN": {
+            translations: {
+              button: {
+                buttonText: "शोधा",
+                buttonAriaLabel: "शोधा",
+              },
+              modal: {
+                displayDetails: "तपशीलवार यादी दाखवा",
+                resetButtonTitle: "शोध रीसेट करा",
+                backButtonTitle: "शोध बंद करा",
+                noResultsText: "कोणतेही परिणाम नाहीत",
+                footer: {
+                  selectText: "निवडण्यासाठी",
+                  navigateText: "नेव्हिगेट करण्यासाठी",
+                  closeText: "बंद करण्यासाठी",
+                },
+              },
+            },
+          },
+          "ta-IN": {
+            translations: {
+              button: {
+                buttonText: "தேடு",
+                buttonAriaLabel: "தேடு",
+              },
+              modal: {
+                displayDetails: "விரிவான பட்டியலைக் காட்டு",
+                resetButtonTitle: "தேடலை மீட்டமை",
+                backButtonTitle: "தேடலை மூடு",
+                noResultsText: "முடிவுகள் இல்லை",
+                footer: {
+                  selectText: "தேர்ந்தெடுக்க",
+                  navigateText: "வழிசெலுத்த",
+                  closeText: "மூட",
+                },
+              },
+            },
+          },
+          "ms-MY": {
+            translations: {
+              button: {
+                buttonText: "Cari",
+                buttonAriaLabel: "Cari",
+              },
+              modal: {
+                displayDetails: "Papar senarai terperinci",
+                resetButtonTitle: "Set semula carian",
+                backButtonTitle: "Tutup carian",
+                noResultsText: "Tiada keputusan untuk",
+                footer: {
+                  selectText: "untuk memilih",
+                  navigateText: "untuk menavigasi",
+                  closeText: "untuk menutup",
                 },
               },
             },

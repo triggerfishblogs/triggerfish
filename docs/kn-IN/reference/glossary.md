@@ -1,0 +1,35 @@
+# Glossary
+
+| Term                         | ವ್ಯಾಖ್ಯಾನ                                                                                                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agent Team**               | ವಿಭಿನ್ನ roles ಜೊತೆ collaborating agent sessions ನ persistent group. ಒಬ್ಬ member lead ಆಗಿ ಕೆಲಸ coordinate ಮಾಡುತ್ತಾರೆ. `team_create` ಮೂಲಕ ತಯಾರಿಸಲ್ಪಡುತ್ತದೆ, lifecycle checks ಜೊತೆ monitor. |
+| **A2UI**                     | Agent-to-UI protocol, real time ನಲ್ಲಿ agent ನಿಂದ Tide Pool workspace ಗೆ visual content push ಮಾಡಲು.                                                                                  |
+| **Background Session**       | Autonomous tasks (cron, triggers) ಗಾಗಿ spawn ಮಾಡಿದ session, fresh PUBLIC taint ಜೊತೆ ಪ್ರಾರಂಭಿಸಿ isolated workspace ನಲ್ಲಿ ಚಲಿಸುತ್ತದೆ.                                              |
+| **Buoy**                     | Companion native app (iOS, Android) agent ಗೆ camera, location, screen recording, ಮತ್ತು push notifications ನಂತಹ device capabilities ನೀಡುತ್ತದೆ. (Coming soon.)                       |
+| **Classification**           | Data, channels, ಮತ್ತು recipients ಗೆ assign ಮಾಡಿದ sensitivity label. ನಾಲ್ಕು levels: RESTRICTED, CONFIDENTIAL, INTERNAL, PUBLIC.                                                      |
+| **Cron**                     | Standard cron expression syntax ಬಳಸಿ specified time ನಲ್ಲಿ agent execute ಮಾಡುವ scheduled recurring task.                                                                            |
+| **Dive**                     | First-run setup wizard (`triggerfish dive`) `triggerfish.yaml`, SPINE.md, ಮತ್ತು initial configuration scaffold ಮಾಡುತ್ತದೆ.                                                          |
+| **Effective Classification** | Output decisions ಗಾಗಿ ಬಳಸಿದ classification level, `min(channel_classification, recipient_classification)` ಆಗಿ calculate ಮಾಡಲ್ಪಡುತ್ತದೆ.                                           |
+| **Exec Environment**         | Agent ನ code workspace, tight write-run-fix feedback loop ನಲ್ಲಿ code write, run, ಮತ್ತು debug ಮಾಡಲು. Plugin Sandbox ನಿಂದ ಭಿನ್ನ.                                                    |
+| **Failover**                 | Current provider rate limiting, server errors, ಅಥವಾ timeouts ಕಾರಣ ಲಭ್ಯವಿಲ್ಲದಿದ್ದಾಗ alternate LLM provider ಗೆ automatic fallback.                                                  |
+| **Gateway**                  | WebSocket JSON-RPC endpoint ಮೂಲಕ sessions, channels, tools, events, ಮತ್ತು agent processes manage ಮಾಡುವ long-running local control plane.                                            |
+| **Hook**                     | Data flow ನಲ್ಲಿ deterministic enforcement point, policy engine rules evaluate ಮಾಡಿ allow, block, ಅಥವಾ redact ಮಾಡಲು ನಿರ್ಧರಿಸುತ್ತದೆ.                                               |
+| **Lineage**                  | Triggerfish process ಮಾಡಿದ ಪ್ರತಿ data element ನ origin, transformations, ಮತ್ತು current location track ಮಾಡುವ provenance metadata.                                                   |
+| **LlmProvider**              | LLM completions ಗಾಗಿ interface, ಪ್ರತಿ supported provider (Anthropic, OpenAI, Google, Local, OpenRouter) implement ಮಾಡುತ್ತದೆ.                                                       |
+| **MCP**                      | Model Context Protocol, agent-tool ಸಂವಾದದ ಮಾನದಂಡ. Triggerfish ನ MCP Gateway ಯಾವುದೇ MCP server ಗೆ classification controls ಸೇರಿಸುತ್ತದೆ.                                            |
+| **No Write-Down**            | Data ಸಮಾನ ಅಥವಾ ಹೆಚ್ಚಿನ classification level ಗೆ ಮಾತ್ರ flow ಮಾಡಬಹುದು ಎಂಬ fixed, non-configurable rule.                                                                            |
+| **NotificationService**      | Priority, queuing, ಮತ್ತು deduplication ಜೊತೆ ಎಲ್ಲ connected channels ನಲ್ಲಿ owner notifications deliver ಮಾಡಲು unified abstraction.                                                   |
+| **Patrol**                   | Gateway, LLM providers, channels, ಮತ್ತು policy configuration verify ಮಾಡುವ diagnostic health check command (`triggerfish patrol`).                                                  |
+| **Reef (The)**               | Triggerfish skills discover, install, publish, ಮತ್ತು manage ಮಾಡಲು community skill marketplace.                                                                                     |
+| **Ripple**                   | Supported channels ನಲ್ಲಿ relay ಮಾಡಲ್ಪಡುವ real-time typing indicators ಮತ್ತು online status signals.                                                                                  |
+| **Session**                  | Independent taint tracking ಜೊತೆ conversation state ನ fundamental unit. ಪ್ರತಿ session unique ID, user, channel, taint level, ಮತ್ತು history ಹೊಂದಿರುತ್ತದೆ.                         |
+| **Skill**                    | `SKILL.md` file ಮತ್ತು optional supporting files ಒಳಗೊಂಡ folder, plugins write ಮಾಡದೆ agent ಗೆ ಹೊಸ capabilities ನೀಡುತ್ತದೆ.                                                         |
+| **SPINE.md**                 | System prompt foundation ಆಗಿ load ಮಾಡಲ್ಪಡುವ agent identity ಮತ್ತು mission file. Personality, rules, ಮತ್ತು boundaries define ಮಾಡುತ್ತದೆ. Triggerfish ನ CLAUDE.md equivalent.      |
+| **StorageProvider**          | ಎಲ್ಲ stateful data flow ಆಗುವ unified persistence abstraction (key-value interface). Implementations: Memory, SQLite, ಮತ್ತು enterprise backends.                                    |
+| **Taint**                    | Session access ಮಾಡಿದ data ಆಧರಿಸಿ session ಗೆ attached classification level. Taint session ಒಳಗೆ ಕೇವಲ escalate ಆಗಬಹುದು, ಕಡಿಮೆ ಆಗಲಾಗದು.                                           |
+| **Tide Pool**                | A2UI protocol ಬಳಸಿ interactive content (dashboards, charts, forms) render ಮಾಡುವ Triggerfish ನ agent-driven visual workspace.                                                       |
+| **TRIGGER.md**               | Agent ನ proactive behavior definition file, periodic trigger wakeups ಸಮಯದಲ್ಲಿ ಏನನ್ನು check, monitor, ಮತ್ತು act ಮಾಡಬೇಕು ಎಂದು specify ಮಾಡುತ್ತದೆ.                               |
+| **Webhook**                  | External services (GitHub, Sentry, ಇತ್ಯಾದಿ) ನಿಂದ events ಸ್ವೀಕರಿಸಿ agent actions trigger ಮಾಡುವ inbound HTTP endpoint.                                                            |
+| **Team Lead**                | Agent team ನ designated coordinator. Team objective ಸ್ವೀಕರಿಸಿ, ಕೆಲಸ decompose ಮಾಡಿ, members ಗೆ tasks assign ಮಾಡಿ, team done ಎಂದು ಯಾವಾಗ ಎಂದು ನಿರ್ಧರಿಸುತ್ತಾರೆ.            |
+| **Workspace**                | Agent ತನ್ನ code write ಮತ್ತು execute ಮಾಡುವ per-agent filesystem directory, ಇತರ agents ನಿಂದ isolated.                                                                               |
+| **Write-Down**               | Higher classification level ನಿಂದ lower level ಗೆ data ನ prohibited flow (ಉದಾ., CONFIDENTIAL data PUBLIC channel ಗೆ ಕಳಿಸುವುದು).                                                    |
