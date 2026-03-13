@@ -275,3 +275,71 @@ to lower-classification sessions.
 **Fix:** Escalate your session taint to match or exceed the workflow's
 classification level before deleting it. Or delete it from the same session type
 where it was originally saved.
+
+---
+
+## Self-Healing
+
+### "Step metadata missing on task 'X': self-healing requires description, expects, produces"
+
+When `self_healing.enabled` is `true`, every task must have all three metadata
+fields. The parser rejects the workflow at save time if any are missing.
+
+**Fix:** Add `description`, `expects`, and `produces` to every task's `metadata`
+block:
+
+```yaml
+- my-task:
+    call: http
+    with:
+      endpoint: "https://example.com/api"
+    metadata:
+      description: "What this step does and why"
+      expects: "What this step needs as input"
+      produces: "What this step outputs"
+```
+
+---
+
+### "Self-healing config mutation rejected in version proposal"
+
+The healing agent proposed a new workflow version that modifies the
+`self_healing` config block. This is prohibited — the agent cannot change its
+own healing configuration.
+
+This is working as intended. Only humans can modify the `self_healing` config
+by saving a new version of the workflow directly via `workflow_save`.
+
+---
+
+### Healing agent not spawning
+
+The workflow runs but no healing agent appears. Check:
+
+1. **`enabled` is `true`** in `metadata.triggerfish.self_healing`.
+2. **Config is in the right location** — must be nested under
+   `metadata.triggerfish.self_healing`, not at the top level.
+3. **All steps have metadata** — if validation fails at save time, the workflow
+   was saved without self-healing enabled.
+
+---
+
+### Proposed fixes stuck in pending
+
+If `approval_required` is `true` (the default), proposed versions wait for
+human review. Use `workflow_version_list` to see pending proposals and
+`workflow_version_approve` or `workflow_version_reject` to act on them.
+
+---
+
+### "Retry budget exhausted" / Unresolvable escalation
+
+The healing agent has used all its intervention attempts (default 3) without
+resolving the issue. It escalates as `unresolvable` and stops attempting fixes.
+
+**Fix:**
+
+- Check `workflow_healing_status` to see what interventions were tried.
+- Review and fix the underlying issue manually.
+- To allow more attempts, increase `retry_budget` in the self-healing config
+  and re-save the workflow.
