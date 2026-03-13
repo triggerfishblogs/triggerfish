@@ -560,6 +560,12 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     clear() {
       orchestrator.clearHistory(getSession().id);
       if (config.resetSession) config.resetSession();
+      if (config.broadcastChatEvent) {
+        config.broadcastChatEvent({
+          type: "taint_changed",
+          level: "PUBLIC" as ClassificationLevel,
+        });
+      }
     },
     compact: (sendEvent) =>
       compactChatHistory(orchestrator, getSession, sendEvent, config),

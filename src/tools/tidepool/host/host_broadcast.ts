@@ -66,6 +66,7 @@ function sendChatConnectedStatus(
         provider: chatSession.providerName,
         model: chatSession.modelName,
         workspace: chatSession.workspacePath,
+        taint: chatSession.sessionTaint,
       }),
     );
   }
