@@ -85,7 +85,7 @@ function createBumpersTestOrchestrator(
   const countingProvider: LlmProvider = {
     name: "mock",
     supportsStreaming: false,
-    async complete(messages, tools, options) {
+    complete(messages, tools, options) {
       callCount++;
       return baseProvider.complete(messages, tools, options);
     },
