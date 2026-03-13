@@ -23,6 +23,8 @@ This is the maintenance trap, and it's structural rather than a failure of imple
 
 Triggerfish's workflow engine was built to change this. Self-healing workflows ship today, and they represent the most significant capability in the platform so far.
 
+![](/blog/images/watcher-model-diagram.jpg)
+
 ## What Self-Healing Actually Means
 
 The phrase gets used loosely, so let me be direct about what this is.
@@ -43,6 +45,8 @@ Every step in a workflow has four required fields beyond the task definition its
 
 Here's what that looks like in practice. Say you're automating employee access provisioning. A new hire starts Monday and the workflow needs to create accounts in Active Directory, provision their GitHub org membership, assign their Okta groups, and open a Jira ticket confirming completion. One step fetches the employee record from your HR system. Its intent field doesn't just say "get the employee record." It reads: "This step is the source of truth for every downstream provisioning decision. Role, department, and start date from this record determine which AD groups get assigned, which GitHub teams get provisioned, and which Okta policies apply. If this step returns stale or incomplete data, every downstream step will provision the wrong access."
 
+![](/blog/images/employee-recrod.jpg)
+
 The lead reads that intent statement when the step fails and understands what's at stake. It knows that a partial record means the access provisioning steps will run with bad inputs, potentially granting wrong permissions to a real person starting in two days. That context shapes how it tries to recover, whether it pauses downstream steps, and what it tells you if it escalates.
 
 Another step in the same workflow checks the produces field of the HR fetch step and knows it's expecting `.employee.role` and `.employee.department` as non-empty strings. If your HR system updates its API and starts returning those fields nested under `.employee.profile.role` instead, the lead detects the schema drift, applies a runtime mapping for this run so the new hire gets provisioned correctly, and proposes a structural fix to update the step definition. You didn't write a schema migration rule or exception handling for this specific case. The lead reasoned to it from the context that was already there.
@@ -54,6 +58,8 @@ This is why workflow authoring quality matters. The metadata isn't ceremony; it'
 Because the lead is watching in real time, it can act on soft signals before things actually break. A step that historically completes in two seconds is now taking forty. A step that returned data in every prior run returns an empty result. A conditional branch is taken that has never been taken in the full run history. None of these are hard errors and the workflow keeps running, but they're signals that something has changed in the environment. It's better to catch them before the next step tries to consume bad data.
 
 The sensitivity of these checks is configurable per workflow. A nightly report generation might have loose thresholds while an access provisioning pipeline watches closely. You set what level of deviation warrants the lead's attention.
+
+![](/blog/images/self-healing-workflow.jpg)
 
 ## It's Still Your Workflow
 
@@ -68,6 +74,8 @@ Plugin changes follow the same approval path as any plugin authored by an agent 
 You shouldn't have to log into a separate dashboard to know what your workflows are doing. Self-healing notifications come through wherever you've configured Triggerfish to reach you: an intervention summary on Slack, an approval request on Telegram, an escalation report by email. The system comes to you on the channel that makes sense for the urgency without you refreshing a monitoring console.
 
 The workflow status model is built for this. Status isn't a flat string but a structured object that carries everything a notification needs to be meaningful: the current state, the health signal, whether a patch is in your approval queue, the outcome of the last run, and what the lead is currently doing. Your Slack message can say "the access provisioning workflow is paused, the lead is authoring a plugin fix, approval will be required" in a single notification with no hunting for context.
+
+![](/blog/images/workflow-status-reporting.jpg)
 
 That same structured status feeds the live Tidepool interface when you want the full picture. Same data, different surface.
 
