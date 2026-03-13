@@ -23,6 +23,7 @@ export const SESSION_MANAGEMENT_TOOLS = new Set([
   "sessions_history",
   "sessions_send",
   "sessions_spawn",
+  "current_session_taint",
 ]);
 
 /** Format a session record for display. */
@@ -234,6 +235,19 @@ async function executeSessionsSpawn(
   }
 }
 
+/** Handle session_taint: return the caller's current taint level. */
+function executeSessionTaint(ctx: SessionToolContext): string {
+  const taint = ctx.getCallerTaint
+    ? ctx.getCallerTaint()
+    : ctx.callerTaint;
+  log.info("Session taint queried", {
+    operation: "executeSessionTaint",
+    callerSessionId: ctx.callerSessionId,
+    taint,
+  });
+  return JSON.stringify({ taint });
+}
+
 /**
  * Dispatch a session management tool call.
  *
@@ -254,6 +268,8 @@ export async function dispatchSessionTool(
       return executeSessionsSend(ctx, input);
     case "sessions_spawn":
       return executeSessionsSpawn(ctx, input);
+    case "current_session_taint":
+      return executeSessionTaint(ctx);
     default:
       return null;
   }

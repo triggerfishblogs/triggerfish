@@ -135,6 +135,16 @@ function buildSessionsSpawnDef(): ToolDefinition {
   };
 }
 
+function buildSessionTaintDef(): ToolDefinition {
+  return {
+    name: "current_session_taint",
+    description:
+      "Get the current session's classification taint level (PUBLIC, INTERNAL, CONFIDENTIAL, or RESTRICTED). " +
+      "Taint escalates when classified data is accessed and can never decrease within a session.",
+    parameters: {},
+  };
+}
+
 function buildChannelsListDef(): ToolDefinition {
   return {
     name: "channels_list",
@@ -179,6 +189,7 @@ export function getSessionToolDefinitions(): readonly ToolDefinition[] {
     buildSessionsHistoryDef(),
     buildSessionsSendDef(),
     buildSessionsSpawnDef(),
+    buildSessionTaintDef(),
     buildChannelsListDef(),
   ];
 }
@@ -198,6 +209,7 @@ export const SESSION_TOOLS_SYSTEM_PROMPT = `## Session & Channel Management
 Write-down enforcement applies to all cross-session and cross-channel communication:
 you cannot send data to a channel or session whose classification is lower than your current session taint.
 
+- \`current_session_taint\`: check your current classification taint level (PUBLIC → INTERNAL → CONFIDENTIAL → RESTRICTED)
 - \`sessions_list\`: list all sessions, or pass session_id for one session's status
 - \`sessions_send\`: send to a session (session_id + content) or channel (channel + recipient + text)
 - \`sessions_spawn\`: create background sessions for autonomous tasks (starts at PUBLIC taint)
