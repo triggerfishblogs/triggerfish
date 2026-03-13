@@ -14,7 +14,7 @@ enforcement, taint tracking, policy hooks, and full audit logging.
 | Pathway                                | Purpose                                          | Best For                                                                      |
 | -------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------- |
 | [MCP Gateway](./mcp-gateway)           | Connect external tool servers                    | Standardized agent-to-tool communication via the Model Context Protocol       |
-| [Plugin SDK](./plugins)                | Run sandboxed custom code                        | CRUD operations on external systems, complex data transformations, workflows  |
+| [Plugins](./plugins)                   | Extend the agent with custom tools               | Agent-built integrations, API connectors, external system queries, workflows  |
 | [Exec Environment](./exec-environment) | Agent writes and runs its own code               | Building integrations, prototyping, testing, and iterating in a feedback loop |
 | [Skills](./skills)                     | Give the agent new capabilities via instructions | Reusable behaviors, community marketplace, agent self-authoring               |
 | [Browser Automation](./browser)        | Control a browser instance via CDP               | Web research, form filling, scraping, automated web workflows                 |
@@ -77,9 +77,9 @@ Use this decision guide to pick the integration pathway that fits your use case:
 
 - **You want to connect a standard tool server** -- Use the
   [MCP Gateway](./mcp-gateway). If a tool speaks MCP, this is the path.
-- **You need to run custom code against an external API** -- Use the
-  [Plugin SDK](./plugins). Plugins run in a double sandbox with strict
-  isolation.
+- **You need to run custom code against an external API** -- Use
+  [Plugins](./plugins). The agent can build, scan, and load plugins at
+  runtime. Plugins run sandboxed with security scanning.
 - **You want the agent to build and iterate on code** -- Use the
   [Exec Environment](./exec-environment). The agent gets a workspace with a full
   write/run/fix loop.
