@@ -36,15 +36,16 @@ async function verifyDirectoryExists(path: string): Promise<boolean> {
   }
 }
 
-/** Resolve a per-call cwd within the workspace, returning null if it escapes. */
+/** Resolve a per-call cwd relative to a base directory, returning null if it escapes the jail. */
 function resolvePerCallCwd(
-  workspace: Workspace,
+  basePath: string,
+  jailPath: string,
   cwd: string,
 ): string | null {
   const resolved = cwd.startsWith("/")
     ? resolve(cwd)
-    : resolve(join(workspace.path, cwd));
-  if (!isWithinJail(resolved, workspace.path)) return null;
+    : resolve(join(basePath, cwd));
+  if (!isWithinJail(resolved, jailPath)) return null;
   return resolved;
 }
 
@@ -54,8 +55,11 @@ function resolveEffectiveCwd(
   options: ExecToolsOptions | undefined,
   perCallCwd: string | undefined,
 ): Result<string, string> {
+  // The cwdOverride base is the taint-appropriate directory (e.g., public/).
+  // Per-call cwd must resolve relative to that base, not the workspace root.
+  const basePath = resolveCwd(workspace, options);
   if (perCallCwd !== undefined) {
-    const resolved = resolvePerCallCwd(workspace, perCallCwd);
+    const resolved = resolvePerCallCwd(basePath, workspace.path, perCallCwd);
     if (resolved === null) {
       log.warn("Working directory path escapes workspace jail", {
         operation: "runShellCommand",
@@ -69,7 +73,7 @@ function resolveEffectiveCwd(
     }
     return { ok: true, value: resolved };
   }
-  return { ok: true, value: resolveCwd(workspace, options) };
+  return { ok: true, value: basePath };
 }
 
 /**

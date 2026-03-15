@@ -10,12 +10,17 @@ export const arSA: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "الدليل", link: "/ar-SA/guide/" },
       { text: "الأسعار", link: "/ar-SA/pricing" },
-      { text: "البنية", link: "/ar-SA/architecture/" },
-      { text: "الأمان", link: "/ar-SA/security/" },
-      { text: "القنوات", link: "/ar-SA/channels/" },
-      { text: "التكاملات", link: "/ar-SA/integrations/" },
-      { text: "الميزات", link: "/ar-SA/features/" },
-      { text: "المرجع", link: "/ar-SA/reference/" },
+      {
+        text: "المستندات",
+        items: [
+          { text: "البنية", link: "/ar-SA/architecture/" },
+          { text: "الأمان", link: "/ar-SA/security/" },
+          { text: "القنوات", link: "/ar-SA/channels/" },
+          { text: "التكاملات", link: "/ar-SA/integrations/" },
+          { text: "الميزات", link: "/ar-SA/features/" },
+          { text: "المرجع", link: "/ar-SA/reference/" },
+        ],
+      },
       { text: "الدعم", link: "/ar-SA/support/" },
     ],
     sidebar: {

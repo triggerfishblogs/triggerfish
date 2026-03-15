@@ -10,12 +10,17 @@ export const heIL: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "מדריך", link: "/he-IL/guide/" },
       { text: "תמחור", link: "/he-IL/pricing" },
-      { text: "ארכיטקטורה", link: "/he-IL/architecture/" },
-      { text: "אבטחה", link: "/he-IL/security/" },
-      { text: "ערוצים", link: "/he-IL/channels/" },
-      { text: "אינטגרציות", link: "/he-IL/integrations/" },
-      { text: "תכונות", link: "/he-IL/features/" },
-      { text: "הפניה", link: "/he-IL/reference/" },
+      {
+        text: "תיעוד",
+        items: [
+          { text: "ארכיטקטורה", link: "/he-IL/architecture/" },
+          { text: "אבטחה", link: "/he-IL/security/" },
+          { text: "ערוצים", link: "/he-IL/channels/" },
+          { text: "אינטגרציות", link: "/he-IL/integrations/" },
+          { text: "תכונות", link: "/he-IL/features/" },
+          { text: "הפניה", link: "/he-IL/reference/" },
+        ],
+      },
       { text: "תמיכה", link: "/he-IL/support/" },
     ],
     sidebar: {

@@ -16,6 +16,9 @@ const dateLocaleMap = {
   'fr-FR': 'fr-FR', 'zh-CN': 'zh-CN', 'zh-TW': 'zh-TW', 'ko-KR': 'ko-KR',
   'hi-IN': 'hi-IN', 'ar-SA': 'ar-SA', 'fil-PH': 'fil-PH', 'he-IL': 'he-IL',
   'fa-IR': 'fa-IR', 'pt-BR': 'pt-BR', 'de-DE': 'de-DE', 'it-IT': 'it-IT',
+  'ja-JP': 'ja-JP', 'nb-NO': 'nb-NO', 'nl-NL': 'nl-NL', 'sv-SE': 'sv-SE',
+  'ur-PK': 'ur-PK', 'kn-IN': 'kn-IN', 'mr-IN': 'mr-IN', 'ta-IN': 'ta-IN',
+  'ms-MY': 'ms-MY',
 }
 
 const backLabel: Record<string, string> = {
@@ -24,6 +27,9 @@ const backLabel: Record<string, string> = {
   'hi-IN': '← ब्लॉग', 'ar-SA': 'المدونة →', 'fil-PH': '← Blog',
   'he-IL': 'בלוג →', 'fa-IR': 'وبلاگ →', 'pt-BR': '← Blog',
   'de-DE': '← Blog', 'it-IT': '← Blog',
+  'ja-JP': '← ブログ', 'nb-NO': '← Blogg', 'nl-NL': '← Blog',
+  'sv-SE': '← Blogg', 'ur-PK': 'بلاگ →', 'kn-IN': '← ಬ್ಲಾಗ್',
+  'mr-IN': '← ब्लॉग', 'ta-IN': '← வலைப்பதிவு', 'ms-MY': '← Blog',
 }
 
 const blogLink = computed(() => {

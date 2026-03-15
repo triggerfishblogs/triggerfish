@@ -49,6 +49,7 @@ export function sendInitialClientState(
     socket.send(JSON.stringify(state.currentTree));
   }
   sendChatConnectedStatus(socket, chatSession);
+  sendBumpersStatus(socket, chatSession);
   sendMcpStatusIfAvailable(socket, state);
 }
 
@@ -65,6 +66,23 @@ function sendChatConnectedStatus(
         provider: chatSession.providerName,
         model: chatSession.modelName,
         workspace: chatSession.workspacePath,
+        taint: chatSession.sessionTaint,
+      }),
+    );
+  }
+}
+
+/** Send current bumpers state to a socket if a chatSession is available. */
+function sendBumpersStatus(
+  socket: WebSocket,
+  chatSession: ChatSession | undefined,
+): void {
+  if (chatSession) {
+    trySendSocketPayload(
+      socket,
+      JSON.stringify({
+        type: "bumpers_status",
+        enabled: chatSession.bumpersEnabled,
       }),
     );
   }

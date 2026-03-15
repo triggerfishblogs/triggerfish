@@ -15,11 +15,12 @@ Deno.test("tidepool: GATEWAY_PORT is 18789", async () => {
   assertEquals(GATEWAY_PORT, 18789);
 });
 
-// ─── getTidepoolUrl ───────────────────────────────────────────────────────────
+// ─── probeTidepool ───────────────────────────────────────────────────────────
 
-Deno.test("tidepool: getTidepoolUrl returns expected URL", async () => {
-  const { getTidepoolUrl } = await import("../../src/cli/commands/tidepool.ts");
-  assertEquals(getTidepoolUrl(), "http://127.0.0.1:18790");
+Deno.test("tidepool: probeTidepool returns a boolean", async () => {
+  const { probeTidepool } = await import("../../src/cli/commands/tidepool.ts");
+  const alive = await probeTidepool();
+  assertEquals(typeof alive, "boolean");
 });
 
 // ─── parseCommand for tidepool ────────────────────────────────────────────────

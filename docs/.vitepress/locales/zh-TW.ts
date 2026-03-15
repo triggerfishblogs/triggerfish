@@ -9,12 +9,17 @@ export const zhTW: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "指南", link: "/zh-TW/guide/" },
       { text: "定價", link: "/zh-TW/pricing" },
-      { text: "架構", link: "/zh-TW/architecture/" },
-      { text: "安全", link: "/zh-TW/security/" },
-      { text: "頻道", link: "/zh-TW/channels/" },
-      { text: "整合", link: "/zh-TW/integrations/" },
-      { text: "功能", link: "/zh-TW/features/" },
-      { text: "參考", link: "/zh-TW/reference/" },
+      {
+        text: "文件",
+        items: [
+          { text: "架構", link: "/zh-TW/architecture/" },
+          { text: "安全", link: "/zh-TW/security/" },
+          { text: "頻道", link: "/zh-TW/channels/" },
+          { text: "整合", link: "/zh-TW/integrations/" },
+          { text: "功能", link: "/zh-TW/features/" },
+          { text: "參考", link: "/zh-TW/reference/" },
+        ],
+      },
       { text: "支援", link: "/zh-TW/support/" },
     ],
     sidebar: {

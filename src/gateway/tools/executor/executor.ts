@@ -75,6 +75,8 @@ function buildExtendedSubsystems(
     opts.healthcheckExecutor,
     opts.claudeExecutor,
     opts.mcpExecutor,
+    opts.pluginExecutor,
+    opts.pluginToolExecutor,
     opts.secretExecutor,
     opts.triggerExecutor,
     opts.triggerManageExecutor,
@@ -83,6 +85,7 @@ function buildExtendedSubsystems(
     opts.simulateExecutor,
     opts.teamExecutor,
     opts.workflowExecutor,
+    opts.sshExecutor,
     webExecutor,
   ];
 }

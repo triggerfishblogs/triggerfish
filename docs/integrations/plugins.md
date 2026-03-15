@@ -1,38 +1,336 @@
-# Plugin SDK & Sandbox
+# Plugins
 
-Triggerfish plugins let you extend the agent with custom code that interacts
-with external systems -- CRM queries, database operations, API integrations,
-multi-step workflows -- while running inside a double sandbox that prevents the
-code from doing anything it has not explicitly been permitted to do.
+Triggerfish plugins extend the agent with custom tools. A plugin is a TypeScript
+module that exports a manifest, tool definitions, and an executor function. The
+agent can build plugins itself, scan them for security issues, and load them at
+runtime -- all within a single conversation.
 
-## Runtime Environment
+## How Plugins Work
 
-Plugins run on Deno + Pyodide (WASM). No Docker. No containers. No prerequisites
-beyond the Triggerfish installation itself.
+A plugin lives in a directory with a `mod.ts` entry point:
+
+```
+~/.triggerfish/plugins/my-plugin/
+  mod.ts    # exports: manifest, toolDefinitions, createExecutor
+```
+
+When loaded, the plugin's tools become available to the agent as
+`plugin_<name>_<toolName>`. Classification, taint, and policy hooks apply
+exactly as they do to built-in tools -- plugins are just another tool source in
+the dispatch chain.
+
+## Writing a Plugin
+
+A minimal plugin that queries a REST API:
+
+```typescript
+export const manifest = {
+  name: "weather",
+  version: "1.0.0",
+  description: "Weather forecast lookups",
+  classification: "PUBLIC" as const,
+  trust: "sandboxed" as const,
+  declaredEndpoints: ["https://api.weather.com"],
+};
+
+export const toolDefinitions = [
+  {
+    name: "forecast",
+    description: "Get the weather forecast for a city.",
+    parameters: {
+      city: {
+        type: "string",
+        description: "City name",
+        required: true,
+      },
+    },
+  },
+];
+
+export const systemPrompt = "Use `forecast` to look up weather for any city.";
+
+export function createExecutor(context) {
+  return async (name, input) => {
+    if (name !== "forecast") return null;
+    const city = input.city;
+    context.log.info("Fetching forecast", { city });
+    const resp = await fetch(
+      `https://api.weather.com/v1/forecast?city=${encodeURIComponent(city)}`,
+    );
+    return await resp.text();
+  };
+}
+```
+
+### Required Exports
+
+| Export             | Type                                | Description                                 |
+| ------------------ | ----------------------------------- | ------------------------------------------- |
+| `manifest`         | `PluginManifest`                    | Plugin identity, classification, trust, endpoints |
+| `toolDefinitions`  | `ToolDefinition[]`                  | Tools the plugin provides                   |
+| `createExecutor`   | `(context) => (name, input) => ...` | Factory that returns the tool handler       |
+| `systemPrompt`     | `string` (optional)                 | Injected into the agent system prompt       |
+
+### Manifest Fields
+
+| Field                | Type       | Description                                        |
+| -------------------- | ---------- | -------------------------------------------------- |
+| `name`               | `string`   | Must match directory name. Lowercase + hyphens only |
+| `version`            | `string`   | Semantic version (e.g. `"1.0.0"`)                  |
+| `description`        | `string`   | Human-readable description                         |
+| `classification`     | `string`   | `"PUBLIC"`, `"INTERNAL"`, `"CONFIDENTIAL"`, or `"RESTRICTED"` |
+| `trust`              | `string`   | `"sandboxed"` (default) or `"trusted"`             |
+| `declaredEndpoints`  | `string[]` | Network allowlist for sandboxed plugins             |
+
+### The Executor Function
+
+`createExecutor(context)` receives a `PluginContext` with:
+
+- `pluginName` -- the plugin's name
+- `getSessionTaint()` -- current session classification level
+- `escalateTaint(level)` -- raise session taint (cannot lower)
+- `log` -- structured logger scoped to the plugin (`debug`, `info`, `warn`,
+  `error`)
+- `config` -- plugin-specific config from `triggerfish.yaml`
+
+The returned function takes `(name: string, input: Record<string, unknown>)` and
+returns `string | null`. Return `null` for unrecognized tool names.
+
+## Agent Build→Load Flow
+
+The primary plugin workflow: the agent writes a plugin, validates it, and loads
+it -- all at runtime.
+
+```
+1. Agent writes mod.ts     →  exec_write("my-plugin/mod.ts", code)
+2. Agent scans the plugin  →  plugin_scan({ path: "/workspace/my-plugin" })
+3. Agent loads the plugin  →  plugin_install({ name: "my-plugin", path: "/workspace/my-plugin" })
+4. Plugin tools are live   →  plugin_my-plugin_forecast({ city: "Austin" })
+```
+
+No `triggerfish.yaml` entry is needed. The security scanner is the gatekeeper --
+plugins loaded without config default to **sandboxed** trust and use the
+classification from their manifest.
+
+### Agent Plugin Tools
+
+The agent has four built-in tools for managing plugins:
+
+| Tool             | Parameters                  | Description                                      |
+| ---------------- | --------------------------- | ------------------------------------------------ |
+| `plugin_scan`    | `path` (required)           | Security-scan a plugin directory before loading   |
+| `plugin_install` | `name` (required), `path`   | Load a plugin by name or path                     |
+| `plugin_reload`  | `name` (required)           | Hot-swap a running plugin from its source path    |
+| `plugin_list`    | (none)                      | List all registered plugins with metadata         |
+
+**`plugin_install` details:**
+
+- `name` -- used as the tool namespace prefix (`plugin_<name>_`)
+- `path` -- absolute path to the plugin directory. When provided, loads from
+  that path (e.g. the agent's workspace). When omitted, loads from
+  `~/.triggerfish/plugins/<name>/`
+- Security scanning is mandatory on every install. If the scan fails, the plugin
+  is rejected.
+- No config entry is required. If one exists, its trust/classification settings
+  are respected; otherwise defaults to sandboxed.
+
+**`plugin_reload` details:**
+
+Unregisters the old plugin, re-scans and re-imports from the original source
+path, then re-registers. If any step fails, the old version is restored. The
+agent sees updated tools on its next turn.
+
+## Security Scanning
+
+Every plugin is scanned for dangerous patterns before loading. The scanner runs
+at **startup** (for pre-configured plugins) and at **runtime** (on every
+`plugin_install` and `plugin_reload`).
+
+### What Gets Scanned
+
+The scanner checks all `.ts` files in the plugin directory for:
+
+| Category           | Examples                                 | Severity  |
+| ------------------ | ---------------------------------------- | --------- |
+| Code execution     | `eval()`, `new Function()`, `atob`       | Critical  |
+| Prompt injection   | "ignore previous instructions"           | Critical  |
+| Subprocess access  | `Deno.command`, `Deno.run`               | Critical  |
+| Steganography      | Zero-width Unicode characters            | Critical  |
+| Network listeners  | `Deno.listen`, `Deno.serve`              | Critical  |
+| Environment access | `Deno.env.get()`                         | Moderate  |
+| Filesystem access  | `Deno.readTextFile`, `Deno.writeFile`    | Moderate  |
+| Dynamic imports    | `import("https://...")`                  | Moderate  |
+| Obfuscation        | ROT13 encoding, base64 manipulation      | Moderate  |
+
+### Scoring Model
+
+Each pattern has a weight (1--3). A plugin is rejected if:
+
+- Any **critical pattern** (weight >= 3) is detected, OR
+- The **cumulative score** reaches the threshold (>= 4)
+
+This means `eval()` alone causes rejection (weight 3, critical), while
+`Deno.env` access (weight 2) only fails if combined with another moderate
+pattern.
+
+### Pre-Checking with `plugin_scan`
+
+The agent should call `plugin_scan` before `plugin_install` to catch issues:
+
+```
+plugin_scan({ path: "/workspace/my-plugin" })
+→ { "ok": true, "scannedFiles": ["mod.ts"] }
+
+plugin_scan({ path: "/workspace/bad-plugin" })
+→ { "ok": false, "warnings": ["eval() detected in mod.ts:3"], "scannedFiles": ["mod.ts"] }
+```
+
+If the scan fails, the agent can fix the code and re-scan before attempting to
+load.
+
+## Trust Model
+
+Trust requires both sides to agree:
+
+```
+effectiveTrust = (manifest.trust === "trusted" AND config.trust === "trusted")
+                 ? "trusted" : "sandboxed"
+```
+
+- **Sandboxed** (default): Executor errors are caught and returned as tool
+  results. Network restricted to `declaredEndpoints`. Use for untrusted or
+  agent-built plugins.
+- **Trusted**: Executor runs with normal Deno permissions. Use for plugins that
+  need system APIs like `Deno.hostname()` or `Deno.memoryUsage()`.
+
+A plugin built by the agent always runs sandboxed (no config entry means no
+`trust: "trusted"` grant). A plugin in `~/.triggerfish/plugins/` can be granted
+trusted status via config.
+
+## Configuration (Optional)
+
+Plugins work without configuration. Add a config entry in `triggerfish.yaml`
+only when you need to:
+
+- Grant `trusted` permissions
+- Override the classification level
+- Pass plugin-specific settings
+
+```yaml
+plugins:
+  weather:
+    enabled: true
+    classification: PUBLIC
+    trust: sandboxed
+    api_key: ${WEATHER_API_KEY}    # available as context.config.api_key
+```
+
+Plugins loaded by the agent without a config entry use their manifest's
+classification and default to sandboxed trust.
+
+## Tool Namespacing
+
+Tools are automatically prefixed to prevent collisions:
+
+- Plugin tool `forecast` in plugin `weather` becomes `plugin_weather_forecast`
+- The executor decodes the prefix (longest-match-first) and delegates to the
+  correct plugin with the original tool name
+
+## Classification and Taint
+
+Plugin tools follow the same classification rules as all other tools:
+
+- The manifest's `classification` level is registered for all tools with the
+  `plugin_<name>_` prefix
+- Session taint escalates when plugin tools return data at a higher level
+- Write-down prevention applies: a CONFIDENTIAL plugin cannot have its data
+  flow to a PUBLIC channel
+- All hook enforcement (PRE_TOOL_CALL, POST_TOOL_RESPONSE) applies unchanged
+
+## The Reef: Plugin Marketplace
+
+Plugins can be published to and installed from The Reef, the same marketplace
+used for skills.
+
+### CLI Commands
+
+```bash
+triggerfish plugin search "weather"     # Search for plugins
+triggerfish plugin install weather      # Install from The Reef
+triggerfish plugin update               # Check for updates
+triggerfish plugin publish ./my-plugin  # Prepare for publishing
+triggerfish plugin scan ./my-plugin     # Security scan
+triggerfish plugin list                 # List installed plugins
+```
+
+### Install from The Reef
+
+Reef installs are verified with SHA-256 checksums and security-scanned before
+activation:
+
+```
+1. Fetch catalog.json (cached 1 hour)
+2. Find latest version of the plugin
+3. Download mod.ts
+4. Verify SHA-256 checksum matches catalog entry
+5. Write to ~/.triggerfish/plugins/<name>/mod.ts
+6. Security scan -- remove if scan fails
+7. Record integrity hash in .plugin-hash.json
+```
+
+### Publishing
+
+The publish command validates the plugin (manifest, exports, security scan),
+computes the SHA-256 checksum, and generates a directory structure ready for
+submission to the Reef repository.
+
+## Startup Loading
+
+Pre-installed plugins in `~/.triggerfish/plugins/` are loaded at startup:
+
+1. Loader scans for subdirectories with `mod.ts`
+2. Each module is dynamically `import()`ed and validated
+3. Only plugins with `enabled: true` in config are initialized at startup
+4. Security scanner runs before loading
+5. Trust is resolved, executors are created, tools are registered
+6. Plugin tools appear alongside built-in tools immediately
+
+Plugins loaded by the agent at runtime (via `plugin_install`) skip the config
+check -- the security scanner serves as the gatekeeper.
+
+## Inline Plugin SDK (Legacy)
+
+The `Sandbox` and `PluginSdk` interfaces in `src/plugin/sandbox.ts` and
+`src/plugin/sdk.ts` support inline code execution (TypeScript via `new Function`
+or Python via Pyodide WASM). This model is used for embedded/managed plugins
+that run snippets of code rather than full plugin modules.
+
+### Runtime Environment
 
 - **TypeScript plugins** run directly in the Deno sandbox
 - **Python plugins** run inside Pyodide (a Python interpreter compiled to
   WebAssembly), which itself runs inside the Deno sandbox
 
-<img src="/diagrams/plugin-sandbox.svg" alt="Plugin sandbox: Deno sandbox wraps WASM sandbox, plugin code runs in the innermost layer" style="max-width: 100%;" />
+### SDK Methods
 
-This double-sandbox architecture means that even if a plugin contains malicious
-code, it cannot access the filesystem, make undeclared network calls, or escape
-to the host system.
+```typescript
+// Get the user's delegated credential for a service
+const credential = await sdk.get_user_credential("salesforce");
 
-## What Plugins Can Do
+// Query an external system using the user's permissions
+const results = await sdk.query_as_user("salesforce", {
+  query: "SELECT Name, Amount FROM Opportunity WHERE StageName = 'Closed Won'",
+});
 
-Plugins have a flexible interior within strict boundaries. Inside the sandbox,
-your plugin can:
+// Emit data back to the agent -- classification label is REQUIRED
+sdk.emitData({
+  classification: "CONFIDENTIAL",
+  payload: results,
+  source: "salesforce",
+});
+```
 
-- Perform full CRUD operations on target systems (using the user's permissions)
-- Execute complex queries and data transformations
-- Orchestrate multi-step workflows
-- Process and analyze data
-- Maintain plugin state across invocations
-- Call any declared external API endpoint
-
-## What Plugins Cannot Do
+### Constraints
 
 | Constraint                               | How It Is Enforced                                          |
 | ---------------------------------------- | ----------------------------------------------------------- |
@@ -45,102 +343,12 @@ your plugin can:
 
 ::: warning SECURITY `sdk.get_system_credential()` is **blocked** by design.
 Plugins must always use delegated user credentials via
-`sdk.get_user_credential()`. This ensures the agent can only access what the
-user can access -- never more. :::
+`sdk.get_user_credential()`. :::
 
-## Plugin SDK Methods
+### Database Connectivity
 
-The SDK provides a controlled interface for plugins to interact with external
-systems and the Triggerfish platform.
-
-### Credential Access
-
-```typescript
-// Get the user's delegated credential for a service
-const credential = await sdk.get_user_credential("salesforce");
-
-// Check if the user has connected a service
-const connected = await sdk.has_user_connection("notion");
-```
-
-`sdk.get_user_credential(service)` retrieves the user's OAuth token or API key
-for the named service. If the user has not connected the service, the call
-returns `null` and the plugin should handle this gracefully.
-
-### Data Operations
-
-```typescript
-// Query an external system using the user's permissions
-const results = await sdk.query_as_user("salesforce", {
-  query: "SELECT Name, Amount FROM Opportunity WHERE StageName = 'Closed Won'",
-});
-
-// Emit data back to the agent — classification label is REQUIRED
-sdk.emitData({
-  classification: "CONFIDENTIAL",
-  payload: results,
-  source: "salesforce",
-});
-```
-
-::: info Every call to `sdk.emitData()` requires a `classification` label. If
-you omit it, the SDK rejects the call. This ensures that all data flowing from
-plugins into the agent context is properly classified. :::
-
-### Connection Check
-
-```typescript
-// Check if the user has a live connection to a service
-if (await sdk.has_user_connection("github")) {
-  const repos = await sdk.query_as_user("github", {
-    endpoint: "/user/repos",
-  });
-  sdk.emitData({
-    classification: "INTERNAL",
-    payload: repos,
-    source: "github",
-  });
-}
-```
-
-## Plugin Lifecycle
-
-Every plugin follows a lifecycle that ensures security review before activation.
-
-```
-1. Plugin created (by user, agent, or third party)
-       |
-       v
-2. Plugin built using Plugin SDK
-   - Must implement required interfaces
-   - Must declare endpoints and capabilities
-   - Must pass validation
-       |
-       v
-3. Plugin enters UNTRUSTED state
-   - Agent CANNOT use it
-   - Owner/admin notified: "Pending classification"
-       |
-       v
-4. Owner (personal) or admin (enterprise) reviews:
-   - What data does this plugin access?
-   - What actions can it take?
-   - Assigns classification level
-       |
-       v
-5. Plugin active at assigned classification
-   - Agent can invoke within policy constraints
-   - All invocations pass through policy hooks
-```
-
-::: tip In the personal tier, you are the owner -- you review and classify your
-own plugins. In the enterprise tier, an admin manages the plugin registry and
-assigns classification levels. :::
-
-## Database Connectivity
-
-Native database drivers (psycopg2, mysqlclient, etc.) do not work inside the
-WASM sandbox. Plugins connect to databases through HTTP-based APIs instead.
+Native database drivers do not work inside the WASM sandbox. Use HTTP-based
+APIs instead:
 
 | Database   | HTTP-Based Option                 |
 | ---------- | --------------------------------- |
@@ -150,81 +358,3 @@ WASM sandbox. Plugins connect to databases through HTTP-based APIs instead.
 | Snowflake  | REST API                          |
 | BigQuery   | REST API                          |
 | DynamoDB   | AWS SDK (HTTP)                    |
-
-This is a security advantage, not a limitation. All database access flows
-through inspectable, controllable HTTP requests that the sandbox can enforce and
-the audit system can log.
-
-## Writing a TypeScript Plugin
-
-A minimal TypeScript plugin that queries a REST API:
-
-```typescript
-import type { PluginResult, PluginSdk } from "triggerfish/plugin";
-
-export async function execute(sdk: PluginSdk): Promise<PluginResult> {
-  // Check if the user has connected the service
-  if (!await sdk.has_user_connection("acme-api")) {
-    return {
-      success: false,
-      error: "User has not connected Acme API. Please connect it first.",
-    };
-  }
-
-  // Query using the user's credentials
-  const data = await sdk.query_as_user("acme-api", {
-    endpoint: "/api/v1/tasks",
-    method: "GET",
-  });
-
-  // Emit classified data back to the agent
-  sdk.emitData({
-    classification: "INTERNAL",
-    payload: data,
-    source: "acme-api",
-  });
-
-  return { success: true };
-}
-```
-
-## Writing a Python Plugin
-
-A minimal Python plugin:
-
-```python
-async def execute(sdk):
-    # Check connection
-    if not await sdk.has_user_connection("analytics-db"):
-        return {"success": False, "error": "Analytics DB not connected"}
-
-    # Query using user's credentials
-    results = await sdk.query_as_user("analytics-db", {
-        "endpoint": "/rest/v1/metrics",
-        "method": "GET",
-        "params": {"period": "7d"}
-    })
-
-    # Emit with classification
-    sdk.emit_data({
-        "classification": "CONFIDENTIAL",
-        "payload": results,
-        "source": "analytics-db"
-    })
-
-    return {"success": True}
-```
-
-Python plugins run inside the Pyodide WASM runtime. Standard library modules are
-available, but native C extensions are not. Use HTTP-based APIs for external
-connectivity.
-
-## Plugin Security Summary
-
-- Plugins run in a double sandbox (Deno + WASM) with strict isolation
-- All network access must be declared in the plugin manifest
-- All emitted data must carry a classification label
-- System credentials are blocked -- only user-delegated credentials are
-  available
-- Each plugin enters the system as `UNTRUSTED` and must be classified before use
-- All plugin invocations pass through policy hooks and are fully audited

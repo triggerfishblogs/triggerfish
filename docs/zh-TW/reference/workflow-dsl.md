@@ -83,7 +83,59 @@ do:
 | `output`   | transform | 任務執行後應用的轉換                                |
 | `timeout`  | object    | 任務逾時：`after: <ISO 8601 duration>`              |
 | `then`     | string    | 流程指令：`continue`、`end` 或任務名稱              |
-| `metadata` | object    | 任意鍵值中繼資料（引擎不使用）                      |
+| `metadata` | object    | 任意鍵值中繼資料。啟用自修復時，需要 `description`、`expects`、`produces`。 |
+
+---
+
+## 自修復設定
+
+`metadata.triggerfish.self_healing` 區塊為工作流程啟用自主修復代理。完整指南請
+參見[自修復](/zh-TW/features/workflows#自修復)。
+
+```yaml
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+      pause_timeout_seconds: 300
+      pause_timeout_policy: escalate_and_halt
+      notify_on: [intervention, escalation, approval_required]
+```
+
+| Field                   | Type    | Required | Default              | Description |
+| ----------------------- | ------- | -------- | -------------------- | ----------- |
+| `enabled`               | boolean | yes      | —                    | 啟用修復代理 |
+| `retry_budget`          | number  | no       | `3`                  | 最大介入嘗試次數 |
+| `approval_required`     | boolean | no       | `true`               | 修復是否需要人工審批 |
+| `pause_on_intervention` | string  | no       | `"blocking_only"`    | `always` \| `never` \| `blocking_only` |
+| `pause_timeout_seconds` | number  | no       | `300`                | 逾時策略觸發前的等待秒數 |
+| `pause_timeout_policy`  | string  | no       | `"escalate_and_halt"`| `escalate_and_halt` \| `escalate_and_skip` \| `escalate_and_fail` |
+| `notify_on`             | array   | no       | `[]`                 | `intervention` \| `escalation` \| `approval_required` |
+
+### 步驟中繼資料（自修復啟用時必需）
+
+當 `self_healing.enabled` 為 `true` 時，每個任務必須包含以下中繼資料欄位。
+解析器會拒絕缺少任何欄位的工作流程。
+
+| Field         | Type   | Description                                  |
+| ------------- | ------ | -------------------------------------------- |
+| `description` | string | 該步驟的功能及其原因                         |
+| `expects`     | string | 需要的輸入形式或前置條件                     |
+| `produces`    | string | 產生的輸出形式                               |
+
+```yaml
+- fetch-invoices:
+    call: http
+    with:
+      endpoint: "https://api.example.com/invoices"
+    metadata:
+      description: "Fetch open invoices from billing API"
+      expects: "API available, returns JSON array"
+      produces: "Array of {id, amount, status} objects"
+```
 
 ---
 

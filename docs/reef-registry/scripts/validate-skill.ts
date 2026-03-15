@@ -2,13 +2,18 @@
 /**
  * Reef Registry: PR Validation Script
  *
- * Validates skill submissions in pull requests. Parses frontmatter,
- * checks required fields, runs the security scanner, and computes checksums.
+ * Validates skill and plugin submissions in pull requests. For skills, parses
+ * SKILL.md frontmatter, checks required fields, and runs the security scanner.
+ * For plugins, validates metadata.json and mod.ts presence.
  *
- * Usage: deno run --allow-read --allow-write scripts/validate-skill.ts <skill-dir>
+ * Usage:
+ *   deno run --allow-read --allow-write scripts/validate-skill.ts <dir>
+ *
+ * The script auto-detects whether the directory is a skill (contains SKILL.md)
+ * or a plugin (contains mod.ts + metadata.json).
  *
  * Exit codes:
- *   0 — All skills valid
+ *   0 — Validation passed
  *   1 — Validation failed (details printed to stderr)
  */
 
@@ -16,7 +21,7 @@ import { parse as parseYaml } from "@std/yaml";
 import { join } from "@std/path";
 
 /** Required frontmatter fields for a valid skill submission. */
-const REQUIRED_FIELDS = [
+const SKILL_REQUIRED_FIELDS = [
   "name",
   "version",
   "description",
@@ -26,12 +31,29 @@ const REQUIRED_FIELDS = [
   "classification_ceiling",
 ] as const;
 
+/** Required metadata fields for a valid plugin submission. */
+const PLUGIN_REQUIRED_FIELDS = [
+  "name",
+  "version",
+  "description",
+  "author",
+  "classification",
+  "trust",
+] as const;
+
 /** Valid classification levels. */
 const VALID_CLASSIFICATIONS = new Set([
   "PUBLIC",
   "INTERNAL",
   "CONFIDENTIAL",
   "RESTRICTED",
+]);
+
+/** Valid plugin trust levels. */
+const VALID_TRUST_LEVELS = new Set([
+  "sandboxed",
+  "semi-trusted",
+  "trusted",
 ]);
 
 /** Prompt injection patterns (subset of Triggerfish scanner). */
@@ -50,6 +72,7 @@ interface ValidationResult {
   readonly valid: boolean;
   readonly errors: readonly string[];
   readonly warnings: readonly string[];
+  readonly kind: "skill" | "plugin";
 }
 
 /** Compute SHA-256 hex digest of content. */
@@ -74,8 +97,32 @@ function extractFrontmatter(
   }
 }
 
-/** Validate a single skill directory. */
-async function validateSkill(skillDir: string): Promise<ValidationResult> {
+/** Check if a file exists. */
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    const stat = await Deno.stat(path);
+    return stat.isFile;
+  } catch {
+    return false;
+  }
+}
+
+/** Run security scan patterns against content. */
+function scanForInjection(content: string): string[] {
+  const findings: string[] = [];
+  for (const pattern of CRITICAL_PATTERNS) {
+    if (pattern.test(content)) {
+      findings.push("Security scan failed: matched critical pattern");
+      break;
+    }
+  }
+  return findings;
+}
+
+/** Validate a skill submission directory. */
+async function validateSkill(
+  skillDir: string,
+): Promise<ValidationResult> {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -88,6 +135,7 @@ async function validateSkill(skillDir: string): Promise<ValidationResult> {
       valid: false,
       errors: [`SKILL.md not found in ${skillDir}`],
       warnings: [],
+      kind: "skill",
     };
   }
 
@@ -97,11 +145,12 @@ async function validateSkill(skillDir: string): Promise<ValidationResult> {
       valid: false,
       errors: ["SKILL.md missing YAML frontmatter"],
       warnings: [],
+      kind: "skill",
     };
   }
 
   // Check required fields
-  for (const field of REQUIRED_FIELDS) {
+  for (const field of SKILL_REQUIRED_FIELDS) {
     if (!raw[field]) {
       errors.push(`Missing required field: ${field}`);
     }
@@ -123,12 +172,7 @@ async function validateSkill(skillDir: string): Promise<ValidationResult> {
   }
 
   // Security scan
-  for (const pattern of CRITICAL_PATTERNS) {
-    if (pattern.test(content)) {
-      errors.push(`Security scan failed: matched critical pattern`);
-      break;
-    }
-  }
+  errors.push(...scanForInjection(content));
 
   // Compute and write metadata if valid
   if (errors.length === 0) {
@@ -152,19 +196,122 @@ async function validateSkill(skillDir: string): Promise<ValidationResult> {
     );
   }
 
-  return { valid: errors.length === 0, errors, warnings };
+  return { valid: errors.length === 0, errors, warnings, kind: "skill" };
+}
+
+/** Validate a plugin submission directory. */
+async function validatePlugin(
+  pluginDir: string,
+): Promise<ValidationResult> {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // Check mod.ts exists
+  const modPath = join(pluginDir, "mod.ts");
+  let modContent: string;
+  try {
+    modContent = await Deno.readTextFile(modPath);
+  } catch {
+    return {
+      valid: false,
+      errors: [`mod.ts not found in ${pluginDir}`],
+      warnings: [],
+      kind: "plugin",
+    };
+  }
+
+  // Check metadata.json exists
+  const metadataPath = join(pluginDir, "metadata.json");
+  let metadataContent: string;
+  try {
+    metadataContent = await Deno.readTextFile(metadataPath);
+  } catch {
+    return {
+      valid: false,
+      errors: [`metadata.json not found in ${pluginDir}`],
+      warnings: [],
+      kind: "plugin",
+    };
+  }
+
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(metadataContent);
+  } catch {
+    return {
+      valid: false,
+      errors: ["metadata.json is not valid JSON"],
+      warnings: [],
+      kind: "plugin",
+    };
+  }
+
+  // Check required fields
+  for (const field of PLUGIN_REQUIRED_FIELDS) {
+    if (!raw[field]) {
+      errors.push(`Missing required metadata field: ${field}`);
+    }
+  }
+
+  // Validate classification
+  if (
+    raw.classification &&
+    !VALID_CLASSIFICATIONS.has(String(raw.classification))
+  ) {
+    errors.push(`Invalid classification: ${raw.classification}`);
+  }
+
+  // Validate trust level
+  if (raw.trust && !VALID_TRUST_LEVELS.has(String(raw.trust))) {
+    errors.push(`Invalid trust level: ${raw.trust}`);
+  }
+
+  // Security scan on mod.ts
+  errors.push(...scanForInjection(modContent));
+
+  // Compute and update checksum
+  if (errors.length === 0) {
+    const checksum = await computeChecksum(modContent);
+    const updatedMetadata = { ...raw, checksum };
+    await Deno.writeTextFile(
+      metadataPath,
+      JSON.stringify(updatedMetadata, null, 2),
+    );
+  }
+
+  return { valid: errors.length === 0, errors, warnings, kind: "plugin" };
+}
+
+/** Auto-detect submission type and validate. */
+async function validateSubmission(
+  dir: string,
+): Promise<ValidationResult> {
+  const hasSkillMd = await fileExists(join(dir, "SKILL.md"));
+  const hasModTs = await fileExists(join(dir, "mod.ts"));
+
+  if (hasSkillMd) return validateSkill(dir);
+  if (hasModTs) return validatePlugin(dir);
+
+  return {
+    valid: false,
+    errors: [
+      `Directory ${dir} contains neither SKILL.md (skill) nor mod.ts (plugin)`,
+    ],
+    warnings: [],
+    kind: "skill",
+  };
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 if (import.meta.main) {
-  const skillDir = Deno.args[0];
-  if (!skillDir) {
-    console.error("Usage: validate-skill.ts <skill-directory>");
+  const dir = Deno.args[0];
+  if (!dir) {
+    console.error("Usage: validate-skill.ts <directory>");
     Deno.exit(1);
   }
 
-  const result = await validateSkill(skillDir);
+  const result = await validateSubmission(dir);
 
   if (result.warnings.length > 0) {
     for (const w of result.warnings) {
@@ -179,5 +326,5 @@ if (import.meta.main) {
     Deno.exit(1);
   }
 
-  console.log("✓ Skill validation passed");
+  console.log(`✓ ${result.kind} validation passed`);
 }

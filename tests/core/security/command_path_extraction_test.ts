@@ -369,3 +369,55 @@ Deno.test("classifyCommandPaths: relative path in workspace root classifies at d
     "Files directly under workspace root (not in a classification subdir) classify at default level",
   );
 });
+
+// ─── CRITICAL REGRESSION: bare "." and ".." must be extracted and classified ──
+//
+// When an agent runs `ls -al ..` from within public/, the ".." path must be
+// extracted, resolved to the workspace root, and classified as RESTRICTED
+// (it contains all classification directories). Without this, a PUBLIC session
+// can enumerate confidential/restricted directory names.
+
+Deno.test("extractCommandPaths: bare '..' is recognized as a path", () => {
+  const paths = extractCommandPaths("ls -al ..");
+  assertEquals(paths, [".."], "bare '..' must be extracted as a path token");
+});
+
+Deno.test("extractCommandPaths: bare '.' is recognized as a path", () => {
+  const paths = extractCommandPaths("ls -al .");
+  assertEquals(paths, ["."], "bare '.' must be extracted as a path token");
+});
+
+Deno.test("classifyCommandPaths: '..' from public/ resolves to workspace root → RESTRICTED", () => {
+  const workspace = "/tmp/test-workspace";
+  const workspacePaths = makeWorkspacePaths(workspace);
+  const classifier = createPathClassifier(makeConfig(), workspacePaths);
+
+  // Agent is in public/, runs "ls -al ..": ".." resolves to workspace root
+  const result = classifyCommandPaths({
+    paths: [".."],
+    classifier,
+    workspaceCwd: join(workspace, "public"),
+  });
+  assertEquals(
+    result.classification,
+    "RESTRICTED",
+    "REGRESSION: workspace root contains restricted/ — '..' from public/ must classify as RESTRICTED, not PUBLIC",
+  );
+});
+
+Deno.test("classifyCommandPaths: '.' from public/ resolves to public/ → PUBLIC", () => {
+  const workspace = "/tmp/test-workspace";
+  const workspacePaths = makeWorkspacePaths(workspace);
+  const classifier = createPathClassifier(makeConfig(), workspacePaths);
+
+  const result = classifyCommandPaths({
+    paths: ["."],
+    classifier,
+    workspaceCwd: join(workspace, "public"),
+  });
+  assertEquals(
+    result.classification,
+    "PUBLIC",
+    "'.' from public/ must resolve to public/ and classify as PUBLIC",
+  );
+});

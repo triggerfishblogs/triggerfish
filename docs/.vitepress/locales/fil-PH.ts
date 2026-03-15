@@ -9,12 +9,17 @@ export const filPH: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "Gabay", link: "/fil-PH/guide/" },
       { text: "Presyo", link: "/fil-PH/pricing" },
-      { text: "Arkitektura", link: "/fil-PH/architecture/" },
-      { text: "Seguridad", link: "/fil-PH/security/" },
-      { text: "Mga Channel", link: "/fil-PH/channels/" },
-      { text: "Mga Integration", link: "/fil-PH/integrations/" },
-      { text: "Mga Feature", link: "/fil-PH/features/" },
-      { text: "Sanggunian", link: "/fil-PH/reference/" },
+      {
+        text: "Dokumentasyon",
+        items: [
+          { text: "Arkitektura", link: "/fil-PH/architecture/" },
+          { text: "Seguridad", link: "/fil-PH/security/" },
+          { text: "Mga Channel", link: "/fil-PH/channels/" },
+          { text: "Mga Integration", link: "/fil-PH/integrations/" },
+          { text: "Mga Feature", link: "/fil-PH/features/" },
+          { text: "Sanggunian", link: "/fil-PH/reference/" },
+        ],
+      },
       { text: "Suporta", link: "/fil-PH/support/" },
     ],
     sidebar: {

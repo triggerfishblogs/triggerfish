@@ -625,16 +625,142 @@ Deno.test("executor: lazy getter works after wiring", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// A2UIHost: session key authentication
+// ---------------------------------------------------------------------------
+
+Deno.test({
+  name: "A2UIHost: rejects HTTP request without session key",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const host = createA2UIHost({ sessionKey: "secret-key-123" });
+    await host.start(TEST_PORT + 20);
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${TEST_PORT + 20}`);
+      assertEquals(res.status, 401);
+      await res.body?.cancel();
+    } finally {
+      await host.stop();
+    }
+  },
+});
+
+Deno.test({
+  name: "A2UIHost: rejects HTTP request with wrong session key",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const host = createA2UIHost({ sessionKey: "secret-key-123" });
+    await host.start(TEST_PORT + 21);
+
+    try {
+      const res = await fetch(
+        `http://127.0.0.1:${TEST_PORT + 21}?key=wrong-key`,
+      );
+      assertEquals(res.status, 401);
+      await res.body?.cancel();
+    } finally {
+      await host.stop();
+    }
+  },
+});
+
+Deno.test({
+  name: "A2UIHost: serves HTML with injected key when correct key provided",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const host = createA2UIHost({ sessionKey: "secret-key-123" });
+    await host.start(TEST_PORT + 22);
+
+    try {
+      const res = await fetch(
+        `http://127.0.0.1:${TEST_PORT + 22}?key=secret-key-123`,
+      );
+      assertEquals(res.status, 200);
+      const body = await res.text();
+      assertStringIncludes(body, "tidepool-key");
+      assertStringIncludes(body, "secret-key-123");
+    } finally {
+      await host.stop();
+    }
+  },
+});
+
+Deno.test({
+  name: "A2UIHost: rejects WebSocket without session key with 4401 close",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const host = createA2UIHost({ sessionKey: "secret-key-123" });
+    await host.start(TEST_PORT + 23);
+
+    try {
+      const ws = new WebSocket(`ws://127.0.0.1:${TEST_PORT + 23}`);
+      const closed = new Promise<CloseEvent>((resolve) => {
+        ws.addEventListener("close", resolve);
+      });
+      const event = await closed;
+      assertEquals(event.code, 4401);
+      assertEquals(event.reason, "Unauthorized");
+      assertEquals(host.connections, 0);
+    } finally {
+      await host.stop();
+    }
+  },
+});
+
+Deno.test({
+  name: "A2UIHost: accepts WebSocket with correct session key",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const host = createA2UIHost({ sessionKey: "secret-key-123" });
+    await host.start(TEST_PORT + 24);
+
+    try {
+      const ws = new WebSocket(
+        `ws://127.0.0.1:${TEST_PORT + 24}?key=secret-key-123`,
+      );
+      await new Promise<void>((resolve) => {
+        ws.onopen = () => resolve();
+      });
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      assertEquals(host.connections, 1);
+
+      ws.close();
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
+    } finally {
+      await host.stop();
+    }
+  },
+});
+
+// ---------------------------------------------------------------------------
 // buildTidepoolHtml
 // ---------------------------------------------------------------------------
 
-Deno.test("buildTidepoolHtml: returns HTML with expected structure", () => {
+Deno.test("buildTidepoolHtml: returns valid HTML document", () => {
   const html = buildTidepoolHtml();
-  assert(html.includes("canvas-panel"), "should contain canvas-panel");
-  assert(html.includes("canvas-frame"), "should contain canvas-frame");
-  assert(
-    html.includes("<!doctype html>") || html.includes("<!DOCTYPE html>"),
-    "should be valid HTML document",
-  );
-  assert(html.includes('<div id="app">'), "should contain app mount point");
+  const isBuiltUi = html.includes("canvas-panel");
+
+  if (isBuiltUi) {
+    assert(html.includes("canvas-frame"), "should contain canvas-frame");
+    assert(
+      html.includes("<!doctype html>") || html.includes("<!DOCTYPE html>"),
+      "should be valid HTML document",
+    );
+    assert(html.includes('<div id="app">'), "should contain app mount point");
+  } else {
+    // Fallback page when tidepool-ui is not built
+    assert(
+      html.includes("Tidepool UI not built"),
+      "fallback should indicate UI is not built",
+    );
+    assert(
+      html.includes("<!DOCTYPE html>"),
+      "fallback should be valid HTML document",
+    );
+  }
 });

@@ -48,12 +48,18 @@ async function recordSaveLineage(
         accessed_by: ctx.agentId,
         access_method: "memory_save",
       },
-      classification: { level: ctx.sessionTaint, reason: `Memory save: ${key}` },
+      classification: {
+        level: ctx.sessionTaint,
+        reason: `Memory save: ${key}`,
+      },
       sessionId: ctx.sourceSessionId,
     });
     return record.lineage_id;
   } catch (err) {
-    log.error("Lineage record creation failed for memory_save", { operation: "recordSaveLineage", err });
+    log.error("Lineage record creation failed for memory_save", {
+      operation: "recordSaveLineage",
+      err,
+    });
     return undefined;
   }
 }
@@ -79,12 +85,18 @@ async function recordReadLineage(
         accessed_by: ctx.agentId,
         access_method: accessMethod,
       },
-      classification: { level: ctx.sessionTaint, reason: `Memory read: ${key}` },
+      classification: {
+        level: ctx.sessionTaint,
+        reason: `Memory read: ${key}`,
+      },
       sessionId: ctx.sourceSessionId,
       ...(inputLineageIds.length > 0 ? { inputLineageIds } : {}),
     });
   } catch (err) {
-    log.error("Lineage record creation failed for memory read", { operation: "recordReadLineage", err });
+    log.error("Lineage record creation failed for memory read", {
+      operation: "recordReadLineage",
+      err,
+    });
   }
 }
 

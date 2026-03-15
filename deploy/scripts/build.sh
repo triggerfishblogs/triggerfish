@@ -7,7 +7,7 @@ set -e
 
 DIST_DIR="dist"
 ENTRY="src/cli/main.ts"
-INCLUDE_FLAGS="--include config/ --include src/skills/ --include src/exec/sandbox/worker.ts --include src/tools/tidepool/tmpl_base.html --include src/tools/tidepool/tmpl_styles.html --include src/tools/tidepool/tmpl_chat.html --include src/tools/tidepool/tmpl_canvas.html --include src/tools/tidepool/tmpl_chat_script.html --include src/tools/tidepool/tmpl_canvas_script.html"
+INCLUDE_FLAGS="--include config/ --include src/skills/ --include src/exec/sandbox/worker.ts --include src/tools/tidepool/dist/index.html"
 VERSION_TAG="${1:-dev}"
 
 TARGETS=(
@@ -20,6 +20,10 @@ TARGETS=(
 
 echo "Building Triggerfish binaries (version: ${VERSION_TAG})..."
 echo ""
+
+# Build Tidepool UI (Svelte -> single-file HTML)
+echo "  Building Tidepool UI..."
+cd tidepool-ui && npm install && npm run build && cd ..
 
 # Stamp version into source before compilation
 echo "export const VERSION: string = \"${VERSION_TAG}\";" > src/cli/version.ts

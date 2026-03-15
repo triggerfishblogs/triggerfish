@@ -221,3 +221,72 @@ workflow_history with workflow_name: "my-workflow" and limit: "5"
 هذا مقصود — لا يتم الكشف عن وجود سير عمل مصنفة لجلسات ذات تصنيف أقل.
 
 **الحل:** قم بتصعيد taint جلستك ليتطابق مع أو يتجاوز مستوى تصنيف سير العمل قبل حذفه. أو احذفه من نفس نوع الجلسة حيث تم حفظه في الأصل.
+
+---
+
+## الإصلاح الذاتي
+
+### "Step metadata missing on task 'X': self-healing requires description, expects, produces"
+
+عندما يكون `self_healing.enabled` مضبوطاً على `true`، يجب أن تحتوي كل مهمة
+على جميع حقول البيانات الوصفية الثلاثة. يرفض المحلل سير العمل عند الحفظ إذا
+كانت أي منها مفقودة.
+
+**الحل:** أضف `description` و `expects` و `produces` إلى كتلة `metadata` لكل
+مهمة:
+
+```yaml
+- my-task:
+    call: http
+    with:
+      endpoint: "https://example.com/api"
+    metadata:
+      description: "What this step does and why"
+      expects: "What this step needs as input"
+      produces: "What this step outputs"
+```
+
+---
+
+### "Self-healing config mutation rejected in version proposal"
+
+اقترح وكيل الإصلاح إصداراً جديداً من سير العمل يعدّل كتلة تكوين
+`self_healing`. هذا محظور — لا يمكن للوكيل تغيير تكوين الإصلاح الخاص به.
+
+هذا يعمل كما هو مصمم. يمكن للبشر فقط تعديل تكوين `self_healing` عن طريق
+حفظ إصدار جديد من سير العمل مباشرة عبر `workflow_save`.
+
+---
+
+### وكيل الإصلاح لا يظهر
+
+سير العمل يعمل لكن لا يظهر وكيل إصلاح. تحقق من:
+
+1. **`enabled` مضبوط على `true`** في `metadata.triggerfish.self_healing`.
+2. **التكوين في الموقع الصحيح** — يجب أن يكون متداخلاً تحت
+   `metadata.triggerfish.self_healing`، وليس في المستوى الأعلى.
+3. **جميع الخطوات لديها بيانات وصفية** — إذا فشل التحقق عند الحفظ، فقد تم
+   حفظ سير العمل بدون تمكين الإصلاح الذاتي.
+
+---
+
+### الإصلاحات المقترحة عالقة في حالة الانتظار
+
+إذا كان `approval_required` مضبوطاً على `true` (الافتراضي)، تنتظر الإصدارات
+المقترحة المراجعة البشرية. استخدم `workflow_version_list` لعرض المقترحات
+المعلقة و `workflow_version_approve` أو `workflow_version_reject` للتصرف
+بشأنها.
+
+---
+
+### "Retry budget exhausted" / تصعيد غير قابل للحل
+
+استنفد وكيل الإصلاح جميع محاولات التدخل (الافتراضي 3) دون حل المشكلة. يصعّد
+كـ `unresolvable` ويتوقف عن محاولة الإصلاح.
+
+**الحل:**
+
+- تحقق من `workflow_healing_status` لمعرفة التدخلات التي تمت محاولتها.
+- راجع وأصلح المشكلة الأساسية يدوياً.
+- للسماح بمزيد من المحاولات، قم بزيادة `retry_budget` في تكوين الإصلاح الذاتي
+  وأعد حفظ سير العمل.

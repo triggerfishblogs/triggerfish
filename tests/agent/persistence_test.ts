@@ -12,13 +12,23 @@ import { recordToolCallLineageAndPersist } from "../../src/agent/dispatch/tool_d
 import { restoreSessionHistoryIfEmpty } from "../../src/agent/loop/agent_turn.ts";
 import type { OrchestratorConfig } from "../../src/agent/orchestrator/orchestrator_types.ts";
 import type { MessageStore } from "../../src/core/conversation/mod.ts";
-import type { ConversationAppendInput, ConversationRecord } from "../../src/core/conversation/mod.ts";
+import type {
+  ConversationAppendInput,
+  ConversationRecord,
+} from "../../src/core/conversation/mod.ts";
 import type { LineageStore } from "../../src/core/session/lineage.ts";
-import type { LineageCreateInput, LineageRecord } from "../../src/core/session/lineage_types.ts";
+import type {
+  LineageCreateInput,
+  LineageRecord,
+} from "../../src/core/session/lineage_types.ts";
 import type { ClassificationLevel } from "../../src/core/types/classification.ts";
 import type { HistoryEntry } from "../../src/agent/orchestrator/orchestrator_types.ts";
 import { createSession } from "../../src/core/types/session.ts";
-import type { ChannelId, SessionState, UserId } from "../../src/core/types/session.ts";
+import type {
+  ChannelId,
+  SessionState,
+  UserId,
+} from "../../src/core/types/session.ts";
 
 // ─── Mock helpers ────────────────────────────────────────────────────────────
 
@@ -76,7 +86,9 @@ function createMockMessageStore(
   };
 }
 
-function createMockLineageStore(): LineageStore & { readonly calls: MockCall[] } {
+function createMockLineageStore(): LineageStore & {
+  readonly calls: MockCall[];
+} {
   const calls: MockCall[] = [];
   let counter = 0;
 
@@ -387,7 +399,9 @@ Deno.test("recordToolCallLineageAndPersist: creates lineage and message records"
   );
 
   // Lineage store should have been called with correct source_type
-  const lineageCreates = lineageStore.calls.filter((c) => c.method === "create");
+  const lineageCreates = lineageStore.calls.filter((c) =>
+    c.method === "create"
+  );
   assertEquals(lineageCreates.length, 1);
   const lineageInput = lineageCreates[0].args[0] as LineageCreateInput;
   assertEquals(lineageInput.origin.source_type, "web_request");
@@ -396,7 +410,9 @@ Deno.test("recordToolCallLineageAndPersist: creates lineage and message records"
   assertEquals(lineageInput.content, "search results here");
 
   // Message store should have been called with tool_call role
-  const messageAppends = messageStore.calls.filter((c) => c.method === "append");
+  const messageAppends = messageStore.calls.filter((c) =>
+    c.method === "append"
+  );
   assertEquals(messageAppends.length, 1);
   const appendInput = messageAppends[0].args[0] as ConversationAppendInput;
   assertEquals(appendInput.role, "tool_call");
@@ -526,7 +542,8 @@ Deno.test("recordToolCallLineageAndPersist: uses session taint from getSessionTa
   const lineageInput = (lineageStore.calls[0].args[0]) as LineageCreateInput;
   assertEquals(lineageInput.classification.level, "CONFIDENTIAL");
 
-  const messageInput = (messageStore.calls[0].args[0]) as ConversationAppendInput;
+  const messageInput =
+    (messageStore.calls[0].args[0]) as ConversationAppendInput;
   assertEquals(messageInput.classification, "CONFIDENTIAL");
 });
 

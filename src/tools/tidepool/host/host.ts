@@ -59,6 +59,7 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
     currentTree: null,
     resolvedPort: 0,
     cachedHtml: null,
+    sessionKey: options?.sessionKey ?? null,
     lastMcpConnected: -1,
     lastMcpConfigured: 0,
     socketCleanupCallbacks: [],

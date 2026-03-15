@@ -35,6 +35,16 @@ import type {
   WorkflowStatus,
   WorkflowTaskEntry,
 } from "./types.ts";
+import type { RuntimeDeviation } from "./healing/types.ts";
+import type { ScopedPauseController } from "./healing/scoped_pause.ts";
+import type { StepEventCallback } from "./engine_events.ts";
+import {
+  emitCompleteEvent,
+  emitFailEvent,
+  emitSkipEvent,
+  emitStartEvent,
+  emitTerminalEvent,
+} from "./engine_events.ts";
 
 const log = createLogger("workflow-engine");
 
@@ -71,6 +81,12 @@ export interface ExecuteWorkflowOptions {
   readonly checkPause?: () => Promise<void>;
   /** Callback to report task progress to the registry. */
   readonly onTaskProgress?: (taskIndex: number, taskName: string) => void;
+  /** Optional callback for rich step-level event emission (self-healing). */
+  readonly onStepEvent?: StepEventCallback;
+  /** Optional scoped pause controller (self-healing). */
+  readonly scopedPause?: ScopedPauseController;
+  /** Optional callback to record runtime deviations (self-healing). */
+  readonly recordDeviation?: (deviation: RuntimeDeviation) => void;
 }
 
 /** Result type for engine operations. */
@@ -98,15 +114,24 @@ export async function executeWorkflow(
 
   const runId = crypto.randomUUID();
   const startedAt = new Date().toISOString();
+  const workflowName = options.definition.document.name;
   const events: WorkflowEvent[] = [];
+  const deviations: RuntimeDeviation[] = [];
   let context = createWorkflowContext(
     options.input as Record<string, unknown> | undefined,
   );
   let status: WorkflowStatus = "running";
   let error: string | undefined;
+  let failedTaskName: string | undefined;
+  let failedTaskIndex: number | undefined;
 
   const tasks = options.definition.do;
   let taskIndex = 0;
+
+  if (options.recordDeviation) {
+    const originalRecord = options.recordDeviation;
+    options = { ...options, recordDeviation: (d) => { deviations.push(d); originalRecord(d); } };
+  }
 
   try {
     while (taskIndex < tasks.length && status === "running") {
@@ -121,6 +146,10 @@ export async function executeWorkflow(
 
       if (options.checkPause) await options.checkPause();
 
+      if (options.scopedPause?.isTaskBlocked(taskIndex)) {
+        if (options.checkPause) await options.checkPause();
+      }
+
       if (options.onTaskProgress) {
         options.onTaskProgress(taskIndex, entry.name);
       }
@@ -133,21 +162,34 @@ export async function executeWorkflow(
       }
 
       if (entry.task.if && !context.evaluateCondition(entry.task.if)) {
+        emitSkipEvent(options.onStepEvent, runId, workflowName, entry, taskIndex);
         taskIndex++;
         continue;
       }
 
+      const taintBefore = options.getSessionTaint?.() ?? "PUBLIC";
+      emitStartEvent(options.onStepEvent, runId, workflowName, entry, taskIndex, context.data, taintBefore);
+
       context = applyInputTransform(context, entry.task.input);
 
+      const stepStart = Date.now();
       const result = await dispatchTask(entry, context, events, options);
+      const stepDuration = Date.now() - stepStart;
+
       if (!result.ok) {
+        emitFailEvent(options.onStepEvent, runId, workflowName, entry, taskIndex, result.error, context.data);
         status = "failed";
         error = result.error;
+        failedTaskName = entry.name;
+        failedTaskIndex = taskIndex;
         break;
       }
 
       context = result.value.context;
       context = applyOutputTransform(context, entry.task.output, entry.name);
+
+      const taintAfter = options.getSessionTaint?.() ?? "PUBLIC";
+      emitCompleteEvent(options.onStepEvent, runId, workflowName, entry, taskIndex, context.resolve(entry.name), stepDuration, taintAfter);
 
       const flow = resolveSwitchOrTaskFlow(entry.task, context);
       if (flow === "end") break;
@@ -175,11 +217,13 @@ export async function executeWorkflow(
       error = e instanceof Error ? e.message : String(e);
       log.error("Workflow execution threw unexpected error", {
         operation: "executeWorkflow",
-        workflow: options.definition.document.name,
+        workflow: workflowName,
         err: e,
       });
     }
   }
+
+  emitTerminalEvent(options.onStepEvent, runId, workflowName, status, error, context, tasks.length, failedTaskName, failedTaskIndex);
 
   const output = filterInternalKeys(context.data);
 
@@ -187,7 +231,7 @@ export async function executeWorkflow(
     ok: true,
     value: {
       runId,
-      workflowName: options.definition.document.name,
+      workflowName,
       status,
       output,
       events,
@@ -196,6 +240,7 @@ export async function executeWorkflow(
       completedAt: new Date().toISOString(),
       taskCount: tasks.length,
       classification: options.getSessionTaint?.(),
+      runtimeDeviations: deviations.length > 0 ? deviations : undefined,
     },
   };
 }
@@ -283,3 +328,4 @@ function checkCeiling(
   });
   return { ok: true, value: undefined };
 }
+

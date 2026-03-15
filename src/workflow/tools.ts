@@ -23,17 +23,19 @@ import {
   executeWorkflowSave,
 } from "./tool_handlers.ts";
 import type { WorkflowRunRegistry } from "./registry.ts";
+import { SELF_HEALING_SYSTEM_PROMPT } from "./healing/system_prompt.ts";
+import { WORKFLOW_CREATION_PROMPT } from "./creation_prompt.ts";
 
 /** System prompt section for workflow tools. */
 export const WORKFLOW_SYSTEM_PROMPT = `## Workflow Engine
 
 CNCF Serverless Workflow DSL 1.0 — create, store, and execute workflows.
-
-**Creating workflows:** Do NOT generate YAML from vague requests. Ask the user for: goal, inputs, outputs, step-by-step flow, services involved, error handling, and where results go. Once clear, use \`llm_task\` to design the YAML. Present the plan and get explicit approval before calling \`workflow_save\`.
+${WORKFLOW_CREATION_PROMPT}
 
 **Call types:** http, triggerfish:llm, triggerfish:memory, triggerfish:web_search, triggerfish:web_fetch, triggerfish:mcp, triggerfish:message, triggerfish:agent
 **Task types:** call, run (shell/script/sub-workflow), set, switch, for, raise, emit, wait
 **Expressions:** \`\${ .path.to.value }\` — dot-paths, comparisons, arithmetic
+${SELF_HEALING_SYSTEM_PROMPT}
 `;
 
 /** Context needed by the workflow tool executor. */

@@ -9,12 +9,17 @@ export const koKR: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "가이드", link: "/ko-KR/guide/" },
       { text: "요금제", link: "/ko-KR/pricing" },
-      { text: "아키텍처", link: "/ko-KR/architecture/" },
-      { text: "보안", link: "/ko-KR/security/" },
-      { text: "채널", link: "/ko-KR/channels/" },
-      { text: "통합", link: "/ko-KR/integrations/" },
-      { text: "기능", link: "/ko-KR/features/" },
-      { text: "레퍼런스", link: "/ko-KR/reference/" },
+      {
+        text: "문서",
+        items: [
+          { text: "아키텍처", link: "/ko-KR/architecture/" },
+          { text: "보안", link: "/ko-KR/security/" },
+          { text: "채널", link: "/ko-KR/channels/" },
+          { text: "통합", link: "/ko-KR/integrations/" },
+          { text: "기능", link: "/ko-KR/features/" },
+          { text: "레퍼런스", link: "/ko-KR/reference/" },
+        ],
+      },
       { text: "지원", link: "/ko-KR/support/" },
     ],
     sidebar: {

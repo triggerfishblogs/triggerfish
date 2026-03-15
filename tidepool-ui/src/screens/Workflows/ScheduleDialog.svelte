@@ -37,11 +37,11 @@
   <div class="schedule-dialog">
     <h3>Schedule Workflow</h3>
     <div class="field">
-      <label class="field-label">Workflow</label>
+      <span class="field-label">Workflow</span>
       <div class="field-value">{workflowName}</div>
     </div>
     <div class="field">
-      <label class="field-label">Type</label>
+      <span class="field-label">Type</span>
       <div class="radio-group">
         <label class="radio-label">
           <input type="radio" bind:group={scheduleType} value="cron" />
@@ -55,8 +55,9 @@
     </div>
     {#if scheduleType === "cron"}
       <div class="field">
-        <label class="field-label">Cron Expression</label>
+        <label class="field-label" for="cron-expr">Cron Expression</label>
         <input
+          id="cron-expr"
           type="text"
           class="text-input"
           placeholder="0 9 * * *"
@@ -65,8 +66,9 @@
       </div>
     {:else}
       <div class="field">
-        <label class="field-label">Run At</label>
+        <label class="field-label" for="run-at">Run At</label>
         <input
+          id="run-at"
           type="datetime-local"
           class="text-input"
           bind:value={onceDateTime}

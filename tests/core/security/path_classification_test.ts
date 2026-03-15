@@ -292,14 +292,16 @@ Deno.test("path classification: hardcoded > workspace > configured > default", (
 
 // --- Sandbox path remapping ---
 
-Deno.test("path classification: sandbox root '/' remaps to workspace basePath (PUBLIC)", () => {
+Deno.test("path classification: sandbox root '/' remaps to workspace basePath (RESTRICTED)", () => {
   const basePath = "/tmp/workspaces/agent-1";
   const ws = makeWorkspacePaths(basePath);
   const classifier = createPathClassifier(makeConfig(), ws, {
     resolveCwd: () => join(basePath, "public"),
   });
+  // "/" remaps to basePath which contains all classification dirs —
+  // classified RESTRICTED to prevent PUBLIC sessions from listing it.
   const result = classifier.classify("/");
-  assertEquals(result.classification, "PUBLIC");
+  assertEquals(result.classification, "RESTRICTED");
   assertEquals(result.source, "workspace");
 });
 

@@ -11,7 +11,13 @@ import { resolveConfigSecrets } from "./secrets/resolver.ts";
 import type { SecretStore } from "./secrets/keychain/keychain.ts";
 
 // Re-export all types so existing importers continue to work
-export type { Err, Ok, Result, TriggerFishConfig } from "./config_types.ts";
+export type {
+  Err,
+  Ok,
+  PluginConfigEntry,
+  Result,
+  TriggerFishConfig,
+} from "./config_types.ts";
 import type { Err, Result, TriggerFishConfig } from "./config_types.ts";
 
 /**

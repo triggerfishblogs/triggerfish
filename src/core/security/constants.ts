@@ -76,12 +76,19 @@ export const URL_WRITE_TOOLS: ReadonlySet<string> = new Set([
  * a lower-tainted session from reusing a profile used at a higher level.
  *
  * claude_* exec tools require INTERNAL (spawning sub-agents).
+ * ssh_* tools require INTERNAL (accessing remote systems with credentials).
  */
 export const HARDCODED_TOOL_FLOORS: ReadonlyMap<string, ClassificationLevel> =
   new Map<string, ClassificationLevel>([
     // claude_* exec tools require INTERNAL (spawning sub-agents)
     ["claude_session", "INTERNAL"],
     ["claude_output", "INTERNAL"],
+    // SSH tools require INTERNAL (remote system access with secret-store credentials)
+    ["ssh_execute", "INTERNAL"],
+    ["ssh_session_open", "INTERNAL"],
+    ["ssh_session_write", "INTERNAL"],
+    ["ssh_session_read", "INTERNAL"],
+    ["ssh_session_close", "INTERNAL"],
   ]);
 
 /**

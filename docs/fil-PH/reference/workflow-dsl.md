@@ -87,7 +87,61 @@ Lahat ng uri ng task ay may mga shared na opsyonal na field:
 | `output`   | transform | Transform na ina-apply pagkatapos ng task execution          |
 | `timeout`  | object    | Task timeout: `after: <ISO 8601 duration>`                   |
 | `then`     | string    | Flow directive: `continue`, `end`, o pangalan ng task        |
-| `metadata` | object    | Arbitrary na key-value metadata (hindi ginagamit ng engine)  |
+| `metadata` | object    | Arbitrary na key-value metadata. Kapag naka-enable ang self-healing, kailangan ang `description`, `expects`, `produces`. |
+
+---
+
+## Self-Healing Configuration
+
+Ine-enable ng `metadata.triggerfish.self_healing` block ang isang autonomous
+healing agent para sa workflow. Tingnan ang [Self-Healing](/fil-PH/features/workflows#self-healing)
+para sa kumpletong gabay.
+
+```yaml
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+      pause_timeout_seconds: 300
+      pause_timeout_policy: escalate_and_halt
+      notify_on: [intervention, escalation, approval_required]
+```
+
+| Field                   | Type    | Required | Default              | Description |
+| ----------------------- | ------- | -------- | -------------------- | ----------- |
+| `enabled`               | boolean | yes      | —                    | I-enable ang healing agent |
+| `retry_budget`          | number  | no       | `3`                  | Max na intervention attempt |
+| `approval_required`     | boolean | no       | `true`               | Kailangan ng human approval para sa mga fix |
+| `pause_on_intervention` | string  | no       | `"blocking_only"`    | `always` \| `never` \| `blocking_only` |
+| `pause_timeout_seconds` | number  | no       | `300`                | Mga segundo bago mag-fire ang timeout policy |
+| `pause_timeout_policy`  | string  | no       | `"escalate_and_halt"`| `escalate_and_halt` \| `escalate_and_skip` \| `escalate_and_fail` |
+| `notify_on`             | array   | no       | `[]`                 | `intervention` \| `escalation` \| `approval_required` |
+
+### Step Metadata (Kailangan Kapag Naka-enable ang Self-Healing)
+
+Kapag `true` ang `self_healing.enabled`, kailangang isama ng bawat task ang mga
+metadata field na ito. Rini-reject ng parser ang mga workflow na kulang sa
+alinman sa mga ito.
+
+| Field         | Type   | Description                                  |
+| ------------- | ------ | -------------------------------------------- |
+| `description` | string | Ano ang ginagawa ng step at bakit            |
+| `expects`     | string | Anyo ng input o mga precondition na kailangan |
+| `produces`    | string | Anyo ng output na ginagawa                   |
+
+```yaml
+- fetch-invoices:
+    call: http
+    with:
+      endpoint: "https://api.example.com/invoices"
+    metadata:
+      description: "Fetch open invoices from billing API"
+      expects: "API available, returns JSON array"
+      produces: "Array of {id, amount, status} objects"
+```
 
 ---
 

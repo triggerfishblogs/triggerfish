@@ -381,6 +381,86 @@ Deno.test("ExecTools: cwdOverride sets command working directory", async () => {
   }
 });
 
+// --- cwdOverride sandbox confinement tests (regression: workspace root leak) ---
+
+Deno.test("ExecTools: run_command with cwd '.' resolves to cwdOverride, not workspace root", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  const tools = createExecTools(ws, { cwdOverride: ws.publicPath });
+  try {
+    const result = await tools.runCommand("pwd", ".");
+    assertEquals(result.ok, true);
+    if (result.ok) {
+      assertStringIncludes(
+        result.value.stdout.trim(),
+        "public",
+      );
+    }
+  } finally {
+    await ws.destroy();
+  }
+});
+
+Deno.test("ExecTools: run_command with cwd '.' and PUBLIC override must not show classified dirs", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  const tools = createExecTools(ws, { cwdOverride: ws.publicPath });
+  try {
+    const result = await tools.runCommand("ls", ".");
+    assertEquals(result.ok, true);
+    if (result.ok) {
+      const output = result.value.stdout;
+      assert(!output.includes("confidential"), "PUBLIC cwd must not reveal confidential/");
+      assert(!output.includes("restricted"), "PUBLIC cwd must not reveal restricted/");
+      assert(!output.includes("internal"), "PUBLIC cwd must not reveal internal/");
+    }
+  } finally {
+    await ws.destroy();
+  }
+});
+
+Deno.test("ExecTools: run_command with dynamic cwdOverride resolves cwd '.' per taint level", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  let currentPath = ws.publicPath;
+  const tools = createExecTools(ws, { cwdOverride: () => currentPath });
+  try {
+    // PUBLIC taint → cwd "." should be public/
+    const pubResult = await tools.runCommand("pwd", ".");
+    assertEquals(pubResult.ok, true);
+    if (pubResult.ok) {
+      assertStringIncludes(pubResult.value.stdout.trim(), "public");
+    }
+
+    // Escalate to INTERNAL → cwd "." should be internal/
+    currentPath = ws.internalPath;
+    const intResult = await tools.runCommand("pwd", ".");
+    assertEquals(intResult.ok, true);
+    if (intResult.ok) {
+      assertStringIncludes(intResult.value.stdout.trim(), "internal");
+    }
+  } finally {
+    await ws.destroy();
+  }
+});
+
+Deno.test("ExecTools: run_command with relative cwd resolves under cwdOverride", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const ws = await createWorkspace({ agentId: "test", basePath: tmpDir });
+  const tools = createExecTools(ws, { cwdOverride: ws.publicPath });
+  try {
+    // Create a subdir inside public/
+    await Deno.mkdir(join(ws.publicPath, "myproject"), { recursive: true });
+    const result = await tools.runCommand("pwd", "myproject");
+    assertEquals(result.ok, true);
+    if (result.ok) {
+      assertStringIncludes(result.value.stdout.trim(), "public/myproject");
+    }
+  } finally {
+    await ws.destroy();
+  }
+});
+
 // --- agentId sanitization tests ---
 
 Deno.test("Workspace: agentId with newline is sanitized for path construction", async () => {

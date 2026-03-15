@@ -9,12 +9,17 @@ export const zhCN: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "指南", link: "/zh-CN/guide/" },
       { text: "定价", link: "/zh-CN/pricing" },
-      { text: "架构", link: "/zh-CN/architecture/" },
-      { text: "安全", link: "/zh-CN/security/" },
-      { text: "渠道", link: "/zh-CN/channels/" },
-      { text: "集成", link: "/zh-CN/integrations/" },
-      { text: "功能", link: "/zh-CN/features/" },
-      { text: "参考", link: "/zh-CN/reference/" },
+      {
+        text: "文档",
+        items: [
+          { text: "架构", link: "/zh-CN/architecture/" },
+          { text: "安全", link: "/zh-CN/security/" },
+          { text: "渠道", link: "/zh-CN/channels/" },
+          { text: "集成", link: "/zh-CN/integrations/" },
+          { text: "功能", link: "/zh-CN/features/" },
+          { text: "参考", link: "/zh-CN/reference/" },
+        ],
+      },
       { text: "支持", link: "/zh-CN/support/" },
     ],
     sidebar: {

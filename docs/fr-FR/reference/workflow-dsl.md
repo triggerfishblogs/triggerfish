@@ -87,7 +87,61 @@ Tous les types de tâches partagent ces champs optionnels :
 | `output`   | transform | Transformation appliquée après l'exécution de la tâche                |
 | `timeout`  | object    | Délai d'expiration de la tâche : `after: <durée ISO 8601>`            |
 | `then`     | string    | Directive de flux : `continue`, `end` ou un nom de tâche              |
-| `metadata` | object    | Métadonnées clé-valeur arbitraires (non utilisées par le moteur)      |
+| `metadata` | object    | Métadonnées clé-valeur arbitraires. Lorsque le self-healing est activé, requiert `description`, `expects`, `produces`. |
+
+---
+
+## Configuration du Self-Healing
+
+Le bloc `metadata.triggerfish.self_healing` active un agent de guérison autonome
+pour le flux de travail. Consultez
+[Self-Healing](/fr-FR/features/workflows#self-healing) pour un guide complet.
+
+```yaml
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+      pause_timeout_seconds: 300
+      pause_timeout_policy: escalate_and_halt
+      notify_on: [intervention, escalation, approval_required]
+```
+
+| Field                   | Type    | Required | Par défaut           | Description |
+| ----------------------- | ------- | -------- | -------------------- | ----------- |
+| `enabled`               | boolean | yes      | —                    | Active l'agent de guérison |
+| `retry_budget`          | number  | no       | `3`                  | Nombre max. de tentatives d'intervention |
+| `approval_required`     | boolean | no       | `true`               | Approbation humaine requise pour les corrections |
+| `pause_on_intervention` | string  | no       | `"blocking_only"`    | `always` \| `never` \| `blocking_only` |
+| `pause_timeout_seconds` | number  | no       | `300`                | Secondes avant le déclenchement de la politique de temporisation |
+| `pause_timeout_policy`  | string  | no       | `"escalate_and_halt"`| `escalate_and_halt` \| `escalate_and_skip` \| `escalate_and_fail` |
+| `notify_on`             | array   | no       | `[]`                 | `intervention` \| `escalation` \| `approval_required` |
+
+### Métadonnées d'étape (requises lorsque le Self-Healing est activé)
+
+Lorsque `self_healing.enabled` est `true`, chaque tâche doit inclure ces champs
+de métadonnées. L'analyseur rejette les flux de travail dans lesquels l'un
+d'entre eux est absent.
+
+| Field         | Type   | Description                                  |
+| ------------- | ------ | -------------------------------------------- |
+| `description` | string | Ce que fait l'étape et pourquoi              |
+| `expects`     | string | Forme des entrées ou préconditions nécessaires |
+| `produces`    | string | Forme de la sortie générée                   |
+
+```yaml
+- fetch-invoices:
+    call: http
+    with:
+      endpoint: "https://api.example.com/invoices"
+    metadata:
+      description: "Fetch open invoices from billing API"
+      expects: "API available, returns JSON array"
+      produces: "Array of {id, amount, status} objects"
+```
 
 ---
 

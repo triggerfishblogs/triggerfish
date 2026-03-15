@@ -440,3 +440,101 @@ classification_ceiling: INTERNAL
 删除存储在 `CONFIDENTIAL` 级别的工作流。`workflow_delete` 工具会先加载工作流，
 如果分类检查失败则返回"未找到"。
 :::
+
+## 自修复
+
+工作流可以选择配备一个自主修复代理，该代理实时监控执行过程、诊断故障并提出修复
+方案。启用自修复后，会在工作流运行时生成一个主导代理。它观察每个步骤事件、对
+故障进行分类并协调专家团队解决问题。
+
+### 启用自修复
+
+在工作流的 `metadata.triggerfish` 部分添加 `self_healing` 块：
+
+```yaml
+document:
+  dsl: "1.0"
+  namespace: ops
+  name: data-pipeline
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+do:
+  - fetch-data:
+      call: http
+      with:
+        endpoint: "https://api.example.com/data"
+      metadata:
+        description: "Fetch raw invoice data from billing API"
+        expects: "API returns JSON array of invoice objects"
+        produces: "Array of {id, amount, status, date} objects"
+```
+
+当 `enabled: true` 时，每个步骤**必须**包含三个元数据字段：
+
+| Field         | Description                                    |
+| ------------- | ---------------------------------------------- |
+| `description` | 该步骤的功能及其存在的原因                     |
+| `expects`     | 该步骤需要的输入形式或前置条件                 |
+| `produces`    | 该步骤生成的输出形式                           |
+
+解析器会拒绝任何步骤缺少这些字段的工作流。
+
+### 配置选项
+
+| Option                    | Type    | Default              | Description |
+| ------------------------- | ------- | -------------------- | ----------- |
+| `enabled`                 | boolean | —                    | 必需。启用修复代理。 |
+| `retry_budget`            | number  | `3`                  | 升级为无法解决之前的最大干预尝试次数。 |
+| `approval_required`       | boolean | `true`               | 提议的工作流修复是否需要人工审批。 |
+| `pause_on_intervention`   | string  | `"blocking_only"`    | 何时暂停下游任务：`always`、`never` 或 `blocking_only`。 |
+| `pause_timeout_seconds`   | number  | `300`                | 暂停期间超时策略触发前的等待秒数。 |
+| `pause_timeout_policy`    | string  | `"escalate_and_halt"`| 超时后的行为：`escalate_and_halt`、`escalate_and_skip` 或 `escalate_and_fail`。 |
+| `notify_on`               | array   | `[]`                 | 触发通知的事件：`intervention`、`escalation`、`approval_required`。 |
+
+### 工作原理
+
+1. **观察。** 修复主导代理接收工作流执行过程中的实时步骤事件流（started、
+   completed、failed、skipped）。
+
+2. **分类。** 当步骤失败时，主导代理将故障分为五个类别：
+
+   | 类别                  | 含义                                             |
+   | --------------------- | ------------------------------------------------ |
+   | `transient_retry`     | 临时问题（网络错误、速率限制、503）              |
+   | `runtime_workaround`  | 首次出现的未知错误，可能可以绕过                 |
+   | `structural_fix`      | 需要修改工作流定义的反复出现的故障               |
+   | `plugin_gap`          | 需要新集成的认证/凭证问题                        |
+   | `unresolvable`        | 重试预算已耗尽或根本无法修复                     |
+
+3. **专家团队。** 根据分类类别，主导代理生成专家代理团队（诊断师、重试协调器、
+   定义修复器、插件作者等）来调查和解决问题。
+
+4. **版本提议。** 当需要结构性修复时，团队会提议新的工作流版本。如果
+   `approval_required` 为 true，提议将等待人工通过 `workflow_version_approve`
+   或 `workflow_version_reject` 进行审查。
+
+5. **范围暂停。** 当 `pause_on_intervention` 启用时，只有下游任务被暂停——
+   独立分支继续执行。
+
+### 修复工具
+
+四个额外的工具可用于管理修复状态：
+
+| Tool                       | Description                                |
+| -------------------------- | ------------------------------------------ |
+| `workflow_version_list`    | 列出已提议/已批准/已拒绝的版本             |
+| `workflow_version_approve` | 批准一个提议的版本                         |
+| `workflow_version_reject`  | 拒绝一个提议的版本并说明原因               |
+| `workflow_healing_status`  | 工作流运行的当前修复状态                   |
+
+### 安全
+
+- 修复代理**无法修改自身的 `self_healing` 配置**。修改配置块的版本提议会被拒绝。
+- 主导代理和所有团队成员继承工作流的 taint 级别，并同步升级。
+- 所有代理操作通过标准策略钩子链——不允许绕过。
+- 提议的版本以工作流的分类级别存储。

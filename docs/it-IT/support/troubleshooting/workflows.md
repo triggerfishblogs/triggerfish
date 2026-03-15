@@ -294,3 +294,77 @@ rivelata alle sessioni con classificazione inferiore.
 superare il livello di classificazione del flusso di lavoro prima di eliminarlo.
 Oppure eliminatelo dallo stesso tipo di sessione in cui e stato originariamente
 salvato.
+
+---
+
+## Self-Healing
+
+### "Step metadata missing on task 'X': self-healing requires description, expects, produces"
+
+Quando `self_healing.enabled` e `true`, ogni attivita deve possedere tutti e tre
+i campi di metadati. L'analizzatore rifiuta il flusso di lavoro al momento del
+salvataggio se uno qualsiasi di essi manca.
+
+**Soluzione:** Aggiungete `description`, `expects` e `produces` al blocco
+`metadata` di ogni attivita:
+
+```yaml
+- my-task:
+    call: http
+    with:
+      endpoint: "https://example.com/api"
+    metadata:
+      description: "What this step does and why"
+      expects: "What this step needs as input"
+      produces: "What this step outputs"
+```
+
+---
+
+### "Self-healing config mutation rejected in version proposal"
+
+L'agente di guarigione ha proposto una nuova versione del flusso di lavoro che
+modifica il blocco di configurazione `self_healing`. Questo e vietato -- l'agente
+non puo modificare la propria configurazione di guarigione.
+
+Questo comportamento e intenzionale. Solo gli esseri umani possono modificare la
+configurazione `self_healing` salvando una nuova versione del flusso di lavoro
+direttamente tramite `workflow_save`.
+
+---
+
+### L'agente di guarigione non si avvia
+
+Il flusso di lavoro viene eseguito ma nessun agente di guarigione appare.
+Verificate:
+
+1. **`enabled` e `true`** in `metadata.triggerfish.self_healing`.
+2. **La configurazione e nella posizione corretta** -- deve essere annidata sotto
+   `metadata.triggerfish.self_healing`, non al primo livello.
+3. **Tutti i passi hanno metadati** -- se la validazione fallisce al momento del
+   salvataggio, il flusso di lavoro e stato salvato senza self-healing abilitato.
+
+---
+
+### Le correzioni proposte restano in sospeso
+
+Se `approval_required` e `true` (predefinito), le versioni proposte attendono
+la revisione umana. Utilizzate `workflow_version_list` per visualizzare le
+proposte in sospeso e `workflow_version_approve` o `workflow_version_reject` per
+agire.
+
+---
+
+### "Retry budget exhausted" / Escalation non risolvibile
+
+L'agente di guarigione ha esaurito tutti i tentativi di intervento (predefinito
+3) senza risolvere il problema. Escala come `unresolvable` e interrompe i
+tentativi di correzione.
+
+**Soluzione:**
+
+- Consultate `workflow_healing_status` per vedere quali interventi sono stati
+  tentati.
+- Esaminate e correggete il problema sottostante manualmente.
+- Per consentire ulteriori tentativi, aumentate `retry_budget` nella
+  configurazione del self-healing e salvate nuovamente il flusso di lavoro.

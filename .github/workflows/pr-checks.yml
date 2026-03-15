@@ -34,8 +34,32 @@ jobs:
       - name: Type check
         run: deno task check
 
+  build:
+    if: "!github.event.pull_request.draft"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Tidepool UI
+        run: cd tidepool-ui && npm install && npm run build
+
+      - name: Compile binary
+        run: deno task compile
+
   hygiene:
-    needs: lint
+    needs: [lint, build]
     runs-on: ubuntu-latest
     timeout-minutes: 25
 

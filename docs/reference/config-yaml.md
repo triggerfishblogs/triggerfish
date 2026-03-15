@@ -181,6 +181,25 @@ mcp_servers:
     classification: CONFIDENTIAL
 
 # ---------------------------------------------------------------------------
+# Plugins: Dynamic plugin configuration (optional)
+# ---------------------------------------------------------------------------
+# Plugins in ~/.triggerfish/plugins/ are loaded at startup when enabled here.
+# Plugins loaded by the agent at runtime (via plugin_install) do NOT require
+# a config entry -- they default to sandboxed trust and manifest classification.
+plugins:
+  weather:
+    enabled: true
+    classification: PUBLIC
+    trust: sandboxed # or "trusted" to grant full Deno permissions
+    # Additional keys are passed as context.config to the plugin
+    api_key: "secret:plugin:weather:apiKey"
+
+  system-info:
+    enabled: true
+    classification: PUBLIC
+    trust: trusted # both manifest AND config must say "trusted"
+
+# ---------------------------------------------------------------------------
 # Scheduler: Cron jobs and triggers
 # ---------------------------------------------------------------------------
 scheduler:
@@ -358,6 +377,22 @@ priority, conditions, and action. Higher priority numbers are evaluated first.
 External MCP tool servers. Each server specifies a command to launch it,
 optional environment variables, a classification level, and per-tool
 permissions.
+
+### `plugins`
+
+Dynamic plugin configuration. Each key is a plugin name matching the directory
+in `~/.triggerfish/plugins/`. Configuration is optional -- plugins loaded by the
+agent at runtime (via `plugin_install`) work without a config entry.
+
+| Key              | Type                              | Default       | Description                                                        |
+| ---------------- | --------------------------------- | ------------- | ------------------------------------------------------------------ |
+| `enabled`        | boolean                           | `false`       | Whether to load this plugin at startup                             |
+| `classification` | string                            | from manifest | Override the plugin's classification level                         |
+| `trust`          | `"sandboxed"` or `"trusted"`      | `"sandboxed"` | Trust level grant. Both manifest AND config must say `"trusted"`   |
+| (other keys)     | any                               | --            | Passed to the plugin as `context.config`                           |
+
+See [Plugins](/integrations/plugins) for details on writing, loading, and
+managing plugins.
 
 ### `scheduler`
 

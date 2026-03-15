@@ -71,6 +71,7 @@ async function compactChatHistory(
       const sessionId = getSession().id as string;
       const sessionTaint = config.getSessionTaint?.() ??
         "PUBLIC" as ClassificationLevel;
+      // Mark all prior records as compacted
       await config.messageStore.markCompacted(
         sessionId,
         0,
@@ -79,7 +80,8 @@ async function compactChatHistory(
       await config.messageStore.append({
         session_id: sessionId,
         role: "compaction_summary",
-        content: `[Compaction] ${result.messagesBefore} → ${result.messagesAfter} messages, ${result.tokensBefore} → ${result.tokensAfter} tokens`,
+        content:
+          `[Compaction] ${result.messagesBefore} → ${result.messagesAfter} messages, ${result.tokensBefore} → ${result.tokensAfter} tokens`,
         classification: sessionTaint,
       });
     }
@@ -184,6 +186,12 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     clear() {
       orchestrator.clearHistory(getSession().id);
       if (config.resetSession) config.resetSession();
+      if (config.broadcastChatEvent) {
+        config.broadcastChatEvent({
+          type: "taint_changed",
+          level: "PUBLIC" as ClassificationLevel,
+        });
+      }
     },
     compact: (sendEvent) =>
       compactChatHistory(orchestrator, getSession, sendEvent, config),

@@ -78,12 +78,25 @@ async function deleteLinuxSecret(
   return { ok: true, value: true };
 }
 
-/** Parse secret-tool search output for attribute key names. */
-function parseLinuxSecretSearchOutput(output: string): string[] {
+/**
+ * Parse secret-tool search stdout for secret names.
+ *
+ * `secret-tool search` emits attribute metadata to stderr and structured
+ * fields (label, secret, created, modified) to stdout. We parse the
+ * `label = triggerfish:<name>` lines from stdout to extract secret names,
+ * since the `attribute.key` lines are on stderr and not captured by
+ * runCommand.
+ */
+export function parseLinuxSecretSearchOutput(output: string): string[] {
+  const prefix = `${SECRET_SERVICE_NAME}:`;
   const names: string[] = [];
   for (const line of output.split("\n")) {
-    const match = line.match(/^attribute\.key\s*=\s*(.+)$/);
-    if (match) names.push(match[1].trim());
+    const match = line.match(/^label\s*=\s*(.+)$/);
+    if (!match) continue;
+    const label = match[1].trim();
+    if (label.startsWith(prefix)) {
+      names.push(label.slice(prefix.length));
+    }
   }
   return names;
 }
@@ -92,6 +105,7 @@ function parseLinuxSecretSearchOutput(output: string): string[] {
 async function listLinuxSecrets(): Promise<Result<string[], string>> {
   const result = await runCommand("secret-tool", [
     "search",
+    "--all",
     "service",
     SECRET_SERVICE_NAME,
   ]);

@@ -1,10 +1,11 @@
-name: Validate Skill PR
+name: Validate Submission
 
 on:
   pull_request:
     branches: [main]
     paths:
       - "skills/**"
+      - "plugins/**"
 
 permissions:
   contents: read
@@ -24,18 +25,18 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Find changed skill directories
+      - name: Find changed submission directories
         id: changed
         run: |
-          CHANGED=$(git diff --name-only origin/main...HEAD -- 'skills/' \
-            | grep 'SKILL.md$' \
+          CHANGED=$(git diff --name-only origin/main...HEAD -- 'skills/' 'plugins/' \
+            | grep -E '(SKILL\.md|mod\.ts|metadata\.json)$' \
             | xargs -I {} dirname {} \
             | sort -u)
           echo "dirs<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGED" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Validate each changed skill
+      - name: Validate each submission
         id: validate
         run: |
           RESULTS=""
@@ -65,7 +66,7 @@ jobs:
         with:
           script: |
             const results = `${{ steps.validate.outputs.results }}`;
-            const body = `### Reef Skill Validation\n\n\`\`\`\n${results}\n\`\`\``;
+            const body = `### Reef Submission Validation\n\n\`\`\`\n${results}\n\`\`\``;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,

@@ -9,12 +9,17 @@ export const ptBR: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "Guia", link: "/pt-BR/guide/" },
       { text: "Preços", link: "/pt-BR/pricing" },
-      { text: "Arquitetura", link: "/pt-BR/architecture/" },
-      { text: "Segurança", link: "/pt-BR/security/" },
-      { text: "Canais", link: "/pt-BR/channels/" },
-      { text: "Integrações", link: "/pt-BR/integrations/" },
-      { text: "Recursos", link: "/pt-BR/features/" },
-      { text: "Referência", link: "/pt-BR/reference/" },
+      {
+        text: "Documentação",
+        items: [
+          { text: "Arquitetura", link: "/pt-BR/architecture/" },
+          { text: "Segurança", link: "/pt-BR/security/" },
+          { text: "Canais", link: "/pt-BR/channels/" },
+          { text: "Integrações", link: "/pt-BR/integrations/" },
+          { text: "Recursos", link: "/pt-BR/features/" },
+          { text: "Referência", link: "/pt-BR/reference/" },
+        ],
+      },
       { text: "Suporte", link: "/pt-BR/support/" },
     ],
     sidebar: {

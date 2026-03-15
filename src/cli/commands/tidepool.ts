@@ -7,25 +7,42 @@
  * @module
  */
 
-import { TIDEPOOL_PORT } from "../constants.ts";
+import {
+  type DaemonState,
+  daemonStatePath,
+  TIDEPOOL_PORT,
+} from "../constants.ts";
 
 /**
- * Returns the URL at which the Tidepool A2UI server is expected to listen.
+ * Read the daemon state file to get the authenticated Tidepool URL.
+ *
+ * Returns null if the state file does not exist or is unreadable.
  */
-export function getTidepoolUrl(): string {
-  return `http://127.0.0.1:${TIDEPOOL_PORT}`;
+async function readDaemonState(): Promise<DaemonState | null> {
+  try {
+    const text = await Deno.readTextFile(daemonStatePath());
+    return JSON.parse(text) as DaemonState;
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Probes the Tidepool HTTP endpoint to check if it is currently running.
  *
+ * Reads the session key from the daemon state file so the probe
+ * request passes authentication.
+ *
  * @returns `true` if the server responded successfully, `false` otherwise.
  */
 export async function probeTidepool(): Promise<boolean> {
   try {
-    const response = await fetch(getTidepoolUrl(), {
+    const state = await readDaemonState();
+    const url = state?.tidepoolUrl ?? `http://127.0.0.1:${TIDEPOOL_PORT}`;
+    const response = await fetch(url, {
       signal: AbortSignal.timeout(2000),
     });
+    await response.body?.cancel();
     return response.ok;
   } catch {
     return false;
@@ -47,9 +64,17 @@ export async function runTidepool(
   _flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
   if (subcommand === undefined || subcommand === "url") {
-    const alive = await probeTidepool();
-    if (alive) {
-      console.log(`  Tidepool: ${getTidepoolUrl()}`);
+    const state = await readDaemonState();
+    if (state) {
+      const alive = await probeTidepool();
+      if (alive) {
+        console.log(`  Tidepool: ${state.tidepoolUrl}`);
+      } else {
+        console.log("✗ Tidepool is not running.");
+        console.log(
+          "  Run 'triggerfish run' or 'triggerfish start' to launch the gateway.",
+        );
+      }
     } else {
       console.log("✗ Tidepool is not running.");
       console.log(

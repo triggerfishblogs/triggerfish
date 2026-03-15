@@ -82,7 +82,57 @@ do:
 | `output`   | transform | 작업 실행 후에 적용되는 변환                         |
 | `timeout`  | object    | 작업 타임아웃: `after: <ISO 8601 기간>`              |
 | `then`     | string    | 흐름 지시문: `continue`, `end` 또는 작업 이름        |
-| `metadata` | object    | 임의의 키-값 메타데이터 (엔진에서 사용하지 않음)      |
+| `metadata` | object    | 임의의 키-값 메타데이터. 자가 치유 활성화 시 `description`, `expects`, `produces`가 필요합니다. |
+
+---
+
+## 자가 치유 구성
+
+`metadata.triggerfish.self_healing` 블록은 워크플로에 대한 자율 치유 에이전트를 활성화합니다. 전체 가이드는 [자가 치유](/ko-KR/features/workflows#자가-치유)를 참조하십시오.
+
+```yaml
+metadata:
+  triggerfish:
+    self_healing:
+      enabled: true
+      retry_budget: 3
+      approval_required: true
+      pause_on_intervention: blocking_only
+      pause_timeout_seconds: 300
+      pause_timeout_policy: escalate_and_halt
+      notify_on: [intervention, escalation, approval_required]
+```
+
+| Field                   | Type    | Required | Default              | 설명 |
+| ----------------------- | ------- | -------- | -------------------- | ---- |
+| `enabled`               | boolean | yes      | —                    | 치유 에이전트 활성화 |
+| `retry_budget`          | number  | no       | `3`                  | 최대 개입 시도 횟수 |
+| `approval_required`     | boolean | no       | `true`               | 수정에 사람의 승인 필요 여부 |
+| `pause_on_intervention` | string  | no       | `"blocking_only"`    | `always` \| `never` \| `blocking_only` |
+| `pause_timeout_seconds` | number  | no       | `300`                | 타임아웃 정책 실행까지 대기 시간(초) |
+| `pause_timeout_policy`  | string  | no       | `"escalate_and_halt"`| `escalate_and_halt` \| `escalate_and_skip` \| `escalate_and_fail` |
+| `notify_on`             | array   | no       | `[]`                 | `intervention` \| `escalation` \| `approval_required` |
+
+### 단계 메타데이터 (자가 치유 활성화 시 필수)
+
+`self_healing.enabled`가 `true`인 경우 모든 작업에 다음 메타데이터 필드가 포함되어야 합니다. 파서는 이러한 필드가 누락된 워크플로를 거부합니다.
+
+| Field         | Type   | 설명                                         |
+| ------------- | ------ | -------------------------------------------- |
+| `description` | string | 해당 단계의 기능과 이유                      |
+| `expects`     | string | 필요한 입력 형태 또는 전제 조건              |
+| `produces`    | string | 생성되는 출력 형태                           |
+
+```yaml
+- fetch-invoices:
+    call: http
+    with:
+      endpoint: "https://api.example.com/invoices"
+    metadata:
+      description: "Fetch open invoices from billing API"
+      expects: "API available, returns JSON array"
+      produces: "Array of {id, amount, status} objects"
+```
 
 ---
 

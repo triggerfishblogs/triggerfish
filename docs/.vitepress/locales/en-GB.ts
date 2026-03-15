@@ -9,12 +9,17 @@ export const enGB: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "Guide", link: "/en-GB/guide/" },
       { text: "Pricing", link: "/en-GB/pricing" },
-      { text: "Architecture", link: "/en-GB/architecture/" },
-      { text: "Security", link: "/en-GB/security/" },
-      { text: "Channels", link: "/en-GB/channels/" },
-      { text: "Integrations", link: "/en-GB/integrations/" },
-      { text: "Features", link: "/en-GB/features/" },
-      { text: "Reference", link: "/en-GB/reference/" },
+      {
+        text: "Docs",
+        items: [
+          { text: "Architecture", link: "/en-GB/architecture/" },
+          { text: "Security", link: "/en-GB/security/" },
+          { text: "Channels", link: "/en-GB/channels/" },
+          { text: "Integrations", link: "/en-GB/integrations/" },
+          { text: "Features", link: "/en-GB/features/" },
+          { text: "Reference", link: "/en-GB/reference/" },
+        ],
+      },
       { text: "Support", link: "/en-GB/support/" },
     ],
     sidebar: {

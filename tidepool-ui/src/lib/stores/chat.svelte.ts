@@ -36,6 +36,9 @@ let _todoItems: TodoItem[] = $state([]);
 /** Whether a vision request is in progress. */
 let _visionActive: boolean = $state(false);
 
+/** Whether the user just toggled bumpers (suppresses initial status message). */
+let _bumpersTogglePending = false;
+
 const WEB_TOOLS = new Set([
   "web_search",
   "web_fetch",
@@ -83,9 +86,28 @@ export function getVisionActive(): boolean {
 export function sendMessage(text: string): void {
   if (!text.trim() && _pendingImages.length === 0) return;
 
-  if (text.trim() === "/clear") {
+  const trimmed = text.trim();
+
+  if (trimmed === "/clear") {
     clearChat();
     send({ type: "clear" });
+    return;
+  }
+
+  if (trimmed === "/bumpers") {
+    _bumpersTogglePending = true;
+    send({ type: "bumpers" });
+    return;
+  }
+
+  if (trimmed === "/compact") {
+    _messages.push({
+      id: genId(),
+      role: "assistant",
+      text: "Compacting conversation history…",
+      timestamp: Date.now(),
+    });
+    send({ type: "compact" });
     return;
   }
 
@@ -136,6 +158,7 @@ export function clearChat(): void {
   _partialText = "";
   _todoItems = [];
   _visionActive = false;
+  _bumpersTogglePending = false;
 }
 
 /** Add a pasted image. */
@@ -254,6 +277,21 @@ function handleMessage(msg: Record<string, unknown>): void {
       _partialText = "";
       break;
 
+    case "bumpers_status": {
+      if (!_bumpersTogglePending) break;
+      _bumpersTogglePending = false;
+      const enabled = msg.enabled as boolean;
+      _messages.push({
+        id: genId(),
+        role: "assistant",
+        text: enabled
+          ? "Bumpers **enabled** — tool calls that would escalate taint will be blocked."
+          : "Bumpers **disabled** — taint will escalate freely.",
+        timestamp: Date.now(),
+      });
+      break;
+    }
+
     case "error":
       _thinking = false;
       _messages.push({
@@ -268,10 +306,11 @@ function handleMessage(msg: Record<string, unknown>): void {
 
 onTopic("chat", handleMessage);
 
-/** Reset thinking state when the WebSocket disconnects. */
+/** Reset thinking and pending flags when the WebSocket disconnects. */
 function handleShellMessage(msg: Record<string, unknown>): void {
   if (msg.type === "ws_disconnected") {
     _thinking = false;
+    _bumpersTogglePending = false;
   }
 }
 

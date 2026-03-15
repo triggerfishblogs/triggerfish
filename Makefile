@@ -1,7 +1,10 @@
-.PHONY: build install release test lint fmt check clean docker
+.PHONY: build install release test lint fmt check clean docker tidepool-ui
 
-build:
+build: tidepool-ui
 	deno task compile
+
+tidepool-ui:
+	cd tidepool-ui && npm install && npm run build
 
 install: build
 	mkdir -p $(HOME)/.local/bin

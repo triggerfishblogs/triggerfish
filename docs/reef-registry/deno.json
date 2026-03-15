@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "@std/yaml": "jsr:@std/yaml@^1.0.0",
+    "@std/path": "jsr:@std/path@^1.0.0"
+  }
+}

@@ -9,12 +9,17 @@ export const es419: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "Guía", link: "/es-419/guide/" },
       { text: "Precios", link: "/es-419/pricing" },
-      { text: "Arquitectura", link: "/es-419/architecture/" },
-      { text: "Seguridad", link: "/es-419/security/" },
-      { text: "Canales", link: "/es-419/channels/" },
-      { text: "Integraciones", link: "/es-419/integrations/" },
-      { text: "Funcionalidades", link: "/es-419/features/" },
-      { text: "Referencia", link: "/es-419/reference/" },
+      {
+        text: "Documentación",
+        items: [
+          { text: "Arquitectura", link: "/es-419/architecture/" },
+          { text: "Seguridad", link: "/es-419/security/" },
+          { text: "Canales", link: "/es-419/channels/" },
+          { text: "Integraciones", link: "/es-419/integrations/" },
+          { text: "Funcionalidades", link: "/es-419/features/" },
+          { text: "Referencia", link: "/es-419/reference/" },
+        ],
+      },
       { text: "Soporte", link: "/es-419/support/" },
     ],
     sidebar: {

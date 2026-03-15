@@ -55,6 +55,8 @@ import { createToolExecutor, TOOL_GROUPS } from "../../tools/agent_tools.ts";
 import type { SubsystemExecutor } from "../../tools/executor/executor_types.ts";
 import type { buildTeamExecutor } from "../factory/team_executor.ts";
 import type { wireMcpServers } from "../infra/mcp.ts";
+import type { PluginRegistry } from "../../../plugin/registry.ts";
+import { PLUGIN_TOOL_DEFINITIONS } from "../../../plugin/tools.ts";
 import {
   createWorkflowStore,
   createWorkflowToolExecutor,
@@ -62,6 +64,7 @@ import {
 } from "../../../workflow/mod.ts";
 import type { MemoryStore } from "../../../tools/memory/store.ts";
 import { loadPersonaContext } from "../../../tools/memory/mod.ts";
+import { createSshToolExecutor } from "../../../tools/ssh/mod.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 
 const log = createLogger("persona-prompt");
@@ -179,6 +182,8 @@ export function assembleMainToolExecutor(
     readonly simulateExecutor?: SubsystemExecutor;
     readonly teamExecutor?: ReturnType<typeof buildTeamExecutor>;
     readonly workflowRunRegistry?: WorkflowRunRegistry;
+    readonly pluginExecutor?: SubsystemExecutor;
+    readonly pluginToolExecutor?: SubsystemExecutor;
   },
 ) {
   const aux = buildAuxiliaryExecutors(
@@ -201,6 +206,8 @@ export function assembleMainToolExecutor(
     })
     : undefined;
 
+  const sshExecutor = createSshToolExecutor();
+
   const toolExecutor = createToolExecutor({
     ...deps,
     googleExecutor: buildGoogleExecutor({
@@ -210,6 +217,7 @@ export function assembleMainToolExecutor(
     ...aux,
     providerRegistry: deps.registry,
     workflowExecutor,
+    sshExecutor,
   });
   compositeRef.current = toolExecutor;
   return toolExecutor;
@@ -222,9 +230,12 @@ export function buildExtraToolsGetter(
   tidepoolToolsRef: {
     value: import("../../../tools/tidepool/mod.ts").TidePoolTools | undefined;
   },
+  pluginRegistry?: PluginRegistry,
 ) {
   return () => [
     ...(mcpWiring ? mcpWiring.getToolDefinitions() : []),
+    ...(pluginRegistry ? pluginRegistry.getToolDefinitions() : []),
+    ...(pluginRegistry ? PLUGIN_TOOL_DEFINITIONS : []),
     ...(isTidepoolCallRef.value && tidepoolToolsRef.value
       ? TOOL_GROUPS.tidepool()
       : []),
@@ -248,6 +259,7 @@ export function buildExtraSystemPromptGetter(
   workspacePaths: WorkspacePaths,
   personaOptions?: PersonaRecallOptions,
   getBumpersEnabled?: () => boolean,
+  pluginRegistry?: PluginRegistry,
 ) {
   // Cache persona context with a short TTL to avoid querying the store
   // on every single LLM iteration within a rapid tool loop.
@@ -263,6 +275,9 @@ export function buildExtraSystemPromptGetter(
     }
     if (isTidepoolCallRef.value) sections.push(TIDEPOOL_SYSTEM_PROMPT);
     if (getBumpersEnabled?.()) sections.push(BUMPERS_SYSTEM_PROMPT);
+    if (pluginRegistry) {
+      sections.push(...pluginRegistry.getSystemPrompts());
+    }
     sections.push(buildWorkspacePrompt(getSessionTaint(), workspacePaths));
 
     if (personaOptions && personaOptions.isOwnerSession()) {

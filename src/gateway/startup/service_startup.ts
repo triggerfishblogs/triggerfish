@@ -69,6 +69,7 @@ export function buildMainChatSession(
     triggerStore: coreInfra.triggerStore,
     broadcastChatEvent: (event) => {
       coreInfra.gatewayServerRef.value?.broadcastChatEvent(event);
+      coreInfra.tidepoolHostRef.value?.broadcastChatEvent(event);
     },
     workspacePaths: {
       publicPath: toolInfra.mainWorkspace.publicPath,

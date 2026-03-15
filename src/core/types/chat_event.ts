@@ -40,7 +40,11 @@ export type ChatEvent =
     readonly result: string;
     readonly blocked: boolean;
   }
-  | { readonly type: "response"; readonly text: string }
+  | {
+    readonly type: "response";
+    readonly text: string;
+    readonly taint?: ClassificationLevel;
+  }
   | {
     readonly type: "response_chunk";
     readonly text: string;

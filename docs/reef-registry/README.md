@@ -1,16 +1,12 @@
-# Reef Registry Specification
+# The Reef
 
-This directory contains the specification and template files for the
-`reef-registry` GitHub repo — The Reef skill marketplace for Triggerfish.
-
-## Overview
-
-The Reef is a **static** skill registry served via GitHub Pages. Skills are
-submitted as pull requests. CI validates and scans them. After merge, a GitHub
-Actions workflow rebuilds the static JSON index.
+The Reef is the skill and plugin marketplace for
+[Triggerfish](https://github.com/greghavens/triggerfish). It is a **static**
+registry served via GitHub Pages. Submissions are made as pull requests, validated
+by CI, and served as static JSON after merge.
 
 ```
-Author submits PR → CI validates + scans → Maintainer merges → Actions rebuild index → GitHub Pages serves static files
+Author submits PR → CI validates + scans → Maintainer merges → Actions rebuild index → GitHub Pages serves
 ```
 
 ## Repo Structure
@@ -27,23 +23,32 @@ reef-registry/
         SKILL.md
       1.1.0/
         SKILL.md
-  index/                               # Generated catalog (gitignored)
+  plugins/                             # Plugin submissions
+    github-issues/
+      1.0.0/
+        mod.ts
+        metadata.json
+  index/                               # Generated skill catalog
     catalog.json
     tags.json
     categories.json
+  plugins/index/                       # Generated plugin catalog
+    catalog.json
   docs/
     CONTRIBUTING.md
     REVIEW.md
   scripts/
-    validate-skill.ts                  # PR validation script
-    build-index.ts                     # Index rebuild script
+    validate-skill.ts                  # PR validation (skills + plugins)
+    build-index.ts                     # Index rebuild (skills + plugins)
   .github/
     workflows/
       validate-pr.yml                  # PR CI pipeline
-      rebuild-index.yml                # Post-merge index builder
+      rebuild-index.yml                # Post-merge index builder + deploy
 ```
 
 ## Static Files Served
+
+### Skills
 
 | Path                                     | Description                                                                        |
 | ---------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -52,6 +57,14 @@ reef-registry/
 | `/index/categories.json`                 | Category → skill name mapping                                                      |
 | `/skills/{name}/{version}/SKILL.md`      | The skill file                                                                     |
 | `/skills/{name}/{version}/metadata.json` | Parsed frontmatter + checksum + publish date                                       |
+
+### Plugins
+
+| Path                                       | Description                                              |
+| ------------------------------------------ | -------------------------------------------------------- |
+| `/plugins/index/catalog.json`              | All plugin metadata (name, version, classification, etc) |
+| `/plugins/{name}/{version}/mod.ts`         | The plugin entry point                                   |
+| `/plugins/{name}/{version}/metadata.json`  | Plugin metadata + checksum + publish date                |
 
 ## How to Submit a Skill
 
@@ -62,7 +75,7 @@ reef-registry/
 5. CI will validate your skill and post results
 6. After review and merge, the index rebuilds automatically
 
-## Required Frontmatter Fields
+### Required Skill Frontmatter
 
 ```yaml
 ---
@@ -82,7 +95,37 @@ network_domains:
 ---
 ```
 
+## How to Submit a Plugin
+
+1. Fork this repository
+2. Create `plugins/{name}/{version}/mod.ts` and `plugins/{name}/{version}/metadata.json`
+3. Run `triggerfish plugin publish <path>` to validate locally
+4. Open a Pull Request against `main`
+5. CI will validate your plugin and post results
+6. After review and merge, the index rebuilds automatically
+
+### Required Plugin metadata.json
+
+```json
+{
+  "name": "my-plugin",
+  "version": "1.0.0",
+  "description": "What the plugin does",
+  "author": "your-github-username",
+  "classification": "INTERNAL",
+  "trust": "sandboxed",
+  "tags": ["integration", "api"],
+  "declaredEndpoints": ["https://api.example.com"]
+}
+```
+
+## Publishing Updates
+
+To publish a new version of a skill or plugin, create a new version directory
+(e.g., `skills/my-skill/1.1.0/` or `plugins/my-plugin/1.1.0/`) and submit a PR.
+The catalog serves all versions; clients fetch the latest by default.
+
 ## Base URL
 
-- GitHub Pages default: `https://greghavens.github.io/reef-registry`
-- Custom domain (planned): `https://reef.trigger.fish`
+- GitHub Pages: `https://greghavens.github.io/reef-registry`
+- Custom domain: `https://reef.trigger.fish`

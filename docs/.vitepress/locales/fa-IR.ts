@@ -10,12 +10,17 @@ export const faIR: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "راهنما", link: "/fa-IR/guide/" },
       { text: "قیمت‌گذاری", link: "/fa-IR/pricing" },
-      { text: "معماری", link: "/fa-IR/architecture/" },
-      { text: "امنیت", link: "/fa-IR/security/" },
-      { text: "کانال‌ها", link: "/fa-IR/channels/" },
-      { text: "یکپارچه‌سازی‌ها", link: "/fa-IR/integrations/" },
-      { text: "ویژگی‌ها", link: "/fa-IR/features/" },
-      { text: "مرجع", link: "/fa-IR/reference/" },
+      {
+        text: "مستندات",
+        items: [
+          { text: "معماری", link: "/fa-IR/architecture/" },
+          { text: "امنیت", link: "/fa-IR/security/" },
+          { text: "کانال‌ها", link: "/fa-IR/channels/" },
+          { text: "یکپارچه‌سازی‌ها", link: "/fa-IR/integrations/" },
+          { text: "ویژگی‌ها", link: "/fa-IR/features/" },
+          { text: "مرجع", link: "/fa-IR/reference/" },
+        ],
+      },
       { text: "پشتیبانی", link: "/fa-IR/support/" },
     ],
     sidebar: {

@@ -519,140 +519,473 @@ const runResult = await tools.run("deno run hello.ts");
 
 ---
 
-## Pattern 6: Plugin (TypeScript or Python)
+## Pattern 6: Dynamic Plugin
 
-Plugins extend the agent with custom code that runs in a double sandbox (Deno +
-WASM). TypeScript plugins run directly in the Deno sandbox. Python plugins run
-in Pyodide (WASM Python) inside the Deno sandbox.
+Plugins are external tool providers loaded from `~/.triggerfish/plugins/<name>/`
+at startup. Each plugin exports a manifest, tool definitions, and an executor
+factory from its `mod.ts` entry point. Tools are namespaced as
+`plugin_<name>_<toolName>` (like MCP's `mcp_<serverId>_<toolName>`) and routed
+through the same hook/classification/taint enforcement as built-in tools.
 
 ### Interfaces
 
-Defined in `src/plugin/sandbox.ts` and `src/plugin/sdk.ts`:
+Defined in `src/plugin/types.ts`:
 
 ```typescript
-interface SandboxConfig {
-  readonly name: string;
-  readonly version: string;
-  readonly declaredEndpoints: readonly string[];
-  readonly maxClassification: ClassificationLevel;
+/** Plugin manifest declaring identity, capabilities, and security properties. */
+interface PluginManifest {
+  readonly name: string;              // alphanumeric + hyphens, matches directory name
+  readonly version: string;           // semantic version
+  readonly description: string;
+  readonly classification: ClassificationLevel;  // classification for all tools
+  readonly trust: "sandboxed" | "trusted";       // requested trust level
+  readonly declaredEndpoints: readonly string[]; // network allowlist (for sandbox)
 }
 
-interface Sandbox {
-  execute(code: string): Promise<unknown>;
-  destroy(): Promise<void>;
+/** Context provided to plugin executor factories at initialization. */
+interface PluginContext {
+  readonly pluginName: string;
+  readonly getSessionTaint: () => ClassificationLevel;
+  readonly escalateTaint: (level: ClassificationLevel) => void;
+  readonly log: PluginLogger;        // structured logger scoped to the plugin
+  readonly config: Readonly<Record<string, unknown>>;  // from triggerfish.yaml
 }
 
-interface PluginSdk {
-  emitData(payload: EmitDataPayload): Result<void, string>;
-  queryAsUser(query: string): Promise<QueryResult>;
-}
-
-interface EmitDataPayload {
-  readonly content?: string;
-  readonly classification?: ClassificationLevel; // REQUIRED
-}
-
-interface QueryResult {
-  readonly classification: ClassificationLevel;
-  readonly data: unknown;
+/** Shape of a plugin's mod.ts exports. */
+interface PluginExports {
+  readonly manifest: PluginManifest;
+  readonly toolDefinitions: readonly ToolDefinition[];
+  readonly createExecutor: (
+    context: PluginContext,
+  ) => SubsystemExecutor | Promise<SubsystemExecutor>;
+  readonly systemPrompt?: string;    // optional agent prompt section
 }
 ```
 
-### How to Build a TypeScript Plugin
+### How to Build a Plugin
 
-```typescript
-import type { PluginResult, PluginSdk } from "triggerfish/plugin";
+**1. Create the plugin directory:**
 
-export async function execute(sdk: PluginSdk): Promise<PluginResult> {
-  if (!await sdk.has_user_connection("acme-api")) {
-    return { success: false, error: "Acme API not connected" };
-  }
-
-  const data = await sdk.query_as_user("acme-api", {
-    endpoint: "/api/v1/tasks",
-    method: "GET",
-  });
-
-  sdk.emitData({
-    classification: "INTERNAL",
-    payload: data,
-    source: "acme-api",
-  });
-
-  return { success: true };
-}
+```
+~/.triggerfish/plugins/my-plugin/
+  mod.ts    # entry point — must export manifest, toolDefinitions, createExecutor
 ```
 
-### How to Build a Python Plugin
-
-```python
-async def execute(sdk):
-    if not await sdk.has_user_connection("analytics-db"):
-        return {"success": False, "error": "Analytics DB not connected"}
-
-    results = await sdk.query_as_user("analytics-db", {
-        "endpoint": "/rest/v1/metrics",
-        "method": "GET",
-        "params": {"period": "7d"}
-    })
-
-    sdk.emit_data({
-        "classification": "CONFIDENTIAL",
-        "payload": results,
-        "source": "analytics-db"
-    })
-
-    return {"success": True}
-```
-
-### Key Details
-
-- **Double sandbox**: Plugin code cannot access the host filesystem, make
-  undeclared network calls, or escape isolation
-- **Network allowlist**: Only endpoints declared in `declaredEndpoints` are
-  reachable. All others are blocked at the fetch level
-- **Classification enforcement**: `emitData()` rejects data without a
-  classification label and data that exceeds the plugin's ceiling
-- **Auto-taint**: `queryAsUser()` returns data tagged with the plugin's
-  classification level. Session taint escalates automatically
-- **Python constraints**: No native C extensions (psycopg2, mysqlclient). Use
-  HTTP-based database APIs instead. See the `mastering-python` skill for details
-- **Plugin lifecycle**: Created → UNTRUSTED → owner review → CLASSIFIED
-  (active). Plugins cannot self-activate
-
-### Sandbox Creation and Execution
+**2. Write mod.ts:**
 
 ```typescript
-// 1. Create sandbox
-const sandbox = await createSandbox({
+import type { PluginContext } from "triggerfish/plugin/types.ts";
+
+export const manifest = {
   name: "my-plugin",
-  version: "1.0",
-  declaredEndpoints: ["https://api.acme.com"],
-  maxClassification: "CONFIDENTIAL",
-});
+  version: "1.0.0",
+  description: "Does useful things",
+  classification: "INTERNAL" as const,
+  trust: "sandboxed" as const,
+  declaredEndpoints: ["https://api.example.com"],
+};
 
-// 2. Create SDK
-const sdk = createPluginSdk({
-  pluginName: "my-plugin",
-  maxClassification: "CONFIDENTIAL",
-});
+export const toolDefinitions = [
+  {
+    name: "fetch_data",
+    description: "Fetches data from the example API.",
+    parameters: {
+      query: {
+        type: "string",
+        description: "Search query",
+        required: true,
+      },
+    },
+  },
+];
 
-// 3. Execute
-const result = await sandbox.execute(pluginCode);
+export const systemPrompt = "## My Plugin\nUse `fetch_data` to query the example API.";
 
-// 4. Cleanup
-await sandbox.destroy();
+export function createExecutor(context: PluginContext) {
+  return async (
+    name: string,
+    input: Record<string, unknown>,
+  ): Promise<string | null> => {
+    switch (name) {
+      case "fetch_data": {
+        const query = input.query as string;
+        context.log.info("Fetching data", { query });
+        const resp = await fetch(
+          `https://api.example.com/search?q=${encodeURIComponent(query)}`,
+        );
+        return await resp.text();
+      }
+      default:
+        return null;
+    }
+  };
+}
 ```
 
-### File Organization
+**3. Enable in triggerfish.yaml:**
+
+```yaml
+plugins:
+  my-plugin:
+    enabled: true
+    classification: INTERNAL
+    trust: sandboxed        # or "trusted" to grant full Deno permissions
+    # any additional keys are passed as context.config to the plugin
+    api_key: ${MY_PLUGIN_API_KEY}
+```
+
+### Trust Model
+
+Trust requires both sides to agree:
+
+```
+effectiveTrust = (manifest.trust === "trusted" AND config.trust === "trusted")
+                 ? "trusted" : "sandboxed"
+```
+
+- **Sandboxed** (default): Executor errors are caught and returned as tool
+  results. Network is restricted to `declaredEndpoints`. Use this for untrusted
+  or third-party plugins.
+- **Trusted**: Executor runs with normal Deno permissions. Use this for plugins
+  that need system APIs like `Deno.hostname()` or `Deno.memoryUsage()`.
+
+A plugin declaring `trust: "sandboxed"` always runs sandboxed regardless of
+config. A plugin declaring `trust: "trusted"` runs sandboxed unless the user
+explicitly grants `trust: "trusted"` in config.
+
+### How It Works at Startup
+
+1. Loader scans `~/.triggerfish/plugins/` for subdirectories with `mod.ts`
+2. Each module is dynamically `import()`ed and validated
+3. Only plugins listed as `enabled: true` in config are initialized
+4. Trust level is resolved (both manifest and config must agree on "trusted")
+5. `createExecutor(context)` is called to build the tool handler
+6. Tools are namespaced as `plugin_<name>_<toolName>` and registered
+7. Classifications are injected into the tool classification maps
+8. The composite plugin executor is added to the subsystem dispatch chain
+
+### Tool Namespacing
+
+Tools are automatically prefixed to prevent collisions:
+
+- Plugin tool `fetch_data` in plugin `my-plugin` becomes `plugin_my_plugin_fetch_data`
+- The executor decodes the prefix (longest-match-first) and delegates to the
+  correct plugin with the original tool name
+
+### Classification and Taint
+
+Plugin tools follow the same classification rules as all other tools:
+
+- The manifest's `classification` level is registered as a tool prefix
+  classification (`plugin_<name>_` → level)
+- Session taint escalates when plugin tools return data at a higher level
+- Write-down prevention applies: a plugin classified CONFIDENTIAL cannot have
+  its data flow to a PUBLIC channel
+- All hook enforcement (PRE_TOOL_CALL, POST_TOOL_RESPONSE) applies unchanged
+
+### Reference Plugin
+
+See `examples/plugins/system-info/mod.ts` for a complete working example with
+two tools (`system_info` and `system_time`), trust declaration, and system
+prompt.
+
+### File Organization (Plugin Author)
+
+```
+~/.triggerfish/plugins/my-plugin/
+  mod.ts           # entry point: manifest, toolDefinitions, createExecutor
+  helpers.ts       # optional helper modules
+  README.md        # optional documentation
+```
+
+### File Organization (Loader Infrastructure)
 
 ```
 src/plugin/
-  sandbox.ts   # createSandbox factory
-  sdk.ts       # createPluginSdk factory
-  mod.ts       # barrel exports
-tests/plugin/sandbox_test.ts
+  types.ts              # PluginManifest, PluginContext, PluginExports, etc.
+  namespace.ts          # encode/decode plugin tool names
+  loader.ts             # scan, import, validate plugins
+  registry.ts           # runtime plugin registry (register/unregister/get)
+  executor.ts           # composite dispatcher (routes by tool name prefix)
+  sandboxed_executor.ts # trust resolution and sandbox wrapping
+  tools.ts              # LLM-callable management tools (list/install/reload)
+  scanner.ts            # security scanner (heuristic pattern matching)
+  reef.ts               # Reef marketplace client (search/install/publish)
+  sandbox.ts            # low-level sandbox (code execution)
+  sdk.ts                # plugin SDK (data emission/query)
+  mod.ts                # barrel exports
+src/cli/commands/
+  plugin.ts             # CLI plugin subcommands (search/install/update/publish/scan/list)
 ```
+
+### Agent Build→Load Flow
+
+The primary plugin workflow is the agent building a plugin and loading it in the
+same conversation. The agent uses the exec environment to write plugin code,
+scans it for security issues, then loads it — no config entry or restart needed.
+
+**Example agent workflow:**
+
+```
+1. Agent writes mod.ts to workspace (using exec write tool)
+2. Agent calls plugin_scan({ path: "/path/to/workspace/my-plugin" })
+   → scanner reports ok or lists warnings to fix
+3. Agent calls plugin_install({ name: "my-plugin", path: "/path/to/workspace/my-plugin" })
+   → security scan (mandatory), import, validate, register
+   → plugin tools immediately available on the next turn
+4. Agent (or user) can now call plugin_my-plugin_<tool>
+```
+
+No `triggerfish.yaml` entry is required. Plugins loaded without config default
+to **sandboxed** trust and use the classification declared in their manifest.
+
+### Runtime Plugin Management Tools
+
+Four LLM-callable management tools are registered automatically:
+
+| Tool             | Description                                                      |
+| ---------------- | ---------------------------------------------------------------- |
+| `plugin_list`    | List all registered plugins with metadata and source paths       |
+| `plugin_install` | Load a plugin by name or path — no config required               |
+| `plugin_reload`  | Hot-swap a running plugin from its original source path          |
+| `plugin_scan`    | Security-scan a plugin directory before loading                  |
+
+**`plugin_install` parameters:**
+
+| Parameter | Required | Description                                                           |
+| --------- | -------- | --------------------------------------------------------------------- |
+| `name`    | yes      | Plugin name. Used as the tool prefix (`plugin_<name>_`)               |
+| `path`    | no       | Absolute path to plugin directory. Defaults to `~/.triggerfish/plugins/<name>` |
+
+When `path` is provided, the plugin is loaded from that directory — this is how
+the agent loads a plugin it just built in its workspace. When omitted, it loads
+from the standard plugins directory.
+
+**`plugin_scan` parameters:**
+
+| Parameter | Required | Description                                    |
+| --------- | -------- | ---------------------------------------------- |
+| `path`    | yes      | Absolute path to plugin directory to scan      |
+
+Returns a JSON object with `ok`, `warnings`, and `scannedFiles` fields. The
+agent should call this before `plugin_install` to identify and fix any security
+issues in code it just wrote.
+
+**Hot-reload with `plugin_reload`:**
+
+The registry's `getExtraTools` reads live from an internal `Map`. When a plugin
+is reloaded, the old entry is unregistered and a fresh version is re-imported,
+validated, and registered. The next LLM turn sees the updated tools immediately.
+
+```
+plugin_reload("my-plugin")
+  → unregister old plugin
+  → security scan from original source path
+  → re-import mod.ts
+  → validate manifest + exports
+  → create new executor
+  → register new version
+  → update classification maps
+```
+
+If any step fails, the old plugin version is rolled back into the registry so
+the system never enters a state with a half-loaded plugin.
+
+**Install flow at runtime:**
+
+1. Security scan the plugin directory (mandatory — scanner is the gatekeeper)
+2. Dynamic `import()` the mod.ts
+3. Validate manifest and exports
+4. Resolve trust level (sandboxed unless both manifest and config say "trusted")
+5. Create executor via `createExecutor(context)`
+6. Register in the plugin registry
+7. Inject tool classifications into the mutable classification maps
+
+### Security Scanning
+
+Every plugin is scanned for dangerous patterns before loading. The scanner runs
+at two points: **startup** (in `initializePlugins`) and **runtime** (when using
+`plugin_install` or `plugin_reload`).
+
+**Implementation:** `src/plugin/scanner.ts`
+
+```typescript
+interface PluginScanResult {
+  readonly ok: boolean;           // false if plugin should be rejected
+  readonly warnings: readonly string[];  // human-readable warning messages
+  readonly scannedFiles: readonly string[];  // files that were checked
+}
+
+function scanPluginDirectory(pluginDir: string): Promise<PluginScanResult>;
+```
+
+**Scoring model:**
+
+Each pattern has a weight (1–3). The scanner aggregates scores across all `.ts`
+files in the plugin directory. A plugin fails if:
+
+- Any **critical pattern** (weight ≥ 3) is detected, OR
+- The **cumulative score** reaches the threshold (≥ 4)
+
+This means a single critical violation (like `eval()`) causes immediate
+rejection, while multiple moderate violations (like `Deno.env` + filesystem
+access) also trigger failure through score accumulation.
+
+**Detected patterns:**
+
+| Category              | Pattern                       | Weight | Why It's Dangerous                              |
+| --------------------- | ----------------------------- | ------ | ----------------------------------------------- |
+| Code execution        | `eval()`                      | 3      | Arbitrary code execution                        |
+| Code execution        | `new Function()`              | 3      | Dynamic code generation                         |
+| Code execution        | Subprocess (`Deno.command`)   | 3      | Shell escape                                    |
+| Code execution        | `atob` / base64 decode        | 3      | Obfuscated payload delivery                     |
+| Prompt injection      | "ignore previous instructions"| 3      | LLM manipulation                                |
+| Prompt injection      | Identity/role override        | 3      | "you are now..." style attacks                  |
+| Prompt injection      | Secret extraction requests    | 3      | "reveal your system prompt" attacks             |
+| Prompt injection      | Constraint bypass attempts    | 3      | "disregard safety" attacks                      |
+| Steganography         | Zero-width characters         | 3      | Hidden payloads invisible to code review        |
+| Network               | Network listeners (Deno.listen)| 3     | Opens ports for C2 or exfiltration              |
+| Environment           | `Deno.env` access             | 2      | Secret/credential leakage                       |
+| Filesystem            | Raw `Deno.readTextFile` etc.  | 2      | Filesystem access outside sandbox               |
+| Imports               | Dynamic external `import()`   | 2      | Supply chain attacks via remote code            |
+| Obfuscation           | ROT13 / base64 encoding       | 2      | Indicates intent to hide behavior               |
+
+**Example: scanning a plugin from code:**
+
+```typescript
+import { scanPluginDirectory } from "triggerfish/plugin/scanner.ts";
+
+const result = await scanPluginDirectory("/path/to/my-plugin");
+if (!result.ok) {
+  console.error("Plugin rejected:", result.warnings.join("; "));
+}
+```
+
+**Example: CLI scanning:**
+
+```bash
+triggerfish plugin scan /path/to/my-plugin
+```
+
+### The Reef: Plugin Marketplace
+
+Plugins can be published to and installed from The Reef, the same marketplace
+used for skills. The Reef serves a static JSON catalog from GitHub Pages with
+SHA-256 integrity verification on every install.
+
+**Implementation:** `src/plugin/reef.ts`
+
+```typescript
+interface PluginReefRegistry {
+  /** Search for plugins by name, description, or tags. */
+  readonly search: (query: string) => Promise<Result<readonly ReefPluginListing[], string>>;
+  /** Install a plugin from The Reef to the local plugins directory. */
+  readonly install: (name: string, targetDir: string) => Promise<Result<string, string>>;
+  /** Check installed plugins for available updates. */
+  readonly checkUpdates: (
+    installed: readonly { readonly name: string; readonly version?: string }[],
+  ) => Promise<Result<readonly string[], string>>;
+  /** Validate and prepare a plugin for Reef publishing. */
+  readonly publish: (pluginDir: string) => Promise<Result<string, string>>;
+}
+
+function createPluginReefRegistry(options?: PluginReefOptions): PluginReefRegistry;
+```
+
+**Install flow from The Reef:**
+
+```
+reef.install("weather", "~/.triggerfish/plugins/")
+  → fetch catalog.json (cached 1 hour)
+  → find latest version of "weather"
+  → download mod.ts from /plugins/weather/1.0.0/mod.ts
+  → verify SHA-256 checksum matches catalog entry
+  → write to ~/.triggerfish/plugins/weather/mod.ts
+  → security scan the downloaded plugin
+  → if scan fails: remove plugin directory, return error
+  → write .plugin-hash.json integrity record
+```
+
+**Catalog structure** (served from GitHub Pages):
+
+```
+https://reef.trigger.fish/plugins/
+  index/catalog.json              # full catalog with all plugin entries
+  weather/1.0.0/mod.ts            # plugin source
+  weather/1.0.0/metadata.json     # name, version, checksum, author, tags
+```
+
+**Catalog entry format:**
+
+```typescript
+interface ReefPluginCatalogEntry {
+  readonly name: string;
+  readonly version: string;
+  readonly description: string;
+  readonly author: string;
+  readonly classification: string;     // e.g. "PUBLIC", "INTERNAL"
+  readonly trust: string;              // "sandboxed" or "trusted"
+  readonly tags: readonly string[];    // searchable tags
+  readonly checksum: string;           // SHA-256 of mod.ts content
+  readonly publishedAt: string;        // ISO 8601 timestamp
+  readonly declaredEndpoints: readonly string[];  // network allowlist
+}
+```
+
+**Publishing a plugin to The Reef:**
+
+```bash
+triggerfish plugin publish /path/to/my-plugin
+```
+
+The publish flow:
+1. Read and dynamically import `mod.ts`
+2. Validate manifest (name pattern, version, classification, etc.)
+3. Validate required exports (`toolDefinitions`, `createExecutor`)
+4. Run security scan — reject if scan fails
+5. Compute SHA-256 checksum of `mod.ts`
+6. Generate a publish directory structure with `mod.ts` + `metadata.json`
+7. Output the directory path for manual upload to the Reef repository
+
+**Security guarantees:**
+
+- All Reef URLs are validated: must use HTTPS and match the expected hostname
+- SHA-256 checksums are verified before writing any file to disk
+- Security scanner runs on every installed plugin — a plugin passing Reef
+  review can still be rejected locally if patterns are detected
+- Stale catalogs are served from cache if the network request fails (graceful
+  degradation), but fresh installs always verify checksums
+- The catalog is cached in-memory for 1 hour to reduce network requests
+
+**Update checking:**
+
+```typescript
+const reef = createPluginReefRegistry();
+const updates = await reef.checkUpdates([
+  { name: "weather", version: "1.0.0" },
+  { name: "database", version: "2.1.0" },
+]);
+// updates.value = ["weather"]  (if 1.1.0 is available)
+```
+
+**CLI commands:**
+
+| Command                                  | Description                               |
+| ---------------------------------------- | ----------------------------------------- |
+| `triggerfish plugin search <query>`      | Search The Reef for plugins               |
+| `triggerfish plugin install <name>`      | Install a plugin from The Reef            |
+| `triggerfish plugin update`              | Check all installed plugins for updates   |
+| `triggerfish plugin publish <dir>`       | Prepare a plugin for Reef publishing      |
+| `triggerfish plugin scan <dir>`          | Run security scanner on a plugin          |
+| `triggerfish plugin list`                | List locally installed plugins            |
+
+### Legacy: Inline Plugin Execution
+
+The `Sandbox` and `PluginSdk` interfaces in `src/plugin/sandbox.ts` and
+`src/plugin/sdk.ts` support inline code execution (TypeScript via `new Function`
+or Python via Pyodide WASM). This is used for embedded/managed plugins. Dynamic
+plugins loaded from `~/.triggerfish/plugins/` use the `createExecutor` factory
+pattern instead.
 
 ---
 

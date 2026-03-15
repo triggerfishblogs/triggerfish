@@ -77,6 +77,26 @@ export function dispatchClientChatMessage(
     ctx.chatSession.handleTriggerPromptResponse(msg.source, msg.accepted, send);
     return;
   }
+  if (msg.type === "bumpers") {
+    const enabled = ctx.chatSession.toggleBumpers();
+    trySendSocketPayload(
+      ctx.socket,
+      JSON.stringify({ type: "bumpers_status", enabled }),
+    );
+    return;
+  }
+  if (msg.type === "compact") {
+    const send = (evt: unknown) => {
+      trySendSocketPayload(ctx.socket, JSON.stringify(evt));
+    };
+    ctx.chatSession.compact(send).catch((err: unknown) => {
+      log.warn("Compact failed in tidepool chat dispatch", {
+        operation: "dispatchCompact",
+        err,
+      });
+    });
+    return;
+  }
   if (msg.type === "message" && isNonEmptyContent(msg.content)) {
     executeAgentTurnFromSocket(msg.content, ctx);
   }

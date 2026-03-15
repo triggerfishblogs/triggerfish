@@ -266,6 +266,21 @@ triggerfish skill publish               # Publish a skill to The Reef
 triggerfish skill create                # Scaffold a new skill
 ```
 
+## Plugin Commands
+
+Manage plugins from The Reef marketplace and your local filesystem. Plugins can
+also be managed by the agent at runtime using the built-in `plugin_install`,
+`plugin_reload`, `plugin_scan`, and `plugin_list` tools.
+
+```bash
+triggerfish plugin search "weather"     # Search The Reef for plugins
+triggerfish plugin install weather      # Install a plugin from The Reef
+triggerfish plugin update               # Check installed plugins for updates
+triggerfish plugin publish ./my-plugin  # Prepare a plugin for Reef publishing
+triggerfish plugin scan ./my-plugin     # Run security scanner on a plugin
+triggerfish plugin list                 # List locally installed plugins
+```
+
 ## Session Commands
 
 Inspect and manage active sessions.
@@ -426,6 +441,13 @@ triggerfish skill search      # Search The Reef
 triggerfish skill install     # Install skill
 triggerfish skill list        # List installed
 triggerfish skill create      # Create new skill
+
+# Plugins
+triggerfish plugin search     # Search The Reef
+triggerfish plugin install    # Install plugin
+triggerfish plugin update     # Check for updates
+triggerfish plugin scan       # Security scan
+triggerfish plugin list       # List installed
 
 # Sessions
 triggerfish session list      # List sessions

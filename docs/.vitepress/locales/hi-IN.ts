@@ -9,12 +9,17 @@ export const hiIN: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "गाइड", link: "/hi-IN/guide/" },
       { text: "मूल्य निर्धारण", link: "/hi-IN/pricing" },
-      { text: "आर्किटेक्चर", link: "/hi-IN/architecture/" },
-      { text: "सुरक्षा", link: "/hi-IN/security/" },
-      { text: "चैनल", link: "/hi-IN/channels/" },
-      { text: "एकीकरण", link: "/hi-IN/integrations/" },
-      { text: "सुविधाएँ", link: "/hi-IN/features/" },
-      { text: "संदर्भ", link: "/hi-IN/reference/" },
+      {
+        text: "दस्तावेज़",
+        items: [
+          { text: "आर्किटेक्चर", link: "/hi-IN/architecture/" },
+          { text: "सुरक्षा", link: "/hi-IN/security/" },
+          { text: "चैनल", link: "/hi-IN/channels/" },
+          { text: "एकीकरण", link: "/hi-IN/integrations/" },
+          { text: "सुविधाएँ", link: "/hi-IN/features/" },
+          { text: "संदर्भ", link: "/hi-IN/reference/" },
+        ],
+      },
       { text: "सहायता", link: "/hi-IN/support/" },
     ],
     sidebar: {

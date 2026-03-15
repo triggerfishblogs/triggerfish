@@ -131,7 +131,8 @@ export function createMessageStore(storage: StorageProvider): MessageStore {
       sessionId: string,
       options?: LoadActiveOptions,
     ): Promise<ConversationRecord[]> {
-      const windowDays = options?.resumeWindowDays ?? DEFAULT_RESUME_WINDOW_DAYS;
+      const windowDays = options?.resumeWindowDays ??
+        DEFAULT_RESUME_WINDOW_DAYS;
       const excludeCompacted = options?.excludeCompacted ?? true;
       const now = new Date();
       const all = await loadAllRecords(storage, sessionId);
@@ -180,14 +181,17 @@ export function createMessageStore(storage: StorageProvider): MessageStore {
           if (raw === null) continue;
           try {
             const record = deserialiseConvRecord(raw);
-            const ageMs =
-              referenceTime.getTime() - new Date(record.timestamp).getTime();
+            const ageMs = referenceTime.getTime() -
+              new Date(record.timestamp).getTime();
             if (ageMs > maxAgeMs) {
               await storage.delete(key);
               deletedCount++;
             }
           } catch (err: unknown) {
-            log.warn("Conversation record deserialization failed during retention", { operation: "applyRetention", key, err });
+            log.warn(
+              "Conversation record deserialization failed during retention",
+              { operation: "applyRetention", key, err },
+            );
             continue;
           }
         }

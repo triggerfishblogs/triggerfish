@@ -42,6 +42,10 @@ export async function recordGoogleLineage(
       sessionId: ctx.sourceSessionId,
     });
   } catch (err: unknown) {
-    log.warn("Google lineage record creation failed", { operation: "recordGoogleLineage", serviceName, err });
+    log.warn("Google lineage record creation failed", {
+      operation: "recordGoogleLineage",
+      serviceName,
+      err,
+    });
   }
 }

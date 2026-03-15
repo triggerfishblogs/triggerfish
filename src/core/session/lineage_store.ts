@@ -238,7 +238,11 @@ async function evaluateAndPurge(
     }
     return 0;
   } catch (err: unknown) {
-    log.warn("Lineage record evaluation failed during retention", { operation: "evaluateAndPurge", key, err });
+    log.warn("Lineage record evaluation failed during retention", {
+      operation: "evaluateAndPurge",
+      key,
+      err,
+    });
     return 0;
   }
 }

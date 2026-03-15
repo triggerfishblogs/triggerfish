@@ -10,7 +10,10 @@
 
 import type { Result } from "../../core/types/classification.ts";
 import { parseNativeToolCalls } from "../dispatch/tool_format.ts";
-import { processToolCallBatch } from "../dispatch/tool_dispatch.ts";
+import {
+  processToolCallBatch,
+  BUMPERS_BLOCK_USER_RESPONSE,
+} from "../dispatch/tool_dispatch.ts";
 import {
   buildRecoveryNudge,
   classifyResponseQuality,
@@ -181,7 +184,10 @@ async function handleNoToolCallsIteration(
 
 // ─── Tool-call iteration ────────────────────────────────────────────────────
 
-/** Append tool call results to history and return early on abort. */
+/** Sentinel value signaling a bumper-blocked turn should force-end. */
+const BUMPERS_BLOCKED_SENTINEL = "__bumpers_blocked__";
+
+/** Append tool call results to history and return early on abort or bumper block. */
 async function handleToolCallsIteration(
   ctx: AgentLoopContext,
   iter: IterationData & { parsedCalls: readonly ParsedToolCall[] },
@@ -203,7 +209,25 @@ async function handleToolCallsIteration(
     ctx.signal,
   );
   if (!batchResult.ok) return batchResult;
-  ctx.history.push({ role: "user", content: batchResult.value.join("\n\n") });
+
+  if (batchResult.value.bumpersBlocked) {
+    // Force-end the turn: emit canned response, add to history, stop.
+    // The LLM never sees the block result and cannot silently retry.
+    ctx.state.emit({
+      type: "response",
+      text: BUMPERS_BLOCK_USER_RESPONSE,
+    });
+    ctx.history.push({
+      role: "assistant",
+      content: BUMPERS_BLOCK_USER_RESPONSE,
+    });
+    return { ok: false, error: BUMPERS_BLOCKED_SENTINEL };
+  }
+
+  ctx.history.push({
+    role: "user",
+    content: batchResult.value.resultParts.join("\n\n"),
+  });
 
   if (recordToolCallsAndDetectLoop(ctx.toolCallHistory, iter.parsedCalls)) {
     ctx.history.push({
@@ -253,6 +277,22 @@ export async function dispatchIterationOutcome(
     ...iter,
     parsedCalls,
   });
-  if (!toolResult.ok) return { action: "return", result: toolResult };
+  if (!toolResult.ok) {
+    // Bumpers-blocked turns are already handled: canned response emitted,
+    // history updated. Return success so the caller doesn't treat it as error.
+    if (toolResult.error === BUMPERS_BLOCKED_SENTINEL) {
+      return {
+        action: "return",
+        result: {
+          ok: true,
+          value: {
+            response: BUMPERS_BLOCK_USER_RESPONSE,
+            tokenUsage: ctx.tokens,
+          },
+        },
+      };
+    }
+    return { action: "return", result: toolResult };
+  }
   return { action: "continue" };
 }

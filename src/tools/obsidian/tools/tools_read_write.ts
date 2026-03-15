@@ -90,7 +90,13 @@ export async function executeObsidianRead(
   if (!result.ok) return `Error: ${result.error}`;
 
   if (ctx.lineageStore) {
-    await recordLineage(ctx, notePath, result.value.content, noteClassification, "read");
+    await recordLineage(
+      ctx,
+      notePath,
+      result.value.content,
+      noteClassification,
+      "read",
+    );
   }
 
   return JSON.stringify({
@@ -167,7 +173,13 @@ export async function executeObsidianWrite(
 
   if (ctx.lineageStore) {
     const writeContent = content ?? append ?? prepend ?? "";
-    await recordLineage(ctx, notePath, writeContent, folderClassification, "write");
+    await recordLineage(
+      ctx,
+      notePath,
+      writeContent,
+      folderClassification,
+      "write",
+    );
   }
 
   return JSON.stringify({

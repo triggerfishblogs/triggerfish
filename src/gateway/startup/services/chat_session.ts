@@ -91,9 +91,11 @@ export interface ChatSessionDeps {
   /** Mutable ref toggled by non-owner turn wrappers. */
   readonly isOwnerTurnRef?: { value: boolean };
   /** Message store for conversation persistence. */
-  readonly messageStore?: import("../../../core/conversation/mod.ts").MessageStore;
+  readonly messageStore?:
+    import("../../../core/conversation/mod.ts").MessageStore;
   /** Lineage store for automatic data provenance tracking. */
-  readonly lineageStore?: import("../../../core/session/lineage.ts").LineageStore;
+  readonly lineageStore?:
+    import("../../../core/session/lineage.ts").LineageStore;
   /** Storage provider for bumper preference persistence. */
   readonly storage?: StorageProvider;
   /** Owner identifier for bumper preference storage key. */

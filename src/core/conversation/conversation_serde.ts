@@ -31,7 +31,10 @@ export function truncateToolArgs(
   if (args === undefined) return undefined;
   const json = JSON.stringify(args);
   if (json.length <= MAX_TOOL_ARGS_CHARS) return args;
-  return { _truncated: true, _preview: json.slice(0, MAX_TOOL_ARGS_CHARS - 50) };
+  return {
+    _truncated: true,
+    _preview: json.slice(0, MAX_TOOL_ARGS_CHARS - 50),
+  };
 }
 
 /** Serialise a ConversationRecord to a JSON string. */

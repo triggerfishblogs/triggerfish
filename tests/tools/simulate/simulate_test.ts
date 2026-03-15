@@ -131,13 +131,15 @@ Deno.test("simulate_tool_call: filesystem tool reading CONFIDENTIAL path shows r
   assertEquals(parsed.blocked, false);
 });
 
-// ─── 6. Blocked — tool floor ────────────────────────────────────────────────
+// ─── 6. Tool floor — escalation and blocking ────────────────────────────────
 
-Deno.test("simulate_tool_call: tool with INTERNAL floor blocks PUBLIC session", async () => {
+Deno.test("simulate_tool_call: owner session with INTERNAL floor escalates taint", async () => {
   const ctx = buildContext({
     toolFloorRegistry: {
       getFloor: (_name: string) => "INTERNAL" as ClassificationLevel,
-      canInvoke: (_name: string, _taint: ClassificationLevel) => false,
+      canInvoke: (_name: string, taint: ClassificationLevel) =>
+        taint === "INTERNAL" || taint === "CONFIDENTIAL" ||
+        taint === "RESTRICTED",
     },
   });
   const executor = createSimulateToolExecutor(ctx);
@@ -146,8 +148,26 @@ Deno.test("simulate_tool_call: tool with INTERNAL floor blocks PUBLIC session", 
     tool_args: {},
   });
   const parsed = parseResult(result!);
-  assertEquals(parsed.blocked, true);
-  assertStringIncludes(parsed.blockReason as string, "floor");
+  // Floor-based taint escalation mirrors real dispatch: escalate then check
+  assertEquals(parsed.escalation, true, "Should show taint escalation");
+  assertEquals(parsed.resultingTaint, "INTERNAL");
+  assertEquals(parsed.blocked, false, "Owner session should not be blocked after escalation");
+});
+
+Deno.test("computeSimulatedTaint: falls back to floor registry when no prefix match", () => {
+  const registry = {
+    getFloor: (name: string) =>
+      name === "ssh_execute" ? "INTERNAL" as ClassificationLevel : null,
+    canInvoke: () => true,
+  };
+  const result = computeSimulatedTaint(
+    "PUBLIC" as ClassificationLevel,
+    null,
+    "ssh_execute",
+    new Map<string, ClassificationLevel>([["web_", "PUBLIC"]]),
+    registry,
+  );
+  assertEquals(result, "INTERNAL", "Should escalate via floor registry fallback");
 });
 
 // ─── 7. Blocked — write-down ────────────────────────────────────────────────

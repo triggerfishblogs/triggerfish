@@ -66,7 +66,12 @@ export function connect(): void {
   if (ws) return;
 
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  const url = `${protocol}//${location.host}/`;
+  const key =
+    document.querySelector<HTMLMetaElement>('meta[name="tidepool-key"]')
+      ?.content ??
+    new URLSearchParams(location.search).get("key");
+  const qs = key ? `?key=${key}` : "";
+  const url = `${protocol}//${location.host}/${qs}`;
 
   _connectionState = "connecting";
   ws = new WebSocket(url);
@@ -77,11 +82,14 @@ export function connect(): void {
     dispatch({ topic: "shell", type: "ws_connected" });
   };
 
-  ws.onclose = () => {
+  ws.onclose = (event) => {
     _connectionState = "disconnected";
     ws = null;
     dispatch({ topic: "shell", type: "ws_disconnected" });
-    scheduleReconnect();
+    // 4401 = auth rejected — do not retry with a stale key.
+    if (event.code !== 4401) {
+      scheduleReconnect();
+    }
   };
 
   ws.onerror = () => {

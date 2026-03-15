@@ -59,10 +59,11 @@ const BUILTIN_TOOL_CLASSIFICATIONS: ReadonlyArray<
   ["trigger_", "PUBLIC"],
   // Skills — read_skill is read-only
   ["read_skill", "PUBLIC"],
-  // Subagent / agents — owner-only
+  // Subagent / agents — owner-only (claude_ omitted: HARDCODED_TOOL_FLOORS
+  // defines INTERNAL floor for claude_session/claude_output; floor registry
+  // handles escalation without a prefix map entry)
   ["subagent", "PUBLIC"],
   ["agents_", "PUBLIC"],
-  ["claude_", "PUBLIC"],
   ["sessions_", "PUBLIC"],
   ["signal_", "PUBLIC"],
   ["channels_", "PUBLIC"],

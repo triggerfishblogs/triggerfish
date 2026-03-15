@@ -19,6 +19,8 @@ import type { ChatEvent } from "../../../core/types/chat_event.ts";
 export interface A2UIHostOptions {
   /** Chat session for handling browser chat messages. */
   readonly chatSession?: import("../../../gateway/chat.ts").ChatSession;
+  /** Session key required as `?key=` query parameter on all requests. */
+  readonly sessionKey?: string;
 }
 
 /** A2UI WebSocket host that broadcasts component trees and canvas messages to connected clients. */
@@ -70,6 +72,8 @@ export interface A2UIHostState {
   currentTree: ComponentTree | null;
   resolvedPort: number;
   cachedHtml: string | null;
+  /** Session key required on all requests (null = no auth). */
+  sessionKey: string | null;
   /** Last known MCP connected count; -1 means no status yet. */
   lastMcpConnected: number;
   lastMcpConfigured: number;
