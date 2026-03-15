@@ -9,12 +9,17 @@ export const nlNL: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "Handleiding", link: "/nl-NL/guide/" },
       { text: "Prijzen", link: "/nl-NL/pricing" },
-      { text: "Architectuur", link: "/nl-NL/architecture/" },
-      { text: "Beveiliging", link: "/nl-NL/security/" },
-      { text: "Kanalen", link: "/nl-NL/channels/" },
-      { text: "Integraties", link: "/nl-NL/integrations/" },
-      { text: "Functies", link: "/nl-NL/features/" },
-      { text: "Referentie", link: "/nl-NL/reference/" },
+      {
+        text: "Documentatie",
+        items: [
+          { text: "Architectuur", link: "/nl-NL/architecture/" },
+          { text: "Beveiliging", link: "/nl-NL/security/" },
+          { text: "Kanalen", link: "/nl-NL/channels/" },
+          { text: "Integraties", link: "/nl-NL/integrations/" },
+          { text: "Functies", link: "/nl-NL/features/" },
+          { text: "Referentie", link: "/nl-NL/reference/" },
+        ],
+      },
       { text: "Ondersteuning", link: "/nl-NL/support/" },
     ],
     sidebar: {

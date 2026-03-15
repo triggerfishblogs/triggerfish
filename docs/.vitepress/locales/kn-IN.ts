@@ -9,12 +9,17 @@ export const knIN: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "ಮಾರ್ಗದರ್ಶಿ", link: "/kn-IN/guide/" },
       { text: "ಬೆಲೆ", link: "/kn-IN/pricing" },
-      { text: "ವಾಸ್ತುಶಿಲ್ಪ", link: "/kn-IN/architecture/" },
-      { text: "ಭದ್ರತೆ", link: "/kn-IN/security/" },
-      { text: "ಚಾನೆಲ್‌ಗಳು", link: "/kn-IN/channels/" },
-      { text: "ಏಕೀಕರಣಗಳು", link: "/kn-IN/integrations/" },
-      { text: "ವೈಶಿಷ್ಟ್ಯಗಳು", link: "/kn-IN/features/" },
-      { text: "ಉಲ್ಲೇಖ", link: "/kn-IN/reference/" },
+      {
+        text: "ದಾಖಲೆಗಳು",
+        items: [
+          { text: "ವಾಸ್ತುಶಿಲ್ಪ", link: "/kn-IN/architecture/" },
+          { text: "ಭದ್ರತೆ", link: "/kn-IN/security/" },
+          { text: "ಚಾನೆಲ್‌ಗಳು", link: "/kn-IN/channels/" },
+          { text: "ಏಕೀಕರಣಗಳು", link: "/kn-IN/integrations/" },
+          { text: "ವೈಶಿಷ್ಟ್ಯಗಳು", link: "/kn-IN/features/" },
+          { text: "ಉಲ್ಲೇಖ", link: "/kn-IN/reference/" },
+        ],
+      },
       { text: "ಬೆಂಬಲ", link: "/kn-IN/support/" },
     ],
     sidebar: {

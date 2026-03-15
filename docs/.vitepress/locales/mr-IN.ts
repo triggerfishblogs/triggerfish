@@ -9,12 +9,17 @@ export const mrIN: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "मार्गदर्शक", link: "/mr-IN/guide/" },
       { text: "किंमत", link: "/mr-IN/pricing" },
-      { text: "आर्किटेक्चर", link: "/mr-IN/architecture/" },
-      { text: "सुरक्षा", link: "/mr-IN/security/" },
-      { text: "चॅनेल", link: "/mr-IN/channels/" },
-      { text: "एकत्रीकरण", link: "/mr-IN/integrations/" },
-      { text: "वैशिष्ट्ये", link: "/mr-IN/features/" },
-      { text: "संदर्भ", link: "/mr-IN/reference/" },
+      {
+        text: "दस्तऐवज",
+        items: [
+          { text: "आर्किटेक्चर", link: "/mr-IN/architecture/" },
+          { text: "सुरक्षा", link: "/mr-IN/security/" },
+          { text: "चॅनेल", link: "/mr-IN/channels/" },
+          { text: "एकत्रीकरण", link: "/mr-IN/integrations/" },
+          { text: "वैशिष्ट्ये", link: "/mr-IN/features/" },
+          { text: "संदर्भ", link: "/mr-IN/reference/" },
+        ],
+      },
       { text: "सहाय्य", link: "/mr-IN/support/" },
     ],
     sidebar: {

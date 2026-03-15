@@ -10,12 +10,17 @@ export const urPK: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "گائیڈ", link: "/ur-PK/guide/" },
       { text: "قیمتیں", link: "/ur-PK/pricing" },
-      { text: "فن تعمیر", link: "/ur-PK/architecture/" },
-      { text: "سیکیورٹی", link: "/ur-PK/security/" },
-      { text: "چینلز", link: "/ur-PK/channels/" },
-      { text: "انٹیگریشنز", link: "/ur-PK/integrations/" },
-      { text: "خصوصیات", link: "/ur-PK/features/" },
-      { text: "حوالہ", link: "/ur-PK/reference/" },
+      {
+        text: "دستاویزات",
+        items: [
+          { text: "فن تعمیر", link: "/ur-PK/architecture/" },
+          { text: "سیکیورٹی", link: "/ur-PK/security/" },
+          { text: "چینلز", link: "/ur-PK/channels/" },
+          { text: "انٹیگریشنز", link: "/ur-PK/integrations/" },
+          { text: "خصوصیات", link: "/ur-PK/features/" },
+          { text: "حوالہ", link: "/ur-PK/reference/" },
+        ],
+      },
       { text: "معاونت", link: "/ur-PK/support/" },
     ],
     sidebar: {

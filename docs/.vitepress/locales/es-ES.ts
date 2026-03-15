@@ -9,12 +9,17 @@ export const esES: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "Guía", link: "/es-ES/guide/" },
       { text: "Precios", link: "/es-ES/pricing" },
-      { text: "Arquitectura", link: "/es-ES/architecture/" },
-      { text: "Seguridad", link: "/es-ES/security/" },
-      { text: "Canales", link: "/es-ES/channels/" },
-      { text: "Integraciones", link: "/es-ES/integrations/" },
-      { text: "Funcionalidades", link: "/es-ES/features/" },
-      { text: "Referencia", link: "/es-ES/reference/" },
+      {
+        text: "Documentación",
+        items: [
+          { text: "Arquitectura", link: "/es-ES/architecture/" },
+          { text: "Seguridad", link: "/es-ES/security/" },
+          { text: "Canales", link: "/es-ES/channels/" },
+          { text: "Integraciones", link: "/es-ES/integrations/" },
+          { text: "Funcionalidades", link: "/es-ES/features/" },
+          { text: "Referencia", link: "/es-ES/reference/" },
+        ],
+      },
       { text: "Soporte", link: "/es-ES/support/" },
     ],
     sidebar: {

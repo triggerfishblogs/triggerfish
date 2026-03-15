@@ -215,12 +215,17 @@ export default defineConfig({
     nav: [
       { text: "Guide", link: "/guide/" },
       { text: "Pricing", link: "/pricing" },
-      { text: "Architecture", link: "/architecture/" },
-      { text: "Security", link: "/security/" },
-      { text: "Channels", link: "/channels/" },
-      { text: "Integrations", link: "/integrations/" },
-      { text: "Features", link: "/features/" },
-      { text: "Reference", link: "/reference/" },
+      {
+        text: "Docs",
+        items: [
+          { text: "Architecture", link: "/architecture/" },
+          { text: "Security", link: "/security/" },
+          { text: "Channels", link: "/channels/" },
+          { text: "Integrations", link: "/integrations/" },
+          { text: "Features", link: "/features/" },
+          { text: "Reference", link: "/reference/" },
+        ],
+      },
       { text: "Support", link: "/support/" },
     ],
 

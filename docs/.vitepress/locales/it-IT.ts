@@ -9,12 +9,17 @@ export const itIT: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "Guida", link: "/it-IT/guide/" },
       { text: "Prezzi", link: "/it-IT/pricing" },
-      { text: "Architettura", link: "/it-IT/architecture/" },
-      { text: "Sicurezza", link: "/it-IT/security/" },
-      { text: "Canali", link: "/it-IT/channels/" },
-      { text: "Integrazioni", link: "/it-IT/integrations/" },
-      { text: "Funzionalità", link: "/it-IT/features/" },
-      { text: "Riferimento", link: "/it-IT/reference/" },
+      {
+        text: "Documentazione",
+        items: [
+          { text: "Architettura", link: "/it-IT/architecture/" },
+          { text: "Sicurezza", link: "/it-IT/security/" },
+          { text: "Canali", link: "/it-IT/channels/" },
+          { text: "Integrazioni", link: "/it-IT/integrations/" },
+          { text: "Funzionalità", link: "/it-IT/features/" },
+          { text: "Riferimento", link: "/it-IT/reference/" },
+        ],
+      },
       { text: "Supporto", link: "/it-IT/support/" },
     ],
     sidebar: {

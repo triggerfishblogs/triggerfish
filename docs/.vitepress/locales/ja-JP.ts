@@ -9,12 +9,17 @@ export const jaJP: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "ガイド", link: "/ja-JP/guide/" },
       { text: "料金", link: "/ja-JP/pricing" },
-      { text: "アーキテクチャ", link: "/ja-JP/architecture/" },
-      { text: "セキュリティ", link: "/ja-JP/security/" },
-      { text: "チャネル", link: "/ja-JP/channels/" },
-      { text: "統合", link: "/ja-JP/integrations/" },
-      { text: "機能", link: "/ja-JP/features/" },
-      { text: "リファレンス", link: "/ja-JP/reference/" },
+      {
+        text: "ドキュメント",
+        items: [
+          { text: "アーキテクチャ", link: "/ja-JP/architecture/" },
+          { text: "セキュリティ", link: "/ja-JP/security/" },
+          { text: "チャネル", link: "/ja-JP/channels/" },
+          { text: "統合", link: "/ja-JP/integrations/" },
+          { text: "機能", link: "/ja-JP/features/" },
+          { text: "リファレンス", link: "/ja-JP/reference/" },
+        ],
+      },
       { text: "サポート", link: "/ja-JP/support/" },
     ],
     sidebar: {

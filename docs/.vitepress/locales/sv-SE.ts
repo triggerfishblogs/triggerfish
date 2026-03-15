@@ -9,12 +9,17 @@ export const svSE: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "Guide", link: "/sv-SE/guide/" },
       { text: "Priser", link: "/sv-SE/pricing" },
-      { text: "Arkitektur", link: "/sv-SE/architecture/" },
-      { text: "Säkerhet", link: "/sv-SE/security/" },
-      { text: "Kanaler", link: "/sv-SE/channels/" },
-      { text: "Integrationer", link: "/sv-SE/integrations/" },
-      { text: "Funktioner", link: "/sv-SE/features/" },
-      { text: "Referens", link: "/sv-SE/reference/" },
+      {
+        text: "Dokumentation",
+        items: [
+          { text: "Arkitektur", link: "/sv-SE/architecture/" },
+          { text: "Säkerhet", link: "/sv-SE/security/" },
+          { text: "Kanaler", link: "/sv-SE/channels/" },
+          { text: "Integrationer", link: "/sv-SE/integrations/" },
+          { text: "Funktioner", link: "/sv-SE/features/" },
+          { text: "Referens", link: "/sv-SE/reference/" },
+        ],
+      },
       { text: "Support", link: "/sv-SE/support/" },
     ],
     sidebar: {

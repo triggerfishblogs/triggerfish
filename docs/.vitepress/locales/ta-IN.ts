@@ -9,12 +9,17 @@ export const taIN: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "வழிகாட்டி", link: "/ta-IN/guide/" },
       { text: "விலை", link: "/ta-IN/pricing" },
-      { text: "கட்டமைப்பு", link: "/ta-IN/architecture/" },
-      { text: "பாதுகாப்பு", link: "/ta-IN/security/" },
-      { text: "சேனல்கள்", link: "/ta-IN/channels/" },
-      { text: "ஒருங்கிணைப்புகள்", link: "/ta-IN/integrations/" },
-      { text: "அம்சங்கள்", link: "/ta-IN/features/" },
-      { text: "குறிப்பு", link: "/ta-IN/reference/" },
+      {
+        text: "ஆவணங்கள்",
+        items: [
+          { text: "கட்டமைப்பு", link: "/ta-IN/architecture/" },
+          { text: "பாதுகாப்பு", link: "/ta-IN/security/" },
+          { text: "சேனல்கள்", link: "/ta-IN/channels/" },
+          { text: "ஒருங்கிணைப்புகள்", link: "/ta-IN/integrations/" },
+          { text: "அம்சங்கள்", link: "/ta-IN/features/" },
+          { text: "குறிப்பு", link: "/ta-IN/reference/" },
+        ],
+      },
       { text: "ஆதரவு", link: "/ta-IN/support/" },
     ],
     sidebar: {

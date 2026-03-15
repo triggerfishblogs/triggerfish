@@ -9,12 +9,17 @@ export const nbNO: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "Guide", link: "/nb-NO/guide/" },
       { text: "Priser", link: "/nb-NO/pricing" },
-      { text: "Arkitektur", link: "/nb-NO/architecture/" },
-      { text: "Sikkerhet", link: "/nb-NO/security/" },
-      { text: "Kanaler", link: "/nb-NO/channels/" },
-      { text: "Integrasjoner", link: "/nb-NO/integrations/" },
-      { text: "Funksjoner", link: "/nb-NO/features/" },
-      { text: "Referanse", link: "/nb-NO/reference/" },
+      {
+        text: "Dokumentasjon",
+        items: [
+          { text: "Arkitektur", link: "/nb-NO/architecture/" },
+          { text: "Sikkerhet", link: "/nb-NO/security/" },
+          { text: "Kanaler", link: "/nb-NO/channels/" },
+          { text: "Integrasjoner", link: "/nb-NO/integrations/" },
+          { text: "Funksjoner", link: "/nb-NO/features/" },
+          { text: "Referanse", link: "/nb-NO/reference/" },
+        ],
+      },
       { text: "Støtte", link: "/nb-NO/support/" },
     ],
     sidebar: {

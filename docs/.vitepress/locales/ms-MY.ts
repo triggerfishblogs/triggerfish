@@ -9,12 +9,17 @@ export const msMY: LocaleSpecificConfig<DefaultTheme.Config> = {
     nav: [
       { text: "Panduan", link: "/ms-MY/guide/" },
       { text: "Harga", link: "/ms-MY/pricing" },
-      { text: "Seni Bina", link: "/ms-MY/architecture/" },
-      { text: "Keselamatan", link: "/ms-MY/security/" },
-      { text: "Saluran", link: "/ms-MY/channels/" },
-      { text: "Integrasi", link: "/ms-MY/integrations/" },
-      { text: "Ciri-ciri", link: "/ms-MY/features/" },
-      { text: "Rujukan", link: "/ms-MY/reference/" },
+      {
+        text: "Dokumentasi",
+        items: [
+          { text: "Seni Bina", link: "/ms-MY/architecture/" },
+          { text: "Keselamatan", link: "/ms-MY/security/" },
+          { text: "Saluran", link: "/ms-MY/channels/" },
+          { text: "Integrasi", link: "/ms-MY/integrations/" },
+          { text: "Ciri-ciri", link: "/ms-MY/features/" },
+          { text: "Rujukan", link: "/ms-MY/reference/" },
+        ],
+      },
       { text: "Sokongan", link: "/ms-MY/support/" },
     ],
     sidebar: {
