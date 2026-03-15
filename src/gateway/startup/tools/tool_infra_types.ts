@@ -28,6 +28,7 @@ import type { MainSessionState } from "./tool_executor.ts";
 import type { SkillContextTracker } from "../../../tools/skills/mod.ts";
 import type { ServiceAvailability } from "../../tools/defs/tool_profiles.ts";
 import type { WorkflowRunRegistry } from "../../../workflow/mod.ts";
+import type { PluginRegistry } from "../../../plugin/mod.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 
 const availabilityLog = createLogger("service-availability");
@@ -83,6 +84,8 @@ export interface ToolInfraResult {
   readonly serviceAvailability: ServiceAvailability;
   /** Shared workflow run registry for tracking active executions. */
   readonly workflowRunRegistry: WorkflowRunRegistry;
+  /** Registry of dynamically loaded plugins. */
+  readonly pluginRegistry: PluginRegistry;
 }
 
 /**
