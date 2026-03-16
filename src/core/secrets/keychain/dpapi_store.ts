@@ -34,7 +34,9 @@ async function readDpapiSecretsFile(
     ) return parsed;
     return { v: 1, entries: {} };
   } catch (err) {
-    log.debug("DPAPI secrets file unreadable, starting empty", {
+    const isNotFound = err instanceof Deno.errors.NotFound;
+    const level = isNotFound ? "debug" : "warn";
+    log[level]("DPAPI secrets file unreadable, starting empty", {
       operation: "readDpapiSecretsFile",
       path,
       err,
@@ -79,7 +81,15 @@ async function dpapiGetSecret(
     log.warn("DPAPI secret not found", { name, store: secretsPath });
     return { ok: false, error: `Secret '${name}' not found in DPAPI store` };
   }
-  return unprotectSecret(entry);
+  const result = await unprotectSecret(entry);
+  if (!result.ok) {
+    log.warn("DPAPI secret decryption failed", {
+      operation: "dpapiGetSecret",
+      name,
+      err: result.error,
+    });
+  }
+  return result;
 }
 
 /** DPAPI-encrypt and persist a secret. */

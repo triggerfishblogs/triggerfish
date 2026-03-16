@@ -13,7 +13,10 @@ import type {
   LlmStreamChunk,
 } from "../../core/types/llm.ts";
 import { convertToolsToNativeFormat } from "../dispatch/tool_format.ts";
-import { detectRepetition } from "../dispatch/response_handling.ts";
+import { detectRepetition } from "../dispatch/response_quality.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("llm-streaming");
 import type { OrchestratorEventCallback } from "../orchestrator/orchestrator_types.ts";
 import { MAX_TOOL_ITERATIONS } from "../orchestrator/orchestrator_types.ts";
 import type { AgentLoopContext, LlmCallOutcome } from "./loop_types.ts";
@@ -145,20 +148,31 @@ async function runLlmProviderCall(
 
   const useStreaming = ctx.state.config.enableStreaming !== false &&
     provider.stream !== undefined;
-  if (useStreaming) {
-    const stream = provider.stream!(messages, nativeTools, callOptions);
-    const completion = await consumeProviderStream(stream, ctx.state.emit, {
-      signal: ctx.signal,
-    });
-    return { completion, tools };
-  }
+  try {
+    if (useStreaming) {
+      const stream = provider.stream!(messages, nativeTools, callOptions);
+      const completion = await consumeProviderStream(stream, ctx.state.emit, {
+        signal: ctx.signal,
+      });
+      return { completion, tools };
+    }
 
-  const completion = await provider.complete(
-    messages,
-    nativeTools,
-    callOptions,
-  );
-  return { completion, tools };
+    const completion = await provider.complete(
+      messages,
+      nativeTools,
+      callOptions,
+    );
+    return { completion, tools };
+  } catch (err) {
+    log.error("LLM provider call failed", {
+      operation: "runLlmProviderCall",
+      provider: provider.name,
+      iteration: iterations,
+      streaming: useStreaming,
+      err,
+    });
+    throw err;
+  }
 }
 
 /** Emit event, call LLM, accumulate tokens, and check abort. */

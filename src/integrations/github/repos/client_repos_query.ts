@@ -14,6 +14,9 @@ import type {
   RawBranch, RawCommit, RawContent, RawRepo,
 } from "../client_http.ts";
 import { buildRepoPath, extractRepoVisibility, fetchRepoClassification } from "../client_http.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("github-repos");
 
 /** Maximum file size (1 MB) for github_repos_read_file. */
 const MAX_FILE_SIZE = 1_048_576;
@@ -200,7 +203,11 @@ export async function fetchUserRepos(
 function decodeGitHubFileContent(raw: string): string {
   try {
     return atob(raw.replace(/\n/g, ""));
-  } catch {
+  } catch (err) {
+    log.warn("GitHub file content base64 decode failed, returning raw", {
+      operation: "decodeGitHubFileContent",
+      err,
+    });
     return raw;
   }
 }

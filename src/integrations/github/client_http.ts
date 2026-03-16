@@ -14,6 +14,9 @@ import type {
   Result,
 } from "../../core/types/classification.ts";
 import type { GitHubError, RepoVisibility } from "./types.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("github-http");
 
 // Re-export all types so existing imports from "./client_http.ts" still work
 export type {
@@ -33,8 +36,11 @@ export type {
   RawWorkflowRun,
 } from "./client_http_types.ts";
 
-import type { RawRepo } from "./client_http_types.ts";
-import type { ApiRequestFn, ClassifyRepoFn } from "./client_http_types.ts";
+import type {
+  ApiRequestFn,
+  ClassifyRepoFn,
+  RawRepo,
+} from "./client_http_types.ts";
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
@@ -99,7 +105,12 @@ async function parseGitHubErrorResponse(
   try {
     const body = (await response.json()) as { message?: string };
     message = body.message ?? `HTTP ${response.status}`;
-  } catch {
+  } catch (err) {
+    log.warn("GitHub error response body parse failed", {
+      operation: "parseGitHubErrorResponse",
+      status: response.status,
+      err,
+    });
     message = `HTTP ${response.status}`;
   }
   return {
@@ -161,7 +172,12 @@ async function parseGitHubJsonResponse<T>(
   try {
     const data = (await response.json()) as T;
     return { ok: true, value: { data } };
-  } catch {
+  } catch (err) {
+    log.warn("GitHub JSON response parse failed", {
+      operation: "parseGitHubJsonResponse",
+      status: response.status,
+      err,
+    });
     return {
       ok: false,
       error: {

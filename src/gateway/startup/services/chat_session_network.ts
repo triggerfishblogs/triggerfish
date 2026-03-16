@@ -20,7 +20,12 @@ import type { createEnhancedSessionManager } from "../../sessions.ts";
 import type { createNotificationService } from "../../notifications/notifications.ts";
 import type { createSchedulerService } from "../../../scheduler/service.ts";
 import type { RegisteredChannel } from "../../tools/session/session_tools.ts";
-import { TIDEPOOL_PORT } from "../../../cli/constants.ts";
+import {
+  type DaemonState,
+  daemonStatePath,
+  TIDEPOOL_PORT,
+  tidepoolSessionKeyPath,
+} from "../../../cli/constants.ts";
 import type { MainSessionState } from "../tools/tool_executor.ts";
 import {
   isValidatedWhatsAppConfig,
@@ -85,15 +90,59 @@ export function wrapChatSessionForTidepool(
   };
 }
 
+/**
+ * Read or create the persistent Tidepool session key.
+ *
+ * The key is stored in its own file (not daemon.json) because
+ * daemon.json is deleted on every `triggerfish start`. This allows
+ * Tidepool clients to reconnect after daemon restarts with the same
+ * `?key=` parameter.
+ */
+async function resolveSessionKey(): Promise<string> {
+  const keyPath = tidepoolSessionKeyPath();
+  try {
+    const existing = (await Deno.readTextFile(keyPath)).trim();
+    if (existing.length > 0) return existing;
+  } catch {
+    // File doesn't exist yet — generate a new key below.
+  }
+  const newKey = crypto.randomUUID();
+  try {
+    await Deno.writeTextFile(keyPath, newKey, { mode: 0o600 });
+  } catch {
+    // Best-effort persist — if it fails, we still use the key for this session.
+  }
+  return newKey;
+}
+
 /** Start Tidepool host and register notification channel. */
 export async function startTidepoolHost(
   tidepoolChatSession: ReturnType<typeof wrapChatSessionForTidepool>,
   notificationService: ReturnType<typeof createNotificationService>,
   log: ReturnType<typeof createLogger>,
 ) {
-  const tidepoolHost = createA2UIHost({ chatSession: tidepoolChatSession });
+  const sessionKey = await resolveSessionKey();
+  const tidepoolHost = createA2UIHost({
+    chatSession: tidepoolChatSession,
+    sessionKey,
+  });
   await tidepoolHost.start(TIDEPOOL_PORT);
-  log.info(`Tidepool listening on http://127.0.0.1:${TIDEPOOL_PORT}`);
+  const tidepoolUrl = `http://127.0.0.1:${TIDEPOOL_PORT}?key=${sessionKey}`;
+  log.info(`Tidepool listening on ${tidepoolUrl}`);
+  console.log(`  Tidepool: ${tidepoolUrl}`);
+
+  const state: DaemonState = {
+    tidepoolUrl,
+    startedAt: new Date().toISOString(),
+  };
+  try {
+    await Deno.writeTextFile(daemonStatePath(), JSON.stringify(state));
+  } catch (err) {
+    log.warn("Daemon state file write failed", {
+      operation: "writeDaemonState",
+      err,
+    });
+  }
   notificationService.registerChannel({
     name: "tidepool",
     // deno-lint-ignore require-await

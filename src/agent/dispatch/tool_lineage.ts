@@ -13,6 +13,9 @@ import type {
   OrchestratorConfig,
   ParsedToolCall,
 } from "../orchestrator/orchestrator_types.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("tool-lineage");
 
 /** Determine the lineage source_type from a tool name. */
 export function determineSourceType(toolName: string): string {
@@ -59,6 +62,13 @@ export async function recordToolCallLineageAndPersist(
   let lineageId: string | undefined;
   if (config.lineageStore) {
     const sessionTaint = config.getSessionTaint?.() ?? session.taint;
+    log.debug("Recording lineage for tool call", {
+      operation: "recordToolCallLineageAndPersist",
+      tool: call.name,
+      sourceType: determineSourceType(call.name),
+      classification: sessionTaint,
+      sessionId: session.id,
+    });
     const record = await config.lineageStore.create({
       content: resultText,
       origin: {
@@ -75,6 +85,11 @@ export async function recordToolCallLineageAndPersist(
       sessionId: session.id,
     });
     lineageId = record.lineage_id;
+    log.debug("Lineage record created", {
+      operation: "recordToolCallLineageAndPersist",
+      tool: call.name,
+      lineageId,
+    });
   }
 
   if (config.messageStore) {

@@ -8,14 +8,13 @@
 
 import { createLogger } from "../../core/logger/mod.ts";
 import { renderPrompt } from "../../cli/chat/chat_ui.ts";
-
-const log = createLogger("cli-channel");
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
 import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
 import type { ChatEvent } from "../../core/types/chat_event.ts";
-
 import type { WsRouterDeps, WsRouterState } from "./chat_ws_types.ts";
+
+const log = createLogger("cli-channel");
 
 /** Resolved context passed to each per-event-type handler. */
 export interface RouterContext {
@@ -46,6 +45,10 @@ export function routeTaintChangedEvent(
   evt: Extract<ChatEvent, { type: "taint_changed" }>,
   ctx: RouterContext,
 ): void {
+  log.warn("Session taint changed", {
+    operation: "routeTaintChangedEvent",
+    level: evt.level,
+  });
   ctx.screen.setTaint(evt.level);
   if (ctx.isTty) ctx.screen.redrawInput(ctx.editor);
 }

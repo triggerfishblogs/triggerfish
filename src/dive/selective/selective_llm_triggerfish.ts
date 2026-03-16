@@ -107,9 +107,10 @@ async function promptTriggerfishKeyViaCheckout(): Promise<{
     // Let the callback response reach the browser before shutting down
     await new Promise((r) => setTimeout(r, 1000));
     return { licenseKey, gatewayUrl: resolveGatewayUrl(licenseKey) };
-  } catch {
+  } catch (err: unknown) {
     console.log("  Setup was cancelled or timed out.");
     console.log("  Falling back to manual key entry.");
+    console.error("  Error details:", err);
     return await promptTriggerfishKeyDirect();
   } finally {
     ac.abort();
@@ -158,9 +159,10 @@ async function promptTriggerfishKeyViaMagicLink(): Promise<{
     // Let the callback response reach the browser before shutting down
     await new Promise((r) => setTimeout(r, 1000));
     return { licenseKey, gatewayUrl: resolveGatewayUrl(licenseKey) };
-  } catch {
+  } catch (err: unknown) {
     console.log("  Setup was cancelled or timed out.");
     console.log("  Falling back to manual key entry.");
+    console.error("  Error details:", err);
     return await promptTriggerfishKeyDirect();
   } finally {
     ac.abort();

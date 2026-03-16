@@ -10,7 +10,7 @@
 import { createLogger } from "../../../core/logger/mod.ts";
 import type { createTidepoolLogSink } from "../../../tools/tidepool/host/mod.ts";
 
-const log = createLogger("tidepool-topics");
+const log = createLogger("tidepool-log-sink");
 
 /** Pipe structured log entries to the Tidepool log sink via log file polling. */
 export function wireTidepoolLogSink(

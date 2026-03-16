@@ -23,11 +23,17 @@ export interface SignalCliBinary {
 
 /** Locate signal-cli on the system or download it interactively. */
 export async function resolveSignalCliBinary(): Promise<SignalCliBinary> {
-  console.log("\nChecking for signal-cli...");
+  log.info("Checking for signal-cli on system", {
+    operation: "resolveSignalCliBinary",
+  });
   const cliCheck = await checkSignalCli();
 
   if (cliCheck.ok) {
-    console.log(`  Found: ${cliCheck.value.version} (${cliCheck.value.path})`);
+    log.info("Signal CLI found", {
+      operation: "resolveSignalCliBinary",
+      version: cliCheck.value.version,
+      path: cliCheck.value.path,
+    });
     return { path: cliCheck.value.path, javaHome: cliCheck.value.javaHome };
   }
 
@@ -36,15 +42,18 @@ export async function resolveSignalCliBinary(): Promise<SignalCliBinary> {
 
 /** Offer to download signal-cli when not found on the system. */
 async function promptSignalCliInstall(): Promise<SignalCliBinary> {
-  console.log("  signal-cli not found on PATH or in ~/.triggerfish/bin/\n");
+  log.warn("Signal CLI not found on PATH or in ~/.triggerfish/bin/", {
+    operation: "promptSignalCliInstall",
+  });
   const installIt = await Confirm.prompt({
     message: "Download and install signal-cli?",
     default: true,
   });
 
   if (!installIt) {
-    console.error("\n  Install signal-cli manually before continuing:");
-    console.error("    https://github.com/AsamK/signal-cli/releases\n");
+    log.warn("Signal CLI install declined, exiting", {
+      operation: "promptSignalCliInstall",
+    });
     Deno.exit(1);
   }
 
@@ -53,24 +62,24 @@ async function promptSignalCliInstall(): Promise<SignalCliBinary> {
 
 /** Fetch the latest release and install signal-cli. */
 async function fetchAndInstallSignalCli(): Promise<SignalCliBinary> {
-  console.log("\n  Fetching latest release info...");
+  log.info("Fetching latest Signal CLI release info", {
+    operation: "fetchAndInstallSignalCli",
+  });
   const releaseResult = await fetchKnownGoodRelease();
   if (!releaseResult.ok) {
     log.error("Signal CLI release fetch failed", {
-      operation: "fetchSignalCli",
-      error: releaseResult.error,
+      operation: "fetchAndInstallSignalCli",
+      err: releaseResult.error,
     });
-    console.error(`  Failed: ${releaseResult.error}`);
     Deno.exit(1);
   }
 
   const installResult = await downloadSignalCli(releaseResult.value);
   if (!installResult.ok) {
     log.error("Signal CLI installation failed", {
-      operation: "installSignalCli",
-      error: installResult.error,
+      operation: "fetchAndInstallSignalCli",
+      err: installResult.error,
     });
-    console.error(`  Installation failed: ${installResult.error}`);
     Deno.exit(1);
   }
 

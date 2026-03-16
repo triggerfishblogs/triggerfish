@@ -23,22 +23,22 @@ const log = createLogger("triggerfish-cloud");
  * -2..2 scale) discourages token-level repetition without degrading
  * code generation quality.
  */
-export const FREQUENCY_PENALTY = 0.3;
+const FREQUENCY_PENALTY = 0.3;
 
 /**
  * Temperature used when tool calling is active (thinking disabled).
  * Lower temperature for precise, deterministic tool usage.
  */
-export const TOOL_CALLING_TEMPERATURE = 0.6;
+const TOOL_CALLING_TEMPERATURE = 0.6;
 
 /**
  * Temperature used when thinking is active (no tools).
  * KimiK2.5/Fireworks requires temperature = 1.0 when thinking is enabled.
  */
-export const THINKING_TEMPERATURE = 1.0;
+const THINKING_TEMPERATURE = 1.0;
 
 /** Budget for thinking tokens when reasoning mode is active. */
-export const THINKING_BUDGET_TOKENS = 4096;
+const THINKING_BUDGET_TOKENS = 4096;
 
 /** Maximum retries for transient failures (502, 503, 429). */
 export const MAX_RETRIES = 2;
@@ -46,7 +46,7 @@ export const MAX_RETRIES = 2;
 // ─── Content formatting ──────────────────────────────────────────────────────
 
 /** Convert content blocks to OpenAI-compatible multimodal format. */
-export function toOpenAiContent(content: string | unknown): string | unknown[] {
+function toOpenAiContent(content: string | unknown): string | unknown[] {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return JSON.stringify(content);
   return (content as ContentBlock[]).map((block) => {
@@ -70,7 +70,7 @@ export function toOpenAiContent(content: string | unknown): string | unknown[] {
  * when thinking is enabled. Sending it back in follow-up requests confuses
  * the model — it tries to continue reasoning instead of acting.
  */
-export function stripReasoningContent(
+function stripReasoningContent(
   msg: Record<string, unknown>,
 ): Record<string, unknown> {
   const clean: Record<string, unknown> = {

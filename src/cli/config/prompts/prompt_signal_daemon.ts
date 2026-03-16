@@ -37,39 +37,35 @@ async function initiateDeviceLink(
 
   if (!linkResult.ok) {
     log.error("Signal device link failed", {
-      operation: "linkDevice",
-      error: linkResult.error,
+      operation: "initiateDeviceLink",
+      err: linkResult.error,
+      manualCommand: `${binary.path} link -n Triggerfish`,
     });
-    console.error(`  Link failed: ${linkResult.error}`);
-    console.error(
-      `  You can link manually: ${binary.path} link -n Triggerfish`,
-    );
     Deno.exit(1);
   }
 
   await renderQrCode(linkResult.value.uri);
-  console.log("Scan this QR code with Signal on your phone.");
-  console.log("Waiting for link to complete...\n");
+  log.info("QR code displayed, waiting for Signal device link", {
+    operation: "initiateDeviceLink",
+  });
   return linkResult.value;
 }
 
 /** Run the device-link flow: display QR code and wait for completion. */
 async function linkSignalDevice(binary: SignalCliBinary): Promise<void> {
-  console.log("\nStarting device link...");
-  console.log(
-    "Open Signal on your phone: Settings > Linked Devices > Link New Device\n",
-  );
+  log.info("Starting Signal device link", { operation: "linkSignalDevice" });
 
   const link = await initiateDeviceLink(binary);
   const linkStatus = await link.process.status;
   if (!linkStatus.success) {
-    log.error("Signal device linking process failed", {
-      operation: "linkDevice",
+    log.error("Signal device linking process exited with failure", {
+      operation: "linkSignalDevice",
     });
-    console.error("  Device linking failed. Check signal-cli output.");
     Deno.exit(1);
   }
-  console.log("  Device linked successfully!\n");
+  log.info("Signal device linked successfully", {
+    operation: "linkSignalDevice",
+  });
 }
 
 /** Prompt for device setup mode and run linking if selected. */
@@ -98,10 +94,11 @@ function printManualDaemonInstructions(
   account: string,
   binaryPath: string,
 ): void {
-  console.log("\n  Start it manually before running Triggerfish:");
-  console.log(
-    `  ${binaryPath} -a ${account} daemon --tcp ${SIGNAL_TCP_HOST}:${SIGNAL_TCP_PORT}\n`,
-  );
+  log.info("Signal daemon manual start instructions", {
+    operation: "printManualDaemonInstructions",
+    command:
+      `${binaryPath} -a ${account} daemon --tcp ${SIGNAL_TCP_HOST}:${SIGNAL_TCP_PORT}`,
+  });
 }
 
 /** Print a daemon start failure message with manual command hint. */
@@ -112,12 +109,10 @@ function printDaemonStartError(
 ): void {
   log.error("Signal daemon start failed", {
     operation: "startSignalDaemon",
-    error,
+    err: error,
+    manualCommand:
+      `${binaryPath} -a ${account} daemon --tcp localhost:7583`,
   });
-  console.error(`  Failed: ${error}`);
-  console.error(
-    `  Start manually: ${binaryPath} -a ${account} daemon --tcp localhost:7583`,
-  );
 }
 
 /** Report daemon startup failure with stderr output. */
@@ -127,19 +122,12 @@ async function reportDaemonStartupFailure(
   binaryPath: string,
 ): Promise<void> {
   const stderr = await daemonHandle.stderrText();
-  log.warn("Signal daemon started but not reachable", {
-    operation: "startSignalDaemon",
+  log.warn("Signal daemon started but not reachable, may still be initializing", {
+    operation: "reportDaemonStartupFailure",
     stderr: stderr || "(empty)",
+    manualCommand:
+      `${binaryPath} -a ${account} daemon --tcp localhost:7583`,
   });
-  console.error(
-    "  Daemon started but not reachable yet. It may still be initializing.",
-  );
-  if (stderr) {
-    console.error(`  signal-cli stderr: ${stderr}`);
-  }
-  console.error(
-    `  Check: ${binaryPath} -a ${account} daemon --tcp localhost:7583`,
-  );
 }
 
 /** Spawn the signal-cli daemon process and verify readiness. */
@@ -147,7 +135,7 @@ async function spawnSignalDaemon(
   account: string,
   binary: SignalCliBinary,
 ): Promise<void> {
-  console.log("  Starting signal-cli daemon...");
+  log.info("Starting signal-cli daemon", { operation: "spawnSignalDaemon" });
   const daemonResult = startDaemon(
     account,
     SIGNAL_TCP_HOST,
@@ -163,7 +151,7 @@ async function spawnSignalDaemon(
 
   const ready = await waitForDaemon(SIGNAL_TCP_HOST, SIGNAL_TCP_PORT);
   if (ready) {
-    console.log("  Daemon is running.");
+    log.info("Signal daemon is running", { operation: "spawnSignalDaemon" });
     return;
   }
 
@@ -180,9 +168,11 @@ export async function ensureSignalDaemon(
     SIGNAL_TCP_PORT,
   );
   if (alreadyRunning) {
-    console.log(
-      `  signal-cli daemon already running on ${SIGNAL_TCP_HOST}:${SIGNAL_TCP_PORT}`,
-    );
+    log.info("Signal daemon already running", {
+      operation: "ensureSignalDaemon",
+      host: SIGNAL_TCP_HOST,
+      port: SIGNAL_TCP_PORT,
+    });
     return;
   }
 
