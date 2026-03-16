@@ -167,7 +167,24 @@ async function registerLinuxApp(
     });
   }
 
+  await refreshLinuxDesktopCaches();
   return { ok: true, message: "Linux .desktop file created" };
+}
+
+/** Refresh desktop and icon caches so the new entry appears immediately. */
+async function refreshLinuxDesktopCaches(): Promise<void> {
+  const home = Deno.env.get("HOME") ?? "";
+  const iconBase = `${home}/.local/share/icons/hicolor`;
+  try {
+    await runCommand("gtk-update-icon-cache", [iconBase]);
+  } catch (err: unknown) {
+    log.debug("Icon cache refresh skipped", { operation: "refreshLinuxDesktopCaches", err });
+  }
+  try {
+    await runCommand("update-desktop-database", [`${home}/.local/share/applications`]);
+  } catch (err: unknown) {
+    log.debug("Desktop database refresh skipped", { operation: "refreshLinuxDesktopCaches", err });
+  }
 }
 
 /** Build the .desktop file content for Linux app launchers. */
