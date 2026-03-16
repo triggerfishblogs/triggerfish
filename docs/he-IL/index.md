@@ -6,7 +6,7 @@ hero:
   text: סוכני AI מאובטחים
   tagline: אכיפת מדיניות דטרמיניסטית מתחת לשכבת ה-LLM. כל ערוץ. ללא יוצאים מן הכלל.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — שוטט בים הדיגיטלי
   actions:
     - theme: brand

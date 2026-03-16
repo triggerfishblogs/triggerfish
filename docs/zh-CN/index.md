@@ -6,7 +6,7 @@ hero:
   text: 安全的 AI 智能体
   tagline: LLM 层以下的确定性策略执行。覆盖每一个渠道，没有例外。
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish —— 遨游数字海洋
   actions:
     - theme: brand

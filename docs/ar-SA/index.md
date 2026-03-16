@@ -6,7 +6,7 @@ hero:
   text: وكلاء ذكاء اصطناعي آمنون
   tagline: تطبيق حتمي للسياسات أسفل طبقة LLM. كل قناة. بدون استثناءات.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — يجوب البحر الرقمي
   actions:
     - theme: brand

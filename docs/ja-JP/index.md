@@ -6,7 +6,7 @@ hero:
   text: セキュアなAIエージェント
   tagline: LLMレイヤー下の決定論的なポリシー適用。あらゆるチャンネル。例外なし。
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — デジタルの海を泳ぐ
   actions:
     - theme: brand

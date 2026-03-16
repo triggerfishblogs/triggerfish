@@ -6,7 +6,7 @@ hero:
   text: Veilige AI-agenten
   tagline: Deterministische beleidshandhaving onder de LLM-laag. Elk kanaal. Geen uitzonderingen.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — onderweg in de digitale zee
   actions:
     - theme: brand

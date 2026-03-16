@@ -6,7 +6,7 @@ hero:
   text: عامل‌های هوش مصنوعی امن
   tagline: اعمال قطعی سیاست‌ها در زیر لایه LLM. هر کانال. بدون استثنا.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — در حال گشت‌وگذار در دریای دیجیتال
   actions:
     - theme: brand

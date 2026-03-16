@@ -6,7 +6,7 @@ hero:
   text: Sikre AI-agenter
   tagline: Deterministisk policy-håndhevelse under LLM-laget. Hver kanal. Uten unntak.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — på vandring i det digitale havet
   actions:
     - theme: brand

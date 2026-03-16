@@ -6,7 +6,7 @@ hero:
   text: பாதுகாப்பான AI Agent கள்
   tagline: LLM அடுக்கிற்கு கீழே நிர்ணயவாத கொள்கை அமலாக்கம். ஒவ்வொரு சேனலிலும். எந்த விதிவிலக்கும் இல்லை.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — டிஜிட்டல் கடலில் சுற்றித் திரிகிறது
   actions:
     - theme: brand

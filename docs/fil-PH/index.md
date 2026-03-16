@@ -6,7 +6,7 @@ hero:
   text: Secure AI Agents
   tagline: Deterministikong policy enforcement sa ilalim ng LLM layer. Lahat ng channel. Walang exception.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — naglalayag sa digital na karagatan
   actions:
     - theme: brand

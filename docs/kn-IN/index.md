@@ -6,7 +6,7 @@ hero:
   text: ಸುರಕ್ಷಿತ AI ಏಜೆಂಟ್‌ಗಳು
   tagline: LLM ಪದರದ ಕೆಳಗೆ ನಿರ್ಧಾರಾತ್ಮಕ ನೀತಿ ಜಾರಿ. ಪ್ರತಿ ಚಾನೆಲ್. ಯಾವುದೇ ಅಪವಾದವಿಲ್ಲ.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — ಡಿಜಿಟಲ್ ಸಮುದ್ರದಲ್ಲಿ ಸಂಚರಿಸುತ್ತಿರುವ
   actions:
     - theme: brand

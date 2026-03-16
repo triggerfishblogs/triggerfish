@@ -6,7 +6,7 @@ hero:
   text: Agents IA sécurisés
   tagline: Application déterministe des politiques en dessous de la couche LLM. Chaque canal. Sans exception.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — parcourant l'océan numérique
   actions:
     - theme: brand

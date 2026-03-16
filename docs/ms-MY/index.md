@@ -6,7 +6,7 @@ hero:
   text: Ejen AI Selamat
   tagline: Penguatkuasaan dasar deterministik di bawah lapisan LLM. Setiap saluran. Tanpa pengecualian.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — merentasi lautan digital
   actions:
     - theme: brand

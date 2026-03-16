@@ -6,7 +6,7 @@ hero:
   text: 안전한 AI 에이전트
   tagline: LLM 계층 아래의 결정론적 정책 시행. 모든 채널. 예외 없음.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — 디지털 바다를 누비며
   actions:
     - theme: brand

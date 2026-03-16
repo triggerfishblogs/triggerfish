@@ -6,7 +6,7 @@ hero:
   text: Agentes de IA Seguros
   tagline: Aplicación determinista de políticas por debajo de la capa del LLM. Todos los canales. Sin excepciones.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — recorriendo el mar digital
   actions:
     - theme: brand

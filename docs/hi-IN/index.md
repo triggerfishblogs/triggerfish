@@ -6,7 +6,7 @@ hero:
   text: सुरक्षित AI एजेंट
   tagline: LLM परत के नीचे नियतात्मक नीति प्रवर्तन। हर चैनल। कोई अपवाद नहीं।
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — डिजिटल सागर में तैरता हुआ
   actions:
     - theme: brand

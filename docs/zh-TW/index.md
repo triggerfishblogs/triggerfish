@@ -6,7 +6,7 @@ hero:
   text: 安全的 AI 代理
   tagline: LLM 層之下的確定性策略執行。每個頻道。無一例外。
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — 遊弋於數位海洋
   actions:
     - theme: brand

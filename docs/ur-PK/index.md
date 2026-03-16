@@ -6,7 +6,7 @@ hero:
   text: محفوظ AI ایجنٹس
   tagline: LLM کی تہہ کے نیچے یقینی پالیسی نافذ کاری۔ ہر چینل۔ کوئی استثناء نہیں۔
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — ڈیجیٹل سمندر میں تیرتا ہوا
   actions:
     - theme: brand

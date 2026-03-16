@@ -6,7 +6,7 @@ hero:
   text: सुरक्षित AI एजंट्स
   tagline: LLM स्तराखाली निश्चायक धोरण अंमलबजावणी. प्रत्येक चॅनेल. कोणताही अपवाद नाही.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — डिजिटल समुद्रात विहरणारा
   actions:
     - theme: brand

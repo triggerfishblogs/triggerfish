@@ -6,7 +6,7 @@ hero:
   text: Sichere KI-Agenten
   tagline: Deterministische Policy-Durchsetzung unterhalb der LLM-Schicht. Jeder Kanal. Ohne Ausnahme.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — unterwegs im digitalen Meer
   actions:
     - theme: brand

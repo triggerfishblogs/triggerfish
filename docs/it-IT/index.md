@@ -6,7 +6,7 @@ hero:
   text: Agenti IA Sicuri
   tagline: Applicazione deterministica delle policy al di sotto del livello LLM. Ogni canale. Nessuna eccezione.
   image:
-    src: /triggerfish.png
+    src: /triggerfish.webp
     alt: Triggerfish — navigando nel mare digitale
   actions:
     - theme: brand

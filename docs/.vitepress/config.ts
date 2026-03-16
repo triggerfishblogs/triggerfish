@@ -124,7 +124,7 @@ export default defineConfig({
   ignoreDeadLinks: true,
 
   head: [
-    ["link", { rel: "icon", type: "image/png", href: "/triggerfish.png" }],
+    ["link", { rel: "icon", type: "image/webp", href: "/triggerfish.webp" }],
     ["meta", { name: "google-site-verification", content: "ldCxz0D3v6Gq7KqvM3HRbUUVWAlAaoIfF81Or8r8jjg" }],
 
     // OpenGraph
@@ -209,7 +209,7 @@ export default defineConfig({
   },
 
   themeConfig: {
-    logo: { src: "/triggerfish.png", alt: "Triggerfish" },
+    logo: { src: "/triggerfish.webp", alt: "Triggerfish" },
     siteTitle: "Triggerfish",
 
     nav: [
