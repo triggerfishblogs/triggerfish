@@ -10,14 +10,27 @@
 
 import type { WorkflowStatus } from "./types.ts";
 import { createLogger } from "../core/logger/logger.ts";
+import type { RichWorkflowEvent } from "./healing/types.ts";
+import {
+  WorkflowCancelledError,
+} from "./registry_types.ts";
 import type {
-  ActiveRunSnapshot,
   RegistryEvent,
   RegistryListener,
   RunControl,
   WorkflowRunRegistry,
 } from "./registry_types.ts";
+import {
+  emitRegistryEvent,
+  emitRichEvent,
+  mapRichEventToStepState,
+  snapshotRun,
+  updateStepHistory,
+} from "./registry_steps.ts";
 
+export {
+  WorkflowCancelledError,
+} from "./registry_types.ts";
 export type {
   ActiveRunSnapshot,
   CompleteRunOptions,
@@ -26,6 +39,7 @@ export type {
   RegistryListener,
   RunControl,
   RunRegistration,
+  StepState,
   TaskProgressOptions,
   WorkflowRunRegistry,
 } from "./registry_types.ts";
@@ -36,34 +50,10 @@ const log = createLogger("workflow-registry");
 export function createWorkflowRunRegistry(): WorkflowRunRegistry {
   const runs = new Map<string, RunControl>();
   const listeners = new Set<RegistryListener>();
+  const richListeners = new Set<(event: RichWorkflowEvent) => void>();
 
-  function emit(event: RegistryEvent): void {
-    for (const listener of listeners) {
-      try {
-        listener(event);
-      } catch (err) {
-        log.warn("Registry listener threw during event dispatch", {
-          operation: "emit",
-          eventType: event.type,
-          runId: event.runId,
-          err,
-        });
-      }
-    }
-  }
-
-  function snapshotRun(ctrl: RunControl): ActiveRunSnapshot {
-    return {
-      runId: ctrl.runId,
-      workflowName: ctrl.workflowName,
-      status: ctrl.paused ? "paused" as WorkflowStatus : ctrl.status,
-      currentTaskIndex: ctrl.currentTaskIndex,
-      currentTaskName: ctrl.currentTaskName,
-      startedAt: ctrl.startedAt,
-      paused: ctrl.paused,
-      taint: ctrl.taint,
-    };
-  }
+  const emit = (event: RegistryEvent) =>
+    emitRegistryEvent(listeners, event);
 
   return {
     registerRun(options) {
@@ -79,6 +69,7 @@ export function createWorkflowRunRegistry(): WorkflowRunRegistry {
         taint: options.taint,
         paused: false,
         pauseResolve: null,
+        stepHistory: [],
       };
 
       runs.set(options.runId, ctrl);
@@ -275,15 +266,31 @@ export function createWorkflowRunRegistry(): WorkflowRunRegistry {
         listeners.delete(listener);
       };
     },
+
+    getRunStepHistory(runId) {
+      const ctrl = runs.get(runId);
+      if (!ctrl) return [];
+      return [...ctrl.stepHistory];
+    },
+
+    reportStepEvent(runId, event) {
+      const ctrl = runs.get(runId);
+      if (!ctrl) return;
+
+      const stepState = mapRichEventToStepState(ctrl, event);
+      if (stepState) {
+        updateStepHistory(ctrl, stepState);
+      }
+
+      emitRichEvent(richListeners, runId, event);
+    },
+
+    subscribeRichEvents(listener) {
+      richListeners.add(listener);
+      return () => {
+        richListeners.delete(listener);
+      };
+    },
   };
 }
 
-/** Error thrown when a workflow is cancelled via the registry. */
-export class WorkflowCancelledError extends Error {
-  readonly runId: string;
-  constructor(runId: string) {
-    super(`Workflow run cancelled: ${runId}`);
-    this.name = "WorkflowCancelledError";
-    this.runId = runId;
-  }
-}

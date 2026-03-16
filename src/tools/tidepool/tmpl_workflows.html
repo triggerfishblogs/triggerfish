@@ -538,54 +538,717 @@
       );
     }
 
-    function renderRunTree(run) {
+    // ── Flowchart state ────────────────────────────────────────────
+    var currentRunTasks = [];
+    var currentRunSteps = {};
+    var currentViewMode = "flowchart"; // "flowchart" or "yaml"
+    var currentWorkflowYaml = null;
+    var currentWorkflowTasks = [];
+    var currentHealingData = null;
+
+    var NODE_W = 160;
+    var NODE_H = 64;
+    var GAP_X = 48;
+    var GAP_Y = 36;
+    var PAD = 24;
+
+    // ── Flowchart layout engine ──────────────────────────────────
+
+    function layoutGraph(tasks) {
+      if (!tasks || tasks.length === 0) return { nodes: [], edges: [], width: 0, height: 0 };
+      var nodes = [];
+      var edges = [];
+      var col = 0;
+      var lane = 0;
+
+      for (var i = 0; i < tasks.length; i++) {
+        var task = tasks[i];
+        var x = PAD + col * (NODE_W + GAP_X);
+        var y = PAD + lane * (NODE_H + GAP_Y);
+
+        nodes.push({
+          index: i,
+          task: task,
+          x: x,
+          y: y,
+          col: col,
+          lane: lane,
+        });
+
+        if (task.type === "switch" && task.switchCases) {
+          var baseLane = lane;
+          var mergeCol = col + 1;
+          for (var c = 0; c < task.switchCases.length; c++) {
+            var caseLane = baseLane + c;
+            var caseX = PAD + mergeCol * (NODE_W + GAP_X);
+            var caseY = PAD + caseLane * (NODE_H + GAP_Y);
+            edges.push({
+              fromIndex: i,
+              toCol: mergeCol,
+              toLane: caseLane,
+              label: task.switchCases[c].name || ("case " + c),
+              fromX: x + NODE_W, fromY: y + NODE_H / 2,
+              toX: caseX, toY: caseY + NODE_H / 2,
+            });
+          }
+          // next task goes after the switch fan-out
+          lane = baseLane;
+          col = mergeCol;
+        }
+
+        // Edge to next task
+        if (i < tasks.length - 1 && task.type !== "switch") {
+          var nextCol = col + 1;
+          var nextX = PAD + nextCol * (NODE_W + GAP_X);
+          edges.push({
+            fromIndex: i,
+            toCol: nextCol,
+            toLane: lane,
+            fromX: x + NODE_W, fromY: y + NODE_H / 2,
+            toX: nextX, toY: PAD + lane * (NODE_H + GAP_Y) + NODE_H / 2,
+          });
+        }
+        col++;
+      }
+
+      var maxCol = 0;
+      var maxLane = 0;
+      for (var n = 0; n < nodes.length; n++) {
+        if (nodes[n].col > maxCol) maxCol = nodes[n].col;
+        if (nodes[n].lane > maxLane) maxLane = nodes[n].lane;
+      }
+      // Also account for switch fan-out edges
+      for (var e = 0; e < edges.length; e++) {
+        if (edges[e].toLane > maxLane) maxLane = edges[e].toLane;
+      }
+
+      return {
+        nodes: nodes,
+        edges: edges,
+        width: PAD * 2 + (maxCol + 1) * NODE_W + maxCol * GAP_X,
+        height: PAD * 2 + (maxLane + 1) * NODE_H + maxLane * GAP_Y,
+      };
+    }
+
+    var TAINT_ORDER = { PUBLIC: 1, INTERNAL: 2, CONFIDENTIAL: 3, RESTRICTED: 4 };
+
+    function renderFlowchart(layout, stepStates) {
+      var wrap = document.createElement("div");
+      wrap.className = "wf-flowchart-wrap";
+
+      var canvas = document.createElement("div");
+      canvas.className = "wf-flowchart-canvas";
+      canvas.style.width = Math.max(layout.width, 400) + "px";
+      canvas.style.height = Math.max(layout.height, 200) + "px";
+
+      // SVG edges layer
+      var svgNS = "http://www.w3.org/2000/svg";
+      var svg = document.createElementNS(svgNS, "svg");
+      svg.setAttribute("class", "wf-flowchart-svg");
+      svg.setAttribute("width", canvas.style.width);
+      svg.setAttribute("height", canvas.style.height);
+
+      // Arrow marker
+      var defs = document.createElementNS(svgNS, "defs");
+      var marker = document.createElementNS(svgNS, "marker");
+      marker.setAttribute("id", "wf-arrow");
+      marker.setAttribute("viewBox", "0 0 10 7");
+      marker.setAttribute("refX", "10");
+      marker.setAttribute("refY", "3.5");
+      marker.setAttribute("markerWidth", "8");
+      marker.setAttribute("markerHeight", "6");
+      marker.setAttribute("orient", "auto-start-reverse");
+      var arrowPath = document.createElementNS(svgNS, "path");
+      arrowPath.setAttribute("d", "M 0 0 L 10 3.5 L 0 7 z");
+      arrowPath.setAttribute("fill", "var(--fg3)");
+      marker.appendChild(arrowPath);
+      defs.appendChild(marker);
+      svg.appendChild(defs);
+
+      // Render edges
+      for (var e = 0; e < layout.edges.length; e++) {
+        var edge = layout.edges[e];
+        var path = document.createElementNS(svgNS, "path");
+        var mx = (edge.fromX + edge.toX) / 2;
+        var d = "M " + edge.fromX + " " + edge.fromY +
+          " C " + mx + " " + edge.fromY + " " + mx + " " + edge.toY +
+          " " + edge.toX + " " + edge.toY;
+        path.setAttribute("d", d);
+        path.setAttribute("fill", "none");
+        path.setAttribute("stroke", "var(--fg3)");
+        path.setAttribute("stroke-width", "1.5");
+        path.setAttribute("marker-end", "url(#wf-arrow)");
+        path.setAttribute("data-from", String(edge.fromIndex));
+        svg.appendChild(path);
+
+        if (edge.label) {
+          var labelEl = document.createElement("div");
+          labelEl.className = "wf-edge-label";
+          labelEl.textContent = edge.label;
+          labelEl.style.left = (mx - 15) + "px";
+          labelEl.style.top = ((edge.fromY + edge.toY) / 2 - 8) + "px";
+          canvas.appendChild(labelEl);
+        }
+      }
+
+      canvas.appendChild(svg);
+
+      // Render nodes
+      for (var i = 0; i < layout.nodes.length; i++) {
+        var n = layout.nodes[i];
+        var task = n.task;
+        var el = document.createElement("div");
+        el.className = "wf-node";
+        el.setAttribute("data-task-index", String(n.index));
+        el.style.left = n.x + "px";
+        el.style.top = n.y + "px";
+
+        // Step state overlay
+        var step = stepStates ? stepStates[n.index] : null;
+        if (step) {
+          el.classList.add("step-" + step.status);
+          var taintLevel = step.taintAfter || step.taintBefore;
+          if (taintLevel) {
+            el.classList.add("taint-" + taintLevel.toLowerCase());
+          }
+        }
+
+        var nameRow = '<div class="wf-node-name">' + escapeH(task.name);
+        if (task.condition) nameRow += '<span class="wf-node-cond">?</span>';
+        nameRow += '</div>';
+
+        var typeClass = "wf-node-type wf-node-type-" + escapeH(task.type);
+        var typeLabel = task.type;
+        if (task.callType) typeLabel += ":" + task.callType;
+
+        var html = nameRow +
+          '<span class="' + typeClass + '">' + escapeH(typeLabel) + '</span>';
+
+        if (task.metadata && task.metadata.description) {
+          html += '<div class="wf-node-desc">' +
+            escapeH(task.metadata.description) + '</div>';
+        }
+
+        el.innerHTML = html;
+
+        // Now add taint badge + escalation after innerHTML is set
+        if (step) {
+          var taintLevel2 = step.taintAfter || step.taintBefore;
+          if (taintLevel2) {
+            var badge = document.createElement("div");
+            badge.className = "wf-node-taint taint-badge " + taintLevel2.toLowerCase();
+            badge.textContent = taintLevel2;
+            el.appendChild(badge);
+          }
+          if (step.taintBefore && step.taintAfter &&
+              TAINT_ORDER[step.taintAfter] > TAINT_ORDER[step.taintBefore]) {
+            var esc = document.createElement("span");
+            esc.className = "wf-taint-escalation";
+            esc.textContent = "\u2191";
+            esc.style.color = TAINT_BORDERS[step.taintAfter] || "var(--fg3)";
+            el.querySelector(".wf-node-name").appendChild(esc);
+          }
+          // Healing badge
+          if (step.healingPhase) {
+            var hBadge = document.createElement("div");
+            var phaseAbbrev = formatHealingPhase(step.healingPhase, step.attemptNumber);
+            var phaseClass = getHealingBadgeClass(step.healingPhase);
+            hBadge.className = "wf-healing-badge " + phaseClass + " healing-active";
+            hBadge.textContent = phaseAbbrev;
+            el.appendChild(hBadge);
+          }
+          // Click handler for failed nodes with healing
+          if (step.status === "failed") {
+            (function(stepData, taskData) {
+              el.style.cursor = "pointer";
+              el.addEventListener("click", function() {
+                showHealingPanel(taskData.name);
+              });
+            })(step, task);
+          }
+        }
+
+        canvas.appendChild(el);
+      }
+
+      wrap.appendChild(canvas);
+
+      // Auto-scroll to running node
+      if (stepStates) {
+        setTimeout(function() {
+          var running = wrap.querySelector(".step-running");
+          if (running) running.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+        }, 50);
+      }
+
+      return wrap;
+    }
+
+    function formatHealingPhase(phase, attempt) {
+      var map = {
+        WATCHING: "WATCH",
+        TRIAGING: "TRIAGE",
+        RETRYING: "RETRY",
+        APPLYING_WORKAROUND: "FIX",
+        PROPOSING_FIX: "FIX",
+        AUTHORING_PLUGIN: "PLUGIN",
+        ESCALATING: "ESCALATE",
+      };
+      var label = map[phase] || phase;
+      if (phase === "RETRYING" && attempt) label += " " + attempt + "/3";
+      return label;
+    }
+
+    function getHealingBadgeClass(phase) {
+      if (phase === "WATCHING" || phase === "TRIAGING" || phase === "RETRYING") {
+        return "healing-retry";
+      }
+      if (phase === "APPLYING_WORKAROUND" || phase === "PROPOSING_FIX" || phase === "AUTHORING_PLUGIN") {
+        return "healing-fix";
+      }
+      return "healing-escalate";
+    }
+
+    // ── YAML syntax highlighting ─────────────────────────────────
+
+    function highlightYaml(text) {
+      return text.replace(/^(#.*)$/gm, '<span class="wf-yaml-comment">$1</span>')
+        .replace(/^(\s*[\w.-]+)(:)/gm, '<span class="wf-yaml-key">$1</span>$2')
+        .replace(/:\s+(".*?")/g, ': <span class="wf-yaml-string">$1</span>')
+        .replace(/:\s+('.*?')/g, ': <span class="wf-yaml-string">$1</span>')
+        .replace(/:\s+(\d+\.?\d*)\s*$/gm, ': <span class="wf-yaml-number">$1</span>')
+        .replace(/:\s+(true|false)\s*$/gm, ': <span class="wf-yaml-bool">$1</span>');
+    }
+
+    // ── Split diff renderer ──────────────────────────────────────
+
+    /** Reconstruct proposed file lines from current YAML + unified diff. */
+    function reconstructProposedLines(currentYaml, diff) {
+      if (!diff) {
+        var fallback = (currentYaml || "").split("\n");
+        return fallback.map(function(l) { return { text: l, added: false }; });
+      }
+      var result = [];
+      var srcLines = (currentYaml || "").split("\n");
+      var diffLines = diff.split("\n");
+      var srcIdx = 0;
+      var di = 0;
+      // Skip diff header lines until first hunk
+      while (di < diffLines.length && !diffLines[di].startsWith("@@")) { di++; }
+      while (di < diffLines.length) {
+        var dl = diffLines[di];
+        if (dl.startsWith("@@")) {
+          var hm = dl.match(/@@ -(\d+)/);
+          var hunkStart = hm ? parseInt(hm[1], 10) - 1 : srcIdx;
+          // Copy unchanged lines before this hunk
+          while (srcIdx < hunkStart && srcIdx < srcLines.length) {
+            result.push({ text: srcLines[srcIdx], added: false });
+            srcIdx++;
+          }
+          di++;
+        } else if (dl.startsWith("-")) {
+          srcIdx++;
+          di++;
+        } else if (dl.startsWith("+")) {
+          result.push({ text: dl.substring(1), added: true });
+          di++;
+        } else {
+          result.push({ text: srcLines[srcIdx] || dl.substring(1), added: false });
+          srcIdx++;
+          di++;
+        }
+      }
+      // Copy remaining unchanged lines after last hunk
+      while (srcIdx < srcLines.length) {
+        result.push({ text: srcLines[srcIdx], added: false });
+        srcIdx++;
+      }
+      return result;
+    }
+
+    function renderSplitDiff(currentYaml, diff, versionNumber, reasoning) {
+      var container = document.createElement("div");
+      container.style.display = "flex";
+      container.style.flexDirection = "column";
+      container.style.flex = "1";
+      container.style.minHeight = "0";
+
+      if (reasoning) {
+        var reasonBlock = document.createElement("div");
+        reasonBlock.className = "wf-approval-reasoning";
+        reasonBlock.textContent = reasoning;
+        container.appendChild(reasonBlock);
+      }
+
+      var diffWrap = document.createElement("div");
+      diffWrap.className = "wf-diff-container";
+
+      var leftPane = document.createElement("div");
+      leftPane.className = "wf-diff-pane";
+      var leftHeader = document.createElement("div");
+      leftHeader.className = "wf-diff-header";
+      leftHeader.textContent = "Current";
+      leftPane.appendChild(leftHeader);
+
+      var rightPane = document.createElement("div");
+      rightPane.className = "wf-diff-pane";
+      var rightHeader = document.createElement("div");
+      rightHeader.className = "wf-diff-header";
+      rightHeader.textContent = "Proposed (v" + (versionNumber || "?") + ")";
+      rightPane.appendChild(rightHeader);
+
+      // Parse unified diff to identify added/removed lines
+      var addedLines = {};
+      var removedLines = {};
+      if (diff) {
+        var lines = diff.split("\n");
+        var leftLine = 0;
+        var rightLine = 0;
+        for (var d = 0; d < lines.length; d++) {
+          var line = lines[d];
+          if (line.startsWith("@@")) {
+            var match = line.match(/@@ -(\d+)/);
+            if (match) leftLine = parseInt(match[1], 10) - 1;
+            var match2 = line.match(/\+(\d+)/);
+            if (match2) rightLine = parseInt(match2[1], 10) - 1;
+          } else if (line.startsWith("-")) {
+            removedLines[leftLine] = true;
+            leftLine++;
+          } else if (line.startsWith("+")) {
+            addedLines[rightLine] = true;
+            rightLine++;
+          } else {
+            leftLine++;
+            rightLine++;
+          }
+        }
+      }
+
+      // Render current yaml with removed highlights
+      var currentLines = (currentYaml || "").split("\n");
+      var leftPre = document.createElement("pre");
+      leftPre.className = "workflows-yaml-block";
+      leftPre.style.margin = "0";
+      leftPre.style.borderRadius = "0";
+      leftPre.style.border = "none";
+      for (var cl = 0; cl < currentLines.length; cl++) {
+        var lineDiv = document.createElement("div");
+        lineDiv.className = "wf-diff-line" + (removedLines[cl] ? " wf-diff-removed" : "");
+        lineDiv.innerHTML = highlightYaml(escapeH(currentLines[cl]));
+        leftPre.appendChild(lineDiv);
+      }
+      leftPane.appendChild(leftPre);
+
+      // Reconstruct proposed yaml by applying unified diff to current
+      var proposedLines = reconstructProposedLines(currentYaml, diff);
+
+      var rightPre = document.createElement("pre");
+      rightPre.className = "workflows-yaml-block";
+      rightPre.style.margin = "0";
+      rightPre.style.borderRadius = "0";
+      rightPre.style.border = "none";
+      for (var rl = 0; rl < proposedLines.length; rl++) {
+        var rLineDiv = document.createElement("div");
+        rLineDiv.className = "wf-diff-line" + (proposedLines[rl].added ? " wf-diff-added" : "");
+        rLineDiv.innerHTML = highlightYaml(escapeH(proposedLines[rl].text));
+        rightPre.appendChild(rLineDiv);
+      }
+      rightPane.appendChild(rightPre);
+
+      diffWrap.appendChild(leftPane);
+      diffWrap.appendChild(rightPane);
+      container.appendChild(diffWrap);
+      return container;
+    }
+
+    // ── Healing detail panel ─────────────────────────────────────
+
+    function showHealingPanel(taskName) {
+      if (!selectedWorkflowName && !selectedRunId) return;
+      var wfName = selectedWorkflowName;
+      if (!wfName && selectedRunId) {
+        for (var r = 0; r < activeRuns.length; r++) {
+          if (activeRuns[r].runId === selectedRunId) {
+            wfName = activeRuns[r].workflowName;
+            break;
+          }
+        }
+      }
+      if (wfName && window.tidepoolWs) {
+        window.tidepoolWs.send({
+          topic: "workflows",
+          action: "get_healing_status",
+          payload: { workflowName: wfName },
+        });
+      }
+    }
+
+    function renderHealingPanel(data) {
+      var panel = document.createElement("div");
+      panel.className = "wf-healing-panel";
+
+      // Versions list
+      var versions = data.versions || [];
+      var pending = null;
+      for (var v = 0; v < versions.length; v++) {
+        if (versions[v].status === "PROPOSED") {
+          pending = versions[v];
+          break;
+        }
+      }
+
+      if (versions.length === 0) {
+        panel.innerHTML = '<div class="workflows-empty">No healing activity</div>';
+        return panel;
+      }
+
+      // Version history section
+      var section = document.createElement("div");
+      section.className = "wf-healing-section";
+      var title = document.createElement("div");
+      title.className = "wf-healing-section-title";
+      title.textContent = "VERSION HISTORY";
+      section.appendChild(title);
+
+      var logDiv = document.createElement("div");
+      logDiv.className = "wf-healing-log";
+      for (var vi = 0; vi < versions.length; vi++) {
+        var ver = versions[vi];
+        var entry = document.createElement("div");
+        entry.className = "wf-healing-log-entry";
+        entry.innerHTML = '<span class="wf-healing-log-time">' +
+          escapeH(fmtTime(ver.proposedAt)) + '</span>' +
+          '<span>v' + escapeH(String(ver.versionNumber)) + ' — ' +
+          escapeH(ver.status) + ' (' + escapeH(ver.source) + ')</span>';
+        logDiv.appendChild(entry);
+      }
+      section.appendChild(logDiv);
+      panel.appendChild(section);
+
+      // Pending approval
+      if (pending) {
+        var approvalBox = document.createElement("div");
+        approvalBox.className = "wf-approval-box";
+
+        var reasonDiv = document.createElement("div");
+        reasonDiv.className = "wf-approval-reasoning";
+        reasonDiv.textContent = pending.authorReasoning || "No reasoning provided";
+        approvalBox.appendChild(reasonDiv);
+
+        var diffLink = document.createElement("a");
+        diffLink.href = "#";
+        diffLink.textContent = "View diff";
+        diffLink.style.fontSize = "11px";
+        diffLink.style.color = "var(--accent)";
+        diffLink.addEventListener("click", function(e) {
+          e.preventDefault();
+          currentViewMode = "yaml";
+          renderCurrentView();
+        });
+        approvalBox.appendChild(diffLink);
+
+        var actionsDiv = document.createElement("div");
+        actionsDiv.className = "wf-approval-actions";
+        actionsDiv.style.marginTop = "8px";
+
+        var rejectInput = document.createElement("input");
+        rejectInput.type = "text";
+        rejectInput.placeholder = "Rejection reason...";
+        actionsDiv.appendChild(rejectInput);
+
+        var approveBtn = document.createElement("button");
+        approveBtn.className = "wf-btn-approve";
+        approveBtn.textContent = "Approve";
+        approveBtn.addEventListener("click", function() {
+          if (window.tidepoolWs) {
+            window.tidepoolWs.send({
+              topic: "workflows",
+              action: "approve_version",
+              payload: { versionId: pending.versionId },
+            });
+          }
+        });
+        actionsDiv.appendChild(approveBtn);
+
+        var rejectBtn = document.createElement("button");
+        rejectBtn.className = "wf-btn-reject";
+        rejectBtn.textContent = "Reject";
+        rejectBtn.addEventListener("click", function() {
+          if (window.tidepoolWs) {
+            window.tidepoolWs.send({
+              topic: "workflows",
+              action: "reject_version",
+              payload: {
+                versionId: pending.versionId,
+                reason: rejectInput.value || "Rejected via Tidepool",
+              },
+            });
+          }
+        });
+        actionsDiv.appendChild(rejectBtn);
+
+        approvalBox.appendChild(actionsDiv);
+        panel.appendChild(approvalBox);
+      }
+
+      return panel;
+    }
+
+    // ── View mode rendering ──────────────────────────────────────
+
+    function renderCurrentView() {
+      if (!selectedWorkflowName && !selectedRunId) return;
+
+      if (selectedRunId) {
+        renderRunFlowchartView();
+        return;
+      }
+
       clearSplitPanes();
+
+      // View toggle tabs
+      var tabs = document.createElement("div");
+      tabs.className = "wf-view-tabs";
+      var flowTab = document.createElement("button");
+      flowTab.className = "wf-view-tab" + (currentViewMode === "flowchart" ? " active" : "");
+      flowTab.textContent = "Flowchart";
+      flowTab.addEventListener("click", function() {
+        currentViewMode = "flowchart";
+        renderCurrentView();
+      });
+      var yamlTab = document.createElement("button");
+      yamlTab.className = "wf-view-tab" + (currentViewMode === "yaml" ? " active" : "");
+      yamlTab.textContent = "YAML";
+      yamlTab.addEventListener("click", function() {
+        currentViewMode = "yaml";
+        renderCurrentView();
+      });
+      tabs.appendChild(flowTab);
+      tabs.appendChild(yamlTab);
+      paneTop.appendChild(tabs);
+
+      if (currentViewMode === "flowchart" && currentWorkflowTasks.length > 0) {
+        var layout = layoutGraph(currentWorkflowTasks);
+        var chart = renderFlowchart(layout, null);
+        paneTop.appendChild(chart);
+      } else {
+        // YAML view with syntax highlighting
+        var pendingVersion = null;
+        if (currentHealingData && currentHealingData.versions) {
+          for (var v = 0; v < currentHealingData.versions.length; v++) {
+            if (currentHealingData.versions[v].status === "PROPOSED") {
+              pendingVersion = currentHealingData.versions[v];
+              break;
+            }
+          }
+        }
+
+        if (pendingVersion && currentWorkflowYaml) {
+          var diffView = renderSplitDiff(
+            currentWorkflowYaml,
+            pendingVersion.diff,
+            pendingVersion.versionNumber,
+            pendingVersion.authorReasoning
+          );
+          paneTop.appendChild(diffView);
+        } else if (currentWorkflowYaml) {
+          var yamlSection = document.createElement("div");
+          yamlSection.className = "workflows-yaml-section";
+          var yamlHeader = document.createElement("div");
+          yamlHeader.className = "workflows-section-header";
+          yamlHeader.textContent = "DEFINITION";
+          yamlSection.appendChild(yamlHeader);
+          var pre = document.createElement("pre");
+          pre.className = "workflows-yaml-block";
+          pre.innerHTML = highlightYaml(escapeH(currentWorkflowYaml));
+          yamlSection.appendChild(pre);
+          paneTop.appendChild(yamlSection);
+        }
+      }
+
+      paneTop.style.flex = "1";
+      hsplit.style.display = "none";
+      paneBottom.style.display = "none";
+    }
+
+    function renderRunFlowchartView() {
+      clearSplitPanes();
+
+      if (currentRunTasks.length > 0) {
+        var layout = layoutGraph(currentRunTasks);
+        var chart = renderFlowchart(layout, currentRunSteps);
+        paneTop.appendChild(chart);
+      } else {
+        // Fallback to old tree view
+        renderRunTreeFallback();
+      }
+
+      // Healing panel in bottom if healing data present
+      if (currentHealingData && currentHealingData.versions && currentHealingData.versions.length > 0) {
+        var healPanel = renderHealingPanel(currentHealingData);
+        paneBottom.appendChild(healPanel);
+        hsplit.style.display = "";
+        paneBottom.style.display = "";
+        paneTop.style.flex = "0 0 65%";
+        paneBottom.style.flex = "1";
+        bottomMinimized = false;
+        hsplitIconPath.setAttribute("d", "M3 6l5 5 5-5H3z");
+      } else {
+        hsplit.style.display = "none";
+        paneBottom.style.display = "none";
+        paneTop.style.flex = "1";
+      }
+    }
+
+    function renderRunTreeFallback() {
+      if (!selectedRunId) return;
+      var run = null;
+      for (var i = 0; i < activeRuns.length; i++) {
+        if (activeRuns[i].runId === selectedRunId) { run = activeRuns[i]; break; }
+      }
+      if (!run) return;
+
       var treeSection = document.createElement("div");
       treeSection.className = "workflows-run-tree";
-
       var header = document.createElement("div");
       header.className = "run-tree-header";
       header.textContent = "EXECUTION TREE";
       treeSection.appendChild(header);
-
       var nodes = document.createElement("div");
       nodes.className = "run-tree-nodes";
-
-      for (var i = 0; i <= run.currentTaskIndex; i++) {
-        var isCurrent = i === run.currentTaskIndex;
+      for (var j = 0; j <= run.currentTaskIndex; j++) {
+        var isCurrent = j === run.currentTaskIndex;
         var node = document.createElement("div");
-        node.className = "run-tree-node" +
-          (isCurrent ? " run-tree-current" : " run-tree-done");
-        var taintColor = TAINT_BORDERS[run.taint] || "var(--border)";
-        if (isCurrent) {
-          node.style.borderLeftColor = taintColor;
-        }
-
-        var taskName = isCurrent ? run.currentTaskName : "task-" + i;
-        var taskStatus = isCurrent
-          ? run.paused ? "paused" : "running"
-          : "done";
-        var statusColor = isCurrent
-          ? run.paused ? "var(--yellow)" : "var(--green)"
-          : "var(--fg3)";
-
-        node.innerHTML = '<span class="run-tree-index">' +
-          i +
-          "</span>" +
-          '<span class="run-tree-name">' +
-          escapeH(taskName) +
-          "</span>" +
-          '<span class="run-tree-status" style="color:' +
-          statusColor +
-          '">' +
-          taskStatus +
-          "</span>";
+        node.className = "run-tree-node" + (isCurrent ? " run-tree-current" : " run-tree-done");
+        if (isCurrent) node.style.borderLeftColor = TAINT_BORDERS[run.taint] || "var(--border)";
+        var taskName = isCurrent ? run.currentTaskName : "task-" + j;
+        var taskStatus = isCurrent ? (run.paused ? "paused" : "running") : "done";
+        var statusColor = isCurrent ? (run.paused ? "var(--yellow)" : "var(--green)") : "var(--fg3)";
+        node.innerHTML = '<span class="run-tree-index">' + j + '</span>' +
+          '<span class="run-tree-name">' + escapeH(taskName) + '</span>' +
+          '<span class="run-tree-status" style="color:' + statusColor + '">' + taskStatus + '</span>';
         nodes.appendChild(node);
       }
-
       treeSection.appendChild(nodes);
       paneTop.appendChild(treeSection);
-      // No bottom pane for active runs (single pane view)
+    }
+
+    function renderRunTree(run) {
+      clearSplitPanes();
+      currentRunSteps = {};
+      currentRunTasks = [];
+
+      // Request run detail for flowchart
+      if (window.tidepoolWs) {
+        window.tidepoolWs.send({
+          topic: "workflows",
+          action: "get_run_detail",
+          payload: { runId: run.runId },
+        });
+      }
+
+      // Show fallback tree while waiting for detail
+      renderRunTreeFallback();
       hsplit.style.display = "none";
       paneBottom.style.display = "none";
       paneTop.style.flex = "1";
@@ -640,25 +1303,13 @@
       requestRunHistory(wf.name);
     }
 
-    function renderWorkflowYaml(yaml, history) {
+    function renderWorkflowYaml(yaml, history, tasks) {
+      currentWorkflowYaml = yaml;
+      currentWorkflowTasks = tasks || [];
+      currentViewMode = (currentWorkflowTasks.length > 0) ? "flowchart" : "yaml";
+
       clearSplitPanes();
-
-      // YAML in top pane
-      var yamlSection = document.createElement("div");
-      yamlSection.className = "workflows-yaml-section";
-
-      var yamlHeader = document.createElement("div");
-      yamlHeader.className = "workflows-section-header";
-      yamlHeader.textContent = "DEFINITION";
-      yamlSection.appendChild(yamlHeader);
-
-      var pre = document.createElement("pre");
-      pre.className = "workflows-yaml-block";
-      var code = document.createElement("code");
-      code.textContent = yaml;
-      pre.appendChild(code);
-      yamlSection.appendChild(pre);
-      paneTop.appendChild(yamlSection);
+      renderCurrentView();
 
       // History in bottom pane
       if (history && history.length > 0) {
@@ -686,11 +1337,6 @@
         paneBottom.style.flex = "1";
         bottomMinimized = false;
         hsplitIconPath.setAttribute("d", "M3 6l5 5 5-5H3z");
-      } else {
-        // No history — single pane
-        hsplit.style.display = "none";
-        paneBottom.style.display = "none";
-        paneTop.style.flex = "1";
       }
     }
 
@@ -1029,22 +1675,51 @@
           if (msg.found && msg.name === selectedWorkflowName) {
             // If we already have history, render together; otherwise wait
             if (pendingHistory !== null) {
-              renderWorkflowYaml(msg.yaml, pendingHistory);
+              renderWorkflowYaml(msg.yaml, pendingHistory, msg.tasks);
               pendingHistory = null;
             } else {
-              // Store yaml, wait for history
+              // Store detail, wait for history
               pendingHistory = msg;
             }
           }
         } else if (msg.type === "run_history") {
           if (selectedWorkflowName && !selectedRunId) {
             if (pendingHistory && pendingHistory.yaml) {
-              // We had yaml waiting
-              renderWorkflowYaml(pendingHistory.yaml, msg.runs || []);
+              // We had detail waiting
+              renderWorkflowYaml(pendingHistory.yaml, msg.runs || [], pendingHistory.tasks);
               pendingHistory = null;
             } else {
               pendingHistory = msg.runs || [];
             }
+          }
+        } else if (msg.type === "run_detail") {
+          if (selectedRunId && msg.runId === selectedRunId) {
+            currentRunTasks = msg.tasks || [];
+            var steps = msg.steps || [];
+            currentRunSteps = {};
+            for (var s = 0; s < steps.length; s++) {
+              currentRunSteps[steps[s].taskIndex] = steps[s];
+            }
+            renderRunFlowchartView();
+          }
+        } else if (msg.type === "step_event") {
+          handleStepEvent(msg.event);
+        } else if (msg.type === "healing_status") {
+          currentHealingData = msg;
+          if (selectedRunId) {
+            renderRunFlowchartView();
+          } else if (selectedWorkflowName) {
+            renderCurrentView();
+          }
+        } else if (msg.type === "version_result") {
+          if (msg.ok) {
+            showToast("Version " + msg.action + "d", "success");
+            // Refresh healing status
+            if (selectedWorkflowName) {
+              showHealingPanel(null);
+            }
+          } else {
+            showToast("Version " + msg.action + " failed", "error");
           }
         } else if (msg.type === "workflow_deleted") {
           if (msg.ok) {
@@ -1179,6 +1854,60 @@
       }
       renderActiveRuns();
       refreshSelectedRun();
+    }
+
+    function handleStepEvent(event) {
+      if (!event || !selectedRunId) return;
+      var runId = event.runId;
+      // Only process events for the currently viewed run
+      var isViewedRun = (runId === selectedRunId);
+
+      if (event.type === "STEP_STARTED" && isViewedRun) {
+        currentRunSteps[event.taskIndex] = {
+          taskIndex: event.taskIndex,
+          taskName: event.taskName,
+          status: "running",
+          taintBefore: event.runningTaint,
+        };
+        renderRunFlowchartView();
+      } else if (event.type === "STEP_COMPLETED" && isViewedRun) {
+        var prev = currentRunSteps[event.taskIndex] || {};
+        currentRunSteps[event.taskIndex] = Object.assign({}, prev, {
+          taskIndex: event.taskIndex,
+          taskName: event.taskName,
+          status: "completed",
+          taintAfter: event.taintAfter,
+          duration: event.duration,
+        });
+        renderRunFlowchartView();
+      } else if (event.type === "STEP_FAILED" && isViewedRun) {
+        var prevF = currentRunSteps[event.taskIndex] || {};
+        currentRunSteps[event.taskIndex] = Object.assign({}, prevF, {
+          taskIndex: event.taskIndex,
+          taskName: event.taskName,
+          status: "failed",
+          error: event.error,
+          attemptNumber: event.attemptNumber,
+        });
+        renderRunFlowchartView();
+      } else if (event.type === "STEP_SKIPPED" && isViewedRun) {
+        currentRunSteps[event.taskIndex] = {
+          taskIndex: event.taskIndex,
+          taskName: event.taskName,
+          status: "skipped",
+        };
+        renderRunFlowchartView();
+      } else if (event.type === "BRANCH_TAKEN" && isViewedRun) {
+        // Find the switch step and annotate with branch taken
+        for (var key in currentRunSteps) {
+          if (currentRunSteps[key].taskName === event.switchName) {
+            currentRunSteps[key] = Object.assign({}, currentRunSteps[key], {
+              branchTaken: event.branch,
+            });
+          }
+        }
+        renderRunFlowchartView();
+      }
     }
 
     function refreshSelectedRun() {

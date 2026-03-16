@@ -155,6 +155,7 @@ function registerWorkflowsHandler(
     createWorkflowsTopicDispatcher(
       handler,
       () => toolInfra.state.session.taint,
+      { sessionUserProvider: () => toolInfra.state.session.userId },
     ),
   );
   tidepoolHost.registerSocketCleanup((socket) => handler.removeSocket(socket));

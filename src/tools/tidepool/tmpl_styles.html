@@ -2184,4 +2184,385 @@
     border: 1px solid var(--red);
     color: var(--red);
   }
+
+  /* ── View toggle tabs ──────────────────────────────────────────── */
+  .wf-view-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 6px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+  .wf-view-tab {
+    padding: 4px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--fg3);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .wf-view-tab:hover { color: var(--fg); }
+  .wf-view-tab.active {
+    background: var(--bg3);
+    border-color: var(--border);
+    color: var(--fg);
+  }
+
+  /* ── Flowchart container ───────────────────────────────────────── */
+  .wf-flowchart-wrap {
+    position: relative;
+    overflow: auto;
+    flex: 1;
+    min-height: 200px;
+  }
+  .wf-flowchart-canvas {
+    position: relative;
+    min-width: 100%;
+    min-height: 100%;
+  }
+  .wf-flowchart-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  /* ── Flowchart nodes ───────────────────────────────────────────── */
+  .wf-node {
+    position: absolute;
+    width: 160px;
+    min-height: 64px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    box-sizing: border-box;
+    cursor: default;
+    transition: border-color 0.2s, box-shadow 0.2s, opacity 0.2s;
+  }
+  .wf-node-name {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--fg);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .wf-node-type {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    margin-top: 3px;
+    text-transform: uppercase;
+  }
+  .wf-node-type-call { background: rgba(122,162,247,0.15); color: var(--accent); }
+  .wf-node-type-run { background: rgba(187,154,247,0.15); color: #bb9af7; }
+  .wf-node-type-set { background: rgba(169,177,214,0.1); color: var(--fg3); }
+  .wf-node-type-switch { background: rgba(224,175,104,0.15); color: var(--yellow); }
+  .wf-node-type-for { background: rgba(125,207,255,0.15); color: #7dcfff; }
+  .wf-node-type-raise { background: rgba(247,118,142,0.15); color: var(--red); }
+  .wf-node-type-emit { background: rgba(255,158,100,0.15); color: var(--orange); }
+  .wf-node-type-wait { background: rgba(169,177,214,0.08); color: var(--fg3); }
+  .wf-node-desc {
+    font-size: 10px;
+    color: var(--fg3);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .wf-node-cond {
+    display: inline-block;
+    font-size: 10px;
+    color: var(--yellow);
+    margin-left: 4px;
+  }
+
+  /* ── Node taint border colors ──────────────────────────────────── */
+  .wf-node.taint-public { border-left-color: var(--green); }
+  .wf-node.taint-internal { border-left-color: var(--yellow); }
+  .wf-node.taint-confidential { border-left-color: var(--orange); }
+  .wf-node.taint-restricted { border-left-color: var(--red); }
+
+  /* ── Taint escalation indicator ────────────────────────────────── */
+  .wf-taint-escalation {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    margin-left: 4px;
+    animation: wf-escalation-glow 1.5s ease-in-out infinite;
+  }
+  @keyframes wf-escalation-glow {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+  }
+
+  /* ── Step status overlays ──────────────────────────────────────── */
+  .wf-node.step-pending { opacity: 0.4; }
+  .wf-node.step-running {
+    border-color: var(--accent);
+    box-shadow: 0 0 8px rgba(122,162,247,0.3);
+    animation: wf-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes wf-pulse {
+    0%, 100% { box-shadow: 0 0 4px rgba(122,162,247,0.2); }
+    50% { box-shadow: 0 0 12px rgba(122,162,247,0.5); }
+  }
+  .wf-node.step-completed {
+    border-color: var(--green);
+    background: rgba(158,206,106,0.05);
+  }
+  .wf-node.step-failed {
+    border-color: var(--red);
+    background: rgba(247,118,142,0.05);
+  }
+  .wf-node.step-skipped {
+    border-style: dashed;
+    opacity: 0.5;
+  }
+
+  /* ── Taint badge on nodes ──────────────────────────────────────── */
+  .wf-node-taint {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    font-size: 8px;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+
+  /* ── Healing badge on failed nodes ─────────────────────────────── */
+  .wf-healing-badge {
+    position: absolute;
+    bottom: -8px;
+    right: 8px;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 6px;
+    letter-spacing: 0.3px;
+    z-index: 2;
+    border: 1px solid;
+  }
+  .wf-healing-badge.healing-retry {
+    background: rgba(224,175,104,0.15);
+    border-color: var(--yellow);
+    color: var(--yellow);
+  }
+  .wf-healing-badge.healing-triage {
+    background: rgba(224,175,104,0.15);
+    border-color: var(--yellow);
+    color: var(--yellow);
+  }
+  .wf-healing-badge.healing-fix {
+    background: rgba(255,158,100,0.15);
+    border-color: var(--orange);
+    color: var(--orange);
+  }
+  .wf-healing-badge.healing-escalate {
+    background: rgba(247,118,142,0.15);
+    border-color: var(--red);
+    color: var(--red);
+  }
+  .wf-healing-badge.healing-active {
+    animation: wf-pulse 1.5s ease-in-out infinite;
+  }
+
+  /* ── Healing detail panel ──────────────────────────────────────── */
+  .wf-healing-panel {
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    font-size: 12px;
+    overflow-y: auto;
+  }
+  .wf-healing-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .wf-health-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .wf-health-dot.healthy { background: var(--green); }
+  .wf-health-dot.degraded { background: var(--yellow); }
+  .wf-health-dot.failing { background: var(--red); }
+  .wf-health-dot.unknown { background: var(--fg3); }
+  .wf-healing-phase {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+  }
+  .wf-healing-section {
+    margin-bottom: 12px;
+  }
+  .wf-healing-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--fg3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .wf-healing-log {
+    max-height: 150px;
+    overflow-y: auto;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .wf-healing-log-entry {
+    padding: 2px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+  }
+  .wf-healing-log-time {
+    color: var(--fg3);
+    min-width: 50px;
+    font-size: 10px;
+  }
+  .wf-deviation-item {
+    padding: 6px 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 4px;
+  }
+  .wf-deviation-task {
+    font-weight: 600;
+    color: var(--orange);
+    font-size: 11px;
+  }
+  .wf-deviation-desc {
+    font-size: 11px;
+    color: var(--fg2);
+    margin-top: 2px;
+  }
+  .wf-approval-box {
+    padding: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-top: 8px;
+  }
+  .wf-approval-reasoning {
+    font-size: 11px;
+    color: var(--fg2);
+    line-height: 1.5;
+    margin-bottom: 8px;
+    font-style: italic;
+  }
+  .wf-approval-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .wf-approval-actions input {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 12px;
+    color: var(--fg);
+    outline: none;
+  }
+  .wf-approval-actions input:focus { border-color: var(--accent); }
+  .wf-btn-approve {
+    padding: 5px 14px;
+    border-radius: 4px;
+    border: 1px solid var(--green);
+    background: var(--green);
+    color: var(--bg);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .wf-btn-approve:hover { opacity: 0.9; }
+  .wf-btn-reject {
+    padding: 5px 14px;
+    border-radius: 4px;
+    border: 1px solid var(--red);
+    background: transparent;
+    color: var(--red);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .wf-btn-reject:hover { background: var(--red); color: var(--bg); }
+
+  /* ── YAML syntax highlighting ──────────────────────────────────── */
+  .wf-yaml-key { color: var(--accent); }
+  .wf-yaml-string { color: var(--green); }
+  .wf-yaml-number { color: var(--orange); }
+  .wf-yaml-bool { color: var(--yellow); }
+  .wf-yaml-comment { color: var(--fg3); font-style: italic; }
+
+  /* ── Split diff view ───────────────────────────────────────────── */
+  .wf-diff-container {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .wf-diff-pane {
+    flex: 1;
+    overflow: auto;
+    min-width: 0;
+  }
+  .wf-diff-pane + .wf-diff-pane {
+    border-left: 1px solid var(--border);
+  }
+  .wf-diff-header {
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--fg3);
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  .wf-diff-line {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 0 12px;
+    white-space: pre;
+  }
+  .wf-diff-added { background: rgba(158,206,106,0.1); }
+  .wf-diff-removed { background: rgba(247,118,142,0.1); }
+
+  /* ── Edge labels ───────────────────────────────────────────────── */
+  .wf-edge-label {
+    position: absolute;
+    font-size: 9px;
+    color: var(--fg3);
+    background: var(--bg);
+    padding: 0 3px;
+    border-radius: 2px;
+    pointer-events: none;
+    white-space: nowrap;
+  }
 </style>

@@ -5,7 +5,9 @@
  */
 
 import type { ClassificationLevel } from "../core/types/classification.ts";
+import type { HealingPhase } from "../core/types/healing.ts";
 import type { WorkflowStatus } from "./types.ts";
+import type { RichWorkflowEvent } from "./healing/types.ts";
 
 /** Listener callback for registry state changes. */
 export type RegistryListener = (
@@ -30,6 +32,20 @@ export interface RegistryEvent {
   readonly error?: string;
 }
 
+/** Per-step execution state accumulated during a run. */
+export interface StepState {
+  readonly taskIndex: number;
+  readonly taskName: string;
+  readonly status: "pending" | "running" | "completed" | "failed" | "skipped";
+  readonly taintBefore?: ClassificationLevel;
+  readonly taintAfter?: ClassificationLevel;
+  readonly duration?: number;
+  readonly error?: string;
+  readonly healingPhase?: HealingPhase;
+  readonly attemptNumber?: number;
+  readonly branchTaken?: string;
+}
+
 /** Control handle for a single running workflow. */
 export interface RunControl {
   readonly runId: string;
@@ -42,6 +58,7 @@ export interface RunControl {
   taint?: ClassificationLevel;
   paused: boolean;
   pauseResolve: (() => void) | null;
+  stepHistory: StepState[];
 }
 
 /** Workflow run registry for tracking and controlling active executions. */
@@ -64,6 +81,12 @@ export interface WorkflowRunRegistry {
   getActiveRun(runId: string): ActiveRunSnapshot | null;
   /** Subscribe to registry events. */
   subscribe(listener: RegistryListener): () => void;
+  /** Get accumulated step history for a run. */
+  getRunStepHistory(runId: string): readonly StepState[];
+  /** Report a rich step event and update step history. */
+  reportStepEvent(runId: string, event: RichWorkflowEvent): void;
+  /** Subscribe to rich per-step events. */
+  subscribeRichEvents(listener: (event: RichWorkflowEvent) => void): () => void;
 }
 
 /** Options for registering a new run. */
@@ -103,4 +126,14 @@ export interface ActiveRunSnapshot {
   readonly startedAt: string;
   readonly paused: boolean;
   readonly taint?: ClassificationLevel;
+}
+
+/** Error thrown when a workflow is cancelled via the registry. */
+export class WorkflowCancelledError extends Error {
+  readonly runId: string;
+  constructor(runId: string) {
+    super(`Workflow run cancelled: ${runId}`);
+    this.name = "WorkflowCancelledError";
+    this.runId = runId;
+  }
 }
