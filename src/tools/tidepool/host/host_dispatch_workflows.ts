@@ -18,8 +18,11 @@ const log = createLogger("tidepool-dispatch");
 /** Create a topic handler for the workflows screen. */
 export function createWorkflowsTopicDispatcher(
   handler: TidepoolWorkflowsHandler,
-  sessionTaintProvider: () => string,
+  sessionTaintProvider: () => ClassificationLevel,
+  options?: { readonly sessionUserProvider?: () => string },
 ): TopicHandler {
+  const sessionUserProvider = options?.sessionUserProvider ?? (() => "tidepool-user");
+
   return (message, socket) => {
     const action = message.action as string;
     const payload = (message.payload ?? {}) as Record<string, unknown>;
@@ -37,6 +40,14 @@ export function createWorkflowsTopicDispatcher(
       schedule: () =>
         dispatchSchedule(handler, socket, payload, sessionTaintProvider),
       delete_workflow: () => dispatchDeleteWorkflow(handler, socket, payload),
+      get_run_detail: () =>
+        dispatchGetRunDetail(handler, socket, payload, sessionTaintProvider),
+      get_healing_status: () =>
+        dispatchGetHealingStatus(handler, socket, payload, sessionTaintProvider),
+      approve_version: () =>
+        dispatchApproveVersion(handler, socket, payload, sessionUserProvider),
+      reject_version: () =>
+        dispatchRejectVersion(handler, socket, payload, sessionUserProvider),
     };
 
     dispatch[action]?.();
@@ -136,13 +147,13 @@ function dispatchStart(
   handler: TidepoolWorkflowsHandler,
   socket: WebSocket,
   payload: Record<string, unknown>,
-  sessionTaintProvider: () => string,
+  sessionTaintProvider: () => ClassificationLevel,
 ): void {
   const name = payload.name as string;
   if (!name) return;
   const taint = sessionTaintProvider();
   handler
-    .startRun(name, taint as ClassificationLevel)
+    .startRun(name, taint)
     .then((data) => reply(socket, data))
     .catch((err: unknown) => {
       log.warn("Workflow start dispatch failed", {
@@ -165,20 +176,16 @@ function dispatchSchedule(
   handler: TidepoolWorkflowsHandler,
   socket: WebSocket,
   payload: Record<string, unknown>,
-  sessionTaintProvider: () => string,
+  sessionTaintProvider: () => ClassificationLevel,
 ): void {
   const name = payload.name as string;
   const expression = payload.expression as string;
-  const classification = (payload.classification as string) ||
+  const classification = (payload.classification as ClassificationLevel) ||
     sessionTaintProvider();
   if (name && expression) {
     reply(
       socket,
-      handler.scheduleRun(
-        name,
-        expression,
-        classification as ClassificationLevel,
-      ),
+      handler.scheduleRun(name, expression, classification),
     );
   }
 }
@@ -206,4 +213,133 @@ function dispatchDeleteWorkflow(
       });
     },
   );
+}
+
+/** Dispatch get_run_detail action. */
+function dispatchGetRunDetail(
+  handler: TidepoolWorkflowsHandler,
+  socket: WebSocket,
+  payload: Record<string, unknown>,
+  sessionTaintProvider: () => ClassificationLevel,
+): void {
+  const runId = payload.runId as string;
+  if (!runId) {
+    log.warn("Run detail dispatch rejected: missing runId", { operation: "get_run_detail" });
+    return;
+  }
+  const taint = sessionTaintProvider();
+  const workflowName = payload.workflowName as string | undefined;
+  handler
+    .fetchRunDetail(runId, taint, workflowName)
+    .then((data) => reply(socket, data))
+    .catch((err: unknown) => {
+      log.warn("Run detail fetch failed", {
+        operation: "get_run_detail",
+        runId,
+        err,
+      });
+      reply(socket, {
+        topic: "workflows",
+        type: "run_detail",
+        runId,
+        tasks: [],
+        steps: [],
+      });
+    });
+}
+
+/** Dispatch get_healing_status action. */
+function dispatchGetHealingStatus(
+  handler: TidepoolWorkflowsHandler,
+  socket: WebSocket,
+  payload: Record<string, unknown>,
+  sessionTaintProvider: () => ClassificationLevel,
+): void {
+  const workflowName = payload.workflowName as string;
+  if (!workflowName) {
+    log.warn("Healing status dispatch rejected: missing workflowName", { operation: "get_healing_status" });
+    return;
+  }
+  const taint = sessionTaintProvider();
+  handler
+    .fetchHealingStatus(workflowName, taint)
+    .then((data) => reply(socket, data))
+    .catch((err: unknown) => {
+      log.warn("Healing status fetch failed", {
+        operation: "get_healing_status",
+        workflowName,
+        err,
+      });
+      reply(socket, {
+        topic: "workflows",
+        type: "healing_status",
+        workflowName,
+        versions: [],
+      });
+    });
+}
+
+/** Dispatch approve_version action. */
+function dispatchApproveVersion(
+  handler: TidepoolWorkflowsHandler,
+  socket: WebSocket,
+  payload: Record<string, unknown>,
+  sessionUserProvider: () => string,
+): void {
+  const versionId = payload.versionId as string;
+  if (!versionId) {
+    log.warn("Version approval dispatch rejected: missing versionId", { operation: "approve_version" });
+    return;
+  }
+  const reviewedBy = sessionUserProvider();
+  handler
+    .approveVersion(versionId, reviewedBy)
+    .then((data) => reply(socket, data))
+    .catch((err: unknown) => {
+      log.warn("Version approval dispatch failed", {
+        operation: "approve_version",
+        versionId,
+        err,
+      });
+      reply(socket, {
+        topic: "workflows",
+        type: "version_result",
+        versionId,
+        action: "approve",
+        ok: false,
+      });
+    });
+}
+
+/** Dispatch reject_version action. */
+function dispatchRejectVersion(
+  handler: TidepoolWorkflowsHandler,
+  socket: WebSocket,
+  payload: Record<string, unknown>,
+  sessionUserProvider: () => string,
+): void {
+  const versionId = payload.versionId as string;
+  const reason = (payload.reason as string) || "";
+  if (!versionId) {
+    log.warn("Version rejection dispatch rejected: missing versionId", { operation: "reject_version" });
+    return;
+  }
+  const reviewedBy = sessionUserProvider();
+  handler
+    .rejectVersion(versionId, reviewedBy, reason)
+    .then((data) => reply(socket, data))
+    .catch((err: unknown) => {
+      log.warn("Version rejection dispatch failed", {
+        operation: "reject_version",
+        versionId,
+        err,
+      });
+      reply(socket, {
+        topic: "workflows",
+        type: "version_result",
+        versionId,
+        action: "reject",
+        ok: false,
+      });
+    });
 }

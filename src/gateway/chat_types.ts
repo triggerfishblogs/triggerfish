@@ -19,4 +19,7 @@ export type {
   ChatSessionConfig,
 } from "./chat_session_config.ts";
 
-export type { ChatSession } from "./chat_session_interface.ts";
+export type {
+  ChatHistoryEntry,
+  ChatSession,
+} from "./chat_session_interface.ts";

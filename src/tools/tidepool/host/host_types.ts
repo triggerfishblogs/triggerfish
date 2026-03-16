@@ -8,8 +8,23 @@
  */
 
 import type { ComponentTree } from "../components.ts";
-import type { CanvasMessage } from "../canvas_protocol.ts";
+import type {
+  CanvasMessage,
+  CanvasRenderComponentMessage,
+  CanvasRenderFileMessage,
+  CanvasRenderHtmlMessage,
+} from "../canvas_protocol.ts";
 import type { ChatEvent } from "../../../core/types/chat_event.ts";
+
+/** Server-side record of a canvas render for history restoration. */
+export interface CanvasRenderRecord {
+  readonly id: string;
+  readonly label: string;
+  readonly message:
+    | CanvasRenderComponentMessage
+    | CanvasRenderHtmlMessage
+    | CanvasRenderFileMessage;
+}
 
 // ---------------------------------------------------------------------------
 // A2UI WebSocket Host — public interfaces
@@ -81,4 +96,6 @@ export interface A2UIHostState {
   topicHandlers?: Record<string, TopicHandler>;
   /** Callbacks invoked when a socket disconnects, for subscriber cleanup. */
   socketCleanupCallbacks: Array<(socket: WebSocket) => void>;
+  /** Server-side canvas render history for session restoration on reconnect. */
+  canvasRenders: CanvasRenderRecord[];
 }

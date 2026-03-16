@@ -19,6 +19,8 @@ import type {
   ChatSession,
   ChatSessionConfig,
 } from "./chat_types.ts";
+import type { ChatHistoryEntry } from "./chat_session_interface.ts";
+import { loadChatHistoryEntries } from "./chat_history.ts";
 
 import {
   applyTaintEscalation,
@@ -48,6 +50,7 @@ export type {
   ChatClientMessage,
   ChatEvent,
   ChatEventSender,
+  ChatHistoryEntry,
   ChatSession,
   ChatSessionConfig,
 } from "./chat_types.ts";
@@ -170,17 +173,32 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
   return {
     executeAgentTurn: (content, sendEvent, signal) =>
       runOwnerAgentTurn(
-        state, orchestrator, getSession, content,
-        ownerTargetClassification, sendEvent, signal,
+        state,
+        orchestrator,
+        getSession,
+        content,
+        ownerTargetClassification,
+        sendEvent,
+        signal,
       ),
     registerChannel: (channelType, channelConfig) =>
       registerChannelState(
-        channelStates, pairingService, channelType, channelConfig,
+        channelStates,
+        pairingService,
+        channelType,
+        channelConfig,
       ),
     handleChannelMessage: (msg, channelType, signal) =>
       routeChannelMessage(
-        state, orchestrator, getSession, ownerTargetClassification,
-        channelStates, pairingService, msg, channelType, signal,
+        state,
+        orchestrator,
+        getSession,
+        ownerTargetClassification,
+        channelStates,
+        pairingService,
+        msg,
+        channelType,
+        signal,
         config.isOwnerTurnRef,
       ),
     clear() {
@@ -204,15 +222,23 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
         return Promise.resolve();
       }
       return acceptTriggerResult({
-        source, config, state, orchestrator,
-        getSession, ownerTargetClassification, sendEvent,
+        source,
+        config,
+        state,
+        orchestrator,
+        getSession,
+        ownerTargetClassification,
+        sendEvent,
       });
     },
     handleSecretPromptResponse: (nonce, value) =>
       resolveSecretPrompt(pendingSecretPrompts, nonce, value),
     handleCredentialPromptResponse: (nonce, username, password) =>
       resolveCredentialPrompt(
-        pendingCredentialPrompts, nonce, username, password,
+        pendingCredentialPrompts,
+        nonce,
+        username,
+        password,
       ),
     createTidepoolSecretPrompt: (sendEvent) =>
       buildTidepoolSecretPrompt(pendingSecretPrompts, sendEvent),
@@ -226,16 +252,28 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
       mcpStatusConnected = connected;
       mcpStatusConfigured = configured;
     },
-    get providerName() { return providerName; },
-    get modelName() { return modelName; },
+    get providerName() {
+      return providerName;
+    },
+    get modelName() {
+      return modelName;
+    },
     get workspacePath() {
       return config.getWorkspacePath?.() ?? config.workspacePath ?? "";
     },
-    get sessionTaint() { return getSessionTaint(); },
+    get sessionTaint() {
+      return getSessionTaint();
+    },
     toggleBumpers() {
       if (config.toggleSessionBumpers) return config.toggleSessionBumpers();
       return false;
     },
-    get bumpersEnabled() { return config.getBumpersEnabled?.() ?? true; },
+    get bumpersEnabled() {
+      return config.getBumpersEnabled?.() ?? true;
+    },
+    loadChatHistory(): Promise<readonly ChatHistoryEntry[]> {
+      if (!config.messageStore) return Promise.resolve([]);
+      return loadChatHistoryEntries(config.messageStore, ownerSessionId);
+    },
   };
 }

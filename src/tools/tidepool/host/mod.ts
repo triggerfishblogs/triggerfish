@@ -57,8 +57,22 @@ export type {
 } from "./host_config.ts";
 export { createTidepoolConfigHandler } from "./host_config.ts";
 
-export type { TidepoolWorkflowsHandler } from "./host_workflows.ts";
+export type {
+  TidepoolWorkflowsHandler,
+  WorkflowsHandlerOptions,
+} from "./host_workflows.ts";
 export { createTidepoolWorkflowsHandler } from "./host_workflows.ts";
+
+// Workflow dispatch helpers
+export {
+  approveWorkflowVersion,
+  broadcastRegistryEvent,
+  broadcastRichEvent,
+  dispatchControlAction,
+  dispatchScheduleRun,
+  dispatchStartRun,
+  rejectWorkflowVersion,
+} from "./host_workflows_dispatch.ts";
 
 // Topic dispatch factories
 export {

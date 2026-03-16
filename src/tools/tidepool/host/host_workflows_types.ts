@@ -8,6 +8,7 @@
  */
 
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import type { HealingPhase } from "../../../core/types/healing.ts";
 
 /** Minimal workflow store interface to avoid cross-layer imports. */
 export interface MinimalWorkflowStore {
@@ -68,6 +69,39 @@ export interface MinimalCronManager {
   }): { ok: true; value: { id: string } } | { ok: false; error: string };
 }
 
+/** Structural-only task node sent to the browser (no input/output to avoid leaking classified content). */
+export interface SimplifiedTask {
+  readonly name: string;
+  readonly type: "call" | "run" | "set" | "switch" | "for" | "raise" | "emit" | "wait";
+  readonly condition?: string;
+  readonly callType?: string;
+  readonly switchCases?: readonly { readonly name: string; readonly when?: string }[];
+  readonly forEach?: string;
+  readonly flowDirective?: string;
+  readonly metadata?: { readonly description?: string };
+}
+
+/** Per-step execution state accumulated during a run. */
+export interface StepState {
+  readonly taskIndex: number;
+  readonly taskName: string;
+  readonly status: "pending" | "running" | "completed" | "failed" | "skipped";
+  readonly taintBefore?: ClassificationLevel;
+  readonly taintAfter?: ClassificationLevel;
+  readonly duration?: number;
+  readonly error?: string;
+  readonly healingPhase?: HealingPhase;
+  readonly attemptNumber?: number;
+  readonly branchTaken?: string;
+}
+
+/** Minimal version store interface for approval workflows. */
+export interface MinimalWorkflowVersionStore {
+  listWorkflowVersions(workflowName: string): Promise<readonly WorkflowVersion[]>;
+  approveWorkflowVersion(versionId: string, reviewedBy: string): Promise<boolean>;
+  rejectWorkflowVersion(versionId: string, reviewedBy: string, reason: string): Promise<boolean>;
+}
+
 /** Minimal run registry interface to avoid cross-layer imports. */
 export interface MinimalRunRegistry {
   listActiveRuns(): readonly {
@@ -85,6 +119,12 @@ export interface MinimalRunRegistry {
   unpauseRun(runId: string): boolean;
   subscribe(
     listener: (event: RegistryEventShape) => void,
+  ): () => void;
+  /** Get accumulated step history for a run. */
+  getRunStepHistory(runId: string): readonly StepState[];
+  /** Subscribe to rich per-step events. */
+  subscribeRichEvents(
+    listener: (event: RichWorkflowEvent) => void,
   ): () => void;
 }
 
@@ -139,6 +179,28 @@ export interface TidepoolWorkflowsHandler {
     expression: string,
     classification: ClassificationLevel,
   ): Record<string, unknown>;
+  /** Fetch run detail with task graph and step states. */
+  fetchRunDetail(
+    runId: string,
+    sessionTaint: ClassificationLevel,
+    workflowName?: string,
+  ): Promise<Record<string, unknown>>;
+  /** Fetch healing status for a workflow. */
+  fetchHealingStatus(
+    workflowName: string,
+    sessionTaint: ClassificationLevel,
+  ): Promise<Record<string, unknown>>;
+  /** Approve a proposed workflow version. */
+  approveVersion(
+    versionId: string,
+    reviewedBy: string,
+  ): Promise<Record<string, unknown>>;
+  /** Reject a proposed workflow version with reason. */
+  rejectVersion(
+    versionId: string,
+    reviewedBy: string,
+    reason: string,
+  ): Promise<Record<string, unknown>>;
   /** Remove a socket from all subscriptions. */
   removeSocket(socket: WebSocket): void;
 }
@@ -149,4 +211,34 @@ export interface WorkflowsHandlerOptions {
   readonly registry: MinimalRunRegistry;
   readonly workflowExecutor?: WorkflowExecutorFn;
   readonly cronManager?: MinimalCronManager;
+  readonly versionStore?: MinimalWorkflowVersionStore;
+  readonly parseWorkflow?: (yaml: string) => SimplifiedTask[];
 }
+
+/**
+ * Minimal workflow version shape — avoids cross-layer import from workflow/.
+ * Matches the structural subset of workflow/healing/types.ts WorkflowVersion.
+ */
+export interface WorkflowVersion {
+  readonly versionId: string;
+  readonly workflowName: string;
+  readonly versionNumber: number;
+  readonly status: "PROPOSED" | "APPROVED" | "REJECTED" | "SUPERSEDED";
+  readonly source: "human" | "self_healing";
+  readonly proposedAt: string;
+  readonly resolvedAt?: string;
+  readonly resolvedBy?: string;
+  readonly diff?: string;
+  readonly authorReasoning?: string;
+}
+
+/**
+ * Minimal rich workflow event shape — avoids cross-layer import from workflow/.
+ * The tidepool layer treats these as opaque JSON except for stripping classified fields.
+ */
+export type RichWorkflowEvent = {
+  readonly type: string;
+  readonly runId: string;
+  readonly workflowName: string;
+  readonly timestamp: string;
+};

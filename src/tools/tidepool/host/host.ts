@@ -63,6 +63,7 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
     lastMcpConnected: -1,
     lastMcpConfigured: 0,
     socketCleanupCallbacks: [],
+    canvasRenders: [],
   };
 
   return {
@@ -96,6 +97,7 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
       state.resolvedPort = 0;
       state.currentTree = null;
       state.cachedHtml = null;
+      state.canvasRenders = [];
     },
 
     sendCanvas(message: CanvasMessage): void {
@@ -104,13 +106,13 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
     },
 
     broadcast(tree: ComponentTree): void {
-      state.currentTree = tree;
       const msg: CanvasRenderComponentMessage = {
         type: "canvas_render_component",
         id: crypto.randomUUID(),
         label: "Component Tree",
         tree,
       };
+      updateTreeFromCanvasMessage(state, msg);
       broadcastJsonToClients(state.clients, JSON.stringify(msg));
     },
 
@@ -153,14 +155,32 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
   };
 }
 
-/** Update tracked component tree based on canvas message type. */
+/** Maximum number of canvas renders kept for reconnect replay. */
+const MAX_CANVAS_RENDERS = 50;
+
+/** Update tracked component tree and render history based on canvas message type. */
 function updateTreeFromCanvasMessage(
   state: A2UIHostState,
   message: CanvasMessage,
 ): void {
-  if (message.type === "canvas_render_component") {
-    state.currentTree = (message as CanvasRenderComponentMessage).tree;
+  if (
+    message.type === "canvas_render_component" ||
+    message.type === "canvas_render_html" ||
+    message.type === "canvas_render_file"
+  ) {
+    if (message.type === "canvas_render_component") {
+      state.currentTree = message.tree;
+    }
+    state.canvasRenders.push({
+      id: message.id,
+      label: message.label,
+      message,
+    });
+    if (state.canvasRenders.length > MAX_CANVAS_RENDERS) {
+      state.canvasRenders = state.canvasRenders.slice(-MAX_CANVAS_RENDERS);
+    }
   } else if (message.type === "canvas_clear") {
     state.currentTree = null;
+    state.canvasRenders = [];
   }
 }

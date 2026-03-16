@@ -199,11 +199,48 @@ function extractTodos(
   return [];
 }
 
+/** Hydrate messages from server-sent chat history on reconnect. */
+function hydrateChatHistory(
+  messages: Array<{
+    role: string;
+    text: string;
+    taint?: string;
+    timestamp: number;
+  }>,
+): void {
+  // Only hydrate if the client has no messages (fresh page load)
+  if (_messages.length > 0) return;
+  for (const entry of messages) {
+    const role = entry.role as ChatMessage["role"];
+    if (role !== "user" && role !== "assistant") continue;
+    _messages.push({
+      id: genId(),
+      role,
+      text: entry.text,
+      taint: entry.taint as ClassificationLevel | undefined,
+      timestamp: entry.timestamp,
+    });
+  }
+}
+
 /** Handle inbound chat events. */
 function handleMessage(msg: Record<string, unknown>): void {
   const type = msg.type as string;
 
   switch (type) {
+    case "chat_history": {
+      const messages = msg.messages as Array<{
+        role: string;
+        text: string;
+        taint?: string;
+        timestamp: number;
+      }>;
+      if (Array.isArray(messages)) {
+        hydrateChatHistory(messages);
+      }
+      break;
+    }
+
     case "llm_start":
       _thinking = true;
       _partialText = "";

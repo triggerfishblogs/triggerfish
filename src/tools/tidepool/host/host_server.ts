@@ -31,7 +31,14 @@ export function upgradeWebSocketClient(
 
   socket.addEventListener("open", () => {
     state.clients.add(socket);
-    sendInitialClientState(socket, state, chatSession);
+    sendInitialClientState(socket, state, chatSession).catch(
+      (err: unknown) => {
+        log.warn("Tidepool initial state send failed", {
+          operation: "upgradeWebSocketClient",
+          err,
+        });
+      },
+    );
   });
 
   wireMessageListener(socket, chatSession, ref, state);
