@@ -97,3 +97,12 @@ function handleMessage(msg: Record<string, unknown>): void {
 }
 
 onTopic("health", handleMessage);
+
+/** Request a health snapshot on WebSocket connect so nav dot populates immediately. */
+function handleShellMessage(msg: Record<string, unknown>): void {
+  if (msg.type === "ws_connected") {
+    requestSnapshot();
+  }
+}
+
+onTopic("shell", handleShellMessage);

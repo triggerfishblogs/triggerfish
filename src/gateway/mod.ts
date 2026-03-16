@@ -53,9 +53,12 @@ export type {
   ChatClientMessage,
   ChatEvent,
   ChatEventSender,
+  ChatHistoryEntry,
   ChatSession,
   ChatSessionConfig,
 } from "./chat.ts";
+
+export { loadChatHistoryEntries } from "./chat_history.ts";
 
 export {
   createTriggerToolExecutor,

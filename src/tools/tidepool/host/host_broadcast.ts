@@ -3,14 +3,17 @@
  *
  * Provides low-level primitives for sending JSON payloads to individual
  * WebSocket clients and broadcasting to the full client set. Also
- * handles sending initial state (component tree, chat status, MCP
- * status) to newly connected sockets.
+ * handles sending initial state (component tree, chat history, canvas
+ * renders, chat status, MCP status) to newly connected sockets.
  *
  * @module
  */
 
 import type { ChatSession } from "../../../gateway/chat.ts";
 import type { A2UIHostState } from "./host_types.ts";
+import { createLogger } from "../../../core/logger/mod.ts";
+
+const log = createLogger("tidepool-broadcast");
 
 /** Safely send a string payload to a single socket, swallowing send errors. */
 export function trySendSocketPayload(ws: WebSocket, json: string): void {
@@ -39,18 +42,17 @@ export function broadcastJsonToClients(
   }
 }
 
-/** Send current component tree, chat-connected event, and MCP status to a newly opened socket. */
-export function sendInitialClientState(
+/** Send current component tree, chat history, canvas renders, chat-connected event, and MCP status to a newly opened socket. */
+export async function sendInitialClientState(
   socket: WebSocket,
   state: A2UIHostState,
   chatSession: ChatSession | undefined,
-): void {
-  if (state.currentTree) {
-    socket.send(JSON.stringify(state.currentTree));
-  }
+): Promise<void> {
   sendChatConnectedStatus(socket, chatSession);
   sendBumpersStatus(socket, chatSession);
   sendMcpStatusIfAvailable(socket, state);
+  sendCanvasRenderHistory(socket, state);
+  await sendChatHistory(socket, chatSession);
 }
 
 /** Send the chat-connected event to a socket if a chatSession is available. */
@@ -102,5 +104,37 @@ function sendMcpStatusIfAvailable(
         configured: state.lastMcpConfigured,
       }),
     );
+  }
+}
+
+/** Send persisted chat history to a newly connected socket. */
+async function sendChatHistory(
+  socket: WebSocket,
+  chatSession: ChatSession | undefined,
+): Promise<void> {
+  if (!chatSession?.loadChatHistory) return;
+  try {
+    const entries = await chatSession.loadChatHistory();
+    if (entries.length === 0) return;
+    trySendSocketPayload(
+      socket,
+      JSON.stringify({ type: "chat_history", messages: entries }),
+    );
+  } catch (err: unknown) {
+    log.warn("Tidepool chat history send failed on reconnect", {
+      operation: "sendChatHistory",
+      err,
+    });
+  }
+}
+
+/** Send canvas render history to a newly connected socket. */
+function sendCanvasRenderHistory(
+  socket: WebSocket,
+  state: A2UIHostState,
+): void {
+  if (state.canvasRenders.length === 0) return;
+  for (const render of state.canvasRenders) {
+    trySendSocketPayload(socket, JSON.stringify(render.message));
   }
 }
