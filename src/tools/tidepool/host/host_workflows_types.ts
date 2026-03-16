@@ -183,6 +183,7 @@ export interface TidepoolWorkflowsHandler {
   fetchRunDetail(
     runId: string,
     sessionTaint: ClassificationLevel,
+    workflowName?: string,
   ): Promise<Record<string, unknown>>;
   /** Fetch healing status for a workflow. */
   fetchHealingStatus(
@@ -227,6 +228,8 @@ export interface WorkflowVersion {
   readonly proposedAt: string;
   readonly resolvedAt?: string;
   readonly resolvedBy?: string;
+  readonly diff?: string;
+  readonly authorReasoning?: string;
 }
 
 /**

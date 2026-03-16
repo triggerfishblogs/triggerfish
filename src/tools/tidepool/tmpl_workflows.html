@@ -711,15 +711,6 @@
           if (taintLevel) {
             el.classList.add("taint-" + taintLevel.toLowerCase());
           }
-          // Taint escalation
-          if (step.taintBefore && step.taintAfter &&
-              TAINT_ORDER[step.taintAfter] > TAINT_ORDER[step.taintBefore]) {
-            var escEl = document.createElement("span");
-            escEl.className = "wf-taint-escalation";
-            escEl.textContent = "\u2191";
-            escEl.style.color = TAINT_BORDERS[step.taintAfter] || "var(--fg3)";
-            el.querySelector(".wf-node-name")?.appendChild(escEl);
-          }
         }
 
         var nameRow = '<div class="wf-node-name">' + escapeH(task.name);
@@ -831,6 +822,50 @@
 
     // ── Split diff renderer ──────────────────────────────────────
 
+    /** Reconstruct proposed file lines from current YAML + unified diff. */
+    function reconstructProposedLines(currentYaml, diff) {
+      if (!diff) {
+        var fallback = (currentYaml || "").split("\n");
+        return fallback.map(function(l) { return { text: l, added: false }; });
+      }
+      var result = [];
+      var srcLines = (currentYaml || "").split("\n");
+      var diffLines = diff.split("\n");
+      var srcIdx = 0;
+      var di = 0;
+      // Skip diff header lines until first hunk
+      while (di < diffLines.length && !diffLines[di].startsWith("@@")) { di++; }
+      while (di < diffLines.length) {
+        var dl = diffLines[di];
+        if (dl.startsWith("@@")) {
+          var hm = dl.match(/@@ -(\d+)/);
+          var hunkStart = hm ? parseInt(hm[1], 10) - 1 : srcIdx;
+          // Copy unchanged lines before this hunk
+          while (srcIdx < hunkStart && srcIdx < srcLines.length) {
+            result.push({ text: srcLines[srcIdx], added: false });
+            srcIdx++;
+          }
+          di++;
+        } else if (dl.startsWith("-")) {
+          srcIdx++;
+          di++;
+        } else if (dl.startsWith("+")) {
+          result.push({ text: dl.substring(1), added: true });
+          di++;
+        } else {
+          result.push({ text: srcLines[srcIdx] || dl.substring(1), added: false });
+          srcIdx++;
+          di++;
+        }
+      }
+      // Copy remaining unchanged lines after last hunk
+      while (srcIdx < srcLines.length) {
+        result.push({ text: srcLines[srcIdx], added: false });
+        srcIdx++;
+      }
+      return result;
+    }
+
     function renderSplitDiff(currentYaml, diff, versionNumber, reasoning) {
       var container = document.createElement("div");
       container.style.display = "flex";
@@ -904,16 +939,18 @@
       }
       leftPane.appendChild(leftPre);
 
-      // Render proposed yaml (apply diff or show current + additions)
+      // Reconstruct proposed yaml by applying unified diff to current
+      var proposedLines = reconstructProposedLines(currentYaml, diff);
+
       var rightPre = document.createElement("pre");
       rightPre.className = "workflows-yaml-block";
       rightPre.style.margin = "0";
       rightPre.style.borderRadius = "0";
       rightPre.style.border = "none";
-      for (var rl = 0; rl < currentLines.length; rl++) {
+      for (var rl = 0; rl < proposedLines.length; rl++) {
         var rLineDiv = document.createElement("div");
-        rLineDiv.className = "wf-diff-line" + (addedLines[rl] ? " wf-diff-added" : "");
-        rLineDiv.innerHTML = highlightYaml(escapeH(currentLines[rl]));
+        rLineDiv.className = "wf-diff-line" + (proposedLines[rl].added ? " wf-diff-added" : "");
+        rLineDiv.innerHTML = highlightYaml(escapeH(proposedLines[rl].text));
         rightPre.appendChild(rLineDiv);
       }
       rightPane.appendChild(rightPre);

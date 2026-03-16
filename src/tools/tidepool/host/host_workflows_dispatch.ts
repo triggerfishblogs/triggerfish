@@ -66,7 +66,7 @@ export async function dispatchStartRun(
   store: MinimalWorkflowStore,
   workflowExecutor: WorkflowExecutorFn | undefined,
   name: string,
-  sessionTaint: string,
+  sessionTaint: ClassificationLevel,
 ): Promise<Record<string, unknown>> {
   if (!workflowExecutor) {
     log.warn("Workflow start rejected: executor not available", {
@@ -83,7 +83,7 @@ export async function dispatchStartRun(
   }
   const wf = await store.loadWorkflowDefinition(
     name,
-    sessionTaint as ClassificationLevel,
+    sessionTaint,
   );
   if (!wf) {
     log.warn("Workflow start rejected: definition not found or classification gated", {

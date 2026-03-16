@@ -77,8 +77,8 @@ export function createTidepoolWorkflowsHandler(
     deleteWorkflow: (name) => deleteWorkflow(store, name),
     startRun: (name, taint) => dispatchStartRun(store, workflowExecutor, name, taint),
     scheduleRun: (name, expr, cls) => dispatchScheduleRun(cronManager, name, expr, cls),
-    fetchRunDetail: (runId, taint) =>
-      fetchRunDetail(store, registry, parseWorkflow, runId, taint),
+    fetchRunDetail: (runId, taint, wfName) =>
+      fetchRunDetail(store, registry, parseWorkflow, runId, taint, wfName),
     fetchHealingStatus: (name, taint) =>
       fetchHealingStatus(store, versionStore, name, taint),
     approveVersion: (id, by) => approveWorkflowVersion(versionStore, id, by),
@@ -182,11 +182,11 @@ async function fetchRunDetail(
   parseWorkflow: ((yaml: string) => SimplifiedTask[]) | undefined,
   runId: string,
   sessionTaint: ClassificationLevel,
+  explicitWorkflowName?: string,
 ): Promise<Record<string, unknown>> {
   const steps = registry.getRunStepHistory(runId);
-  const activeRuns = registry.listActiveRuns();
-  const run = activeRuns.find((r) => r.runId === runId);
-  const workflowName = run?.workflowName ?? "";
+  const activeRun = registry.listActiveRuns().find((r) => r.runId === runId);
+  const workflowName = explicitWorkflowName ?? activeRun?.workflowName ?? "";
 
   let tasks: SimplifiedTask[] = [];
   if (workflowName && parseWorkflow) {
