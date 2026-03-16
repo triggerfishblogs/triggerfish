@@ -82,7 +82,7 @@ export interface WorkflowRunRegistry {
   /** Subscribe to registry events. */
   subscribe(listener: RegistryListener): () => void;
   /** Get accumulated step history for a run. */
-  getRunStepHistory(runId: string): readonly StepState[];
+  listRunStepHistory(runId: string): readonly StepState[];
   /** Report a rich step event and update step history. */
   reportStepEvent(runId: string, event: RichWorkflowEvent): void;
   /** Subscribe to rich per-step events. */

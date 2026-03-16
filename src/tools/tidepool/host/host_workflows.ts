@@ -184,7 +184,7 @@ async function fetchRunDetail(
   sessionTaint: ClassificationLevel,
   explicitWorkflowName?: string,
 ): Promise<Record<string, unknown>> {
-  const steps = registry.getRunStepHistory(runId);
+  const steps = registry.listRunStepHistory(runId);
   const activeRun = registry.listActiveRuns().find((r) => r.runId === runId);
   const workflowName = explicitWorkflowName ?? activeRun?.workflowName ?? "";
 
