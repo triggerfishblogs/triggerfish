@@ -220,7 +220,10 @@ function dispatchGetRunDetail(
   sessionTaintProvider: () => ClassificationLevel,
 ): void {
   const runId = payload.runId as string;
-  if (!runId) return;
+  if (!runId) {
+    log.warn("Run detail dispatch rejected: missing runId", { operation: "get_run_detail" });
+    return;
+  }
   const taint = sessionTaintProvider();
   const workflowName = payload.workflowName as string | undefined;
   handler
@@ -250,7 +253,10 @@ function dispatchGetHealingStatus(
   sessionTaintProvider: () => ClassificationLevel,
 ): void {
   const workflowName = payload.workflowName as string;
-  if (!workflowName) return;
+  if (!workflowName) {
+    log.warn("Healing status dispatch rejected: missing workflowName", { operation: "get_healing_status" });
+    return;
+  }
   const taint = sessionTaintProvider();
   handler
     .fetchHealingStatus(workflowName, taint)
@@ -277,10 +283,19 @@ function dispatchApproveVersion(
   payload: Record<string, unknown>,
 ): void {
   const versionId = payload.versionId as string;
-  const reviewedBy = (payload.reviewedBy as string) || "tidepool-user";
-  if (!versionId) return;
+  const reviewedBy = payload.reviewedBy as string | undefined;
+  if (!versionId) {
+    log.warn("Version approval dispatch rejected: missing versionId", { operation: "approve_version" });
+    return;
+  }
+  if (!reviewedBy) {
+    log.warn("Version approval missing reviewedBy, using fallback identity", {
+      operation: "approve_version",
+      versionId,
+    });
+  }
   handler
-    .approveVersion(versionId, reviewedBy)
+    .approveVersion(versionId, reviewedBy || "tidepool-user")
     .then((data) => reply(socket, data))
     .catch((err: unknown) => {
       log.warn("Version approval dispatch failed", {
@@ -305,11 +320,20 @@ function dispatchRejectVersion(
   payload: Record<string, unknown>,
 ): void {
   const versionId = payload.versionId as string;
-  const reviewedBy = (payload.reviewedBy as string) || "tidepool-user";
+  const reviewedBy = payload.reviewedBy as string | undefined;
   const reason = (payload.reason as string) || "";
-  if (!versionId) return;
+  if (!versionId) {
+    log.warn("Version rejection dispatch rejected: missing versionId", { operation: "reject_version" });
+    return;
+  }
+  if (!reviewedBy) {
+    log.warn("Version rejection missing reviewedBy, using fallback identity", {
+      operation: "reject_version",
+      versionId,
+    });
+  }
   handler
-    .rejectVersion(versionId, reviewedBy, reason)
+    .rejectVersion(versionId, reviewedBy || "tidepool-user", reason)
     .then((data) => reply(socket, data))
     .catch((err: unknown) => {
       log.warn("Version rejection dispatch failed", {
