@@ -188,26 +188,15 @@ export function broadcastRegistryEvent(
   }
 }
 
-/** Known-safe fields to forward from a rich event to the browser. */
-const SAFE_EVENT_FIELDS = new Set([
-  "type", "runId", "workflowName", "timestamp",
-  "taskIndex", "taskName", "status",
-  "runningTaint", "taintAfter", "duration",
-  "attemptNumber", "switchName", "branch",
-  "versionNumber", "versionStatus",
-]);
-
-/** Extract only known-safe fields from a rich event before sending to browser. */
+/** Strip classified input/output fields from a rich event before sending to browser. */
 function sanitizeRichEvent(
   event: RichWorkflowEvent,
 ): Record<string, unknown> {
-  const safe: Record<string, unknown> = {};
-  for (const key of Object.keys(event)) {
-    if (SAFE_EVENT_FIELDS.has(key)) {
-      safe[key] = (event as Record<string, unknown>)[key];
-    }
-  }
-  return safe;
+  const base = { ...event } as Record<string, unknown>;
+  delete base["input"];
+  delete base["output"];
+  delete base["taskDef"];
+  return base;
 }
 
 /** Broadcast a rich step event to all subscribed WebSocket clients. */

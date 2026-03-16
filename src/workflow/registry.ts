@@ -267,7 +267,7 @@ export function createWorkflowRunRegistry(): WorkflowRunRegistry {
       };
     },
 
-    listRunStepHistory(runId) {
+    getRunStepHistory(runId) {
       const ctrl = runs.get(runId);
       if (!ctrl) return [];
       return [...ctrl.stepHistory];

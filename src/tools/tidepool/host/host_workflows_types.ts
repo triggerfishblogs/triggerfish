@@ -121,7 +121,7 @@ export interface MinimalRunRegistry {
     listener: (event: RegistryEventShape) => void,
   ): () => void;
   /** Get accumulated step history for a run. */
-  listRunStepHistory(runId: string): readonly StepState[];
+  getRunStepHistory(runId: string): readonly StepState[];
   /** Subscribe to rich per-step events. */
   subscribeRichEvents(
     listener: (event: RichWorkflowEvent) => void,
