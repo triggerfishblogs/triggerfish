@@ -21,9 +21,22 @@ export const heIL: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "הפניה", link: "/he-IL/reference/" },
         ],
       },
+      { text: "מקרי שימוש", link: "/he-IL/use-cases/enterprise/" },
       { text: "תמיכה", link: "/he-IL/support/" },
     ],
     sidebar: {
+      "/he-IL/use-cases/enterprise/": [
+        {
+          text: "מקרי שימוש ארגוניים",
+          items: [
+            { text: "סקירה כללית", link: "/he-IL/use-cases/enterprise/" },
+            { text: "תזמור רב-מערכתי", link: "/he-IL/use-cases/enterprise/cross-system-orchestration" },
+            { text: "עיבוד נתונים לא מובנים", link: "/he-IL/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "אוטומציה של פורטלים חיצוניים", link: "/he-IL/use-cases/enterprise/portal-automation" },
+            { text: "מסקנות AI בתהליכי ייצור", link: "/he-IL/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/he-IL/guide/": [
         {
           text: "תחילת העבודה",

@@ -21,9 +21,22 @@ export const arSA: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "المرجع", link: "/ar-SA/reference/" },
         ],
       },
+      { text: "حالات الاستخدام", link: "/ar-SA/use-cases/enterprise/" },
       { text: "الدعم", link: "/ar-SA/support/" },
     ],
     sidebar: {
+      "/ar-SA/use-cases/enterprise/": [
+        {
+          text: "حالات الاستخدام المؤسسي",
+          items: [
+            { text: "نظرة عامة", link: "/ar-SA/use-cases/enterprise/" },
+            { text: "تنسيق الأنظمة المتعددة", link: "/ar-SA/use-cases/enterprise/cross-system-orchestration" },
+            { text: "استيعاب البيانات غير المنظمة", link: "/ar-SA/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "أتمتة بوابات الأطراف الثالثة", link: "/ar-SA/use-cases/enterprise/portal-automation" },
+            { text: "استنتاج AI في سير العمل الإنتاجي", link: "/ar-SA/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/ar-SA/guide/": [
         {
           text: "البدء",

@@ -226,10 +226,23 @@ export default defineConfig({
           { text: "Reference", link: "/reference/" },
         ],
       },
+      { text: "Use Cases", link: "/use-cases/enterprise/" },
       { text: "Support", link: "/support/" },
     ],
 
     sidebar: {
+      "/use-cases/enterprise/": [
+        {
+          text: "Enterprise Use Cases",
+          items: [
+            { text: "Overview", link: "/use-cases/enterprise/" },
+            { text: "Cross-System Orchestration", link: "/use-cases/enterprise/cross-system-orchestration" },
+            { text: "Unstructured Data Ingestion", link: "/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "Third-Party Portal Automation", link: "/use-cases/enterprise/portal-automation" },
+            { text: "AI Inference in Production", link: "/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/guide/": [
         {
           text: "Getting Started",

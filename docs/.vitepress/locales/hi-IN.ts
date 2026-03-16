@@ -20,9 +20,22 @@ export const hiIN: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "संदर्भ", link: "/hi-IN/reference/" },
         ],
       },
+      { text: "उपयोग के मामले", link: "/hi-IN/use-cases/enterprise/" },
       { text: "सहायता", link: "/hi-IN/support/" },
     ],
     sidebar: {
+      "/hi-IN/use-cases/enterprise/": [
+        {
+          text: "एंटरप्राइज़ उपयोग के मामले",
+          items: [
+            { text: "अवलोकन", link: "/hi-IN/use-cases/enterprise/" },
+            { text: "क्रॉस-सिस्टम ऑर्केस्ट्रेशन", link: "/hi-IN/use-cases/enterprise/cross-system-orchestration" },
+            { text: "असंरचित डेटा अंतर्ग्रहण", link: "/hi-IN/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "तृतीय-पक्ष पोर्टल स्वचालन", link: "/hi-IN/use-cases/enterprise/portal-automation" },
+            { text: "उत्पादन में AI अनुमान", link: "/hi-IN/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/hi-IN/guide/": [
         {
           text: "शुरू करें",

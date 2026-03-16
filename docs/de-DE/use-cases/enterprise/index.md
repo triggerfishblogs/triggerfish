@@ -1,0 +1,12 @@
+---
+title: Enterprise-Anwendungsfälle
+description: Wie Triggerfish die schwierigsten Automatisierungsprobleme in der Unternehmens-IT löst — die, die traditionelle RPA und maßgefertigte Integrationsprojekte scheitern lassen.
+---
+
+# Enterprise-Anwendungsfälle
+
+Die Automatisierungsprobleme, auf die es in der Unternehmens-IT wirklich ankommt, liegen an der Schnittstelle mehrerer Systeme, unstrukturierter Daten, unzuverlässiger Drittanbieter-Schnittstellen und KI-Inferenz, die Sicherheit auf Produktionsniveau erfordert. Das sind die Projekte, die traditionelle RPA auf dem Happy Path bewältigt und überall sonst scheitert — und für die maßgefertigte Integrationsprojekte Monate zum Aufbau brauchen und bei der ersten vorgelagerten Änderung zusammenbrechen.
+
+Triggerfish geht diese Probleme an, indem es deterministische Workflow-Orchestrierung mit LLM-basiertem Reasoning an Entscheidungspunkten kombiniert, gesteuert durch klassifizierungsbewusste Sicherheitsdurchsetzung, die die KI-Schicht nicht umgehen kann. Das Ergebnis ist eine Automatisierung, die sich anpasst, wenn sich die Welt ändert, ohne dabei die Audit-Trails und Datenkontrollezu opfern, die Produktionssysteme erfordern.
+
+[Multi-System-Orchestrierung](/de-DE/use-cases/enterprise/cross-system-orchestration) behandelt Workflows, die sich über ein Dutzend oder mehr Systeme erstrecken, mit kontextuellen Entscheidungen bei jedem Schritt — Procure-to-Pay, Onboarding, Incident Response — ohne die Sprödigkeit, die starre Pipeline-Automatisierung zunichte macht. [Unstrukturierte Dateneinspeisung](/de-DE/use-cases/enterprise/unstructured-data-ingestion) behandelt die Rechnungsverarbeitung, den Dokumenteneingang und das E-Mail-Parsing, das nicht zusammenbricht, wenn sich Eingangsformate ändern, und ersetzt positionsbasierte Feldextraktion durch LLM-basiertes Dokumentenverständnis. [Automatisierung von Drittanbieter-Portalen](/de-DE/use-cases/enterprise/portal-automation) übernimmt Lieferantenportale, Behörden-Websites und Kostenträger-Systeme ohne APIs und nutzt visuelle Browser-Navigation, die sich bei UI-Überarbeitungen anpasst statt stillschweigend zu versagen. [KI-Inferenz in Produktions-Workflows](/de-DE/use-cases/enterprise/ai-inference-in-production) überbrückt die Lücke zwischen KI-Demos und dauerhaften Produktions-Workflows mit Sicherheitsdurchsetzung, Audit-Trails und Workflow-Orchestrierung, die in die Plattform integriert sind statt nachträglich pro Projekt hinzugefügt zu werden.

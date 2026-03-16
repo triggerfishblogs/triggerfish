@@ -20,9 +20,22 @@ export const zhTW: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "參考", link: "/zh-TW/reference/" },
         ],
       },
+      { text: "使用案例", link: "/zh-TW/use-cases/enterprise/" },
       { text: "支援", link: "/zh-TW/support/" },
     ],
     sidebar: {
+      "/zh-TW/use-cases/enterprise/": [
+        {
+          text: "企業使用案例",
+          items: [
+            { text: "概覽", link: "/zh-TW/use-cases/enterprise/" },
+            { text: "跨系統編排", link: "/zh-TW/use-cases/enterprise/cross-system-orchestration" },
+            { text: "非結構化資料擷取", link: "/zh-TW/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "第三方入口網站自動化", link: "/zh-TW/use-cases/enterprise/portal-automation" },
+            { text: "生產工作流程的 AI 推論整合", link: "/zh-TW/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/zh-TW/guide/": [
         {
           text: "入門",

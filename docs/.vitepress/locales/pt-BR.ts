@@ -20,9 +20,22 @@ export const ptBR: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "Referência", link: "/pt-BR/reference/" },
         ],
       },
+      { text: "Casos de uso", link: "/pt-BR/use-cases/enterprise/" },
       { text: "Suporte", link: "/pt-BR/support/" },
     ],
     sidebar: {
+      "/pt-BR/use-cases/enterprise/": [
+        {
+          text: "Casos de uso enterprise",
+          items: [
+            { text: "Visão Geral", link: "/pt-BR/use-cases/enterprise/" },
+            { text: "Orquestração entre sistemas", link: "/pt-BR/use-cases/enterprise/cross-system-orchestration" },
+            { text: "Ingestão de dados não estruturados", link: "/pt-BR/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "Automação de portais de terceiros", link: "/pt-BR/use-cases/enterprise/portal-automation" },
+            { text: "AI Inference em fluxos de trabalho de produção", link: "/pt-BR/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/pt-BR/guide/": [
         {
           text: "Primeiros Passos",

@@ -20,9 +20,22 @@ export const itIT: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "Riferimento", link: "/it-IT/reference/" },
         ],
       },
+      { text: "Casi d'uso", link: "/it-IT/use-cases/enterprise/" },
       { text: "Supporto", link: "/it-IT/support/" },
     ],
     sidebar: {
+      "/it-IT/use-cases/enterprise/": [
+        {
+          text: "Casi d'uso enterprise",
+          items: [
+            { text: "Panoramica", link: "/it-IT/use-cases/enterprise/" },
+            { text: "Orchestrazione cross-system", link: "/it-IT/use-cases/enterprise/cross-system-orchestration" },
+            { text: "Ingestione di dati non strutturati", link: "/it-IT/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "Automazione di portali di terze parti", link: "/it-IT/use-cases/enterprise/portal-automation" },
+            { text: "AI Inference nei flussi di lavoro di produzione", link: "/it-IT/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/it-IT/guide/": [
         {
           text: "Per iniziare",

@@ -1,0 +1,12 @@
+---
+title: Casi d'uso enterprise
+description: Come Triggerfish risolve i problemi di automazione più complessi nell'IT aziendale — quelli che mandano in crisi i tradizionali progetti RPA e di integrazione personalizzata.
+---
+
+# Casi d'uso enterprise
+
+I problemi di automazione che contano davvero nell'IT aziendale sono quelli che si collocano all'intersezione tra sistemi multipli, dati non strutturati, interfacce di terze parti inaffidabili e inferenza AI che richiede sicurezza di livello produzione. Sono i progetti che i tradizionali sistemi RPA gestiscono sul percorso ottimale e falliscono in tutti gli altri casi, e che i progetti di integrazione personalizzata richiedono mesi per costruire e si rompono al primo cambiamento upstream.
+
+Triggerfish affronta questi problemi combinando l'orchestrazione deterministica dei flussi di lavoro con il ragionamento basato su LLM nei punti decisionali, governato da un'applicazione della sicurezza classificata che il livello AI non può aggirare. Il risultato è un'automazione che si adatta quando il mondo cambia, senza sacrificare le tracce di audit e i controlli sui dati che i sistemi di produzione richiedono.
+
+[Orchestrazione cross-system](/it-IT/use-cases/enterprise/cross-system-orchestration) copre i flussi di lavoro che attraversano una dozzina o più sistemi con decisioni contestuali a ogni passaggio — procure-to-pay, onboarding, risposta agli incidenti — senza la fragilità che uccide l'automazione rigida a pipeline. [Ingestione di dati non strutturati](/it-IT/use-cases/enterprise/unstructured-data-ingestion) affronta l'elaborazione delle fatture, l'acquisizione di documenti e il parsing delle email che non si rompe quando i formati di input cambiano, sostituendo l'estrazione posizionale dei campi con la comprensione documentale basata su LLM. [Automazione di portali di terze parti](/it-IT/use-cases/enterprise/portal-automation) gestisce i portali vendor, i siti governativi e i sistemi dei pagatori che non hanno API, utilizzando la navigazione visuale del browser che si adatta quando l'interfaccia viene riprogettata invece di rompersi silenziosamente. [AI Inference nei flussi di lavoro di produzione](/it-IT/use-cases/enterprise/ai-inference-in-production) colma il divario tra le demo AI e i flussi di lavoro di produzione duraturi, con applicazione della sicurezza, tracce di audit e orchestrazione dei flussi di lavoro integrate nella piattaforma anziché aggiunte per ogni singolo progetto.

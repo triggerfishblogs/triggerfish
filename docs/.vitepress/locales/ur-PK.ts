@@ -21,9 +21,22 @@ export const urPK: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "حوالہ", link: "/ur-PK/reference/" },
         ],
       },
+      { text: "استعمال کے مقدمات", link: "/ur-PK/use-cases/enterprise/" },
       { text: "معاونت", link: "/ur-PK/support/" },
     ],
     sidebar: {
+      "/ur-PK/use-cases/enterprise/": [
+        {
+          text: "انٹرپرائز استعمال کے مقدمات",
+          items: [
+            { text: "جائزہ", link: "/ur-PK/use-cases/enterprise/" },
+            { text: "کراس سیستم آرکسٹریشن", link: "/ur-PK/use-cases/enterprise/cross-system-orchestration" },
+            { text: "غیر منظم ڈیٹا انجیشن", link: "/ur-PK/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "تھرڈ پارٹی پورٹل آٹومیشن", link: "/ur-PK/use-cases/enterprise/portal-automation" },
+            { text: "پروڈکشن میں AI استنتاج", link: "/ur-PK/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/ur-PK/guide/": [
         {
           text: "شروع کریں",

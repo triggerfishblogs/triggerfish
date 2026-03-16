@@ -20,9 +20,22 @@ export const msMY: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "Rujukan", link: "/ms-MY/reference/" },
         ],
       },
+      { text: "Kes Penggunaan", link: "/ms-MY/use-cases/enterprise/" },
       { text: "Sokongan", link: "/ms-MY/support/" },
     ],
     sidebar: {
+      "/ms-MY/use-cases/enterprise/": [
+        {
+          text: "Kes Penggunaan Enterprise",
+          items: [
+            { text: "Gambaran Keseluruhan", link: "/ms-MY/use-cases/enterprise/" },
+            { text: "Cross-System Orchestration", link: "/ms-MY/use-cases/enterprise/cross-system-orchestration" },
+            { text: "Pengingesan Data Tidak Berstruktur", link: "/ms-MY/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "Automasi Portal Pihak Ketiga", link: "/ms-MY/use-cases/enterprise/portal-automation" },
+            { text: "AI Inference dalam Pengeluaran", link: "/ms-MY/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/ms-MY/guide/": [
         {
           text: "Bermula",

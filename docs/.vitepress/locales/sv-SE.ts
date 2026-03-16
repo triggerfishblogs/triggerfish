@@ -20,9 +20,22 @@ export const svSE: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "Referens", link: "/sv-SE/reference/" },
         ],
       },
+      { text: "Användningsfall", link: "/sv-SE/use-cases/enterprise/" },
       { text: "Support", link: "/sv-SE/support/" },
     ],
     sidebar: {
+      "/sv-SE/use-cases/enterprise/": [
+        {
+          text: "Enterprise-användningsfall",
+          items: [
+            { text: "Översikt", link: "/sv-SE/use-cases/enterprise/" },
+            { text: "Orkestrering mellan system", link: "/sv-SE/use-cases/enterprise/cross-system-orchestration" },
+            { text: "Inmatning av ostrukturerad data", link: "/sv-SE/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "Automatisering av tredjepartsportaler", link: "/sv-SE/use-cases/enterprise/portal-automation" },
+            { text: "AI-inferens i produktionsarbetsflöden", link: "/sv-SE/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/sv-SE/guide/": [
         {
           text: "Kom igång",

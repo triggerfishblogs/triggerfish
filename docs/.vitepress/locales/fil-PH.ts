@@ -20,9 +20,22 @@ export const filPH: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "Sanggunian", link: "/fil-PH/reference/" },
         ],
       },
+      { text: "Mga Gamit", link: "/fil-PH/use-cases/enterprise/" },
       { text: "Suporta", link: "/fil-PH/support/" },
     ],
     sidebar: {
+      "/fil-PH/use-cases/enterprise/": [
+        {
+          text: "Mga Gamit sa Enterprise",
+          items: [
+            { text: "Pangkalahatang-tanaw", link: "/fil-PH/use-cases/enterprise/" },
+            { text: "Cross-System Orchestration", link: "/fil-PH/use-cases/enterprise/cross-system-orchestration" },
+            { text: "Pag-ingest ng Hindi Nakaayos na Data", link: "/fil-PH/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "Automation ng Third-Party Portal", link: "/fil-PH/use-cases/enterprise/portal-automation" },
+            { text: "AI Inference sa Produksyon", link: "/fil-PH/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/fil-PH/guide/": [
         {
           text: "Pagsisimula",

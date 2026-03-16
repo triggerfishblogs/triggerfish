@@ -20,9 +20,22 @@ export const mrIN: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "संदर्भ", link: "/mr-IN/reference/" },
         ],
       },
+      { text: "वापर प्रकरणे", link: "/mr-IN/use-cases/enterprise/" },
       { text: "सहाय्य", link: "/mr-IN/support/" },
     ],
     sidebar: {
+      "/mr-IN/use-cases/enterprise/": [
+        {
+          text: "एंटरप्राइझ वापर प्रकरणे",
+          items: [
+            { text: "आढावा", link: "/mr-IN/use-cases/enterprise/" },
+            { text: "क्रॉस-सिस्टम ऑर्केस्ट्रेशन", link: "/mr-IN/use-cases/enterprise/cross-system-orchestration" },
+            { text: "असंरचित डेटा अंतर्ग्रहण", link: "/mr-IN/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "तृतीय-पक्ष पोर्टल स्वयंचलन", link: "/mr-IN/use-cases/enterprise/portal-automation" },
+            { text: "उत्पादनात AI अनुमान", link: "/mr-IN/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/mr-IN/guide/": [
         {
           text: "सुरू करा",
