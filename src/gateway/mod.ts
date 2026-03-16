@@ -53,6 +53,7 @@ export type {
   ChatClientMessage,
   ChatEvent,
   ChatEventSender,
+  ChatHistoryEntry,
   ChatSession,
   ChatSessionConfig,
 } from "./chat.ts";

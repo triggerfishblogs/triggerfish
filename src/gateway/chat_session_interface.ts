@@ -14,6 +14,14 @@ import type { ChatEventSender } from "../core/types/chat_event.ts";
 
 import type { ChannelRegistrationConfig } from "./chat_session_config.ts";
 
+/** Wire-format chat history entry sent to Tidepool clients on reconnect. */
+export interface ChatHistoryEntry {
+  readonly role: "user" | "assistant";
+  readonly text: string;
+  readonly taint?: ClassificationLevel;
+  readonly timestamp: number;
+}
+
 /** Shared chat session that serializes access to the orchestrator. */
 export interface ChatSession {
   /** Process an owner message through the orchestrator. */
@@ -146,4 +154,10 @@ export interface ChatSession {
   toggleBumpers(): boolean;
   /** Read whether bumpers are currently enabled. */
   readonly bumpersEnabled: boolean;
+  /**
+   * Load persisted chat history for session restoration on browser refresh.
+   * Returns active (non-compacted, within resume window) messages mapped
+   * to the wire format consumed by Tidepool clients.
+   */
+  loadChatHistory(): Promise<readonly ChatHistoryEntry[]>;
 }

@@ -102,3 +102,12 @@ function updateBadge(): void {
 }
 
 onTopic("agents", handleMessage);
+
+/** Request agent session list on WebSocket connect so nav badge populates immediately. */
+function handleShellMessage(msg: Record<string, unknown>): void {
+  if (msg.type === "ws_connected") {
+    requestSessionList();
+  }
+}
+
+onTopic("shell", handleShellMessage);
