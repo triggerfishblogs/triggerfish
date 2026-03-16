@@ -726,7 +726,7 @@
         if (task.condition) nameRow += '<span class="wf-node-cond">?</span>';
         nameRow += '</div>';
 
-        var typeClass = "wf-node-type wf-node-type-" + task.type;
+        var typeClass = "wf-node-type wf-node-type-" + escapeH(task.type);
         var typeLabel = task.type;
         if (task.callType) typeLabel += ":" + task.callType;
 
@@ -981,7 +981,7 @@
         entry.className = "wf-healing-log-entry";
         entry.innerHTML = '<span class="wf-healing-log-time">' +
           escapeH(fmtTime(ver.proposedAt)) + '</span>' +
-          '<span>v' + ver.versionNumber + ' — ' +
+          '<span>v' + escapeH(String(ver.versionNumber)) + ' — ' +
           escapeH(ver.status) + ' (' + escapeH(ver.source) + ')</span>';
         logDiv.appendChild(entry);
       }

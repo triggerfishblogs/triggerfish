@@ -9,10 +9,6 @@
 
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import type { HealingPhase } from "../../../core/types/healing.ts";
-import type {
-  WorkflowVersion,
-  RichWorkflowEvent,
-} from "../../../workflow/healing/types.ts";
 
 /** Minimal workflow store interface to avoid cross-layer imports. */
 export interface MinimalWorkflowStore {
@@ -218,8 +214,28 @@ export interface WorkflowsHandlerOptions {
   readonly parseWorkflow?: (yaml: string) => SimplifiedTask[];
 }
 
-// Re-export healing types used by the handler
-export type {
-  WorkflowVersion,
-  RichWorkflowEvent,
-} from "../../../workflow/healing/types.ts";
+/**
+ * Minimal workflow version shape — avoids cross-layer import from workflow/.
+ * Matches the structural subset of workflow/healing/types.ts WorkflowVersion.
+ */
+export interface WorkflowVersion {
+  readonly versionId: string;
+  readonly workflowName: string;
+  readonly versionNumber: number;
+  readonly status: "PROPOSED" | "APPROVED" | "REJECTED" | "SUPERSEDED";
+  readonly source: "human" | "self_healing";
+  readonly proposedAt: string;
+  readonly resolvedAt?: string;
+  readonly resolvedBy?: string;
+}
+
+/**
+ * Minimal rich workflow event shape — avoids cross-layer import from workflow/.
+ * The tidepool layer treats these as opaque JSON except for stripping classified fields.
+ */
+export type RichWorkflowEvent = {
+  readonly type: string;
+  readonly runId: string;
+  readonly workflowName: string;
+  readonly timestamp: string;
+};
