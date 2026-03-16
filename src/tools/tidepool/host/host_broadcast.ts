@@ -112,7 +112,7 @@ async function sendChatHistory(
   socket: WebSocket,
   chatSession: ChatSession | undefined,
 ): Promise<void> {
-  if (!chatSession?.loadChatHistory) return;
+  if (!chatSession) return;
   try {
     const entries = await chatSession.loadChatHistory();
     if (entries.length === 0) return;

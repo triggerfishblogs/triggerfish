@@ -8,8 +8,10 @@
  */
 
 import { createLogger } from "../core/logger/mod.ts";
-import type { ConversationRecord } from "../core/conversation/mod.ts";
-import type { MessageStore } from "../core/conversation/mod.ts";
+import type {
+  ConversationRecord,
+  MessageStore,
+} from "../core/conversation/mod.ts";
 import type { ChatHistoryEntry } from "./chat_session_interface.ts";
 
 const log = createLogger("chat-history");

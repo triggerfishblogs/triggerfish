@@ -106,13 +106,13 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
     },
 
     broadcast(tree: ComponentTree): void {
-      state.currentTree = tree;
       const msg: CanvasRenderComponentMessage = {
         type: "canvas_render_component",
         id: crypto.randomUUID(),
         label: "Component Tree",
         tree,
       };
+      updateTreeFromCanvasMessage(state, msg);
       broadcastJsonToClients(state.clients, JSON.stringify(msg));
     },
 
