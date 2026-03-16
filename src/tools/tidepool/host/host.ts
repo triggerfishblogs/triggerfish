@@ -155,6 +155,9 @@ export function createA2UIHost(options?: A2UIHostOptions): A2UIHost {
   };
 }
 
+/** Maximum number of canvas renders kept for reconnect replay. */
+const MAX_CANVAS_RENDERS = 50;
+
 /** Update tracked component tree and render history based on canvas message type. */
 function updateTreeFromCanvasMessage(
   state: A2UIHostState,
@@ -173,6 +176,9 @@ function updateTreeFromCanvasMessage(
       label: message.label,
       message,
     });
+    if (state.canvasRenders.length > MAX_CANVAS_RENDERS) {
+      state.canvasRenders = state.canvasRenders.slice(-MAX_CANVAS_RENDERS);
+    }
   } else if (message.type === "canvas_clear") {
     state.currentTree = null;
     state.canvasRenders = [];
