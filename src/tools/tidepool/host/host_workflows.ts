@@ -6,11 +6,13 @@
 import { createLogger } from "../../../core/logger/logger.ts";
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import {
+  approveWorkflowVersion,
   broadcastRegistryEvent,
   broadcastRichEvent,
   dispatchControlAction,
   dispatchScheduleRun,
   dispatchStartRun,
+  rejectWorkflowVersion,
 } from "./host_workflows_dispatch.ts";
 import type {
   MinimalCronManager,
@@ -212,6 +214,10 @@ async function fetchHealingStatus(
   sessionTaint: ClassificationLevel,
 ): Promise<Record<string, unknown>> {
   if (!versionStore) {
+    log.warn("Healing status unavailable: version store not configured", {
+      operation: "fetchHealingStatus",
+      workflowName,
+    });
     return {
       topic: "workflows",
       type: "healing_status",
@@ -240,56 +246,3 @@ async function fetchHealingStatus(
   };
 }
 
-/** Approve a workflow version via the version store. */
-async function approveWorkflowVersion(
-  versionStore: MinimalWorkflowVersionStore | undefined,
-  versionId: string,
-  reviewedBy: string,
-): Promise<Record<string, unknown>> {
-  if (!versionStore) {
-    return {
-      topic: "workflows",
-      type: "version_result",
-      versionId,
-      action: "approve",
-      ok: false,
-      error: "Version store not available",
-    };
-  }
-  const ok = await versionStore.approveWorkflowVersion(versionId, reviewedBy);
-  log.info("Workflow version approval processed", {
-    operation: "approveVersion",
-    versionId,
-    reviewedBy,
-    ok,
-  });
-  return { topic: "workflows", type: "version_result", versionId, action: "approve", ok };
-}
-
-/** Reject a workflow version via the version store. */
-async function rejectWorkflowVersion(
-  versionStore: MinimalWorkflowVersionStore | undefined,
-  versionId: string,
-  reviewedBy: string,
-  reason: string,
-): Promise<Record<string, unknown>> {
-  if (!versionStore) {
-    return {
-      topic: "workflows",
-      type: "version_result",
-      versionId,
-      action: "reject",
-      ok: false,
-      error: "Version store not available",
-    };
-  }
-  const ok = await versionStore.rejectWorkflowVersion(versionId, reviewedBy, reason);
-  log.info("Workflow version rejection processed", {
-    operation: "rejectVersion",
-    versionId,
-    reviewedBy,
-    reason,
-    ok,
-  });
-  return { topic: "workflows", type: "version_result", versionId, action: "reject", ok };
-}

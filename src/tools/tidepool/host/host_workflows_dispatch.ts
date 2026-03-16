@@ -10,6 +10,7 @@ import type {
   MinimalCronManager,
   MinimalRunRegistry,
   MinimalWorkflowStore,
+  MinimalWorkflowVersionStore,
   RegistryEventShape,
   RichWorkflowEvent,
   WorkflowExecutorFn,
@@ -68,6 +69,10 @@ export async function dispatchStartRun(
   sessionTaint: string,
 ): Promise<Record<string, unknown>> {
   if (!workflowExecutor) {
+    log.warn("Workflow start rejected: executor not available", {
+      operation: "dispatchStartRun",
+      workflow: name,
+    });
     return {
       topic: "workflows",
       type: "start_result",
@@ -81,6 +86,11 @@ export async function dispatchStartRun(
     sessionTaint as ClassificationLevel,
   );
   if (!wf) {
+    log.warn("Workflow start rejected: definition not found or classification gated", {
+      operation: "dispatchStartRun",
+      workflow: name,
+      sessionTaint,
+    });
     return {
       topic: "workflows",
       type: "start_result",
@@ -111,6 +121,11 @@ export function dispatchScheduleRun(
   classification: ClassificationLevel,
 ): Record<string, unknown> {
   if (!cronManager) {
+    log.warn("Workflow schedule rejected: cron manager not available", {
+      operation: "dispatchScheduleRun",
+      workflow: name,
+      expression,
+    });
     return {
       topic: "workflows",
       type: "schedule_result",
@@ -199,4 +214,66 @@ export function broadcastRichEvent(
   for (const socket of subscribers) {
     trySendSocketPayload(socket, payload);
   }
+}
+
+/** Approve a workflow version via the version store. */
+export async function approveWorkflowVersion(
+  versionStore: MinimalWorkflowVersionStore | undefined,
+  versionId: string,
+  reviewedBy: string,
+): Promise<Record<string, unknown>> {
+  if (!versionStore) {
+    log.warn("Workflow version approval rejected: version store not configured", {
+      operation: "approveWorkflowVersion",
+      versionId,
+    });
+    return {
+      topic: "workflows",
+      type: "version_result",
+      versionId,
+      action: "approve",
+      ok: false,
+      error: "Version store not available",
+    };
+  }
+  const ok = await versionStore.approveWorkflowVersion(versionId, reviewedBy);
+  log.info("Workflow version approval processed", {
+    operation: "approveVersion",
+    versionId,
+    reviewedBy,
+    ok,
+  });
+  return { topic: "workflows", type: "version_result", versionId, action: "approve", ok };
+}
+
+/** Reject a workflow version via the version store. */
+export async function rejectWorkflowVersion(
+  versionStore: MinimalWorkflowVersionStore | undefined,
+  versionId: string,
+  reviewedBy: string,
+  reason: string,
+): Promise<Record<string, unknown>> {
+  if (!versionStore) {
+    log.warn("Workflow version rejection rejected: version store not configured", {
+      operation: "rejectWorkflowVersion",
+      versionId,
+    });
+    return {
+      topic: "workflows",
+      type: "version_result",
+      versionId,
+      action: "reject",
+      ok: false,
+      error: "Version store not available",
+    };
+  }
+  const ok = await versionStore.rejectWorkflowVersion(versionId, reviewedBy, reason);
+  log.info("Workflow version rejection processed", {
+    operation: "rejectVersion",
+    versionId,
+    reviewedBy,
+    reason,
+    ok,
+  });
+  return { topic: "workflows", type: "version_result", versionId, action: "reject", ok };
 }

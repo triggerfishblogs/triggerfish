@@ -65,11 +65,13 @@ export { createTidepoolWorkflowsHandler } from "./host_workflows.ts";
 
 // Workflow dispatch helpers
 export {
+  approveWorkflowVersion,
   broadcastRegistryEvent,
   broadcastRichEvent,
   dispatchControlAction,
   dispatchScheduleRun,
   dispatchStartRun,
+  rejectWorkflowVersion,
 } from "./host_workflows_dispatch.ts";
 
 // Topic dispatch factories
