@@ -72,3 +72,9 @@ export {
   createUserSessionManager,
   parseUserOverrides,
 } from "./user_sessions.ts";
+
+export type { PairingCode, PairingResult, PairingService } from "./pairing.ts";
+export { createPairingService } from "./pairing.ts";
+
+export type { UserRateLimiter, UserRateLimiterConfig } from "./rate_limiter.ts";
+export { createUserRateLimiter } from "./rate_limiter.ts";

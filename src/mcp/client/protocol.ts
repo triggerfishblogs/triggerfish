@@ -1,10 +1,7 @@
 /**
- * MCP Protocol — JSON-RPC 2.0 message formatting and MCP client.
+ * Implements the Model Context Protocol client with initialization, tool invocation, and resource listing.
  *
- * Implements the Model Context Protocol client with initialization handshake,
- * tool listing, tool invocation, and resource listing.
- *
- * JSON-RPC types and formatting live in `protocol_jsonrpc.ts`.
+ * @module
  */
 
 import type { Transport } from "./transport.ts";

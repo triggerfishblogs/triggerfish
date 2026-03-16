@@ -48,6 +48,20 @@ export type { LifecycleMonitor } from "./lifecycle.ts";
 export { createLifecycleMonitor } from "./lifecycle.ts";
 
 export {
+  checkLeadHealth,
+  checkLifetimeTimeout,
+  checkMemberHealth,
+  checkMemberIdle,
+} from "./lifecycle_checks.ts";
+export type { MonitorState } from "./lifecycle_checks.ts";
+
+export {
+  clampTimeout,
+  parseMemberInput,
+  parseMembersInput,
+} from "./tool_input_parsing.ts";
+
+export {
   buildStorageKey,
   computeAggregateTaint,
   findLeadMember,

@@ -7,6 +7,22 @@
 export { processToolCallBatch } from "./tool_dispatch.ts";
 
 export {
+  determineSourceType,
+  recordToolCallLineageAndPersist,
+} from "./tool_lineage.ts";
+
+export {
+  checkBumpersForToolCall,
+  checkIntegrationWriteDown,
+  escalateNonOwnerResourceTaint,
+  evaluatePreToolCallHook,
+  executeAfterPolicyApproval,
+  executePlanModeToolCall,
+  executeSecurityEnforcedToolCall,
+  preEscalateOwnerTriggerTaint,
+} from "./security_pipeline.ts";
+
+export {
   convertToolsToNativeFormat,
   parseNativeToolCalls,
 } from "./tool_format.ts";
@@ -28,9 +44,14 @@ export {
 export {
   buildRecoveryNudge,
   classifyResponseQuality,
+  detectDenseNarration,
   detectRepetition,
-  evaluatePreOutputHook,
+  detectTrailingContinuationIntent,
   FALLBACK_RESPONSE,
+} from "./response_quality.ts";
+
+export {
+  evaluatePreOutputHook,
   handleFinalResponse,
 } from "./response_handling.ts";
 

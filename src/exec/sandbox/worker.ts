@@ -1,11 +1,6 @@
 /**
  * Sandboxed filesystem worker — runs inside a permission-restricted Deno Worker.
  *
- * **IMPORTANT:** This file must be completely self-contained (zero imports)
- * because it runs as an isolated Worker with its own module scope. Any
- * `import` from adjacent modules may fail in compiled binaries if the
- * import target is not explicitly included.
- *
  * Permissions are restricted at the Worker level by the parent:
  *   read: [workspacePath], write: [workspacePath], run: ["grep", "find"]
  *   net: false, env: false, ffi: false
@@ -15,6 +10,12 @@
  *
  * @module
  */
+
+import {
+  parentDir,
+  resolveSafePath,
+  toRelativePath,
+} from "./worker_paths.ts";
 
 // ─── Inline types (must match protocol.ts) ──────────────────────────────────
 
@@ -31,67 +32,9 @@ interface SandboxResponse {
   readonly error?: string;
 }
 
-// ─── Inline path utilities (POSIX only — no @std/path import) ───────────────
-
-/** Normalize an absolute POSIX path — resolves `.` and `..` segments. */
-function normalizePosixPath(path: string): string {
-  const segments = path.split("/");
-  const stack: string[] = [];
-  for (const seg of segments) {
-    if (seg === "" || seg === ".") continue;
-    if (seg === "..") {
-      stack.pop();
-    } else {
-      stack.push(seg);
-    }
-  }
-  return "/" + stack.join("/");
-}
-
-/** Resolve a path relative to a base directory (POSIX only). */
-function resolvePath(base: string, relative: string): string {
-  if (relative.startsWith("/")) return normalizePosixPath(relative);
-  return normalizePosixPath(base + "/" + relative);
-}
-
-/** Return the parent directory of an absolute path (POSIX only). */
-function parentDir(path: string): string {
-  const i = path.lastIndexOf("/");
-  if (i <= 0) return "/";
-  return path.slice(0, i);
-}
-
 // ─── Workspace root ─────────────────────────────────────────────────────────
 
 let workspaceRoot = "";
-
-// ─── Path validation (defense-in-depth) ─────────────────────────────────────
-
-/** Check if resolved path is within the workspace (separator-aware). */
-function isWithinWorkspace(resolvedPath: string): boolean {
-  return resolvedPath === workspaceRoot ||
-    resolvedPath.startsWith(workspaceRoot + "/");
-}
-
-/** Resolve and validate a path argument. Returns absolute path or error. */
-function resolveSafePath(
-  rawPath: string,
-): { ok: true; path: string } | { ok: false; error: string } {
-  const abs = resolvePath(workspaceRoot, rawPath);
-  if (!isWithinWorkspace(abs)) {
-    return { ok: false, error: `No such file or directory: ${rawPath}` };
-  }
-  return { ok: true, path: abs };
-}
-
-/** Strip the workspaceRoot prefix from an absolute path, returning a workspace-relative path. */
-function toRelativePath(absPath: string): string {
-  if (absPath.startsWith(workspaceRoot + "/")) {
-    return absPath.slice(workspaceRoot.length + 1);
-  }
-  if (absPath === workspaceRoot) return ".";
-  return absPath;
-}
 
 // ─── Operation handlers ─────────────────────────────────────────────────────
 
@@ -102,7 +45,7 @@ async function handleRead(
   if (typeof path !== "string" || path.length === 0) {
     return formatError("read_file requires a 'path' argument (string)");
   }
-  const resolved = resolveSafePath(path);
+  const resolved = resolveSafePath(path, workspaceRoot);
   if (!resolved.ok) return formatError(resolved.error);
   return await Deno.readTextFile(resolved.path);
 }
@@ -118,13 +61,15 @@ async function handleWrite(
   if (typeof content !== "string") {
     return formatError("write_file requires a 'content' argument (string)");
   }
-  const resolved = resolveSafePath(path);
+  const resolved = resolveSafePath(path, workspaceRoot);
   if (!resolved.ok) return formatError(resolved.error);
 
   await Deno.mkdir(parentDir(resolved.path), { recursive: true });
   await Deno.writeTextFile(resolved.path, content);
   const info = await Deno.stat(resolved.path);
-  return `Wrote ${info.size} bytes to ${toRelativePath(resolved.path)}`;
+  return `Wrote ${info.size} bytes to ${
+    toRelativePath(resolved.path, workspaceRoot)
+  }`;
 }
 
 async function handleList(
@@ -134,10 +79,10 @@ async function handleList(
   if (typeof path !== "string" || path.length === 0) {
     return formatError("list_directory requires a 'path' argument (string)");
   }
-  const resolved = resolveSafePath(path);
+  const resolved = resolveSafePath(path, workspaceRoot);
   if (!resolved.ok) return formatError(resolved.error);
 
-  const relDir = toRelativePath(resolved.path);
+  const relDir = toRelativePath(resolved.path, workspaceRoot);
   const prefix = relDir === "." ? "" : relDir.replace(/\/?$/, "/");
   const entries: string[] = [];
   for await (const entry of Deno.readDir(resolved.path)) {
@@ -158,7 +103,7 @@ async function handleSearch(
   if (typeof pattern !== "string" || pattern.length === 0) {
     return formatError("search_files requires a 'pattern' argument (string)");
   }
-  const resolved = resolveSafePath(path);
+  const resolved = resolveSafePath(path, workspaceRoot);
   if (!resolved.ok) return formatError(resolved.error);
 
   const isContentSearch = args.content_search === true;
@@ -179,8 +124,9 @@ async function handleSearch(
       ? "No matches found."
       : "No files found matching pattern.";
   }
-  // Strip workspace prefix from all paths in grep/find output
-  return stdout.split("\n").map((line) => toRelativePath(line)).join("\n");
+  return stdout.split("\n").map((line) =>
+    toRelativePath(line, workspaceRoot)
+  ).join("\n");
 }
 
 async function handleEdit(
@@ -200,7 +146,7 @@ async function handleEdit(
   if (typeof newText !== "string") {
     return formatError("edit_file requires a 'new_text' argument (string)");
   }
-  const resolved = resolveSafePath(path);
+  const resolved = resolveSafePath(path, workspaceRoot);
   if (!resolved.ok) return formatError(resolved.error);
 
   const content = await Deno.readTextFile(resolved.path);
@@ -216,7 +162,7 @@ async function handleEdit(
   const updated = content.replace(oldText, newText);
   await Deno.writeTextFile(resolved.path, updated);
   return `Edited ${
-    toRelativePath(resolved.path)
+    toRelativePath(resolved.path, workspaceRoot)
   } (${updated.length} bytes written)`;
 }
 
@@ -272,9 +218,6 @@ async function dispatch(
 
 // ─── Worker scope (typed for compile-time checking) ─────────────────────────
 
-// This file runs exclusively as a Deno Worker. The `self` global is typed as
-// Window in the main-thread context checked by `deno compile`, so we cast to
-// the Worker-specific interface once here.
 const workerScope = self as unknown as {
   onmessage: ((event: MessageEvent) => void) | null;
   postMessage(data: unknown): void;
@@ -285,7 +228,6 @@ const workerScope = self as unknown as {
 workerScope.onmessage = async (event: MessageEvent) => {
   const data = event.data;
 
-  // Initialization message — sets workspace root (once only)
   if (data?.type === "init") {
     if (!workspaceRoot) {
       if (
@@ -306,7 +248,6 @@ workerScope.onmessage = async (event: MessageEvent) => {
     return;
   }
 
-  // Reject requests before initialization
   if (!workspaceRoot) {
     workerScope.postMessage({
       id: data?.id ?? "unknown",

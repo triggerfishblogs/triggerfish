@@ -25,12 +25,14 @@ export {
   assembleChatSession,
   buildChatSessionDynamicOptions,
   buildSessionLifecycleCallbacks,
+} from "./chat_session_assembly.ts";
+export {
   startGatewayServer,
   startTidepoolHost,
   wireMessageChannels,
   wrapChatSessionForGateway,
   wrapChatSessionForTidepool,
-} from "./chat_session.ts";
+} from "./chat_session_network.ts";
 export type {
   ConfigChangeCallback,
   ConfigWatcher,
@@ -38,7 +40,7 @@ export type {
 } from "./config_watcher.ts";
 export { createConfigWatcher } from "./config_watcher.ts";
 export {
-  buildAgentSessionListAsync,
+  buildAgentListDataAsync,
   registerTidepoolTopicHandlers,
 } from "./tidepool_topics.ts";
 export { createHealthSnapshotProvider } from "./tidepool_health.ts";

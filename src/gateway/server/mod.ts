@@ -9,7 +9,7 @@ export type {
   GatewayAddr,
   GatewayServer,
   GatewayServerOptions,
-} from "./server.ts";
+} from "./server_types.ts";
 
 export {
   dispatchJsonRpc,

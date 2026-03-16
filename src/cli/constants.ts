@@ -28,3 +28,15 @@ export interface DaemonState {
   readonly tidepoolUrl: string;
   readonly startedAt: string;
 }
+
+/**
+ * Resolve the path to the persistent Tidepool session key file.
+ *
+ * Stored separately from daemon.json because daemon.json is deleted
+ * on every `triggerfish start` (clearDaemonState). The session key
+ * must survive restarts so Tidepool clients can reconnect with the
+ * same `?key=` parameter after a daemon restart or self-update.
+ */
+export function tidepoolSessionKeyPath(): string {
+  return join(resolveBaseDir(), "tidepool-session-key");
+}

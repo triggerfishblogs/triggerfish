@@ -68,3 +68,5 @@ export {
   formatToolResultExpanded,
 } from "./chat/chat_ui.ts";
 export type { ToolDisplayMode } from "./chat/chat_ui.ts";
+
+export { GATEWAY_PORT, TIDEPOOL_PORT } from "./constants.ts";

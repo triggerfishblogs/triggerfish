@@ -10,7 +10,7 @@ export type {
   GatewayAddr,
   GatewayServer,
   GatewayServerOptions,
-} from "./server/server.ts";
+} from "./server/server_types.ts";
 
 export { createEnhancedSessionManager } from "./sessions.ts";
 export type {

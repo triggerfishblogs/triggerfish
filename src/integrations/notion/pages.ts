@@ -29,91 +29,20 @@ import {
   transformRawSearchResult,
 } from "./transform.ts";
 
+// Re-export types so existing `from "./pages.ts"` imports work
+export type { NotionPagesService } from "./pages_types.ts";
+
+import type { NotionPagesService } from "./pages_types.ts";
+import type {
+  RawBlocksResponse,
+  RawPageResponse,
+  RawSearchResponse,
+} from "./pages_types.ts";
+
 const log = createLogger("notion:pages");
 
 /** Maximum recursion depth for fetching nested blocks. */
 const MAX_BLOCK_DEPTH = 3;
-
-/** Pages service interface. */
-export interface NotionPagesService {
-  readonly search: (
-    query: string,
-    opts?: {
-      readonly type?: "page" | "database";
-      readonly pageSize?: number;
-      readonly startCursor?: string;
-    },
-  ) => Promise<
-    Result<
-      { results: readonly NotionSearchResult[]; nextCursor: string | null },
-      NotionError
-    >
-  >;
-  readonly read: (
-    pageId: string,
-    classification: ClassificationLevel,
-  ) => Promise<
-    Result<{ page: NotionPage; content: readonly NotionBlock[] }, NotionError>
-  >;
-  readonly create: (
-    opts: CreatePageOptions,
-    classification: ClassificationLevel,
-  ) => Promise<Result<NotionPage, NotionError>>;
-  readonly update: (
-    pageId: string,
-    opts: UpdatePageOptions,
-    classification: ClassificationLevel,
-  ) => Promise<Result<NotionPage, NotionError>>;
-}
-
-// ─── Raw API response types ──────────────────────────────────────────────────
-
-interface RawSearchResponse {
-  readonly results: readonly RawSearchItem[];
-  readonly next_cursor: string | null;
-  readonly has_more: boolean;
-}
-
-interface RawSearchItem {
-  readonly id: string;
-  readonly object: string;
-  readonly url: string;
-  readonly last_edited_time: string;
-  readonly properties?: Readonly<Record<string, RawProperty>>;
-  readonly title?: readonly { readonly plain_text: string }[];
-}
-
-interface RawProperty {
-  readonly type: string;
-  readonly title?: readonly { readonly plain_text: string }[];
-  readonly [key: string]: unknown;
-}
-
-interface RawPageResponse {
-  readonly id: string;
-  readonly url: string;
-  readonly parent: {
-    readonly type: string;
-    readonly database_id?: string;
-    readonly page_id?: string;
-  };
-  readonly archived: boolean;
-  readonly properties: Readonly<Record<string, RawProperty>>;
-  readonly last_edited_time: string;
-}
-
-interface RawBlocksResponse {
-  readonly results: readonly RawBlockItem[];
-  readonly next_cursor: string | null;
-  readonly has_more: boolean;
-}
-
-interface RawBlockItem {
-  readonly id: string;
-  readonly type: string;
-  readonly has_children: boolean;
-  readonly [key: string]: unknown;
-}
 
 /** Create a NotionPagesService backed by a NotionClient. */
 export function createNotionPagesService(

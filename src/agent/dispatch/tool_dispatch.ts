@@ -1,7 +1,7 @@
 /**
  * Tool call dispatch pipeline.
  *
- * Handles plan mode tool blocking, security context evaluation,
+ * Orchestrates plan mode tool blocking, security context evaluation,
  * taint escalation, policy hook enforcement, and batched execution
  * of tool calls during agent iterations.
  *
@@ -9,27 +9,22 @@
  */
 
 import type { Result } from "../../core/types/classification.ts";
-import { canFlowTo } from "../../core/types/classification.ts";
 import type { SessionState } from "../../core/types/session.ts";
-import { createPlanToolExecutor } from "../plan/plan.ts";
-import type { PlanManager } from "../plan/plan.ts";
 import type {
   OrchestratorConfig,
   ParsedToolCall,
-  ToolExecutor,
 } from "../orchestrator/orchestrator_types.ts";
 import type { OrchestratorState } from "../orchestrator/orchestrator.ts";
-import {
-  assembleSecurityContext,
-  renderPolicyBlockExplanation,
-} from "./security_context.ts";
-import type { SecurityContext } from "./security_context.ts";
-import { escalateToolPrefixTaint } from "./access_control.ts";
 import { capToolResponse, readMoreFromCache } from "./response_cap.ts";
+import {
+  executePlanModeToolCall,
+  executeSecurityEnforcedToolCall,
+} from "./security_pipeline.ts";
+import {
+  determineSourceType,
+  recordToolCallLineageAndPersist,
+} from "./tool_lineage.ts";
 import { BUMPER_BLOCK_MESSAGE } from "../../core/session/bumpers.ts";
-import { createLogger } from "../../core/logger/mod.ts";
-
-const log = createLogger("tool-dispatch");
 
 /**
  * Canned response emitted to the user when bumpers block a tool call.
@@ -44,258 +39,8 @@ export const BUMPERS_BLOCK_USER_RESPONSE =
   "Run `/bumpers` to disable bumpers and allow taint escalation, " +
   "then try again.";
 
-/** Check plan mode blocking and execute plan tools. */
-async function executePlanModeToolCall(
-  planManager: PlanManager,
-  sessionKey: string,
-  call: ParsedToolCall,
-): Promise<{ resultText: string | undefined; blocked: boolean }> {
-  if (planManager.isToolBlocked(sessionKey, call.name, call.args)) {
-    return {
-      resultText: `Tool "${call.name}" is blocked in plan mode. ` +
-        `Use plan_manage(action: "exit") to present your implementation plan first.`,
-      blocked: true,
-    };
-  }
-  const planExecutor = createPlanToolExecutor(planManager, sessionKey);
-  const planResult = await planExecutor(call.name, call.args);
-  if (planResult !== null) {
-    return { resultText: planResult, blocked: false };
-  }
-  return { resultText: undefined, blocked: false };
-}
-
-/** Pre-escalate taint for owner/trigger resource access. */
-function preEscalateOwnerTriggerTaint(
-  secCtx: SecurityContext,
-  config: OrchestratorConfig,
-  call: ParsedToolCall,
-): void {
-  if (
-    secCtx.resourceClassification === null ||
-    (!secCtx.isOwner && !secCtx.isTrigger) ||
-    !config.escalateTaint
-  ) {
-    log.debug("Resource-based taint escalation skipped", {
-      operation: "preEscalateOwnerTriggerTaint",
-      toolName: call.name,
-      resourceClassification: secCtx.resourceClassification,
-      isOwner: secCtx.isOwner,
-      isTrigger: secCtx.isTrigger,
-    });
-    return;
-  }
-  log.warn("Resource-based taint escalation firing", {
-    operation: "preEscalateOwnerTriggerTaint",
-    toolName: call.name,
-    resourceClassification: secCtx.resourceClassification,
-  });
-  config.escalateTaint(
-    secCtx.resourceClassification,
-    `${call.name}: ${secCtx.resourceParam}`,
-  );
-}
-
-/** Check integration write-down (session taint vs integration resource classification). */
-function checkIntegrationWriteDown(
-  call: ParsedToolCall,
-  config: OrchestratorConfig,
-): { resultText: string | undefined; blocked: boolean } {
-  if (!config.integrationClassifications || !config.getSessionTaint) {
-    return { resultText: undefined, blocked: false };
-  }
-  const sessionTaint = config.getSessionTaint();
-  for (const [prefix, level] of config.integrationClassifications) {
-    if (call.name.startsWith(prefix)) {
-      if (!canFlowTo(sessionTaint, level)) {
-        log.warn("Integration write-down blocked", {
-          operation: "checkIntegrationWriteDown",
-          toolName: call.name,
-          sessionTaint,
-          integrationClassification: level,
-        });
-        return {
-          resultText:
-            `Error: Session taint ${sessionTaint} cannot flow to ${call.name} (classified ${level}). ` +
-            `Accessing a lower-classified integration from a higher-tainted session risks data leakage. ` +
-            `Use /clear to reset your session context and taint before using ${level}-classified integrations.`,
-          blocked: true,
-        };
-      }
-      break;
-    }
-  }
-  return { resultText: undefined, blocked: false };
-}
-
-/** Post-hook escalation for non-owner sessions. */
-function escalateNonOwnerResourceTaint(
-  secCtx: SecurityContext,
-  config: OrchestratorConfig,
-  call: ParsedToolCall,
-): void {
-  if (
-    secCtx.resourceClassification === null || secCtx.isOwner ||
-    secCtx.isTrigger || !config.escalateTaint
-  ) {
-    log.debug("Non-owner taint escalation skipped", {
-      operation: "escalateNonOwnerResourceTaint",
-      toolName: call.name,
-      resourceClassification: secCtx.resourceClassification,
-      isOwner: secCtx.isOwner,
-      isTrigger: secCtx.isTrigger,
-    });
-    return;
-  }
-  config.escalateTaint(
-    secCtx.resourceClassification,
-    `${call.name}: ${secCtx.resourceParam}`,
-  );
-}
-
-/** Evaluate PRE_TOOL_CALL hook with real-time session taint. */
-async function evaluatePreToolCallHook(
-  config: OrchestratorConfig,
-  session: SessionState,
-  secInput: Record<string, unknown>,
-) {
-  const currentTaint = config.getSessionTaint?.() ?? session.taint;
-  const hookSession = currentTaint !== session.taint
-    ? { ...session, taint: currentTaint }
-    : session;
-  const result = await config.hookRunner.evaluateHook("PRE_TOOL_CALL", {
-    session: hookSession,
-    input: secInput,
-  });
-  return { result, currentTaint };
-}
-
-/** Check if bumpers would block a tool call based on classification. */
-function checkBumpersForToolCall(
-  secCtx: SecurityContext,
-  config: OrchestratorConfig,
-  call: ParsedToolCall,
-): string | null {
-  if (!config.checkBumpersBlock) return null;
-
-  if (secCtx.resourceClassification !== null) {
-    const blocked = config.checkBumpersBlock(secCtx.resourceClassification);
-    if (blocked) {
-      log.warn("Bumpers blocked tool call via resource classification", {
-        operation: "checkBumpersForToolCall",
-        toolName: call.name,
-        resourceClassification: secCtx.resourceClassification,
-      });
-      return blocked;
-    }
-  }
-
-  if (config.toolClassifications) {
-    for (const [prefix, level] of config.toolClassifications) {
-      if (call.name.startsWith(prefix)) {
-        const blocked = config.checkBumpersBlock(level);
-        if (blocked) {
-          log.warn("Bumpers blocked tool call via prefix classification", {
-            operation: "checkBumpersForToolCall",
-            toolName: call.name,
-            prefix,
-            classificationLevel: level,
-          });
-          return blocked;
-        }
-        break;
-      }
-    }
-  }
-  const floor = config.toolFloorRegistry?.getFloor(call.name) ?? null;
-  if (floor !== null) {
-    const blocked = config.checkBumpersBlock(floor);
-    if (blocked) {
-      log.warn("Bumpers blocked tool call via floor registry", {
-        operation: "checkBumpersForToolCall",
-        toolName: call.name,
-        classificationLevel: floor,
-      });
-      return blocked;
-    }
-  }
-  log.debug("Bumpers allowed tool call", {
-    operation: "checkBumpersForToolCall",
-    toolName: call.name,
-  });
-  return null;
-}
-
-/** Execute the tool after policy approval (write-down + escalation + dispatch). */
-async function executeAfterPolicyApproval(
-  call: ParsedToolCall,
-  config: OrchestratorConfig,
-  secCtx: SecurityContext,
-  toolExecutor: ToolExecutor,
-): Promise<{ resultText: string; blocked: boolean }> {
-  const writeDown = checkIntegrationWriteDown(call, config);
-  if (writeDown.resultText !== undefined) {
-    return { resultText: writeDown.resultText, blocked: writeDown.blocked };
-  }
-  escalateNonOwnerResourceTaint(secCtx, config, call);
-  return {
-    resultText: await toolExecutor(call.name, call.args),
-    blocked: false,
-  };
-}
-
-/** Execute a single tool call through the full security pipeline. */
-async function executeSecurityEnforcedToolCall(
-  call: ParsedToolCall,
-  config: OrchestratorConfig,
-  session: SessionState,
-  toolExecutor: ToolExecutor,
-): Promise<{ resultText: string; blocked: boolean }> {
-  const { input: secInput, ctx: secCtx } = assembleSecurityContext(
-    call,
-    config,
-  );
-
-  const bumpersBlock = checkBumpersForToolCall(secCtx, config, call);
-  if (bumpersBlock !== null) {
-    return { resultText: bumpersBlock, blocked: true };
-  }
-
-  preEscalateOwnerTriggerTaint(secCtx, config, call);
-  if (secCtx.resourceClassification === null) {
-    log.debug(
-      "Falling back to prefix-based taint escalation — resource classification is null",
-      {
-        operation: "escalateToolPrefixTaint",
-        toolName: call.name,
-      },
-    );
-    escalateToolPrefixTaint(
-      call.name,
-      config.toolClassifications,
-      config.escalateTaint,
-      config.toolFloorRegistry,
-    );
-  }
-
-  const { result: preToolResult, currentTaint } = await evaluatePreToolCallHook(
-    config,
-    session,
-    secInput,
-  );
-
-  if (!preToolResult.allowed) {
-    return {
-      resultText: renderPolicyBlockExplanation(
-        preToolResult.ruleId,
-        secCtx,
-        currentTaint,
-      ),
-      blocked: true,
-    };
-  }
-  return executeAfterPolicyApproval(call, config, secCtx, toolExecutor);
-}
+// Re-export for consumers that import from this file
+export { determineSourceType, recordToolCallLineageAndPersist };
 
 /** Dispatch a single tool call (plan mode + security). */
 async function dispatchSingleToolCall(
@@ -344,84 +89,12 @@ async function dispatchSingleToolCall(
   );
 }
 
-/** Determine the lineage source_type from a tool name. */
-export function determineSourceType(toolName: string): string {
-  if (toolName.startsWith("web_")) return "web_request";
-  if (toolName.startsWith("browser_")) return "browser_session";
-  if (toolName.startsWith("memory_")) return "memory_access";
-  if (toolName.startsWith("google_") || toolName.startsWith("gmail_") ||
-      toolName.startsWith("calendar_") || toolName.startsWith("drive_") ||
-      toolName.startsWith("sheets_") || toolName.startsWith("tasks_")) {
-    return "google_api";
-  }
-  if (toolName.startsWith("github_")) return "github_api";
-  if (toolName.startsWith("obsidian_")) return "obsidian_vault";
-  if (toolName.startsWith("file_") || toolName === "read_file" ||
-      toolName === "write_file" || toolName === "edit_file" ||
-      toolName === "list_directory" || toolName === "search_files") {
-    return "filesystem";
-  }
-  if (toolName.startsWith("mcp_")) return "mcp_server";
-  if (toolName.startsWith("skill_") || toolName === "read_skill") {
-    return "skill_execution";
-  }
-  if (toolName.startsWith("cron_") || toolName.startsWith("trigger_")) {
-    return "scheduler";
-  }
-  return "tool_response";
-}
-
-/** Record lineage and persist a tool_call conversation record. */
-export async function recordToolCallLineageAndPersist(
-  call: ParsedToolCall,
-  resultText: string,
-  blocked: boolean,
-  config: OrchestratorConfig,
-  session: SessionState,
-  sessionKey: string,
-): Promise<void> {
-  if (blocked || call.name === "read_more") return;
-
-  let lineageId: string | undefined;
-  if (config.lineageStore) {
-    const sessionTaint = config.getSessionTaint?.() ?? session.taint;
-    const record = await config.lineageStore.create({
-      content: resultText,
-      origin: {
-        source_type: determineSourceType(call.name),
-        source_name: call.name,
-        accessed_at: new Date().toISOString(),
-        accessed_by: session.userId as string,
-        access_method: call.name,
-      },
-      classification: {
-        level: sessionTaint,
-        reason: `Tool call: ${call.name}`,
-      },
-      sessionId: session.id,
-    });
-    lineageId = record.lineage_id;
-  }
-
-  if (config.messageStore) {
-    const sessionTaint = config.getSessionTaint?.() ?? session.taint;
-    await config.messageStore.append({
-      session_id: sessionKey,
-      role: "tool_call",
-      content: "",
-      classification: sessionTaint,
-      tool_name: call.name,
-      tool_args: call.args,
-      lineage_id: lineageId,
-    });
-  }
-}
-
 /** Result of formatting a single tool call execution. */
 interface FormattedToolCallResult {
   readonly text: string;
   readonly bumpersBlocked: boolean;
 }
+
 
 /** Execute a single tool call with event emission and format the result. */
 async function executeAndFormatToolCall(
@@ -458,7 +131,6 @@ async function executeAndFormatToolCall(
     blocked,
   });
 
-  // Record lineage and persist tool_call (non-blocking for the dispatch pipeline)
   await recordToolCallLineageAndPersist(
     call,
     resultText,
