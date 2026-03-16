@@ -20,9 +20,22 @@ export const nlNL: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "Referentie", link: "/nl-NL/reference/" },
         ],
       },
+      { text: "Use cases", link: "/nl-NL/use-cases/enterprise/" },
       { text: "Ondersteuning", link: "/nl-NL/support/" },
     ],
     sidebar: {
+      "/nl-NL/use-cases/enterprise/": [
+        {
+          text: "Enterprise use cases",
+          items: [
+            { text: "Overzicht", link: "/nl-NL/use-cases/enterprise/" },
+            { text: "Cross-systeemorkestrtatie", link: "/nl-NL/use-cases/enterprise/cross-system-orchestration" },
+            { text: "Ingestie van ongestructureerde data", link: "/nl-NL/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "Automatisering van externe portalen", link: "/nl-NL/use-cases/enterprise/portal-automation" },
+            { text: "AI-inferentie in productieworkflows", link: "/nl-NL/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/nl-NL/guide/": [
         {
           text: "Aan de slag",

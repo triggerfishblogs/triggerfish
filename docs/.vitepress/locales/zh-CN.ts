@@ -20,9 +20,22 @@ export const zhCN: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "参考", link: "/zh-CN/reference/" },
         ],
       },
+      { text: "使用案例", link: "/zh-CN/use-cases/enterprise/" },
       { text: "支持", link: "/zh-CN/support/" },
     ],
     sidebar: {
+      "/zh-CN/use-cases/enterprise/": [
+        {
+          text: "企业使用案例",
+          items: [
+            { text: "概览", link: "/zh-CN/use-cases/enterprise/" },
+            { text: "跨系统编排", link: "/zh-CN/use-cases/enterprise/cross-system-orchestration" },
+            { text: "非结构化数据摄取", link: "/zh-CN/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "第三方门户自动化", link: "/zh-CN/use-cases/enterprise/portal-automation" },
+            { text: "生产工作流中的 AI 推理集成", link: "/zh-CN/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/zh-CN/guide/": [
         {
           text: "入门",

@@ -20,9 +20,22 @@ export const deDE: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "Referenz", link: "/de-DE/reference/" },
         ],
       },
+      { text: "Anwendungsfälle", link: "/de-DE/use-cases/enterprise/" },
       { text: "Support", link: "/de-DE/support/" },
     ],
     sidebar: {
+      "/de-DE/use-cases/enterprise/": [
+        {
+          text: "Enterprise-Anwendungsfälle",
+          items: [
+            { text: "Übersicht", link: "/de-DE/use-cases/enterprise/" },
+            { text: "Multi-System-Orchestrierung", link: "/de-DE/use-cases/enterprise/cross-system-orchestration" },
+            { text: "Unstrukturierte Dateneinspeisung", link: "/de-DE/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "Automatisierung von Drittanbieter-Portalen", link: "/de-DE/use-cases/enterprise/portal-automation" },
+            { text: "KI-Inferenz in Produktion", link: "/de-DE/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/de-DE/guide/": [
         {
           text: "Erste Schritte",

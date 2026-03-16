@@ -20,9 +20,22 @@ export const jaJP: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "リファレンス", link: "/ja-JP/reference/" },
         ],
       },
+      { text: "ユースケース", link: "/ja-JP/use-cases/enterprise/" },
       { text: "サポート", link: "/ja-JP/support/" },
     ],
     sidebar: {
+      "/ja-JP/use-cases/enterprise/": [
+        {
+          text: "エンタープライズユースケース",
+          items: [
+            { text: "概要", link: "/ja-JP/use-cases/enterprise/" },
+            { text: "クロスシステムオーケストレーション", link: "/ja-JP/use-cases/enterprise/cross-system-orchestration" },
+            { text: "非構造化データ取り込み", link: "/ja-JP/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "サードパーティポータル自動化", link: "/ja-JP/use-cases/enterprise/portal-automation" },
+            { text: "本番ワークフローへの AI 推論統合", link: "/ja-JP/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/ja-JP/guide/": [
         {
           text: "はじめに",

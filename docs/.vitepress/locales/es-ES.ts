@@ -20,9 +20,22 @@ export const esES: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "Referencia", link: "/es-ES/reference/" },
         ],
       },
+      { text: "Casos de uso", link: "/es-ES/use-cases/enterprise/" },
       { text: "Soporte", link: "/es-ES/support/" },
     ],
     sidebar: {
+      "/es-ES/use-cases/enterprise/": [
+        {
+          text: "Casos de uso empresariales",
+          items: [
+            { text: "Vista general", link: "/es-ES/use-cases/enterprise/" },
+            { text: "Orquestación multisistema", link: "/es-ES/use-cases/enterprise/cross-system-orchestration" },
+            { text: "Ingesta de datos no estructurados", link: "/es-ES/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "Automatización de portales de terceros", link: "/es-ES/use-cases/enterprise/portal-automation" },
+            { text: "Inferencia de IA en producción", link: "/es-ES/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/es-ES/guide/": [
         {
           text: "Primeros pasos",

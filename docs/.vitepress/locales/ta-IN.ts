@@ -20,9 +20,22 @@ export const taIN: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "குறிப்பு", link: "/ta-IN/reference/" },
         ],
       },
+      { text: "பயன்பாட்டு வழக்குகள்", link: "/ta-IN/use-cases/enterprise/" },
       { text: "ஆதரவு", link: "/ta-IN/support/" },
     ],
     sidebar: {
+      "/ta-IN/use-cases/enterprise/": [
+        {
+          text: "நிறுவன பயன்பாட்டு வழக்குகள்",
+          items: [
+            { text: "கண்ணோட்டம்", link: "/ta-IN/use-cases/enterprise/" },
+            { text: "கடந்து-செல்லும் அமைப்பு ஆர்கெஸ்ட்ரேஷன்", link: "/ta-IN/use-cases/enterprise/cross-system-orchestration" },
+            { text: "அசம்பாதிய தரவு உட்கொள்வு", link: "/ta-IN/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "மூன்றாம் தரப்பு போர்டல் தன்னியக்கம்", link: "/ta-IN/use-cases/enterprise/portal-automation" },
+            { text: "உற்பத்தியில் AI அனுமானம்", link: "/ta-IN/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/ta-IN/guide/": [
         {
           text: "தொடங்குங்கள்",

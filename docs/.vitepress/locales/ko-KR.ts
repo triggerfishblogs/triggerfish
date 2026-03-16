@@ -20,9 +20,22 @@ export const koKR: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "레퍼런스", link: "/ko-KR/reference/" },
         ],
       },
+      { text: "유스케이스", link: "/ko-KR/use-cases/enterprise/" },
       { text: "지원", link: "/ko-KR/support/" },
     ],
     sidebar: {
+      "/ko-KR/use-cases/enterprise/": [
+        {
+          text: "엔터프라이즈 유스케이스",
+          items: [
+            { text: "개요", link: "/ko-KR/use-cases/enterprise/" },
+            { text: "크로스 시스템 오케스트레이션", link: "/ko-KR/use-cases/enterprise/cross-system-orchestration" },
+            { text: "비정형 데이터 수집", link: "/ko-KR/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "서드파티 포털 자동화", link: "/ko-KR/use-cases/enterprise/portal-automation" },
+            { text: "프로덕션 워크플로의 AI 추론 통합", link: "/ko-KR/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/ko-KR/guide/": [
         {
           text: "시작하기",

@@ -20,9 +20,22 @@ export const knIN: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "ಉಲ್ಲೇಖ", link: "/kn-IN/reference/" },
         ],
       },
+      { text: "ಬಳಕೆಯ ಪ್ರಕರಣಗಳು", link: "/kn-IN/use-cases/enterprise/" },
       { text: "ಬೆಂಬಲ", link: "/kn-IN/support/" },
     ],
     sidebar: {
+      "/kn-IN/use-cases/enterprise/": [
+        {
+          text: "ಎಂಟರ್‌ಪ್ರೈಸ್ ಬಳಕೆಯ ಪ್ರಕರಣಗಳು",
+          items: [
+            { text: "ಅವಲೋಕನ", link: "/kn-IN/use-cases/enterprise/" },
+            { text: "ಕ್ರಾಸ್-ಸಿಸ್ಟಮ್ ಆರ್ಕೆಸ್ಟ್ರೇಶನ್", link: "/kn-IN/use-cases/enterprise/cross-system-orchestration" },
+            { text: "ಅಸಂರಚಿತ ಡೇಟಾ ಸ್ವೀಕೃತಿ", link: "/kn-IN/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "ತೃತೀಯ-ಪಕ್ಷ ಪೋರ್ಟಲ್ ಸ್ವಯಂಚಾಲನ", link: "/kn-IN/use-cases/enterprise/portal-automation" },
+            { text: "ಉತ್ಪಾದನದಲ್ಲಿ AI ಅನುಮಾನ", link: "/kn-IN/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/kn-IN/guide/": [
         {
           text: "ಪ್ರಾರಂಭಿಸಿ",

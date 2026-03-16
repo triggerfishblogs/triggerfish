@@ -20,9 +20,22 @@ export const nbNO: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "Referanse", link: "/nb-NO/reference/" },
         ],
       },
+      { text: "Brukstilfeller", link: "/nb-NO/use-cases/enterprise/" },
       { text: "Støtte", link: "/nb-NO/support/" },
     ],
     sidebar: {
+      "/nb-NO/use-cases/enterprise/": [
+        {
+          text: "Enterprise-brukstilfeller",
+          items: [
+            { text: "Oversikt", link: "/nb-NO/use-cases/enterprise/" },
+            { text: "Cross-System Orchestration", link: "/nb-NO/use-cases/enterprise/cross-system-orchestration" },
+            { text: "Ustrukturert dataingest", link: "/nb-NO/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "Tredjeparts portalautomatisering", link: "/nb-NO/use-cases/enterprise/portal-automation" },
+            { text: "AI-inferens i produksjon", link: "/nb-NO/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/nb-NO/guide/": [
         {
           text: "Kom i gang",

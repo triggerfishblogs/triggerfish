@@ -21,9 +21,22 @@ export const faIR: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "مرجع", link: "/fa-IR/reference/" },
         ],
       },
+      { text: "موارد کاربردی", link: "/fa-IR/use-cases/enterprise/" },
       { text: "پشتیبانی", link: "/fa-IR/support/" },
     ],
     sidebar: {
+      "/fa-IR/use-cases/enterprise/": [
+        {
+          text: "موارد کاربردی سازمانی",
+          items: [
+            { text: "نمای کلی", link: "/fa-IR/use-cases/enterprise/" },
+            { text: "هماهنگی چندسیستمی", link: "/fa-IR/use-cases/enterprise/cross-system-orchestration" },
+            { text: "استخراج داده‌های ساختارنیافته", link: "/fa-IR/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "اتوماسیون پورتال شرکای ثالث", link: "/fa-IR/use-cases/enterprise/portal-automation" },
+            { text: "استنتاج هوش مصنوعی در تولید", link: "/fa-IR/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/fa-IR/guide/": [
         {
           text: "شروع کار",

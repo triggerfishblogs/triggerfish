@@ -20,9 +20,22 @@ export const enGB: LocaleSpecificConfig<DefaultTheme.Config> = {
           { text: "Reference", link: "/en-GB/reference/" },
         ],
       },
+      { text: "Use Cases", link: "/en-GB/use-cases/enterprise/" },
       { text: "Support", link: "/en-GB/support/" },
     ],
     sidebar: {
+      "/en-GB/use-cases/enterprise/": [
+        {
+          text: "Enterprise Use Cases",
+          items: [
+            { text: "Overview", link: "/en-GB/use-cases/enterprise/" },
+            { text: "Cross-System Orchestration", link: "/en-GB/use-cases/enterprise/cross-system-orchestration" },
+            { text: "Unstructured Data Ingestion", link: "/en-GB/use-cases/enterprise/unstructured-data-ingestion" },
+            { text: "Third-Party Portal Automation", link: "/en-GB/use-cases/enterprise/portal-automation" },
+            { text: "AI Inference in Production", link: "/en-GB/use-cases/enterprise/ai-inference-in-production" },
+          ],
+        },
+      ],
       "/en-GB/guide/": [
         {
           text: "Getting Started",
