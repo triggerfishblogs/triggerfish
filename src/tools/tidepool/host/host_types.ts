@@ -34,7 +34,7 @@ export interface CanvasRenderRecord {
 export interface A2UIHostOptions {
   /** Chat session for handling browser chat messages. */
   readonly chatSession?: import("../../../gateway/chat.ts").ChatSession;
-  /** Session key required as `?key=` query parameter on all requests. */
+  /** Session key validated via `Authorization: Bearer` header or `?key=` query param. */
   readonly sessionKey?: string;
 }
 

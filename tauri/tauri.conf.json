@@ -1,0 +1,37 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/v2/schemas/tauri.conf.json",
+  "productName": "Triggerfish Tidepool",
+  "identifier": "dev.triggerfish.tidepool",
+  "version": "0.1.0",
+  "build": {
+    "frontendDist": "./frontend"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Triggerfish",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "visible": true
+      }
+    ],
+    "withGlobalTauri": true,
+    "security": {
+      "csp": "default-src 'self' http://127.0.0.1:18790 ws://127.0.0.1:18790; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://127.0.0.1:18790; style-src 'self' 'unsafe-inline' http://127.0.0.1:18790; img-src 'self' data: http://127.0.0.1:18790; connect-src 'self' http://127.0.0.1:18790 ws://127.0.0.1:18790"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {}
+
+}

@@ -129,6 +129,10 @@ function buildCommandDispatchMap(
       const { runTidepool } = await import("./commands/tidepool.ts");
       await runTidepool(ctx.subcommand, ctx.flags);
     },
+    uninstall: async () => {
+      const { runUninstall } = await import("./commands/uninstall.ts");
+      await runUninstall();
+    },
     update: () => runUpdate(),
     version: () => {
       showVersion();

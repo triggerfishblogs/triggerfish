@@ -1,0 +1,32 @@
+app-id: dev.triggerfish.tidepool
+runtime: org.gnome.Platform
+runtime-version: "46"
+sdk: org.gnome.Sdk
+command: triggerfish-tidepool
+
+finish-args:
+  # Network access for gateway communication on localhost
+  - --share=network
+  # Display access
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  # Notifications
+  - --talk-name=org.freedesktop.Notifications
+  # Access to triggerfish config/state directory
+  - --filesystem=~/.triggerfish:ro
+
+modules:
+  - name: triggerfish-tidepool
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 triggerfish-tidepool /app/bin/triggerfish-tidepool
+      - install -Dm644 triggerfish-tidepool.desktop /app/share/applications/dev.triggerfish.tidepool.desktop
+      - install -Dm644 icon.png /app/share/icons/hicolor/256x256/apps/dev.triggerfish.tidepool.png
+    sources:
+      - type: file
+        path: triggerfish-tidepool
+      - type: file
+        path: triggerfish-tidepool.desktop
+      - type: file
+        path: icon.png
