@@ -84,7 +84,8 @@ fn handle_offline(state: &Mutex<HealthState>) {
 fn reload_webview(app: &AppHandle, key: &str) {
     if let Some(window) = app.get_webview_window("main") {
         let url = format!("http://127.0.0.1:18790?key={}", key);
-        let _ = window.eval(&format!("window.location.replace('{}')", url));
+        let js_url = serde_json::to_string(&url).unwrap_or_default();
+        let _ = window.eval(&format!("window.location.replace({})", js_url));
     }
 }
 

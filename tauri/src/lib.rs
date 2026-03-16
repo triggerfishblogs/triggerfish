@@ -47,9 +47,10 @@ pub fn run() {
             match session_key::read_session_key() {
                 Ok(key) => {
                     let url = format!("http://127.0.0.1:18790?key={}", key);
+                    let js_url = serde_json::to_string(&url).unwrap_or_default();
                     window.eval(&format!(
-                        "window.location.replace('{}')",
-                        url
+                        "window.location.replace({})",
+                        js_url
                     ))?;
                 }
                 Err(_) => {

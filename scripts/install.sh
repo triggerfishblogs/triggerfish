@@ -143,7 +143,10 @@ install_tauri_binary() {
         elif command -v shasum &>/dev/null; then
           TAURI_ACTUAL="$(shasum -a 256 "/tmp/${TAURI_BINARY_NAME}" | awk '{print $1}')"
         else
-          TAURI_ACTUAL="${TAURI_EXPECTED}"
+          echo "[warn] No sha256sum or shasum found — cannot verify Tauri binary integrity"
+          echo "[warn] Skipping Tidepool native UI install (unverified binary)"
+          rm -f "/tmp/${TAURI_BINARY_NAME}" "/tmp/SHA256SUMS-tauri.txt"
+          return
         fi
         if [ "${TAURI_ACTUAL}" != "${TAURI_EXPECTED}" ]; then
           echo "[warn] Tauri binary checksum mismatch, skipping native UI"

@@ -225,11 +225,12 @@ async function registerWindowsApp(
 
 /** Build the PowerShell script that creates a Start Menu shortcut. */
 function buildWindowsShortcutScript(binaryPath: string): string {
+  const escapedPath = binaryPath.replace(/'/g, "''");
   return [
     `$ws = New-Object -ComObject WScript.Shell`,
     `$startMenu = [System.IO.Path]::Combine($env:APPDATA, 'Microsoft\\Windows\\Start Menu\\Programs')`,
     `$shortcut = $ws.CreateShortcut("$startMenu\\Triggerfish Tidepool.lnk")`,
-    `$shortcut.TargetPath = '${binaryPath}'`,
+    `$shortcut.TargetPath = '${escapedPath}'`,
     `$shortcut.Description = 'Triggerfish AI Agent - Tidepool UI'`,
     `$shortcut.Save()`,
   ].join("; ");

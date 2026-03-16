@@ -26,7 +26,7 @@ export async function showNativeNotification(
     // deno-lint-ignore no-explicit-any
     const { invoke } = (globalThis as any).__TAURI__.core;
     await invoke("show_native_notification", { title, body });
-  } catch {
-    // Native notification dispatch failed — swallow in UI context.
+  } catch (err: unknown) {
+    console.warn("Native notification dispatch failed", err);
   }
 }
