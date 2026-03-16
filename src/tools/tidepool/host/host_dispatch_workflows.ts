@@ -15,13 +15,6 @@ import { reply } from "./host_dispatch_simple.ts";
 
 const log = createLogger("tidepool-dispatch");
 
-/** Options for creating a workflows topic dispatcher. */
-export interface WorkflowsDispatcherOptions {
-  readonly handler: TidepoolWorkflowsHandler;
-  readonly sessionTaintProvider: () => ClassificationLevel;
-  readonly sessionUserProvider: () => string;
-}
-
 /** Create a topic handler for the workflows screen. */
 export function createWorkflowsTopicDispatcher(
   handler: TidepoolWorkflowsHandler,
@@ -294,11 +287,11 @@ function dispatchApproveVersion(
   sessionUserProvider: () => string,
 ): void {
   const versionId = payload.versionId as string;
-  const reviewedBy = sessionUserProvider();
   if (!versionId) {
     log.warn("Version approval dispatch rejected: missing versionId", { operation: "approve_version" });
     return;
   }
+  const reviewedBy = sessionUserProvider();
   handler
     .approveVersion(versionId, reviewedBy)
     .then((data) => reply(socket, data))
@@ -326,12 +319,12 @@ function dispatchRejectVersion(
   sessionUserProvider: () => string,
 ): void {
   const versionId = payload.versionId as string;
-  const reviewedBy = sessionUserProvider();
   const reason = (payload.reason as string) || "";
   if (!versionId) {
     log.warn("Version rejection dispatch rejected: missing versionId", { operation: "reject_version" });
     return;
   }
+  const reviewedBy = sessionUserProvider();
   handler
     .rejectVersion(versionId, reviewedBy, reason)
     .then((data) => reply(socket, data))
