@@ -100,7 +100,9 @@ export type {
   RegisterRunOptions,
   RegistryEvent,
   RegistryListener,
+  RunControl,
   RunRegistration,
+  StepState,
   TaskProgressOptions,
   WorkflowRunRegistry,
 } from "./registry.ts";

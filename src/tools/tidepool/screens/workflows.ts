@@ -9,6 +9,7 @@
  */
 
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
+import type { HealingPhase } from "../../../core/types/healing.ts";
 
 /** Summary of a saved workflow definition for the list view. */
 export interface WorkflowListEntry {
@@ -35,6 +36,13 @@ export interface RunTreeNode {
   readonly taskIndex: number;
   readonly taskName: string;
   readonly status: "pending" | "running" | "completed" | "failed" | "skipped";
+  readonly taintBefore?: ClassificationLevel;
+  readonly taintAfter?: ClassificationLevel;
+  readonly duration?: number;
+  readonly error?: string;
+  readonly healingPhase?: HealingPhase;
+  readonly attemptNumber?: number;
+  readonly branchTaken?: string;
 }
 
 /** Full run tree for an active or completed workflow. */
@@ -56,4 +64,8 @@ export type WorkflowScreenEventType =
   | "run_unpaused"
   | "task_progress"
   | "run_completed"
-  | "control_result";
+  | "control_result"
+  | "step_event"
+  | "run_detail"
+  | "healing_status"
+  | "version_result";
