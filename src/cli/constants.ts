@@ -15,6 +15,9 @@ export const TIDEPOOL_PORT = 18790;
 /** Port that the Gateway WebSocket server listens on. */
 export const GATEWAY_PORT = 18789;
 
+/** Binary name for the native Tidepool UI shell (Tauri). */
+export const TIDEPOOL_NATIVE_BINARY = "triggerfish-tidepool";
+
 /** Filename for the daemon runtime state file. */
 const DAEMON_STATE_FILENAME = "daemon.json";
 

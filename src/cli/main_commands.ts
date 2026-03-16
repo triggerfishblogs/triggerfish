@@ -32,6 +32,7 @@ const KNOWN_COMMANDS = new Set([
   "dive",
   "patrol",
   "tidepool",
+  "uninstall",
   "update",
   "help",
   "version",
@@ -195,7 +196,8 @@ COMMANDS:
   logs        View or bundle daemon logs
   patrol      Run health diagnostics
   restart     Stop and restart the daemon
-  tidepool    Tidepool A2UI controls
+  tidepool    Open Tidepool UI (native window or browser)
+  uninstall   Remove Triggerfish completely
   update      Pull latest code, recompile, and restart
   help        Show this help message
   version     Show version information`;
@@ -224,6 +226,8 @@ LOGS SUBCOMMANDS:
   logs bundle                            Archive all log files (.tar.gz or .zip)
 
 TIDEPOOL SUBCOMMANDS:
+  tidepool                               Open native window (or browser fallback)
+  tidepool open                          Same as above
   tidepool url                           Print Tidepool A2UI URL (if running)
 
 CRON SUBCOMMANDS:
@@ -264,7 +268,9 @@ const HELP_EXAMPLES_OPS =
   triggerfish connect google                          # Link Google account
   triggerfish disconnect google                       # Remove Google account
   triggerfish patrol                                # Health check
+  triggerfish tidepool                              # Open Tidepool UI
   triggerfish tidepool url                          # Show Tidepool A2UI URL
+  triggerfish uninstall                             # Remove Triggerfish completely
   triggerfish update                                # Update to latest version
 
 For more information, visit: https://trigger.fish/docs`;

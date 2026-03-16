@@ -115,6 +115,83 @@ rm -f "/tmp/SHA256SUMS.txt"
 
 echo "[ok] Installed to ${INSTALL_DIR}/${INSTALL_NAME}"
 
+# --- Step 5b: Install Tauri native UI binary (optional) ---
+
+TAURI_BINARY_NAME="triggerfish-tidepool-${PLATFORM}-${ARCH_SUFFIX}"
+TAURI_INSTALLED=""
+
+install_tauri_binary() {
+  echo ""
+  echo "Installing Tidepool native UI..."
+
+  # On Linux, ensure WebKit2GTK is available
+  if [ "${PLATFORM}" = "linux" ]; then
+    install_linux_webkit_deps
+  fi
+
+  # Download Tauri binary (may not exist in older releases)
+  if curl -fL --connect-timeout 15 --retry 3 \
+    -o "/tmp/${TAURI_BINARY_NAME}" "${BASE_URL}/${TAURI_BINARY_NAME}" 2>/dev/null; then
+
+    # Verify checksum if available in the Tauri checksums file
+    if curl -fsSL --connect-timeout 15 --retry 3 \
+      -o "/tmp/SHA256SUMS-tauri.txt" "${BASE_URL}/SHA256SUMS-tauri.txt" 2>/dev/null; then
+      TAURI_EXPECTED="$(grep "${TAURI_BINARY_NAME}" /tmp/SHA256SUMS-tauri.txt | awk '{print $1}')"
+      if [ -n "${TAURI_EXPECTED}" ]; then
+        if command -v sha256sum &>/dev/null; then
+          TAURI_ACTUAL="$(sha256sum "/tmp/${TAURI_BINARY_NAME}" | awk '{print $1}')"
+        elif command -v shasum &>/dev/null; then
+          TAURI_ACTUAL="$(shasum -a 256 "/tmp/${TAURI_BINARY_NAME}" | awk '{print $1}')"
+        else
+          TAURI_ACTUAL="${TAURI_EXPECTED}"
+        fi
+        if [ "${TAURI_ACTUAL}" != "${TAURI_EXPECTED}" ]; then
+          echo "[warn] Tauri binary checksum mismatch, skipping native UI"
+          rm -f "/tmp/${TAURI_BINARY_NAME}" "/tmp/SHA256SUMS-tauri.txt"
+          return
+        fi
+      fi
+      rm -f "/tmp/SHA256SUMS-tauri.txt"
+    fi
+
+    mv "/tmp/${TAURI_BINARY_NAME}" "${INSTALL_DIR}/triggerfish-tidepool"
+    chmod +x "${INSTALL_DIR}/triggerfish-tidepool"
+    echo "[ok] Installed Tidepool native UI to ${INSTALL_DIR}/triggerfish-tidepool"
+    TAURI_INSTALLED="true"
+  else
+    echo "[info] Tidepool native UI binary not available for this release"
+    echo "       Use 'triggerfish tidepool' to open in browser instead"
+  fi
+}
+
+install_linux_webkit_deps() {
+  # Detect if this is an immutable distro (rpm-ostree based)
+  if command -v rpm-ostree &>/dev/null && rpm-ostree status &>/dev/null 2>&1; then
+    echo "[info] Immutable distro detected — WebKit2GTK included via Flatpak runtime"
+    echo "       Consider installing via: flatpak install dev.triggerfish.tidepool"
+    return
+  fi
+
+  # Check if WebKit2GTK 4.1 is already available
+  if pkg-config --exists webkit2gtk-4.1 2>/dev/null; then
+    echo "[ok] WebKit2GTK 4.1 already installed"
+    return
+  fi
+
+  echo "[info] Installing WebKit2GTK 4.1 (required for native UI)..."
+  if command -v apt-get &>/dev/null; then
+    sudo apt-get update -qq && sudo apt-get install -y -qq libwebkit2gtk-4.1-0
+  elif command -v dnf &>/dev/null; then
+    sudo dnf install -y webkit2gtk4.1
+  elif command -v pacman &>/dev/null; then
+    sudo pacman -S --noconfirm webkit2gtk-4.1
+  else
+    echo "[warn] Cannot auto-install WebKit2GTK — install manually for native UI"
+  fi
+}
+
+install_tauri_binary
+
 # Save original PATH before modifying, so persistent PATH check is accurate
 ORIGINAL_PATH="${PATH}"
 
@@ -184,6 +261,7 @@ if [ -n "${PATH_MODIFIED}" ]; then
   echo ""
 fi
 echo "  triggerfish status    # Check daemon status"
+echo "  triggerfish tidepool  # Open Tidepool UI"
 echo "  triggerfish logs      # View logs"
 echo "  triggerfish patrol    # Run health check"
 echo "  triggerfish stop      # Stop the daemon"

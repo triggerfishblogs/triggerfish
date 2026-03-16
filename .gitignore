@@ -39,3 +39,7 @@ setup-phase-*.sh
 # Tidepool UI build artifacts
 src/tools/tidepool/dist/
 tidepool-ui/node_modules/
+
+# Tauri build artifacts
+tauri/target/
+tauri/gen/

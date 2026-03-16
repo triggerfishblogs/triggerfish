@@ -40,6 +40,23 @@ for target_entry in "${TARGETS[@]}"; do
     "${ENTRY}"
 done
 
+# Build Tauri native UI (local platform only)
+if command -v cargo &>/dev/null && [ -d "tauri" ]; then
+  echo ""
+  echo "  Building Tauri native UI (local platform)..."
+  cd tauri && cargo build --release && cd ..
+  TAURI_BIN="tauri/target/release/triggerfish-tidepool"
+  if [ -f "${TAURI_BIN}" ]; then
+    TAURI_SUFFIX="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/x64/' | sed 's/aarch64/arm64/')"
+    cp "${TAURI_BIN}" "${DIST_DIR}/triggerfish-tidepool-${TAURI_SUFFIX}"
+    echo "  [ok] Tauri binary: triggerfish-tidepool-${TAURI_SUFFIX}"
+  fi
+else
+  echo ""
+  echo "  [skip] Tauri build: cargo not found or tauri/ missing"
+  echo "         Use .github/workflows/build-tauri.yml for CI builds"
+fi
+
 echo ""
 echo "Generating checksums..."
 cd "${DIST_DIR}"
