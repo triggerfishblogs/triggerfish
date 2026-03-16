@@ -15,11 +15,21 @@ import { reply } from "./host_dispatch_simple.ts";
 
 const log = createLogger("tidepool-dispatch");
 
+/** Options for creating a workflows topic dispatcher. */
+export interface WorkflowsDispatcherOptions {
+  readonly handler: TidepoolWorkflowsHandler;
+  readonly sessionTaintProvider: () => ClassificationLevel;
+  readonly sessionUserProvider: () => string;
+}
+
 /** Create a topic handler for the workflows screen. */
 export function createWorkflowsTopicDispatcher(
   handler: TidepoolWorkflowsHandler,
   sessionTaintProvider: () => ClassificationLevel,
+  options?: { readonly sessionUserProvider?: () => string },
 ): TopicHandler {
+  const sessionUserProvider = options?.sessionUserProvider ?? (() => "tidepool-user");
+
   return (message, socket) => {
     const action = message.action as string;
     const payload = (message.payload ?? {}) as Record<string, unknown>;
@@ -42,9 +52,9 @@ export function createWorkflowsTopicDispatcher(
       get_healing_status: () =>
         dispatchGetHealingStatus(handler, socket, payload, sessionTaintProvider),
       approve_version: () =>
-        dispatchApproveVersion(handler, socket, payload),
+        dispatchApproveVersion(handler, socket, payload, sessionUserProvider),
       reject_version: () =>
-        dispatchRejectVersion(handler, socket, payload),
+        dispatchRejectVersion(handler, socket, payload, sessionUserProvider),
     };
 
     dispatch[action]?.();
@@ -281,21 +291,16 @@ function dispatchApproveVersion(
   handler: TidepoolWorkflowsHandler,
   socket: WebSocket,
   payload: Record<string, unknown>,
+  sessionUserProvider: () => string,
 ): void {
   const versionId = payload.versionId as string;
-  const reviewedBy = payload.reviewedBy as string | undefined;
+  const reviewedBy = sessionUserProvider();
   if (!versionId) {
     log.warn("Version approval dispatch rejected: missing versionId", { operation: "approve_version" });
     return;
   }
-  if (!reviewedBy) {
-    log.warn("Version approval missing reviewedBy, using fallback identity", {
-      operation: "approve_version",
-      versionId,
-    });
-  }
   handler
-    .approveVersion(versionId, reviewedBy || "tidepool-user")
+    .approveVersion(versionId, reviewedBy)
     .then((data) => reply(socket, data))
     .catch((err: unknown) => {
       log.warn("Version approval dispatch failed", {
@@ -318,22 +323,17 @@ function dispatchRejectVersion(
   handler: TidepoolWorkflowsHandler,
   socket: WebSocket,
   payload: Record<string, unknown>,
+  sessionUserProvider: () => string,
 ): void {
   const versionId = payload.versionId as string;
-  const reviewedBy = payload.reviewedBy as string | undefined;
+  const reviewedBy = sessionUserProvider();
   const reason = (payload.reason as string) || "";
   if (!versionId) {
     log.warn("Version rejection dispatch rejected: missing versionId", { operation: "reject_version" });
     return;
   }
-  if (!reviewedBy) {
-    log.warn("Version rejection missing reviewedBy, using fallback identity", {
-      operation: "reject_version",
-      versionId,
-    });
-  }
   handler
-    .rejectVersion(versionId, reviewedBy || "tidepool-user", reason)
+    .rejectVersion(versionId, reviewedBy, reason)
     .then((data) => reply(socket, data))
     .catch((err: unknown) => {
       log.warn("Version rejection dispatch failed", {
