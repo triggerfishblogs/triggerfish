@@ -98,14 +98,21 @@ function wireCleanupListeners(
   socket.addEventListener("error", cleanup);
 }
 
-/** Validate the `key` query parameter against the session key. Returns 401 Response on failure, null on success. */
+/**
+ * Validate the session key from Bearer token or query parameter.
+ *
+ * Accepts auth via:
+ * 1. `Authorization: Bearer <key>` header (preferred — used by Tauri, API clients)
+ * 2. `?key=` query parameter (browser initial page load only — browsers cannot set headers on navigation)
+ *
+ * Returns 401 Response on failure, null on success.
+ */
 function rejectUnauthorized(
   request: Request,
   state: A2UIHostState,
 ): Response | null {
   if (!state.sessionKey) return null;
-  const url = new URL(request.url);
-  const provided = url.searchParams.get("key");
+  const provided = extractSessionKey(request);
   if (provided === state.sessionKey) return null;
   log.warn("Tidepool request rejected: invalid session key", {
     operation: "rejectUnauthorized",
@@ -114,6 +121,16 @@ function rejectUnauthorized(
     url: request.url,
   });
   return new Response("Unauthorized", { status: 401 });
+}
+
+/** Extract session key from Bearer header or query parameter. */
+function extractSessionKey(request: Request): string | null {
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice(7);
+  }
+  const url = new URL(request.url);
+  return url.searchParams.get("key");
 }
 
 /** Route an inbound HTTP request to WebSocket upgrade or static HTML response. */

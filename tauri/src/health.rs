@@ -36,8 +36,7 @@ async fn poll_once(app: &AppHandle, state: &Mutex<HealthState>) {
         guard.last_known_key.clone().unwrap_or_default()
     };
 
-    let url = format!("http://127.0.0.1:18790?key={}", current_key);
-    let result = probe_gateway(&url).await;
+    let result = probe_gateway(&current_key).await;
 
     match result {
         ProbeResult::Ok => handle_online(app, state),
@@ -95,8 +94,8 @@ enum ProbeResult {
     Unreachable,
 }
 
-/// HTTP GET the gateway URL and classify the response.
-async fn probe_gateway(url: &str) -> ProbeResult {
+/// HTTP GET the gateway with Bearer token auth and classify the response.
+async fn probe_gateway(key: &str) -> ProbeResult {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(3))
         .build();
@@ -106,7 +105,12 @@ async fn probe_gateway(url: &str) -> ProbeResult {
         Err(_) => return ProbeResult::Unreachable,
     };
 
-    match client.get(url).send().await {
+    match client
+        .get("http://127.0.0.1:18790")
+        .header("Authorization", format!("Bearer {}", key))
+        .send()
+        .await
+    {
         Ok(resp) => {
             let status = resp.status().as_u16();
             if status == 401 || status == 403 {
