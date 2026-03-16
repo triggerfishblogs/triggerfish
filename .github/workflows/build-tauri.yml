@@ -17,7 +17,7 @@ jobs:
           - runner: macos-latest
             target: aarch64-apple-darwin
             output: triggerfish-tidepool-macos-arm64
-          - runner: macos-13
+          - runner: macos-latest
             target: x86_64-apple-darwin
             output: triggerfish-tidepool-macos-x64
           - runner: ubuntu-latest
