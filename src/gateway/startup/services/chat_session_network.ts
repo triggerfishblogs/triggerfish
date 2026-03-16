@@ -90,6 +90,8 @@ export function wrapChatSessionForTidepool(
   };
 }
 
+const sessionKeyLog = createLoggerFn("tidepool-session-key");
+
 /**
  * Read or create the persistent Tidepool session key.
  *
@@ -103,14 +105,20 @@ async function resolveSessionKey(): Promise<string> {
   try {
     const existing = (await Deno.readTextFile(keyPath)).trim();
     if (existing.length > 0) return existing;
-  } catch {
-    // File doesn't exist yet — generate a new key below.
+  } catch (err) {
+    sessionKeyLog.debug("Session key file not found, generating new key", {
+      operation: "resolveSessionKey",
+      err,
+    });
   }
   const newKey = crypto.randomUUID();
   try {
     await Deno.writeTextFile(keyPath, newKey, { mode: 0o600 });
-  } catch {
-    // Best-effort persist — if it fails, we still use the key for this session.
+  } catch (err) {
+    sessionKeyLog.warn("Session key file write failed", {
+      operation: "resolveSessionKey",
+      err,
+    });
   }
   return newKey;
 }
