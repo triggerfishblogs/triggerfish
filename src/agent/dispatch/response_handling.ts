@@ -27,6 +27,9 @@ import {
   detectRepetition,
   FALLBACK_RESPONSE,
 } from "./response_quality.ts";
+import { createLogger } from "../../core/logger/mod.ts";
+
+const log = createLogger("orchestrator");
 
 // Re-export everything from response_quality for backward compatibility
 export {
@@ -60,6 +63,11 @@ export async function evaluatePreOutputHook(
     config.isOwnerSession();
   const effectiveTarget = isOwnerOutput ? outputTaint : targetClassification;
 
+  log.debug("Evaluating PRE_OUTPUT hook", {
+    operation: "evaluatePreOutputHook",
+    outputTaint,
+    targetClassification: effectiveTarget,
+  });
   const result = await config.hookRunner.evaluateHook("PRE_OUTPUT", {
     session: outputSession,
     input: {
@@ -68,6 +76,13 @@ export async function evaluatePreOutputHook(
     },
   });
   if (!result.allowed) {
+    log.warn("PRE_OUTPUT hook blocked response", {
+      operation: "evaluatePreOutputHook",
+      outputTaint,
+      targetClassification: effectiveTarget,
+      ruleId: result.ruleId,
+      message: result.message,
+    });
     return { ok: false, error: result.message ?? "Output blocked by policy" };
   }
   return { ok: true, value: undefined };

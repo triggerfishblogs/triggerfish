@@ -94,7 +94,6 @@ export async function startTidepoolHost(
   const tidepoolHost = createA2UIHost({ chatSession: tidepoolChatSession });
   await tidepoolHost.start(TIDEPOOL_PORT);
   log.info(`Tidepool listening on http://127.0.0.1:${TIDEPOOL_PORT}`);
-  console.log(`  Tidepool: http://127.0.0.1:${TIDEPOOL_PORT}`);
   notificationService.registerChannel({
     name: "tidepool",
     // deno-lint-ignore require-await

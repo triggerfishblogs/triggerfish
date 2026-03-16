@@ -147,10 +147,25 @@ export async function evaluatePreToolCallHook(
   const hookSession = currentTaint !== session.taint
     ? { ...session, taint: currentTaint }
     : session;
+  const toolName = secInput.tool_name ?? secInput.name ?? "unknown";
+  log.debug("Evaluating PRE_TOOL_CALL hook", {
+    operation: "evaluatePreToolCallHook",
+    toolName,
+    currentTaint,
+  });
   const result = await config.hookRunner.evaluateHook("PRE_TOOL_CALL", {
     session: hookSession,
     input: secInput,
   });
+  if (!result.allowed) {
+    log.warn("PRE_TOOL_CALL hook denied tool call", {
+      operation: "evaluatePreToolCallHook",
+      toolName,
+      currentTaint,
+      ruleId: result.ruleId,
+      message: result.message,
+    });
+  }
   return { result, currentTaint };
 }
 

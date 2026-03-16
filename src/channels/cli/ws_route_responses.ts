@@ -14,9 +14,12 @@ import {
 import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
 import type { ChatEvent } from "../../core/types/chat_event.ts";
 
+import { createLogger } from "../../core/logger/mod.ts";
 import { sendNextQueuedMessage } from "./chat_ws_types.ts";
 import type { RouterContext } from "./ws_route_status.ts";
 import { drainPendingTriggerPrompt } from "./ws_route_prompts.ts";
+
+const log = createLogger("cli-channel");
 
 /** Handle "cancelled" event. */
 export function routeCancelledEvent(ctx: RouterContext): void {
@@ -53,7 +56,7 @@ export function routeCompactStartEvent(ctx: RouterContext): void {
   if (ctx.isTty) {
     ctx.screen.startSpinner("Summarizing history...");
   } else {
-    console.log("  Summarizing history...");
+    log.info("Summarizing history");
   }
 }
 
@@ -70,7 +73,12 @@ export function routeCompactCompleteEvent(
     ctx.screen.writeOutput(msg);
     ctx.screen.redrawInput(ctx.editor);
   } else {
-    console.log(msg);
+    log.info("History compacted", {
+      operation: "routeCompactCompleteEvent",
+      messagesBefore: evt.messagesBefore,
+      messagesAfter: evt.messagesAfter,
+      tokensSaved: saved,
+    });
     renderPrompt();
   }
 }

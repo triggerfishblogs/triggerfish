@@ -6,7 +6,10 @@
  * @module
  */
 
+import { createLogger } from "../../core/logger/mod.ts";
 import { renderPrompt } from "../../cli/chat/chat_ui.ts";
+
+const log = createLogger("cli-channel");
 import type { ScreenManager } from "../../cli/terminal/screen.ts";
 import type { LineEditor } from "../../cli/terminal/terminal.ts";
 import type { OrchestratorEvent } from "../../agent/orchestrator/orchestrator_types.ts";
@@ -68,7 +71,10 @@ export function routeNotificationEvent(
     ctx.screen.writeOutput("");
     ctx.screen.redrawInput(ctx.editor);
   } else {
-    console.log(`\n  [trigger] ${evt.message}\n`);
+    log.info("Trigger notification received", {
+      operation: "routeNotificationEvent",
+      message: evt.message,
+    });
     renderPrompt();
   }
 }
