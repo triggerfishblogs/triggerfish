@@ -41,3 +41,24 @@ export {
   syncCwdAfterCommand,
   updateCwdAfterCommand,
 } from "./executor_cwd.ts";
+export {
+  type ConfigManageContext,
+  createConfigManageExecutor,
+} from "./executor_config_manage.ts";
+export {
+  executeConfigGet,
+  executeConfigSet,
+  executeConfigShow,
+} from "./executor_config_actions.ts";
+export {
+  createMcpManageExecutor,
+  type McpManageContext,
+} from "./executor_mcp_manage.ts";
+export {
+  createDaemonManageExecutor,
+  type DaemonManageContext,
+} from "./executor_daemon_manage.ts";
+export {
+  createSpineManageExecutor,
+  type SpineManageContext,
+} from "./executor_spine_manage.ts";

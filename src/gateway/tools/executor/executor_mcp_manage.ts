@@ -31,8 +31,8 @@ function parseArgs(raw: unknown): readonly string[] {
     try {
       const parsed = JSON.parse(trimmed);
       if (Array.isArray(parsed)) return parsed.map(String);
-    } catch {
-      // Fall through to space-split
+    } catch (_err: unknown) {
+      // Not valid JSON array — fall through to space-split
     }
   }
   return trimmed.split(/\s+/);
@@ -46,8 +46,8 @@ function parseEnv(raw: unknown): Record<string, string> | undefined {
     if (typeof parsed === "object" && parsed !== null) {
       return parsed as Record<string, string>;
     }
-  } catch {
-    // Invalid JSON
+  } catch (_err: unknown) {
+    // Not valid JSON — return undefined
   }
   return undefined;
 }
