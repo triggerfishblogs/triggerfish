@@ -6,7 +6,8 @@ description: What is an AI agent? Discover how AI agents work, the 5 types,
   real-world examples, and which agent best fits your needs in this practical
   guide.
 author: triggerfish
-tags: []
+tags:
+  - AI agent
 draft: false
 ---
 
