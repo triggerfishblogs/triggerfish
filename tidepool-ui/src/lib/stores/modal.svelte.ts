@@ -4,7 +4,7 @@
 
 import { onTopic, send } from "./websocket.svelte.js";
 
-export type ModalKind = "secret" | "credential" | "trigger" | null;
+export type ModalKind = "secret" | "credential" | "trigger" | "confirm" | null;
 
 /** Current modal kind. */
 let _modalKind: ModalKind = $state(null);
@@ -26,6 +26,9 @@ let _triggerClassification: string = $state("");
 
 /** Trigger result preview. */
 let _triggerPreview: string = $state("");
+
+/** Confirm prompt message. */
+let _confirmMessage: string = $state("");
 
 /** Get the current modal kind. */
 export function getModalKind(): ModalKind {
@@ -62,6 +65,11 @@ export function getTriggerPreview(): string {
   return _triggerPreview;
 }
 
+/** Get the confirm prompt message. */
+export function getConfirmMessage(): string {
+  return _confirmMessage;
+}
+
 /** Show secret prompt. */
 function showSecretPrompt(
   nonce: string,
@@ -96,6 +104,19 @@ function showTriggerPrompt(
   _triggerSource = source;
   _triggerClassification = classification;
   _triggerPreview = preview;
+}
+
+/** Show confirm prompt. */
+function showConfirmPrompt(nonce: string, message: string): void {
+  _modalKind = "confirm";
+  _modalNonce = nonce;
+  _confirmMessage = message;
+}
+
+/** Submit confirm response. */
+export function submitConfirm(approved: boolean): void {
+  send({ type: "confirm_prompt_response", nonce: _modalNonce, approved });
+  closeModal();
 }
 
 /** Submit secret response. */
@@ -137,6 +158,7 @@ export function closeModal(): void {
   _triggerSource = "";
   _triggerClassification = "";
   _triggerPreview = "";
+  _confirmMessage = "";
 }
 
 function handleMessage(msg: Record<string, unknown>): void {
@@ -160,6 +182,12 @@ function handleMessage(msg: Record<string, unknown>): void {
         msg.source as string,
         (msg.classification as string) ?? "PUBLIC",
         (msg.preview as string) ?? "",
+      );
+      break;
+    case "confirm_prompt":
+      showConfirmPrompt(
+        msg.nonce as string,
+        (msg.message as string) ?? "Confirm this action?",
       );
       break;
   }

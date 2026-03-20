@@ -19,6 +19,7 @@ import {
   routeTaintChangedEvent,
 } from "./ws_route_status.ts";
 import {
+  routeConfirmPromptEvent,
   routeCredentialPromptEvent,
   routeSecretPromptEvent,
   routeTriggerPromptEvent,
@@ -105,6 +106,11 @@ function dispatchChatEvent(
     case "credential_prompt":
       return routeCredentialPromptEvent(
         evt as Extract<ChatEvent, { type: "credential_prompt" }>,
+        ctx,
+      );
+    case "confirm_prompt":
+      return routeConfirmPromptEvent(
+        evt as Extract<ChatEvent, { type: "confirm_prompt" }>,
         ctx,
       );
     case "bumpers_status":

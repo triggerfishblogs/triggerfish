@@ -120,6 +120,26 @@ export interface ChatSession {
     hint?: string,
   ) => Promise<{ readonly username: string; readonly password: string } | null>;
   /**
+   * Route a `confirm_prompt_response` from the client to the
+   * waiting daemon_manage (or other) tool executor.
+   *
+   * @param nonce - The nonce from the originating `confirm_prompt` event.
+   * @param approved - Whether the user approved (true) or denied (false).
+   */
+  handleConfirmPromptResponse(nonce: string, approved: boolean): void;
+  /**
+   * Create a confirm prompt callback for Tidepool mode.
+   *
+   * When called, sends a `confirm_prompt` WebSocket event and awaits
+   * the corresponding `confirm_prompt_response` from the browser.
+   *
+   * @param sendEvent - The function that sends events to the active WebSocket client.
+   * @returns A callback that resolves to true (approved) or false (denied).
+   */
+  createTidepoolConfirmPrompt(
+    sendEvent: ChatEventSender,
+  ): (message: string) => Promise<boolean>;
+  /**
    * Handle a trigger_prompt_response from the client.
    *
    * On accept: retrieves the trigger result, handles classification

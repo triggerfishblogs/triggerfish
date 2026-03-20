@@ -72,6 +72,14 @@ export interface ToolExecutorOptions {
   readonly pluginExecutor?: SubsystemExecutor;
   /** Executor for plugin management tools (plugin_list, plugin_install, plugin_reload). */
   readonly pluginToolExecutor?: SubsystemExecutor;
+  /** Executor for config_manage — triggerfish.yaml configuration management. */
+  readonly configManageExecutor?: SubsystemExecutor;
+  /** Executor for mcp_manage — MCP server lifecycle management. */
+  readonly mcpManageExecutor?: SubsystemExecutor;
+  /** Executor for daemon_manage — daemon restart/status with user approval. */
+  readonly daemonManageExecutor?: SubsystemExecutor;
+  /** Executor for spine_manage — SPINE.md view/append. */
+  readonly spineManageExecutor?: SubsystemExecutor;
   /**
    * Skill context tracker for the session. When provided, web_fetch domain
    * restrictions are enforced per the active skill's networkDomains declaration.

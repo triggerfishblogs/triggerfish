@@ -117,6 +117,7 @@ export async function launchTidepoolService(
     toolInfra.state,
     toolInfra.cliSecretPrompt,
     toolInfra.cliCredentialPrompt,
+    toolInfra.cliConfirmPrompt,
   );
   const tidepoolHost = await startTidepoolHost(
     tidepoolChatSession,
@@ -143,6 +144,7 @@ export async function launchGatewayService(
     toolInfra.state,
     toolInfra.cliSecretPrompt,
     toolInfra.cliCredentialPrompt,
+    toolInfra.cliConfirmPrompt,
   );
   const server = await startGatewayServer(
     gatewayChatSession,

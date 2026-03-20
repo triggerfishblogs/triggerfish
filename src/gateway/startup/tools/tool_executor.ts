@@ -69,11 +69,15 @@ import { createLogger } from "../../../core/logger/logger.ts";
 
 const log = createLogger("persona-prompt");
 
+/** Callback for out-of-band user confirmation. */
+export type ConfirmPromptCallback = (message: string) => Promise<boolean>;
+
 /** Mutable state bag for the main daemon session. */
 export interface MainSessionState {
   session: ReturnType<typeof createSession>;
   activeSecretPrompt: SecretPromptCallback;
   activeCredentialPrompt: CredentialPromptCallback;
+  activeConfirmPrompt: ConfirmPromptCallback;
 }
 
 /** Classification-partitioned workspace directory paths. */
@@ -184,6 +188,10 @@ export function assembleMainToolExecutor(
     readonly workflowRunRegistry?: WorkflowRunRegistry;
     readonly pluginExecutor?: SubsystemExecutor;
     readonly pluginToolExecutor?: SubsystemExecutor;
+    readonly configManageExecutor?: SubsystemExecutor;
+    readonly mcpManageExecutor?: SubsystemExecutor;
+    readonly daemonManageExecutor?: SubsystemExecutor;
+    readonly spineManageExecutor?: SubsystemExecutor;
   },
 ) {
   const aux = buildAuxiliaryExecutors(

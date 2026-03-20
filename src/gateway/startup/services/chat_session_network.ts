@@ -49,6 +49,7 @@ export function wrapChatSessionForTidepool(
   state: MainSessionState,
   cliSecretPrompt: SecretPromptCallback,
   cliCredentialPrompt: CredentialPromptCallback,
+  cliConfirmPrompt: (message: string) => Promise<boolean>,
 ) {
   return {
     ...chatSession,
@@ -79,11 +80,15 @@ export function wrapChatSessionForTidepool(
       state.activeCredentialPrompt = chatSession.createTidepoolCredentialPrompt(
         sendEvent,
       );
+      state.activeConfirmPrompt = chatSession.createTidepoolConfirmPrompt(
+        sendEvent,
+      );
       return chatSession.executeAgentTurn(content, sendEvent, signal).finally(
         () => {
           isTidepoolCallRef.value = false;
           state.activeSecretPrompt = cliSecretPrompt;
           state.activeCredentialPrompt = cliCredentialPrompt;
+          state.activeConfirmPrompt = cliConfirmPrompt;
         },
       );
     },
@@ -169,6 +174,7 @@ export function wrapChatSessionForGateway(
   state: MainSessionState,
   cliSecretPrompt: SecretPromptCallback,
   cliCredentialPrompt: CredentialPromptCallback,
+  cliConfirmPrompt: (message: string) => Promise<boolean>,
 ) {
   return {
     ...chatSession,
@@ -198,10 +204,14 @@ export function wrapChatSessionForGateway(
       state.activeCredentialPrompt = chatSession.createTidepoolCredentialPrompt(
         sendEvent,
       );
+      state.activeConfirmPrompt = chatSession.createTidepoolConfirmPrompt(
+        sendEvent,
+      );
       return chatSession.executeAgentTurn(content, sendEvent, signal).finally(
         () => {
           state.activeSecretPrompt = cliSecretPrompt;
           state.activeCredentialPrompt = cliCredentialPrompt;
+          state.activeConfirmPrompt = cliConfirmPrompt;
         },
       );
     },

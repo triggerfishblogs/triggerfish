@@ -163,6 +163,7 @@ After=network.target
 Type=simple
 ExecStart=${options.binaryPath} run
 Restart=on-failure
+RestartForceExitStatus=138
 RestartSec=5
 Environment=DENO_DIR=%h/.cache/deno
 Environment="PATH=${userPath}"

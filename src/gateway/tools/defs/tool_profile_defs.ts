@@ -32,6 +32,10 @@ import { SIMULATE_SYSTEM_PROMPT } from "../../../tools/simulate/mod.ts";
 import { TEAM_SYSTEM_PROMPT } from "../../../agent/team/mod.ts";
 import { WORKFLOW_SYSTEM_PROMPT } from "../../../workflow/mod.ts";
 import { SSH_SYSTEM_PROMPT } from "../../../tools/ssh/mod.ts";
+import { CONFIG_MANAGE_SYSTEM_PROMPT } from "./config_manage_defs.ts";
+import { MCP_MANAGE_SYSTEM_PROMPT } from "./mcp_manage_defs.ts";
+import { DAEMON_MANAGE_SYSTEM_PROMPT } from "./daemon_manage_defs.ts";
+import { SPINE_MANAGE_SYSTEM_PROMPT } from "./spine_manage_defs.ts";
 import { TOOL_GROUPS, type ToolGroupName } from "./tool_groups.ts";
 import type { ToolDefinition } from "../../../core/types/tool.ts";
 
@@ -77,6 +81,10 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "team",
     "workflow",
     "ssh",
+    "configManage",
+    "mcpManage",
+    "daemonManage",
+    "spineManage",
   ],
   /** CLI chat — everything except tidepool canvas tools. */
   cli: [
@@ -112,6 +120,10 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "team",
     "workflow",
     "ssh",
+    "configManage",
+    "mcpManage",
+    "daemonManage",
+    "spineManage",
   ],
   /** Trigger sessions — sandboxed file tools only, no run_command. */
   triggerSession: [
@@ -220,6 +232,10 @@ export const TOOL_GROUP_PROMPTS: Partial<
   team: TEAM_SYSTEM_PROMPT,
   workflow: WORKFLOW_SYSTEM_PROMPT,
   ssh: SSH_SYSTEM_PROMPT,
+  configManage: CONFIG_MANAGE_SYSTEM_PROMPT,
+  mcpManage: MCP_MANAGE_SYSTEM_PROMPT,
+  daemonManage: DAEMON_MANAGE_SYSTEM_PROMPT,
+  spineManage: SPINE_MANAGE_SYSTEM_PROMPT,
 };
 
 /**

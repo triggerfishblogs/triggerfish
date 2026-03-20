@@ -49,6 +49,7 @@ export interface ToolInfraResult {
   readonly state: MainSessionState;
   readonly cliSecretPrompt: SecretPromptCallback;
   readonly cliCredentialPrompt: CredentialPromptCallback;
+  readonly cliConfirmPrompt: (message: string) => Promise<boolean>;
   readonly memoryDb: Awaited<
     ReturnType<typeof initializeMemorySystem>
   >["memoryDb"];

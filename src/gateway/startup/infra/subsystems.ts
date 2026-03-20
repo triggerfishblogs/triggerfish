@@ -289,3 +289,30 @@ export function createCliCredentialPrompt(): CredentialPromptCallback {
     }
   };
 }
+
+// ─── CLI confirm prompt ──────────────────────────────────────────────────────
+
+/**
+ * Create the CLI confirm prompt callback.
+ *
+ * Shows a [y/N] prompt on stderr and reads a single keypress.
+ * Returns true for 'y'/'Y', false for anything else.
+ */
+export function createCliConfirmPrompt(): (
+  message: string,
+) => Promise<boolean> {
+  return async (message: string): Promise<boolean> => {
+    writeStderr(`${message} [y/N] `);
+    setStdinRawMode(true);
+    try {
+      const buf = new Uint8Array(1);
+      const n = await Deno.stdin.read(buf);
+      if (n === null) return false;
+      const char = String.fromCharCode(buf[0]);
+      return char === "y" || char === "Y";
+    } finally {
+      setStdinRawMode(false);
+      writeStderr("\n");
+    }
+  };
+}

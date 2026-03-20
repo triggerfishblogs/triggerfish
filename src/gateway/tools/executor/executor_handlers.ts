@@ -78,6 +78,10 @@ export function buildExtendedSubsystems(
     opts.teamExecutor,
     opts.workflowExecutor,
     opts.sshExecutor,
+    opts.configManageExecutor,
+    opts.mcpManageExecutor,
+    opts.daemonManageExecutor,
+    opts.spineManageExecutor,
     webExecutor,
   ];
 }

@@ -65,6 +65,15 @@ export function dispatchClientChatMessage(
     );
     return;
   }
+  if (msg.type === "confirm_prompt_response") {
+    log.debug("Dispatching confirm prompt response", {
+      operation: "dispatchClientChatMessage",
+      nonce: msg.nonce,
+      approved: msg.approved,
+    });
+    ctx.chatSession.handleConfirmPromptResponse(msg.nonce, msg.approved);
+    return;
+  }
   if (msg.type === "trigger_prompt_response") {
     log.debug("Dispatching trigger prompt response", {
       operation: "dispatchClientChatMessage",

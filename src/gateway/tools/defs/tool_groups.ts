@@ -48,6 +48,10 @@ import { getSimulateToolDefinitions } from "../../../tools/simulate/mod.ts";
 import { getTeamToolDefinitions } from "../../../agent/team/mod.ts";
 import { getWorkflowToolDefinitions } from "../../../workflow/mod.ts";
 import { getSshToolDefinitions } from "../../../tools/ssh/mod.ts";
+import { getConfigManageToolDefinitions } from "./config_manage_defs.ts";
+import { getMcpManageToolDefinitions } from "./mcp_manage_defs.ts";
+import { getDaemonManageToolDefinitions } from "./daemon_manage_defs.ts";
+import { getSpineManageToolDefinitions } from "./spine_manage_defs.ts";
 
 /** Composable tool groups — each returns a focused set of ToolDefinitions. */
 export const TOOL_GROUPS = {
@@ -85,6 +89,10 @@ export const TOOL_GROUPS = {
   team: getTeamToolDefinitions,
   workflow: getWorkflowToolDefinitions,
   ssh: getSshToolDefinitions,
+  configManage: getConfigManageToolDefinitions,
+  mcpManage: getMcpManageToolDefinitions,
+  daemonManage: getDaemonManageToolDefinitions,
+  spineManage: getSpineManageToolDefinitions,
 } as const;
 
 /** Name of a tool group in TOOL_GROUPS. */
