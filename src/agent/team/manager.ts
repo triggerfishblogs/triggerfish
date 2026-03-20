@@ -16,7 +16,7 @@ import {
   DEFAULT_MAX_LIFETIME_SECONDS,
   TEAM_STORAGE_PREFIX,
 } from "./types.ts";
-import { enforceTeamDefinition } from "./validation.ts";
+import { validateTeamDefinition } from "./validation.ts";
 import {
   deserializeTeamInstance,
   serializeTeamInstance,
@@ -29,7 +29,7 @@ import {
 import {
   buildStorageKey,
   computeAggregateTaint,
-  terminateTeamMembers,
+  executeDisbandTeam,
   findLeadMember,
   findMemberByRole,
   refreshMemberTaints,
@@ -60,7 +60,7 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
       definition: TeamDefinition,
       createdBy: SessionId,
     ): Promise<Result<TeamInstance, string>> {
-      const validation = enforceTeamDefinition(definition);
+      const validation = validateTeamDefinition(definition);
       if (!validation.ok) return validation;
 
       log.info("Team creation started", {
@@ -189,7 +189,7 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
         };
       }
 
-      const disbanded = await terminateTeamMembers(
+      const disbanded = await executeDisbandTeam(
         { teamId, reason, operationName: "disbandTeam" },
         deps,
         monitor,
@@ -215,7 +215,7 @@ export function createTeamManager(deps: TeamManagerDeps): TeamManager {
         };
       }
 
-      const disbanded = await terminateTeamMembers(
+      const disbanded = await executeDisbandTeam(
         { teamId, reason, operationName: "forceDisbandTeam" },
         deps,
         monitor,

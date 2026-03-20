@@ -14,9 +14,7 @@ const log = createLogger("healing-event-bridge");
 /** Options for creating a healing event bridge. */
 export interface EventBridgeOptions {
   /** Callback to deliver events to the lead agent. */
-  readonly deliverToLead: (
-    events: readonly RichWorkflowEvent[],
-  ) => Promise<void>;
+  readonly deliverToLead: (events: readonly RichWorkflowEvent[]) => Promise<void>;
   /** Batching window in milliseconds (default: 500). */
   readonly batchWindowMs?: number;
 }

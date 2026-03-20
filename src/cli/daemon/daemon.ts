@@ -202,7 +202,7 @@ export function encodeUtf16Base64(command: string): string {
  * @param args - Command arguments.
  * @returns Decoded stdout, stderr, and success flag.
  */
-export async function invokeCommand(
+export async function runCommand(
   cmd: string,
   args: string[],
 ): Promise<{ stdout: string; stderr: string; success: boolean }> {
@@ -226,22 +226,22 @@ export async function invokeCommand(
  * If already running as admin, runs directly. Otherwise uses
  * Start-Process -Verb RunAs for UAC elevation.
  */
-export async function invokeElevatedCommand(encoded: string): Promise<void> {
-  const isElevated = await invokeCommand("powershell", [
+export async function runElevatedCommand(encoded: string): Promise<void> {
+  const isElevated = await runCommand("powershell", [
     "-NoProfile",
     "-Command",
     "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)",
   ]);
 
   if (isElevated.stdout === "True") {
-    await invokeCommand("powershell", [
+    await runCommand("powershell", [
       "-NoProfile",
       "-NonInteractive",
       "-EncodedCommand",
       encoded,
     ]);
   } else {
-    await invokeCommand("powershell", [
+    await runCommand("powershell", [
       "-NoProfile",
       "-NonInteractive",
       "-Command",
@@ -250,17 +250,10 @@ export async function invokeElevatedCommand(encoded: string): Promise<void> {
   }
 }
 
-/** @deprecated Use invokeCommand instead */
-export const runCommand = invokeCommand;
-
-/** @deprecated Use invokeElevatedCommand instead */
-export const runElevatedCommand = invokeElevatedCommand;
-
 // ─── Re-exports from sub-modules ────────────────────────────────
 
 export {
   cleanupOldBinary,
-  fetchDaemonStatus,
   getDaemonStatus,
   installAndStartDaemon,
   restartDaemon,
@@ -271,4 +264,4 @@ export {
 export { bundleLogs, tailLogs } from "./logs.ts";
 
 export type { UpdateResult } from "./updater/mod.ts";
-export { updateTriggerfish, upgradeTriggerfish } from "./updater/mod.ts";
+export { updateTriggerfish } from "./updater/mod.ts";

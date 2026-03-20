@@ -12,10 +12,10 @@ import { createLogger } from "../../core/logger/logger.ts";
 import { createSkillScanner } from "./scanner.ts";
 import { computeSkillHash, recordSkillHash } from "./integrity.ts";
 import { join } from "@std/path";
-import { enforceRegistryUrl } from "./registry_catalog.ts";
+import { validateRegistryUrl } from "./registry_catalog.ts";
 import { fetchCatalog, findLatestSkillEntry } from "./registry_catalog.ts";
 import type { CatalogCache, ReefCatalogEntry } from "./registry_types.ts";
-import { enforceSkillName, enforceSkillVersion } from "./registry_types.ts";
+import { validateSkillName, validateSkillVersion } from "./registry_types.ts";
 
 const log = createLogger("reef-registry");
 
@@ -28,14 +28,14 @@ async function fetchSkillContent(options: {
   readonly version: string;
   readonly fetchFn: typeof fetch;
 }): Promise<Result<string, string>> {
-  const nameCheck = enforceSkillName(options.name);
+  const nameCheck = validateSkillName(options.name);
   if (!nameCheck.ok) return nameCheck;
-  const versionCheck = enforceSkillVersion(options.version);
+  const versionCheck = validateSkillVersion(options.version);
   if (!versionCheck.ok) return versionCheck;
 
   const url =
     `${options.baseUrl}/skills/${options.name}/${options.version}/SKILL.md`;
-  const urlCheck = enforceRegistryUrl(url, options.baseUrl);
+  const urlCheck = validateRegistryUrl(url, options.baseUrl);
   if (!urlCheck.ok) return urlCheck;
 
   try {
@@ -76,7 +76,7 @@ async function writeInstalledSkill(
   name: string,
   content: string,
 ): Promise<Result<void, string>> {
-  const nameCheck = enforceSkillName(name);
+  const nameCheck = validateSkillName(name);
   if (!nameCheck.ok) return nameCheck;
 
   const skillDir = join(targetDir, name);
@@ -177,7 +177,7 @@ async function installSkillFromEntry(options: {
 }
 
 /** Look up a skill in the catalog and install it. */
-export async function installSkillFromRegistry(options: {
+export async function executeInstall(options: {
   readonly name: string;
   readonly targetDir: string;
   readonly baseUrl: string;
@@ -203,6 +203,3 @@ export async function installSkillFromRegistry(options: {
     fetchFn: options.fetchFn,
   });
 }
-
-/** @deprecated Use installSkillFromRegistry instead */
-export const executeInstall = installSkillFromRegistry;

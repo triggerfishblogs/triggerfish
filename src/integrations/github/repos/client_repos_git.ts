@@ -75,10 +75,7 @@ export async function cloneRepoToPath(
   >
 > {
   const classification = await fetchRepoClassification(
-    apiRequest,
-    classifyRepo,
-    owner,
-    repo,
+    apiRequest, classifyRepo, owner, repo,
   );
 
   const cloneUrl = buildAuthenticatedCloneUrl(token, baseUrl, owner, repo);
@@ -98,12 +95,7 @@ export async function cloneRepoToPath(
   }
 
   return retryCloneWithoutBranch(
-    cloneUrl,
-    destPath,
-    opts,
-    err,
-    repoSlug,
-    classification,
+    cloneUrl, destPath, opts, err, repoSlug, classification,
   );
 }
 
@@ -194,10 +186,7 @@ export async function pullRepoAtPath(
   >
 > {
   const classification = await fetchRepoClassification(
-    apiRequest,
-    classifyRepo,
-    owner,
-    repo,
+    apiRequest, classifyRepo, owner, repo,
   );
 
   const repoSlug = `${owner}/${repo}`;

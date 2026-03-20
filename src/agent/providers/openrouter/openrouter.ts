@@ -14,7 +14,7 @@ import type {
   LlmProvider,
   LlmStreamChunk,
 } from "../../llm.ts";
-import { resolveModelInfo } from "../../models.ts";
+import { getModelInfo } from "../../models.ts";
 import { parseSseStream } from "../sse.ts";
 import {
   formatDataPolicyHint,
@@ -153,14 +153,14 @@ export function createOpenRouterProvider(
   const deps: OpenRouterDeps = {
     apiKey: resolveOpenRouterApiKey(config.apiKey),
     model: config.model,
-    maxTokens: config.maxTokens ?? resolveModelInfo(config.model).outputLimit,
+    maxTokens: config.maxTokens ?? getModelInfo(config.model).outputLimit,
     orLog: createLogger("openrouter"),
   };
 
   return {
     name: "openrouter",
     supportsStreaming: true,
-    contextWindow: resolveModelInfo(deps.model).contextWindow,
+    contextWindow: getModelInfo(deps.model).contextWindow,
     complete: (m, t, o) =>
       completeOpenRouter(deps, { messages: m, tools: t, options: o }),
     stream: (m, t, o) =>

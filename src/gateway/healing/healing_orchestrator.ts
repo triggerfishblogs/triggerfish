@@ -56,9 +56,7 @@ export interface HealingRunOptions {
   /** Session terminator. */
   readonly terminateSession: (sessionId: SessionId) => Promise<void>;
   /** Team creation function. */
-  readonly createTeam: (
-    definition: import("./team_spawner.ts").TeamComposition,
-  ) => Promise<TeamHandle>;
+  readonly createTeam: (definition: import("./team_spawner.ts").TeamComposition) => Promise<TeamHandle>;
   /** Optional notification service. */
   readonly notificationService?: NotificationService;
   /** Owner user ID for notifications. */
@@ -122,10 +120,7 @@ export async function orchestrateHealingRun(
     });
 
     if (shouldNotifyOnIntervention(options)) {
-      await notifyOwner(
-        options,
-        `Intervention on ${event.taskName}: ${category}`,
-      );
+      await notifyOwner(options, `Intervention on ${event.taskName}: ${category}`);
     }
 
     if (category === "unresolvable") {
@@ -135,10 +130,7 @@ export async function orchestrateHealingRun(
         taskName: event.taskName,
         interventionCount,
       });
-      await notifyOwner(
-        options,
-        `Escalation: ${event.taskName} unresolvable after ${interventionCount} attempts`,
-      );
+      await notifyOwner(options, `Escalation: ${event.taskName} unresolvable after ${interventionCount} attempts`);
       return;
     }
 

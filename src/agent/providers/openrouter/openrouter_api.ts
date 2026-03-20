@@ -172,7 +172,7 @@ export interface ApiCallOptions {
 }
 
 /** Execute a single OpenRouter API call and parse the response. */
-export async function sendOpenRouterApiCall(
+export async function executeOpenRouterApiCall(
   opts: ApiCallOptions,
 ): Promise<{ result: LlmCompletionResult } | { retryError: string }> {
   const response = await fetch(OPENROUTER_API_URL, {
@@ -236,7 +236,7 @@ export async function completeOpenRouterWithRetry(
       opts.orLog.debug(`retry ${attempt}/${MAX_RETRIES} after ${delayMs}ms`);
       await new Promise((r) => setTimeout(r, delayMs));
     }
-    const outcome = await sendOpenRouterApiCall(opts);
+    const outcome = await executeOpenRouterApiCall(opts);
     if ("result" in outcome) return outcome.result;
     opts.orLog.debug(outcome.retryError);
     lastError = outcome.retryError;
@@ -247,6 +247,3 @@ export async function completeOpenRouterWithRetry(
     }`,
   );
 }
-
-/** @deprecated Use sendOpenRouterApiCall instead */
-export const executeOpenRouterApiCall = sendOpenRouterApiCall;

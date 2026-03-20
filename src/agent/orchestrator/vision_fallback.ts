@@ -17,9 +17,6 @@ import { hasImages, normalizeContent } from "../../core/image/content.ts";
 import type { LlmMessage, LlmProvider } from "../llm.ts";
 import type { HistoryEntry } from "./orchestrator_types.ts";
 import type { OrchestratorState } from "./orchestrator.ts";
-import { createLogger } from "../../core/logger/mod.ts";
-
-const log = createLogger("agent.vision");
 
 /** Build a vision description request message for a single image. */
 function buildImageDescriptionMessage(
@@ -51,7 +48,6 @@ async function describeImageWithVisionProvider(
     );
     return result.content;
   } catch (err) {
-    log.debug("Vision image description unavailable", { operation: "describeImage", err });
     const msg = err instanceof Error ? err.message : String(err);
     return `[Image description unavailable: ${msg}]`;
   }
@@ -101,7 +97,7 @@ const IMAGE_DESCRIPTION_ADDENDUM = "\n\n## Image Descriptions\n" +
   "Do NOT use image_analyze or any other tool to re-examine these images — the descriptions are already complete.";
 
 /** Process vision fallback: describe images and replace history entry. */
-export async function orchestrateVisionFallback(
+export async function processVisionFallback(
   state: OrchestratorState,
   message: MessageContent,
   history: HistoryEntry[],
@@ -127,6 +123,3 @@ export async function orchestrateVisionFallback(
   history[history.length - 1] = { role: "user", content: textOnly };
   return IMAGE_DESCRIPTION_ADDENDUM;
 }
-
-/** @deprecated Use orchestrateVisionFallback instead */
-export const processVisionFallback = orchestrateVisionFallback;

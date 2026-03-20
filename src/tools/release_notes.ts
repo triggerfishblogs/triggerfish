@@ -37,7 +37,7 @@ export type ReleaseNotesFetcher = (
 ) => Promise<ReleaseNotesResult>;
 
 /** Tool definitions for the release_notes tool. */
-export function buildReleaseNotesToolDefinitions(): readonly ToolDefinition[] {
+export function getReleaseNotesToolDefinitions(): readonly ToolDefinition[] {
   return [
     {
       name: "release_notes",
@@ -130,6 +130,3 @@ export function createReleaseNotesToolExecutor(
     return formatReleaseNotesMarkdown(result.value);
   };
 }
-
-/** @deprecated Use buildReleaseNotesToolDefinitions instead */
-export const getReleaseNotesToolDefinitions = buildReleaseNotesToolDefinitions;

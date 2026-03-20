@@ -16,8 +16,8 @@ import { getPlanToolDefinitions } from "../../../agent/plan/tools.ts";
 import { getBrowserToolDefinitions } from "../../../tools/browser/mod.ts";
 import { getTidepoolToolDefinitions } from "../../../tools/tidepool/mod.ts";
 import {
-  buildSessionToolDefinitions,
-  buildSignalToolDefinitions,
+  getSessionToolDefinitions,
+  getSignalToolDefinitions,
 } from "../session/session_tools.ts";
 import { getImageToolDefinitions } from "../../../tools/image/mod.ts";
 import { getExploreToolDefinitions } from "../../../tools/explore/mod.ts";
@@ -32,18 +32,18 @@ import {
   getReleaseNotesToolDefinitions,
   getSummarizeToolDefinitions,
 } from "../../../tools/mod.ts";
-import { buildTriggerToolDefinitions } from "../trigger/trigger_tools.ts";
-import { buildTriggerManageToolDefinitions } from "../trigger/trigger_manage_defs.ts";
+import { getTriggerToolDefinitions } from "../trigger/trigger_tools.ts";
+import { getTriggerManageToolDefinitions } from "../trigger/trigger_manage_defs.ts";
 import { getClaudeToolDefinitions } from "../../../exec/claude.ts";
 import { getSkillToolDefinitions } from "../../../tools/skills/mod.ts";
 import { getLogReaderToolDefinitions } from "../../../tools/log_reader_tool.ts";
 import {
-  buildExecCommandDefinitions,
-  buildExecFileDefinitions,
-  buildExecInlineDefinitions,
+  getExecCommandDefinitions,
+  getExecFileDefinitions,
+  getExecInlineDefinitions,
 } from "./exec_tool_defs.ts";
-import { buildAgentInlineDefinitions } from "./agent_tool_defs.ts";
-import { buildCronInlineDefinitions } from "./cron_tool_defs.ts";
+import { getAgentInlineDefinitions } from "./agent_tool_defs.ts";
+import { getCronInlineDefinitions } from "./cron_tool_defs.ts";
 import { getSimulateToolDefinitions } from "../../../tools/simulate/mod.ts";
 import { getTeamToolDefinitions } from "../../../agent/team/mod.ts";
 import { getWorkflowToolDefinitions } from "../../../workflow/mod.ts";
@@ -51,9 +51,9 @@ import { getSshToolDefinitions } from "../../../tools/ssh/mod.ts";
 
 /** Composable tool groups — each returns a focused set of ToolDefinitions. */
 export const TOOL_GROUPS = {
-  exec: buildExecInlineDefinitions,
-  exec_file: buildExecFileDefinitions,
-  exec_command: buildExecCommandDefinitions,
+  exec: getExecInlineDefinitions,
+  exec_file: getExecFileDefinitions,
+  exec_command: getExecCommandDefinitions,
   todo: getTodoToolDefinitions,
   memory: getMemoryToolDefinitions,
   secrets: getSecretToolDefinitions,
@@ -61,8 +61,8 @@ export const TOOL_GROUPS = {
   plan: getPlanToolDefinitions,
   browser: getBrowserToolDefinitions,
   tidepool: getTidepoolToolDefinitions,
-  sessions: buildSessionToolDefinitions,
-  signal: buildSignalToolDefinitions,
+  sessions: getSessionToolDefinitions,
+  signal: getSignalToolDefinitions,
   image: getImageToolDefinitions,
   explore: getExploreToolDefinitions,
   google: getGoogleToolDefinitions,
@@ -73,14 +73,14 @@ export const TOOL_GROUPS = {
   llmTask: getLlmTaskToolDefinitions,
   summarize: getSummarizeToolDefinitions,
   healthcheck: getHealthcheckToolDefinitions,
-  trigger: buildTriggerToolDefinitions,
-  triggerManage: buildTriggerManageToolDefinitions,
+  trigger: getTriggerToolDefinitions,
+  triggerManage: getTriggerManageToolDefinitions,
   claude: getClaudeToolDefinitions,
   skills: getSkillToolDefinitions,
   releaseNotes: getReleaseNotesToolDefinitions,
   logReader: getLogReaderToolDefinitions,
-  agents: buildAgentInlineDefinitions,
-  cron: buildCronInlineDefinitions,
+  agents: getAgentInlineDefinitions,
+  cron: getCronInlineDefinitions,
   simulate: getSimulateToolDefinitions,
   team: getTeamToolDefinitions,
   workflow: getWorkflowToolDefinitions,

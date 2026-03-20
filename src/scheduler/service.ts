@@ -31,10 +31,10 @@ import type {
   WebhookRequestContext,
 } from "./service_types.ts";
 import { tickCronJobs } from "./service_cron.ts";
-import { invokeTriggerCallback } from "./service_trigger.ts";
+import { runTriggerCallback } from "./service_trigger.ts";
 import {
-  dispatchWebhookSession,
-  verifyWebhookRequest,
+  executeWebhookSession,
+  validateWebhookRequest,
 } from "./service_webhooks.ts";
 
 // ─── Barrel re-exports from service_types.ts ─────────────────────────────────
@@ -94,7 +94,7 @@ function startTriggerLoop(infra: SchedulerInfra): void {
   if (!config.trigger.enabled || state.trigger !== undefined) return;
   state.trigger = createTrigger({
     intervalMs: config.trigger.intervalMinutes * 60 * 1000,
-    callback: () => invokeTriggerCallback(config),
+    callback: () => runTriggerCallback(config),
     classificationCeiling: config.trigger.classificationCeiling,
     quietHours: config.trigger.quietHours,
   });
@@ -126,7 +126,7 @@ async function processWebhookRequest(
     replayGuard,
     getRateLimiter,
   } = options;
-  const validation = await verifyWebhookRequest({
+  const validation = await validateWebhookRequest({
     config,
     sourceId,
     body,
@@ -136,7 +136,7 @@ async function processWebhookRequest(
   });
   if (!validation.ok) return validation;
   const { event, classification } = validation.value;
-  await dispatchWebhookSession({
+  await executeWebhookSession({
     config,
     sourceId,
     body,
@@ -191,7 +191,7 @@ export function createSchedulerService(
     stop: () => stopSchedulerTimers(state),
     async runTrigger() {
       log.info("Forced trigger run requested");
-      await invokeTriggerCallback(config);
+      await runTriggerCallback(config);
     },
     handleWebhookRequest: (sourceId, body, context) =>
       processWebhookRequest({

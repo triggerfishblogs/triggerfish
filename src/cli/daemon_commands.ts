@@ -10,12 +10,12 @@
 import { Confirm } from "@cliffy/prompt";
 import {
   bundleLogs,
-  fetchDaemonStatus,
+  getDaemonStatus,
   installAndStartDaemon,
   restartDaemon,
   stopDaemon,
   tailLogs,
-  upgradeTriggerfish,
+  updateTriggerfish,
 } from "./daemon/daemon.ts";
 import {
   type DaemonState,
@@ -31,8 +31,8 @@ const log = createLogger("cli.daemon");
 // ─── Daemon status ────────────────────────────────────────────────────────────
 
 /** Show daemon status. */
-export async function reportDaemonStatus(): Promise<void> {
-  const status = await fetchDaemonStatus();
+export async function runDaemonStatus(): Promise<void> {
+  const status = await getDaemonStatus();
 
   if (status.running) {
     console.log("✓ Triggerfish is running");
@@ -82,7 +82,7 @@ async function waitForDaemonState(
 }
 
 /** Install the Triggerfish daemon and start it. */
-export async function launchDaemon(): Promise<void> {
+export async function runDaemonStart(): Promise<void> {
   await clearDaemonState();
   const result = await installAndStartDaemon(Deno.execPath());
   if (result.ok) {
@@ -106,7 +106,7 @@ export async function launchDaemon(): Promise<void> {
 }
 
 /** Stop the Triggerfish daemon. */
-export async function haltDaemon(): Promise<void> {
+export async function runDaemonStop(): Promise<void> {
   const result = await stopDaemon();
   if (result.ok) {
     console.log("✓ Daemon stopped");
@@ -121,7 +121,7 @@ export async function haltDaemon(): Promise<void> {
 }
 
 /** Restart the Triggerfish daemon (stop, wait, start). */
-export async function restartDaemonProcess(): Promise<void> {
+export async function runDaemonRestart(): Promise<void> {
   const result = await restartDaemon(Deno.execPath());
   if (result.ok) {
     console.log("✓ Daemon restarted");
@@ -144,7 +144,7 @@ export async function restartDaemonProcess(): Promise<void> {
  * - `view` (default) -- stream the log file to stdout, optionally following.
  * - `bundle` -- copy all log files to a temporary directory and print the path.
  */
-export async function displayDaemonLogs(
+export async function runDaemonLogs(
   subcommand: string | undefined,
   flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
@@ -217,9 +217,9 @@ async function handleUpdateSuccess(result: {
 }
 
 /** Download and install the latest release binary. */
-export async function installUpdate(): Promise<void> {
+export async function runUpdate(): Promise<void> {
   console.log("Updating Triggerfish...\n");
-  const result = await upgradeTriggerfish();
+  const result = await updateTriggerfish();
   if (result.ok) {
     await handleUpdateSuccess(result);
   } else {
@@ -231,21 +231,3 @@ export async function installUpdate(): Promise<void> {
     Deno.exit(1);
   }
 }
-
-/** @deprecated Use reportDaemonStatus instead */
-export const runDaemonStatus = reportDaemonStatus;
-
-/** @deprecated Use launchDaemon instead */
-export const runDaemonStart = launchDaemon;
-
-/** @deprecated Use haltDaemon instead */
-export const runDaemonStop = haltDaemon;
-
-/** @deprecated Use restartDaemonProcess instead */
-export const runDaemonRestart = restartDaemonProcess;
-
-/** @deprecated Use displayDaemonLogs instead */
-export const runDaemonLogs = displayDaemonLogs;
-
-/** @deprecated Use installUpdate instead */
-export const runUpdate = installUpdate;

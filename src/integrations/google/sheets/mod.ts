@@ -19,9 +19,4 @@ export {
   buildSheetsWriteDef,
 } from "./tools_defs_sheets.ts";
 
-export {
-  executeSheetsRead,
-  executeSheetsWrite,
-  readGoogleSheet,
-  writeGoogleSheet,
-} from "./tools_exec_sheets.ts";
+export { executeSheetsRead, executeSheetsWrite } from "./tools_exec_sheets.ts";

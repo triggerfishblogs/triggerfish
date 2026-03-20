@@ -2,7 +2,7 @@
  * Workflow tool definitions and executor for LLM-callable tools.
  *
  * Follows the standard Triggerfish tool registration pattern:
- * - `buildWorkflowToolDefinitions()` returns tool definitions
+ * - `getWorkflowToolDefinitions()` returns tool definitions
  * - `createWorkflowToolExecutor()` returns a subsystem executor
  * - `WORKFLOW_SYSTEM_PROMPT` provides LLM guidance
  * @module
@@ -14,7 +14,7 @@ import type { WorkflowStore } from "./store.ts";
 import type { WorkflowToolExecutor } from "./engine.ts";
 import type { WorkflowDefinition } from "./types.ts";
 import {
-  dispatchWorkflowControlAction,
+  executeWorkflowControl,
   executeWorkflowDelete,
   executeWorkflowGet,
   executeWorkflowHistory,
@@ -53,7 +53,7 @@ export interface WorkflowToolContext {
 }
 
 /** Return all workflow tool definitions. */
-export function buildWorkflowToolDefinitions(): readonly ToolDefinition[] {
+export function getWorkflowToolDefinitions(): readonly ToolDefinition[] {
   return [
     buildWorkflowRunDef(),
     buildWorkflowSaveDef(),
@@ -79,7 +79,7 @@ export function createWorkflowToolExecutor(
     workflow_get: (input) => executeWorkflowGet(ctx, input),
     workflow_delete: (input) => executeWorkflowDelete(ctx, input),
     workflow_history: (input) => executeWorkflowHistory(ctx, input),
-    workflow_control: (input) => dispatchWorkflowControlAction(ctx, input),
+    workflow_control: (input) => executeWorkflowControl(ctx, input),
   };
 
   return (
@@ -215,8 +215,3 @@ function buildWorkflowControlDef(): ToolDefinition {
     },
   };
 }
-
-// --- Deprecated aliases ---
-
-/** @deprecated Use buildWorkflowToolDefinitions instead */
-export const getWorkflowToolDefinitions = buildWorkflowToolDefinitions;

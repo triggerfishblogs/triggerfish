@@ -17,8 +17,8 @@ import type {
 import type { OrchestratorState } from "../orchestrator/orchestrator.ts";
 import { capToolResponse, readMoreFromCache } from "./response_cap.ts";
 import {
-  dispatchSecurityEnforcedToolCall,
-  invokePlanModeToolCall,
+  executePlanModeToolCall,
+  executeSecurityEnforcedToolCall,
 } from "./security_pipeline.ts";
 import {
   determineSourceType,
@@ -71,7 +71,7 @@ async function dispatchSingleToolCall(
   }
 
   if (orchestratorState.planManager) {
-    const planResult = await invokePlanModeToolCall(
+    const planResult = await executePlanModeToolCall(
       orchestratorState.planManager,
       sessionKey,
       call,
@@ -81,7 +81,7 @@ async function dispatchSingleToolCall(
     }
   }
 
-  return dispatchSecurityEnforcedToolCall(
+  return executeSecurityEnforcedToolCall(
     call,
     config,
     session,
@@ -94,6 +94,7 @@ interface FormattedToolCallResult {
   readonly text: string;
   readonly bumpersBlocked: boolean;
 }
+
 
 /** Execute a single tool call with event emission and format the result. */
 async function executeAndFormatToolCall(
@@ -152,7 +153,7 @@ export interface ToolCallBatchResult {
 }
 
 /** Process all tool calls for one iteration and return result parts. */
-export async function orchestrateToolCallBatch(
+export async function processToolCallBatch(
   parsedCalls: readonly ParsedToolCall[],
   orchestratorState: OrchestratorState,
   session: SessionState,
@@ -176,6 +177,3 @@ export async function orchestrateToolCallBatch(
   }
   return { ok: true, value: { resultParts, bumpersBlocked } };
 }
-
-/** @deprecated Use orchestrateToolCallBatch instead */
-export const processToolCallBatch = orchestrateToolCallBatch;

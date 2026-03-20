@@ -90,7 +90,9 @@ async function fetchCloudResults(
     });
     return {
       ok: false,
-      error: `Cloud Search API error ${response.status}: ${text.slice(0, 200)}`,
+      error: `Cloud Search API error ${response.status}: ${
+        text.slice(0, 200)
+      }`,
     };
   }
 

@@ -8,15 +8,12 @@ import { createLogger } from "../../core/logger/mod.ts";
 import { formatNotionError } from "./client.ts";
 import { markdownToNotionBlocks, notionBlocksToMarkdown } from "./richtext.ts";
 import type { NotionToolContext } from "./tool_context.ts";
-import {
-  formatProperties,
-  resolveNotionClassification,
-} from "./tool_handlers_shared.ts";
+import { formatProperties, resolveNotionClassification } from "./tool_handlers_shared.ts";
 
 const log = createLogger("notion:handlers");
 
 /** Handle notion.search tool invocation. */
-export async function queryNotionPages(
+export async function executeSearch(
   ctx: NotionToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -50,11 +47,8 @@ export async function queryNotionPages(
   });
 }
 
-/** @deprecated Use queryNotionPages instead */
-export const executeSearch = queryNotionPages;
-
 /** Handle notion.pages.read tool invocation. */
-export async function readNotionPages(
+export async function executePagesRead(
   ctx: NotionToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -77,11 +71,8 @@ export async function readNotionPages(
   });
 }
 
-/** @deprecated Use readNotionPages instead */
-export const executePagesRead = readNotionPages;
-
 /** Handle notion.pages.create tool invocation. */
-export async function createNotionPage(
+export async function executePagesCreate(
   ctx: NotionToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -119,11 +110,8 @@ export async function createNotionPage(
   });
 }
 
-/** @deprecated Use createNotionPage instead */
-export const executePagesCreate = createNotionPage;
-
 /** Handle notion.pages.update tool invocation. */
-export async function updateNotionPage(
+export async function executePagesUpdate(
   ctx: NotionToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -157,6 +145,3 @@ export async function updateNotionPage(
     _classification: classification,
   });
 }
-
-/** @deprecated Use updateNotionPage instead */
-export const executePagesUpdate = updateNotionPage;

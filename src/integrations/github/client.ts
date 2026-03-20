@@ -8,7 +8,10 @@
  */
 
 import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type { GitHubClassificationConfig, RepoVisibility } from "./types.ts";
+import type {
+  GitHubClassificationConfig,
+  RepoVisibility,
+} from "./types.ts";
 import type { ApiRequestFn, ClassifyRepoFn } from "./client_http.ts";
 import { sendGitHubApiRequest } from "./client_http.ts";
 import type { GitHubApiContext } from "./client_http.ts";
@@ -30,7 +33,7 @@ import {
   mergeRepoPullRequest,
   submitPullRequestReview,
   submitRepoPullRequest,
-  updateGitHubRepositoryPull,
+  updateRepoPull,
 } from "./pulls/mod.ts";
 import {
   fetchIssueComments,
@@ -38,7 +41,7 @@ import {
   fetchRepoIssues,
   submitIssueComment,
   submitRepoIssue,
-  updateGitHubRepoIssue,
+  updateRepoIssue,
 } from "./issues/mod.ts";
 import {
   cancelRepoWorkflowRun,
@@ -121,7 +124,8 @@ function buildClientMethods(
 ): GitHubClient {
   return {
     listRepos: (opts) => fetchUserRepos(apiRequest, classifyRepo, opts),
-    getRepo: (owner, repo) => fetchRepo(apiRequest, classifyRepo, owner, repo),
+    getRepo: (owner, repo) =>
+      fetchRepo(apiRequest, classifyRepo, owner, repo),
     readFile: (owner, repo, path, ref) =>
       fetchRepoFile(apiRequest, classifyRepo, owner, repo, path, ref),
     listCommits: (owner, repo, opts) =>
@@ -136,87 +140,41 @@ function buildClientMethods(
       fetchRepoPulls(apiRequest, classifyRepo, owner, repo, opts),
     createPull: (owner, repo, title, head, base, body) =>
       submitRepoPullRequest(
-        apiRequest,
-        classifyRepo,
-        owner,
-        repo,
-        title,
-        head,
-        base,
-        body,
+        apiRequest, classifyRepo, owner, repo, title, head, base, body,
       ),
     submitReview: (owner, repo, prNumber, event, body) =>
       submitPullRequestReview(
-        apiRequest,
-        classifyRepo,
-        owner,
-        repo,
-        prNumber,
-        event,
-        body,
+        apiRequest, classifyRepo, owner, repo, prNumber, event, body,
       ),
     mergePull: (owner, repo, prNumber, opts) =>
       mergeRepoPullRequest(
-        apiRequest,
-        classifyRepo,
-        owner,
-        repo,
-        prNumber,
-        opts,
+        apiRequest, classifyRepo, owner, repo, prNumber, opts,
       ),
     getPull: (owner, repo, prNumber) =>
       fetchRepoPull(apiRequest, classifyRepo, owner, repo, prNumber),
     updatePull: (owner, repo, prNumber, fields) =>
-      updateGitHubRepositoryPull(
-        apiRequest,
-        classifyRepo,
-        owner,
-        repo,
-        prNumber,
-        fields,
-      ),
+      updateRepoPull(apiRequest, classifyRepo, owner, repo, prNumber, fields),
     listPullFiles: (owner, repo, prNumber, opts) =>
       fetchPullFiles(apiRequest, classifyRepo, owner, repo, prNumber, opts),
     listIssues: (owner, repo, opts) =>
       fetchRepoIssues(apiRequest, classifyRepo, owner, repo, opts),
     createIssue: (owner, repo, title, body, labels) =>
       submitRepoIssue(
-        apiRequest,
-        classifyRepo,
-        owner,
-        repo,
-        title,
-        body,
-        labels,
+        apiRequest, classifyRepo, owner, repo, title, body, labels,
       ),
     createComment: (owner, repo, issueNumber, body) =>
       submitIssueComment(
-        apiRequest,
-        classifyRepo,
-        owner,
-        repo,
-        issueNumber,
-        body,
+        apiRequest, classifyRepo, owner, repo, issueNumber, body,
       ),
     getIssue: (owner, repo, issueNumber) =>
       fetchRepoIssue(apiRequest, classifyRepo, owner, repo, issueNumber),
     updateIssue: (owner, repo, issueNumber, fields) =>
-      updateGitHubRepoIssue(
-        apiRequest,
-        classifyRepo,
-        owner,
-        repo,
-        issueNumber,
-        fields,
+      updateRepoIssue(
+        apiRequest, classifyRepo, owner, repo, issueNumber, fields,
       ),
     listComments: (owner, repo, issueNumber, opts) =>
       fetchIssueComments(
-        apiRequest,
-        classifyRepo,
-        owner,
-        repo,
-        issueNumber,
-        opts,
+        apiRequest, classifyRepo, owner, repo, issueNumber, opts,
       ),
     listWorkflowRuns: (owner, repo, opts) =>
       fetchRepoWorkflowRuns(apiRequest, classifyRepo, owner, repo, opts),
@@ -224,13 +182,7 @@ function buildClientMethods(
       cancelRepoWorkflowRun(apiRequest, classifyRepo, owner, repo, runId),
     triggerWorkflow: (owner, repo, workflow, ref, inputs) =>
       dispatchRepoWorkflow(
-        apiRequest,
-        classifyRepo,
-        owner,
-        repo,
-        workflow,
-        ref,
-        inputs,
+        apiRequest, classifyRepo, owner, repo, workflow, ref, inputs,
       ),
     searchCode: (query, opts) =>
       searchGitHubCode(apiRequest, classifyRepo, query, opts),
@@ -238,25 +190,13 @@ function buildClientMethods(
       searchGitHubIssues(apiRequest, classifyRepo, ctx.baseUrl, query, opts),
     cloneRepo: (owner, repo, destPath, opts) =>
       cloneRepoToPath(
-        apiRequest,
-        classifyRepo,
-        ctx.token,
-        ctx.baseUrl,
-        owner,
-        repo,
-        destPath,
-        opts,
+        apiRequest, classifyRepo, ctx.token, ctx.baseUrl,
+        owner, repo, destPath, opts,
       ),
     pullRepo: (owner, repo, localPath, opts) =>
       pullRepoAtPath(
-        apiRequest,
-        classifyRepo,
-        ctx.token,
-        ctx.baseUrl,
-        owner,
-        repo,
-        localPath,
-        opts,
+        apiRequest, classifyRepo, ctx.token, ctx.baseUrl,
+        owner, repo, localPath, opts,
       ),
   };
 }

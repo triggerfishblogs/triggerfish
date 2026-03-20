@@ -88,7 +88,8 @@ function buildSshExecuteDef(): ToolDefinition {
       },
       key: {
         type: "string",
-        description: "SSH private key content from the secret store. " +
+        description:
+          "SSH private key content from the secret store. " +
           "Use a {{secret:name}} reference (e.g. {{secret:prod_ssh_key}}). " +
           "Never pass a filesystem path or read keys from disk.",
       },
@@ -111,8 +112,7 @@ function buildSshExecuteDef(): ToolDefinition {
       },
       port: {
         type: "number",
-        description:
-          "SSH port number. Defaults to the SSH config default (usually 22).",
+        description: "SSH port number. Defaults to the SSH config default (usually 22).",
       },
     },
   };
@@ -137,7 +137,8 @@ function buildSshSessionOpenDef(): ToolDefinition {
       },
       key: {
         type: "string",
-        description: "SSH private key content from the secret store. " +
+        description:
+          "SSH private key content from the secret store. " +
           "Use a {{secret:name}} reference (e.g. {{secret:prod_ssh_key}}). " +
           "Never pass a filesystem path or read keys from disk.",
       },
@@ -155,8 +156,7 @@ function buildSshSessionOpenDef(): ToolDefinition {
       },
       port: {
         type: "number",
-        description:
-          "SSH port number. Defaults to the SSH config default (usually 22).",
+        description: "SSH port number. Defaults to the SSH config default (usually 22).",
       },
     },
   };
@@ -166,7 +166,8 @@ function buildSshSessionOpenDef(): ToolDefinition {
 function buildSshSessionWriteDef(): ToolDefinition {
   return {
     name: "ssh_session_write",
-    description: "Write input to an open interactive SSH session. " +
+    description:
+      "Write input to an open interactive SSH session. " +
       "The input is sent to the remote shell's stdin. " +
       "A newline is appended automatically unless the input already ends with one.",
     parameters: {
@@ -188,7 +189,8 @@ function buildSshSessionWriteDef(): ToolDefinition {
 function buildSshSessionReadDef(): ToolDefinition {
   return {
     name: "ssh_session_read",
-    description: "Read buffered output from an open interactive SSH session. " +
+    description:
+      "Read buffered output from an open interactive SSH session. " +
       "Returns all stdout and stderr accumulated since the last read. " +
       "If no output is available yet, waits briefly before returning.",
     parameters: {
@@ -210,7 +212,8 @@ function buildSshSessionReadDef(): ToolDefinition {
 function buildSshSessionCloseDef(): ToolDefinition {
   return {
     name: "ssh_session_close",
-    description: "Close an open interactive SSH session and free resources. " +
+    description:
+      "Close an open interactive SSH session and free resources. " +
       "Returns any remaining buffered output.",
     parameters: {
       session_id: {
@@ -223,7 +226,7 @@ function buildSshSessionCloseDef(): ToolDefinition {
 }
 
 /** Get all SSH tool definitions. */
-export function buildSshToolDefinitions(): ToolDefinition[] {
+export function getSshToolDefinitions(): ToolDefinition[] {
   return [
     buildSshExecuteDef(),
     buildSshSessionOpenDef(),
@@ -232,6 +235,3 @@ export function buildSshToolDefinitions(): ToolDefinition[] {
     buildSshSessionCloseDef(),
   ];
 }
-
-/** @deprecated Use buildSshToolDefinitions instead */
-export const getSshToolDefinitions = buildSshToolDefinitions;

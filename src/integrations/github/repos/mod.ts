@@ -17,9 +17,6 @@ export {
 } from "./client_repos.ts";
 
 export {
-  cloneGitHubRepository,
-  createGitHubBranch,
-  deleteGitHubBranch,
   executeCloneRepo,
   executeCreateBranch,
   executeDeleteBranch,
@@ -29,12 +26,6 @@ export {
   executeListRepos,
   executePullRepo,
   executeReadFile,
-  fetchGitHubRepository,
-  listGitHubBranches,
-  listGitHubCommits,
-  listGitHubRepositories,
-  pullGitHubRepository,
-  readGitHubRepositoryFile,
 } from "./tools_repos.ts";
 
 export {

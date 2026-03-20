@@ -120,7 +120,7 @@ async function forceTextOnlyResponse(
 }
 
 /** The main agent loop: call LLM, parse tool calls, execute, repeat. */
-export async function orchestrateAgentLoop(
+export async function runAgentLoop(
   opts: AgentLoopOptions,
 ): Promise<Result<ProcessMessageResult, string>> {
   const ctx = buildAgentLoopContext(opts);
@@ -134,6 +134,3 @@ export async function orchestrateAgentLoop(
   }
   return forceTextOnlyResponse(ctx);
 }
-
-/** @deprecated Use orchestrateAgentLoop instead */
-export const runAgentLoop = orchestrateAgentLoop;

@@ -40,16 +40,13 @@ import {
   loadChatConfig,
   openChatWebSocket,
 } from "./chat_connection.ts";
-import { startWebSocketRepl } from "./chat_simple_repl.ts";
+import { runSimpleWsRepl } from "./chat_simple_repl.ts";
 import {
   routeCredentialKeypress,
   routePasswordKeypress,
 } from "./chat_password.ts";
 import { routeTriggerPromptKeypress } from "./chat_trigger_prompt.ts";
-import {
-  respondToCtrlCKeypress,
-  respondToEscInterrupt,
-} from "./chat_keypress.ts";
+import { handleCtrlCKeypress, handleEscInterrupt } from "./chat_keypress.ts";
 import {
   installChatSignalHandlers,
   routeInputKeypress,
@@ -57,7 +54,7 @@ import {
 import type { ChatReplState } from "./chat_input.ts";
 
 // Re-export for external importers
-export { runSimpleWsRepl, startWebSocketRepl } from "./chat_simple_repl.ts";
+export { runSimpleWsRepl } from "./chat_simple_repl.ts";
 
 /**
  * Run an interactive chat REPL.
@@ -67,7 +64,7 @@ export { runSimpleWsRepl, startWebSocketRepl } from "./chat_simple_repl.ts";
  * input history, suggestions, ESC interrupt, Ctrl+O toggle) is preserved.
  * The daemon owns the session, orchestrator, and policy engine.
  */
-export async function startChatSession(): Promise<void> {
+export async function runChat(): Promise<void> {
   const log = createLogger("cli");
   const { config, dataDir } = await loadChatConfig();
   const ws = openChatWebSocket(log);
@@ -115,7 +112,7 @@ export async function startChatSession(): Promise<void> {
       config.models.primary.model,
       state.workspacePath,
     );
-    await startWebSocketRepl(ws, {
+    await runSimpleWsRepl(ws, {
       providerName: state.providerName,
       config,
       workspace: state.workspacePath,
@@ -200,11 +197,11 @@ function routeTopLevelKeypress(
   cleanup: () => void,
 ): "exit" | "continue" | "dispatch" {
   if (keypress.key === "esc" && deps.state.isProcessing) {
-    respondToEscInterrupt(deps.ws, deps.screen, deps.log);
+    handleEscInterrupt(deps.ws, deps.screen, deps.log);
     return "continue";
   }
   if (keypress.key === "ctrl+c") {
-    return respondToCtrlCKeypress(rs, deps, cleanup);
+    return handleCtrlCKeypress(rs, deps, cleanup);
   }
   if (deps.state.passwordMode !== null) {
     routePasswordKeypress(keypress, deps.state.passwordMode, deps);
@@ -235,10 +232,7 @@ function cleanupChatRepl(
   });
   try {
     deps.ws.close();
-  } catch (err: unknown) {
-    deps.log.debug("WebSocket send failed: connection closed", { operation: "sendToGateway", err });
+  } catch (_err: unknown) {
+    deps.log.debug("WebSocket send failed: connection closed");
   }
 }
-
-/** @deprecated Use startChatSession instead */
-export const runChat = startChatSession;

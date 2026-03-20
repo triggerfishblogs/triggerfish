@@ -129,7 +129,7 @@ async function storeGithubToken(token: string): Promise<boolean> {
 }
 
 /** Interactive GitHub PAT setup flow. */
-export async function initializeGithubAuth(): Promise<void> {
+export async function runConnectGithub(): Promise<void> {
   printGithubSetupInstructions();
   const trimmed = await promptGithubToken();
   if (!trimmed) return;
@@ -152,6 +152,3 @@ export async function disconnectGithub(): Promise<void> {
     console.log("No GitHub account was connected.");
   }
 }
-
-/** @deprecated Use initializeGithubAuth instead */
-export const runConnectGithub = initializeGithubAuth;

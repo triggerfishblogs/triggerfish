@@ -11,7 +11,11 @@
  * @module
  */
 
-import { parentDir, resolveSafePath, toRelativePath } from "./worker_paths.ts";
+import {
+  parentDir,
+  resolveSafePath,
+  toRelativePath,
+} from "./worker_paths.ts";
 
 // ─── Inline types (must match protocol.ts) ──────────────────────────────────
 
@@ -120,8 +124,9 @@ async function handleSearch(
       ? "No matches found."
       : "No files found matching pattern.";
   }
-  return stdout.split("\n").map((line) => toRelativePath(line, workspaceRoot))
-    .join("\n");
+  return stdout.split("\n").map((line) =>
+    toRelativePath(line, workspaceRoot)
+  ).join("\n");
 }
 
 async function handleEdit(

@@ -8,7 +8,7 @@
  */
 
 import type { Result } from "../../types/classification.ts";
-import { invokeCommand } from "./command_runner.ts";
+import { runCommand } from "./command_runner.ts";
 
 /** PowerShell command to DPAPI-protect a value piped via stdin. */
 const PROTECT_SCRIPT = `Add-Type -AssemblyName System.Security; ` +
@@ -26,14 +26,14 @@ const UNPROTECT_SCRIPT = `Add-Type -AssemblyName System.Security; ` +
 
 /** Probe whether DPAPI is available by running a trivial protect/unprotect cycle. */
 export async function probeWindowsDpapi(): Promise<boolean> {
-  const protectResult = await invokeCommand(
+  const protectResult = await runCommand(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-Command", PROTECT_SCRIPT],
     "dpapi-probe-test",
   );
   if (!protectResult.ok) return false;
 
-  const unprotectResult = await invokeCommand(
+  const unprotectResult = await runCommand(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-Command", UNPROTECT_SCRIPT],
     protectResult.value,
@@ -47,7 +47,7 @@ export async function probeWindowsDpapi(): Promise<boolean> {
 export async function protectSecret(
   value: string,
 ): Promise<Result<string, string>> {
-  const result = await invokeCommand(
+  const result = await runCommand(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-Command", PROTECT_SCRIPT],
     value,
@@ -65,7 +65,7 @@ export async function protectSecret(
 export async function unprotectSecret(
   base64Ciphertext: string,
 ): Promise<Result<string, string>> {
-  const result = await invokeCommand(
+  const result = await runCommand(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-Command", UNPROTECT_SCRIPT],
     base64Ciphertext,

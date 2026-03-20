@@ -8,9 +8,9 @@
  */
 
 import {
-  applyConfigValue,
-  auditConfigFile,
-  fetchConfigValue,
+  runConfigGet,
+  runConfigSet,
+  runConfigValidate,
 } from "./config_crud.ts";
 
 // ─── Re-exports (preserve public API) ──────────────────────────
@@ -23,9 +23,6 @@ export {
 } from "./yaml_paths.ts";
 
 export {
-  applyConfigValue,
-  auditConfigFile,
-  fetchConfigValue,
   promptDaemonRestart,
   runConfigGet,
   runConfigSet,
@@ -37,20 +34,14 @@ export {
   promptPluginConfig,
 } from "./prompts/channel_prompts.ts";
 export {
-  registerChannel,
-  registerPlugin,
   runConfigAddChannel,
   runConfigAddPlugin,
   runConfigRemoveChannel,
-  unregisterChannel,
 } from "./channels.ts";
 export {
-  migrateSecretsToKeychain,
-  retrieveSecret,
   runConfigGetSecret,
   runConfigMigrateSecrets,
   runConfigSetSecret,
-  storeSecret,
 } from "./secrets.ts";
 
 // ─── Usage text ─────────────────────────────────────────────────
@@ -106,18 +97,18 @@ async function dispatchChannelSubcommand(
 ): Promise<void> {
   switch (subcommand) {
     case "add-channel": {
-      const { registerChannel } = await import("./channels.ts");
-      await registerChannel(flags);
+      const { runConfigAddChannel } = await import("./channels.ts");
+      await runConfigAddChannel(flags);
       break;
     }
     case "remove-channel": {
-      const { unregisterChannel } = await import("./channels.ts");
-      await unregisterChannel(flags);
+      const { runConfigRemoveChannel } = await import("./channels.ts");
+      await runConfigRemoveChannel(flags);
       break;
     }
     case "add-plugin": {
-      const { registerPlugin } = await import("./channels.ts");
-      await registerPlugin(flags);
+      const { runConfigAddPlugin } = await import("./channels.ts");
+      await runConfigAddPlugin(flags);
       break;
     }
   }
@@ -130,18 +121,18 @@ async function dispatchSecretSubcommand(
 ): Promise<void> {
   switch (subcommand) {
     case "set-secret": {
-      const { storeSecret } = await import("./secrets.ts");
-      await storeSecret(flags);
+      const { runConfigSetSecret } = await import("./secrets.ts");
+      await runConfigSetSecret(flags);
       break;
     }
     case "get-secret": {
-      const { retrieveSecret } = await import("./secrets.ts");
-      await retrieveSecret(flags);
+      const { runConfigGetSecret } = await import("./secrets.ts");
+      await runConfigGetSecret(flags);
       break;
     }
     case "migrate-secrets": {
-      const { migrateSecretsToKeychain } = await import("./secrets.ts");
-      await migrateSecretsToKeychain();
+      const { runConfigMigrateSecrets } = await import("./secrets.ts");
+      await runConfigMigrateSecrets();
       break;
     }
   }
@@ -163,7 +154,7 @@ const SECRET_SUBCOMMANDS = new Set([
 /**
  * Config command dispatcher.
  */
-export async function dispatchConfigCommand(
+export async function runConfig(
   subcommand: string | undefined,
   flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
@@ -172,15 +163,12 @@ export async function dispatchConfigCommand(
   } else if (subcommand && SECRET_SUBCOMMANDS.has(subcommand)) {
     await dispatchSecretSubcommand(subcommand, flags);
   } else if (subcommand === "set") {
-    await applyConfigValue(flags);
+    await runConfigSet(flags);
   } else if (subcommand === "get") {
-    fetchConfigValue(flags);
+    runConfigGet(flags);
   } else if (subcommand === "validate") {
-    auditConfigFile();
+    runConfigValidate();
   } else {
     console.log(CONFIG_USAGE);
   }
 }
-
-/** @deprecated Use dispatchConfigCommand instead */
-export const runConfig = dispatchConfigCommand;

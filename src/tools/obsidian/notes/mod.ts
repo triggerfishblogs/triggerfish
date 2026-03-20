@@ -11,7 +11,6 @@ export {
   applyNoteContentUpdates,
   createNoteInVault,
   ensureMdExtension,
-  persistNoteToVault,
   readNoteFromVault,
   updateNoteInVault,
 } from "./note_crud.ts";

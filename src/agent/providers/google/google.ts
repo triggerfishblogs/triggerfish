@@ -13,7 +13,7 @@ import type {
   LlmProvider,
   LlmStreamChunk,
 } from "../../llm.ts";
-import { resolveModelInfo } from "../../models.ts";
+import { getModelInfo } from "../../models.ts";
 import {
   buildGeminiChatParts,
   extractGeminiSystemInstruction,
@@ -215,13 +215,13 @@ export function createGoogleProvider(config: GoogleConfig = {}): LlmProvider {
   const ctx: GoogleProviderContext = {
     genAI: new GoogleGenerativeAI(apiKey),
     modelName,
-    maxTokens: config.maxTokens ?? resolveModelInfo(modelName).outputLimit,
+    maxTokens: config.maxTokens ?? getModelInfo(modelName).outputLimit,
   };
 
   return {
     name: "google",
     supportsStreaming: true,
-    contextWindow: resolveModelInfo(modelName).contextWindow,
+    contextWindow: getModelInfo(modelName).contextWindow,
     complete: (messages, tools, options) =>
       executeGeminiCompletion(
         ctx,

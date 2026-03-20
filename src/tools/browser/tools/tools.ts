@@ -24,7 +24,7 @@ import type {
 } from "./tools_types.ts";
 import {
   enforceBrowserNavigationPolicy,
-  navigateBrowserPage,
+  executeBrowserNavigation,
   parseNavigationUrl,
 } from "./tools_navigation.ts";
 import { captureBrowserSnapshot, scrollBrowserPage } from "./tools_page.ts";
@@ -33,7 +33,6 @@ import { captureBrowserSnapshot, scrollBrowserPage } from "./tools_page.ts";
 
 export {
   BROWSER_TOOLS_SYSTEM_PROMPT,
-  buildBrowserToolDefinitions,
   getBrowserToolDefinitions,
 } from "../executor/tools_defs.ts";
 export {
@@ -81,7 +80,7 @@ export function createBrowserTools(config: BrowserToolsConfig): BrowserTools {
       );
       if (!policy.ok) return policy;
 
-      return navigateBrowserPage(page, url);
+      return executeBrowserNavigation(page, url);
     },
 
     snapshot() {

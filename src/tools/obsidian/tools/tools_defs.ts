@@ -186,7 +186,7 @@ function buildObsidianLinksDef(): ToolDefinition {
 }
 
 /** Tool definitions for the 6 obsidian operations. */
-export function buildObsidianToolDefinitions(): readonly ToolDefinition[] {
+export function getObsidianToolDefinitions(): readonly ToolDefinition[] {
   return [
     buildObsidianReadDef(),
     buildObsidianWriteDef(),
@@ -206,6 +206,3 @@ Tags: in frontmatter (tags: [foo, bar]) or inline (#foo).
 
 Use obsidian_daily for journal entries. Use obsidian_links to explore backlinks and outlinks.
 Classification is enforced — reads gated by session taint, writes cannot flow down.`;
-
-/** @deprecated Use buildObsidianToolDefinitions instead */
-export const getObsidianToolDefinitions = buildObsidianToolDefinitions;

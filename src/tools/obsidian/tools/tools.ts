@@ -12,11 +12,14 @@
  */
 
 import { canFlowTo } from "../../../core/types/classification.ts";
-import { resolveClassificationForPath } from "../vault.ts";
+import { getClassificationForPath } from "../vault.ts";
 
 import type { ObsidianToolContext } from "./tools_defs.ts";
 import { resolveNotePath } from "./tools_read_write.ts";
-import { readObsidianNote, writeObsidianNote } from "./tools_read_write.ts";
+import {
+  executeObsidianRead,
+  executeObsidianWrite,
+} from "./tools_read_write.ts";
 
 // ─── Executor ────────────────────────────────────────────────────────────────
 
@@ -35,10 +38,10 @@ export function createObsidianToolExecutor(
   ): Promise<string | null> => {
     switch (name) {
       case "obsidian_read":
-        return readObsidianNote(ctx, input);
+        return executeObsidianRead(ctx, input);
 
       case "obsidian_write":
-        return writeObsidianNote(ctx, input);
+        return executeObsidianWrite(ctx, input);
 
       case "obsidian_search": {
         const query = input.query;
@@ -66,7 +69,7 @@ export function createObsidianToolExecutor(
 
         // Filter by classification
         const filtered = result.value.filter((note) => {
-          const noteClass = resolveClassificationForPath(
+          const noteClass = getClassificationForPath(
             ctx.vaultContext,
             note.path,
           );
@@ -109,7 +112,7 @@ export function createObsidianToolExecutor(
 
         // Filter by classification
         const filtered = result.value.filter((note) => {
-          const noteClass = resolveClassificationForPath(
+          const noteClass = getClassificationForPath(
             ctx.vaultContext,
             note.path,
           );

@@ -12,7 +12,6 @@ export {
   type BrowserToolExecutorOptions,
   type BrowserTools,
   type BrowserToolsConfig,
-  buildBrowserToolDefinitions,
   createAutoLaunchBrowserExecutor,
   createBrowserToolExecutor,
   createBrowserTools,
@@ -26,7 +25,6 @@ export {
 export {
   enforceBrowserNavigationPolicy,
   executeBrowserNavigation,
-  navigateBrowserPage,
   parseNavigationUrl,
 } from "./tools_navigation.ts";
 

@@ -22,11 +22,11 @@ export const MAX_GATEWAY_HEADER_BYTES = 8192;
 export const MAX_JSONRPC_MESSAGE_BYTES = 1 * 1024 * 1024;
 
 /**
- * Enforce WebSocket upgrade request header size limits.
+ * Validate WebSocket upgrade request headers against size limits.
  *
  * Returns HTTP 431 if total header bytes exceed the limit, null otherwise.
  */
-export function enforceGatewayUpgradeHeaders(
+export function validateGatewayUpgradeHeaders(
   request: Request,
 ): Response | null {
   let total = 0;
@@ -35,7 +35,7 @@ export function enforceGatewayUpgradeHeaders(
   }
   if (total > MAX_GATEWAY_HEADER_BYTES) {
     log.warn("WebSocket upgrade rejected: headers too large", {
-      operation: "enforceGatewayUpgradeHeaders",
+      operation: "validateGatewayUpgradeHeaders",
       totalHeaderBytes: total,
       limitBytes: MAX_GATEWAY_HEADER_BYTES,
     });
@@ -43,9 +43,6 @@ export function enforceGatewayUpgradeHeaders(
   }
   return null;
 }
-
-/** @deprecated Use enforceGatewayUpgradeHeaders instead */
-export const validateGatewayUpgradeHeaders = enforceGatewayUpgradeHeaders;
 
 /** Options for creating a gateway server. */
 export interface GatewayServerOptions {

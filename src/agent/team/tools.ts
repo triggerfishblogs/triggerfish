@@ -6,7 +6,6 @@
 
 export type { TeamToolContext } from "./tool_definitions.ts";
 export {
-  buildTeamToolDefinitions,
   getTeamToolDefinitions,
   TEAM_SYSTEM_PROMPT,
   TEAM_TOOL_NAMES,

@@ -5,7 +5,6 @@
 
 export {
   CLEAR_LINE,
-  configureScrollRegion,
   HIDE_CURSOR,
   moveTo,
   RESET_SCROLL,

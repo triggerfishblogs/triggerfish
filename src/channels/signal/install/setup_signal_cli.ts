@@ -7,17 +7,17 @@ import { createLogger } from "../../../core/logger/logger.ts";
 import type { Result } from "../../../core/types/classification.ts";
 import type { GitHubRelease } from "../setup/setup_resolver.ts";
 import {
+  checkJava,
   resolveSignalCliBinDir,
   SIGNAL_CLI_KNOWN_GOOD_VERSION,
   trySignalCli,
-  verifyJava,
 } from "../setup/setup_resolver.ts";
 import {
-  fetchAndExtractArchive,
+  downloadAndExtractArchive,
   listDirectoryEntries,
   locateFirstExistingPath,
 } from "./setup_archive.ts";
-import { fetchJre } from "./setup_jre.ts";
+import { downloadJre } from "./setup_jre.ts";
 
 const log = createLogger("signal");
 
@@ -82,7 +82,7 @@ function selectReleaseAsset(
 
 /** Ensure Java 25+ is available, downloading a portable JRE if needed. */
 async function ensureJavaAvailable(): Promise<Result<string, string>> {
-  const javaCheck = await verifyJava();
+  const javaCheck = await checkJava();
   if (javaCheck.ok) {
     return { ok: true, value: javaCheck.value.javaHome ?? "" };
   }
@@ -91,7 +91,7 @@ async function ensureJavaAvailable(): Promise<Result<string, string>> {
     operation: "ensureJavaAvailable",
   });
 
-  const jreResult = await fetchJre();
+  const jreResult = await downloadJre();
   if (!jreResult.ok) {
     return {
       ok: false,
@@ -168,7 +168,7 @@ async function verifySignalCliBinary(
  * @param release - GitHub release metadata.
  * @returns Path to the installed signal-cli binary and optional JAVA_HOME.
  */
-export async function fetchSignalCli(
+export async function downloadSignalCli(
   release: GitHubRelease,
 ): Promise<Result<SignalCliInstall, string>> {
   const version = release.tag_name.replace(/^v/, "");
@@ -196,7 +196,7 @@ export async function fetchSignalCli(
   const sizeMB = (selected.asset.size / 1024 / 1024).toFixed(1);
   const buildType = selected.isNative ? "native" : "JVM";
   log.info("Downloading signal-cli", {
-    operation: "fetchSignalCli",
+    operation: "downloadSignalCli",
     version,
     buildType,
     sizeMB,
@@ -207,7 +207,7 @@ export async function fetchSignalCli(
 
   await removePreviousInstall(installDir);
 
-  const extractResult = await fetchAndExtractArchive(
+  const extractResult = await downloadAndExtractArchive(
     selected.asset.browser_download_url,
     binDir,
     false,
@@ -233,6 +233,3 @@ export async function fetchSignalCli(
 
   return { ok: true, value: { path: binaryPath, javaHome } };
 }
-
-/** @deprecated Use fetchSignalCli instead */
-export const downloadSignalCli = fetchSignalCli;

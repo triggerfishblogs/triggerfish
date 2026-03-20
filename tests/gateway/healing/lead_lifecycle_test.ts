@@ -8,8 +8,7 @@ Deno.test("spawnHealingLead: spawns with correct context bundle", async () => {
   let terminated = false;
 
   const handle = await spawnHealingLead({
-    workflowDefinition:
-      "document:\n  dsl: '1.0'\n  namespace: test\n  name: wf",
+    workflowDefinition: "document:\n  dsl: '1.0'\n  namespace: test\n  name: wf",
     workflowName: "test-wf",
     runInput: { invoiceId: "inv-123" },
     runHistory: [{ status: "completed", output: { result: "ok" } }],
@@ -39,10 +38,7 @@ Deno.test("spawnHealingLead: spawns with correct context bundle", async () => {
 
   assertEquals(handle.sessionId, "session-1");
   assertEquals(spawnedTaint, "PUBLIC");
-  assertEquals(
-    spawnedPrompt.includes("Self-Healing Workflow Lead Agent"),
-    true,
-  );
+  assertEquals(spawnedPrompt.includes("Self-Healing Workflow Lead Agent"), true);
   assertEquals(spawnedPrompt.includes("name: wf"), true);
   assertEquals(spawnedPrompt.includes("inv-123"), true);
   assertEquals(spawnedPrompt.includes("Retry budget: 3"), true);

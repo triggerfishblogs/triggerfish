@@ -29,7 +29,7 @@ function unpackSandboxResponse(resp: SandboxResponse): string {
 }
 
 /** Handle read_file tool call. */
-export async function loadFileContent(
+export async function executeReadFile(
   input: Record<string, unknown>,
   sandbox?: FilesystemSandbox,
 ): Promise<string> {
@@ -58,7 +58,7 @@ function isWriteProtected(path: string): boolean {
 }
 
 /** Handle write_file tool call via sandbox or ExecTools. */
-export async function persistFileContent(
+export async function executeWriteFile(
   input: Record<string, unknown>,
   execTools: ToolExecutorOptions["execTools"],
   sandbox?: FilesystemSandbox,
@@ -91,7 +91,7 @@ export async function persistFileContent(
 }
 
 /** Handle list_directory tool call. */
-export async function enumerateDirectoryContents(
+export async function executeListDirectory(
   input: Record<string, unknown>,
   sandbox?: FilesystemSandbox,
 ): Promise<string> {
@@ -137,7 +137,7 @@ function formatCommandOutput(out: {
 }
 
 /** Handle run_command tool call via ExecTools sandbox. */
-export async function invokeShellCommand(
+export async function executeRunCommand(
   input: Record<string, unknown>,
   execTools: ToolExecutorOptions["execTools"],
 ): Promise<string> {
@@ -183,7 +183,7 @@ function validateSearchInput(
 }
 
 /** Handle search_files tool call (glob or content search). */
-export async function queryFilesystem(
+export async function executeSearchFiles(
   input: Record<string, unknown>,
   sandbox?: FilesystemSandbox,
 ): Promise<string> {
@@ -255,7 +255,7 @@ function applyUniqueReplacement(
 export { executeLogRead };
 
 /** Handle edit_file tool call (find-and-replace unique string). */
-export async function modifyFileContent(
+export async function executeEditFile(
   input: Record<string, unknown>,
   sandbox?: FilesystemSandbox,
 ): Promise<string> {
@@ -288,21 +288,3 @@ export async function modifyFileContent(
     return formatFsError("Error editing file", err);
   }
 }
-
-/** @deprecated Use loadFileContent instead */
-export const executeReadFile = loadFileContent;
-
-/** @deprecated Use persistFileContent instead */
-export const executeWriteFile = persistFileContent;
-
-/** @deprecated Use enumerateDirectoryContents instead */
-export const executeListDirectory = enumerateDirectoryContents;
-
-/** @deprecated Use invokeShellCommand instead */
-export const executeRunCommand = invokeShellCommand;
-
-/** @deprecated Use queryFilesystem instead */
-export const executeSearchFiles = queryFilesystem;
-
-/** @deprecated Use modifyFileContent instead */
-export const executeEditFile = modifyFileContent;

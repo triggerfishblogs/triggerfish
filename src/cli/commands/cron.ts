@@ -129,7 +129,7 @@ function printCronUsage(): void {
 /**
  * Manage cron jobs via CLI subcommands.
  */
-export async function dispatchCronCommand(
+export async function runCron(
   subcommand: string | undefined,
   flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
@@ -161,6 +161,3 @@ export async function dispatchCronCommand(
     await storage.close();
   }
 }
-
-/** @deprecated Use dispatchCronCommand instead */
-export const runCron = dispatchCronCommand;

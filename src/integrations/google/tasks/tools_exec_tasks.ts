@@ -47,7 +47,7 @@ function formatTasksList(
 }
 
 /** Execute tasks_list tool. */
-export async function listGoogleTasks(
+export async function executeTasksList(
   tasks: TasksService,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -66,11 +66,8 @@ export async function listGoogleTasks(
   return formatTasksList(result.value);
 }
 
-/** @deprecated Use listGoogleTasks instead */
-export const executeTasksList = listGoogleTasks;
-
 /** Execute tasks_create tool. */
-export async function createGoogleTask(
+export async function executeTasksCreate(
   tasks: TasksService,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -92,11 +89,8 @@ export async function createGoogleTask(
   });
 }
 
-/** @deprecated Use createGoogleTask instead */
-export const executeTasksCreate = createGoogleTask;
-
 /** Execute tasks_complete tool. */
-export async function completeGoogleTask(
+export async function executeTasksComplete(
   tasks: TasksService,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -115,6 +109,3 @@ export async function completeGoogleTask(
     title: result.value.title,
   });
 }
-
-/** @deprecated Use completeGoogleTask instead */
-export const executeTasksComplete = completeGoogleTask;

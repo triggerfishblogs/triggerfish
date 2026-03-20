@@ -9,9 +9,9 @@
 
 import type { GitHubClient } from "../client.ts";
 import {
-  assertPositiveIntValue,
-  assertValidRepoInput,
   formatGitHubError,
+  validatePositiveInt,
+  validateRepoInput,
 } from "../tools_shared.ts";
 
 /** Validate that a value is a Record<string, string> (all values are strings). */
@@ -31,11 +31,11 @@ function validateStringRecord(
 // ─── List Workflow Runs ──────────────────────────────────────────────────────
 
 /** Handle the github_list_runs tool invocation. */
-export async function listGitHubWorkflowRuns(
+export async function executeListRuns(
   client: GitHubClient,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const repoResult = assertValidRepoInput(input, "github_list_runs");
+  const repoResult = validateRepoInput(input, "github_list_runs");
   if (typeof repoResult === "string") return repoResult;
 
   const workflow = typeof input.workflow === "string"
@@ -64,17 +64,14 @@ export async function listGitHubWorkflowRuns(
   });
 }
 
-/** @deprecated Use listGitHubWorkflowRuns instead */
-export const executeListRuns = listGitHubWorkflowRuns;
-
 // ─── Trigger Workflow ────────────────────────────────────────────────────────
 
 /** Handle the github_trigger_workflow tool invocation. */
-export async function triggerGitHubWorkflow(
+export async function executeTriggerWorkflow(
   client: GitHubClient,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const repoResult = assertValidRepoInput(input, "github_trigger_workflow");
+  const repoResult = validateRepoInput(input, "github_trigger_workflow");
   if (typeof repoResult === "string") return repoResult;
 
   const workflow = input.workflow;
@@ -101,20 +98,17 @@ export async function triggerGitHubWorkflow(
   });
 }
 
-/** @deprecated Use triggerGitHubWorkflow instead */
-export const executeTriggerWorkflow = triggerGitHubWorkflow;
-
 // ─── Cancel Workflow Run ──────────────────────────────────────────────────────
 
 /** Handle the github_cancel_run tool invocation. */
-export async function cancelGitHubWorkflowRun(
+export async function executeCancelRun(
   client: GitHubClient,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const repoResult = assertValidRepoInput(input, "github_cancel_run");
+  const repoResult = validateRepoInput(input, "github_cancel_run");
   if (typeof repoResult === "string") return repoResult;
 
-  const runId = assertPositiveIntValue(
+  const runId = validatePositiveInt(
     input.run_id,
     "run_id",
     "github_cancel_run",
@@ -132,6 +126,3 @@ export async function cancelGitHubWorkflowRun(
     _classification: result.value.classification,
   });
 }
-
-/** @deprecated Use cancelGitHubWorkflowRun instead */
-export const executeCancelRun = cancelGitHubWorkflowRun;

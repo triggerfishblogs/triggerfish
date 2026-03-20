@@ -6,7 +6,7 @@
 import type { ToolDefinition } from "../../core/types/tool.ts";
 
 /** Return all workflow healing tool definitions. */
-export function buildWorkflowHealingToolDefinitions(): readonly ToolDefinition[] {
+export function getWorkflowHealingToolDefinitions(): readonly ToolDefinition[] {
   return [
     buildVersionListDef(),
     buildVersionApproveDef(),
@@ -79,7 +79,3 @@ function buildHealingStatusDef(): ToolDefinition {
     },
   };
 }
-
-/** @deprecated Use buildWorkflowHealingToolDefinitions instead */
-export const getWorkflowHealingToolDefinitions =
-  buildWorkflowHealingToolDefinitions;

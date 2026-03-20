@@ -36,14 +36,10 @@ function buildTriggerManageDef(): ToolDefinition {
   };
 }
 
-/** Build the trigger management tool definitions. */
-export function buildTriggerManageToolDefinitions(): readonly ToolDefinition[] {
+/** Get the trigger management tool definitions. */
+export function getTriggerManageToolDefinitions(): readonly ToolDefinition[] {
   return [buildTriggerManageDef()];
 }
-
-/** @deprecated Use buildTriggerManageToolDefinitions instead */
-export const getTriggerManageToolDefinitions =
-  buildTriggerManageToolDefinitions;
 
 /** System prompt section explaining trigger_manage to the LLM. */
 export const TRIGGER_MANAGE_SYSTEM_PROMPT = `## Trigger Management

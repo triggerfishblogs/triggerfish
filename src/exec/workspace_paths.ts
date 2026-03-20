@@ -54,7 +54,7 @@ export function extractClassificationPrefix(
  * Get readable classification levels for a given session taint, ordered highest first.
  * A session can read at its own level and all levels below.
  */
-export function resolveReadableLevels(
+export function getReadableLevels(
   sessionTaint: ClassificationLevel,
 ): readonly (Exclude<ClassificationLevel, "PUBLIC">)[] {
   const allLevels: readonly (Exclude<ClassificationLevel, "PUBLIC">)[] = [
@@ -80,7 +80,7 @@ export function containsPathTraversal(relativePath: string): boolean {
 }
 
 /** Validate that a resolved absolute path stays within the workspace. */
-export function enforcePathInWorkspace(
+export function validatePathInWorkspace(
   absPath: string,
   workspacePath: string,
   relativePath: string,
@@ -98,12 +98,6 @@ export function enforcePathInWorkspace(
   }
   return { ok: true, value: true };
 }
-
-/** @deprecated Use resolveReadableLevels instead */
-export const getReadableLevels = resolveReadableLevels;
-
-/** @deprecated Use enforcePathInWorkspace instead */
-export const validatePathInWorkspace = enforcePathInWorkspace;
 
 /** Options for resolving an explicit classification-prefixed path. */
 interface ExplicitPathResolutionOptions {
@@ -123,7 +117,7 @@ export function resolveExplicitClassifiedPath(
   const { levelToDirPath, workspacePath } = options;
   const { level, rest } = prefix;
   const absPath = resolve(join(levelToDirPath[level], rest));
-  const traversalCheck = enforcePathInWorkspace(
+  const traversalCheck = validatePathInWorkspace(
     absPath,
     workspacePath,
     relativePath,
@@ -176,7 +170,7 @@ export function searchReadableLevelsForFile(
   options: ReadableLevelSearchOptions,
 ): Result<ClassifiedPathResult, string> {
   const { relativePath, sessionTaint, levelToDirPath, workspacePath } = options;
-  const readableLevels = resolveReadableLevels(sessionTaint);
+  const readableLevels = getReadableLevels(sessionTaint);
   for (const level of readableLevels) {
     const absPath = resolve(join(levelToDirPath[level], relativePath));
     if (!isWithinJail(absPath, workspacePath)) continue;
@@ -197,7 +191,7 @@ export function searchReadableLevelsForFile(
   const fallbackPath = resolve(
     join(levelToDirPath[sessionTaint], relativePath),
   );
-  const check = enforcePathInWorkspace(
+  const check = validatePathInWorkspace(
     fallbackPath,
     workspacePath,
     relativePath,

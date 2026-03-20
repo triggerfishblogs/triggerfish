@@ -15,7 +15,7 @@ export type {
 export { createProviderRegistry } from "./llm.ts";
 
 export type { ModelInfo } from "./models.ts";
-export { getModelInfo, resolveModelInfo } from "./models.ts";
+export { getModelInfo } from "./models.ts";
 
 export type {
   HistoryEntry,
@@ -67,10 +67,7 @@ export type {
 } from "./rate_limiter/rate_limiter.ts";
 
 // OpenAI rate limit constants
-export {
-  getOpenAiLimits,
-  resolveOpenAiLimits,
-} from "./providers/openai_limits.ts";
+export { getOpenAiLimits } from "./providers/openai_limits.ts";
 export type {
   OpenAiModelLimits,
   OpenAiTier,
@@ -129,11 +126,7 @@ export {
   formatPlanAsMarkdown,
 } from "./plan/mod.ts";
 
-export {
-  buildPlanToolDefinitions,
-  getPlanToolDefinitions,
-  PLAN_SYSTEM_PROMPT,
-} from "./plan/mod.ts";
+export { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "./plan/mod.ts";
 
 // Agent teams
 export type {
@@ -151,7 +144,6 @@ export type {
 
 export {
   buildTeamRosterPrompt,
-  buildTeamToolDefinitions,
   createTeamManager,
   createTeamToolExecutor,
   getTeamToolDefinitions,

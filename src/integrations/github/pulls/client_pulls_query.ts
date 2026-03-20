@@ -78,16 +78,12 @@ export async function fetchRepoPull(
   if (!result.ok) return result;
 
   const classification = await fetchRepoClassification(
-    apiRequest,
-    classifyRepo,
-    owner,
-    repo,
+    apiRequest, classifyRepo, owner, repo,
   );
   return {
     ok: true,
     value: mapRawPullDetailToGitHubPullDetail(
-      result.value.data,
-      classification,
+      result.value.data, classification,
     ),
   };
 }
@@ -117,10 +113,7 @@ export async function fetchRepoPulls(
   if (!result.ok) return result;
 
   const classification = await fetchRepoClassification(
-    apiRequest,
-    classifyRepo,
-    owner,
-    repo,
+    apiRequest, classifyRepo, owner, repo,
   );
   const pulls = result.value.data.map((p) =>
     mapRawPullToGitHubPull(p, classification)
@@ -148,10 +141,7 @@ export async function fetchPullFiles(
   if (!result.ok) return result;
 
   const classification = await fetchRepoClassification(
-    apiRequest,
-    classifyRepo,
-    owner,
-    repo,
+    apiRequest, classifyRepo, owner, repo,
   );
   const files: readonly GitHubPullFile[] = result.value.data.map((f) => ({
     filename: f.filename,

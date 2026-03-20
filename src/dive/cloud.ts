@@ -18,7 +18,6 @@ export {
   requestDeviceCode,
   sendMagicLink,
   validateLicenseKey,
-  verifyLicenseKey,
 } from "./cloud_api.ts";
 
 export {

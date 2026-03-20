@@ -11,15 +11,15 @@
 import type { Result } from "../../core/types/classification.ts";
 import { parseNativeToolCalls } from "../dispatch/tool_format.ts";
 import {
+  processToolCallBatch,
   BUMPERS_BLOCK_USER_RESPONSE,
-  orchestrateToolCallBatch,
 } from "../dispatch/tool_dispatch.ts";
-import { deliverFinalResponse } from "../dispatch/response_handling.ts";
 import {
   buildRecoveryNudge,
   classifyResponseQuality,
+  handleFinalResponse,
   type ResponseQuality,
-} from "../dispatch/response_quality.ts";
+} from "../dispatch/response_handling.ts";
 import type {
   HistoryEntry,
   ParsedToolCall,
@@ -27,14 +27,17 @@ import type {
 } from "../orchestrator/orchestrator_types.ts";
 import { MAX_TOOL_ITERATIONS } from "../orchestrator/orchestrator_types.ts";
 import type { OrchestratorState } from "../orchestrator/orchestrator.ts";
-import type { AgentLoopContext, IterationOutcome } from "./loop_types.ts";
-import { recordToolCallsAndDetectLoop, traceLog } from "./loop_types.ts";
+import type {
+  AgentLoopContext,
+  IterationOutcome,
+} from "./loop_types.ts";
+import {
+  recordToolCallsAndDetectLoop,
+  traceLog,
+} from "./loop_types.ts";
 
 // Re-export from llm_streaming for backward compatibility
-export {
-  callLlmAndRecordUsage,
-  consumeProviderStream,
-} from "./llm_streaming.ts";
+export { callLlmAndRecordUsage, consumeProviderStream } from "./llm_streaming.ts";
 
 // ─── Per-iteration data ─────────────────────────────────────────────────────
 
@@ -161,7 +164,7 @@ async function handleNoToolCallsIteration(
     if (nudgeResult) return nudgeResult;
   }
 
-  const result = await deliverFinalResponse(
+  const result = await handleFinalResponse(
     finalText,
     iter.completion,
     iter.hasTools,
@@ -198,7 +201,7 @@ async function handleToolCallsIteration(
   const maxIter = ctx.state.config.maxIterations ?? MAX_TOOL_ITERATIONS;
   injectSoftLimitWarning(ctx.history, iter.iteration, maxIter);
 
-  const batchResult = await orchestrateToolCallBatch(
+  const batchResult = await processToolCallBatch(
     iter.parsedCalls,
     ctx.state,
     ctx.session,

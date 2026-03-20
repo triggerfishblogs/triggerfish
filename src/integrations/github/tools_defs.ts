@@ -19,7 +19,7 @@ import {
 } from "./tools_defs_issues_actions.ts";
 
 /** Get all 4 consolidated GitHub tool definitions. */
-export function loadGitHubToolDefinitions(): readonly ToolDefinition[] {
+export function getGitHubToolDefinitions(): readonly ToolDefinition[] {
   return [
     buildGitHubReposDef(),
     buildGitHubPullsDef(),
@@ -27,9 +27,6 @@ export function loadGitHubToolDefinitions(): readonly ToolDefinition[] {
     buildGitHubActionsDef(),
   ];
 }
-
-/** @deprecated Use loadGitHubToolDefinitions instead */
-export const getGitHubToolDefinitions = loadGitHubToolDefinitions;
 
 /** System prompt section explaining GitHub tools to the LLM. */
 export const GITHUB_TOOLS_SYSTEM_PROMPT = `## GitHub Access

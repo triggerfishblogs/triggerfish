@@ -47,7 +47,6 @@ export type {
 } from "./session_types.ts";
 
 export {
-  buildClaudeToolDefinitions,
   CLAUDE_SESSION_SYSTEM_PROMPT,
   createClaudeToolExecutor,
   getClaudeToolDefinitions,

@@ -13,7 +13,6 @@ import { createLogger } from "../core/logger/logger.ts";
 
 // Re-export CRUD handlers so existing imports from this file still work
 export {
-  dispatchWorkflowControlAction,
   executeWorkflowControl,
   executeWorkflowDelete,
   executeWorkflowGet,

@@ -44,11 +44,7 @@ function makePlugin(name: string): RegisteredPlugin {
 /** Mock scanner that always passes. */
 // deno-lint-ignore require-await
 async function passingScanner(_dir: string) {
-  return {
-    ok: true as const,
-    warnings: [] as string[],
-    scannedFiles: ["mod.ts"],
-  };
+  return { ok: true as const, warnings: [] as string[], scannedFiles: ["mod.ts"] };
 }
 
 /** Mock scanner that always fails. */
@@ -81,12 +77,7 @@ function makeToolExecutor(
     >,
     scanPlugin,
   });
-  return {
-    registry,
-    executor,
-    toolClassifications,
-    integrationClassifications,
-  };
+  return { registry, executor, toolClassifications, integrationClassifications };
 }
 
 Deno.test("plugin_list: shows empty when no plugins", async () => {

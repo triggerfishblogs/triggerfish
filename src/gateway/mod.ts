@@ -42,7 +42,6 @@ export type {
 } from "./startup/services/config_watcher.ts";
 
 export {
-  buildSessionToolDefinitions,
   createSessionToolExecutor,
   getSessionToolDefinitions,
   SESSION_TOOLS_SYSTEM_PROMPT,
@@ -60,7 +59,6 @@ export type {
 } from "./chat.ts";
 
 export {
-  buildTriggerToolDefinitions,
   createTriggerToolExecutor,
   getTriggerToolDefinitions,
   TRIGGER_TOOLS_SYSTEM_PROMPT,
@@ -69,10 +67,3 @@ export type { TriggerToolContext } from "./tools/trigger/trigger_tools.ts";
 
 export { createReefRegistry, createSkillLoader } from "./skills.ts";
 export type { ReefSkillListing, SkillLoaderOptions } from "./skills.ts";
-
-export {
-  checkNonOwnerAccess,
-  enforceNonOwnerAccessControl,
-  preloadPairedUsers,
-} from "./chat_access_control.ts";
-export type { AccessControlChannelState } from "./chat_access_control.ts";

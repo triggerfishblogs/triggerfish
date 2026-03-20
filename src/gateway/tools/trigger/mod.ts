@@ -5,7 +5,6 @@
  */
 
 export {
-  buildTriggerToolDefinitions,
   getTriggerContextToolDefinitions,
   getTriggerToolDefinitions,
   TRIGGER_SESSION_SYSTEM_PROMPT,
@@ -16,7 +15,6 @@ export type { TriggerToolContext } from "./trigger_tools.ts";
 export { createTriggerToolExecutor } from "./trigger_context_executor.ts";
 
 export {
-  buildTriggerManageToolDefinitions,
   getTriggerManageToolDefinitions,
   TRIGGER_MANAGE_SYSTEM_PROMPT,
 } from "./trigger_manage_defs.ts";

@@ -147,7 +147,7 @@ async function loadStoredGoogleCredentials(
  *
  * @param secretStore - Where to store tokens (defaults to OS keychain)
  */
-export async function initiateGoogleOAuth(
+export async function performGoogleOAuth(
   secretStore?: SecretStore,
 ): Promise<boolean> {
   const store = secretStore ?? createKeychain();
@@ -256,9 +256,9 @@ function printGoogleSetupInstructions(): void {
 }
 
 /** Interactive Google OAuth2 authentication flow. */
-export async function initializeGoogleAuth(): Promise<void> {
+export async function runConnectGoogle(): Promise<void> {
   printGoogleSetupInstructions();
-  await initiateGoogleOAuth();
+  await performGoogleOAuth();
 }
 
 /** Remove Google OAuth tokens from the OS keychain. */
@@ -273,9 +273,3 @@ export async function disconnectGoogle(): Promise<void> {
     console.log("No Google account was connected.");
   }
 }
-
-/** @deprecated Use initiateGoogleOAuth instead */
-export const performGoogleOAuth = initiateGoogleOAuth;
-
-/** @deprecated Use initializeGoogleAuth instead */
-export const runConnectGoogle = initializeGoogleAuth;

@@ -153,7 +153,7 @@ export async function executeWorkflowHistory(
 }
 
 /** Control a running workflow: stop, pause, or unpause. */
-export function dispatchWorkflowControlAction(
+export function executeWorkflowControl(
   ctx: WorkflowToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -203,8 +203,3 @@ function dispatchControlAction(
     error: `Unknown control action: ${action}. Use stop, pause, or unpause`,
   });
 }
-
-// --- Deprecated aliases ---
-
-/** @deprecated Use dispatchWorkflowControlAction instead */
-export const executeWorkflowControl = dispatchWorkflowControlAction;

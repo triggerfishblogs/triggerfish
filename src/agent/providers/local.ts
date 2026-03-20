@@ -18,7 +18,7 @@ import type {
   LlmProvider,
   LlmStreamChunk,
 } from "../llm.ts";
-import { resolveModelInfo } from "../models.ts";
+import { getModelInfo } from "../models.ts";
 import { parseSseStream } from "./sse.ts";
 import type { ContentBlock } from "../../core/image/content.ts";
 
@@ -169,12 +169,12 @@ async function* streamLocal(
 export function createLocalProvider(config: LocalConfig): LlmProvider {
   const endpoint = config.endpoint ?? "http://localhost:11434";
   const model = config.model;
-  const maxTokens = config.maxTokens ?? resolveModelInfo(model).outputLimit;
+  const maxTokens = config.maxTokens ?? getModelInfo(model).outputLimit;
 
   return {
     name: config.name ?? "ollama",
     supportsStreaming: true,
-    contextWindow: resolveModelInfo(model).contextWindow,
+    contextWindow: getModelInfo(model).contextWindow,
     complete: (messages, tools, options) =>
       completeLocal(endpoint, model, maxTokens, messages, tools, options),
     stream: (messages, tools, options) =>

@@ -50,7 +50,6 @@ export {
   createGoogleToolExecutor,
   getGoogleToolDefinitions,
   GOOGLE_TOOLS_SYSTEM_PROMPT,
-  buildGoogleToolDefinitions,
 } from "./tools.ts";
 
 export { recordGoogleLineage } from "./lineage.ts";

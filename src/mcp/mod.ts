@@ -38,20 +38,3 @@ export {
 } from "./executor.ts";
 
 export type { McpExecutorOptions, McpToolDef } from "./executor.ts";
-
-export {
-  buildMcpManagerState,
-  connectAllMcpServers,
-  connectOneMcpServer,
-  DEFAULT_ALLOWED_MCP_COMMANDS,
-  disconnectAllMcpServers,
-  enforceCommandAllowlist,
-  formatMcpConnectionError,
-  notifyMcpStatusListeners,
-} from "./manager_connection.ts";
-export type {
-  McpConnectionContext,
-  McpManagerState,
-} from "./manager_connection.ts";
-
-export { startAllMcpServers } from "./manager_retry.ts";

@@ -12,28 +12,28 @@ import type { GoogleToolContext } from "./types.ts";
 import { recordGoogleLineage } from "./lineage.ts";
 
 import {
-  labelGmailMessage,
-  queryGmailMessages,
-  readGmailMessage,
-  sendGmailMessage,
+  executeGmailLabel,
+  executeGmailRead,
+  executeGmailSearch,
+  executeGmailSend,
 } from "./gmail/tools_exec_gmail.ts";
 import {
-  createGoogleCalendarEvent,
-  listGoogleCalendarEvents,
-  updateGoogleCalendarEvent,
+  executeCalendarCreate,
+  executeCalendarList,
+  executeCalendarUpdate,
 } from "./calendar/tools_exec_calendar.ts";
 import {
-  completeGoogleTask,
-  createGoogleTask,
-  listGoogleTasks,
+  executeTasksComplete,
+  executeTasksCreate,
+  executeTasksList,
 } from "./tasks/tools_exec_tasks.ts";
 import {
-  queryGoogleDrive,
-  readGoogleDriveFile,
+  executeDriveRead,
+  executeDriveSearch,
 } from "./drive/tools_exec_drive.ts";
 import {
-  readGoogleSheet,
-  writeGoogleSheet,
+  executeSheetsRead,
+  executeSheetsWrite,
 } from "./sheets/tools_exec_sheets.ts";
 
 // ─── Barrel re-exports from tools_defs.ts ───────────────────────────────────
@@ -41,7 +41,6 @@ import {
 export {
   getGoogleToolDefinitions,
   GOOGLE_TOOLS_SYSTEM_PROMPT,
-  buildGoogleToolDefinitions,
 } from "./tools_defs.ts";
 
 // ─── Action dispatch tables ─────────────────────────────────────────────────
@@ -70,25 +69,25 @@ function buildGmailDispatch(
       ctx,
       "gmail",
       "search",
-      (i) => queryGmailMessages(ctx.gmail, i),
+      (i) => executeGmailSearch(ctx.gmail, i),
     ),
     read: withLineage(
       ctx,
       "gmail",
       "read",
-      (i) => readGmailMessage(ctx.gmail, i),
+      (i) => executeGmailRead(ctx.gmail, i),
     ),
     send: withLineage(
       ctx,
       "gmail",
       "send",
-      (i) => sendGmailMessage(ctx.gmail, i),
+      (i) => executeGmailSend(ctx.gmail, i),
     ),
     label: withLineage(
       ctx,
       "gmail",
       "label",
-      (i) => labelGmailMessage(ctx.gmail, i),
+      (i) => executeGmailLabel(ctx.gmail, i),
     ),
   };
 }
@@ -101,19 +100,19 @@ function buildCalendarDispatch(
       ctx,
       "calendar",
       "list",
-      (i) => listGoogleCalendarEvents(ctx.calendar, i),
+      (i) => executeCalendarList(ctx.calendar, i),
     ),
     create: withLineage(
       ctx,
       "calendar",
       "create",
-      (i) => createGoogleCalendarEvent(ctx.calendar, i),
+      (i) => executeCalendarCreate(ctx.calendar, i),
     ),
     update: withLineage(
       ctx,
       "calendar",
       "update",
-      (i) => updateGoogleCalendarEvent(ctx.calendar, i),
+      (i) => executeCalendarUpdate(ctx.calendar, i),
     ),
   };
 }
@@ -126,19 +125,19 @@ function buildTasksDispatch(
       ctx,
       "tasks",
       "list",
-      (i) => listGoogleTasks(ctx.tasks, i),
+      (i) => executeTasksList(ctx.tasks, i),
     ),
     create: withLineage(
       ctx,
       "tasks",
       "create",
-      (i) => createGoogleTask(ctx.tasks, i),
+      (i) => executeTasksCreate(ctx.tasks, i),
     ),
     complete: withLineage(
       ctx,
       "tasks",
       "complete",
-      (i) => completeGoogleTask(ctx.tasks, i),
+      (i) => executeTasksComplete(ctx.tasks, i),
     ),
   };
 }
@@ -151,13 +150,13 @@ function buildDriveDispatch(
       ctx,
       "drive",
       "search",
-      (i) => queryGoogleDrive(ctx.drive, i),
+      (i) => executeDriveSearch(ctx.drive, i),
     ),
     read: withLineage(
       ctx,
       "drive",
       "read",
-      (i) => readGoogleDriveFile(ctx.drive, i),
+      (i) => executeDriveRead(ctx.drive, i),
     ),
   };
 }
@@ -170,13 +169,13 @@ function buildSheetsDispatch(
       ctx,
       "sheets",
       "read",
-      (i) => readGoogleSheet(ctx.sheets, i),
+      (i) => executeSheetsRead(ctx.sheets, i),
     ),
     write: withLineage(
       ctx,
       "sheets",
       "write",
-      (i) => writeGoogleSheet(ctx.sheets, i),
+      (i) => executeSheetsWrite(ctx.sheets, i),
     ),
   };
 }

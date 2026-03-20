@@ -20,7 +20,7 @@ import { createLogger } from "../../core/logger/logger.ts";
 const log = createLogger("caldav:tools");
 
 /** Execute caldav_events_create. */
-export async function createCalDavEvent(
+export async function executeEventsCreate(
   ctx: CalDavToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -66,9 +66,6 @@ export async function createCalDavEvent(
   });
 }
 
-/** @deprecated Use createCalDavEvent instead */
-export const executeEventsCreate = createCalDavEvent;
-
 /** Build the event input for creation from tool input. */
 function buildCreateEventInput(
   uid: string,
@@ -99,7 +96,7 @@ function buildCreateEventInput(
 }
 
 /** Execute caldav_events_update. */
-export async function updateCalDavEvent(
+export async function executeEventsUpdate(
   ctx: CalDavToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -146,9 +143,6 @@ export async function updateCalDavEvent(
     _origin: `caldav:event:${eventUid}`,
   });
 }
-
-/** @deprecated Use updateCalDavEvent instead */
-export const executeEventsUpdate = updateCalDavEvent;
 
 /** Fetch existing event for update by UID. */
 async function fetchExistingEvent(
@@ -219,7 +213,7 @@ function buildUpdateEventInput(
 }
 
 /** Execute caldav_events_delete. */
-export async function deleteCalDavEvent(
+export async function executeEventsDelete(
   ctx: CalDavToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -256,6 +250,3 @@ export async function deleteCalDavEvent(
     _origin: `caldav:event:${eventUid}`,
   });
 }
-
-/** @deprecated Use deleteCalDavEvent instead */
-export const executeEventsDelete = deleteCalDavEvent;

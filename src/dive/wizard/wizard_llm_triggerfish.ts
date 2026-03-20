@@ -13,7 +13,7 @@ import {
   openInBrowser,
   resolveGatewayUrl,
   startCallbackServer,
-  verifyLicenseKey,
+  validateLicenseKey,
 } from "../cloud.ts";
 
 // ── License key collection ──────────────────────────────────────────────────
@@ -172,7 +172,7 @@ export async function verifyTriggerfishKey(
   while (true) {
     console.log("");
     console.log("  Validating license key...");
-    const result = await verifyLicenseKey(currentGateway, currentKey);
+    const result = await validateLicenseKey(currentGateway, currentKey);
 
     if (result.ok && result.value.valid) {
       const plan = result.value.plan ?? "unknown";

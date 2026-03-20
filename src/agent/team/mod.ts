@@ -37,7 +37,6 @@ export type { RosterPromptOptions } from "./roster.ts";
 export type { TeamToolContext } from "./tool_definitions.ts";
 
 export {
-  buildTeamToolDefinitions,
   getTeamToolDefinitions,
   TEAM_SYSTEM_PROMPT,
   TEAM_TOOL_NAMES,
@@ -53,10 +52,6 @@ export {
   checkLifetimeTimeout,
   checkMemberHealth,
   checkMemberIdle,
-  detectLeadFailure,
-  detectMemberFailure,
-  detectMemberIdleTimeout,
-  detectTeamLifetimeTimeout,
 } from "./lifecycle_checks.ts";
 export type { MonitorState } from "./lifecycle_checks.ts";
 
@@ -79,7 +74,7 @@ export {
   serializeTeamInstance,
 } from "./serialization.ts";
 
-export { enforceTeamDefinition, validateTeamDefinition } from "./validation.ts";
+export { validateTeamDefinition } from "./validation.ts";
 
 export {
   buildPlaceholderMembers,

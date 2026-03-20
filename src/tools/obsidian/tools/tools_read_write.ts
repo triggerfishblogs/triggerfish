@@ -13,7 +13,7 @@ import type {
   LineageClassification,
   LineageOrigin,
 } from "../../../core/session/lineage.ts";
-import { resolveClassificationForPath } from "../vault.ts";
+import { getClassificationForPath } from "../vault.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 import type { ObsidianToolContext } from "./tools_defs.ts";
 
@@ -62,7 +62,7 @@ export async function recordLineage(
 }
 
 /** Execute the obsidian_read tool — read a note with classification gating. */
-export async function readObsidianNote(
+export async function executeObsidianRead(
   ctx: ObsidianToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -73,7 +73,7 @@ export async function readObsidianNote(
 
   const notePath = resolveNotePath(noteName);
 
-  const noteClassification = resolveClassificationForPath(
+  const noteClassification = getClassificationForPath(
     ctx.vaultContext,
     notePath,
   );
@@ -111,7 +111,7 @@ export async function readObsidianNote(
 }
 
 /** Execute the obsidian_write tool — write a note with write-down prevention. */
-export async function writeObsidianNote(
+export async function executeObsidianWrite(
   ctx: ObsidianToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -125,7 +125,7 @@ export async function writeObsidianNote(
     ? `${folder}/${resolveNotePath(noteName)}`
     : resolveNotePath(noteName);
 
-  const folderClassification = resolveClassificationForPath(
+  const folderClassification = getClassificationForPath(
     ctx.vaultContext,
     notePath,
   );
@@ -188,8 +188,3 @@ export async function writeObsidianNote(
     name: result.value.name,
   });
 }
-
-/** @deprecated Use readObsidianNote instead */
-export const executeObsidianRead = readObsidianNote;
-/** @deprecated Use writeObsidianNote instead */
-export const executeObsidianWrite = writeObsidianNote;

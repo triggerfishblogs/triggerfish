@@ -250,7 +250,7 @@ function buildFreebusyDef(): ToolDefinition {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /** Get all 7 CalDAV tool definitions. */
-export function loadCalDavToolDefinitions(): readonly ToolDefinition[] {
+export function getCalDavToolDefinitions(): readonly ToolDefinition[] {
   return [
     buildCalendarsListDef(),
     buildEventsListDef(),
@@ -261,9 +261,6 @@ export function loadCalDavToolDefinitions(): readonly ToolDefinition[] {
     buildFreebusyDef(),
   ];
 }
-
-/** @deprecated Use loadCalDavToolDefinitions instead */
-export const getCalDavToolDefinitions = loadCalDavToolDefinitions;
 
 /** System prompt section explaining CalDAV tools to the LLM. */
 export const CALDAV_SYSTEM_PROMPT = `## CalDAV Calendar Access

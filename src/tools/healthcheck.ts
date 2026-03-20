@@ -36,7 +36,7 @@ type HealthcheckComponent =
   | "all";
 
 /** Tool definitions for the healthcheck tool. */
-export function buildHealthcheckToolDefinitions(): readonly ToolDefinition[] {
+export function getHealthcheckToolDefinitions(): readonly ToolDefinition[] {
   return [
     {
       name: "healthcheck",
@@ -248,6 +248,3 @@ export function createHealthcheckToolExecutor(
     return formatReport(results);
   };
 }
-
-/** @deprecated Use buildHealthcheckToolDefinitions instead */
-export const getHealthcheckToolDefinitions = buildHealthcheckToolDefinitions;

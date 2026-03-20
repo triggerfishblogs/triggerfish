@@ -89,7 +89,7 @@ async function showChangelogRange(
  * @param subcommand - First positional arg (version or undefined).
  * @param flags - Parsed CLI flags.
  */
-export async function displayChangelog(
+export async function runChangelog(
   subcommand: string | undefined,
   flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
@@ -100,7 +100,7 @@ export async function displayChangelog(
       : 5;
     if (isNaN(count) || count < 1) {
       log.warn("Changelog --latest flag invalid", {
-        operation: "displayChangelog",
+        operation: "runChangelog",
         latest: flags.latest,
       });
       console.log("✗ --latest requires a positive number.");
@@ -140,7 +140,7 @@ export async function displayChangelog(
     const allResult = await fetchAllReleases();
     if (!allResult.ok) {
       log.warn("Changelog fetch failed for latest lookup", {
-        operation: "displayChangelog",
+        operation: "runChangelog",
         from,
         error: allResult.error,
       });
@@ -157,6 +157,3 @@ export async function displayChangelog(
     await showChangelogRange(from, to);
   }
 }
-
-/** @deprecated Use displayChangelog instead */
-export const runChangelog = displayChangelog;

@@ -57,7 +57,6 @@ export {
   CALDAV_SYSTEM_PROMPT,
   createCalDavToolExecutor,
   getCalDavToolDefinitions,
-  loadCalDavToolDefinitions,
 } from "./tools.ts";
 
 export {

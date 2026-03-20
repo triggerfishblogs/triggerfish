@@ -17,14 +17,14 @@ import { resolveConfigPath } from "./config/paths.ts";
 import { cleanupOldBinary } from "./daemon/daemon.ts";
 import { parseCommand, showHelp, showVersion } from "./main_commands.ts";
 import { enableWindowsAnsi } from "./platform.ts";
-import { launchDiveWizard, launchPatrolDiagnostics } from "./dive_command.ts";
+import { runDive, runPatrol } from "./dive_command.ts";
 import {
-  displayDaemonLogs,
-  haltDaemon,
-  installUpdate,
-  launchDaemon,
-  reportDaemonStatus,
-  restartDaemonProcess,
+  runDaemonLogs,
+  runDaemonRestart,
+  runDaemonStart,
+  runDaemonStatus,
+  runDaemonStop,
+  runUpdate,
 } from "./daemon_commands.ts";
 import {
   createLogger,
@@ -43,8 +43,8 @@ export {
 export type { Err, Ok, Result } from "../core/config.ts";
 export type { TriggerFishConfig } from "../core/config.ts";
 
-// Re-export initiateGoogleOAuth for backward-compatibility (wizard.ts imports it via dynamic import)
-export { initiateGoogleOAuth, performGoogleOAuth } from "./commands/connect.ts";
+// Re-export performGoogleOAuth for backward-compatibility (wizard.ts imports it via dynamic import)
+export { performGoogleOAuth } from "./commands/connect.ts";
 
 // Re-export command parsing for backward-compatibility (tests import from here)
 export {
@@ -57,7 +57,7 @@ export {
 
 // Re-export platform and command functions for backward-compatibility
 export { enableWindowsAnsi, probeGateway } from "./platform.ts";
-export { launchPatrolDiagnostics, runPatrol } from "./dive_command.ts";
+export { runPatrol } from "./dive_command.ts";
 
 // ─── Command dispatch ─────────────────────────────────────────────────────────
 
@@ -73,45 +73,41 @@ function buildCommandDispatchMap(
 ): Record<string, () => Promise<void>> {
   return {
     changelog: async () => {
-      const { displayChangelog } = await import("./commands/changelog.ts");
-      await displayChangelog(ctx.subcommand, ctx.flags);
+      const { runChangelog } = await import("./commands/changelog.ts");
+      await runChangelog(ctx.subcommand, ctx.flags);
     },
     chat: async () => {
       const { runChat } = await import("../channels/cli/chat.ts");
       await runChat();
     },
     config: async () => {
-      const { dispatchConfigCommand } = await import("./config/config.ts");
-      await dispatchConfigCommand(ctx.subcommand, ctx.flags);
+      const { runConfig } = await import("./config/config.ts");
+      await runConfig(ctx.subcommand, ctx.flags);
     },
     connect: async () => {
-      const { establishServiceConnection } = await import(
-        "./commands/connect.ts"
-      );
-      await establishServiceConnection(ctx.subcommand, ctx.flags);
+      const { runConnect } = await import("./commands/connect.ts");
+      await runConnect(ctx.subcommand, ctx.flags);
     },
     cron: async () => {
-      const { dispatchCronCommand } = await import("./commands/cron.ts");
-      await dispatchCronCommand(ctx.subcommand, ctx.flags);
+      const { runCron } = await import("./commands/cron.ts");
+      await runCron(ctx.subcommand, ctx.flags);
     },
     disconnect: async () => {
-      const { terminateServiceConnection } = await import(
-        "./commands/connect.ts"
-      );
-      await terminateServiceConnection(ctx.subcommand, ctx.flags);
+      const { runDisconnect } = await import("./commands/connect.ts");
+      await runDisconnect(ctx.subcommand, ctx.flags);
     },
-    dive: () => launchDiveWizard(ctx.flags),
-    patrol: () => launchPatrolDiagnostics(),
+    dive: () => runDive(ctx.flags),
+    patrol: () => runPatrol(),
     run: async () => {
       const { runStart } = await import("../gateway/startup/startup.ts");
       await runStart();
     },
     skill: async () => {
-      const { dispatchSkillCommand } = await import("./commands/skill.ts");
+      const { runSkill } = await import("./commands/skill.ts");
       const { createReefRegistry, createSkillLoader } = await import(
         "../gateway/skills.ts"
       );
-      await dispatchSkillCommand(ctx.subcommand, ctx.flags, {
+      await runSkill(ctx.subcommand, ctx.flags, {
         createRegistry: () => createReefRegistry(),
         createLoader: (managedDir: string) =>
           createSkillLoader({
@@ -121,25 +117,23 @@ function buildCommandDispatchMap(
       });
     },
     "run-triggers": async () => {
-      const { invokeTriggerCycle } = await import(
-        "./commands/run_triggers.ts"
-      );
-      await invokeTriggerCycle();
+      const { runTriggers } = await import("./commands/run_triggers.ts");
+      await runTriggers();
     },
-    restart: () => restartDaemonProcess(),
-    start: () => launchDaemon(),
-    stop: () => haltDaemon(),
-    status: () => reportDaemonStatus(),
-    logs: () => displayDaemonLogs(ctx.subcommand, ctx.flags),
+    restart: () => runDaemonRestart(),
+    start: () => runDaemonStart(),
+    stop: () => runDaemonStop(),
+    status: () => runDaemonStatus(),
+    logs: () => runDaemonLogs(ctx.subcommand, ctx.flags),
     tidepool: async () => {
-      const { launchTidepoolServer } = await import("./commands/tidepool.ts");
-      await launchTidepoolServer(ctx.subcommand, ctx.flags);
+      const { runTidepool } = await import("./commands/tidepool.ts");
+      await runTidepool(ctx.subcommand, ctx.flags);
     },
     uninstall: async () => {
       const { runUninstall } = await import("./commands/uninstall.ts");
       await runUninstall();
     },
-    update: () => installUpdate(),
+    update: () => runUpdate(),
     version: () => {
       showVersion();
       return Promise.resolve();

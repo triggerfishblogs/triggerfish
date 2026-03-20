@@ -62,7 +62,7 @@ function resolveEffectiveCwd(
     const resolved = resolvePerCallCwd(basePath, workspace.path, perCallCwd);
     if (resolved === null) {
       log.warn("Working directory path escapes workspace jail", {
-        operation: "invokeShellCommand",
+        operation: "runShellCommand",
         cwd: perCallCwd,
         workspace: workspace.path,
       });
@@ -82,7 +82,7 @@ function resolveEffectiveCwd(
  * The cwd is validated against the workspace path jail and checked
  * for existence before spawning the shell.
  */
-export async function invokeShellCommand(
+export async function runShellCommand(
   workspace: Workspace,
   command: string,
   options?: ExecToolsOptions,
@@ -95,7 +95,7 @@ export async function invokeShellCommand(
   const cwdExists = await verifyDirectoryExists(effectiveCwd);
   if (!cwdExists) {
     log.warn("Working directory does not exist", {
-      operation: "invokeShellCommand",
+      operation: "runShellCommand",
       cwd: effectiveCwd,
     });
     return {
@@ -136,6 +136,3 @@ export async function invokeShellCommand(
     };
   }
 }
-
-/** @deprecated Use invokeShellCommand instead */
-export const runShellCommand = invokeShellCommand;

@@ -221,7 +221,7 @@ async function printTidepoolUrl(): Promise<void> {
  * @param subcommand - The subcommand string parsed from the CLI args.
  * @param _flags     - Parsed flags (unused; reserved for future options).
  */
-export async function launchTidepoolServer(
+export async function runTidepool(
   subcommand: string | undefined,
   _flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
@@ -244,6 +244,3 @@ export async function launchTidepoolServer(
       );
   }
 }
-
-/** @deprecated Use launchTidepoolServer instead */
-export const runTidepool = launchTidepoolServer;

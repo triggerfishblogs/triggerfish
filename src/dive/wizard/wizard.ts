@@ -65,10 +65,7 @@ export {
 } from "./wizard_generators.ts";
 
 export { storeWizardSecrets } from "./wizard_secrets.ts";
-export {
-  launchSelectiveWizard,
-  runWizardSelective,
-} from "../selective/wizard_selective.ts";
+export { runWizardSelective } from "../selective/wizard_selective.ts";
 
 // ── Step result interfaces ────────────────────────────────────────────────────
 
@@ -288,9 +285,7 @@ function buildDiveResult(
 }
 
 /** Run the full 8-step interactive dive wizard. */
-export async function launchInteractiveWizard(
-  baseDir: string,
-): Promise<DiveResult> {
+export async function runWizard(baseDir: string): Promise<DiveResult> {
   enforceTerminalRequirement();
   printWelcomeBanner();
 
@@ -301,6 +296,3 @@ export async function launchInteractiveWizard(
   );
   return buildDiveResult(answers, configPath, spinePath);
 }
-
-/** @deprecated Use launchInteractiveWizard instead */
-export const runWizard = launchInteractiveWizard;

@@ -49,7 +49,7 @@ export function buildSummarizePrompt(
 }
 
 /** Tool definitions for the summarize tool. */
-export function buildSummarizeToolDefinitions(): readonly ToolDefinition[] {
+export function getSummarizeToolDefinitions(): readonly ToolDefinition[] {
   return [
     {
       name: "summarize",
@@ -144,6 +144,3 @@ export function createSummarizeToolExecutor(
     }
   };
 }
-
-/** @deprecated Use buildSummarizeToolDefinitions instead */
-export const getSummarizeToolDefinitions = buildSummarizeToolDefinitions;

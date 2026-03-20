@@ -9,19 +9,19 @@
 
 import type { GitHubClient } from "../client.ts";
 import {
-  assertPositiveIntValue,
-  assertValidRepoInput,
   formatGitHubError,
+  validatePositiveInt,
+  validateRepoInput,
 } from "../tools_shared.ts";
 
 // ─── List Pulls ──────────────────────────────────────────────────────────────
 
 /** Handle the github_list_pulls tool invocation. */
-export async function listGitHubPullRequests(
+export async function executeListPulls(
   client: GitHubClient,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const repoResult = assertValidRepoInput(input, "github_list_pulls");
+  const repoResult = validateRepoInput(input, "github_list_pulls");
   if (typeof repoResult === "string") return repoResult;
 
   const state = typeof input.state === "string" ? input.state : undefined;
@@ -53,20 +53,17 @@ export async function listGitHubPullRequests(
   });
 }
 
-/** @deprecated Use listGitHubPullRequests instead */
-export const executeListPulls = listGitHubPullRequests;
-
 // ─── Get Pull ───────────────────────────────────────────────────────────────
 
 /** Handle the github_get_pull tool invocation. */
-export async function fetchGitHubPullRequest(
+export async function executeGetPull(
   client: GitHubClient,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const repoResult = assertValidRepoInput(input, "github_get_pull");
+  const repoResult = validateRepoInput(input, "github_get_pull");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = assertPositiveIntValue(
+  const prNumber = validatePositiveInt(
     input.pr_number,
     "pr_number",
     "github_get_pull",
@@ -97,9 +94,6 @@ export async function fetchGitHubPullRequest(
   });
 }
 
-/** @deprecated Use fetchGitHubPullRequest instead */
-export const executeGetPull = fetchGitHubPullRequest;
-
 // ─── Create Pull ─────────────────────────────────────────────────────────────
 
 /** Validate the required string fields for pull creation. */
@@ -124,11 +118,11 @@ function validatePullCreateFields(input: Record<string, unknown>): {
 }
 
 /** Handle the github_create_pull tool invocation. */
-export async function createGitHubPullRequest(
+export async function executeCreatePull(
   client: GitHubClient,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const repoResult = assertValidRepoInput(input, "github_create_pull");
+  const repoResult = validateRepoInput(input, "github_create_pull");
   if (typeof repoResult === "string") return repoResult;
 
   const fields = validatePullCreateFields(input);
@@ -152,20 +146,17 @@ export async function createGitHubPullRequest(
   });
 }
 
-/** @deprecated Use createGitHubPullRequest instead */
-export const executeCreatePull = createGitHubPullRequest;
-
 // ─── Update Pull ────────────────────────────────────────────────────────────
 
 /** Handle the github_update_pull tool invocation. */
-export async function updateGitHubPullRequest(
+export async function executeUpdatePull(
   client: GitHubClient,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const repoResult = assertValidRepoInput(input, "github_update_pull");
+  const repoResult = validateRepoInput(input, "github_update_pull");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = assertPositiveIntValue(
+  const prNumber = validatePositiveInt(
     input.pr_number,
     "pr_number",
     "github_update_pull",
@@ -194,20 +185,17 @@ export async function updateGitHubPullRequest(
   });
 }
 
-/** @deprecated Use updateGitHubPullRequest instead */
-export const executeUpdatePull = updateGitHubPullRequest;
-
 // ─── List Pull Files ────────────────────────────────────────────────────────
 
 /** Handle the github_list_pull_files tool invocation. */
-export async function listGitHubPullRequestFiles(
+export async function executeListPullFiles(
   client: GitHubClient,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const repoResult = assertValidRepoInput(input, "github_list_pull_files");
+  const repoResult = validateRepoInput(input, "github_list_pull_files");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = assertPositiveIntValue(
+  const prNumber = validatePositiveInt(
     input.pr_number,
     "pr_number",
     "github_list_pull_files",
@@ -236,20 +224,17 @@ export async function listGitHubPullRequestFiles(
   });
 }
 
-/** @deprecated Use listGitHubPullRequestFiles instead */
-export const executeListPullFiles = listGitHubPullRequestFiles;
-
 // ─── Submit Review ───────────────────────────────────────────────────────────
 
 /** Handle the github_review_pull tool invocation. */
-export async function reviewGitHubPullRequest(
+export async function executeReviewPull(
   client: GitHubClient,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const repoResult = assertValidRepoInput(input, "github_review_pull");
+  const repoResult = validateRepoInput(input, "github_review_pull");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = assertPositiveIntValue(
+  const prNumber = validatePositiveInt(
     input.pr_number,
     "pr_number",
     "github_review_pull",
@@ -279,20 +264,17 @@ export async function reviewGitHubPullRequest(
   });
 }
 
-/** @deprecated Use reviewGitHubPullRequest instead */
-export const executeReviewPull = reviewGitHubPullRequest;
-
 // ─── Merge Pull ──────────────────────────────────────────────────────────────
 
 /** Handle the github_merge_pull tool invocation. */
-export async function mergeGitHubPullRequest(
+export async function executeMergePull(
   client: GitHubClient,
   input: Record<string, unknown>,
 ): Promise<string> {
-  const repoResult = assertValidRepoInput(input, "github_merge_pull");
+  const repoResult = validateRepoInput(input, "github_merge_pull");
   if (typeof repoResult === "string") return repoResult;
 
-  const prNumber = assertPositiveIntValue(
+  const prNumber = validatePositiveInt(
     input.pr_number,
     "pr_number",
     "github_merge_pull",
@@ -316,6 +298,3 @@ export async function mergeGitHubPullRequest(
     _classification: result.value.classification,
   });
 }
-
-/** @deprecated Use mergeGitHubPullRequest instead */
-export const executeMergePull = mergeGitHubPullRequest;

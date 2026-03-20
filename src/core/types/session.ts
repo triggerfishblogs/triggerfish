@@ -82,7 +82,7 @@ export function createSession(options: CreateSessionOptions): SessionState {
  * If the new level is lower than or equal to the current taint,
  * the session is returned unchanged (silently ignored).
  */
-export function escalateTaint(
+export function updateTaint(
   session: SessionState,
   level: ClassificationLevel,
   reason: string,
@@ -145,9 +145,6 @@ export function canOutput(
  * Preserves userId and channelId. Generates a new session ID.
  * Clears taint history.
  */
-/** @deprecated Use escalateTaint instead */
-export const updateTaint = escalateTaint;
-
 export function resetSession(session: SessionState): SessionState {
   return createSession({
     userId: session.userId,

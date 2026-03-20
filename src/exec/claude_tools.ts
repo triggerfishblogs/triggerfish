@@ -16,7 +16,6 @@ import type {
 // ─── Barrel re-exports from claude_tools_defs.ts ────────────────
 
 export {
-  buildClaudeToolDefinitions,
   CLAUDE_SESSION_SYSTEM_PROMPT,
   getClaudeToolDefinitions,
 } from "./claude_tools_defs.ts";

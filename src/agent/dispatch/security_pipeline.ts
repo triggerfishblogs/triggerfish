@@ -29,7 +29,7 @@ import { createLogger } from "../../core/logger/mod.ts";
 const log = createLogger("tool-dispatch");
 
 /** Check plan mode blocking and execute plan tools. */
-export async function invokePlanModeToolCall(
+export async function executePlanModeToolCall(
   planManager: PlanManager,
   sessionKey: string,
   call: ParsedToolCall,
@@ -81,7 +81,7 @@ export function preEscalateOwnerTriggerTaint(
 }
 
 /** Check integration write-down (session taint vs integration resource classification). */
-export function enforceIntegrationWriteDownPolicy(
+export function checkIntegrationWriteDown(
   call: ParsedToolCall,
   config: OrchestratorConfig,
 ): { resultText: string | undefined; blocked: boolean } {
@@ -170,7 +170,7 @@ export async function evaluatePreToolCallHook(
 }
 
 /** Check if bumpers would block a tool call based on classification. */
-export function assessBumpersForToolCall(
+export function checkBumpersForToolCall(
   secCtx: SecurityContext,
   config: OrchestratorConfig,
   call: ParsedToolCall,
@@ -228,13 +228,13 @@ export function assessBumpersForToolCall(
 }
 
 /** Execute the tool after policy approval (write-down + escalation + dispatch). */
-export async function dispatchApprovedToolCall(
+export async function executeAfterPolicyApproval(
   call: ParsedToolCall,
   config: OrchestratorConfig,
   secCtx: SecurityContext,
   toolExecutor: ToolExecutor,
 ): Promise<{ resultText: string; blocked: boolean }> {
-  const writeDown = enforceIntegrationWriteDownPolicy(call, config);
+  const writeDown = checkIntegrationWriteDown(call, config);
   if (writeDown.resultText !== undefined) {
     return { resultText: writeDown.resultText, blocked: writeDown.blocked };
   }
@@ -246,7 +246,7 @@ export async function dispatchApprovedToolCall(
 }
 
 /** Execute a single tool call through the full security pipeline. */
-export async function dispatchSecurityEnforcedToolCall(
+export async function executeSecurityEnforcedToolCall(
   call: ParsedToolCall,
   config: OrchestratorConfig,
   session: SessionState,
@@ -257,7 +257,7 @@ export async function dispatchSecurityEnforcedToolCall(
     config,
   );
 
-  const bumpersBlock = assessBumpersForToolCall(secCtx, config, call);
+  const bumpersBlock = checkBumpersForToolCall(secCtx, config, call);
   if (bumpersBlock !== null) {
     return { resultText: bumpersBlock, blocked: true };
   }
@@ -279,11 +279,12 @@ export async function dispatchSecurityEnforcedToolCall(
     );
   }
 
-  const { result: preToolResult, currentTaint } = await evaluatePreToolCallHook(
-    config,
-    session,
-    secInput,
-  );
+  const { result: preToolResult, currentTaint } =
+    await evaluatePreToolCallHook(
+      config,
+      session,
+      secInput,
+    );
 
   if (!preToolResult.allowed) {
     return {
@@ -295,20 +296,5 @@ export async function dispatchSecurityEnforcedToolCall(
       blocked: true,
     };
   }
-  return dispatchApprovedToolCall(call, config, secCtx, toolExecutor);
+  return executeAfterPolicyApproval(call, config, secCtx, toolExecutor);
 }
-
-/** @deprecated Use invokePlanModeToolCall instead */
-export const executePlanModeToolCall = invokePlanModeToolCall;
-
-/** @deprecated Use enforceIntegrationWriteDownPolicy instead */
-export const checkIntegrationWriteDown = enforceIntegrationWriteDownPolicy;
-
-/** @deprecated Use assessBumpersForToolCall instead */
-export const checkBumpersForToolCall = assessBumpersForToolCall;
-
-/** @deprecated Use dispatchApprovedToolCall instead */
-export const executeAfterPolicyApproval = dispatchApprovedToolCall;
-
-/** @deprecated Use dispatchSecurityEnforcedToolCall instead */
-export const executeSecurityEnforcedToolCall = dispatchSecurityEnforcedToolCall;

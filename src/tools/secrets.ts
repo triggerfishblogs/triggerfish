@@ -140,7 +140,7 @@ function buildSecretDeleteDef(): ToolDefinition {
 }
 
 /** Tool definitions for the secret management tools. */
-export function buildSecretToolDefinitions(): readonly ToolDefinition[] {
+export function getSecretToolDefinitions(): readonly ToolDefinition[] {
   return [
     buildSecretSaveDef(),
     buildSecretSaveCredentialDef(),
@@ -305,6 +305,3 @@ async function executeSecretDelete(
   }
   return `Secret '${trimmedName}' deleted successfully.`;
 }
-
-/** @deprecated Use buildSecretToolDefinitions instead */
-export const getSecretToolDefinitions = buildSecretToolDefinitions;

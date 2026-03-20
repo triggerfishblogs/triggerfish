@@ -110,7 +110,8 @@ function printDaemonStartError(
   log.error("Signal daemon start failed", {
     operation: "startSignalDaemon",
     err: error,
-    manualCommand: `${binaryPath} -a ${account} daemon --tcp localhost:7583`,
+    manualCommand:
+      `${binaryPath} -a ${account} daemon --tcp localhost:7583`,
   });
 }
 
@@ -121,14 +122,12 @@ async function reportDaemonStartupFailure(
   binaryPath: string,
 ): Promise<void> {
   const stderr = await daemonHandle.stderrText();
-  log.warn(
-    "Signal daemon started but not reachable, may still be initializing",
-    {
-      operation: "reportDaemonStartupFailure",
-      stderr: stderr || "(empty)",
-      manualCommand: `${binaryPath} -a ${account} daemon --tcp localhost:7583`,
-    },
-  );
+  log.warn("Signal daemon started but not reachable, may still be initializing", {
+    operation: "reportDaemonStartupFailure",
+    stderr: stderr || "(empty)",
+    manualCommand:
+      `${binaryPath} -a ${account} daemon --tcp localhost:7583`,
+  });
 }
 
 /** Spawn the signal-cli daemon process and verify readiness. */

@@ -9,7 +9,6 @@
  */
 
 export {
-  buildImageToolDefinitions,
   createImageToolExecutor,
   getImageToolDefinitions,
   IMAGE_TOOLS_SYSTEM_PROMPT,

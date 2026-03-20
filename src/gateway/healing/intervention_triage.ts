@@ -6,10 +6,7 @@
  * @module
  */
 
-import type {
-  InterventionCategory,
-  SelfHealingConfig,
-} from "../../core/types/healing.ts";
+import type { InterventionCategory, SelfHealingConfig } from "../../core/types/healing.ts";
 import type { StepMetadata } from "../../workflow/healing/types.ts";
 
 /** Context available for triage decision-making. */

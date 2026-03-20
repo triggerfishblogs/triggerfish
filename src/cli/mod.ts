@@ -15,13 +15,8 @@ export type {
 } from "./main.ts";
 
 export { enableWindowsAnsi, probeGateway } from "./platform.ts";
-export { launchPatrolDiagnostics, runPatrol } from "./dive_command.ts";
+export { runPatrol } from "./dive_command.ts";
 export {
-  displayDaemonLogs,
-  haltDaemon,
-  installUpdate,
-  launchDaemon,
-  reportDaemonStatus,
   runDaemonLogs,
   runDaemonStart,
   runDaemonStatus,

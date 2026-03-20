@@ -4,10 +4,7 @@
  */
 
 import { dirname, join } from "@std/path";
-import { invokeCommand } from "../daemon.ts";
-import { createLogger } from "../../../core/logger/mod.ts";
-
-const log = createLogger("cli.updater.binary");
+import { runCommand } from "../daemon.ts";
 
 /**
  * Compute SHA256 hex digest of a file.
@@ -54,13 +51,11 @@ async function replaceBinaryWindows(
   const oldPath = `${binaryPath}.old`;
   try {
     await Deno.remove(oldPath);
-  } catch (err) {
-    log.debug("Old binary not present for removal", { operation: "replaceBinaryWindows", err });
-  }
+  } catch { /* no old file */ }
   try {
     await Deno.rename(binaryPath, oldPath);
-  } catch (err) {
-    log.debug("Binary rename skipped — may not exist yet", { operation: "replaceBinaryWindows", err });
+  } catch {
+    // Binary may not exist yet (fresh install path)
   }
   await Deno.rename(tmpPath, binaryPath);
 }
@@ -79,7 +74,7 @@ async function replaceBinaryWritable(
   }
   await Deno.chmod(binaryPath, 0o755);
   if (Deno.build.os === "darwin") {
-    await invokeCommand("xattr", ["-cr", binaryPath]);
+    await runCommand("xattr", ["-cr", binaryPath]);
   }
 }
 
@@ -114,7 +109,7 @@ async function sudoChmodAndClearQuarantine(
   });
   await chmod.output();
   if (Deno.build.os === "darwin") {
-    await invokeCommand("sudo", ["xattr", "-cr", binaryPath]);
+    await runCommand("sudo", ["xattr", "-cr", binaryPath]);
   }
 }
 
@@ -168,8 +163,8 @@ async function resolveRunningExecutable(): Promise<string | null> {
       await Deno.stat(execPath);
       return execPath;
     }
-  } catch (err) {
-    log.debug("Running executable path resolution failed", { operation: "resolveRunningExecutable", err });
+  } catch {
+    // Fall through to candidate search
   }
   return null;
 }

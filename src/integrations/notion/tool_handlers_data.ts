@@ -8,15 +8,12 @@ import { createLogger } from "../../core/logger/mod.ts";
 import { formatNotionError } from "./client.ts";
 import { markdownToNotionBlocks, notionBlocksToMarkdown } from "./richtext.ts";
 import type { NotionToolContext } from "./tool_context.ts";
-import {
-  formatProperties,
-  resolveNotionClassification,
-} from "./tool_handlers_shared.ts";
+import { formatProperties, resolveNotionClassification } from "./tool_handlers_shared.ts";
 
 const log = createLogger("notion:handlers");
 
 /** Handle notion.databases.query tool invocation. */
-export async function queryNotionDatabase(
+export async function executeDatabasesQuery(
   ctx: NotionToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -59,11 +56,8 @@ export async function queryNotionDatabase(
   });
 }
 
-/** @deprecated Use queryNotionDatabase instead */
-export const executeDatabasesQuery = queryNotionDatabase;
-
 /** Handle notion.databases.create tool invocation. */
-export async function createNotionDatabase(
+export async function executeDatabasesCreate(
   ctx: NotionToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -100,11 +94,8 @@ export async function createNotionDatabase(
   });
 }
 
-/** @deprecated Use createNotionDatabase instead */
-export const executeDatabasesCreate = createNotionDatabase;
-
 /** Handle notion.blocks.read tool invocation. */
-export async function readNotionBlocks(
+export async function executeBlocksRead(
   ctx: NotionToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -134,11 +125,8 @@ export async function readNotionBlocks(
   });
 }
 
-/** @deprecated Use readNotionBlocks instead */
-export const executeBlocksRead = readNotionBlocks;
-
 /** Handle notion.blocks.append tool invocation. */
-export async function appendNotionBlocks(
+export async function executeBlocksAppend(
   ctx: NotionToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -163,6 +151,3 @@ export async function appendNotionBlocks(
     _classification: classification,
   });
 }
-
-/** @deprecated Use appendNotionBlocks instead */
-export const executeBlocksAppend = appendNotionBlocks;

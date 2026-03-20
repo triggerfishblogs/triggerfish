@@ -16,6 +16,5 @@ export {
   mergeRepoPullRequest,
   submitPullRequestReview,
   submitRepoPullRequest,
-  updateGitHubRepositoryPull,
   updateRepoPull,
 } from "./client_pulls_mutate.ts";

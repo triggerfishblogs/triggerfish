@@ -147,7 +147,7 @@ function buildTeamMessageDef(): ToolDefinition {
 }
 
 /** Get all team tool definitions. */
-export function buildTeamToolDefinitions(): readonly ToolDefinition[] {
+export function getTeamToolDefinitions(): readonly ToolDefinition[] {
   return [
     buildTeamCreateDef(),
     buildTeamStatusDef(),
@@ -157,9 +157,6 @@ export function buildTeamToolDefinitions(): readonly ToolDefinition[] {
 }
 
 // ─── Tool names ──────────────────────────────────────────────────────────────
-
-/** @deprecated Use buildTeamToolDefinitions instead */
-export const getTeamToolDefinitions = buildTeamToolDefinitions;
 
 /** All team tool names recognized by the executor. */
 export const TEAM_TOOL_NAMES = new Set([

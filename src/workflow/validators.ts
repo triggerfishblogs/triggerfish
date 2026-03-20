@@ -20,7 +20,7 @@ import type {
 import { err, isRecord, ok, type ParseResult } from "./parser.ts";
 
 /** Validate and parse a set task. */
-export function enforceSetTaskSchema(
+export function validateSetTask(
   raw: Record<string, unknown>,
   base: TaskBase,
   context: string,
@@ -38,7 +38,7 @@ export function enforceSetTaskSchema(
 }
 
 /** Validate and parse a switch task. */
-export function enforceSwitchTaskSchema(
+export function validateSwitchTask(
   raw: Record<string, unknown>,
   base: TaskBase,
   context: string,
@@ -85,7 +85,7 @@ export function enforceSwitchTaskSchema(
 }
 
 /** Validate and parse a raise task. */
-export function enforceRaiseTaskSchema(
+export function validateRaiseTask(
   raw: Record<string, unknown>,
   base: TaskBase,
   context: string,
@@ -125,7 +125,7 @@ export function enforceRaiseTaskSchema(
 }
 
 /** Validate and parse an emit task. */
-export function enforceEmitTaskSchema(
+export function validateEmitTask(
   raw: Record<string, unknown>,
   base: TaskBase,
   context: string,
@@ -160,7 +160,7 @@ export function enforceEmitTaskSchema(
 }
 
 /** Validate and parse a run task. */
-export function enforceRunTaskSchema(
+export function validateRunTask(
   raw: Record<string, unknown>,
   base: TaskBase,
   context: string,
@@ -247,7 +247,7 @@ export function enforceRunTaskSchema(
 }
 
 /** Validate and parse a for-loop task. */
-export function enforceForTaskSchema(
+export function validateForTask(
   raw: Record<string, unknown>,
   base: TaskBase,
   context: string,
@@ -283,7 +283,7 @@ export function enforceForTaskSchema(
 }
 
 /** Validate and parse a wait task. */
-export function enforceWaitTaskSchema(
+export function validateWaitTask(
   raw: Record<string, unknown>,
   base: TaskBase,
 ): ParseResult<WaitTask> {
@@ -293,25 +293,3 @@ export function enforceWaitTaskSchema(
   return ok({ ...base, type: "wait" as const, wait: raw["wait"] as string });
 }
 
-// --- Deprecated aliases ---
-
-/** @deprecated Use enforceSetTaskSchema instead */
-export const validateSetTask = enforceSetTaskSchema;
-
-/** @deprecated Use enforceSwitchTaskSchema instead */
-export const validateSwitchTask = enforceSwitchTaskSchema;
-
-/** @deprecated Use enforceRaiseTaskSchema instead */
-export const validateRaiseTask = enforceRaiseTaskSchema;
-
-/** @deprecated Use enforceEmitTaskSchema instead */
-export const validateEmitTask = enforceEmitTaskSchema;
-
-/** @deprecated Use enforceRunTaskSchema instead */
-export const validateRunTask = enforceRunTaskSchema;
-
-/** @deprecated Use enforceForTaskSchema instead */
-export const validateForTask = enforceForTaskSchema;
-
-/** @deprecated Use enforceWaitTaskSchema instead */
-export const validateWaitTask = enforceWaitTaskSchema;

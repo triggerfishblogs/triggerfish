@@ -35,8 +35,4 @@ export {
   formatPlanAsMarkdown,
 } from "./prompt.ts";
 
-export {
-  buildPlanToolDefinitions,
-  getPlanToolDefinitions,
-  PLAN_SYSTEM_PROMPT,
-} from "./tools.ts";
+export { getPlanToolDefinitions, PLAN_SYSTEM_PROMPT } from "./tools.ts";

@@ -89,7 +89,7 @@ export function parseSelfHealingConfig(
 }
 
 /** Validate a single task entry's metadata for self-healing requirements. */
-export function enforceStepMetadataSchema(
+export function validateStepMetadata(
   taskEntry: WorkflowTaskEntry,
 ): ParseResult<StepMetadata> {
   const meta = taskEntry.task.metadata;
@@ -101,9 +101,7 @@ export function enforceStepMetadataSchema(
 
   const fields = ["description", "expects", "produces"] as const;
   for (const field of fields) {
-    if (
-      typeof meta[field] !== "string" || (meta[field] as string).length === 0
-    ) {
+    if (typeof meta[field] !== "string" || (meta[field] as string).length === 0) {
       return err(
         `Step metadata '${field}' missing or empty on task '${taskEntry.name}'`,
       );
@@ -122,7 +120,7 @@ export function enforceStepMetadataRequirements(
   tasks: readonly WorkflowTaskEntry[],
 ): ParseResult<void> {
   for (const task of tasks) {
-    const result = enforceStepMetadataSchema(task);
+    const result = validateStepMetadata(task);
     if (!result.ok) return err(result.error);
   }
   return ok(undefined);
@@ -139,9 +137,7 @@ function parsePauseOnIntervention(
   }
   if (typeof raw !== "string" || !VALID_PAUSE_ON.includes(raw)) {
     return err(
-      `Self-healing pause_on_intervention must be one of: ${
-        VALID_PAUSE_ON.join(", ")
-      } (or true/false)`,
+      `Self-healing pause_on_intervention must be one of: ${VALID_PAUSE_ON.join(", ")} (or true/false)`,
     );
   }
   return ok(raw as PauseOnIntervention);
@@ -150,14 +146,10 @@ function parsePauseOnIntervention(
 function parsePauseTimeoutPolicy(
   raw: unknown,
 ): ParseResult<PauseTimeoutPolicy> {
-  if (raw === undefined || raw === null) {
-    return ok(DEFAULT_PAUSE_TIMEOUT_POLICY);
-  }
+  if (raw === undefined || raw === null) return ok(DEFAULT_PAUSE_TIMEOUT_POLICY);
   if (typeof raw !== "string" || !VALID_TIMEOUT_POLICY.includes(raw)) {
     return err(
-      `Self-healing pause_timeout_policy must be one of: ${
-        VALID_TIMEOUT_POLICY.join(", ")
-      }`,
+      `Self-healing pause_timeout_policy must be one of: ${VALID_TIMEOUT_POLICY.join(", ")}`,
     );
   }
   return ok(raw as PauseTimeoutPolicy);
@@ -173,9 +165,7 @@ function parseNotifyOn(
   for (const item of raw) {
     if (typeof item !== "string" || !VALID_NOTIFY_EVENTS.includes(item)) {
       return err(
-        `Self-healing notify_on contains invalid event '${item}'. Valid: ${
-          VALID_NOTIFY_EVENTS.join(", ")
-        }`,
+        `Self-healing notify_on contains invalid event '${item}'. Valid: ${VALID_NOTIFY_EVENTS.join(", ")}`,
       );
     }
   }
@@ -203,8 +193,3 @@ function parseSoftSignals(
       : undefined,
   });
 }
-
-// --- Deprecated aliases ---
-
-/** @deprecated Use enforceStepMetadataSchema instead */
-export const validateStepMetadata = enforceStepMetadataSchema;

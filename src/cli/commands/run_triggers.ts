@@ -28,8 +28,8 @@ async function reportTriggerGatewayError(response: Response): Promise<never> {
   let body = "";
   try {
     body = await response.text();
-  } catch (err) {
-    log.debug("Trigger response text unavailable", { operation: "invokeTriggerCycle", err });
+  } catch {
+    // ignore
   }
   log.error("Trigger gateway request failed", {
     operation: "runTriggers",
@@ -50,7 +50,7 @@ async function reportTriggerGatewayError(response: Response): Promise<never> {
  * the daemon; this command returns as soon as the gateway acknowledges
  * the request.
  */
-export async function invokeTriggerCycle(): Promise<void> {
+export async function runTriggers(): Promise<void> {
   let response: Response;
   try {
     response = await postTriggerRequest();
@@ -67,6 +67,3 @@ export async function invokeTriggerCycle(): Promise<void> {
   }
   await reportTriggerGatewayError(response!);
 }
-
-/** @deprecated Use invokeTriggerCycle instead */
-export const runTriggers = invokeTriggerCycle;

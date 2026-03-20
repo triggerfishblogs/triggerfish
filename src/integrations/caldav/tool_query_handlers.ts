@@ -34,7 +34,7 @@ export function resolveCalendarUrl(
 }
 
 /** Execute caldav_calendars_list. */
-export async function listCalDavCalendars(
+export async function executeCalendarsList(
   ctx: CalDavToolContext,
   _input: Record<string, unknown>,
 ): Promise<string> {
@@ -62,11 +62,8 @@ export async function listCalDavCalendars(
   return JSON.stringify({ calendars, _origin: "caldav:calendars" });
 }
 
-/** @deprecated Use listCalDavCalendars instead */
-export const executeCalendarsList = listCalDavCalendars;
-
 /** Execute caldav_events_list. */
-export async function listCalDavEvents(
+export async function executeEventsList(
   ctx: CalDavToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -135,11 +132,8 @@ function collectEvents(
   return events;
 }
 
-/** @deprecated Use listCalDavEvents instead */
-export const executeEventsList = listCalDavEvents;
-
 /** Execute caldav_events_get. */
-export async function fetchCalDavEvent(
+export async function executeEventsGet(
   ctx: CalDavToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -178,11 +172,8 @@ export async function fetchCalDavEvent(
   return `Error: Event with UID '${eventUid}' not found.`;
 }
 
-/** @deprecated Use fetchCalDavEvent instead */
-export const executeEventsGet = fetchCalDavEvent;
-
 /** Execute caldav_freebusy. */
-export async function queryCalDavFreeBusy(
+export async function executeFreeBusy(
   ctx: CalDavToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
@@ -231,6 +222,3 @@ export async function queryCalDavFreeBusy(
     _origin: "caldav:freebusy",
   });
 }
-
-/** @deprecated Use queryCalDavFreeBusy instead */
-export const executeFreeBusy = queryCalDavFreeBusy;

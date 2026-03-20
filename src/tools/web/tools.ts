@@ -63,7 +63,7 @@ function buildWebFetchDef(): ToolDefinition {
 /**
  * Get web tool definitions for the agent system prompt.
  */
-export function buildWebToolDefinitions(): readonly ToolDefinition[] {
+export function getWebToolDefinitions(): readonly ToolDefinition[] {
   return [
     buildWebSearchDef(),
     buildWebFetchDef(),
@@ -141,7 +141,7 @@ async function executeWebSearch(
  * Returns null if allowed, or an error message string if blocked.
  * Exported for testing.
  */
-export function enforceSkillDomainRestriction(
+export function checkSkillDomainRestriction(
   url: string,
   getActiveSkillDomains: (() => readonly string[] | null) | undefined,
 ): string | null {
@@ -188,7 +188,7 @@ async function executeWebFetch(
   }
 
   // Check skill domain restriction before fetching
-  const domainError = enforceSkillDomainRestriction(url, getActiveSkillDomains);
+  const domainError = checkSkillDomainRestriction(url, getActiveSkillDomains);
   if (domainError) return domainError;
 
   const mode = input.mode === "raw" ? "raw" as const : "readability" as const;
@@ -267,8 +267,3 @@ export function createWebToolExecutor(
     }
   };
 }
-
-/** @deprecated Use buildWebToolDefinitions instead */
-export const getWebToolDefinitions = buildWebToolDefinitions;
-/** @deprecated Use enforceSkillDomainRestriction instead */
-export const checkSkillDomainRestriction = enforceSkillDomainRestriction;

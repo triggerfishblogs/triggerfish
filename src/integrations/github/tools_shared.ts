@@ -71,7 +71,7 @@ export function formatGitHubError(error: GitHubApiError): string {
  * Validate that a value is a positive integer.
  * Returns the number or an error string.
  */
-export function assertPositiveIntValue(
+export function validatePositiveInt(
   value: unknown,
   fieldName: string,
   toolName: string,
@@ -82,9 +82,6 @@ export function assertPositiveIntValue(
   return value;
 }
 
-/** @deprecated Use assertPositiveIntValue instead */
-export const validatePositiveInt = assertPositiveIntValue;
-
 // ─── Branch Name Validation ─────────────────────────────────────────────────
 
 /** Pattern for valid git ref name components (no .., no control chars, no special sequences). */
@@ -94,7 +91,7 @@ const SAFE_BRANCH_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._\-/]*[a-zA-Z0-9]$/;
  * Validate that a branch name is safe for use in git refs.
  * Rejects path traversal, control characters, and malformed ref names.
  */
-export function assertValidBranchName(
+export function validateBranchName(
   value: unknown,
   toolName: string,
 ): string | { readonly branch: string } {
@@ -110,16 +107,13 @@ export function assertValidBranchName(
   return { branch: value };
 }
 
-/** @deprecated Use assertValidBranchName instead */
-export const validateBranchName = assertValidBranchName;
-
 // ─── Repo Validation ────────────────────────────────────────────────────────
 
 /**
  * Validate and parse a repo input parameter.
  * Returns the parsed RepoParts or an error string.
  */
-export function assertValidRepoInput(
+export function validateRepoInput(
   input: Record<string, unknown>,
   toolName: string,
 ): RepoParts | string {
@@ -133,6 +127,3 @@ export function assertValidRepoInput(
   }
   return parsed;
 }
-
-/** @deprecated Use assertValidRepoInput instead */
-export const validateRepoInput = assertValidRepoInput;

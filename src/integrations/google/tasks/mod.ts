@@ -22,10 +22,7 @@ export {
 } from "./tools_defs_tasks.ts";
 
 export {
-  completeGoogleTask,
-  createGoogleTask,
   executeTasksComplete,
   executeTasksCreate,
   executeTasksList,
-  listGoogleTasks,
 } from "./tools_exec_tasks.ts";

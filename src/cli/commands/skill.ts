@@ -237,7 +237,7 @@ function printSkillUsage(): void {
  * based on the parsed subcommand. Dependencies are injected by
  * the CLI wiring layer.
  */
-export async function dispatchSkillCommand(
+export async function runSkill(
   subcommand: string | undefined,
   flags: Readonly<Record<string, boolean | string>>,
   deps: SkillCommandDeps,
@@ -263,6 +263,3 @@ export async function dispatchSkillCommand(
       break;
   }
 }
-
-/** @deprecated Use dispatchSkillCommand instead */
-export const runSkill = dispatchSkillCommand;

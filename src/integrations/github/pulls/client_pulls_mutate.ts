@@ -8,7 +8,11 @@ import type {
   ClassificationLevel,
   Result,
 } from "../../../core/types/classification.ts";
-import type { GitHubError, GitHubPull, GitHubPullDetail } from "../types.ts";
+import type {
+  GitHubError,
+  GitHubPull,
+  GitHubPullDetail,
+} from "../types.ts";
 import type {
   ApiRequestFn,
   ClassifyRepoFn,
@@ -22,7 +26,7 @@ import {
 } from "./client_pulls_query.ts";
 
 /** Update a pull request on a GitHub repo. */
-export async function updateGitHubRepositoryPull(
+export async function updateRepoPull(
   apiRequest: ApiRequestFn,
   classifyRepo: ClassifyRepoFn,
   owner: string,
@@ -42,22 +46,15 @@ export async function updateGitHubRepositoryPull(
   if (!result.ok) return result;
 
   const classification = await fetchRepoClassification(
-    apiRequest,
-    classifyRepo,
-    owner,
-    repo,
+    apiRequest, classifyRepo, owner, repo,
   );
   return {
     ok: true,
     value: mapRawPullDetailToGitHubPullDetail(
-      result.value.data,
-      classification,
+      result.value.data, classification,
     ),
   };
 }
-
-/** @deprecated Use updateGitHubRepositoryPull instead */
-export const updateRepoPull = updateGitHubRepositoryPull;
 
 /** Create a pull request on a GitHub repo. */
 export async function submitRepoPullRequest(
@@ -77,10 +74,7 @@ export async function submitRepoPullRequest(
   if (!result.ok) return result;
 
   const classification = await fetchRepoClassification(
-    apiRequest,
-    classifyRepo,
-    owner,
-    repo,
+    apiRequest, classifyRepo, owner, repo,
   );
   return {
     ok: true,
@@ -114,10 +108,7 @@ export async function submitPullRequestReview(
   if (!result.ok) return result;
 
   const classification = await fetchRepoClassification(
-    apiRequest,
-    classifyRepo,
-    owner,
-    repo,
+    apiRequest, classifyRepo, owner, repo,
   );
   return {
     ok: true,
@@ -164,10 +155,7 @@ export async function mergeRepoPullRequest(
   if (!result.ok) return result;
 
   const classification = await fetchRepoClassification(
-    apiRequest,
-    classifyRepo,
-    owner,
-    repo,
+    apiRequest, classifyRepo, owner, repo,
   );
   return {
     ok: true,

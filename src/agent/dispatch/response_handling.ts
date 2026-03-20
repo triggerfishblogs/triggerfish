@@ -31,6 +31,21 @@ import { createLogger } from "../../core/logger/mod.ts";
 
 const log = createLogger("orchestrator");
 
+// Re-export everything from response_quality for backward compatibility
+export {
+  buildRecoveryNudge,
+  classifyResponseQuality,
+  detectDenseNarration,
+  detectRepetition,
+  detectTrailingContinuationIntent,
+  FALLBACK_RESPONSE,
+} from "./response_quality.ts";
+export type {
+  RecoveryNudgeOptions,
+  ResponseQuality,
+  ResponseQualityOptions,
+} from "./response_quality.ts";
+
 // ─── PRE_OUTPUT hook ─────────────────────────────────────────────────────────
 
 /** Fire PRE_OUTPUT hook and return the result. */
@@ -76,7 +91,7 @@ export async function evaluatePreOutputHook(
 // ─── Final response handling ─────────────────────────────────────────────────
 
 /** Handle the final text response (no tool calls). */
-export async function deliverFinalResponse(
+export async function handleFinalResponse(
   finalText: string,
   completion: { content: string },
   hasTools: boolean,
@@ -157,6 +172,3 @@ export async function deliverFinalResponse(
     },
   };
 }
-
-/** @deprecated Use deliverFinalResponse instead */
-export const handleFinalResponse = deliverFinalResponse;

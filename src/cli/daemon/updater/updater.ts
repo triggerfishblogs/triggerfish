@@ -6,12 +6,12 @@
 
 import { VERSION } from "../../version.ts";
 import {
-  fetchDaemonStatus,
+  getDaemonStatus,
   installAndStartDaemon,
   stopDaemon,
 } from "../lifecycle.ts";
 import { findInstalledBinary, replaceBinary } from "./binary.ts";
-import { fetchAndVerifyRelease } from "./download.ts";
+import { downloadAndVerifyRelease } from "./download.ts";
 import { fetchLatestRelease } from "./release.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
 
@@ -80,7 +80,7 @@ async function stopAndSwapBinary(tmpPath: string): Promise<{
   error?: string;
 }> {
   const binaryPath = await findInstalledBinary();
-  const wasRunning = (await fetchDaemonStatus()).running;
+  const wasRunning = (await getDaemonStatus()).running;
   if (wasRunning) {
     log.info("Stopping daemon for update", {
       operation: "applyUpdate",
@@ -116,7 +116,7 @@ function buildSuccessResult(
  *
  * @returns Result indicating success or failure with version information.
  */
-export async function upgradeTriggerfish(): Promise<UpdateResult> {
+export async function updateTriggerfish(): Promise<UpdateResult> {
   console.log("Checking for updates...");
   const release = await fetchLatestRelease();
   if ("error" in release) return { ok: false, message: release.error };
@@ -128,7 +128,7 @@ export async function upgradeTriggerfish(): Promise<UpdateResult> {
   console.log(`  Current: ${VERSION}`);
   console.log(`  Latest:  ${latestTag}`);
 
-  const downloaded = await fetchAndVerifyRelease(release.metadata);
+  const downloaded = await downloadAndVerifyRelease(release.metadata);
   if ("error" in downloaded) return { ok: false, message: downloaded.error };
 
   const swap = await stopAndSwapBinary(downloaded.tmpPath);
@@ -136,6 +136,3 @@ export async function upgradeTriggerfish(): Promise<UpdateResult> {
 
   return buildSuccessResult(latestTag, swap.wasRunning);
 }
-
-/** @deprecated Use upgradeTriggerfish instead */
-export const updateTriggerfish = upgradeTriggerfish;

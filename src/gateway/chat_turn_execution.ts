@@ -164,8 +164,8 @@ export function sendTurnErrorIfNotAborted(
 
 // ─── Owner turn execution ───────────────────────────────────────────────────
 
-/** Orchestrate a single owner agent turn under the mutex. */
-export async function orchestrateOwnerAgentTurn(
+/** Run a single owner agent turn under the mutex. */
+export async function runOwnerAgentTurn(
   state: ChatSessionMutableState,
   orchestrator: Orchestrator,
   getSession: () => SessionState,
@@ -231,8 +231,8 @@ export interface TurnChannelState {
   readonly channelName: string;
 }
 
-/** Orchestrate a single non-owner agent turn under the mutex. */
-export async function orchestrateNonOwnerAgentTurn(
+/** Run a single non-owner agent turn under the mutex. */
+export async function runNonOwnerAgentTurn(
   state: ChatSessionMutableState,
   orchestrator: Orchestrator,
   msg: ChannelMessage,
@@ -298,9 +298,3 @@ export async function orchestrateNonOwnerAgentTurn(
     release();
   }
 }
-
-/** @deprecated Use orchestrateOwnerAgentTurn instead */
-export const runOwnerAgentTurn = orchestrateOwnerAgentTurn;
-
-/** @deprecated Use orchestrateNonOwnerAgentTurn instead */
-export const runNonOwnerAgentTurn = orchestrateNonOwnerAgentTurn;

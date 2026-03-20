@@ -7,7 +7,6 @@
 
 export {
   BROWSER_TOOLS_SYSTEM_PROMPT,
-  buildBrowserToolDefinitions,
   getBrowserToolDefinitions,
 } from "./tools_defs.ts";
 
@@ -28,6 +27,5 @@ export {
   escalateWatermark,
   getWatermark,
   type ProfileWatermark,
-  retrieveWatermark,
   watermarkKey,
 } from "./watermark.ts";

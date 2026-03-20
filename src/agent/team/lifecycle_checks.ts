@@ -23,7 +23,7 @@ export interface MonitorState {
 }
 
 /** Check if a member has been idle too long and handle accordingly. */
-export async function detectMemberIdleTimeout(
+export async function checkMemberIdle(
   team: TeamInstance,
   member: TeamMemberInstance,
   nudgedMembers: Set<string>,
@@ -82,7 +82,7 @@ export async function detectMemberIdleTimeout(
 }
 
 /** Check team lifetime and handle timeout. */
-export async function detectTeamLifetimeTimeout(
+export async function checkLifetimeTimeout(
   team: TeamInstance,
   monitorState: MonitorState,
   deps: TeamManagerDeps,
@@ -123,7 +123,7 @@ export async function detectTeamLifetimeTimeout(
 }
 
 /** Detect lead failure (session taint returns null = session gone). */
-export async function detectLeadFailure(
+export async function checkLeadHealth(
   team: TeamInstance,
   deps: TeamManagerDeps,
 ): Promise<boolean> {
@@ -153,7 +153,7 @@ export async function detectLeadFailure(
 }
 
 /** Detect member failure and notify the lead. */
-export async function detectMemberFailure(
+export async function checkMemberHealth(
   team: TeamInstance,
   member: TeamMemberInstance,
   deps: TeamManagerDeps,
@@ -183,15 +183,3 @@ export async function detectMemberFailure(
 
   return { ...member, status: "failed" };
 }
-
-/** @deprecated Use detectMemberIdleTimeout instead */
-export const checkMemberIdle = detectMemberIdleTimeout;
-
-/** @deprecated Use detectTeamLifetimeTimeout instead */
-export const checkLifetimeTimeout = detectTeamLifetimeTimeout;
-
-/** @deprecated Use detectLeadFailure instead */
-export const checkLeadHealth = detectLeadFailure;
-
-/** @deprecated Use detectMemberFailure instead */
-export const checkMemberHealth = detectMemberFailure;
