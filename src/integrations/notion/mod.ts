@@ -61,6 +61,7 @@ export type { NotionToolContext } from "./tool_context.ts";
 
 export {
   getNotionToolDefinitions,
+  buildNotionToolDefinitions,
   NOTION_TOOLS_SYSTEM_PROMPT,
 } from "./tool_defs.ts";
 

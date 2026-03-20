@@ -282,7 +282,7 @@ function buildGoogleSheetsDef(): ToolDefinition {
 // ── Public API ──────────────────────────────────────────────────────
 
 /** Get all 5 consolidated Google Workspace tool definitions. */
-export function getGoogleToolDefinitions(): readonly ToolDefinition[] {
+export function buildGoogleToolDefinitions(): readonly ToolDefinition[] {
   return [
     buildGoogleGmailDef(),
     buildGoogleCalendarDef(),
@@ -291,6 +291,9 @@ export function getGoogleToolDefinitions(): readonly ToolDefinition[] {
     buildGoogleSheetsDef(),
   ];
 }
+
+/** @deprecated Use buildGoogleToolDefinitions instead */
+export const getGoogleToolDefinitions = buildGoogleToolDefinitions;
 
 /** System prompt section explaining Google Workspace tools to the LLM. */
 export const GOOGLE_TOOLS_SYSTEM_PROMPT = `## Google Workspace

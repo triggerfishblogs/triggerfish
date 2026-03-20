@@ -82,7 +82,7 @@ export function createSession(options: CreateSessionOptions): SessionState {
  * If the new level is lower than or equal to the current taint,
  * the session is returned unchanged (silently ignored).
  */
-export function updateTaint(
+export function escalateTaint(
   session: SessionState,
   level: ClassificationLevel,
   reason: string,
@@ -138,6 +138,9 @@ export function canOutput(
   }
   return allowed;
 }
+
+/** @deprecated Use escalateTaint instead */
+export const updateTaint = escalateTaint;
 
 /**
  * Reset a session, creating a fresh session with PUBLIC taint.
