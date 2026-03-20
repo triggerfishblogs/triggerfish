@@ -75,7 +75,9 @@ async function downloadBinaryToFile(
   } catch (e) {
     try {
       await Deno.remove(tmpPath);
-    } catch { /* cleanup */ }
+    } catch (err) {
+      log.debug("Temp file cleanup failed after download error", { operation: "downloadBinaryToFile", err });
+    }
     return `Download failed: ${e}`;
   }
 }
@@ -167,7 +169,7 @@ async function verifyBinaryChecksum(
  *
  * @returns The temp path to the downloaded binary, or an error message.
  */
-export async function downloadAndVerifyRelease(
+export async function fetchAndVerifyRelease(
   metadata: ReleaseMetadata,
 ): Promise<{ tmpPath: string } | { error: string }> {
   const tmpPath = join(resolveBaseDir(), ".update-tmp");
@@ -178,8 +180,13 @@ export async function downloadAndVerifyRelease(
   if (csError) {
     try {
       await Deno.remove(tmpPath);
-    } catch { /* cleanup */ }
+    } catch (err) {
+      log.debug("Temp file cleanup failed after checksum error", { operation: "fetchAndVerifyRelease", err });
+    }
     return { error: csError };
   }
   return { tmpPath };
 }
+
+/** @deprecated Use fetchAndVerifyRelease instead */
+export const downloadAndVerifyRelease = fetchAndVerifyRelease;
