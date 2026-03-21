@@ -13,15 +13,17 @@ import {
   executeConfigListChannels,
   executeConfigRemoveChannel,
   executeConfigSet,
+  executeConfigSetModels,
+  executeConfigSetSearch,
+  executeConfigShow,
+} from "./executor_config_actions.ts";
+import {
   executeConfigSetDomainClassification,
   executeConfigSetFilesystemPath,
   executeConfigSetIntegration,
   executeConfigSetLogging,
-  executeConfigSetModels,
-  executeConfigSetSearch,
   executeConfigSetToolFloor,
-  executeConfigShow,
-} from "./executor_config_actions.ts";
+} from "./executor_config_security.ts";
 
 /** Context required by the config_manage executor. */
 export interface ConfigManageContext {

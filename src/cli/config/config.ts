@@ -53,9 +53,9 @@ export {
   storeSecret,
 } from "./secrets.ts";
 export {
-  runConfigAddMcp,
-  runConfigListMcp,
-  runConfigRemoveMcp,
+  addMcpServerInteractive,
+  listMcpServersInteractive,
+  removeMcpServerInteractive,
 } from "./mcp.ts";
 
 // ─── Usage text ─────────────────────────────────────────────────
@@ -162,18 +162,18 @@ async function dispatchMcpSubcommand(
 ): Promise<void> {
   switch (subcommand) {
     case "add-mcp": {
-      const { runConfigAddMcp } = await import("./mcp.ts");
-      await runConfigAddMcp(flags);
+      const { addMcpServerInteractive } = await import("./mcp.ts");
+      await addMcpServerInteractive(flags);
       break;
     }
     case "remove-mcp": {
-      const { runConfigRemoveMcp } = await import("./mcp.ts");
-      await runConfigRemoveMcp(flags);
+      const { removeMcpServerInteractive } = await import("./mcp.ts");
+      await removeMcpServerInteractive(flags);
       break;
     }
     case "list-mcp": {
-      const { runConfigListMcp } = await import("./mcp.ts");
-      await runConfigListMcp();
+      const { listMcpServersInteractive } = await import("./mcp.ts");
+      await listMcpServersInteractive();
       break;
     }
   }

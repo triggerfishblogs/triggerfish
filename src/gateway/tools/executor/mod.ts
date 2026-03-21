@@ -51,6 +51,13 @@ export {
   executeConfigShow,
 } from "./executor_config_actions.ts";
 export {
+  executeConfigSetDomainClassification,
+  executeConfigSetFilesystemPath,
+  executeConfigSetIntegration,
+  executeConfigSetLogging,
+  executeConfigSetToolFloor,
+} from "./executor_config_security.ts";
+export {
   createMcpManageExecutor,
   type McpManageContext,
 } from "./executor_mcp_manage.ts";

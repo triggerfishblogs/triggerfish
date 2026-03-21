@@ -93,7 +93,7 @@ async function promptEnvVars(): Promise<Record<string, string> | undefined> {
 /**
  * Add an MCP server to triggerfish.yaml interactively.
  */
-export async function runConfigAddMcp(
+export async function addMcpServerInteractive(
   flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
   if (!Deno.stdin.isTerminal()) {
@@ -161,7 +161,7 @@ export async function runConfigAddMcp(
 /**
  * Remove an MCP server from triggerfish.yaml.
  */
-export async function runConfigRemoveMcp(
+export async function removeMcpServerInteractive(
   flags: Readonly<Record<string, boolean | string>>,
 ): Promise<void> {
   const configPath = resolveConfigPath();
@@ -211,7 +211,7 @@ export async function runConfigRemoveMcp(
 /**
  * List configured MCP servers.
  */
-export async function runConfigListMcp(): Promise<void> {
+export async function listMcpServersInteractive(): Promise<void> {
   const configPath = resolveConfigPath();
   const parsed = await loadConfig(configPath);
   const mcp = (parsed.mcp ?? {}) as Record<string, unknown>;
