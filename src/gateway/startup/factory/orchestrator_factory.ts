@@ -231,6 +231,38 @@ function resolveFactorySession(
   );
 }
 
+/** Parse or migrate a raw persisted session record. Returns session ID or null. */
+async function parsePersistedSessionRecord(
+  storageKey: string,
+  raw: string,
+  channelId: string,
+  storage: StorageProvider,
+): Promise<{ readonly id: string; readonly createdAt?: string } | null> {
+  try {
+    const record = JSON.parse(raw) as { id: string; createdAt: string };
+    if (isValidSessionId(record.id)) return record;
+  } catch {
+    if (isValidSessionId(raw)) {
+      const migrated = JSON.stringify({
+        id: raw,
+        createdAt: new Date().toISOString(),
+      });
+      await storage.set(storageKey, migrated);
+      log.info("Migrated legacy persisted session ID for channel", {
+        operation: "parsePersistedSessionRecord",
+        channelId,
+        sessionId: raw,
+      });
+      return { id: raw };
+    }
+  }
+  log.warn("Persisted session record has invalid format, generating new", {
+    operation: "parsePersistedSessionRecord",
+    channelId,
+  });
+  return null;
+}
+
 /** Restore a persisted session ID from storage, or create and persist a new one. */
 async function restoreOrCreatePersistedSession(
   channelId: string,
@@ -240,40 +272,16 @@ async function restoreOrCreatePersistedSession(
   const storageKey = `session-id:${channelId}`;
   const raw = await storage.get(storageKey);
   if (raw) {
-    try {
-      const record = JSON.parse(raw) as { id: string; createdAt: string };
-      if (isValidSessionId(record.id)) {
-        log.info("Restored persisted session for channel", {
-          operation: "restoreOrCreatePersistedSession",
-          channelId,
-          sessionId: record.id,
-        });
-        return restoreSession({
-          ...sessionOpts,
-          id: record.id as SessionId,
-          createdAt: new Date(record.createdAt),
-        });
-      }
-    } catch {
-      // Legacy bare-string format or corrupt data
-      if (isValidSessionId(raw)) {
-        const migrated = JSON.stringify({
-          id: raw,
-          createdAt: new Date().toISOString(),
-        });
-        await storage.set(storageKey, migrated);
-        log.info("Migrated legacy persisted session ID for channel", {
-          operation: "restoreOrCreatePersistedSession",
-          channelId,
-          sessionId: raw,
-        });
-        return restoreSession({ ...sessionOpts, id: raw as SessionId });
-      }
+    const parsed = await parsePersistedSessionRecord(
+      storageKey, raw, channelId, storage,
+    );
+    if (parsed) {
+      return restoreSession({
+        ...sessionOpts,
+        id: parsed.id as SessionId,
+        ...(parsed.createdAt ? { createdAt: new Date(parsed.createdAt) } : {}),
+      });
     }
-    log.warn("Persisted session record has invalid format, generating new", {
-      operation: "restoreOrCreatePersistedSession",
-      channelId,
-    });
   }
   const session = createSession(sessionOpts);
   const record = JSON.stringify({

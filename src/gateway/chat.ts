@@ -204,7 +204,9 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     clear() {
       orchestrator.clearHistory(getSession().id);
       if (config.resetSession) config.resetSession();
-      // Update mutable state to track the new session ID after reset
+      // Update mutable state to track the new session ID after reset.
+      // clear() is only callable when the turn mutex is idle (no active
+      // tool dispatch), so no sub-agent sessions are in flight here.
       const newSessionId = getSession().id as string;
       state.ownerSessionId = newSessionId;
       state.activeSessionId = newSessionId;

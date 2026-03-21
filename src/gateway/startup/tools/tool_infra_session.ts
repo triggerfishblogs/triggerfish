@@ -122,36 +122,44 @@ async function loadPersistedSession(
   if (!raw) return null;
   try {
     const record = JSON.parse(raw) as PersistedSessionRecord;
-    if (isValidSessionId(record.id)) {
-      log.info("Restored persisted main session ID", {
+    if (!isValidSessionId(record.id)) {
+      log.warn("Persisted main session ID has invalid format, generating new", {
         operation: "loadPersistedSession",
-        sessionId: record.id,
+        invalidId: record.id,
       });
-      return record;
+      return null;
     }
-    log.warn("Persisted main session ID has invalid format, generating new", {
+    log.info("Restored persisted main session ID", {
       operation: "loadPersistedSession",
-      invalidId: record.id,
+      sessionId: record.id,
     });
+    return record;
   } catch {
-    // Legacy format: bare UUID string (pre-JSON migration)
-    if (isValidSessionId(raw)) {
-      const migrated: PersistedSessionRecord = {
-        id: raw,
-        createdAt: new Date().toISOString(),
-      };
-      await storage.set(MAIN_SESSION_ID_KEY, JSON.stringify(migrated));
-      log.info("Migrated legacy persisted session ID to JSON format", {
-        operation: "loadPersistedSession",
-        sessionId: raw,
-      });
-      return migrated;
-    }
-    log.warn("Persisted session record is corrupt, generating new", {
-      operation: "loadPersistedSession",
-    });
+    return migrateLegacySessionRecord(raw, storage);
   }
-  return null;
+}
+
+/** Migrate a bare-UUID legacy record to JSON format, or return null if corrupt. */
+async function migrateLegacySessionRecord(
+  raw: string,
+  storage: StorageProvider,
+): Promise<PersistedSessionRecord | null> {
+  if (!isValidSessionId(raw)) {
+    log.warn("Persisted session record is corrupt, generating new", {
+      operation: "migrateLegacySessionRecord",
+    });
+    return null;
+  }
+  const migrated: PersistedSessionRecord = {
+    id: raw,
+    createdAt: new Date().toISOString(),
+  };
+  await storage.set(MAIN_SESSION_ID_KEY, JSON.stringify(migrated));
+  log.info("Migrated legacy persisted session ID to JSON format", {
+    operation: "migrateLegacySessionRecord",
+    sessionId: raw,
+  });
+  return migrated;
 }
 
 /** Persist a session ID and creation timestamp to storage. */
