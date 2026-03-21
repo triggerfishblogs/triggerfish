@@ -111,6 +111,18 @@ export type ChatEvent =
     readonly preview: string;
     readonly firedAt: string;
   }
+  | {
+    /**
+     * Server → client: request the user to confirm a destructive action
+     * (e.g. daemon restart). The client must show a confirmation dialog
+     * and respond with `confirm_prompt_response`.
+     */
+    readonly type: "confirm_prompt";
+    /** Unique nonce correlating this request with the response. */
+    readonly nonce: string;
+    /** Human-readable description of the action to confirm. */
+    readonly message: string;
+  }
   /** Server → client: cancel acknowledged — the in-flight request was aborted. */
   | { readonly type: "cancelled" }
   /** Server → client: bumper state changed. */
@@ -145,6 +157,16 @@ export type ChatClientMessage =
     readonly username: string | null;
     /** The password entered by the user, or null if cancelled. */
     readonly password: string | null;
+  }
+  | {
+    /**
+     * Client → server: the user approved or denied a confirm prompt.
+     */
+    readonly type: "confirm_prompt_response";
+    /** The nonce from the originating `confirm_prompt` event. */
+    readonly nonce: string;
+    /** Whether the user approved (true) or denied (false). */
+    readonly approved: boolean;
   }
   | {
     /**

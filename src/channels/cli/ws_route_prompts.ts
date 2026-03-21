@@ -74,6 +74,30 @@ export function routeCredentialPromptEvent(
   ctx.screen.redrawInput(ctx.editor);
 }
 
+/** Handle "confirm_prompt" event. */
+export function routeConfirmPromptEvent(
+  evt: Extract<ChatEvent, { type: "confirm_prompt" }>,
+  ctx: RouterContext,
+): void {
+  if (!ctx.isTty) return;
+  log.info("Confirm prompt received", {
+    operation: "routeConfirmPromptEvent",
+    nonce: evt.nonce,
+  });
+  ctx.state.confirmMode = {
+    nonce: evt.nonce,
+    message: evt.message,
+  };
+  ctx.screen.stopSpinner();
+  ctx.screen.writeOutput(
+    `  \x1b[33m\u26a0\x1b[0m \x1b[1m${evt.message}\x1b[0m`,
+  );
+  ctx.screen.setStatus(
+    "\u26a0 [Y] Approve  [N/Esc] Deny",
+  );
+  ctx.screen.redrawInput(ctx.editor);
+}
+
 /** Build the consequence clause for the trigger prompt question. */
 export function describeTriggerConsequence(
   sessionTaint: ClassificationLevel,

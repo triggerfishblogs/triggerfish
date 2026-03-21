@@ -33,3 +33,19 @@ export {
   getToolDefinitions,
   type ServiceAvailability,
 } from "./service_availability.ts";
+export {
+  CONFIG_MANAGE_SYSTEM_PROMPT,
+  getConfigManageToolDefinitions,
+} from "./config_manage_defs.ts";
+export {
+  getMcpManageToolDefinitions,
+  MCP_MANAGE_SYSTEM_PROMPT,
+} from "./mcp_manage_defs.ts";
+export {
+  DAEMON_MANAGE_SYSTEM_PROMPT,
+  getDaemonManageToolDefinitions,
+} from "./daemon_manage_defs.ts";
+export {
+  getSpineManageToolDefinitions,
+  SPINE_MANAGE_SYSTEM_PROMPT,
+} from "./spine_manage_defs.ts";

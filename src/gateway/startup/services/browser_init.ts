@@ -123,11 +123,12 @@ export function initializeMcpServers(
   keychain: ReturnType<typeof createKeychain>,
   lineageStore: LineageStore,
 ) {
-  if (!config.mcp_servers || Object.keys(config.mcp_servers).length === 0) {
+  const mcpServers = config.mcp?.servers ?? config.mcp_servers;
+  if (!mcpServers || Object.keys(mcpServers).length === 0) {
     return { mcpExecutor: undefined, mcpWiring: null };
   }
   const mcpWiring = wireMcpServers(
-    config.mcp_servers,
+    mcpServers,
     hookRunner,
     getSession,
     toolClassifications,

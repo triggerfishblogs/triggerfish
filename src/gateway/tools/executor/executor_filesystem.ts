@@ -37,6 +37,8 @@ export async function loadFileContent(
   if (typeof path !== "string" || path.length === 0) {
     return "Error: read_file requires a 'path' argument (string).";
   }
+  const configRedirect = checkConfigManaged(path);
+  if (configRedirect) return configRedirect;
   if (sandbox) {
     const resp = await sandbox.request({
       id: "",
@@ -50,6 +52,32 @@ export async function loadFileContent(
   } catch (err) {
     return formatFsError("Error reading file", err);
   }
+}
+
+/**
+ * Basenames managed exclusively by dedicated tools, not filesystem tools.
+ * triggerfish.yaml → config_manage / mcp_manage
+ * TRIGGER.md → trigger_manage
+ */
+const CONFIG_MANAGED_BASENAMES: ReadonlyMap<string, string> = new Map([
+  ["triggerfish.yaml", "config_manage or mcp_manage"],
+  ["triggerfish.yml", "config_manage or mcp_manage"],
+  ["SPINE.md", "spine_manage"],
+]);
+
+/**
+ * Check if a path targets a config-managed file. Returns redirect message or null.
+ * These files must ONLY be accessed through their dedicated tools.
+ */
+function checkConfigManaged(path: string): string | null {
+  const name = basename(path);
+  const tool = CONFIG_MANAGED_BASENAMES.get(name);
+  if (tool) {
+    return `Error: ${name} is managed exclusively by the ${tool} tool. ` +
+      `Do not use read_file, write_file, edit_file, or run_command on this file. ` +
+      `Use the ${tool} tool instead.`;
+  }
+  return null;
 }
 
 /** Check if a path targets a write-protected file. */
@@ -71,6 +99,8 @@ export async function persistFileContent(
   if (typeof content !== "string") {
     return "Error: write_file requires a 'content' argument (string).";
   }
+  const configRedirect = checkConfigManaged(path);
+  if (configRedirect) return configRedirect;
   if (isWriteProtected(path)) {
     return `Error: ${
       basename(path)
@@ -262,6 +292,8 @@ export async function modifyFileContent(
   const validationError = validateEditInput(input);
   if (validationError) return validationError;
   const path = input.path as string;
+  const configRedirect = checkConfigManaged(path);
+  if (configRedirect) return configRedirect;
   if (isWriteProtected(path)) {
     return `Error: ${
       basename(path)

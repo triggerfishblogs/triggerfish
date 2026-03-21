@@ -159,9 +159,26 @@ export interface TriggerFishConfig {
       readonly enabled?: boolean;
     }>
   >;
+  /** MCP servers (preferred path: mcp.servers). */
+  readonly mcp?: {
+    readonly servers?: Readonly<
+      Record<string, {
+        readonly command?: string;
+        readonly args?: readonly string[];
+        readonly env?: Readonly<Record<string, string>>;
+        readonly url?: string;
+        readonly classification?: string;
+        readonly enabled?: boolean;
+      }>
+    >;
+  };
   readonly logging?: {
     /** Log level: "quiet" | "normal" | "verbose" | "debug". Default: "normal". */
     readonly level?: string;
+  };
+  readonly daemon?: {
+    /** Auto-approve daemon restarts triggered by config_manage. Default: false. */
+    readonly auto_approve_restart?: boolean;
   };
   readonly debug?: boolean;
 }

@@ -32,9 +32,11 @@ import type { CoreInfraResult } from "../infra/core_infra.ts";
 import { initializeBrowserExecutor } from "../services/browser_init.ts";
 import { initializeMemorySystem } from "../infra/workspace_init.ts";
 import {
+  createCliConfirmPrompt,
   createCliCredentialPrompt,
   createCliSecretPrompt,
 } from "../infra/subsystems.ts";
+import type { ConfirmPromptCallback } from "./tool_executor.ts";
 import type { MainSessionState } from "./tool_executor.ts";
 import type { TidepoolToolsRef } from "./tool_infra_types.ts";
 
@@ -45,6 +47,7 @@ export function initializeMainSessionState(opts?: {
   state: MainSessionState;
   cliSecretPrompt: SecretPromptCallback;
   cliCredentialPrompt: CredentialPromptCallback;
+  cliConfirmPrompt: ConfirmPromptCallback;
 } {
   const state: MainSessionState = {
     session: createSession({
@@ -54,11 +57,13 @@ export function initializeMainSessionState(opts?: {
     }),
     activeSecretPrompt: createCliSecretPrompt(),
     activeCredentialPrompt: createCliCredentialPrompt(),
+    activeConfirmPrompt: createCliConfirmPrompt(),
   };
   return {
     state,
     cliSecretPrompt: state.activeSecretPrompt,
     cliCredentialPrompt: state.activeCredentialPrompt,
+    cliConfirmPrompt: state.activeConfirmPrompt,
   };
 }
 

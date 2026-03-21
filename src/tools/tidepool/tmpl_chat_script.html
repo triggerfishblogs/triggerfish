@@ -193,6 +193,9 @@
         case "credential_prompt":
           handleCredentialPrompt(evt.nonce, evt.name, evt.hint);
           break;
+        case "confirm_prompt":
+          handleConfirmPrompt(evt.nonce, evt.message);
+          break;
       }
     }
 
@@ -352,6 +355,49 @@
       cancelBtn.addEventListener("click", onCancel);
       passwordInput.addEventListener("keydown", onKeydown);
       usernameInput.addEventListener("keydown", onTabToPassword);
+    }
+
+    function handleConfirmPrompt(nonce, message) {
+      var overlay = document.getElementById("confirm-prompt-overlay");
+      var msgEl = document.getElementById("confirm-prompt-message");
+      var approveBtn = document.getElementById("confirm-prompt-approve");
+      var denyBtn = document.getElementById("confirm-prompt-deny");
+
+      if (!overlay || !msgEl || !approveBtn || !denyBtn) return;
+
+      msgEl.textContent = message || "Confirm this action?";
+      overlay.style.display = "flex";
+
+      function cleanup() {
+        overlay.style.display = "none";
+        approveBtn.removeEventListener("click", onApprove);
+        denyBtn.removeEventListener("click", onDeny);
+      }
+
+      function onApprove() {
+        cleanup();
+        if (window.tidepoolWs && window.tidepoolWs.isConnected()) {
+          window.tidepoolWs.send({
+            type: "confirm_prompt_response",
+            nonce: nonce,
+            approved: true,
+          });
+        }
+      }
+
+      function onDeny() {
+        cleanup();
+        if (window.tidepoolWs && window.tidepoolWs.isConnected()) {
+          window.tidepoolWs.send({
+            type: "confirm_prompt_response",
+            nonce: nonce,
+            approved: false,
+          });
+        }
+      }
+
+      approveBtn.addEventListener("click", onApprove);
+      denyBtn.addEventListener("click", onDeny);
     }
 
     function addRenderLabel(evt) {
