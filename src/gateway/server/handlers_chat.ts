@@ -279,7 +279,12 @@ function attachChatSocketListeners(
   const abortRef: { controller: AbortController | null } = { controller: null };
 
   socket.addEventListener("open", () => {
-    handleChatSocketOpen(socket, chat, chatSockets);
+    handleChatSocketOpen(socket, chat, chatSockets).catch((err: unknown) => {
+      log.error("WebSocket open handler failed", {
+        operation: "handleChatSocketOpen",
+        err,
+      });
+    });
   });
   socket.addEventListener("message", (event: MessageEvent) => {
     handleChatSocketMessage(event, chat, socket, abortRef);
