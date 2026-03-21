@@ -13,6 +13,7 @@ import type { WsRouterDeps } from "./chat_ws_types.ts";
 import type { RouterContext } from "./ws_route_status.ts";
 import {
   routeBumpersStatusEvent,
+  routeChatHistoryEvent,
   routeConnectedEvent,
   routeMcpStatusEvent,
   routeNotificationEvent,
@@ -116,6 +117,11 @@ function dispatchChatEvent(
     case "bumpers_status":
       return routeBumpersStatusEvent(
         evt as Extract<ChatEvent, { type: "bumpers_status" }>,
+        ctx,
+      );
+    case "chat_history":
+      return routeChatHistoryEvent(
+        evt as Extract<ChatEvent, { type: "chat_history" }>,
         ctx,
       );
     case "cancelled":

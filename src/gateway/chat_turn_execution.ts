@@ -37,7 +37,8 @@ export interface ChatSessionMutableState {
   activeSessionId: string;
   activeNonOwnerCeiling: ClassificationLevel | null;
   mutex: Promise<void>;
-  readonly ownerSessionId: string;
+  /** Owner session ID. Updated only by `clear()` when the session rotates. */
+  ownerSessionId: string;
   readonly sessionStates: Map<string, SessionState>;
 }
 

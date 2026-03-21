@@ -8,8 +8,10 @@
  */
 
 import type { TriggerFishConfig } from "../../../core/config.ts";
-import type { ChannelId, UserId } from "../../../core/types/session.ts";
-import { createSession } from "../../../core/types/session.ts";
+import type { ChannelId, SessionId, UserId } from "../../../core/types/session.ts";
+import { createSession, restoreSession } from "../../../core/types/session.ts";
+import type { StorageProvider } from "../../../core/storage/provider.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
 import type { createProviderRegistry } from "../../../agent/llm.ts";
 import { resolveVisionProvider } from "../../../agent/providers/config.ts";
 import type { ModelsConfig } from "../../../agent/providers/config.ts";
@@ -40,21 +42,32 @@ import type { ConfirmPromptCallback } from "./tool_executor.ts";
 import type { MainSessionState } from "./tool_executor.ts";
 import type { TidepoolToolsRef } from "./tool_infra_types.ts";
 
+const log = createLogger("session-persistence");
+
+/** Storage key for the persisted main session ID. */
+export const MAIN_SESSION_ID_KEY = "main-session-id";
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Validate that a persisted session ID is a well-formed UUID. */
+export function isValidSessionId(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
 /** Create the main session state and core session-level executors. */
-export function initializeMainSessionState(opts?: {
+export async function initializeMainSessionState(opts?: {
   readonly bumpersEnabled?: boolean;
-}): {
+  readonly storage?: StorageProvider;
+}): Promise<{
   state: MainSessionState;
   cliSecretPrompt: SecretPromptCallback;
   cliCredentialPrompt: CredentialPromptCallback;
   cliConfirmPrompt: ConfirmPromptCallback;
-} {
+}> {
+  const session = await restoreOrCreateMainSession(opts);
   const state: MainSessionState = {
-    session: createSession({
-      userId: "owner" as UserId,
-      channelId: "daemon" as ChannelId,
-      bumpersEnabled: opts?.bumpersEnabled,
-    }),
+    session,
     activeSecretPrompt: createCliSecretPrompt(),
     activeCredentialPrompt: createCliCredentialPrompt(),
     activeConfirmPrompt: createCliConfirmPrompt(),
@@ -65,6 +78,104 @@ export function initializeMainSessionState(opts?: {
     cliCredentialPrompt: state.activeCredentialPrompt,
     cliConfirmPrompt: state.activeConfirmPrompt,
   };
+}
+
+/** Restore a persisted main session ID from storage, or create a new one. */
+async function restoreOrCreateMainSession(opts?: {
+  readonly bumpersEnabled?: boolean;
+  readonly storage?: StorageProvider;
+}) {
+  const sessionOpts = {
+    userId: "owner" as UserId,
+    channelId: "daemon" as ChannelId,
+    bumpersEnabled: opts?.bumpersEnabled,
+  };
+
+  if (opts?.storage) {
+    const restored = await loadPersistedSession(opts.storage);
+    if (restored) {
+      return restoreSession({
+        ...sessionOpts,
+        id: restored.id as SessionId,
+        createdAt: new Date(restored.createdAt),
+      });
+    }
+    const session = createSession(sessionOpts);
+    await persistSessionRecord(opts.storage, session.id as string);
+    return session;
+  }
+
+  return createSession(sessionOpts);
+}
+
+/** Persisted session record shape stored as JSON in StorageProvider. */
+interface PersistedSessionRecord {
+  readonly id: string;
+  readonly createdAt: string;
+}
+
+/** Load and validate a persisted session record from storage. */
+async function loadPersistedSession(
+  storage: StorageProvider,
+): Promise<PersistedSessionRecord | null> {
+  const raw = await storage.get(MAIN_SESSION_ID_KEY);
+  if (!raw) return null;
+  try {
+    const record = JSON.parse(raw) as PersistedSessionRecord;
+    if (!isValidSessionId(record.id)) {
+      log.warn("Persisted main session ID has invalid format, generating new", {
+        operation: "loadPersistedSession",
+        invalidId: record.id,
+      });
+      return null;
+    }
+    log.info("Restored persisted main session ID", {
+      operation: "loadPersistedSession",
+      sessionId: record.id,
+    });
+    return record;
+  } catch {
+    return migrateLegacySessionRecord(raw, storage);
+  }
+}
+
+/** Migrate a bare-UUID legacy record to JSON format, or return null if corrupt. */
+async function migrateLegacySessionRecord(
+  raw: string,
+  storage: StorageProvider,
+): Promise<PersistedSessionRecord | null> {
+  if (!isValidSessionId(raw)) {
+    log.warn("Persisted session record is corrupt, generating new", {
+      operation: "migrateLegacySessionRecord",
+    });
+    return null;
+  }
+  const migrated: PersistedSessionRecord = {
+    id: raw,
+    createdAt: new Date().toISOString(),
+  };
+  await storage.set(MAIN_SESSION_ID_KEY, JSON.stringify(migrated));
+  log.info("Migrated legacy persisted session ID to JSON format", {
+    operation: "migrateLegacySessionRecord",
+    sessionId: raw,
+  });
+  return migrated;
+}
+
+/** Persist a session ID and creation timestamp to storage. */
+export async function persistSessionRecord(
+  storage: StorageProvider,
+  sessionId: string,
+): Promise<void> {
+  const record: PersistedSessionRecord = {
+    id: sessionId,
+    createdAt: new Date().toISOString(),
+  };
+  await storage.set(MAIN_SESSION_ID_KEY, JSON.stringify(record));
+  log.info("Persisted new main session ID", {
+    operation: "persistSessionRecord",
+    sessionId,
+  });
 }
 
 /** Build media-related executors (vision, browser, tidepool, image). */

@@ -13,9 +13,11 @@ import type { ClassificationLevel } from "../../../core/types/classification.ts"
 import {
   createSession,
   OWNER_MEMORY_AGENT_ID,
+  restoreSession,
   updateTaint,
 } from "../../../core/types/session.ts";
-import type { ChannelId, UserId } from "../../../core/types/session.ts";
+import type { ChannelId, SessionId, SessionState, UserId } from "../../../core/types/session.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
 import { createOrchestrator } from "../../../agent/orchestrator/orchestrator.ts";
 import { createWorkspace } from "../../../exec/workspace.ts";
 import type { ToolFloorRegistry } from "../../../core/security/tool_floors.ts";
@@ -55,6 +57,9 @@ import {
   initializeFactoryInfra,
   symlinkSpineToWorkspace,
 } from "./orchestrator_factory_infra.ts";
+import { isValidSessionId } from "../tools/tool_infra_session.ts";
+
+const log = createLogger("orchestrator-factory");
 
 /**
  * Create an OrchestratorFactory from config.
@@ -100,9 +105,9 @@ export function createOrchestratorFactory(
         await symlinkSpineToWorkspace(infra.spinePath, workspace.path);
       }
 
-      let session = createSession({
-        userId: "owner" as UserId,
-        channelId: channelId as ChannelId,
+      let session = await resolveFactorySession(channelId, {
+        persistent: options?.persistent ?? false,
+        storage,
       });
 
       // ── IMPORTANT: infra.keychain for all integration executors ─────────
@@ -205,4 +210,89 @@ export function createOrchestratorFactory(
       return { orchestrator, session, toolExecutor };
     },
   };
+}
+
+/** Restore or create a session for the orchestrator factory. */
+function resolveFactorySession(
+  channelId: string,
+  opts: { readonly persistent: boolean; readonly storage?: StorageProvider },
+): Promise<SessionState> {
+  const sessionOpts = {
+    userId: "owner" as UserId,
+    channelId: channelId as ChannelId,
+  };
+  if (!opts.persistent || !opts.storage) {
+    return Promise.resolve(createSession(sessionOpts));
+  }
+  return restoreOrCreatePersistedSession(
+    channelId,
+    sessionOpts,
+    opts.storage,
+  );
+}
+
+/** Parse or migrate a raw persisted session record. Returns session ID or null. */
+async function parsePersistedSessionRecord(
+  storageKey: string,
+  raw: string,
+  channelId: string,
+  storage: StorageProvider,
+): Promise<{ readonly id: string; readonly createdAt?: string } | null> {
+  try {
+    const record = JSON.parse(raw) as { id: string; createdAt: string };
+    if (isValidSessionId(record.id)) return record;
+  } catch {
+    if (isValidSessionId(raw)) {
+      const migrated = JSON.stringify({
+        id: raw,
+        createdAt: new Date().toISOString(),
+      });
+      await storage.set(storageKey, migrated);
+      log.info("Migrated legacy persisted session ID for channel", {
+        operation: "parsePersistedSessionRecord",
+        channelId,
+        sessionId: raw,
+      });
+      return { id: raw };
+    }
+  }
+  log.warn("Persisted session record has invalid format, generating new", {
+    operation: "parsePersistedSessionRecord",
+    channelId,
+  });
+  return null;
+}
+
+/** Restore a persisted session ID from storage, or create and persist a new one. */
+async function restoreOrCreatePersistedSession(
+  channelId: string,
+  sessionOpts: { readonly userId: UserId; readonly channelId: ChannelId },
+  storage: StorageProvider,
+): Promise<SessionState> {
+  const storageKey = `session-id:${channelId}`;
+  const raw = await storage.get(storageKey);
+  if (raw) {
+    const parsed = await parsePersistedSessionRecord(
+      storageKey, raw, channelId, storage,
+    );
+    if (parsed) {
+      return restoreSession({
+        ...sessionOpts,
+        id: parsed.id as SessionId,
+        ...(parsed.createdAt ? { createdAt: new Date(parsed.createdAt) } : {}),
+      });
+    }
+  }
+  const session = createSession(sessionOpts);
+  const record = JSON.stringify({
+    id: session.id as string,
+    createdAt: new Date().toISOString(),
+  });
+  await storage.set(storageKey, record);
+  log.info("Persisted new session ID for channel", {
+    operation: "restoreOrCreatePersistedSession",
+    channelId,
+    sessionId: session.id,
+  });
+  return session;
 }
