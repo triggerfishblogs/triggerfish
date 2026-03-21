@@ -177,6 +177,12 @@ export default defineConfig({
     }],
   ],
 
+  transformHtml(_code, id) {
+    // Skip Cloudflare Web Analytics on /admin/ pages
+    if (id.startsWith("admin/")) return;
+    return `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "57b92f80b76a4bbab40b46e7ca0019dd"}'></script>`;
+  },
+
   locales: {
     root: {
       label: enUS.label,

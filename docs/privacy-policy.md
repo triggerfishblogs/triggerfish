@@ -151,6 +151,8 @@ The third parties we may share personal information with are as follows:
   - Google account
 - **Invoice and Billing**
   - Stripe
+- **Web Analytics**
+  - Cloudflare
 - **Web Search Services**
   - Brave Software
 
