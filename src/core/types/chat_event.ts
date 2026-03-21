@@ -118,13 +118,16 @@ export type ChatEvent =
   /** Server → client: persisted chat history for session restoration on reconnect. */
   | {
     readonly type: "chat_history";
-    readonly entries: readonly {
-      readonly role: "user" | "assistant";
-      readonly text: string;
-      readonly taint?: ClassificationLevel;
-      readonly timestamp: number;
-    }[];
+    readonly entries: readonly ChatHistoryWireEntry[];
   };
+
+/** Single entry in the chat_history wire event. */
+export interface ChatHistoryWireEntry {
+  readonly role: "user" | "assistant";
+  readonly text: string;
+  readonly taint?: ClassificationLevel;
+  readonly timestamp: number;
+}
 
 /** Messages the client can send. */
 export type ChatClientMessage =
