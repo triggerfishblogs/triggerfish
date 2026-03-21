@@ -18,8 +18,6 @@ import {
 } from "../../../core/types/session.ts";
 import type { ChannelId, SessionId, SessionState, UserId } from "../../../core/types/session.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
-
-const log = createLogger("orchestrator-factory");
 import { createOrchestrator } from "../../../agent/orchestrator/orchestrator.ts";
 import { createWorkspace } from "../../../exec/workspace.ts";
 import type { ToolFloorRegistry } from "../../../core/security/tool_floors.ts";
@@ -59,6 +57,8 @@ import {
   initializeFactoryInfra,
   symlinkSpineToWorkspace,
 } from "./orchestrator_factory_infra.ts";
+
+const log = createLogger("orchestrator-factory");
 
 /**
  * Create an OrchestratorFactory from config.

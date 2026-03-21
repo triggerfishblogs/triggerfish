@@ -12,11 +12,6 @@ import type { ChannelId, SessionId, UserId } from "../../../core/types/session.t
 import { createSession, restoreSession } from "../../../core/types/session.ts";
 import type { StorageProvider } from "../../../core/storage/provider.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
-
-const log = createLogger("session-persistence");
-
-/** Storage key for the persisted main session ID. */
-export const MAIN_SESSION_ID_KEY = "main-session-id";
 import type { createProviderRegistry } from "../../../agent/llm.ts";
 import { resolveVisionProvider } from "../../../agent/providers/config.ts";
 import type { ModelsConfig } from "../../../agent/providers/config.ts";
@@ -46,6 +41,11 @@ import {
 import type { ConfirmPromptCallback } from "./tool_executor.ts";
 import type { MainSessionState } from "./tool_executor.ts";
 import type { TidepoolToolsRef } from "./tool_infra_types.ts";
+
+const log = createLogger("session-persistence");
+
+/** Storage key for the persisted main session ID. */
+export const MAIN_SESSION_ID_KEY = "main-session-id";
 
 /** Create the main session state and core session-level executors. */
 export async function initializeMainSessionState(opts?: {
