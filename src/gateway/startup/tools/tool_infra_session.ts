@@ -16,7 +16,7 @@ import { createLogger } from "../../../core/logger/logger.ts";
 const log = createLogger("session-persistence");
 
 /** Storage key for the persisted main session ID. */
-const MAIN_SESSION_ID_KEY = "main-session-id";
+export const MAIN_SESSION_ID_KEY = "main-session-id";
 import type { createProviderRegistry } from "../../../agent/llm.ts";
 import { resolveVisionProvider } from "../../../agent/providers/config.ts";
 import type { ModelsConfig } from "../../../agent/providers/config.ts";

@@ -34,6 +34,7 @@ import {
   buildExtraToolsGetter,
 } from "../tools/tool_executor.ts";
 import type { MainSessionState } from "../tools/tool_executor.ts";
+import { MAIN_SESSION_ID_KEY } from "../tools/tool_infra_session.ts";
 
 /** Build session lifecycle callbacks (escalate, reset, bumpers). */
 export function buildSessionLifecycleCallbacks(
@@ -53,7 +54,7 @@ export function buildSessionLifecycleCallbacks(
         channelId: "daemon" as ChannelId,
       });
       if (opts?.storage) {
-        opts.storage.set("main-session-id", state.session.id as string)
+        opts.storage.set(MAIN_SESSION_ID_KEY, state.session.id as string)
           .catch((err: unknown) => {
             log.error("Main session ID persistence failed after reset", {
               operation: "resetSession",

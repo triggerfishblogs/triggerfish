@@ -16,7 +16,7 @@ import {
   restoreSession,
   updateTaint,
 } from "../../../core/types/session.ts";
-import type { ChannelId, SessionId, UserId } from "../../../core/types/session.ts";
+import type { ChannelId, SessionId, SessionState, UserId } from "../../../core/types/session.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 
 const log = createLogger("orchestrator-factory");
@@ -215,7 +215,7 @@ export function createOrchestratorFactory(
 function resolveFactorySession(
   channelId: string,
   opts: { readonly persistent: boolean; readonly storage?: StorageProvider },
-): Promise<import("../../../core/types/session.ts").SessionState> {
+): Promise<SessionState> {
   const sessionOpts = {
     userId: "owner" as UserId,
     channelId: channelId as ChannelId,
