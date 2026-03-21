@@ -30,6 +30,7 @@ export type {
 } from "./subsystems.ts";
 export {
   buildObsidianExecutor,
+  createCliConfirmPrompt,
   createCliSecretPrompt,
   discoverSkills,
 } from "./subsystems.ts";

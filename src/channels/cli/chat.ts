@@ -46,6 +46,7 @@ import {
   routePasswordKeypress,
 } from "./chat_password.ts";
 import { routeTriggerPromptKeypress } from "./chat_trigger_prompt.ts";
+import { routeConfirmPromptKeypress } from "./chat_confirm_prompt.ts";
 import {
   respondToCtrlCKeypress,
   respondToEscInterrupt,
@@ -80,6 +81,7 @@ export async function startChatSession(): Promise<void> {
     credentialMode: null,
     triggerPromptMode: null,
     pendingTriggerPrompt: null,
+    confirmMode: null,
     providerName: "unknown",
     workspacePath: "",
   };
@@ -218,6 +220,10 @@ function routeTopLevelKeypress(
     routeTriggerPromptKeypress(keypress, deps.state.triggerPromptMode, deps);
     return "continue";
   }
+  if (deps.state.confirmMode !== null) {
+    routeConfirmPromptKeypress(keypress, deps.state.confirmMode, deps);
+    return "continue";
+  }
   return "dispatch";
 }
 
@@ -236,7 +242,10 @@ function cleanupChatRepl(
   try {
     deps.ws.close();
   } catch (err: unknown) {
-    deps.log.debug("WebSocket send failed: connection closed", { operation: "sendToGateway", err });
+    deps.log.debug("WebSocket send failed: connection closed", {
+      operation: "sendToGateway",
+      err,
+    });
   }
 }
 

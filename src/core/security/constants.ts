@@ -89,6 +89,10 @@ export const HARDCODED_TOOL_FLOORS: ReadonlyMap<string, ClassificationLevel> =
     ["ssh_session_write", "INTERNAL"],
     ["ssh_session_read", "INTERNAL"],
     ["ssh_session_close", "INTERNAL"],
+    // config_manage modifies security config (tool floors, classifications) — RESTRICTED
+    ["config_manage", "RESTRICTED"],
+    // daemon_manage restarts the daemon — RESTRICTED
+    ["daemon_manage", "RESTRICTED"],
   ]);
 
 /**

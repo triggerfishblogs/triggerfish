@@ -100,4 +100,10 @@ export interface McpServerManager {
    * Returns an unsubscribe function.
    */
   onStatusChange(cb: (status: readonly McpServerStatus[]) => void): () => void;
+  /** Add a server at runtime and start its background connection loop. */
+  addServer(config: McpServerConfig, secretStore?: SecretStore): void;
+  /** Disconnect and remove a server by ID. */
+  removeServer(id: string): Promise<void>;
+  /** Disconnect and reconnect a server by ID. */
+  reconnectServer(id: string, secretStore?: SecretStore): void;
 }

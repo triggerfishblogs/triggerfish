@@ -43,6 +43,12 @@ export interface CredentialModeState {
   readonly password: string[];
 }
 
+/** Confirm-mode state — active when the daemon sends a confirm_prompt event. */
+export interface ConfirmModeState {
+  readonly nonce: string;
+  readonly message: string;
+}
+
 /** Mutable refs shared between the WS router and the keypress loop. */
 export interface WsRouterState {
   isProcessing: boolean;
@@ -50,6 +56,7 @@ export interface WsRouterState {
   credentialMode: CredentialModeState | null;
   triggerPromptMode: TriggerPromptModeState | null;
   pendingTriggerPrompt: TriggerPromptModeState | null;
+  confirmMode: ConfirmModeState | null;
   providerName: string;
   workspacePath: string;
 }

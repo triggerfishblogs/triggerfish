@@ -52,6 +52,11 @@ export {
   runConfigSetSecret,
   storeSecret,
 } from "./secrets.ts";
+export {
+  addMcpServerInteractive,
+  listMcpServersInteractive,
+  removeMcpServerInteractive,
+} from "./mcp.ts";
 
 // ─── Usage text ─────────────────────────────────────────────────
 
@@ -63,6 +68,9 @@ CONFIG USAGE:
   triggerfish config add-channel [type]      Add a channel interactively
   triggerfish config remove-channel [type]   Remove a channel
   triggerfish config add-plugin [name]       Add a plugin interactively
+  triggerfish config add-mcp                      Add an MCP server interactively
+  triggerfish config remove-mcp [server_id]       Remove an MCP server
+  triggerfish config list-mcp                     List configured MCP servers
   triggerfish config set-secret <key> <value>  Store a secret in OS keychain
   triggerfish config get-secret <key>          Retrieve a secret from OS keychain
   triggerfish config migrate-secrets           Migrate plaintext secrets to keychain
@@ -147,6 +155,30 @@ async function dispatchSecretSubcommand(
   }
 }
 
+/** Dispatch MCP-related config subcommands. */
+async function dispatchMcpSubcommand(
+  subcommand: string,
+  flags: Readonly<Record<string, boolean | string>>,
+): Promise<void> {
+  switch (subcommand) {
+    case "add-mcp": {
+      const { addMcpServerInteractive } = await import("./mcp.ts");
+      await addMcpServerInteractive(flags);
+      break;
+    }
+    case "remove-mcp": {
+      const { removeMcpServerInteractive } = await import("./mcp.ts");
+      await removeMcpServerInteractive(flags);
+      break;
+    }
+    case "list-mcp": {
+      const { listMcpServersInteractive } = await import("./mcp.ts");
+      await listMcpServersInteractive();
+      break;
+    }
+  }
+}
+
 // ─── Dispatcher ─────────────────────────────────────────────────
 
 const CHANNEL_SUBCOMMANDS = new Set([
@@ -158,6 +190,11 @@ const SECRET_SUBCOMMANDS = new Set([
   "set-secret",
   "get-secret",
   "migrate-secrets",
+]);
+const MCP_SUBCOMMANDS = new Set([
+  "add-mcp",
+  "remove-mcp",
+  "list-mcp",
 ]);
 
 /**
@@ -171,6 +208,8 @@ export async function dispatchConfigCommand(
     await dispatchChannelSubcommand(subcommand, flags);
   } else if (subcommand && SECRET_SUBCOMMANDS.has(subcommand)) {
     await dispatchSecretSubcommand(subcommand, flags);
+  } else if (subcommand && MCP_SUBCOMMANDS.has(subcommand)) {
+    await dispatchMcpSubcommand(subcommand, flags);
   } else if (subcommand === "set") {
     await applyConfigValue(flags);
   } else if (subcommand === "get") {

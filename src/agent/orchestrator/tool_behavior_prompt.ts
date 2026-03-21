@@ -36,11 +36,11 @@ You have tools available. Follow these rules strictly:
 
 ## Tool Usage Examples
 
-### Example 1: Reading a file
-User: "What's in the config file?"
+### Example 1: Reading configuration
+User: "What's in the config?"
 
-Correct: Call read_file with path "config.yaml"
-Wrong: "Let me read the config file for you. I'll check what's in config.yaml..."
+Correct: Call config_manage with action "show"
+Wrong: Call read_file with path "triggerfish.yaml" — never read or write triggerfish.yaml directly. Use config_manage and mcp_manage tools exclusively for all configuration.
 
 ### Example 2: Multi-step task
 User: "Find all TODO comments and list them"

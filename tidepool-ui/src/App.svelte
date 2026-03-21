@@ -10,6 +10,7 @@
   import SecretPromptModal from "./SecretPromptModal.svelte";
   import CredentialPromptModal from "./CredentialPromptModal.svelte";
   import TriggerPromptModal from "./TriggerPromptModal.svelte";
+  import ConfirmPromptModal from "./ConfirmPromptModal.svelte";
   import { getActiveScreen } from "./lib/stores/nav.svelte.js";
   import { getModalKind } from "./lib/stores/modal.svelte.js";
 
@@ -43,6 +44,8 @@
   <CredentialPromptModal />
 {:else if modal === "trigger"}
   <TriggerPromptModal />
+{:else if modal === "confirm"}
+  <ConfirmPromptModal />
 {/if}
 
 <style>

@@ -14,3 +14,4 @@ export * from "./security/mod.ts";
 export * from "./conversation/mod.ts";
 export * from "./image/mod.ts";
 export * from "./secrets/mod.ts";
+export * from "./config_io.ts";

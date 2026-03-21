@@ -27,6 +27,12 @@ import {
 import type { PluginRegistry, PluginTrustLevel } from "../../../plugin/mod.ts";
 import type { createToolExecutor } from "../../tools/agent_tools.ts";
 import type { initializeBaseToolDeps } from "./tool_infra_foundation.ts";
+import { createConfigManageExecutor } from "../../tools/executor/executor_config_manage.ts";
+import { createMcpManageExecutor } from "../../tools/executor/executor_mcp_manage.ts";
+import { createDaemonManageExecutor } from "../../tools/executor/executor_daemon_manage.ts";
+import { resolveConfigPath } from "../../../cli/config/paths.ts";
+import { fetchDaemonStatus } from "../../../cli/daemon/lifecycle_status.ts";
+import { createSpineManageExecutor } from "../../tools/executor/executor_spine_manage.ts";
 
 /** Combine all executor outputs into the composite tool executor. */
 export function buildCompositeToolExecutor(
@@ -131,6 +137,19 @@ export function buildCompositeToolExecutor(
         scanPlugin: createPluginScanner(),
       })
       : undefined,
+    configManageExecutor: createConfigManageExecutor({
+      configPath: resolveConfigPath(bootstrap.baseDir),
+    }),
+    mcpManageExecutor: createMcpManageExecutor({
+      configPath: resolveConfigPath(bootstrap.baseDir),
+    }),
+    daemonManageExecutor: createDaemonManageExecutor({
+      getDaemonStatus: fetchDaemonStatus,
+      getConfirmPrompt: () => baseDeps.state.activeConfirmPrompt,
+    }),
+    spineManageExecutor: createSpineManageExecutor({
+      spinePath: join(bootstrap.baseDir, "SPINE.md"),
+    }),
   });
 }
 
@@ -159,6 +178,7 @@ export function assembleToolInfraResult(
     state: baseDeps.state,
     cliSecretPrompt: baseDeps.cliSecretPrompt,
     cliCredentialPrompt: baseDeps.cliCredentialPrompt,
+    cliConfirmPrompt: baseDeps.cliConfirmPrompt,
     memoryDb: sessionExecs.memoryDb,
     memoryStore: sessionExecs.memoryStore,
     memorySearchProvider: sessionExecs.memorySearchProvider,

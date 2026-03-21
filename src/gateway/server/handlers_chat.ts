@@ -138,6 +138,15 @@ function handleControlMessage(
     );
     return true;
   }
+  if (msg.type === "confirm_prompt_response") {
+    log.debug("Routing confirm prompt response", {
+      operation: "handleControlMessage",
+      nonce: msg.nonce,
+      approved: msg.approved,
+    });
+    chat.handleConfirmPromptResponse(msg.nonce, msg.approved);
+    return true;
+  }
   if (msg.type === "trigger_prompt_response") {
     log.debug("Routing trigger prompt response", {
       operation: "handleControlMessage",

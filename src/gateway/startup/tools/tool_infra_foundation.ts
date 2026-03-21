@@ -47,7 +47,7 @@ export async function initializeBaseToolDeps(
   );
   const foundation = await buildLlmAndWorkspaceFoundation(bootstrap);
   const bumpersDefault = await loadBumpersPreference(coreInfra.storage);
-  const { state, cliSecretPrompt, cliCredentialPrompt } =
+  const { state, cliSecretPrompt, cliCredentialPrompt, cliConfirmPrompt } =
     await initializeMainSessionState({
       bumpersEnabled: bumpersDefault,
       storage: coreInfra.storage,
@@ -87,6 +87,7 @@ export async function initializeBaseToolDeps(
     state,
     cliSecretPrompt,
     cliCredentialPrompt,
+    cliConfirmPrompt,
     ...(() => {
       const { all, integrations } = mapToolPrefixClassifications(
         bootstrap.config,

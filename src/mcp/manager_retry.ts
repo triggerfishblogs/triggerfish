@@ -181,7 +181,7 @@ function markMcpServerPermanentlyFailed(
 // ─── Start all ───────────────────────────────────────────────────────────────
 
 /** Launch a single MCP server config into a background retry loop. */
-function launchMcpServerRetryLoop(
+export function launchMcpServerRetryLoop(
   cfg: McpServerConfig,
   ctx: McpConnectionContext,
 ): void {

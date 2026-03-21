@@ -30,8 +30,11 @@ import {
 } from "./chat_turn_execution.ts";
 import type { ChatSessionMutableState } from "./chat_turn_execution.ts";
 import {
+  buildTidepoolConfirmPrompt,
   buildTidepoolCredentialPrompt,
   buildTidepoolSecretPrompt,
+  createPromptRegistry,
+  resolveConfirmPrompt,
   resolveCredentialPrompt,
   resolveSecretPrompt,
 } from "./chat_prompt_helpers.ts";
@@ -158,14 +161,11 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
   const providerName = config.providerRegistry.getDefault()?.name ?? "unknown";
   const modelName = config.primaryModelName ??
     config.providerRegistry.getDefault()?.name ?? "unknown";
-  const pendingSecretPrompts = new Map<
-    string,
-    (value: string | null) => void
-  >();
-  const pendingCredentialPrompts = new Map<
-    string,
-    (value: CredentialResult | null) => void
-  >();
+  const pendingSecretPrompts = createPromptRegistry<string | null>("Secret");
+  const pendingCredentialPrompts = createPromptRegistry<
+    CredentialResult | null
+  >("Credential");
+  const pendingConfirmPrompts = createPromptRegistry<boolean>("Confirm");
 
   let mcpStatusConnected = -1;
   let mcpStatusConfigured = 0;
@@ -250,6 +250,10 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
       buildTidepoolSecretPrompt(pendingSecretPrompts, sendEvent),
     createTidepoolCredentialPrompt: (sendEvent) =>
       buildTidepoolCredentialPrompt(pendingCredentialPrompts, sendEvent),
+    createTidepoolConfirmPrompt: (sendEvent) =>
+      buildTidepoolConfirmPrompt(pendingConfirmPrompts, sendEvent),
+    handleConfirmPromptResponse: (nonce, approved) =>
+      resolveConfirmPrompt(pendingConfirmPrompts, nonce, approved),
     getMcpStatus() {
       if (mcpStatusConnected < 0 || mcpStatusConfigured === 0) return null;
       return { connected: mcpStatusConnected, configured: mcpStatusConfigured };

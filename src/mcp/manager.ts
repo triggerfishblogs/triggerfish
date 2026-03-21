@@ -20,7 +20,11 @@ import {
   connectAllMcpServers,
   disconnectAllMcpServers,
 } from "./manager_connection.ts";
-import { startAllMcpServers } from "./manager_retry.ts";
+import {
+  launchMcpServerRetryLoop,
+  startAllMcpServers,
+} from "./manager_retry.ts";
+import { notifyMcpStatusListeners } from "./manager_connection.ts";
 
 // ─── Barrel re-exports ───────────────────────────────────────────────────────
 
@@ -65,6 +69,81 @@ export function createMcpServerManager(): McpServerManager {
     onStatusChange(cb) {
       state.statusListeners.add(cb);
       return () => state.statusListeners.delete(cb);
+    },
+    addServer(config, secretStore?) {
+      state.configuredCount++;
+      if (!config.command && !config.url) {
+        mcpLog.warn(`MCP server '${config.id}': no command or url — skipping`, {
+          operation: "addServer",
+          serverId: config.id,
+        });
+        state.statusMap.set(config.id, {
+          id: config.id,
+          config,
+          state: "failed",
+          lastError: "no command or url configured",
+        });
+        notifyMcpStatusListeners(state);
+        return;
+      }
+      mcpLog.info(`MCP server '${config.id}' added at runtime`, {
+        operation: "addServer",
+        serverId: config.id,
+      });
+      launchMcpServerRetryLoop(config, { secretStore, mcpLog, state });
+    },
+    async removeServer(id) {
+      const status = state.statusMap.get(id);
+      if (!status) {
+        mcpLog.warn(`MCP server '${id}' not found for removal`, {
+          operation: "removeServer",
+          serverId: id,
+        });
+        return;
+      }
+      if (status.server) {
+        try {
+          await status.server.transport.disconnect();
+        } catch (err: unknown) {
+          mcpLog.warn(
+            `MCP server '${id}': transport disconnect failed during removal`,
+            {
+              operation: "removeServer",
+              serverId: id,
+              err,
+            },
+          );
+        }
+      }
+      state.statusMap.delete(id);
+      state.configuredCount = Math.max(0, state.configuredCount - 1);
+      notifyMcpStatusListeners(state);
+      mcpLog.info(`MCP server '${id}' removed`, {
+        operation: "removeServer",
+        serverId: id,
+      });
+    },
+    reconnectServer(id, secretStore?) {
+      const status = state.statusMap.get(id);
+      if (!status) {
+        mcpLog.warn(`MCP server '${id}' not found for reconnect`, {
+          operation: "reconnectServer",
+          serverId: id,
+        });
+        return;
+      }
+      // Mark as disconnected so health poll exits, then re-launch retry loop
+      state.statusMap.set(id, {
+        ...status,
+        state: "disconnected",
+        server: undefined,
+      });
+      notifyMcpStatusListeners(state);
+      mcpLog.info(`MCP server '${id}' reconnect initiated`, {
+        operation: "reconnectServer",
+        serverId: id,
+      });
+      launchMcpServerRetryLoop(status.config, { secretStore, mcpLog, state });
     },
   };
 }
