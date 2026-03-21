@@ -20,9 +20,6 @@ const log = createLogger("config-manage");
 /** Secret field patterns — values containing these are masked in show output. */
 const SECRET_PATTERNS = ["key", "secret", "token", "password", "credential"];
 
-/** Valid log levels. */
-const LOG_LEVELS = new Set(["quiet", "normal", "verbose", "debug"]);
-
 /** Check if a key looks like it holds a secret. */
 function isSecretKey(key: string): boolean {
   const lower = key.toLowerCase();
