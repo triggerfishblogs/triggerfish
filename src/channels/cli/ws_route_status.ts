@@ -91,3 +91,26 @@ export function routeBumpersStatusEvent(
   ctx.screen.writeOutput(`  ${label}`);
   if (ctx.isTty) ctx.screen.redrawInput(ctx.editor);
 }
+
+/** Handle "chat_history" event — render persisted messages in the terminal. */
+export function routeChatHistoryEvent(
+  evt: Extract<ChatEvent, { type: "chat_history" }>,
+  ctx: RouterContext,
+): void {
+  if (evt.entries.length === 0) return;
+  log.info("Chat history delivered to CLI terminal", {
+    operation: "routeChatHistoryEvent",
+    entryCount: evt.entries.length,
+  });
+  ctx.screen.writeOutput("  \x1b[2m── restored session history ──\x1b[0m");
+  for (const entry of evt.entries) {
+    if (entry.role === "user") {
+      ctx.screen.writeOutput(`  \x1b[1m❯\x1b[0m ${entry.text}`);
+    } else {
+      ctx.screen.writeOutput(`  ${entry.text}`);
+    }
+  }
+  ctx.screen.writeOutput("  \x1b[2m── end of history ──\x1b[0m");
+  ctx.screen.writeOutput("");
+  if (ctx.isTty) ctx.screen.redrawInput(ctx.editor);
+}

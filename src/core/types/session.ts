@@ -75,6 +75,36 @@ export function createSession(options: CreateSessionOptions): SessionState {
   };
 }
 
+/** Options for restoring a session with a known ID. */
+export interface RestoreSessionOptions extends CreateSessionOptions {
+  readonly id: SessionId;
+  /** Original session creation timestamp. Falls back to current time if not provided. */
+  readonly createdAt?: Date;
+}
+
+/**
+ * Restore a session with an existing SessionId and PUBLIC taint.
+ *
+ * Used to resume a persisted session across daemon restarts.
+ * Taint always resets to PUBLIC — taint must not persist across restarts
+ * for security.
+ */
+export function restoreSession(options: RestoreSessionOptions): SessionState {
+  log.info("Session restored with persisted ID", {
+    operation: "restoreSession",
+    sessionId: options.id,
+  });
+  return {
+    id: options.id,
+    userId: options.userId,
+    channelId: options.channelId,
+    taint: "PUBLIC",
+    createdAt: options.createdAt ?? new Date(),
+    history: [],
+    bumpersEnabled: options.bumpersEnabled ?? true,
+  };
+}
+
 /**
  * Update session taint level. Taint can only escalate, never decrease.
  *

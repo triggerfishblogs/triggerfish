@@ -34,6 +34,7 @@ import {
   buildExtraToolsGetter,
 } from "../tools/tool_executor.ts";
 import type { MainSessionState } from "../tools/tool_executor.ts";
+import { persistSessionRecord } from "../tools/tool_infra_session.ts";
 
 /** Build session lifecycle callbacks (escalate, reset, bumpers). */
 export function buildSessionLifecycleCallbacks(
@@ -52,6 +53,15 @@ export function buildSessionLifecycleCallbacks(
         userId: "owner" as UserId,
         channelId: "daemon" as ChannelId,
       });
+      if (opts?.storage) {
+        persistSessionRecord(opts.storage, state.session.id as string)
+          .catch((err: unknown) => {
+            log.error("Main session ID persistence failed after reset", {
+              operation: "resetSession",
+              err,
+            });
+          });
+      }
       browserHandle.close().catch((err: unknown) => {
         log.debug("Browser close failed during session reset", {
           error: err instanceof Error ? err.message : String(err),

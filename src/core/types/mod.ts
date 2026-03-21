@@ -18,6 +18,7 @@ export {
 export type {
   ChannelId,
   CreateSessionOptions,
+  RestoreSessionOptions,
   SessionId,
   SessionState,
   TaintEvent,
@@ -30,6 +31,7 @@ export {
   escalateTaint,
   OWNER_MEMORY_AGENT_ID,
   resetSession,
+  restoreSession,
   updateTaint,
 } from "./session.ts";
 

@@ -11,16 +11,16 @@ import type { ClassificationLevel } from "../core/types/classification.ts";
 import type { MessageContent } from "../core/image/content.ts";
 import type { ChannelMessage } from "../channels/types.ts";
 import type { ChatEventSender } from "../core/types/chat_event.ts";
+import type { ChatHistoryWireEntry } from "../core/types/chat_event.ts";
 
 import type { ChannelRegistrationConfig } from "./chat_session_config.ts";
 
-/** Wire-format chat history entry sent to Tidepool clients on reconnect. */
-export interface ChatHistoryEntry {
-  readonly role: "user" | "assistant";
-  readonly text: string;
-  readonly taint?: ClassificationLevel;
-  readonly timestamp: number;
-}
+/**
+ * Wire-format chat history entry sent to clients on reconnect.
+ *
+ * @deprecated Use `ChatHistoryWireEntry` from `core/types/chat_event.ts` directly.
+ */
+export type ChatHistoryEntry = ChatHistoryWireEntry;
 
 /** Shared chat session that serializes access to the orchestrator. */
 export interface ChatSession {

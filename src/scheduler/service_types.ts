@@ -52,6 +52,12 @@ export interface OrchestratorCreateOptions {
    * Used by team member sessions to include the team roster prompt.
    */
   readonly systemPromptSections?: readonly string[];
+  /**
+   * When true, the session ID is persisted so the session survives daemon
+   * restarts. The ID is stored under `session-id:{channelId}` in storage.
+   * Default: false (ephemeral session with random UUID).
+   */
+  readonly persistent?: boolean;
 }
 
 /**
