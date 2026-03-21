@@ -1,6 +1,6 @@
 ---
 title: How Do AI Agents Work? A Step-by-Step Breakdown for the Genuinely Curious
-date: 2026-03-20
+date: 2026-03-19
 description: "How do AI agents work? Learn the step-by-step process, 5 core
   parts, 4 agent types, and top tools powering smarter automation today. "
 author: triggerfish
