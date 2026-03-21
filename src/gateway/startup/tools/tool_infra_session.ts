@@ -136,11 +136,16 @@ async function loadPersistedSession(
   } catch {
     // Legacy format: bare UUID string (pre-JSON migration)
     if (isValidSessionId(raw)) {
+      const migrated: PersistedSessionRecord = {
+        id: raw,
+        createdAt: new Date().toISOString(),
+      };
+      await storage.set(MAIN_SESSION_ID_KEY, JSON.stringify(migrated));
       log.info("Migrated legacy persisted session ID to JSON format", {
         operation: "loadPersistedSession",
         sessionId: raw,
       });
-      return { id: raw, createdAt: new Date().toISOString() };
+      return migrated;
     }
     log.warn("Persisted session record is corrupt, generating new", {
       operation: "loadPersistedSession",

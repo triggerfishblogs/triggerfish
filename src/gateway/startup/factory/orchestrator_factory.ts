@@ -236,7 +236,7 @@ async function restoreOrCreatePersistedSession(
   channelId: string,
   sessionOpts: { readonly userId: UserId; readonly channelId: ChannelId },
   storage: StorageProvider,
-) {
+): Promise<SessionState> {
   const storageKey = `session-id:${channelId}`;
   const raw = await storage.get(storageKey);
   if (raw) {
@@ -257,6 +257,11 @@ async function restoreOrCreatePersistedSession(
     } catch {
       // Legacy bare-string format or corrupt data
       if (isValidSessionId(raw)) {
+        const migrated = JSON.stringify({
+          id: raw,
+          createdAt: new Date().toISOString(),
+        });
+        await storage.set(storageKey, migrated);
         log.info("Migrated legacy persisted session ID for channel", {
           operation: "restoreOrCreatePersistedSession",
           channelId,
