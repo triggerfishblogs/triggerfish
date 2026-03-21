@@ -98,6 +98,10 @@ export function routeChatHistoryEvent(
   ctx: RouterContext,
 ): void {
   if (evt.entries.length === 0) return;
+  log.info("Chat history delivered to CLI terminal", {
+    operation: "routeChatHistoryEvent",
+    entryCount: evt.entries.length,
+  });
   ctx.screen.writeOutput("  \x1b[2m── restored session history ──\x1b[0m");
   for (const entry of evt.entries) {
     if (entry.role === "user") {
