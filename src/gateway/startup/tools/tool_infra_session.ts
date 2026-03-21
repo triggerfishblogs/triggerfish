@@ -8,8 +8,15 @@
  */
 
 import type { TriggerFishConfig } from "../../../core/config.ts";
-import type { ChannelId, UserId } from "../../../core/types/session.ts";
-import { createSession } from "../../../core/types/session.ts";
+import type { ChannelId, SessionId, UserId } from "../../../core/types/session.ts";
+import { createSession, restoreSession } from "../../../core/types/session.ts";
+import type { StorageProvider } from "../../../core/storage/provider.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+
+const log = createLogger("session-persistence");
+
+/** Storage key for the persisted main session ID. */
+const MAIN_SESSION_ID_KEY = "main-session-id";
 import type { createProviderRegistry } from "../../../agent/llm.ts";
 import { resolveVisionProvider } from "../../../agent/providers/config.ts";
 import type { ModelsConfig } from "../../../agent/providers/config.ts";
@@ -39,19 +46,17 @@ import type { MainSessionState } from "./tool_executor.ts";
 import type { TidepoolToolsRef } from "./tool_infra_types.ts";
 
 /** Create the main session state and core session-level executors. */
-export function initializeMainSessionState(opts?: {
+export async function initializeMainSessionState(opts?: {
   readonly bumpersEnabled?: boolean;
-}): {
+  readonly storage?: StorageProvider;
+}): Promise<{
   state: MainSessionState;
   cliSecretPrompt: SecretPromptCallback;
   cliCredentialPrompt: CredentialPromptCallback;
-} {
+}> {
+  const session = await restoreOrCreateMainSession(opts);
   const state: MainSessionState = {
-    session: createSession({
-      userId: "owner" as UserId,
-      channelId: "daemon" as ChannelId,
-      bumpersEnabled: opts?.bumpersEnabled,
-    }),
+    session,
     activeSecretPrompt: createCliSecretPrompt(),
     activeCredentialPrompt: createCliCredentialPrompt(),
   };
@@ -60,6 +65,38 @@ export function initializeMainSessionState(opts?: {
     cliSecretPrompt: state.activeSecretPrompt,
     cliCredentialPrompt: state.activeCredentialPrompt,
   };
+}
+
+/** Restore a persisted main session ID from storage, or create a new one. */
+async function restoreOrCreateMainSession(opts?: {
+  readonly bumpersEnabled?: boolean;
+  readonly storage?: StorageProvider;
+}) {
+  const sessionOpts = {
+    userId: "owner" as UserId,
+    channelId: "daemon" as ChannelId,
+    bumpersEnabled: opts?.bumpersEnabled,
+  };
+
+  if (opts?.storage) {
+    const persistedId = await opts.storage.get(MAIN_SESSION_ID_KEY);
+    if (persistedId) {
+      log.info("Restored persisted main session ID", {
+        operation: "restoreOrCreateMainSession",
+        sessionId: persistedId,
+      });
+      return restoreSession({ ...sessionOpts, id: persistedId as SessionId });
+    }
+    const session = createSession(sessionOpts);
+    await opts.storage.set(MAIN_SESSION_ID_KEY, session.id as string);
+    log.info("Persisted new main session ID", {
+      operation: "restoreOrCreateMainSession",
+      sessionId: session.id,
+    });
+    return session;
+  }
+
+  return createSession(sessionOpts);
 }
 
 /** Build media-related executors (vision, browser, tidepool, image). */

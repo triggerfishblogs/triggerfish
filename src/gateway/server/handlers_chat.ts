@@ -66,6 +66,24 @@ function sendMcpStatus(socket: WebSocket, chat: ChatSession): void {
   }
 }
 
+/** Send persisted chat history to a newly connected socket. */
+function sendChatHistory(socket: WebSocket, chat: ChatSession): void {
+  chat.loadChatHistory().then((entries) => {
+    if (entries.length > 0) {
+      sendSafeWebSocket(socket, { type: "chat_history", entries });
+      log.info("Sent persisted chat history to client", {
+        operation: "sendChatHistory",
+        entryCount: entries.length,
+      });
+    }
+  }).catch((err: unknown) => {
+    log.warn("Chat history load failed during socket open", {
+      operation: "sendChatHistory",
+      err,
+    });
+  });
+}
+
 /** Handle WebSocket open: register socket and send initial state. */
 function handleChatSocketOpen(
   socket: WebSocket,
@@ -79,6 +97,7 @@ function handleChatSocketOpen(
     type: "bumpers_status",
     enabled: chat.bumpersEnabled,
   });
+  sendChatHistory(socket, chat);
 }
 
 /** Handle cancel, clear, and secret_prompt_response message types. */

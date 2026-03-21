@@ -37,7 +37,7 @@ export interface ChatSessionMutableState {
   activeSessionId: string;
   activeNonOwnerCeiling: ClassificationLevel | null;
   mutex: Promise<void>;
-  readonly ownerSessionId: string;
+  ownerSessionId: string;
   readonly sessionStates: Map<string, SessionState>;
 }
 

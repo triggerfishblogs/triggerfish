@@ -204,6 +204,12 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     clear() {
       orchestrator.clearHistory(getSession().id);
       if (config.resetSession) config.resetSession();
+      // Update mutable state to track the new session ID after reset
+      const newSessionId = getSession().id as string;
+      state.ownerSessionId = newSessionId;
+      state.activeSessionId = newSessionId;
+      state.sessionStates.clear();
+      state.sessionStates.set(newSessionId, getSession());
       if (config.broadcastChatEvent) {
         config.broadcastChatEvent({
           type: "taint_changed",
@@ -273,7 +279,7 @@ export function createChatSession(config: ChatSessionConfig): ChatSession {
     },
     loadChatHistory(): Promise<readonly ChatHistoryEntry[]> {
       if (!config.messageStore) return Promise.resolve([]);
-      return loadChatHistoryEntries(config.messageStore, ownerSessionId);
+      return loadChatHistoryEntries(config.messageStore, state.ownerSessionId);
     },
   };
 }

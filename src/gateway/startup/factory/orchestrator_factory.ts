@@ -13,9 +13,13 @@ import type { ClassificationLevel } from "../../../core/types/classification.ts"
 import {
   createSession,
   OWNER_MEMORY_AGENT_ID,
+  restoreSession,
   updateTaint,
 } from "../../../core/types/session.ts";
-import type { ChannelId, UserId } from "../../../core/types/session.ts";
+import type { ChannelId, SessionId, UserId } from "../../../core/types/session.ts";
+import { createLogger } from "../../../core/logger/logger.ts";
+
+const log = createLogger("orchestrator-factory");
 import { createOrchestrator } from "../../../agent/orchestrator/orchestrator.ts";
 import { createWorkspace } from "../../../exec/workspace.ts";
 import type { ToolFloorRegistry } from "../../../core/security/tool_floors.ts";
@@ -100,10 +104,11 @@ export function createOrchestratorFactory(
         await symlinkSpineToWorkspace(infra.spinePath, workspace.path);
       }
 
-      let session = createSession({
-        userId: "owner" as UserId,
-        channelId: channelId as ChannelId,
-      });
+      let session = await resolveFactorySession(
+        channelId,
+        options?.persistent ?? false,
+        storage,
+      );
 
       // ── IMPORTANT: infra.keychain for all integration executors ─────────
       // Integration executors access secrets as infrastructure plumbing.
@@ -205,4 +210,39 @@ export function createOrchestratorFactory(
       return { orchestrator, session, toolExecutor };
     },
   };
+}
+
+/** Restore or create a session for the orchestrator factory. */
+async function resolveFactorySession(
+  channelId: string,
+  persistent: boolean,
+  storage?: StorageProvider,
+) {
+  const sessionOpts = {
+    userId: "owner" as UserId,
+    channelId: channelId as ChannelId,
+  };
+
+  if (persistent && storage) {
+    const storageKey = `session-id:${channelId}`;
+    const persistedId = await storage.get(storageKey);
+    if (persistedId) {
+      log.info("Restored persisted session for channel", {
+        operation: "resolveFactorySession",
+        channelId,
+        sessionId: persistedId,
+      });
+      return restoreSession({ ...sessionOpts, id: persistedId as SessionId });
+    }
+    const session = createSession(sessionOpts);
+    await storage.set(storageKey, session.id as string);
+    log.info("Persisted new session ID for channel", {
+      operation: "resolveFactorySession",
+      channelId,
+      sessionId: session.id,
+    });
+    return session;
+  }
+
+  return createSession(sessionOpts);
 }

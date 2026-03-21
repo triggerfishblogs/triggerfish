@@ -52,6 +52,15 @@ export function buildSessionLifecycleCallbacks(
         userId: "owner" as UserId,
         channelId: "daemon" as ChannelId,
       });
+      if (opts?.storage) {
+        opts.storage.set("main-session-id", state.session.id as string)
+          .catch((err: unknown) => {
+            log.error("Main session ID persistence failed after reset", {
+              operation: "resetSession",
+              err,
+            });
+          });
+      }
       browserHandle.close().catch((err: unknown) => {
         log.debug("Browser close failed during session reset", {
           error: err instanceof Error ? err.message : String(err),
