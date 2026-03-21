@@ -78,6 +78,8 @@ export function createSession(options: CreateSessionOptions): SessionState {
 /** Options for restoring a session with a known ID. */
 export interface RestoreSessionOptions extends CreateSessionOptions {
   readonly id: SessionId;
+  /** Original session creation timestamp. Falls back to current time if not provided. */
+  readonly createdAt?: Date;
 }
 
 /**
@@ -97,7 +99,7 @@ export function restoreSession(options: RestoreSessionOptions): SessionState {
     userId: options.userId,
     channelId: options.channelId,
     taint: "PUBLIC",
-    createdAt: new Date(),
+    createdAt: options.createdAt ?? new Date(),
     history: [],
     bumpersEnabled: options.bumpersEnabled ?? true,
   };

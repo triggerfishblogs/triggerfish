@@ -51,7 +51,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Validate that a persisted session ID is a well-formed UUID. */
-function isValidSessionId(value: string): boolean {
+export function isValidSessionId(value: string): boolean {
   return UUID_RE.test(value);
 }
 
@@ -92,30 +92,77 @@ async function restoreOrCreateMainSession(opts?: {
   };
 
   if (opts?.storage) {
-    const persistedId = await opts.storage.get(MAIN_SESSION_ID_KEY);
-    if (persistedId && isValidSessionId(persistedId)) {
-      log.info("Restored persisted main session ID", {
-        operation: "restoreOrCreateMainSession",
-        sessionId: persistedId,
-      });
-      return restoreSession({ ...sessionOpts, id: persistedId as SessionId });
-    }
-    if (persistedId) {
-      log.warn("Persisted main session ID has invalid format, generating new", {
-        operation: "restoreOrCreateMainSession",
-        invalidId: persistedId,
+    const restored = await loadPersistedSession(opts.storage);
+    if (restored) {
+      return restoreSession({
+        ...sessionOpts,
+        id: restored.id as SessionId,
+        createdAt: new Date(restored.createdAt),
       });
     }
     const session = createSession(sessionOpts);
-    await opts.storage.set(MAIN_SESSION_ID_KEY, session.id as string);
-    log.info("Persisted new main session ID", {
-      operation: "restoreOrCreateMainSession",
-      sessionId: session.id,
-    });
+    await persistSessionRecord(opts.storage, session.id as string);
     return session;
   }
 
   return createSession(sessionOpts);
+}
+
+/** Persisted session record shape stored as JSON in StorageProvider. */
+interface PersistedSessionRecord {
+  readonly id: string;
+  readonly createdAt: string;
+}
+
+/** Load and validate a persisted session record from storage. */
+async function loadPersistedSession(
+  storage: StorageProvider,
+): Promise<PersistedSessionRecord | null> {
+  const raw = await storage.get(MAIN_SESSION_ID_KEY);
+  if (!raw) return null;
+  try {
+    const record = JSON.parse(raw) as PersistedSessionRecord;
+    if (isValidSessionId(record.id)) {
+      log.info("Restored persisted main session ID", {
+        operation: "loadPersistedSession",
+        sessionId: record.id,
+      });
+      return record;
+    }
+    log.warn("Persisted main session ID has invalid format, generating new", {
+      operation: "loadPersistedSession",
+      invalidId: record.id,
+    });
+  } catch {
+    // Legacy format: bare UUID string (pre-JSON migration)
+    if (isValidSessionId(raw)) {
+      log.info("Migrated legacy persisted session ID to JSON format", {
+        operation: "loadPersistedSession",
+        sessionId: raw,
+      });
+      return { id: raw, createdAt: new Date().toISOString() };
+    }
+    log.warn("Persisted session record is corrupt, generating new", {
+      operation: "loadPersistedSession",
+    });
+  }
+  return null;
+}
+
+/** Persist a session ID and creation timestamp to storage. */
+export async function persistSessionRecord(
+  storage: StorageProvider,
+  sessionId: string,
+): Promise<void> {
+  const record: PersistedSessionRecord = {
+    id: sessionId,
+    createdAt: new Date().toISOString(),
+  };
+  await storage.set(MAIN_SESSION_ID_KEY, JSON.stringify(record));
+  log.info("Persisted new main session ID", {
+    operation: "persistSessionRecord",
+    sessionId,
+  });
 }
 
 /** Build media-related executors (vision, browser, tidepool, image). */

@@ -57,11 +57,9 @@ import {
   initializeFactoryInfra,
   symlinkSpineToWorkspace,
 } from "./orchestrator_factory_infra.ts";
+import { isValidSessionId } from "../tools/tool_infra_session.ts";
 
 const log = createLogger("orchestrator-factory");
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Create an OrchestratorFactory from config.
@@ -240,26 +238,46 @@ async function restoreOrCreatePersistedSession(
   storage: StorageProvider,
 ) {
   const storageKey = `session-id:${channelId}`;
-  const persistedId = await storage.get(storageKey);
-  if (persistedId && UUID_RE.test(persistedId)) {
-    log.info("Restored persisted session for channel", {
+  const raw = await storage.get(storageKey);
+  if (raw) {
+    try {
+      const record = JSON.parse(raw) as { id: string; createdAt: string };
+      if (isValidSessionId(record.id)) {
+        log.info("Restored persisted session for channel", {
+          operation: "restoreOrCreatePersistedSession",
+          channelId,
+          sessionId: record.id,
+        });
+        return restoreSession({
+          ...sessionOpts,
+          id: record.id as SessionId,
+          createdAt: new Date(record.createdAt),
+        });
+      }
+    } catch {
+      // Legacy bare-string format or corrupt data
+      if (isValidSessionId(raw)) {
+        log.info("Migrated legacy persisted session ID for channel", {
+          operation: "restoreOrCreatePersistedSession",
+          channelId,
+          sessionId: raw,
+        });
+        return restoreSession({ ...sessionOpts, id: raw as SessionId });
+      }
+    }
+    log.warn("Persisted session record has invalid format, generating new", {
       operation: "restoreOrCreatePersistedSession",
       channelId,
-      sessionId: persistedId,
-    });
-    return restoreSession({ ...sessionOpts, id: persistedId as SessionId });
-  }
-  if (persistedId) {
-    log.warn("Persisted session ID has invalid format, generating new", {
-      operation: "restoreOrCreatePersistedSession",
-      channelId,
-      invalidId: persistedId,
     });
   }
   const session = createSession(sessionOpts);
-  await storage.set(storageKey, session.id as string);
+  const record = JSON.stringify({
+    id: session.id as string,
+    createdAt: new Date().toISOString(),
+  });
+  await storage.set(storageKey, record);
   log.info("Persisted new session ID for channel", {
-    operation: "resolveFactorySession",
+    operation: "restoreOrCreatePersistedSession",
     channelId,
     sessionId: session.id,
   });
