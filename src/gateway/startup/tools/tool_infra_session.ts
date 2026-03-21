@@ -47,6 +47,14 @@ const log = createLogger("session-persistence");
 /** Storage key for the persisted main session ID. */
 export const MAIN_SESSION_ID_KEY = "main-session-id";
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Validate that a persisted session ID is a well-formed UUID. */
+function isValidSessionId(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
 /** Create the main session state and core session-level executors. */
 export async function initializeMainSessionState(opts?: {
   readonly bumpersEnabled?: boolean;
@@ -85,12 +93,18 @@ async function restoreOrCreateMainSession(opts?: {
 
   if (opts?.storage) {
     const persistedId = await opts.storage.get(MAIN_SESSION_ID_KEY);
-    if (persistedId) {
+    if (persistedId && isValidSessionId(persistedId)) {
       log.info("Restored persisted main session ID", {
         operation: "restoreOrCreateMainSession",
         sessionId: persistedId,
       });
       return restoreSession({ ...sessionOpts, id: persistedId as SessionId });
+    }
+    if (persistedId) {
+      log.warn("Persisted main session ID has invalid format, generating new", {
+        operation: "restoreOrCreateMainSession",
+        invalidId: persistedId,
+      });
     }
     const session = createSession(sessionOpts);
     await opts.storage.set(MAIN_SESSION_ID_KEY, session.id as string);

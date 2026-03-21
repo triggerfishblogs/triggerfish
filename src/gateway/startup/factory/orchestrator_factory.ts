@@ -60,6 +60,9 @@ import {
 
 const log = createLogger("orchestrator-factory");
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Create an OrchestratorFactory from config.
  *
@@ -238,13 +241,20 @@ async function restoreOrCreatePersistedSession(
 ) {
   const storageKey = `session-id:${channelId}`;
   const persistedId = await storage.get(storageKey);
-  if (persistedId) {
+  if (persistedId && UUID_RE.test(persistedId)) {
     log.info("Restored persisted session for channel", {
-      operation: "resolveFactorySession",
+      operation: "restoreOrCreatePersistedSession",
       channelId,
       sessionId: persistedId,
     });
     return restoreSession({ ...sessionOpts, id: persistedId as SessionId });
+  }
+  if (persistedId) {
+    log.warn("Persisted session ID has invalid format, generating new", {
+      operation: "restoreOrCreatePersistedSession",
+      channelId,
+      invalidId: persistedId,
+    });
   }
   const session = createSession(sessionOpts);
   await storage.set(storageKey, session.id as string);
