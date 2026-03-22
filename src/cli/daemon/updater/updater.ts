@@ -10,9 +10,15 @@ import {
   installAndStartDaemon,
   stopDaemon,
 } from "../lifecycle.ts";
-import { findInstalledBinary, replaceBinary } from "./binary.ts";
+import { findInstalledBinary, replaceBinary, sha256File } from "./binary.ts";
 import { fetchAndVerifyRelease } from "./download.ts";
-import { fetchLatestRelease } from "./release.ts";
+import {
+  fetchLatestRelease,
+  type ReleaseMetadata,
+  resolveTauriAssetName,
+} from "./release.ts";
+import { TIDEPOOL_NATIVE_BINARY } from "../../constants.ts";
+import { dirname, join } from "@std/path";
 import { createLogger } from "../../../core/logger/mod.ts";
 
 const log = createLogger("cli.updater");
@@ -93,6 +99,88 @@ async function stopAndSwapBinary(tmpPath: string): Promise<{
   return { wasRunning, error: swapError ?? undefined };
 }
 
+/** Resolve the install directory for the Tauri binary (same dir as the main binary). */
+async function resolveTauriInstallPath(): Promise<string> {
+  const mainBinary = await findInstalledBinary();
+  const dir = dirname(mainBinary);
+  const ext = Deno.build.os === "windows" ? ".exe" : "";
+  return join(dir, `${TIDEPOOL_NATIVE_BINARY}${ext}`);
+}
+
+/** Download, verify, and install the Tauri native UI binary. */
+async function upgradeTauriBinary(
+  metadata: ReleaseMetadata,
+): Promise<void> {
+  if (!metadata.tauri) {
+    log.debug("No Tauri binary in this release", {
+      operation: "upgradeTauriBinary",
+    });
+    return;
+  }
+
+  console.log("  Updating Tidepool native UI...");
+  const tmpPath = join(
+    dirname(await findInstalledBinary()),
+    ".tidepool-update-tmp",
+  );
+
+  try {
+    const resp = await fetch(metadata.tauri.binaryUrl);
+    if (!resp.ok || !resp.body) {
+      log.warn("Tauri binary download failed", {
+        operation: "upgradeTauriBinary",
+        status: resp.status,
+      });
+      console.log("  Warning: Tidepool native UI download failed, skipping.");
+      return;
+    }
+    const file = await Deno.open(tmpPath, {
+      write: true,
+      create: true,
+      truncate: true,
+    });
+    await resp.body.pipeTo(file.writable);
+
+    if (metadata.tauri.checksumsUrl) {
+      const csResp = await fetch(metadata.tauri.checksumsUrl);
+      if (csResp.ok) {
+        const text = await csResp.text();
+        const assetName = resolveTauriAssetName();
+        const line = text.split("\n").find((l) => l.includes(assetName));
+        if (line) {
+          const expected = line.split(/\s+/)[0].toLowerCase();
+          const actual = await sha256File(tmpPath);
+          if (actual !== expected) {
+            log.warn("Tauri binary checksum mismatch", {
+              operation: "upgradeTauriBinary",
+              expected,
+              actual,
+            });
+            console.log(
+              "  Warning: Tidepool native UI checksum mismatch, skipping.",
+            );
+            await Deno.remove(tmpPath);
+            return;
+          }
+        }
+      }
+    }
+
+    const installPath = await resolveTauriInstallPath();
+    await replaceBinary(tmpPath, installPath);
+    console.log("  Tidepool native UI updated.");
+  } catch (err) {
+    log.warn("Tauri binary update failed", {
+      operation: "upgradeTauriBinary",
+      err,
+    });
+    console.log("  Warning: Tidepool native UI update failed, skipping.");
+    try {
+      await Deno.remove(tmpPath);
+    } catch { /* cleanup */ }
+  }
+}
+
 /** Build the success result after a completed update. */
 function buildSuccessResult(
   latestTag: string,
@@ -133,6 +221,8 @@ export async function upgradeTriggerfish(): Promise<UpdateResult> {
 
   const swap = await stopAndSwapBinary(downloaded.tmpPath);
   if (swap.error) return { ok: false, message: swap.error };
+
+  await upgradeTauriBinary(release.metadata);
 
   return buildSuccessResult(latestTag, swap.wasRunning);
 }

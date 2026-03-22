@@ -11,6 +11,8 @@ export interface ReleaseMetadata {
   readonly tag: string;
   readonly downloadUrl: string;
   readonly checksumsUrl?: string;
+  /** Tauri native UI binary URLs (absent if not in this release). */
+  readonly tauri?: TauriReleaseAssets;
 }
 
 /**
@@ -32,6 +34,22 @@ interface GitHubReleasePayload {
   }[];
 }
 
+/**
+ * Resolve the platform-specific asset name for the Tauri native UI binary.
+ */
+export function resolveTauriAssetName(): string {
+  const os = Deno.build.os === "darwin" ? "macos" : Deno.build.os;
+  const arch = Deno.build.arch === "aarch64" ? "arm64" : "x64";
+  const ext = Deno.build.os === "windows" ? ".exe" : "";
+  return `triggerfish-tidepool-${os}-${arch}${ext}`;
+}
+
+/** URLs for optional Tauri native UI binary in a release. */
+export interface TauriReleaseAssets {
+  readonly binaryUrl: string;
+  readonly checksumsUrl?: string;
+}
+
 /** Extract matching asset URLs from a GitHub release payload. */
 function extractReleaseAssets(
   release: GitHubReleasePayload,
@@ -40,6 +58,22 @@ function extractReleaseAssets(
   const asset = release.assets.find((a) => a.name === assetName);
   if (!asset) return null;
   const checksums = release.assets.find((a) => a.name === "SHA256SUMS.txt");
+  return {
+    binaryUrl: asset.browser_download_url,
+    checksumsUrl: checksums?.browser_download_url,
+  };
+}
+
+/** Extract Tauri native UI asset URLs from a GitHub release payload. */
+function extractTauriAssets(
+  release: GitHubReleasePayload,
+): TauriReleaseAssets | null {
+  const assetName = resolveTauriAssetName();
+  const asset = release.assets.find((a) => a.name === assetName);
+  if (!asset) return null;
+  const checksums = release.assets.find((a) =>
+    a.name === "SHA256SUMS-tauri.txt"
+  );
   return {
     binaryUrl: asset.browser_download_url,
     checksumsUrl: checksums?.browser_download_url,
@@ -58,11 +92,13 @@ function buildReleaseMetadata(
         `No binary for this platform (${assetName}) in release ${release.tag_name}`,
     };
   }
+  const tauri = extractTauriAssets(release) ?? undefined;
   return {
     metadata: {
       tag: release.tag_name,
       downloadUrl: assets.binaryUrl,
       checksumsUrl: assets.checksumsUrl,
+      tauri,
     },
   };
 }
