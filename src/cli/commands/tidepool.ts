@@ -108,10 +108,20 @@ function spawnNativeTidepool(binaryPath: string): void {
     operation: "spawnNativeTidepool",
     binaryPath,
   });
+
+  // WebKitGTK's DMA-BUF renderer crashes on many Wayland compositors when
+  // the binary was cross-built (e.g. Ubuntu CI → Fedora/Bazzite). The Tauri
+  // binary sets this itself, but older binaries may not — belt and suspenders.
+  const env: Record<string, string> = {};
+  if (Deno.build.os === "linux") {
+    env.WEBKIT_DISABLE_DMABUF_RENDERER = "1";
+  }
+
   const command = new Deno.Command(binaryPath, {
     stdin: "null",
     stdout: "null",
     stderr: "null",
+    env: { ...Deno.env.toObject(), ...env },
   });
   const child = command.spawn();
   child.unref();
