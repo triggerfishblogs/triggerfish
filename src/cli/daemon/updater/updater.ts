@@ -18,6 +18,7 @@ import {
 import { findInstalledBinary, replaceBinary, sha256File } from "./binary.ts";
 import { fetchAndVerifyRelease } from "./download.ts";
 import { fetchLatestRelease, type ReleaseAsset } from "./release.ts";
+import { registerTidepoolApp } from "../app_registration.ts";
 import { dirname, join } from "@std/path";
 import { createLogger } from "../../../core/logger/mod.ts";
 
@@ -189,6 +190,11 @@ async function installCompanionBinary(
 
     await replaceBinary(tmpPath, installPath);
     console.log(`  ${asset.localName} installed.`);
+
+    // Register OS app entry (desktop file, icon, Start Menu shortcut)
+    if (asset.localName.includes("tidepool")) {
+      await registerTidepoolApp(installPath);
+    }
   } catch (err) {
     log.warn("Companion binary install failed", {
       operation: "installCompanionBinary",

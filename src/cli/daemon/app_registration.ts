@@ -6,6 +6,7 @@
  * @module
  */
 
+import { dirname, fromFileUrl, join } from "@std/path";
 import { detectDaemonManager, runCommand } from "./daemon.ts";
 import { createLogger } from "../../core/logger/mod.ts";
 
@@ -154,21 +155,63 @@ async function registerLinuxApp(
   const desktopEntry = buildLinuxDesktopEntry(binaryPath);
   await Deno.writeTextFile(LINUX_DESKTOP_FILE, desktopEntry);
 
-  // Copy icon if it exists next to the binary or in the tauri icons directory
-  const iconSource = binaryPath.replace(/[/\\][^/\\]+$/, "") +
-    "/../tauri/icons/icon.png";
-  try {
-    await Deno.copyFile(iconSource, LINUX_ICON_FILE);
-  } catch (err: unknown) {
-    log.info("Tidepool icon not found, skipping icon install", {
-      operation: "registerLinuxApp",
-      iconSource,
-      err,
-    });
-  }
+  await installLinuxIcon();
 
   await refreshLinuxDesktopCaches();
   return { ok: true, message: "Linux .desktop file created" };
+}
+
+/**
+ * Locate and install the Tidepool icon for the Linux desktop entry.
+ *
+ * Tries in order:
+ * 1. Embedded in the compiled binary (config/tidepool-icon.png via --include)
+ * 2. Source tree (tauri/icons/icon.png — dev mode)
+ */
+async function installLinuxIcon(): Promise<void> {
+  const candidates = buildIconCandidates();
+  for (const candidate of candidates) {
+    try {
+      await Deno.copyFile(candidate, LINUX_ICON_FILE);
+      log.info("Tidepool icon installed", {
+        operation: "installLinuxIcon",
+        source: candidate,
+      });
+      return;
+    } catch {
+      // Try next candidate
+    }
+  }
+  log.info("Tidepool icon not found in any location, skipping", {
+    operation: "installLinuxIcon",
+    candidates,
+  });
+}
+
+/** Build list of candidate icon paths to try. */
+function buildIconCandidates(): readonly string[] {
+  const candidates: string[] = [];
+
+  // 1. Embedded via deno compile --include config/
+  try {
+    const mainModule = dirname(fromFileUrl(import.meta.url));
+    // app_registration.ts is at src/cli/daemon/ — config/ is at repo root
+    const embedded = join(mainModule, "../../../config/tidepool-icon.png");
+    candidates.push(embedded);
+  } catch {
+    // import.meta.url may not resolve in all contexts
+  }
+
+  // 2. Source tree (dev mode)
+  try {
+    const mainModule = dirname(fromFileUrl(import.meta.url));
+    const devIcon = join(mainModule, "../../../tauri/icons/icon.png");
+    candidates.push(devIcon);
+  } catch {
+    // dev mode path
+  }
+
+  return candidates;
 }
 
 /** Refresh desktop and icon caches so the new entry appears immediately. */
