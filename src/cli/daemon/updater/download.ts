@@ -164,19 +164,35 @@ async function verifyBinaryChecksum(
   }
 }
 
+/** Find the main triggerfish binary asset from the release. */
+function findMainAsset(
+  metadata: ReleaseMetadata,
+): { downloadUrl: string; checksumsUrl?: string } | null {
+  const mainLocalName = Deno.build.os === "windows"
+    ? "triggerfish.exe"
+    : "triggerfish";
+  const asset = metadata.assets.find((a) => a.localName === mainLocalName);
+  if (!asset) return null;
+  return { downloadUrl: asset.downloadUrl, checksumsUrl: asset.checksumsUrl };
+}
+
 /**
- * Download and verify the release binary.
+ * Download and verify the main release binary.
  *
  * @returns The temp path to the downloaded binary, or an error message.
  */
 export async function fetchAndVerifyRelease(
   metadata: ReleaseMetadata,
 ): Promise<{ tmpPath: string } | { error: string }> {
+  const main = findMainAsset(metadata);
+  if (!main) {
+    return { error: `No main binary found in release ${metadata.tag}` };
+  }
   const tmpPath = join(resolveBaseDir(), ".update-tmp");
-  const dlError = await downloadBinaryToFile(metadata.downloadUrl, tmpPath);
+  const dlError = await downloadBinaryToFile(main.downloadUrl, tmpPath);
   if (dlError) return { error: dlError };
 
-  const csError = await verifyBinaryChecksum(metadata.checksumsUrl, tmpPath);
+  const csError = await verifyBinaryChecksum(main.checksumsUrl, tmpPath);
   if (csError) {
     try {
       await Deno.remove(tmpPath);

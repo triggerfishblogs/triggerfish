@@ -1,6 +1,11 @@
 /**
  * Self-update orchestrator: coordinate download, verification, binary swap,
  * and daemon restart.
+ *
+ * The updater dynamically discovers ALL platform-matching binaries in the
+ * latest release and installs any that are missing or outdated. This means
+ * the updater never needs to be updated when new companion binaries are
+ * added to future releases.
  * @module
  */
 
@@ -12,12 +17,7 @@ import {
 } from "../lifecycle.ts";
 import { findInstalledBinary, replaceBinary, sha256File } from "./binary.ts";
 import { fetchAndVerifyRelease } from "./download.ts";
-import {
-  fetchLatestRelease,
-  type ReleaseMetadata,
-  resolveTauriAssetName,
-} from "./release.ts";
-import { TIDEPOOL_NATIVE_BINARY } from "../../constants.ts";
+import { fetchLatestRelease, type ReleaseAsset } from "./release.ts";
 import { dirname, join } from "@std/path";
 import { createLogger } from "../../../core/logger/mod.ts";
 
@@ -31,19 +31,6 @@ export interface UpdateResult {
   readonly newVersion?: string;
   /** Whether the daemon was running before the update began. */
   readonly wasRunning?: boolean;
-}
-
-/** Check whether the current version already matches the latest. */
-function checkAlreadyUpToDate(latestTag: string): UpdateResult | null {
-  if (VERSION !== "dev" && VERSION === latestTag) {
-    return {
-      ok: true,
-      message: `Already up to date (${VERSION})`,
-      previousVersion: VERSION,
-      newVersion: latestTag,
-    };
-  }
-  return null;
 }
 
 /** Replace the binary and restart daemon if needed. */
@@ -99,39 +86,83 @@ async function stopAndSwapBinary(tmpPath: string): Promise<{
   return { wasRunning, error: swapError ?? undefined };
 }
 
-/** Resolve the install directory for the Tauri binary (same dir as the main binary). */
-async function resolveTauriInstallPath(): Promise<string> {
-  const mainBinary = await findInstalledBinary();
-  const dir = dirname(mainBinary);
-  const ext = Deno.build.os === "windows" ? ".exe" : "";
-  return join(dir, `${TIDEPOOL_NATIVE_BINARY}${ext}`);
+/** Check if a file exists. */
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    const stat = await Deno.stat(path);
+    return stat.isFile;
+  } catch {
+    return false;
+  }
 }
 
-/** Download, verify, and install the Tauri native UI binary. */
-async function upgradeTauriBinary(
-  metadata: ReleaseMetadata,
+/** Verify a downloaded file against a checksums URL. Returns true if valid. */
+async function verifyCompanionChecksum(
+  tmpPath: string,
+  assetName: string,
+  checksumsUrl: string,
+): Promise<boolean> {
+  try {
+    const resp = await fetch(checksumsUrl);
+    if (!resp.ok) return true; // Can't verify, allow it
+    const text = await resp.text();
+    const line = text.split("\n").find((l) => l.includes(assetName));
+    if (!line) return true; // Asset not in checksums, allow it
+    const expected = line.split(/\s+/)[0].toLowerCase();
+    const actual = await sha256File(tmpPath);
+    if (actual !== expected) {
+      log.warn("Companion binary checksum mismatch", {
+        operation: "installCompanionBinary",
+        assetName,
+        expected,
+        actual,
+      });
+      return false;
+    }
+  } catch (err) {
+    log.debug("Companion checksum verification failed", {
+      operation: "installCompanionBinary",
+      err,
+    });
+  }
+  return true;
+}
+
+/**
+ * Download, verify, and install a single companion binary.
+ *
+ * Companion binaries are any release assets besides the main triggerfish
+ * binary (e.g. triggerfish-tidepool). They are discovered dynamically from
+ * the release assets — no hardcoded names.
+ */
+async function installCompanionBinary(
+  asset: ReleaseAsset,
+  installDir: string,
 ): Promise<void> {
-  if (!metadata.tauri) {
-    log.debug("No Tauri binary in this release", {
-      operation: "upgradeTauriBinary",
+  const installPath = join(installDir, asset.localName);
+
+  // Skip if already installed
+  if (await fileExists(installPath)) {
+    log.debug("Companion binary already installed", {
+      operation: "installCompanionBinary",
+      asset: asset.name,
+      installPath,
     });
     return;
   }
 
-  console.log("  Updating Tidepool native UI...");
-  const tmpPath = join(
-    dirname(await findInstalledBinary()),
-    ".tidepool-update-tmp",
-  );
+  console.log(`  Installing ${asset.localName}...`);
+  const tmpPath = join(installDir, `.${asset.localName}-update-tmp`);
 
   try {
-    const resp = await fetch(metadata.tauri.binaryUrl);
+    const resp = await fetch(asset.downloadUrl);
     if (!resp.ok || !resp.body) {
-      log.warn("Tauri binary download failed", {
-        operation: "upgradeTauriBinary",
+      log.warn("Companion binary download failed", {
+        operation: "installCompanionBinary",
+        asset: asset.name,
         status: resp.status,
       });
-      console.log("  Warning: Tidepool native UI download failed, skipping.");
+      console.log(`  Warning: ${asset.localName} download failed, skipping.`);
       return;
     }
     const file = await Deno.open(tmpPath, {
@@ -141,58 +172,57 @@ async function upgradeTauriBinary(
     });
     await resp.body.pipeTo(file.writable);
 
-    if (metadata.tauri.checksumsUrl) {
-      const csResp = await fetch(metadata.tauri.checksumsUrl);
-      if (csResp.ok) {
-        const text = await csResp.text();
-        const assetName = resolveTauriAssetName();
-        const line = text.split("\n").find((l) => l.includes(assetName));
-        if (line) {
-          const expected = line.split(/\s+/)[0].toLowerCase();
-          const actual = await sha256File(tmpPath);
-          if (actual !== expected) {
-            log.warn("Tauri binary checksum mismatch", {
-              operation: "upgradeTauriBinary",
-              expected,
-              actual,
-            });
-            console.log(
-              "  Warning: Tidepool native UI checksum mismatch, skipping.",
-            );
-            await Deno.remove(tmpPath);
-            return;
-          }
-        }
+    if (asset.checksumsUrl) {
+      const valid = await verifyCompanionChecksum(
+        tmpPath,
+        asset.name,
+        asset.checksumsUrl,
+      );
+      if (!valid) {
+        console.log(
+          `  Warning: ${asset.localName} checksum mismatch, skipping.`,
+        );
+        await Deno.remove(tmpPath);
+        return;
       }
     }
 
-    const installPath = await resolveTauriInstallPath();
     await replaceBinary(tmpPath, installPath);
-    console.log("  Tidepool native UI updated.");
+    console.log(`  ${asset.localName} installed.`);
   } catch (err) {
-    log.warn("Tauri binary update failed", {
-      operation: "upgradeTauriBinary",
+    log.warn("Companion binary install failed", {
+      operation: "installCompanionBinary",
+      asset: asset.name,
       err,
     });
-    console.log("  Warning: Tidepool native UI update failed, skipping.");
+    console.log(`  Warning: ${asset.localName} install failed, skipping.`);
     try {
       await Deno.remove(tmpPath);
     } catch { /* cleanup */ }
   }
 }
 
-/** Build the success result after a completed update. */
-function buildSuccessResult(
-  latestTag: string,
-  wasRunning: boolean,
-): UpdateResult {
-  return {
-    ok: true,
-    message: `Updated from ${VERSION} to ${latestTag}`,
-    previousVersion: VERSION,
-    newVersion: latestTag,
-    wasRunning,
-  };
+/**
+ * Install any companion binaries from the release that are missing locally.
+ *
+ * Scans all release assets matching the current platform and installs any
+ * that aren't already present in the same directory as the main binary.
+ * This runs even when the main binary is already up to date.
+ */
+async function installMissingCompanionBinaries(
+  assets: readonly ReleaseAsset[],
+): Promise<void> {
+  const mainBinary = await findInstalledBinary();
+  const installDir = dirname(mainBinary);
+
+  const mainLocalName = Deno.build.os === "windows"
+    ? "triggerfish.exe"
+    : "triggerfish";
+  const companions = assets.filter((a) => a.localName !== mainLocalName);
+
+  for (const companion of companions) {
+    await installCompanionBinary(companion, installDir);
+  }
 }
 
 /**
@@ -202,16 +232,30 @@ function buildSuccessResult(
  * its SHA256 checksum, stops the running daemon, replaces the binary
  * in-process (no detached child), and restarts the daemon if it was running.
  *
+ * Also installs any companion binaries (e.g. triggerfish-tidepool) that
+ * are present in the release but missing locally — even when the main
+ * binary is already at the latest version.
+ *
  * @returns Result indicating success or failure with version information.
  */
 export async function upgradeTriggerfish(): Promise<UpdateResult> {
   console.log("Checking for updates...");
   const release = await fetchLatestRelease();
   if ("error" in release) return { ok: false, message: release.error };
-  const { tag: latestTag } = release.metadata;
+  const { tag: latestTag, assets } = release.metadata;
 
-  const upToDate = checkAlreadyUpToDate(latestTag);
-  if (upToDate) return upToDate;
+  const alreadyCurrent = VERSION !== "dev" && VERSION === latestTag;
+
+  if (alreadyCurrent) {
+    // Main binary is current, but companion binaries may be missing
+    await installMissingCompanionBinaries(assets);
+    return {
+      ok: true,
+      message: `Already up to date (${VERSION})`,
+      previousVersion: VERSION,
+      newVersion: latestTag,
+    };
+  }
 
   console.log(`  Current: ${VERSION}`);
   console.log(`  Latest:  ${latestTag}`);
@@ -222,9 +266,15 @@ export async function upgradeTriggerfish(): Promise<UpdateResult> {
   const swap = await stopAndSwapBinary(downloaded.tmpPath);
   if (swap.error) return { ok: false, message: swap.error };
 
-  await upgradeTauriBinary(release.metadata);
+  await installMissingCompanionBinaries(assets);
 
-  return buildSuccessResult(latestTag, swap.wasRunning);
+  return {
+    ok: true,
+    message: `Updated from ${VERSION} to ${latestTag}`,
+    previousVersion: VERSION,
+    newVersion: latestTag,
+    wasRunning: swap.wasRunning,
+  };
 }
 
 /** @deprecated Use upgradeTriggerfish instead */
