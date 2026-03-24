@@ -225,12 +225,16 @@ export async function uploadXMedia(
     return "Error: x_posts upload_media file_path must be a relative path within the workspace (no absolute paths or '..' traversal).";
   }
 
+  const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
+  if (!quotaCheck.ok) return quotaCheck.error;
+
   const result = await ctx.posts.uploadMedia(
     filePath,
     typeof input.alt_text === "string" ? input.alt_text : undefined,
   );
 
   if (!result.ok) return formatXError(result.error);
+  await ctx.quotaTracker.recordWrite();
 
   return JSON.stringify({
     media_id: result.value.mediaId,
