@@ -26,6 +26,7 @@ import { TRIGGER_MANAGE_SYSTEM_PROMPT } from "../trigger/trigger_manage_defs.ts"
 import { CLAUDE_SESSION_SYSTEM_PROMPT } from "../../../exec/claude.ts";
 import { LOG_READER_SYSTEM_PROMPT } from "../../../tools/log_reader_tool.ts";
 import { GITHUB_TOOLS_SYSTEM_PROMPT } from "../../../integrations/github/mod.ts";
+import { X_TOOLS_SYSTEM_PROMPT } from "../../../integrations/x/mod.ts";
 import { OBSIDIAN_SYSTEM_PROMPT } from "../../../tools/obsidian/mod.ts";
 import { HEALTHCHECK_SYSTEM_PROMPT } from "../../../tools/healthcheck.ts";
 import { SIMULATE_SYSTEM_PROMPT } from "../../../tools/simulate/mod.ts";
@@ -65,6 +66,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "github",
     "caldav",
     "notion",
+    "x",
     "obsidian",
     "llmTask",
     "summarize",
@@ -104,6 +106,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "github",
     "caldav",
     "notion",
+    "x",
     "obsidian",
     "llmTask",
     "summarize",
@@ -135,6 +138,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "github",
     "caldav",
     "notion",
+    "x",
     "llmTask",
     "summarize",
     "healthcheck",
@@ -154,6 +158,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "github",
     "caldav",
     "notion",
+    "x",
     "llmTask",
     "summarize",
     "healthcheck",
@@ -172,6 +177,7 @@ export const TOOL_PROFILES: Readonly<Record<string, ToolProfile>> = {
     "github",
     "caldav",
     "notion",
+    "x",
     "llmTask",
     "summarize",
     "healthcheck",
@@ -226,6 +232,7 @@ export const TOOL_GROUP_PROMPTS: Partial<
   releaseNotes: RELEASE_NOTES_SYSTEM_PROMPT,
   logReader: LOG_READER_SYSTEM_PROMPT,
   github: GITHUB_TOOLS_SYSTEM_PROMPT,
+  x: X_TOOLS_SYSTEM_PROMPT,
   obsidian: OBSIDIAN_SYSTEM_PROMPT,
   healthcheck: HEALTHCHECK_SYSTEM_PROMPT,
   simulate: SIMULATE_SYSTEM_PROMPT,

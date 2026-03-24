@@ -244,6 +244,58 @@ export async function promptGitHubConnectionStep(): Promise<void> {
   console.log("");
 }
 
+// ── Step 6b: X (Twitter) ─────────────────────────────────────────────────────
+
+/** Run the X connection wizard step. */
+export async function promptXConnectionStep(): Promise<void> {
+  console.log("  X (Twitter) Integration (optional)");
+  console.log("");
+  const connectX = await Confirm.prompt({
+    message:
+      "Connect X (Twitter) for reading timelines, posting, and engagement?",
+    default: false,
+  });
+  if (connectX) {
+    console.log("");
+    console.log("  X uses OAuth 2.0 with PKCE for authentication.");
+    console.log(
+      "  You need a developer account at developer.x.com and a project/app.",
+    );
+    console.log("");
+    console.log("  Required setup:");
+    console.log(
+      "    1. Create a project at https://developer.x.com/en/portal/projects-and-apps",
+    );
+    console.log(
+      "    2. Set the callback URL to: http://localhost:3000/auth/x/callback",
+    );
+    console.log(
+      "    3. Copy your Client ID (OAuth 2.0 section, not API key)",
+    );
+    console.log("");
+    const clientId = await Input.prompt({
+      message: "X OAuth Client ID (or press Enter to configure later)",
+    });
+    if (clientId.length > 0) {
+      const keychain = createKeychain();
+      await keychain.setSecret("x:client_id", clientId);
+      console.log("  \u2713 Client ID saved to keychain");
+      console.log(
+        "  \u2192 Run `triggerfish connect x` to complete the OAuth flow.",
+      );
+    } else {
+      console.log(
+        "  \u2192 Skipped. Connect later with: triggerfish connect x",
+      );
+    }
+  } else {
+    console.log(
+      "  \u2192 Skipped. Connect later with: triggerfish connect x",
+    );
+  }
+  console.log("");
+}
+
 // ── Step 7: Search Provider ───────────────────────────────────────────────────
 /** Prompt the user to choose a search provider. */
 async function selectSearchProvider(): Promise<SearchProviderChoice> {

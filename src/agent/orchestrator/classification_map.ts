@@ -16,6 +16,8 @@ export interface ClassificationMapConfig {
   readonly google?: { readonly classification?: string };
   /** GitHub integration classification. */
   readonly github?: { readonly classification?: string };
+  /** X (Twitter) integration classification. */
+  readonly x?: { readonly classification?: string };
   /** Plugins keyed by name — each with enabled + classification. */
   readonly plugins?: Readonly<
     Record<
@@ -132,6 +134,12 @@ export function mapToolPrefixClassifications(
     (config.github?.classification ?? "PUBLIC") as ClassificationLevel;
   all.set("github_", githubClassification);
   integrations.set("github_", githubClassification);
+
+  // X (Twitter) — x_posts, x_users, x_engage, x_lists, x_quota
+  const xClassification =
+    (config.x?.classification ?? "PUBLIC") as ClassificationLevel;
+  all.set("x_", xClassification);
+  integrations.set("x_", xClassification);
 
   // Plugins — each plugin's tools use {pluginName}_ prefix convention
   if (config.plugins) {

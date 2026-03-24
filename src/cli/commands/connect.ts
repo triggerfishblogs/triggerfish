@@ -28,9 +28,15 @@ export {
   runConnectNotion,
 } from "./connect_notion.ts";
 
+export {
+  disconnectX,
+  initializeXAuth,
+} from "./connect_x.ts";
+
 import { disconnectGoogle, initializeGoogleAuth } from "./connect_google.ts";
 import { disconnectGithub, initializeGithubAuth } from "./connect_github.ts";
 import { disconnectNotion, initializeNotionAuth } from "./connect_notion.ts";
+import { disconnectX, initializeXAuth } from "./connect_x.ts";
 
 /** Print connect usage help. */
 function printConnectUsage(): void {
@@ -39,6 +45,7 @@ CONNECT USAGE:
   triggerfish connect google    Authenticate with Google Workspace
   triggerfish connect github    Authenticate with GitHub
   triggerfish connect notion    Authenticate with Notion
+  triggerfish connect x         Authenticate with X (Twitter)
 `);
 }
 
@@ -49,6 +56,7 @@ DISCONNECT USAGE:
   triggerfish disconnect google    Remove Google authentication
   triggerfish disconnect github    Remove GitHub authentication
   triggerfish disconnect notion    Remove Notion authentication
+  triggerfish disconnect x         Remove X (Twitter) authentication
 `);
 }
 
@@ -68,6 +76,9 @@ export async function establishServiceConnection(
       break;
     case "notion":
       await initializeNotionAuth();
+      break;
+    case "x":
+      await initializeXAuth();
       break;
     default:
       printConnectUsage();
@@ -91,6 +102,9 @@ export async function terminateServiceConnection(
       break;
     case "notion":
       await disconnectNotion();
+      break;
+    case "x":
+      await disconnectX();
       break;
     default:
       printDisconnectUsage();

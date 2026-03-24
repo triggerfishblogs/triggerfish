@@ -23,6 +23,8 @@ export interface ServiceAvailability {
   readonly caldav: boolean;
   /** Notion (keychain notion-api-key). */
   readonly notion: boolean;
+  /** X/Twitter (keychain x:tokens). */
+  readonly x: boolean;
   /** Obsidian (config plugins.obsidian.enabled). */
   readonly obsidian: boolean;
   /** Signal channel (config channels.signal). */
@@ -43,6 +45,7 @@ const SERVICE_TO_GROUP: Readonly<
   github: "github",
   caldav: "caldav",
   notion: "notion",
+  x: "x",
   obsidian: "obsidian",
   signal: "signal",
 };
@@ -79,6 +82,7 @@ const SERVICE_SETUP_HINTS: Readonly<
   github: "GitHub — run `triggerfish connect github`",
   caldav: "CalDAV — set `caldav.enabled: true` in triggerfish.yaml",
   notion: "Notion — run `triggerfish connect notion`",
+  x: "X (Twitter) — run `triggerfish connect x`",
   obsidian:
     "Obsidian — set `plugins.obsidian.enabled: true` in triggerfish.yaml",
   signal: "Signal — configure `channels.signal` in triggerfish.yaml",

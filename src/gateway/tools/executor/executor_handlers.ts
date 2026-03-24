@@ -52,6 +52,7 @@ export function buildCoreSubsystems(
     opts.githubExecutor,
     opts.caldavExecutor,
     opts.notionExecutor,
+    opts.xExecutor,
     opts.obsidianExecutor,
   ];
 }
