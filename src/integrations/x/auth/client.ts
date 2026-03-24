@@ -8,7 +8,9 @@
  * @module
  */
 
+import type { Result } from "../../../core/types/classification.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
+import { resolveAndCheck as defaultResolveAndCheck } from "../../../core/security/ssrf.ts";
 import type { XRateLimiter } from "../client/rate_limiter.ts";
 import type {
   XApiClient,
@@ -137,10 +139,12 @@ export function createXApiClient(
   opts?: {
     readonly fetchFn?: typeof globalThis.fetch;
     readonly baseUrl?: string;
+    readonly ssrfCheck?: (hostname: string) => Promise<Result<string, string>>;
   },
 ): XApiClient {
   const fetchFn = opts?.fetchFn ?? globalThis.fetch;
   const baseUrl = opts?.baseUrl ?? X_API_BASE;
+  const ssrfCheck = opts?.ssrfCheck ?? defaultResolveAndCheck;
 
   interface InternalRequestOpts {
     readonly raw?: boolean;
@@ -171,6 +175,22 @@ export function createXApiClient(
         error: {
           code: "SSRF_BLOCKED",
           message: `X API request blocked: hostname '${parsedHost}' not in allowlist`,
+        },
+      };
+    }
+
+    const dnsCheck = await ssrfCheck(parsedHost);
+    if (!dnsCheck.ok) {
+      log.error("X API request blocked: DNS resolves to private IP", {
+        operation: "xApiRequest",
+        hostname: parsedHost,
+        err: dnsCheck.error,
+      });
+      return {
+        ok: false,
+        error: {
+          code: "SSRF_BLOCKED",
+          message: `X API request blocked: ${dnsCheck.error}`,
         },
       };
     }

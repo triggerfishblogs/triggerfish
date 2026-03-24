@@ -7,7 +7,24 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { XAuthManager } from "../../../src/integrations/x/auth/types_auth.ts";
 import type { XRateLimiter } from "../../../src/integrations/x/client/rate_limiter.ts";
-import { createXApiClient } from "../../../src/integrations/x/auth/client.ts";
+import { createXApiClient as _createXApiClient } from "../../../src/integrations/x/auth/client.ts";
+
+/** No-op SSRF check for tests — always passes. */
+function noopSsrfCheck(_hostname: string): Promise<{ ok: true; value: string }> {
+  return Promise.resolve({ ok: true as const, value: "1.2.3.4" });
+}
+
+/** Test wrapper that injects the no-op SSRF check by default. */
+function createXApiClient(
+  authManager: XAuthManager,
+  rateLimiter: XRateLimiter,
+  opts?: { readonly fetchFn?: typeof globalThis.fetch; readonly baseUrl?: string },
+): ReturnType<typeof _createXApiClient> {
+  return _createXApiClient(authManager, rateLimiter, {
+    ...opts,
+    ssrfCheck: noopSsrfCheck,
+  });
+}
 
 function createMockAuthManager(token = "test-token"): XAuthManager {
   return {
@@ -232,4 +249,23 @@ Deno.test("XAuthManager: handles 429 rate limited response", async () => {
   assertEquals(result.error.status, 429);
   assertEquals(result.error.retryAfterSeconds, 300);
   assertStringIncludes(result.error.message, "Too Many Requests");
+});
+
+Deno.test("XAuthManager: blocks request when DNS resolves to private IP", async () => {
+  const privateSsrfCheck = (_hostname: string) =>
+    Promise.resolve({
+      ok: false as const,
+      error: "SSRF blocked: api.twitter.com resolves to private IP 127.0.0.1",
+    });
+
+  const client = _createXApiClient(createMockAuthManager(), createMockRateLimiter(), {
+    fetchFn: mockFetch({}),
+    ssrfCheck: privateSsrfCheck,
+  });
+
+  const result = await client.get("/2/tweets");
+  assertEquals(result.ok, false);
+  if (result.ok) return;
+  assertEquals(result.error.code, "SSRF_BLOCKED");
+  assertStringIncludes(result.error.message, "private IP");
 });

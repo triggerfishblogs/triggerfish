@@ -137,7 +137,7 @@ export function mapToolPrefixClassifications(
 
   // X (Twitter) — x_posts, x_users, x_engage, x_lists, x_quota
   const xClassification =
-    (config.x?.classification ?? "PUBLIC") as ClassificationLevel;
+    (config.x?.classification ?? "INTERNAL") as ClassificationLevel;
   all.set("x_", xClassification);
   integrations.set("x_", xClassification);
 

@@ -12,10 +12,10 @@ import { mapToolPrefixClassifications } from "../../../src/agent/orchestrator/cl
 
 // ─── Default classification ─────────────────────────────────────────────────
 
-Deno.test("XClassification: X tools default to PUBLIC when no config override", () => {
+Deno.test("XClassification: X tools default to INTERNAL when no config override", () => {
   const maps = mapToolPrefixClassifications({});
-  assertEquals(maps.all.get("x_"), "PUBLIC");
-  assertEquals(maps.integrations.get("x_"), "PUBLIC");
+  assertEquals(maps.all.get("x_"), "INTERNAL");
+  assertEquals(maps.integrations.get("x_"), "INTERNAL");
 });
 
 // ─── Configured classification ───────────────────────────────────────────────
@@ -41,11 +41,11 @@ Deno.test("XClassification: X classification independent of GitHub classificatio
 
 // ─── Missing config ──────────────────────────────────────────────────────────
 
-Deno.test("XClassification: missing x config still defaults to PUBLIC", () => {
+Deno.test("XClassification: missing x config still defaults to INTERNAL", () => {
   const maps = mapToolPrefixClassifications({
     google: { classification: "CONFIDENTIAL" },
     github: { classification: "INTERNAL" },
   });
-  assertEquals(maps.all.get("x_"), "PUBLIC");
-  assertEquals(maps.integrations.get("x_"), "PUBLIC");
+  assertEquals(maps.all.get("x_"), "INTERNAL");
+  assertEquals(maps.integrations.get("x_"), "INTERNAL");
 });
