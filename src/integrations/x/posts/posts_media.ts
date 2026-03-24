@@ -58,7 +58,7 @@ async function readMediaFile(
 ): Promise<XApiResult<Uint8Array>> {
   const root = workspaceRoot ?? Deno.cwd();
   const resolved = resolve(root, filePath);
-  if (!resolved.startsWith(root)) {
+  if (!resolved.startsWith(root + "/") && resolved !== root) {
     log.error("Media upload blocked: path escapes workspace", {
       operation: "readMediaFile",
       filePath,

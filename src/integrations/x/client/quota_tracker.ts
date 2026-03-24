@@ -177,7 +177,7 @@ function validateThresholds(
       warning: clampedWarning,
       cutoff: clampedCutoff,
     });
-    return { warning: clampedCutoff - 0.05, cutoff: clampedCutoff };
+    return { warning: Math.max(0.01, clampedCutoff - 0.05), cutoff: clampedCutoff };
   }
   return { warning: clampedWarning, cutoff: clampedCutoff };
 }
