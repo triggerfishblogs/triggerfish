@@ -150,10 +150,12 @@ export function createXApiClient(
     rateLimiter.recordResponse(endpoint, response.headers);
 
     if (response.status === 401 && !isRetry) {
-      log.info("X API 401, retrying with refreshed token", {
+      log.info("X API 401, forcing token refresh before retry", {
         operation: "xApiRequest",
         endpoint,
       });
+      const refreshResult = await authManager.forceRefresh();
+      if (!refreshResult.ok) return { ok: false, error: refreshResult.error };
       return request<T>(method, url, body, params, true, requestOpts);
     }
 

@@ -230,6 +230,36 @@ export function createXAuthManager(
       }
     },
 
+    async forceRefresh(): Promise<XAuthResult> {
+      const stored = await loadXTokens(secretStore);
+      if (!stored) {
+        return {
+          ok: false,
+          error: {
+            code: "NO_TOKENS",
+            message:
+              "No X tokens found. Run 'triggerfish connect x' to authenticate.",
+          },
+        };
+      }
+      if (!stored.refresh_token) {
+        return {
+          ok: false,
+          error: {
+            code: "NO_REFRESH_TOKEN",
+            message: "No X refresh token available. Reconnect X account.",
+          },
+        };
+      }
+      if (refreshPromise) return refreshPromise;
+      refreshPromise = refreshXAccessToken(stored, fetchFn, persistTokens);
+      try {
+        return await refreshPromise;
+      } finally {
+        refreshPromise = null;
+      }
+    },
+
     storeTokens: persistTokens,
 
     async clearTokens(): Promise<void> {

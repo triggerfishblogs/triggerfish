@@ -43,6 +43,8 @@ export interface XAuthManager {
   ) => Promise<XAuthResult>;
   /** Get a valid access token, refreshing if needed. */
   readonly getAccessToken: () => Promise<XAuthResult>;
+  /** Force a token refresh regardless of expiry. Use after server-side revocation (401). */
+  readonly forceRefresh: () => Promise<XAuthResult>;
   /** Store tokens in the secret store. */
   readonly storeTokens: (tokens: XTokens) => Promise<void>;
   /** Clear stored tokens. */

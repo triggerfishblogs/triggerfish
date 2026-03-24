@@ -91,8 +91,8 @@ export interface TriggerFishConfig {
       readonly redirect_uri?: string;
     };
     readonly quota?: {
-      readonly monthly_read_warning?: number;
-      readonly monthly_read_cutoff?: number;
+      readonly warning_ratio?: number;
+      readonly cutoff_ratio?: number;
       readonly spending_cap_usd?: number;
     };
   };

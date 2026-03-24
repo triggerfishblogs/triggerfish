@@ -44,8 +44,13 @@ export async function retweetXPost(
   if (typeof postId !== "string" || postId.length === 0) {
     return "Error: x_engage retweet requires a 'post_id' parameter.";
   }
+  const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
+  if (!quotaCheck.ok) return quotaCheck.error;
+
   const result = await ctx.engage.retweet(postId);
   if (!result.ok) return formatXError(result.error);
+  await ctx.quotaTracker.recordWrite();
+
   return JSON.stringify({
     retweeted: result.value.retweeted,
     post_id: postId,
@@ -61,8 +66,13 @@ export async function unretweetXPost(
   if (typeof postId !== "string" || postId.length === 0) {
     return "Error: x_engage unretweet requires a 'post_id' parameter.";
   }
+  const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
+  if (!quotaCheck.ok) return quotaCheck.error;
+
   const result = await ctx.engage.unretweet(postId);
   if (!result.ok) return formatXError(result.error);
+  await ctx.quotaTracker.recordWrite();
+
   return JSON.stringify({
     retweeted: result.value.retweeted,
     post_id: postId,

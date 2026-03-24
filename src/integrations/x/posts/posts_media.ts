@@ -29,7 +29,7 @@ export async function uploadMediaToX(
   const fileResult = await readMediaFile(filePath);
   if (!fileResult.ok) return fileResult;
 
-  const formData = buildMediaFormData(fileResult.value, altText);
+  const formData = buildMediaFormData(fileResult.value, filePath);
 
   const result = await client.postRaw<{
     readonly media_id_string: string;
@@ -56,7 +56,7 @@ async function readMediaFile(
   try {
     const fileBytes = await Deno.readFile(filePath);
     return { ok: true, value: fileBytes };
-  } catch (err) {
+  } catch (err: unknown) {
     return {
       ok: false,
       error: {
@@ -67,17 +67,23 @@ async function readMediaFile(
   }
 }
 
+/** Determine X media_category from file extension. */
+function inferMediaCategory(filePath: string): string {
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith(".gif")) return "tweet_gif";
+  if (lower.endsWith(".mp4") || lower.endsWith(".mov")) return "tweet_video";
+  return "tweet_image";
+}
+
 /** Build a multipart FormData payload for the media upload endpoint. */
 function buildMediaFormData(
   fileBytes: Uint8Array,
-  altText?: string,
+  filePath: string,
 ): FormData {
   const formData = new FormData();
   const blob = new Blob([fileBytes as BlobPart]);
   formData.append("media", blob);
-  if (altText) {
-    formData.append("media_category", "tweet_image");
-  }
+  formData.append("media_category", inferMediaCategory(filePath));
   return formData;
 }
 

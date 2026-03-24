@@ -15,6 +15,7 @@ function createMockAuthManager(token = "test-token"): XAuthManager {
       Promise.resolve({ ok: true, value: { url: "", codeVerifier: "", state: "" } }),
     exchangeCode: () => Promise.resolve({ ok: true, value: token }),
     getAccessToken: () => Promise.resolve({ ok: true, value: token }),
+    forceRefresh: () => Promise.resolve({ ok: true, value: token }),
     storeTokens: () => Promise.resolve(),
     clearTokens: () => Promise.resolve(),
     hasTokens: () => Promise.resolve(true),
@@ -147,14 +148,19 @@ Deno.test("XAuthManager: records rate limit headers from response", async () => 
   assertEquals(rateLimiter.recorded[0].headers.get("x-rate-limit-reset"), "1700000000");
 });
 
-Deno.test("XAuthManager: retries on 401 with fresh token", async () => {
+Deno.test("XAuthManager: retries on 401 with force-refreshed token", async () => {
   let callCount = 0;
   let tokenCallCount = 0;
+  let forceRefreshCount = 0;
   const authManager: XAuthManager = {
     ...createMockAuthManager(),
     getAccessToken: () => {
       tokenCallCount++;
       return Promise.resolve({ ok: true, value: `token-${tokenCallCount}` });
+    },
+    forceRefresh: () => {
+      forceRefreshCount++;
+      return Promise.resolve({ ok: true, value: "refreshed-token" });
     },
   };
 
@@ -181,6 +187,7 @@ Deno.test("XAuthManager: retries on 401 with fresh token", async () => {
 
   assertEquals(result.ok, true);
   assertEquals(callCount, 2);
+  assertEquals(forceRefreshCount, 1);
   assertEquals(tokenCallCount, 2);
 });
 
