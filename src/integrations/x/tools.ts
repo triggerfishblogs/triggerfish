@@ -9,7 +9,7 @@
  */
 
 import type { XToolContext } from "./tools_shared.ts";
-import { checkTierAvailability } from "./tools_shared.ts";
+import { enforceTierRestriction } from "./tools_shared.ts";
 
 import {
   createXPost,
@@ -151,7 +151,7 @@ export function createXToolExecutor(
     }
 
     // Check tier availability
-    const tierBlock = checkTierAvailability(name, action, ctx.tier);
+    const tierBlock = enforceTierRestriction(name, action, ctx.tier);
     if (tierBlock) return tierBlock;
 
     const handler = actionMap[action];

@@ -27,6 +27,38 @@ h1{color:#22c55e;margin-bottom:0.5rem}p{color:#666}</style></head>
 
 // ─── OAuth callback server ───────────────────────────────────────────────────
 
+/** Build a plain text response with optional HTTP status. */
+function textResponse(body: string, status = 200): Response {
+  return new Response(body, { status, headers: { "Content-Type": "text/plain" } });
+}
+
+/** Handle an OAuth error callback from X. */
+function handleOAuthError(
+  url: URL,
+  rejectCode: (err: Error) => void,
+): Response {
+  const description = url.searchParams.get("error_description") ??
+    url.searchParams.get("error") ?? "unknown";
+  rejectCode(new Error(`X returned error: ${description}`));
+  return textResponse("Authorization failed. You can close this window.", 400);
+}
+
+/** Handle a successful OAuth callback — validate state and resolve. */
+function handleOAuthSuccess(
+  code: string,
+  state: string | null,
+  expectedState: string,
+  resolveCode: (code: string) => void,
+  rejectCode: (err: Error) => void,
+): Response {
+  if (!state || state !== expectedState) {
+    rejectCode(new Error("OAuth state mismatch — possible CSRF"));
+    return textResponse("State mismatch. Authorization rejected.", 400);
+  }
+  resolveCode(code);
+  return new Response(OAUTH_SUCCESS_HTML, { headers: { "Content-Type": "text/html" } });
+}
+
 /** Build the OAuth callback HTTP request handler. */
 export function buildXOAuthRequestHandler(
   resolveCode: (code: string) => void,
@@ -35,47 +67,14 @@ export function buildXOAuthRequestHandler(
 ): (req: Request) => Response {
   let settled = false;
   return (req: Request): Response => {
-    if (settled) {
-      return new Response("Authorization already processed.", {
-        headers: { "Content-Type": "text/plain" },
-      });
-    }
-
+    if (settled) return textResponse("Authorization already processed.");
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
     const error = url.searchParams.get("error");
-
-    if (error) {
-      settled = true;
-      const description = url.searchParams.get("error_description") ?? error;
-      rejectCode(new Error(`X returned error: ${description}`));
-      return new Response(
-        "Authorization failed. You can close this window.",
-        { status: 400, headers: { "Content-Type": "text/plain" } },
-      );
-    }
-
-    if (!code) {
-      return new Response("Waiting for X OAuth callback...", {
-        headers: { "Content-Type": "text/plain" },
-      });
-    }
-
-    if (!state || state !== expectedState) {
-      settled = true;
-      rejectCode(new Error("OAuth state mismatch — possible CSRF"));
-      return new Response(
-        "State mismatch. Authorization rejected.",
-        { status: 400, headers: { "Content-Type": "text/plain" } },
-      );
-    }
-
+    if (error) { settled = true; return handleOAuthError(url, rejectCode); }
+    if (!code) return textResponse("Waiting for X OAuth callback...");
     settled = true;
-    resolveCode(code);
-    return new Response(OAUTH_SUCCESS_HTML, {
-      headers: { "Content-Type": "text/html" },
-    });
+    return handleOAuthSuccess(code, url.searchParams.get("state"), expectedState, resolveCode, rejectCode);
   };
 }
 
@@ -151,6 +150,9 @@ export async function fetchAndStoreXUser(
   store: SecretStore,
 ): Promise<string | null> {
   try {
+    // SSRF: DNS check on hardcoded hostname. TOCTOU gap is theoretical —
+    // cli/ cannot import XApiClient (layer rules), and the target is a
+    // well-known public hostname that won't rebind to a private IP.
     const dnsCheck = await resolveAndCheck("api.twitter.com");
     if (!dnsCheck.ok) {
       log.error("SSRF check failed for X API", {

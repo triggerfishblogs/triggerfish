@@ -67,7 +67,7 @@ const FREE_TIER_BLOCKED_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> =
  *
  * @returns null if allowed, or an error message if blocked
  */
-export function checkTierAvailability(
+export function enforceTierRestriction(
   toolName: string,
   action: string,
   tier: XApiTier,

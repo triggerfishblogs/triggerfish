@@ -101,6 +101,7 @@ export async function addXListMember(
 
   const userResult = await ctx.users.getUser(username);
   if (!userResult.ok) return formatXError(userResult.error);
+  await ctx.quotaTracker.recordRead();
 
   const result = await ctx.lists.addMember(listId, userResult.value.id);
   if (!result.ok) return formatXError(result.error);
@@ -132,6 +133,7 @@ export async function removeXListMember(
 
   const userResult = await ctx.users.getUser(username);
   if (!userResult.ok) return formatXError(userResult.error);
+  await ctx.quotaTracker.recordRead();
 
   const result = await ctx.lists.removeMember(listId, userResult.value.id);
   if (!result.ok) return formatXError(result.error);

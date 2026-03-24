@@ -130,9 +130,9 @@ export async function getXUserPosts(
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
   if (!quotaCheck.ok) return quotaCheck.error;
 
-  // Resolve username to user ID first
   const userResult = await ctx.users.getUser(username);
   if (!userResult.ok) return formatXError(userResult.error);
+  await ctx.quotaTracker.recordRead();
 
   const result = await ctx.posts.userPosts({
     userId: userResult.value.id,

@@ -105,7 +105,7 @@ async function exchangeAuthorizationCode(
   });
 
   if (!response.ok) {
-    const text = await response.text();
+    const text = (await response.text()).slice(0, 200);
     log.error("X token exchange failed", {
       operation: "exchangeXAuthCode",
       err: { status: response.status, body: text },
@@ -114,7 +114,7 @@ async function exchangeAuthorizationCode(
       ok: false,
       error: {
         code: "TOKEN_EXCHANGE_FAILED",
-        message: `X token exchange failed (${response.status}): ${text.slice(0, 500)}`,
+        message: `X token exchange failed (HTTP ${response.status})`,
         status: response.status,
       },
     };
@@ -164,19 +164,17 @@ async function refreshXAccessToken(
   });
 
   if (!response.ok) {
-    const text = await response.text();
+    const text = (await response.text()).slice(0, 200);
     log.error("X token refresh failed", {
       operation: "refreshXToken",
       err: { status: response.status, body: text },
     });
-
     if (response.status === 400 || response.status === 401) {
       return {
         ok: false,
         error: {
           code: "REFRESH_REVOKED",
-          message:
-            "X refresh token revoked or expired. Run 'triggerfish connect x' to reconnect.",
+          message: "X refresh token revoked or expired. Run 'triggerfish connect x' to reconnect.",
           status: response.status,
         },
       };
@@ -185,7 +183,7 @@ async function refreshXAccessToken(
       ok: false,
       error: {
         code: "REFRESH_FAILED",
-        message: `X token refresh failed (${response.status}): ${text.slice(0, 500)}`,
+        message: `X token refresh failed (HTTP ${response.status})`,
         status: response.status,
       },
     };
@@ -291,6 +289,7 @@ export function createXAuthManager(
 
     async clearTokens(): Promise<void> {
       await secretStore.deleteSecret(TOKEN_KEY);
+      await secretStore.deleteSecret("x:client_id");
     },
 
     async hasTokens(): Promise<boolean> {

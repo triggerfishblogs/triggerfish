@@ -40,6 +40,7 @@ export async function listXFollowers(
   if (typeof input.username === "string" && input.username.length > 0) {
     const userResult = await ctx.users.getUser(input.username);
     if (!userResult.ok) return formatXError(userResult.error);
+    await ctx.quotaTracker.recordRead();
     userId = userResult.value.id;
   }
 
@@ -76,6 +77,7 @@ export async function listXFollowing(
   if (typeof input.username === "string" && input.username.length > 0) {
     const userResult = await ctx.users.getUser(input.username);
     if (!userResult.ok) return formatXError(userResult.error);
+    await ctx.quotaTracker.recordRead();
     userId = userResult.value.id;
   }
 
@@ -114,6 +116,7 @@ export async function followXUser(
 
   const userResult = await ctx.users.getUser(username);
   if (!userResult.ok) return formatXError(userResult.error);
+  await ctx.quotaTracker.recordRead();
 
   const result = await ctx.users.follow(userResult.value.id);
   if (!result.ok) return formatXError(result.error);
@@ -140,6 +143,7 @@ export async function unfollowXUser(
 
   const userResult = await ctx.users.getUser(username);
   if (!userResult.ok) return formatXError(userResult.error);
+  await ctx.quotaTracker.recordRead();
 
   const result = await ctx.users.unfollow(userResult.value.id);
   if (!result.ok) return formatXError(result.error);

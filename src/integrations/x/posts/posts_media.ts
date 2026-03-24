@@ -4,7 +4,7 @@
  * @module
  */
 
-import { resolve } from "@std/path";
+import { relative, resolve } from "@std/path";
 import { createLogger } from "../../../core/logger/logger.ts";
 import type { XApiClient, XApiResult } from "../auth/types_auth.ts";
 import type { XMediaUploadResult } from "./types_posts.ts";
@@ -58,7 +58,8 @@ async function readMediaFile(
 ): Promise<XApiResult<Uint8Array>> {
   const root = workspaceRoot ?? Deno.cwd();
   const resolved = resolve(root, filePath);
-  if (!resolved.startsWith(root + "/") && resolved !== root) {
+  const rel = relative(root, resolved);
+  if (rel.startsWith("..") || rel.startsWith("/")) {
     log.error("Media upload blocked: path escapes workspace", {
       operation: "readMediaFile",
       filePath,

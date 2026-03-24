@@ -9,7 +9,7 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { createXToolExecutor } from "../../../src/integrations/x/tools.ts";
-import { checkTierAvailability } from "../../../src/integrations/x/tools_shared.ts";
+import { enforceTierRestriction } from "../../../src/integrations/x/tools_shared.ts";
 import type { XToolContext } from "../../../src/integrations/x/tools_shared.ts";
 import type { XRateLimiter } from "../../../src/integrations/x/client/rate_limiter.ts";
 import type { XQuotaTracker } from "../../../src/integrations/x/client/quota_tracker.ts";
@@ -98,29 +98,29 @@ Deno.test("XToolExecutor: returns error for unknown action on x_posts", async ()
 
 // ─── Tier availability ───────────────────────────────────────────────────────
 
-Deno.test("XToolExecutor: checkTierAvailability returns null for basic tier", () => {
-  const result = checkTierAvailability("x_posts", "search", "basic");
+Deno.test("XToolExecutor: enforceTierRestriction returns null for basic tier", () => {
+  const result = enforceTierRestriction("x_posts", "search", "basic");
   assertEquals(result, null);
 });
 
-Deno.test("XToolExecutor: checkTierAvailability blocks search on free tier", () => {
-  const result = checkTierAvailability("x_posts", "search", "free");
+Deno.test("XToolExecutor: enforceTierRestriction blocks search on free tier", () => {
+  const result = enforceTierRestriction("x_posts", "search", "free");
   assertStringIncludes(result!, "requires X API Basic tier");
   assertStringIncludes(result!, "Current tier: free");
 });
 
-Deno.test("XToolExecutor: checkTierAvailability blocks x_users get on free tier", () => {
-  const result = checkTierAvailability("x_users", "get", "free");
+Deno.test("XToolExecutor: enforceTierRestriction blocks x_users get on free tier", () => {
+  const result = enforceTierRestriction("x_users", "get", "free");
   assertStringIncludes(result!, "requires X API Basic tier");
 });
 
-Deno.test("XToolExecutor: checkTierAvailability allows x_posts create on free tier", () => {
-  const result = checkTierAvailability("x_posts", "create", "free");
+Deno.test("XToolExecutor: enforceTierRestriction allows x_posts create on free tier", () => {
+  const result = enforceTierRestriction("x_posts", "create", "free");
   assertEquals(result, null);
 });
 
-Deno.test("XToolExecutor: checkTierAvailability blocks x_engage retweet on free tier", () => {
-  const result = checkTierAvailability("x_engage", "retweet", "free");
+Deno.test("XToolExecutor: enforceTierRestriction blocks x_engage retweet on free tier", () => {
+  const result = enforceTierRestriction("x_engage", "retweet", "free");
   assertEquals(typeof result, "string");
 });
 
