@@ -93,7 +93,6 @@ export interface TriggerFishConfig {
     readonly quota?: {
       readonly warning_ratio?: number;
       readonly cutoff_ratio?: number;
-      readonly spending_cap_usd?: number;
     };
   };
   readonly caldav?: {
