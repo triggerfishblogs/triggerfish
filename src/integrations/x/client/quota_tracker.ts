@@ -88,8 +88,11 @@ async function loadQuotaState(
     try {
       const state = JSON.parse(result.value) as QuotaState;
       if (state.month === month) return state;
-    } catch {
-      // Corrupted data — reset
+    } catch (err: unknown) {
+      log.warn("Quota state JSON parse failed, resetting counters", {
+        operation: "loadQuotaState",
+        err,
+      });
     }
   }
   return { month, readsUsed: 0, writesUsed: 0 };

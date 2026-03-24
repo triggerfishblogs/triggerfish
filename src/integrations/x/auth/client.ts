@@ -43,7 +43,11 @@ function extractEndpoint(url: string): string {
   try {
     const parsed = new URL(url, X_API_BASE);
     return parsed.pathname;
-  } catch {
+  } catch (_err: unknown) {
+    log.warn("URL parse failed for rate limit tracking, using raw URL", {
+      operation: "extractEndpoint",
+      url,
+    });
     return url;
   }
 }
@@ -62,7 +66,7 @@ async function parseXApiResponse<T>(
       if (errorData?.type) {
         errorCode = errorData.type;
       }
-    } catch {
+    } catch (_err: unknown) {
       errorMessage = response.statusText;
     }
 

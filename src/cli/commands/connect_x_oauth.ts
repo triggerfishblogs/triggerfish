@@ -175,7 +175,7 @@ export function extractPort(redirectUri: string): number {
     return new URL(redirectUri).port
       ? parseInt(new URL(redirectUri).port, 10)
       : 3000;
-  } catch {
+  } catch (_err: unknown) {
     return 3000;
   }
 }

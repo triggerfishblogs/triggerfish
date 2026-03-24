@@ -163,7 +163,11 @@ async function loadXTokens(secretStore: SecretStore): Promise<XTokens | null> {
   if (!result.ok) return null;
   try {
     return JSON.parse(result.value) as XTokens;
-  } catch {
+  } catch (err: unknown) {
+    log.warn("X token JSON parse failed, treating as no tokens", {
+      operation: "loadXTokens",
+      err,
+    });
     return null;
   }
 }
