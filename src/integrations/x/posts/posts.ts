@@ -153,6 +153,7 @@ function mapTweetList(response: XTweetListResponse): XPostPage {
 export function createPostsService(
   client: XApiClient,
   authenticatedUserId: string,
+  workspaceRoot?: string,
 ): PostsService {
   return {
     async search(opts: XSearchOptions): Promise<XApiResult<XPostPage>> {
@@ -271,7 +272,7 @@ export function createPostsService(
       filePath: string,
       altText?: string,
     ): Promise<XApiResult<XMediaUploadResult>> {
-      return uploadMediaToX(client, filePath, altText);
+      return uploadMediaToX(client, filePath, altText, workspaceRoot);
     },
   };
 }

@@ -26,8 +26,9 @@ export async function uploadMediaToX(
   client: XApiClient,
   filePath: string,
   altText?: string,
+  workspaceRoot?: string,
 ): Promise<XApiResult<XMediaUploadResult>> {
-  const fileResult = await readMediaFile(filePath);
+  const fileResult = await readMediaFile(filePath, workspaceRoot);
   if (!fileResult.ok) return fileResult;
 
   const formData = buildMediaFormData(fileResult.value, filePath);
@@ -53,15 +54,16 @@ export async function uploadMediaToX(
 /** Read a media file from disk, returning a typed error on failure. */
 async function readMediaFile(
   filePath: string,
+  workspaceRoot?: string,
 ): Promise<XApiResult<Uint8Array>> {
-  const workspaceRoot = Deno.cwd();
-  const resolved = resolve(workspaceRoot, filePath);
-  if (!resolved.startsWith(workspaceRoot)) {
+  const root = workspaceRoot ?? Deno.cwd();
+  const resolved = resolve(root, filePath);
+  if (!resolved.startsWith(root)) {
     log.error("Media upload blocked: path escapes workspace", {
       operation: "readMediaFile",
       filePath,
       resolved,
-      workspaceRoot,
+      workspaceRoot: root,
     });
     return {
       ok: false,

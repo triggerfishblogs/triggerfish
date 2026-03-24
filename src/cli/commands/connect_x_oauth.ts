@@ -10,6 +10,7 @@
 import { Input } from "@cliffy/prompt";
 import type { SecretStore } from "../../core/secrets/keychain/keychain.ts";
 import { createLogger } from "../../core/logger/mod.ts";
+import { resolveAndCheck } from "../../core/security/ssrf.ts";
 
 const log = createLogger("cli.connect-x-oauth");
 
@@ -150,6 +151,15 @@ export async function fetchAndStoreXUser(
   store: SecretStore,
 ): Promise<string | null> {
   try {
+    const dnsCheck = await resolveAndCheck("api.twitter.com");
+    if (!dnsCheck.ok) {
+      log.error("SSRF check failed for X API", {
+        operation: "fetchXUser",
+        err: dnsCheck.error,
+      });
+      console.log("\nFailed to verify X API endpoint (SSRF check).");
+      return null;
+    }
     const resp = await fetch("https://api.twitter.com/2/users/me", {
       headers: {
         Authorization: `Bearer ${accessToken}`,

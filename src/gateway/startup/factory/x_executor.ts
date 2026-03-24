@@ -41,6 +41,7 @@ export async function buildXExecutor(
   config: TriggerFishConfig,
   getSessionTaint: () => ClassificationLevel,
   sourceSessionId: SessionId,
+  opts?: { readonly workspacePath?: string },
 ): Promise<
   | ((name: string, input: Record<string, unknown>) => Promise<string | null>)
   | undefined
@@ -80,7 +81,7 @@ export async function buildXExecutor(
   const authenticatedUserId = userIdResult.value;
 
   return createXToolExecutor({
-    posts: createPostsService(apiClient, authenticatedUserId),
+    posts: createPostsService(apiClient, authenticatedUserId, opts?.workspacePath),
     users: createUsersService(apiClient, authenticatedUserId),
     engage: createEngageService(apiClient, authenticatedUserId),
     lists: createListsService(apiClient, authenticatedUserId),

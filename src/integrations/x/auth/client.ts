@@ -66,6 +66,15 @@ function extractEndpoint(url: string): string {
   }
 }
 
+/** Maximum length for error messages from external APIs. */
+const MAX_ERROR_LENGTH = 500;
+
+/** Truncate a string to prevent unbounded external content in agent output. */
+function truncateErrorMessage(msg: string): string {
+  if (msg.length <= MAX_ERROR_LENGTH) return msg;
+  return msg.slice(0, MAX_ERROR_LENGTH) + "… (truncated)";
+}
+
 /** Parse an X API response into a Result. */
 async function parseXApiResponse<T>(
   response: Response,
@@ -75,10 +84,11 @@ async function parseXApiResponse<T>(
     let errorCode = `HTTP_${response.status}`;
     try {
       const errorData = await response.json();
-      errorMessage = errorData?.detail ?? errorData?.title ??
+      const raw = errorData?.detail ?? errorData?.title ??
         response.statusText;
+      errorMessage = truncateErrorMessage(String(raw));
       if (errorData?.type) {
-        errorCode = errorData.type;
+        errorCode = truncateErrorMessage(String(errorData.type));
       }
     } catch (parseErr: unknown) {
       log.warn("X API error response JSON parse failed, using statusText", {

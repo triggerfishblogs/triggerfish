@@ -119,9 +119,9 @@ Deno.test("XToolExecutor: checkTierAvailability allows x_posts create on free ti
   assertEquals(result, null);
 });
 
-Deno.test("XToolExecutor: checkTierAvailability allows x_engage retweet on free tier", () => {
+Deno.test("XToolExecutor: checkTierAvailability blocks x_engage retweet on free tier", () => {
   const result = checkTierAvailability("x_engage", "retweet", "free");
-  assertEquals(result, null);
+  assertEquals(typeof result, "string");
 });
 
 // ─── x_quota dispatch ────────────────────────────────────────────────────────

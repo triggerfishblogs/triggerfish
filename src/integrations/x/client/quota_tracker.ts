@@ -164,6 +164,24 @@ function checkUsage(
  * @param tier - The active X API tier
  * @param opts - Optional overrides for warning/cutoff thresholds and clock
  */
+/** Clamp and order quota thresholds to ensure correct enforcement. */
+function validateThresholds(
+  warning: number,
+  cutoff: number,
+): { readonly warning: number; readonly cutoff: number } {
+  const clampedWarning = Math.max(0.01, Math.min(warning, 0.99));
+  const clampedCutoff = Math.max(0.01, Math.min(cutoff, 0.99));
+  if (clampedWarning >= clampedCutoff) {
+    log.warn("Quota warning threshold >= cutoff threshold, auto-correcting", {
+      operation: "validateQuotaThresholds",
+      warning: clampedWarning,
+      cutoff: clampedCutoff,
+    });
+    return { warning: clampedCutoff - 0.05, cutoff: clampedCutoff };
+  }
+  return { warning: clampedWarning, cutoff: clampedCutoff };
+}
+
 export function createXQuotaTracker(
   secretStore: SecretStore,
   tier: XApiTier,
@@ -173,26 +191,42 @@ export function createXQuotaTracker(
     readonly nowFn?: () => number;
   },
 ): XQuotaTracker {
-  const warningThreshold = opts?.warningThreshold ?? 0.8;
-  const cutoffThreshold = opts?.cutoffThreshold ?? 0.95;
+  const { warning: warningThreshold, cutoff: cutoffThreshold } =
+    validateThresholds(
+      opts?.warningThreshold ?? 0.8,
+      opts?.cutoffThreshold ?? 0.95,
+    );
   const nowFn = opts?.nowFn ?? Date.now;
   const readLimit = TIER_READ_LIMITS[tier];
   const writeLimit = TIER_WRITE_LIMITS[tier];
 
+  /** Serialize quota mutations to prevent lost increments under concurrency. */
+  let pendingMutation: Promise<void> = Promise.resolve();
+
+  /** Run a quota mutation serially — queued behind any pending mutation. */
+  function serializeMutation(fn: () => Promise<void>): Promise<void> {
+    pendingMutation = pendingMutation.then(fn, fn);
+    return pendingMutation;
+  }
+
   return {
     async recordRead(): Promise<void> {
-      const state = await loadQuotaState(secretStore, nowFn);
-      await saveQuotaState(secretStore, {
-        ...state,
-        readsUsed: state.readsUsed + 1,
+      await serializeMutation(async () => {
+        const state = await loadQuotaState(secretStore, nowFn);
+        await saveQuotaState(secretStore, {
+          ...state,
+          readsUsed: state.readsUsed + 1,
+        });
       });
     },
 
     async recordWrite(): Promise<void> {
-      const state = await loadQuotaState(secretStore, nowFn);
-      await saveQuotaState(secretStore, {
-        ...state,
-        writesUsed: state.writesUsed + 1,
+      await serializeMutation(async () => {
+        const state = await loadQuotaState(secretStore, nowFn);
+        await saveQuotaState(secretStore, {
+          ...state,
+          writesUsed: state.writesUsed + 1,
+        });
       });
     },
 

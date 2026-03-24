@@ -28,6 +28,40 @@ const TOKEN_KEY = "x:tokens";
 /** Seconds before expiry to trigger a proactive refresh. */
 const REFRESH_MARGIN_SECONDS = 60;
 
+/** Validate and build XTokens from a raw API response, returning error Result on missing access_token. */
+function buildTokensFromResponse(
+  data: Record<string, unknown>,
+  clientId: string,
+  fallbackRefreshToken: string,
+  operation: string,
+): XAuthResult & { tokens?: XTokens } {
+  if (typeof data.access_token !== "string" || !data.access_token) {
+    log.error("X token response missing access_token", {
+      operation,
+      err: { keys: Object.keys(data) },
+    });
+    return {
+      ok: false,
+      error: {
+        code: "TOKEN_EXCHANGE_FAILED",
+        message: `X ${operation} succeeded but response missing access_token`,
+      },
+    };
+  }
+  const tokens: XTokens = {
+    access_token: data.access_token,
+    refresh_token: typeof data.refresh_token === "string"
+      ? data.refresh_token
+      : fallbackRefreshToken,
+    expires_at: Date.now() +
+      (typeof data.expires_in === "number" ? data.expires_in : 7200) * 1000,
+    scope: (data.scope as string) ?? "",
+    token_type: (data.token_type as string) ?? "Bearer",
+    clientId,
+  };
+  return { ok: true, value: tokens.access_token, tokens };
+}
+
 /** X OAuth 2.0 token endpoint. */
 const TOKEN_ENDPOINT = "https://api.twitter.com/2/oauth2/token";
 
@@ -86,20 +120,12 @@ async function exchangeAuthorizationCode(
       error: { code: "PARSE_FAILED", message: "X token response was not valid JSON" },
     };
   }
-  const tokens: XTokens = {
-    access_token: data.access_token as string,
-    refresh_token: data.refresh_token as string,
-    expires_at: Date.now() + (typeof data.expires_in === "number" ? data.expires_in : 7200) * 1000,
-    scope: (data.scope as string) ?? "",
-    token_type: (data.token_type as string) ?? "Bearer",
-    clientId: config.clientId,
-  };
+  const built = buildTokensFromResponse(data, config.clientId, "", "exchangeXAuthCode");
+  if (!built.ok) return built;
 
-  await persistTokens(tokens);
-  log.info("X tokens stored successfully", {
-    operation: "exchangeXAuthCode",
-  });
-  return { ok: true, value: tokens.access_token };
+  await persistTokens(built.tokens!);
+  log.info("X tokens stored successfully", { operation: "exchangeXAuthCode" });
+  return { ok: true, value: built.value };
 }
 
 /** Refresh an expired X access token using the refresh token. */
@@ -165,20 +191,17 @@ async function refreshXAccessToken(
       error: { code: "PARSE_FAILED", message: "X refresh response was not valid JSON" },
     };
   }
-  const updated: XTokens = {
-    access_token: data.access_token as string,
-    refresh_token: (data.refresh_token as string) ?? tokens.refresh_token,
-    expires_at: Date.now() + (typeof data.expires_in === "number" ? data.expires_in : 7200) * 1000,
-    scope: (data.scope as string) ?? tokens.scope,
-    token_type: (data.token_type as string) ?? "Bearer",
-    clientId: tokens.clientId,
-  };
+  const built = buildTokensFromResponse(
+    data,
+    tokens.clientId,
+    tokens.refresh_token,
+    "refreshXToken",
+  );
+  if (!built.ok) return built;
 
-  await persistTokens(updated);
-  log.info("X token refreshed successfully", {
-    operation: "refreshXToken",
-  });
-  return { ok: true, value: updated.access_token };
+  await persistTokens(built.tokens!);
+  log.info("X token refreshed successfully", { operation: "refreshXToken" });
+  return { ok: true, value: built.value };
 }
 
 /** Load stored X tokens from the secret store. */
@@ -213,6 +236,19 @@ export function createXAuthManager(
     await secretStore.setSecret(TOKEN_KEY, JSON.stringify(tokens));
   }
 
+  /** Deduplicated refresh — checks refresh_token, coalesces concurrent calls. */
+  function doRefresh(stored: XTokens): Promise<XAuthResult> {
+    if (!stored.refresh_token) {
+      return Promise.resolve({
+        ok: false,
+        error: { code: "NO_REFRESH_TOKEN", message: "No X refresh token available. Reconnect X account." },
+      });
+    }
+    if (refreshPromise) return refreshPromise;
+    refreshPromise = refreshXAccessToken(stored, fetchFn, persistTokens);
+    return refreshPromise.finally(() => { refreshPromise = null; });
+  }
+
   return {
     getConsentUrl: buildConsentUrl,
 
@@ -222,67 +258,20 @@ export function createXAuthManager(
     async getAccessToken(): Promise<XAuthResult> {
       const stored = await loadXTokens(secretStore);
       if (!stored) {
-        return {
-          ok: false,
-          error: {
-            code: "NO_TOKENS",
-            message:
-              "No X tokens found. Run 'triggerfish connect x' to authenticate.",
-          },
-        };
+        return { ok: false, error: { code: "NO_TOKENS", message: "No X tokens found. Run 'triggerfish connect x' to authenticate." } };
       }
-
       if (stored.expires_at > Date.now() + REFRESH_MARGIN_SECONDS * 1000) {
         return { ok: true, value: stored.access_token };
       }
-
-      if (!stored.refresh_token) {
-        return {
-          ok: false,
-          error: {
-            code: "NO_REFRESH_TOKEN",
-            message: "No X refresh token available. Reconnect X account.",
-          },
-        };
-      }
-
-      if (refreshPromise) return refreshPromise;
-      refreshPromise = refreshXAccessToken(stored, fetchFn, persistTokens);
-      try {
-        return await refreshPromise;
-      } finally {
-        refreshPromise = null;
-      }
+      return doRefresh(stored);
     },
 
     async forceRefresh(): Promise<XAuthResult> {
       const stored = await loadXTokens(secretStore);
       if (!stored) {
-        return {
-          ok: false,
-          error: {
-            code: "NO_TOKENS",
-            message:
-              "No X tokens found. Run 'triggerfish connect x' to authenticate.",
-          },
-        };
+        return { ok: false, error: { code: "NO_TOKENS", message: "No X tokens found. Run 'triggerfish connect x' to authenticate." } };
       }
-      if (!stored.refresh_token) {
-        return {
-          ok: false,
-          error: {
-            code: "NO_REFRESH_TOKEN",
-            message: "No X refresh token available. Reconnect X account.",
-          },
-        };
-      }
-      if (refreshPromise) return refreshPromise;
-      refreshPromise = refreshXAccessToken(stored, fetchFn, persistTokens);
-      try {
-        return await refreshPromise;
-      } finally {
-        refreshPromise = null;
-      }
+      return doRefresh(stored);
     },
 
     storeTokens: persistTokens,
