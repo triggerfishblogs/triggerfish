@@ -172,10 +172,14 @@ export async function createXPost(
     replyTo: typeof input.reply_to === "string" ? input.reply_to : undefined,
     quote: typeof input.quote === "string" ? input.quote : undefined,
     mediaIds: Array.isArray(input.media_ids)
-      ? input.media_ids as string[]
+      ? (input.media_ids as unknown[]).filter((v): v is string =>
+        typeof v === "string"
+      )
       : undefined,
     pollOptions: Array.isArray(input.poll_options)
-      ? input.poll_options as string[]
+      ? (input.poll_options as unknown[]).filter((v): v is string =>
+        typeof v === "string"
+      )
       : undefined,
     pollDurationMinutes: typeof input.poll_duration_minutes === "number"
       ? input.poll_duration_minutes
@@ -212,6 +216,9 @@ export async function uploadXMedia(
   const filePath = input.file_path;
   if (typeof filePath !== "string" || filePath.length === 0) {
     return "Error: x_posts upload_media requires a 'file_path' parameter.";
+  }
+  if (filePath.startsWith("/") || filePath.includes("..")) {
+    return "Error: x_posts upload_media file_path must be a relative path within the workspace (no absolute paths or '..' traversal).";
   }
 
   const result = await ctx.posts.uploadMedia(

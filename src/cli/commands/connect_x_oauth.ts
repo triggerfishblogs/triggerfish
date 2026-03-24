@@ -47,7 +47,7 @@ export function buildXOAuthRequestHandler(
       );
     }
 
-    if (state && state !== expectedState) {
+    if (!state || state !== expectedState) {
       rejectCode(new Error("OAuth state mismatch — possible CSRF"));
       return new Response(
         "State mismatch. Authorization rejected.",

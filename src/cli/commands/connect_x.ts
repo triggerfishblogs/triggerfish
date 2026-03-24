@@ -192,9 +192,17 @@ export async function disconnectX(): Promise<void> {
   const store = createKeychain();
   const authManager = createXAuthManager(store);
   const hadTokens = await authManager.hasTokens();
-  await authManager.clearTokens();
-  await store.deleteSecret("x:user_id");
-  await store.deleteSecret("x:client_id");
+  try {
+    await authManager.clearTokens();
+    await store.deleteSecret("x:user_id");
+    await store.deleteSecret("x:client_id");
+  } catch (err: unknown) {
+    log.error("X disconnect keychain cleanup failed", {
+      operation: "disconnectX",
+      err,
+    });
+    console.log("Warning: some X credentials may not have been fully removed.");
+  }
   if (hadTokens) {
     console.log("X account disconnected. Tokens removed from keychain.");
   } else {
