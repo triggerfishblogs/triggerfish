@@ -58,7 +58,7 @@ const FREE_TIER_BLOCKED_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> =
       "follow",
       "unfollow",
     ]),
-    x_engage: new Set(["like", "unlike", "bookmark", "unbookmark"]),
+    x_engage: new Set(["like", "unlike", "bookmark", "unbookmark", "get_bookmarks"]),
     x_lists: new Set(["get", "members", "create", "add_member", "remove_member"]),
   };
 

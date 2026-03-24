@@ -21,6 +21,13 @@ const log = createLogger("x-client");
 /** X API v2 base URL. */
 const X_API_BASE = "https://api.twitter.com";
 
+/** Allowed hostnames for X API requests to prevent SSRF. */
+const ALLOWED_X_HOSTS = new Set([
+  "api.twitter.com",
+  "upload.twitter.com",
+  "api.x.com",
+]);
+
 /** Build fetch RequestInit with Bearer auth header and optional JSON body. */
 function buildXApiRequestInit(
   method: string,
@@ -150,6 +157,22 @@ export function createXApiClient(
     let fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
     if (params && Object.keys(params).length > 0) {
       fullUrl = `${fullUrl}?${new URLSearchParams(params).toString()}`;
+    }
+
+    const parsedHost = new URL(fullUrl).hostname;
+    if (!ALLOWED_X_HOSTS.has(parsedHost)) {
+      log.error("X API request blocked: disallowed hostname", {
+        operation: "xApiRequest",
+        hostname: parsedHost,
+        url: fullUrl,
+      });
+      return {
+        ok: false,
+        error: {
+          code: "SSRF_BLOCKED",
+          message: `X API request blocked: hostname '${parsedHost}' not in allowlist`,
+        },
+      };
     }
 
     const endpoint = extractEndpoint(fullUrl);

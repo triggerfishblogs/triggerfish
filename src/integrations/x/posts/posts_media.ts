@@ -4,6 +4,7 @@
  * @module
  */
 
+import { resolve } from "@std/path";
 import { createLogger } from "../../../core/logger/logger.ts";
 import type { XApiClient, XApiResult } from "../auth/types_auth.ts";
 import type { XMediaUploadResult } from "./types_posts.ts";
@@ -53,15 +54,37 @@ export async function uploadMediaToX(
 async function readMediaFile(
   filePath: string,
 ): Promise<XApiResult<Uint8Array>> {
+  const workspaceRoot = Deno.cwd();
+  const resolved = resolve(workspaceRoot, filePath);
+  if (!resolved.startsWith(workspaceRoot)) {
+    log.error("Media upload blocked: path escapes workspace", {
+      operation: "readMediaFile",
+      filePath,
+      resolved,
+      workspaceRoot,
+    });
+    return {
+      ok: false,
+      error: {
+        code: "PATH_TRAVERSAL_BLOCKED",
+        message: "Media upload blocked: file path resolves outside workspace",
+      },
+    };
+  }
   try {
-    const fileBytes = await Deno.readFile(filePath);
+    const fileBytes = await Deno.readFile(resolved);
     return { ok: true, value: fileBytes };
   } catch (err: unknown) {
+    log.warn("Media file read failed", {
+      operation: "readMediaFile",
+      filePath,
+      err,
+    });
     return {
       ok: false,
       error: {
         code: "FILE_READ_FAILED",
-        message: `Media upload failed: cannot read file '${filePath}': ${err}`,
+        message: `Media upload failed: cannot read file '${filePath}'`,
       },
     };
   }

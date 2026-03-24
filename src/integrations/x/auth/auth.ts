@@ -89,7 +89,7 @@ async function exchangeAuthorizationCode(
   const tokens: XTokens = {
     access_token: data.access_token as string,
     refresh_token: data.refresh_token as string,
-    expires_at: Date.now() + ((data.expires_in as number) ?? 7200) * 1000,
+    expires_at: Date.now() + (typeof data.expires_in === "number" ? data.expires_in : 7200) * 1000,
     scope: (data.scope as string) ?? "",
     token_type: (data.token_type as string) ?? "Bearer",
     clientId: config.clientId,
@@ -168,7 +168,7 @@ async function refreshXAccessToken(
   const updated: XTokens = {
     access_token: data.access_token as string,
     refresh_token: (data.refresh_token as string) ?? tokens.refresh_token,
-    expires_at: Date.now() + ((data.expires_in as number) ?? 7200) * 1000,
+    expires_at: Date.now() + (typeof data.expires_in === "number" ? data.expires_in : 7200) * 1000,
     scope: (data.scope as string) ?? tokens.scope,
     token_type: (data.token_type as string) ?? "Bearer",
     clientId: tokens.clientId,
@@ -188,10 +188,11 @@ async function loadXTokens(secretStore: SecretStore): Promise<XTokens | null> {
   try {
     return JSON.parse(result.value) as XTokens;
   } catch (err: unknown) {
-    log.warn("X token JSON parse failed, treating as no tokens", {
+    log.warn("X token JSON parse failed, clearing corrupt entry", {
       operation: "loadXTokens",
       err,
     });
+    await secretStore.deleteSecret(TOKEN_KEY);
     return null;
   }
 }
