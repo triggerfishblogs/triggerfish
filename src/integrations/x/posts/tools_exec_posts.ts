@@ -134,6 +134,9 @@ export async function getXUserPosts(
   if (!userResult.ok) return formatXError(userResult.error);
   await ctx.quotaTracker.recordRead();
 
+  const postsQuotaCheck = await ctx.quotaTracker.checkReadQuota();
+  if (!postsQuotaCheck.ok) return postsQuotaCheck.error;
+
   const result = await ctx.posts.userPosts({
     userId: userResult.value.id,
     maxResults: typeof input.max_results === "number"

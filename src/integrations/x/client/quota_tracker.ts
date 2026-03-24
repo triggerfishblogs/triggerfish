@@ -170,7 +170,9 @@ function validateThresholds(
       warning: clampedWarning,
       cutoff: clampedCutoff,
     });
-    return { warning: Math.max(0.01, clampedCutoff - 0.05), cutoff: clampedCutoff };
+    const corrected = clampedCutoff - 0.05;
+    const safeWarning = corrected < clampedCutoff ? corrected : clampedCutoff * 0.5;
+    return { warning: Math.max(0.001, safeWarning), cutoff: clampedCutoff };
   }
   return { warning: clampedWarning, cutoff: clampedCutoff };
 }
