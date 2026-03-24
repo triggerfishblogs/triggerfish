@@ -35,7 +35,7 @@ function buildTokensFromResponse(
   clientId: string,
   fallbackRefreshToken: string,
   operation: string,
-): XAuthResult & { tokens?: XTokens } {
+): { ok: false; error: { code: string; message: string } } | { ok: true; value: string; tokens: XTokens } {
   if (typeof data.access_token !== "string" || !data.access_token) {
     log.error("X token response missing access_token", {
       operation,
@@ -135,7 +135,7 @@ async function exchangeAuthorizationCode(
   }
   const built = buildTokensFromResponse(data, config.clientId, "", "exchangeXAuthCode");
   if (!built.ok) return built;
-  await persistTokens(built.tokens!);
+  await persistTokens(built.tokens);
   log.info("X tokens stored successfully", { operation: "exchangeXAuthCode" });
   return { ok: true, value: built.value };
 }
@@ -212,7 +212,7 @@ async function refreshXAccessToken(
   );
   if (!built.ok) return built;
 
-  await persistTokens(built.tokens!);
+  await persistTokens(built.tokens);
   log.info("X token refreshed successfully", { operation: "refreshXToken" });
   return { ok: true, value: built.value };
 }
