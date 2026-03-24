@@ -39,6 +39,10 @@ function createMockClient(
       calls.push({ method: "POST", url, body });
       return Promise.resolve(findResponse(url) as XApiResult<T>);
     },
+    postRaw: <T>(url: string, body: BodyInit) => {
+      calls.push({ method: "POST_RAW", url, body });
+      return Promise.resolve(findResponse(url) as XApiResult<T>);
+    },
     put: <T>(url: string, body: unknown) => {
       calls.push({ method: "PUT", url, body });
       return Promise.resolve(findResponse(url) as XApiResult<T>);

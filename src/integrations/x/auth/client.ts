@@ -26,14 +26,19 @@ function buildXApiRequestInit(
   method: string,
   token: string,
   body?: unknown,
+  opts?: { readonly raw?: boolean },
 ): RequestInit {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
   };
   const init: RequestInit = { method, headers };
   if (body !== undefined) {
-    headers["Content-Type"] = "application/json";
-    init.body = JSON.stringify(body);
+    if (opts?.raw) {
+      init.body = body as BodyInit;
+    } else {
+      headers["Content-Type"] = "application/json";
+      init.body = JSON.stringify(body);
+    }
   }
   return init;
 }
@@ -114,6 +119,7 @@ export function createXApiClient(
     body?: unknown,
     params?: Record<string, string>,
     isRetry = false,
+    requestOpts?: { readonly raw?: boolean },
   ): Promise<XApiResult<T>> {
     let fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
     if (params && Object.keys(params).length > 0) {
@@ -138,7 +144,7 @@ export function createXApiClient(
     const tokenResult = await authManager.getAccessToken();
     if (!tokenResult.ok) return { ok: false, error: tokenResult.error };
 
-    const init = buildXApiRequestInit(method, tokenResult.value, body);
+    const init = buildXApiRequestInit(method, tokenResult.value, body, requestOpts);
     const response = await fetchFn(fullUrl, init);
 
     rateLimiter.recordResponse(endpoint, response.headers);
@@ -148,7 +154,7 @@ export function createXApiClient(
         operation: "xApiRequest",
         endpoint,
       });
-      return request<T>(method, url, body, params, true);
+      return request<T>(method, url, body, params, true, requestOpts);
     }
 
     if (response.status === 429) {
@@ -173,6 +179,10 @@ export function createXApiClient(
 
     post<T>(url: string, body: unknown): Promise<XApiResult<T>> {
       return request<T>("POST", url, body);
+    },
+
+    postRaw<T>(url: string, body: BodyInit): Promise<XApiResult<T>> {
+      return request<T>("POST", url, body, undefined, false, { raw: true });
     },
 
     put<T>(url: string, body: unknown): Promise<XApiResult<T>> {

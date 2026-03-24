@@ -4,8 +4,11 @@
  * @module
  */
 
+import { createLogger } from "../../../core/logger/logger.ts";
 import type { XApiClient, XApiResult } from "../auth/types_auth.ts";
 import type { XMediaUploadResult } from "./types_posts.ts";
+
+const log = createLogger("x-media");
 
 /**
  * Upload media to X and optionally set alt text.
@@ -28,7 +31,7 @@ export async function uploadMediaToX(
 
   const formData = buildMediaFormData(fileResult.value, altText);
 
-  const result = await client.post<{
+  const result = await client.postRaw<{
     readonly media_id_string: string;
   }>(
     "https://upload.twitter.com/1.1/media/upload.json",
@@ -84,11 +87,18 @@ async function setMediaAltText(
   mediaId: string,
   altText: string,
 ): Promise<void> {
-  await client.post(
+  const result = await client.post(
     "https://upload.twitter.com/1.1/media/metadata/create.json",
     {
       media_id: mediaId,
       alt_text: { text: altText },
     },
   );
+  if (!result.ok) {
+    log.warn("X media alt text set failed, media uploaded without alt text", {
+      operation: "setMediaAltText",
+      mediaId,
+      err: result.error,
+    });
+  }
 }

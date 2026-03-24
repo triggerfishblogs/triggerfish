@@ -11,7 +11,7 @@ import type { XAuthConfig, XTokens } from "../../../src/integrations/x/auth/type
 
 const TEST_CONFIG: XAuthConfig = {
   clientId: "test-client",
-  redirectUri: "http://localhost:3000/auth/x/callback",
+  redirectUri: "http://127.0.0.1:3000/auth/x/callback",
   scopes: ["tweet.read", "tweet.write", "users.read", "offline.access"],
 };
 
@@ -50,7 +50,7 @@ Deno.test("XAuthManager: getConsentUrl returns URL with required PKCE params", a
   assertEquals(url.searchParams.get("response_type"), "code");
   assertEquals(url.searchParams.get("code_challenge_method"), "S256");
   assertEquals(url.searchParams.get("client_id"), "test-client");
-  assertEquals(url.searchParams.get("redirect_uri"), "http://localhost:3000/auth/x/callback");
+  assertEquals(url.searchParams.get("redirect_uri"), "http://127.0.0.1:3000/auth/x/callback");
   assertStringIncludes(url.searchParams.get("scope") ?? "", "tweet.read");
   assertEquals(typeof url.searchParams.get("state"), "string");
   assertEquals(typeof url.searchParams.get("code_challenge"), "string");

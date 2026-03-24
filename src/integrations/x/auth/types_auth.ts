@@ -82,6 +82,11 @@ export interface XApiClient {
     url: string,
     body: unknown,
   ) => Promise<XApiResult<T>>;
+  /** HTTP POST with raw body (FormData, streams, etc.) — no JSON serialization. */
+  readonly postRaw: <T>(
+    url: string,
+    body: BodyInit,
+  ) => Promise<XApiResult<T>>;
   /** HTTP PUT with JSON body. */
   readonly put: <T>(
     url: string,

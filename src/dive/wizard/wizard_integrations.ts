@@ -267,7 +267,7 @@ export async function promptXConnectionStep(): Promise<void> {
       "    1. Create a project at https://developer.x.com/en/portal/projects-and-apps",
     );
     console.log(
-      "    2. Set the callback URL to: http://localhost:3000/auth/x/callback",
+      "    2. Set the callback URL to: http://127.0.0.1:3000/auth/x/callback",
     );
     console.log(
       "    3. Copy your Client ID (OAuth 2.0 section, not API key)",
