@@ -175,7 +175,11 @@ export function extractPort(redirectUri: string): number {
     return new URL(redirectUri).port
       ? parseInt(new URL(redirectUri).port, 10)
       : 3000;
-  } catch (_err: unknown) {
+  } catch (err: unknown) {
+    log.warn("Redirect URI parse failed, defaulting to port 3000", {
+      operation: "extractPort",
+      err,
+    });
     return 3000;
   }
 }
