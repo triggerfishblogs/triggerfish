@@ -196,7 +196,6 @@ export async function disconnectX(): Promise<void> {
   try {
     await authManager.clearTokens();
     await store.deleteSecret("x:user_id");
-    await store.deleteSecret("x:client_id");
     await store.deleteSecret("x:quota");
   } catch (err: unknown) {
     cleanupSucceeded = false;
