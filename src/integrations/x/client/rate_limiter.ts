@@ -15,9 +15,9 @@ const log = createLogger("x-rate-limiter");
 /** Per-endpoint rate limit state parsed from X API response headers. */
 interface EndpointRateLimit {
   /** Remaining requests in the current 15-minute window. */
-  remaining: number;
+  readonly remaining: number;
   /** Unix timestamp (seconds) when the rate limit window resets. */
-  resetAt: number;
+  readonly resetAt: number;
 }
 
 /** Rate limit check result. */

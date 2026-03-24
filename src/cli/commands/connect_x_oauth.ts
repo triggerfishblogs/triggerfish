@@ -32,13 +32,21 @@ export function buildXOAuthRequestHandler(
   rejectCode: (err: Error) => void,
   expectedState: string,
 ): (req: Request) => Response {
+  let settled = false;
   return (req: Request): Response => {
+    if (settled) {
+      return new Response("Authorization already processed.", {
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
     const state = url.searchParams.get("state");
     const error = url.searchParams.get("error");
 
     if (error) {
+      settled = true;
       const description = url.searchParams.get("error_description") ?? error;
       rejectCode(new Error(`X returned error: ${description}`));
       return new Response(
@@ -47,7 +55,14 @@ export function buildXOAuthRequestHandler(
       );
     }
 
+    if (!code) {
+      return new Response("Waiting for X OAuth callback...", {
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+
     if (!state || state !== expectedState) {
+      settled = true;
       rejectCode(new Error("OAuth state mismatch — possible CSRF"));
       return new Response(
         "State mismatch. Authorization rejected.",
@@ -55,14 +70,10 @@ export function buildXOAuthRequestHandler(
       );
     }
 
-    if (code) {
-      resolveCode(code);
-      return new Response(OAUTH_SUCCESS_HTML, {
-        headers: { "Content-Type": "text/html" },
-      });
-    }
-    return new Response("Waiting for X OAuth callback...", {
-      headers: { "Content-Type": "text/plain" },
+    settled = true;
+    resolveCode(code);
+    return new Response(OAUTH_SUCCESS_HTML, {
+      headers: { "Content-Type": "text/html" },
     });
   };
 }
@@ -154,7 +165,15 @@ export async function fetchAndStoreXUser(
       return null;
     }
     const data = await resp.json();
-    const user = (data as { data: { id: string; username: string } }).data;
+    const user = (data as { data?: { id?: string; username?: string } }).data;
+    if (!user?.id || !user?.username) {
+      log.error("X user verification returned unexpected response shape", {
+        operation: "fetchXUser",
+        err: { data },
+      });
+      console.log("\nFailed to verify X user: unexpected API response.");
+      return null;
+    }
     await store.setSecret("x:user_id", user.id);
     return user.username;
   } catch (err: unknown) {

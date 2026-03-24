@@ -92,7 +92,7 @@ export function createListsService(
   return {
     async getLists(): Promise<XApiResult<XListPage>> {
       const result = await client.get<XListListResponse>(
-        `/2/users/${authenticatedUserId}/owned_lists`,
+        `/2/users/${encodeURIComponent(authenticatedUserId)}/owned_lists`,
         {
           "list.fields":
             "id,name,description,private,follower_count,member_count,owner_id,created_at",
@@ -117,7 +117,7 @@ export function createListsService(
       if (opts.nextToken) params.pagination_token = opts.nextToken;
 
       const result = await client.get<XUserListResponse>(
-        `/2/lists/${opts.listId}/members`,
+        `/2/lists/${encodeURIComponent(opts.listId)}/members`,
         params,
       );
       if (!result.ok) return result;
@@ -158,7 +158,7 @@ export function createListsService(
       const result = await client.post<{
         readonly data: { readonly is_member: boolean };
       }>(
-        `/2/lists/${listId}/members`,
+        `/2/lists/${encodeURIComponent(listId)}/members`,
         { user_id: userId },
       );
       if (!result.ok) return result;
@@ -172,7 +172,7 @@ export function createListsService(
       const result = await client.del<{
         readonly data: { readonly is_member: boolean };
       }>(
-        `/2/lists/${listId}/members/${userId}`,
+        `/2/lists/${encodeURIComponent(listId)}/members/${encodeURIComponent(userId)}`,
       );
       if (!result.ok) return result;
       return { ok: true, value: { isMember: result.value.data.is_member } };

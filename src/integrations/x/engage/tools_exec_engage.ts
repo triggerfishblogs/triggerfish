@@ -16,8 +16,13 @@ export async function likeXPost(
   if (typeof postId !== "string" || postId.length === 0) {
     return "Error: x_engage like requires a 'post_id' parameter.";
   }
+  const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
+  if (!quotaCheck.ok) return quotaCheck.error;
+
   const result = await ctx.engage.like(postId);
   if (!result.ok) return formatXError(result.error);
+  await ctx.quotaTracker.recordWrite();
+
   return JSON.stringify({ liked: result.value.liked, post_id: postId });
 }
 
@@ -30,8 +35,13 @@ export async function unlikeXPost(
   if (typeof postId !== "string" || postId.length === 0) {
     return "Error: x_engage unlike requires a 'post_id' parameter.";
   }
+  const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
+  if (!quotaCheck.ok) return quotaCheck.error;
+
   const result = await ctx.engage.unlike(postId);
   if (!result.ok) return formatXError(result.error);
+  await ctx.quotaTracker.recordWrite();
+
   return JSON.stringify({ liked: result.value.liked, post_id: postId });
 }
 
@@ -88,8 +98,13 @@ export async function bookmarkXPost(
   if (typeof postId !== "string" || postId.length === 0) {
     return "Error: x_engage bookmark requires a 'post_id' parameter.";
   }
+  const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
+  if (!quotaCheck.ok) return quotaCheck.error;
+
   const result = await ctx.engage.bookmark(postId);
   if (!result.ok) return formatXError(result.error);
+  await ctx.quotaTracker.recordWrite();
+
   return JSON.stringify({
     bookmarked: result.value.bookmarked,
     post_id: postId,
@@ -105,8 +120,13 @@ export async function unbookmarkXPost(
   if (typeof postId !== "string" || postId.length === 0) {
     return "Error: x_engage unbookmark requires a 'post_id' parameter.";
   }
+  const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
+  if (!quotaCheck.ok) return quotaCheck.error;
+
   const result = await ctx.engage.unbookmark(postId);
   if (!result.ok) return formatXError(result.error);
+  await ctx.quotaTracker.recordWrite();
+
   return JSON.stringify({
     bookmarked: result.value.bookmarked,
     post_id: postId,

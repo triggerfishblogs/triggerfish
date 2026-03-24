@@ -129,10 +129,18 @@ function checkUsage(
     };
   }
   if (ratio >= cutoffThreshold) {
+    const percentage = Math.round(ratio * 100);
+    log.warn("X API monthly quota approaching limit", {
+      operation: "checkXQuota",
+      kind,
+      used,
+      limit,
+      percentage,
+    });
     return {
       ok: true,
       warning:
-        `X API monthly ${kind} quota at ${Math.round(ratio * 100)}% (${used}/${limit}). ` +
+        `X API monthly ${kind} quota at ${percentage}% (${used}/${limit}). ` +
         `Approaching limit.`,
     };
   }

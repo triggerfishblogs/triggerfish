@@ -178,7 +178,7 @@ export function createPostsService(
       if (opts.sinceId) params.since_id = opts.sinceId;
 
       const result = await client.get<XTweetListResponse>(
-        `/2/users/${authenticatedUserId}/timelines/reverse_chronological`,
+        `/2/users/${encodeURIComponent(authenticatedUserId)}/timelines/reverse_chronological`,
         params,
       );
       if (!result.ok) return result;
@@ -187,7 +187,7 @@ export function createPostsService(
 
     async getPost(postId: string): Promise<XApiResult<XPost>> {
       const result = await client.get<XSingleTweetResponse>(
-        `/2/tweets/${postId}`,
+        `/2/tweets/${encodeURIComponent(postId)}`,
         tweetQueryParams(),
       );
       if (!result.ok) return result;
@@ -204,7 +204,7 @@ export function createPostsService(
       if (opts.sinceId) params.since_id = opts.sinceId;
 
       const result = await client.get<XTweetListResponse>(
-        `/2/users/${authenticatedUserId}/mentions`,
+        `/2/users/${encodeURIComponent(authenticatedUserId)}/mentions`,
         params,
       );
       if (!result.ok) return result;
@@ -219,7 +219,7 @@ export function createPostsService(
       if (opts.nextToken) params.next_token = opts.nextToken;
 
       const result = await client.get<XTweetListResponse>(
-        `/2/users/${opts.userId}/tweets`,
+        `/2/users/${encodeURIComponent(opts.userId)}/tweets`,
         params,
       );
       if (!result.ok) return result;
@@ -261,7 +261,7 @@ export function createPostsService(
       const result = await client.del<{
         readonly data: { readonly deleted: boolean };
       }>(
-        `/2/tweets/${postId}`,
+        `/2/tweets/${encodeURIComponent(postId)}`,
       );
       if (!result.ok) return result;
       return { ok: true, value: { deleted: result.value.data.deleted } };

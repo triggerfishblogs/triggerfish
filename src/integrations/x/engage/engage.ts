@@ -51,7 +51,7 @@ export function createEngageService(
       const result = await client.post<{
         readonly data: { readonly liked: boolean };
       }>(
-        `/2/users/${authenticatedUserId}/likes`,
+        `/2/users/${encodeURIComponent(authenticatedUserId)}/likes`,
         { tweet_id: postId },
       );
       if (!result.ok) return result;
@@ -64,7 +64,7 @@ export function createEngageService(
       const result = await client.del<{
         readonly data: { readonly liked: boolean };
       }>(
-        `/2/users/${authenticatedUserId}/likes/${postId}`,
+        `/2/users/${encodeURIComponent(authenticatedUserId)}/likes/${encodeURIComponent(postId)}`,
       );
       if (!result.ok) return result;
       return { ok: true, value: { liked: result.value.data.liked } };
@@ -76,7 +76,7 @@ export function createEngageService(
       const result = await client.post<{
         readonly data: { readonly retweeted: boolean };
       }>(
-        `/2/users/${authenticatedUserId}/retweets`,
+        `/2/users/${encodeURIComponent(authenticatedUserId)}/retweets`,
         { tweet_id: postId },
       );
       if (!result.ok) return result;
@@ -89,7 +89,7 @@ export function createEngageService(
       const result = await client.del<{
         readonly data: { readonly retweeted: boolean };
       }>(
-        `/2/users/${authenticatedUserId}/retweets/${postId}`,
+        `/2/users/${encodeURIComponent(authenticatedUserId)}/retweets/${encodeURIComponent(postId)}`,
       );
       if (!result.ok) return result;
       return { ok: true, value: { retweeted: result.value.data.retweeted } };
@@ -101,7 +101,7 @@ export function createEngageService(
       const result = await client.post<{
         readonly data: { readonly bookmarked: boolean };
       }>(
-        `/2/users/${authenticatedUserId}/bookmarks`,
+        `/2/users/${encodeURIComponent(authenticatedUserId)}/bookmarks`,
         { tweet_id: postId },
       );
       if (!result.ok) return result;
@@ -114,7 +114,7 @@ export function createEngageService(
       const result = await client.del<{
         readonly data: { readonly bookmarked: boolean };
       }>(
-        `/2/users/${authenticatedUserId}/bookmarks/${postId}`,
+        `/2/users/${encodeURIComponent(authenticatedUserId)}/bookmarks/${encodeURIComponent(postId)}`,
       );
       if (!result.ok) return result;
       return { ok: true, value: { bookmarked: result.value.data.bookmarked } };
@@ -130,7 +130,7 @@ export function createEngageService(
       if (opts.nextToken) params.pagination_token = opts.nextToken;
 
       const result = await client.get<XTweetListResponse>(
-        `/2/users/${authenticatedUserId}/bookmarks`,
+        `/2/users/${encodeURIComponent(authenticatedUserId)}/bookmarks`,
         params,
       );
       if (!result.ok) return result;

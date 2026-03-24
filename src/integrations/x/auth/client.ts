@@ -71,7 +71,11 @@ async function parseXApiResponse<T>(
       if (errorData?.type) {
         errorCode = errorData.type;
       }
-    } catch (_err: unknown) {
+    } catch (parseErr: unknown) {
+      log.warn("X API error response JSON parse failed, using statusText", {
+        operation: "parseXApiResponse",
+        err: parseErr,
+      });
       errorMessage = response.statusText;
     }
 

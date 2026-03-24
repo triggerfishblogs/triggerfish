@@ -202,8 +202,12 @@ export async function deleteXPost(
     return "Error: x_posts delete requires a 'post_id' parameter.";
   }
 
+  const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
+  if (!quotaCheck.ok) return quotaCheck.error;
+
   const result = await ctx.posts.deletePost(postId);
   if (!result.ok) return formatXError(result.error);
+  await ctx.quotaTracker.recordWrite();
 
   return JSON.stringify({ deleted: result.value.deleted, post_id: postId });
 }

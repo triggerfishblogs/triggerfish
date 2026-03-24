@@ -97,12 +97,15 @@ export async function followXUser(
     return "Error: x_users follow requires a 'username' parameter.";
   }
 
-  // Resolve username to user ID
+  const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
+  if (!quotaCheck.ok) return quotaCheck.error;
+
   const userResult = await ctx.users.getUser(username);
   if (!userResult.ok) return formatXError(userResult.error);
 
   const result = await ctx.users.follow(userResult.value.id);
   if (!result.ok) return formatXError(result.error);
+  await ctx.quotaTracker.recordWrite();
 
   return JSON.stringify({
     following: result.value.following,
@@ -120,12 +123,15 @@ export async function unfollowXUser(
     return "Error: x_users unfollow requires a 'username' parameter.";
   }
 
-  // Resolve username to user ID
+  const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
+  if (!quotaCheck.ok) return quotaCheck.error;
+
   const userResult = await ctx.users.getUser(username);
   if (!userResult.ok) return formatXError(userResult.error);
 
   const result = await ctx.users.unfollow(userResult.value.id);
   if (!result.ok) return formatXError(result.error);
+  await ctx.quotaTracker.recordWrite();
 
   return JSON.stringify({
     following: result.value.following,

@@ -86,7 +86,7 @@ export function createUsersService(
   return {
     async getUser(username: string): Promise<XApiResult<XUser>> {
       const result = await client.get<XSingleUserResponse>(
-        `/2/users/by/username/${username}`,
+        `/2/users/by/username/${encodeURIComponent(username)}`,
         { "user.fields": USER_FIELDS },
       );
       if (!result.ok) return result;
@@ -103,7 +103,7 @@ export function createUsersService(
       if (opts.nextToken) params.pagination_token = opts.nextToken;
 
       const result = await client.get<XUserListResponse>(
-        `/2/users/${opts.userId}/followers`,
+        `/2/users/${encodeURIComponent(opts.userId)}/followers`,
         params,
       );
       if (!result.ok) return result;
@@ -120,7 +120,7 @@ export function createUsersService(
       if (opts.nextToken) params.pagination_token = opts.nextToken;
 
       const result = await client.get<XUserListResponse>(
-        `/2/users/${opts.userId}/following`,
+        `/2/users/${encodeURIComponent(opts.userId)}/following`,
         params,
       );
       if (!result.ok) return result;
@@ -133,7 +133,7 @@ export function createUsersService(
       const result = await client.post<{
         readonly data: { readonly following: boolean };
       }>(
-        `/2/users/${authenticatedUserId}/following`,
+        `/2/users/${encodeURIComponent(authenticatedUserId)}/following`,
         { target_user_id: targetUserId },
       );
       if (!result.ok) return result;
@@ -146,7 +146,7 @@ export function createUsersService(
       const result = await client.del<{
         readonly data: { readonly following: boolean };
       }>(
-        `/2/users/${authenticatedUserId}/following/${targetUserId}`,
+        `/2/users/${encodeURIComponent(authenticatedUserId)}/following/${encodeURIComponent(targetUserId)}`,
       );
       if (!result.ok) return result;
       return { ok: true, value: { following: result.value.data.following } };
