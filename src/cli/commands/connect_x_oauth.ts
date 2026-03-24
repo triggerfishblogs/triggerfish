@@ -172,9 +172,8 @@ export async function fetchAndStoreXUser(
 /** Extract the port from a redirect URI. */
 export function extractPort(redirectUri: string): number {
   try {
-    return new URL(redirectUri).port
-      ? parseInt(new URL(redirectUri).port, 10)
-      : 3000;
+    const parsed = new URL(redirectUri);
+    return parsed.port ? parseInt(parsed.port, 10) : 3000;
   } catch (err: unknown) {
     log.warn("Redirect URI parse failed, defaulting to port 3000", {
       operation: "extractPort",

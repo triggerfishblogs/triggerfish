@@ -73,8 +73,8 @@ export async function buildXExecutor(
   const tier = (config.x.tier ?? "free") as XApiTier;
   const rateLimiter = createXRateLimiter();
   const quotaTracker = createXQuotaTracker(keychain, tier, {
-    warningThreshold: config.x.quota?.warning_ratio,
-    cutoffThreshold: config.x.quota?.cutoff_ratio,
+    warningThreshold: config.x.quota?.log_warning_ratio,
+    cutoffThreshold: config.x.quota?.response_warning_ratio,
   });
   const apiClient = createXApiClient(authManager, rateLimiter);
   const authenticatedUserId = userIdResult.value;
