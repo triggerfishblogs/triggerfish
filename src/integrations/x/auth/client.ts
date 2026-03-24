@@ -214,8 +214,8 @@ export function createXApiClient(
         error: {
           code: "RATE_LIMITED",
           message: limitCheck.error.message,
-          retryAfterSeconds: limitCheck.error.resetAt -
-            Math.floor(Date.now() / 1000),
+          retryAfterSeconds: Math.max(0, limitCheck.error.resetAt -
+            Math.floor(Date.now() / 1000)),
         },
       };
     }

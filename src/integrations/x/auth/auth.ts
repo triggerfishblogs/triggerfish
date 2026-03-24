@@ -12,6 +12,7 @@
 
 import type { SecretStore } from "../../../core/secrets/keychain/keychain.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
+import { resolveAndCheck } from "../../../core/security/ssrf.ts";
 import type {
   XAuthConfig,
   XAuthManager,
@@ -64,6 +65,17 @@ function buildTokensFromResponse(
 
 /** X OAuth 2.0 token endpoint. */
 const TOKEN_ENDPOINT = "https://api.twitter.com/2/oauth2/token";
+const TOKEN_ENDPOINT_HOST = "api.twitter.com";
+
+/** Run SSRF DNS check on the token endpoint, returning error Result on failure. */
+async function checkTokenEndpointSsrf(operation: string): Promise<XAuthResult | null> {
+  const dnsCheck = await resolveAndCheck(TOKEN_ENDPOINT_HOST);
+  if (!dnsCheck.ok) {
+    log.error("SSRF check failed for X token endpoint", { operation, err: dnsCheck.error });
+    return { ok: false, error: { code: "SSRF_BLOCKED", message: dnsCheck.error } };
+  }
+  return null;
+}
 
 /** Exchange an authorization code for X OAuth 2.0 tokens. */
 async function exchangeAuthorizationCode(
@@ -81,9 +93,10 @@ async function exchangeAuthorizationCode(
     code_verifier: codeVerifier,
   });
 
-  log.info("Exchanging X authorization code", {
-    operation: "exchangeXAuthCode",
-  });
+  log.info("Exchanging X authorization code", { operation: "exchangeXAuthCode" });
+
+  const ssrfBlock = await checkTokenEndpointSsrf("exchangeXAuthCode");
+  if (ssrfBlock) return ssrfBlock;
 
   const response = await fetchFn(TOKEN_ENDPOINT, {
     method: "POST",
@@ -101,7 +114,7 @@ async function exchangeAuthorizationCode(
       ok: false,
       error: {
         code: "TOKEN_EXCHANGE_FAILED",
-        message: `X token exchange failed (${response.status}): ${text}`,
+        message: `X token exchange failed (${response.status}): ${text.slice(0, 500)}`,
         status: response.status,
       },
     };
@@ -122,7 +135,6 @@ async function exchangeAuthorizationCode(
   }
   const built = buildTokensFromResponse(data, config.clientId, "", "exchangeXAuthCode");
   if (!built.ok) return built;
-
   await persistTokens(built.tokens!);
   log.info("X tokens stored successfully", { operation: "exchangeXAuthCode" });
   return { ok: true, value: built.value };
@@ -134,9 +146,10 @@ async function refreshXAccessToken(
   fetchFn: typeof globalThis.fetch,
   persistTokens: (tokens: XTokens) => Promise<void>,
 ): Promise<XAuthResult> {
-  log.info("Refreshing X access token", {
-    operation: "refreshXToken",
-  });
+  log.info("Refreshing X access token", { operation: "refreshXToken" });
+
+  const ssrfBlock = await checkTokenEndpointSsrf("refreshXToken");
+  if (ssrfBlock) return ssrfBlock;
 
   const body = new URLSearchParams({
     refresh_token: tokens.refresh_token,
@@ -172,7 +185,7 @@ async function refreshXAccessToken(
       ok: false,
       error: {
         code: "REFRESH_FAILED",
-        message: `X token refresh failed (${response.status}): ${text}`,
+        message: `X token refresh failed (${response.status}): ${text.slice(0, 500)}`,
         status: response.status,
       },
     };

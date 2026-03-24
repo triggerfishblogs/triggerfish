@@ -17,8 +17,12 @@ export async function getXUser(
     return "Error: x_users get requires a 'username' parameter.";
   }
 
+  const quotaCheck = await ctx.quotaTracker.checkReadQuota();
+  if (!quotaCheck.ok) return quotaCheck.error;
+
   const result = await ctx.users.getUser(username);
   if (!result.ok) return formatXError(result.error);
+  await ctx.quotaTracker.recordRead();
 
   return JSON.stringify(result.value);
 }
@@ -28,6 +32,9 @@ export async function listXFollowers(
   ctx: XToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
+  const quotaCheck = await ctx.quotaTracker.checkReadQuota();
+  if (!quotaCheck.ok) return quotaCheck.error;
+
   let userId = ctx.authenticatedUserId;
 
   if (typeof input.username === "string" && input.username.length > 0) {
@@ -47,6 +54,7 @@ export async function listXFollowers(
   });
 
   if (!result.ok) return formatXError(result.error);
+  await ctx.quotaTracker.recordRead();
 
   const response: Record<string, unknown> = {
     users: result.value.users,
@@ -60,6 +68,9 @@ export async function listXFollowing(
   ctx: XToolContext,
   input: Record<string, unknown>,
 ): Promise<string> {
+  const quotaCheck = await ctx.quotaTracker.checkReadQuota();
+  if (!quotaCheck.ok) return quotaCheck.error;
+
   let userId = ctx.authenticatedUserId;
 
   if (typeof input.username === "string" && input.username.length > 0) {
@@ -79,6 +90,7 @@ export async function listXFollowing(
   });
 
   if (!result.ok) return formatXError(result.error);
+  await ctx.quotaTracker.recordRead();
 
   const response: Record<string, unknown> = {
     users: result.value.users,

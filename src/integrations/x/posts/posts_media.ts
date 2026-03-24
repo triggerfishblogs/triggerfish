@@ -106,7 +106,7 @@ function buildMediaFormData(
   filePath: string,
 ): FormData {
   const formData = new FormData();
-  const blob = new Blob([fileBytes as BlobPart]);
+  const blob = new Blob([fileBytes.buffer as ArrayBuffer]);
   formData.append("media", blob);
   formData.append("media_category", inferMediaCategory(filePath));
   return formData;

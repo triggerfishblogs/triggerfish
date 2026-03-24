@@ -157,13 +157,6 @@ function checkUsage(
   return { ok: true };
 }
 
-/**
- * Create an X API monthly quota tracker.
- *
- * @param secretStore - For persisting quota state across restarts
- * @param tier - The active X API tier
- * @param opts - Optional overrides for warning/cutoff thresholds and clock
- */
 /** Clamp and order quota thresholds to ensure correct enforcement. */
 function validateThresholds(
   warning: number,
@@ -182,6 +175,13 @@ function validateThresholds(
   return { warning: clampedWarning, cutoff: clampedCutoff };
 }
 
+/**
+ * Create an X API monthly quota tracker.
+ *
+ * @param secretStore - For persisting quota state across restarts
+ * @param tier - The active X API tier
+ * @param opts - Optional overrides for warning/cutoff thresholds and clock
+ */
 export function createXQuotaTracker(
   secretStore: SecretStore,
   tier: XApiTier,
@@ -205,7 +205,14 @@ export function createXQuotaTracker(
 
   /** Run a quota mutation serially — queued behind any pending mutation. */
   function serializeMutation(fn: () => Promise<void>): Promise<void> {
-    pendingMutation = pendingMutation.then(fn, fn);
+    pendingMutation = pendingMutation
+      .catch((priorErr: unknown) => {
+        log.warn("Prior quota mutation failed, continuing chain", {
+          operation: "serializeQuotaMutation",
+          err: priorErr,
+        });
+      })
+      .then(fn);
     return pendingMutation;
   }
 
