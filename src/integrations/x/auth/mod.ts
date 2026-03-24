@@ -15,7 +15,6 @@ export type {
   XAuthConsentResult,
   XAuthManager,
   XAuthResult,
-  XIntegrationConfig,
   XTokens,
 } from "./types_auth.ts";
 

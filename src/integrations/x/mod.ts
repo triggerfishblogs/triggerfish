@@ -48,7 +48,6 @@ export type {
   XCreateListOptions,
   XCreatePostOptions,
   XFollowListOptions,
-  XIntegrationConfig,
   XList,
   XListMembersOptions,
   XListPage,

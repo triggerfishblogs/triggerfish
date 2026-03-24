@@ -118,19 +118,3 @@ export interface XApiError {
 
 /** X API pricing tier. Determines tool availability and rate limits. */
 export type XApiTier = "free" | "basic" | "pro" | "pay_per_use";
-
-/** X integration configuration from triggerfish.yaml. */
-export interface XIntegrationConfig {
-  readonly enabled: boolean;
-  readonly tier: XApiTier;
-  readonly classification?: string;
-  readonly oauth: {
-    readonly clientId: string;
-    readonly redirectUri: string;
-  };
-  readonly quota?: {
-    readonly monthlyReadWarning?: number;
-    readonly monthlyReadCutoff?: number;
-    readonly spendingCapUsd?: number;
-  };
-}
