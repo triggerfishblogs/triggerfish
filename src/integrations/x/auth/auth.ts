@@ -14,11 +14,11 @@ import type { SecretStore } from "../../../core/secrets/keychain/keychain.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 import type {
   XAuthConfig,
-  XAuthConsentResult,
   XAuthManager,
   XAuthResult,
   XTokens,
 } from "./types_auth.ts";
+import { buildConsentUrl } from "./auth_pkce.ts";
 
 const log = createLogger("x-auth");
 
@@ -28,70 +28,8 @@ const TOKEN_KEY = "x:tokens";
 /** Seconds before expiry to trigger a proactive refresh. */
 const REFRESH_MARGIN_SECONDS = 60;
 
-/** X OAuth 2.0 authorization endpoint. */
-const AUTH_ENDPOINT = "https://twitter.com/i/oauth2/authorize";
-
 /** X OAuth 2.0 token endpoint. */
 const TOKEN_ENDPOINT = "https://api.twitter.com/2/oauth2/token";
-
-/** Generate a cryptographically random string for PKCE code_verifier. */
-function generateCodeVerifier(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return base64UrlEncode(bytes);
-}
-
-/** Generate a random state parameter for CSRF protection. */
-function generateState(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  return base64UrlEncode(bytes);
-}
-
-/** Compute SHA-256 code_challenge from code_verifier. */
-async function computeCodeChallenge(verifier: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(verifier);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return base64UrlEncode(new Uint8Array(digest));
-}
-
-/** Base64url encode without padding. */
-function base64UrlEncode(bytes: Uint8Array): string {
-  const binString = Array.from(bytes, (b) => String.fromCharCode(b)).join("");
-  return btoa(binString)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
-
-/** Build the X OAuth 2.0 PKCE consent URL with code challenge. */
-async function buildConsentUrl(
-  config: XAuthConfig,
-): Promise<XAuthConsentResult> {
-  const codeVerifier = generateCodeVerifier();
-  const codeChallenge = await computeCodeChallenge(codeVerifier);
-  const state = generateState();
-
-  const params = new URLSearchParams({
-    response_type: "code",
-    client_id: config.clientId,
-    redirect_uri: config.redirectUri,
-    scope: config.scopes.join(" "),
-    state,
-    code_challenge: codeChallenge,
-    code_challenge_method: "S256",
-  });
-
-  return {
-    ok: true,
-    value: {
-      url: `${AUTH_ENDPOINT}?${params.toString()}`,
-      codeVerifier,
-      state,
-    },
-  };
-}
 
 /** Exchange an authorization code for X OAuth 2.0 tokens. */
 async function exchangeAuthorizationCode(

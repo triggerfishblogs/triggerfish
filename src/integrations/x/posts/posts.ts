@@ -15,6 +15,7 @@ import type {
   XTimelineOptions,
   XUserPostsOptions,
 } from "./types_posts.ts";
+import { uploadMediaToX } from "./posts_media.ts";
 
 /** Standard tweet fields requested on every post query. */
 const TWEET_FIELDS =
@@ -266,57 +267,11 @@ export function createPostsService(
       return { ok: true, value: { deleted: result.value.data.deleted } };
     },
 
-    async uploadMedia(
+    uploadMedia(
       filePath: string,
       altText?: string,
     ): Promise<XApiResult<XMediaUploadResult>> {
-      // Media upload uses the v1.1 upload endpoint (still required for v2 posts).
-      // Read the file, POST as multipart/form-data.
-      let fileBytes: Uint8Array;
-      try {
-        fileBytes = await Deno.readFile(filePath);
-      } catch (err) {
-        return {
-          ok: false,
-          error: {
-            code: "FILE_READ_FAILED",
-            message: `Media upload failed: cannot read file '${filePath}': ${err}`,
-          },
-        };
-      }
-
-      const formData = new FormData();
-      const blob = new Blob([fileBytes as BlobPart]);
-      formData.append("media", blob);
-      if (altText) {
-        formData.append("media_category", "tweet_image");
-      }
-
-      // Use the upload endpoint directly via the client's post method.
-      // Note: media upload requires multipart, handled via FormData.
-      const result = await client.post<{
-        readonly media_id_string: string;
-      }>(
-        "https://upload.twitter.com/1.1/media/upload.json",
-        formData,
-      );
-
-      if (!result.ok) return result;
-
-      const mediaId = result.value.media_id_string;
-
-      // Set alt text if provided (separate API call).
-      if (altText) {
-        await client.post(
-          "https://upload.twitter.com/1.1/media/metadata/create.json",
-          {
-            media_id: mediaId,
-            alt_text: { text: altText },
-          },
-        );
-      }
-
-      return { ok: true, value: { mediaId } };
+      return uploadMediaToX(client, filePath, altText);
     },
   };
 }

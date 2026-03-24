@@ -1,0 +1,94 @@
+/**
+ * X media upload — handles file upload and alt text for X API v1.1 media endpoints.
+ *
+ * @module
+ */
+
+import type { XApiClient, XApiResult } from "../auth/types_auth.ts";
+import type { XMediaUploadResult } from "./types_posts.ts";
+
+/**
+ * Upload media to X and optionally set alt text.
+ *
+ * Uses the v1.1 upload endpoint (still required for v2 posts).
+ * Reads the file, POSTs as multipart/form-data, then sets alt text
+ * via a separate metadata/create call if provided.
+ *
+ * @param client - Authenticated X API client
+ * @param filePath - Local path to the media file
+ * @param altText - Optional alt text for accessibility
+ */
+export async function uploadMediaToX(
+  client: XApiClient,
+  filePath: string,
+  altText?: string,
+): Promise<XApiResult<XMediaUploadResult>> {
+  const fileResult = await readMediaFile(filePath);
+  if (!fileResult.ok) return fileResult;
+
+  const formData = buildMediaFormData(fileResult.value, altText);
+
+  const result = await client.post<{
+    readonly media_id_string: string;
+  }>(
+    "https://upload.twitter.com/1.1/media/upload.json",
+    formData,
+  );
+
+  if (!result.ok) return result;
+
+  const mediaId = result.value.media_id_string;
+
+  if (altText) {
+    await setMediaAltText(client, mediaId, altText);
+  }
+
+  return { ok: true, value: { mediaId } };
+}
+
+/** Read a media file from disk, returning a typed error on failure. */
+async function readMediaFile(
+  filePath: string,
+): Promise<XApiResult<Uint8Array>> {
+  try {
+    const fileBytes = await Deno.readFile(filePath);
+    return { ok: true, value: fileBytes };
+  } catch (err) {
+    return {
+      ok: false,
+      error: {
+        code: "FILE_READ_FAILED",
+        message: `Media upload failed: cannot read file '${filePath}': ${err}`,
+      },
+    };
+  }
+}
+
+/** Build a multipart FormData payload for the media upload endpoint. */
+function buildMediaFormData(
+  fileBytes: Uint8Array,
+  altText?: string,
+): FormData {
+  const formData = new FormData();
+  const blob = new Blob([fileBytes as BlobPart]);
+  formData.append("media", blob);
+  if (altText) {
+    formData.append("media_category", "tweet_image");
+  }
+  return formData;
+}
+
+/** Set alt text on an uploaded media item via the metadata/create endpoint. */
+async function setMediaAltText(
+  client: XApiClient,
+  mediaId: string,
+  altText: string,
+): Promise<void> {
+  await client.post(
+    "https://upload.twitter.com/1.1/media/metadata/create.json",
+    {
+      media_id: mediaId,
+      alt_text: { text: altText },
+    },
+  );
+}

@@ -19,3 +19,4 @@ export type {
 } from "./types_posts.ts";
 
 export { createPostsService } from "./posts.ts";
+export { uploadMediaToX } from "./posts_media.ts";
