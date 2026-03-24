@@ -86,7 +86,9 @@ async function parseXApiResponse<T>(
         code: errorCode,
         message: errorMessage,
         status: response.status,
-        retryAfterSeconds: retryAfter ? parseInt(retryAfter, 10) : undefined,
+        retryAfterSeconds: retryAfter && !isNaN(parseInt(retryAfter, 10))
+          ? parseInt(retryAfter, 10)
+          : undefined,
       },
     };
   }
@@ -95,8 +97,24 @@ async function parseXApiResponse<T>(
     return { ok: true, value: {} as T };
   }
 
-  const data = await response.json();
-  return { ok: true, value: data as T };
+  try {
+    const data = await response.json();
+    return { ok: true, value: data as T };
+  } catch (parseErr: unknown) {
+    log.warn("X API success response JSON parse failed", {
+      operation: "parseXApiResponse",
+      err: parseErr,
+      status: response.status,
+    });
+    return {
+      ok: false,
+      error: {
+        code: "PARSE_FAILED",
+        message: `X API returned HTTP ${response.status} with invalid JSON body`,
+        status: response.status,
+      },
+    };
+  }
 }
 
 /**
@@ -117,13 +135,17 @@ export function createXApiClient(
   const fetchFn = opts?.fetchFn ?? globalThis.fetch;
   const baseUrl = opts?.baseUrl ?? X_API_BASE;
 
+  interface InternalRequestOpts {
+    readonly raw?: boolean;
+    readonly isRetry?: boolean;
+  }
+
   async function request<T>(
     method: string,
     url: string,
     body?: unknown,
     params?: Record<string, string>,
-    isRetry = false,
-    requestOpts?: { readonly raw?: boolean },
+    requestOpts?: InternalRequestOpts,
   ): Promise<XApiResult<T>> {
     let fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
     if (params && Object.keys(params).length > 0) {
@@ -153,14 +175,14 @@ export function createXApiClient(
 
     rateLimiter.recordResponse(endpoint, response.headers);
 
-    if (response.status === 401 && !isRetry) {
+    if (response.status === 401 && !requestOpts?.isRetry) {
       log.info("X API 401, forcing token refresh before retry", {
         operation: "xApiRequest",
         endpoint,
       });
       const refreshResult = await authManager.forceRefresh();
       if (!refreshResult.ok) return { ok: false, error: refreshResult.error };
-      return request<T>(method, url, body, params, true, requestOpts);
+      return request<T>(method, url, body, params, { ...requestOpts, isRetry: true });
     }
 
     if (response.status === 429) {
@@ -188,7 +210,7 @@ export function createXApiClient(
     },
 
     postRaw<T>(url: string, body: BodyInit): Promise<XApiResult<T>> {
-      return request<T>("POST", url, body, undefined, false, { raw: true });
+      return request<T>("POST", url, body, undefined, { raw: true });
     },
 
     put<T>(url: string, body: unknown): Promise<XApiResult<T>> {

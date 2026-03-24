@@ -73,13 +73,25 @@ async function exchangeAuthorizationCode(
     };
   }
 
-  const data = await response.json();
+  let data: Record<string, unknown>;
+  try {
+    data = await response.json();
+  } catch (parseErr: unknown) {
+    log.error("X token exchange response JSON parse failed", {
+      operation: "exchangeXAuthCode",
+      err: parseErr,
+    });
+    return {
+      ok: false,
+      error: { code: "PARSE_FAILED", message: "X token response was not valid JSON" },
+    };
+  }
   const tokens: XTokens = {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-    expires_at: Date.now() + (data.expires_in ?? 7200) * 1000,
-    scope: data.scope ?? "",
-    token_type: data.token_type ?? "Bearer",
+    access_token: data.access_token as string,
+    refresh_token: data.refresh_token as string,
+    expires_at: Date.now() + ((data.expires_in as number) ?? 7200) * 1000,
+    scope: (data.scope as string) ?? "",
+    token_type: (data.token_type as string) ?? "Bearer",
     clientId: config.clientId,
   };
 
@@ -140,13 +152,25 @@ async function refreshXAccessToken(
     };
   }
 
-  const data = await response.json();
+  let data: Record<string, unknown>;
+  try {
+    data = await response.json();
+  } catch (parseErr: unknown) {
+    log.error("X token refresh response JSON parse failed", {
+      operation: "refreshXToken",
+      err: parseErr,
+    });
+    return {
+      ok: false,
+      error: { code: "PARSE_FAILED", message: "X refresh response was not valid JSON" },
+    };
+  }
   const updated: XTokens = {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token ?? tokens.refresh_token,
-    expires_at: Date.now() + (data.expires_in ?? 7200) * 1000,
-    scope: data.scope ?? tokens.scope,
-    token_type: data.token_type ?? "Bearer",
+    access_token: data.access_token as string,
+    refresh_token: (data.refresh_token as string) ?? tokens.refresh_token,
+    expires_at: Date.now() + ((data.expires_in as number) ?? 7200) * 1000,
+    scope: (data.scope as string) ?? tokens.scope,
+    token_type: (data.token_type as string) ?? "Bearer",
     clientId: tokens.clientId,
   };
 
