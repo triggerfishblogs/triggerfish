@@ -85,7 +85,7 @@ async function parseXApiErrorResponse<T>(
     if (errorData?.type) errorCode = truncateErrorMessage(String(errorData.type));
   } catch (parseErr: unknown) {
     log.warn("X API error response JSON parse failed, using statusText", {
-      operation: "parseXApiResponse", err: parseErr,
+      operation: "parseXApiErrorResponse", err: parseErr,
     });
     errorMessage = response.statusText;
   }
@@ -105,7 +105,7 @@ async function parseXApiSuccessBody<T>(response: Response): Promise<XApiResult<T
     return { ok: true, value: (await response.json()) as T };
   } catch (parseErr: unknown) {
     log.warn("X API success response JSON parse failed", {
-      operation: "parseXApiResponse", err: parseErr, status: response.status,
+      operation: "parseXApiErrorResponse", err: parseErr, status: response.status,
     });
     return {
       ok: false,
@@ -118,10 +118,7 @@ async function parseXApiSuccessBody<T>(response: Response): Promise<XApiResult<T
 function parseXApiResponse<T>(response: Response): Promise<XApiResult<T>> {
   if (!response.ok) return parseXApiErrorResponse(response);
   if (response.status === 204) {
-    return Promise.resolve({
-      ok: false as const,
-      error: { code: "UNEXPECTED_EMPTY_RESPONSE", message: `X API returned 204 with no response body`, status: 204 },
-    });
+    return Promise.resolve({ ok: true as const, value: {} as T });
   }
   return parseXApiSuccessBody<T>(response);
 }

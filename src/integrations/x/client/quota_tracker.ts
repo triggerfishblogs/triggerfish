@@ -218,7 +218,12 @@ export function createXQuotaTracker(
   /** Serialize quota mutations to prevent lost increments under concurrency. */
   let pendingMutation: Promise<void> = Promise.resolve();
 
-  /** Run a quota mutation serially — queued behind any pending mutation. */
+  /**
+   * Run a quota mutation serially — queued behind any pending mutation.
+   * A failed prior mutation is logged at WARN and the chain continues.
+   * This means a lost increment is possible but the chain never deadlocks.
+   * Accepted trade-off: quota counts may undercount by 1 on transient errors.
+   */
   function serializeMutation(fn: () => Promise<void>): Promise<void> {
     pendingMutation = pendingMutation
       .catch((priorErr: unknown) => {

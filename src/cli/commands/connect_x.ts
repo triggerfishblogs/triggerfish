@@ -182,7 +182,7 @@ export async function disconnectX(): Promise<void> {
   if (errors.length > 0) {
     log.error("X disconnect keychain cleanup partially failed", {
       operation: "disconnectX",
-      err: errors,
+      err: { errors },
     });
     console.log("Warning: some X credentials may not have been fully removed.");
     return;

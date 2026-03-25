@@ -288,8 +288,12 @@ export function createXAuthManager(
     storeTokens: persistTokens,
 
     async clearTokens(): Promise<void> {
-      await secretStore.deleteSecret(TOKEN_KEY);
-      await secretStore.deleteSecret("x:client_id");
+      try { await secretStore.deleteSecret(TOKEN_KEY); } catch (err: unknown) {
+        log.warn("Failed to delete X tokens", { operation: "clearTokens", err });
+      }
+      try { await secretStore.deleteSecret("x:client_id"); } catch (err: unknown) {
+        log.warn("Failed to delete X client ID", { operation: "clearTokens", err });
+      }
     },
 
     async hasTokens(): Promise<boolean> {

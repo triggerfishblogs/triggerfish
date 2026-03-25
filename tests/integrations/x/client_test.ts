@@ -223,7 +223,7 @@ Deno.test("XAuthManager: parses X API error format with detail and title fields"
   assertEquals(result.error.status, 404);
 });
 
-Deno.test("XAuthManager: handles 204 No Content as unexpected empty response", async () => {
+Deno.test("XAuthManager: handles 204 No Content as success", async () => {
   const fetchFn: typeof fetch = (_url, _init?) => {
     return Promise.resolve(new Response(null, { status: 204 }));
   };
@@ -231,9 +231,7 @@ Deno.test("XAuthManager: handles 204 No Content as unexpected empty response", a
   const client = createXApiClient(createMockAuthManager(), createMockRateLimiter(), { fetchFn });
   const result = await client.del("/2/users/me/likes/123");
 
-  assertEquals(result.ok, false);
-  if (result.ok) return;
-  assertEquals(result.error.code, "UNEXPECTED_EMPTY_RESPONSE");
+  assertEquals(result.ok, true);
 });
 
 Deno.test("XAuthManager: handles 429 rate limited response", async () => {

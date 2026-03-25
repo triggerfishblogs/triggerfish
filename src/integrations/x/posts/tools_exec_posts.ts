@@ -276,12 +276,8 @@ export async function uploadXMedia(
     return "x_posts upload_media: file_path must be a relative path within the workspace (no absolute paths or '..' traversal).";
   }
 
-  const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
-  if (!quotaCheck.ok) {
-    log.warn("X API write quota exhausted", { operation: "uploadXMedia" });
-    return quotaCheck.error;
-  }
-
+  // Media upload uses the v1.1 endpoint which is not counted against the
+  // v2 post write quota. No write quota check or increment here.
   const result = await ctx.posts.uploadMedia(
     filePath,
     typeof input.alt_text === "string" ? input.alt_text : undefined,
@@ -291,7 +287,6 @@ export async function uploadXMedia(
     log.warn("X API call failed", { operation: "uploadXMedia", err: result.error });
     return formatXError(result.error);
   }
-  await ctx.quotaTracker.recordWrite();
 
   const response: Record<string, unknown> = {
     media_id: result.value.mediaId,

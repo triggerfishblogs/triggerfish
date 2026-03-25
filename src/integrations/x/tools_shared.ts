@@ -33,7 +33,13 @@ export function formatXError(error: {
   return `X API error${status}: ${error.message} [${error.code}]`;
 }
 
-/** Actions unavailable on the free tier (require Basic+). */
+/**
+ * Actions unavailable on the free tier (require Basic+).
+ *
+ * x_posts create/delete are intentionally NOT blocked — the X API v2 free tier
+ * allows write-only access (post creation). upload_media uses the v1.1 upload
+ * endpoint which requires Basic access and is correctly blocked here.
+ */
 const FREE_TIER_BLOCKED_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> =
   {
     x_posts: new Set([
