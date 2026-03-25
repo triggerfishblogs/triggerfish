@@ -44,11 +44,9 @@ export async function uploadMediaToX(
 
   const mediaId = result.value.media_id_string;
 
-  if (altText) {
-    await setMediaAltText(client, mediaId, altText);
-  }
+  const altTextApplied = altText ? await setMediaAltText(client, mediaId, altText) : undefined;
 
-  return { ok: true, value: { mediaId } };
+  return { ok: true, value: { mediaId, altTextApplied } };
 }
 
 /** Read a media file from disk, returning a typed error on failure. */
@@ -118,7 +116,7 @@ async function setMediaAltText(
   client: XApiClient,
   mediaId: string,
   altText: string,
-): Promise<void> {
+): Promise<boolean> {
   const result = await client.post(
     "https://upload.twitter.com/1.1/media/metadata/create.json",
     {
@@ -132,5 +130,7 @@ async function setMediaAltText(
       mediaId,
       err: result.error,
     });
+    return false;
   }
+  return true;
 }

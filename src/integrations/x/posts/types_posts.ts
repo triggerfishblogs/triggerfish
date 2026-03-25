@@ -57,6 +57,7 @@ export interface XPostPage {
 /** Media upload result. */
 export interface XMediaUploadResult {
   readonly mediaId: string;
+  readonly altTextApplied?: boolean;
 }
 
 // ─── Request Options ─────────────────────────────────────────────────────────

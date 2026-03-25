@@ -185,9 +185,7 @@ function validateThresholds(
       warning: clampedWarning,
       cutoff: clampedCutoff,
     });
-    const corrected = clampedCutoff - 0.05;
-    const safeWarning = corrected < clampedCutoff ? corrected : clampedCutoff * 0.5;
-    return { warning: Math.max(0.001, safeWarning), cutoff: clampedCutoff };
+    return { warning: Math.max(0.001, clampedCutoff - 0.05), cutoff: clampedCutoff };
   }
   return { warning: clampedWarning, cutoff: clampedCutoff };
 }
@@ -234,6 +232,7 @@ export function createXQuotaTracker(
   }
 
   return {
+    /** Increment read counter. Serialized via promise chain to prevent lost increments. */
     async recordRead(): Promise<void> {
       await serializeMutation(async () => {
         const state = await loadQuotaState(secretStore, nowFn);
@@ -244,6 +243,7 @@ export function createXQuotaTracker(
       });
     },
 
+    /** Increment write counter. Serialized via promise chain to prevent lost increments. */
     async recordWrite(): Promise<void> {
       await serializeMutation(async () => {
         const state = await loadQuotaState(secretStore, nowFn);

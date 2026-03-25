@@ -293,8 +293,12 @@ export async function uploadXMedia(
   }
   await ctx.quotaTracker.recordWrite();
 
-  return JSON.stringify({
+  const response: Record<string, unknown> = {
     media_id: result.value.mediaId,
     message: "Media uploaded. Pass this media_id in the media_ids array when creating a post.",
-  });
+  };
+  if (result.value.altTextApplied === false) {
+    response.warning = "Alt text could not be applied to the uploaded media.";
+  }
+  return JSON.stringify(response);
 }
