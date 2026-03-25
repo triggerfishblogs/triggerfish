@@ -112,7 +112,7 @@ export async function initiateXOAuth(
 
   const { url, codeVerifier, state } = consentResult.value;
   const port = extractPort(DEFAULT_REDIRECT_URI);
-  const { server, codePromise } = createXOAuthCallbackServer(port, state);
+  const { server, codePromise, timeoutHandle } = createXOAuthCallbackServer(port, state);
   const keepAlive = setInterval(() => {}, 60_000);
 
   try {
@@ -127,6 +127,7 @@ export async function initiateXOAuth(
     console.log(`\nX connection failed: ${message}`);
     return false;
   } finally {
+    clearTimeout(timeoutHandle);
     clearInterval(keepAlive);
     await server.shutdown();
   }

@@ -36,8 +36,9 @@ function handleOAuthError(
   url: URL,
   rejectCode: (err: Error) => void,
 ): Response {
-  const description = url.searchParams.get("error_description") ??
+  const rawDescription = url.searchParams.get("error_description") ??
     url.searchParams.get("error") ?? "unknown";
+  const description = rawDescription.slice(0, 500);
   rejectCode(new Error(`X returned error: ${description}`));
   return textResponse("Authorization failed. You can close this window.", 400);
 }
@@ -84,6 +85,7 @@ export function createXOAuthCallbackServer(
 ): {
   server: Deno.HttpServer;
   codePromise: Promise<string>;
+  timeoutHandle: ReturnType<typeof setTimeout>;
 } {
   let resolveCode: (code: string) => void;
   let rejectCode: (err: Error) => void;
@@ -107,7 +109,7 @@ export function createXOAuthCallbackServer(
   }, 5 * 60 * 1000);
   codePromise.finally(() => clearTimeout(timeout));
 
-  return { server, codePromise };
+  return { server, codePromise, timeoutHandle: timeout };
 }
 
 // ─── Credential prompting ────────────────────────────────────────────────────

@@ -57,7 +57,7 @@ async function readMediaFile(
   const root = workspaceRoot ?? Deno.cwd();
   const resolved = resolve(root, filePath);
   const rel = relative(root, resolved);
-  if (rel.startsWith("..") || isAbsolute(resolved) && !resolved.startsWith(root)) {
+  if (rel.startsWith("..") || isAbsolute(resolved) && !resolved.startsWith(root + "/") && resolved !== root) {
     log.error("Media upload blocked: path escapes workspace", {
       operation: "readMediaFile",
       filePath,
@@ -105,7 +105,7 @@ function buildMediaFormData(
   filePath: string,
 ): FormData {
   const formData = new FormData();
-  const blob = new Blob([fileBytes.buffer as ArrayBuffer]);
+  const blob = new Blob([new Uint8Array(fileBytes)]);
   formData.append("media", blob);
   formData.append("media_category", inferMediaCategory(filePath));
   return formData;

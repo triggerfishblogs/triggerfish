@@ -270,25 +270,33 @@ export function createXQuotaTracker(
     },
 
     async checkReadQuota(): Promise<QuotaCheckResult> {
-      const state = await loadQuotaState(secretStore, nowFn);
-      return checkUsage({
-        used: state.readsUsed,
-        limit: readLimit,
-        kind: "read",
-        warningThreshold,
-        cutoffThreshold,
+      let result!: QuotaCheckResult;
+      await serializeMutation(async () => {
+        const state = await loadQuotaState(secretStore, nowFn);
+        result = checkUsage({
+          used: state.readsUsed,
+          limit: readLimit,
+          kind: "read",
+          warningThreshold,
+          cutoffThreshold,
+        });
       });
+      return result;
     },
 
     async checkWriteQuota(): Promise<QuotaCheckResult> {
-      const state = await loadQuotaState(secretStore, nowFn);
-      return checkUsage({
-        used: state.writesUsed,
-        limit: writeLimit,
-        kind: "write",
-        warningThreshold,
-        cutoffThreshold,
+      let result!: QuotaCheckResult;
+      await serializeMutation(async () => {
+        const state = await loadQuotaState(secretStore, nowFn);
+        result = checkUsage({
+          used: state.writesUsed,
+          limit: writeLimit,
+          kind: "write",
+          warningThreshold,
+          cutoffThreshold,
+        });
       });
+      return result;
     },
   };
 }
