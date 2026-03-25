@@ -13,13 +13,6 @@ import { createLogger } from "../../../core/logger/mod.ts";
 
 const log = createLogger("x-auth-verify");
 
-/** Hostnames the X integration is permitted to contact. */
-const ALLOWED_X_HOSTS: ReadonlySet<string> = new Set([
-  "api.twitter.com",
-  "upload.twitter.com",
-  "api.x.com",
-]);
-
 /** Shape of the X API /2/users/me response. */
 interface XUserMeResponse {
   readonly data?: {
@@ -62,15 +55,6 @@ async function fetchXUserProfile(
   accessToken: string,
 ): Promise<XUserMeResponse | null> {
   const hostname = "api.twitter.com";
-
-  if (!ALLOWED_X_HOSTS.has(hostname)) {
-    log.error("X API hostname not in allowlist", {
-      operation: "fetchXUserProfile",
-      err: { hostname },
-    });
-    return null;
-  }
-
   const dnsResult = await resolveAndCheck(hostname);
   if (!dnsResult.ok) {
     log.error("SSRF check failed for X API", {

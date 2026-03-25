@@ -77,20 +77,31 @@ async function checkTokenEndpointSsrf(operation: string): Promise<XAuthResult | 
   return null;
 }
 
-/** Handle a non-OK HTTP response from the token endpoint. */
-async function handleTokenErrorResponse(
+/** Log and build an error result from a failed token endpoint response. */
+async function buildTokenErrorResult(
   response: Response,
   operation: string,
-  isRefresh: boolean,
+  code: string,
+  message: string,
 ): Promise<XAuthResult> {
   const text = (await response.text()).slice(0, 200);
   log.error(`X ${operation} failed`, { operation, err: { status: response.status, body: text } });
-  const isRevoked = isRefresh && (response.status === 400 || response.status === 401);
-  const code = isRevoked ? "REFRESH_REVOKED" : "TOKEN_EXCHANGE_FAILED";
-  const message = isRevoked
-    ? "X refresh token revoked or expired. Run 'triggerfish connect x' to reconnect."
-    : `X ${operation} failed (HTTP ${response.status})`;
   return { ok: false, error: { code, message, status: response.status } };
+}
+
+/** Handle a non-OK HTTP response during authorization code exchange. */
+function handleExchangeErrorResponse(response: Response, operation: string): Promise<XAuthResult> {
+  return buildTokenErrorResult(response, operation, "TOKEN_EXCHANGE_FAILED", `X ${operation} failed (HTTP ${response.status})`);
+}
+
+/** Handle a non-OK HTTP response during token refresh. */
+function handleRefreshErrorResponse(response: Response, operation: string): Promise<XAuthResult> {
+  const isRevoked = response.status === 400 || response.status === 401;
+  return buildTokenErrorResult(
+    response, operation,
+    isRevoked ? "REFRESH_REVOKED" : "TOKEN_EXCHANGE_FAILED",
+    isRevoked ? "X refresh token revoked or expired. Run 'triggerfish connect x' to reconnect." : `X ${operation} failed (HTTP ${response.status})`,
+  );
 }
 
 /** Parse JSON from a token endpoint response, returning error Result on failure. */
@@ -119,7 +130,13 @@ interface PostTokenOptions {
   readonly persistTokens: (tokens: XTokens) => Promise<void>;
   readonly fallbackRefreshToken: string;
   readonly clientId: string;
-  readonly isRefresh: boolean;
+  readonly errorHandler: (response: Response, operation: string) => Promise<XAuthResult>;
+}
+
+interface ExchangeCodeOptions {
+  readonly codeVerifier: string;
+  readonly fetchFn: typeof globalThis.fetch;
+  readonly persistTokens: (tokens: XTokens) => Promise<void>;
 }
 
 /** POST to the token endpoint, parse response, build and persist tokens. */
@@ -133,7 +150,7 @@ async function postTokenEndpoint(opts: PostTokenOptions): Promise<XAuthResult> {
     body: opts.params.toString(),
   });
 
-  if (!response.ok) return handleTokenErrorResponse(response, opts.operation, opts.isRefresh);
+  if (!response.ok) return opts.errorHandler(response, opts.operation);
 
   const parsed = await parseTokenResponse(response, opts.operation);
   if (!parsed.ok) return parsed.result;
@@ -150,9 +167,7 @@ async function postTokenEndpoint(opts: PostTokenOptions): Promise<XAuthResult> {
 function exchangeAuthorizationCode(
   code: string,
   config: XAuthConfig,
-  codeVerifier: string,
-  fetchFn: typeof globalThis.fetch,
-  persistTokens: (tokens: XTokens) => Promise<void>,
+  opts: ExchangeCodeOptions,
 ): Promise<XAuthResult> {
   log.info("Exchanging X authorization code", { operation: "exchangeXAuthCode" });
   const params = new URLSearchParams({
@@ -160,11 +175,13 @@ function exchangeAuthorizationCode(
     grant_type: "authorization_code",
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
-    code_verifier: codeVerifier,
+    code_verifier: opts.codeVerifier,
   });
   return postTokenEndpoint({
-    params, operation: "exchangeXAuthCode", fetchFn, persistTokens,
-    fallbackRefreshToken: "", clientId: config.clientId, isRefresh: false,
+    params, operation: "exchangeXAuthCode",
+    fetchFn: opts.fetchFn, persistTokens: opts.persistTokens,
+    fallbackRefreshToken: "", clientId: config.clientId,
+    errorHandler: handleExchangeErrorResponse,
   });
 }
 
@@ -182,7 +199,8 @@ function refreshXAccessToken(
   });
   return postTokenEndpoint({
     params, operation: "refreshXToken", fetchFn, persistTokens,
-    fallbackRefreshToken: tokens.refresh_token, clientId: tokens.clientId, isRefresh: true,
+    fallbackRefreshToken: tokens.refresh_token, clientId: tokens.clientId,
+    errorHandler: handleRefreshErrorResponse,
   });
 }
 
@@ -244,7 +262,7 @@ export function createXAuthManager(
     getConsentUrl: buildConsentUrl,
 
     exchangeCode: (code, config, codeVerifier) =>
-      exchangeAuthorizationCode(code, config, codeVerifier, fetchFn, persistTokens),
+      exchangeAuthorizationCode(code, config, { codeVerifier, fetchFn, persistTokens }),
 
     async getAccessToken(): Promise<XAuthResult> {
       const stored = await loadXTokens(secretStore);

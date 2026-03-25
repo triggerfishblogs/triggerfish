@@ -4,8 +4,11 @@
  * @module
  */
 
+import { createLogger } from "../../../core/logger/logger.ts";
 import type { XToolContext } from "../tools_shared.ts";
 import { formatXError } from "../tools_shared.ts";
+
+const log = createLogger("x-tools-lists");
 
 /** Handle x_lists get action. */
 export async function getXLists(
@@ -13,10 +16,16 @@ export async function getXLists(
   _input: Record<string, unknown>,
 ): Promise<string> {
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
-  if (!quotaCheck.ok) return quotaCheck.error;
+  if (!quotaCheck.ok) {
+    log.warn("X API read quota exhausted", { operation: "getXLists" });
+    return quotaCheck.error;
+  }
 
   const result = await ctx.lists.getLists();
-  if (!result.ok) return formatXError(result.error);
+  if (!result.ok) {
+    log.warn("X API call failed", { operation: "getXLists", err: result.error });
+    return formatXError(result.error);
+  }
   await ctx.quotaTracker.recordRead();
 
   return JSON.stringify({ lists: result.value.lists });
@@ -33,7 +42,10 @@ export async function getXListMembers(
   }
 
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
-  if (!quotaCheck.ok) return quotaCheck.error;
+  if (!quotaCheck.ok) {
+    log.warn("X API read quota exhausted", { operation: "getXListMembers" });
+    return quotaCheck.error;
+  }
 
   const result = await ctx.lists.getMembers({
     listId,
@@ -45,7 +57,10 @@ export async function getXListMembers(
       : undefined,
   });
 
-  if (!result.ok) return formatXError(result.error);
+  if (!result.ok) {
+    log.warn("X API call failed", { operation: "getXListMembers", err: result.error });
+    return formatXError(result.error);
+  }
   await ctx.quotaTracker.recordRead();
 
   const response: Record<string, unknown> = {
@@ -66,7 +81,10 @@ export async function createXList(
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
-  if (!quotaCheck.ok) return quotaCheck.error;
+  if (!quotaCheck.ok) {
+    log.warn("X API write quota exhausted", { operation: "createXList" });
+    return quotaCheck.error;
+  }
 
   const result = await ctx.lists.createList({
     name,
@@ -76,7 +94,10 @@ export async function createXList(
     private: typeof input.private === "boolean" ? input.private : undefined,
   });
 
-  if (!result.ok) return formatXError(result.error);
+  if (!result.ok) {
+    log.warn("X API call failed", { operation: "createXList", err: result.error });
+    return formatXError(result.error);
+  }
   await ctx.quotaTracker.recordWrite();
 
   return JSON.stringify(result.value);
@@ -97,14 +118,23 @@ export async function addXListMember(
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
-  if (!quotaCheck.ok) return quotaCheck.error;
+  if (!quotaCheck.ok) {
+    log.warn("X API write quota exhausted", { operation: "addXListMember" });
+    return quotaCheck.error;
+  }
 
   const userResult = await ctx.users.getUser(username);
-  if (!userResult.ok) return formatXError(userResult.error);
+  if (!userResult.ok) {
+    log.warn("X API call failed", { operation: "addXListMember:resolveUser", err: userResult.error });
+    return formatXError(userResult.error);
+  }
   await ctx.quotaTracker.recordRead();
 
   const result = await ctx.lists.addMember(listId, userResult.value.id);
-  if (!result.ok) return formatXError(result.error);
+  if (!result.ok) {
+    log.warn("X API call failed", { operation: "addXListMember", err: result.error });
+    return formatXError(result.error);
+  }
   await ctx.quotaTracker.recordWrite();
 
   return JSON.stringify({
@@ -129,14 +159,23 @@ export async function removeXListMember(
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
-  if (!quotaCheck.ok) return quotaCheck.error;
+  if (!quotaCheck.ok) {
+    log.warn("X API write quota exhausted", { operation: "removeXListMember" });
+    return quotaCheck.error;
+  }
 
   const userResult = await ctx.users.getUser(username);
-  if (!userResult.ok) return formatXError(userResult.error);
+  if (!userResult.ok) {
+    log.warn("X API call failed", { operation: "removeXListMember:resolveUser", err: userResult.error });
+    return formatXError(userResult.error);
+  }
   await ctx.quotaTracker.recordRead();
 
   const result = await ctx.lists.removeMember(listId, userResult.value.id);
-  if (!result.ok) return formatXError(result.error);
+  if (!result.ok) {
+    log.warn("X API call failed", { operation: "removeXListMember", err: result.error });
+    return formatXError(result.error);
+  }
   await ctx.quotaTracker.recordWrite();
 
   return JSON.stringify({

@@ -106,54 +106,69 @@ async function saveQuotaState(
   await secretStore.setSecret(QUOTA_KEY, JSON.stringify(state));
 }
 
+/** Options for checking quota usage against a limit. */
+interface CheckUsageOpts {
+  readonly used: number;
+  readonly limit: number;
+  readonly kind: string;
+  readonly warningThreshold: number;
+  readonly cutoffThreshold: number;
+}
+
+/** Return blocked result when tier has zero capacity. */
+function checkTierDisabled(kind: string): QuotaCheckResult {
+  return {
+    ok: false,
+    error: `X API ${kind} operations not available on this tier`,
+  };
+}
+
+/** Return exhausted result when quota is fully consumed. */
+function checkExhausted(opts: CheckUsageOpts): QuotaCheckResult {
+  return {
+    ok: false,
+    error:
+      `X API monthly ${opts.kind} quota exhausted (${opts.used}/${opts.limit}). Resets next month.`,
+  };
+}
+
+/** Return cutoff warning when usage is critically high. */
+function checkCutoff(opts: CheckUsageOpts, ratio: number): QuotaCheckResult {
+  const percentage = Math.round(ratio * 100);
+  log.warn("X API monthly quota approaching limit", {
+    operation: "checkXQuota",
+    kind: opts.kind,
+    used: opts.used,
+    limit: opts.limit,
+    percentage,
+  });
+  return {
+    ok: true,
+    warning:
+      `X API monthly ${opts.kind} quota at ${percentage}% (${opts.used}/${opts.limit}). ` +
+      `Approaching limit.`,
+  };
+}
+
+/** Log warning threshold breach without surfacing to user. */
+function checkWarning(opts: CheckUsageOpts, ratio: number): QuotaCheckResult {
+  log.warn("X API monthly quota warning", {
+    operation: "checkXQuota",
+    kind: opts.kind,
+    used: opts.used,
+    limit: opts.limit,
+    percentage: Math.round(ratio * 100),
+  });
+  return { ok: true };
+}
+
 /** Check usage against a limit and return appropriate result. */
-function checkUsage(
-  used: number,
-  limit: number,
-  kind: string,
-  warningThreshold: number,
-  cutoffThreshold: number,
-): QuotaCheckResult {
-  if (limit === 0) {
-    return {
-      ok: false,
-      error: `X API ${kind} operations not available on this tier`,
-    };
-  }
-  const ratio = used / limit;
-  if (ratio >= 1.0) {
-    return {
-      ok: false,
-      error:
-        `X API monthly ${kind} quota exhausted (${used}/${limit}). Resets next month.`,
-    };
-  }
-  if (ratio >= cutoffThreshold) {
-    const percentage = Math.round(ratio * 100);
-    log.warn("X API monthly quota approaching limit", {
-      operation: "checkXQuota",
-      kind,
-      used,
-      limit,
-      percentage,
-    });
-    return {
-      ok: true,
-      warning:
-        `X API monthly ${kind} quota at ${percentage}% (${used}/${limit}). ` +
-        `Approaching limit.`,
-    };
-  }
-  if (ratio >= warningThreshold) {
-    log.warn("X API monthly quota warning", {
-      operation: "checkXQuota",
-      kind,
-      used,
-      limit,
-      percentage: Math.round(ratio * 100),
-    });
-    return { ok: true };
-  }
+function checkUsage(opts: CheckUsageOpts): QuotaCheckResult {
+  if (opts.limit === 0) return checkTierDisabled(opts.kind);
+  const ratio = opts.used / opts.limit;
+  if (ratio >= 1.0) return checkExhausted(opts);
+  if (ratio >= opts.cutoffThreshold) return checkCutoff(opts, ratio);
+  if (ratio >= opts.warningThreshold) return checkWarning(opts, ratio);
   return { ok: true };
 }
 
@@ -251,24 +266,24 @@ export function createXQuotaTracker(
 
     async checkReadQuota(): Promise<QuotaCheckResult> {
       const state = await loadQuotaState(secretStore, nowFn);
-      return checkUsage(
-        state.readsUsed,
-        readLimit,
-        "read",
+      return checkUsage({
+        used: state.readsUsed,
+        limit: readLimit,
+        kind: "read",
         warningThreshold,
         cutoffThreshold,
-      );
+      });
     },
 
     async checkWriteQuota(): Promise<QuotaCheckResult> {
       const state = await loadQuotaState(secretStore, nowFn);
-      return checkUsage(
-        state.writesUsed,
-        writeLimit,
-        "write",
+      return checkUsage({
+        used: state.writesUsed,
+        limit: writeLimit,
+        kind: "write",
         warningThreshold,
         cutoffThreshold,
-      );
+      });
     },
   };
 }

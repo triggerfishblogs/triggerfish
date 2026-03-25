@@ -1,10 +1,5 @@
 /**
  * Authenticated HTTP client for X API v2.
- *
- * Wraps fetch with automatic Bearer token injection from the auth manager.
- * Reads rate limit headers from every response and feeds them to the
- * rate limiter. Retries once on 401 after refreshing the token.
- *
  * @module
  */
 
@@ -12,42 +7,41 @@ import type { Result } from "../../../core/types/classification.ts";
 import { createLogger } from "../../../core/logger/logger.ts";
 import { resolveAndCheck as defaultResolveAndCheck } from "../../../core/security/ssrf.ts";
 import type { XRateLimiter } from "../client/rate_limiter.ts";
-import type {
-  XApiClient,
-  XApiResult,
-  XAuthManager,
-} from "./types_auth.ts";
+import type { XApiClient, XApiResult, XAuthManager } from "./types_auth.ts";
 
 const log = createLogger("x-client");
-
-/** X API v2 base URL. */
 const X_API_BASE = "https://api.twitter.com";
+const MAX_ERROR_LENGTH = 500;
 
-/** Allowed hostnames for X API requests to prevent SSRF. */
 const ALLOWED_X_HOSTS = new Set([
   "api.twitter.com",
   "upload.twitter.com",
   "api.x.com",
 ]);
 
-/** Build fetch RequestInit with Bearer auth header and optional JSON body. */
+/** Options for an individual X API request. */
+interface XApiRequestOptions {
+  readonly body?: unknown;
+  readonly params?: Record<string, string>;
+  readonly raw?: boolean;
+  readonly isRetry?: boolean;
+}
+
+/** Build fetch RequestInit with Bearer auth header and optional body. */
 function buildXApiRequestInit(
   method: string,
   token: string,
   body?: unknown,
   opts?: { readonly raw?: boolean },
 ): RequestInit {
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-  };
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
   const init: RequestInit = { method, headers };
-  if (body !== undefined) {
-    if (opts?.raw) {
-      init.body = body as BodyInit;
-    } else {
-      headers["Content-Type"] = "application/json";
-      init.body = JSON.stringify(body);
-    }
+  if (body === undefined) return init;
+  if (opts?.raw) {
+    init.body = body as BodyInit;
+  } else {
+    headers["Content-Type"] = "application/json";
+    init.body = JSON.stringify(body);
   }
   return init;
 }
@@ -55,8 +49,7 @@ function buildXApiRequestInit(
 /** Extract the endpoint path from a full URL for rate limit tracking. */
 function extractEndpoint(url: string): string {
   try {
-    const parsed = new URL(url, X_API_BASE);
-    return parsed.pathname;
+    return new URL(url, X_API_BASE).pathname;
   } catch (_err: unknown) {
     log.warn("URL parse failed for rate limit tracking, using raw URL", {
       operation: "extractEndpoint",
@@ -66,81 +59,115 @@ function extractEndpoint(url: string): string {
   }
 }
 
-/** Maximum length for error messages from external APIs. */
-const MAX_ERROR_LENGTH = 500;
-
-/** Truncate a string to prevent unbounded external content in agent output. */
 function truncateErrorMessage(msg: string): string {
-  if (msg.length <= MAX_ERROR_LENGTH) return msg;
-  return msg.slice(0, MAX_ERROR_LENGTH) + "… (truncated)";
+  return msg.length <= MAX_ERROR_LENGTH
+    ? msg
+    : msg.slice(0, MAX_ERROR_LENGTH) + "… (truncated)";
 }
 
-/** Parse an X API response into a Result. */
-async function parseXApiResponse<T>(
+/** Parse error details from a non-OK X API response. */
+async function parseXApiErrorResponse<T>(
   response: Response,
 ): Promise<XApiResult<T>> {
-  if (!response.ok) {
-    let errorMessage: string;
-    let errorCode = `HTTP_${response.status}`;
-    try {
-      const errorData = await response.json();
-      const raw = errorData?.detail ?? errorData?.title ??
-        response.statusText;
-      errorMessage = truncateErrorMessage(String(raw));
-      if (errorData?.type) {
-        errorCode = truncateErrorMessage(String(errorData.type));
-      }
-    } catch (parseErr: unknown) {
-      log.warn("X API error response JSON parse failed, using statusText", {
-        operation: "parseXApiResponse",
-        err: parseErr,
-      });
-      errorMessage = response.statusText;
-    }
-
-    const retryAfter = response.headers.get("retry-after");
-    return {
-      ok: false,
-      error: {
-        code: errorCode,
-        message: errorMessage,
-        status: response.status,
-        retryAfterSeconds: retryAfter && !isNaN(parseInt(retryAfter, 10))
-          ? parseInt(retryAfter, 10)
-          : undefined,
-      },
-    };
-  }
-
-  if (response.status === 204) {
-    return {
-      ok: false,
-      error: {
-        code: "UNEXPECTED_EMPTY_RESPONSE",
-        message: `X API returned ${response.status} with no response body`,
-        status: response.status,
-      },
-    };
-  }
-
+  let errorMessage: string;
+  let errorCode = `HTTP_${response.status}`;
   try {
-    const data = await response.json();
-    return { ok: true, value: data as T };
+    const errorData = await response.json();
+    const raw = errorData?.detail ?? errorData?.title ?? response.statusText;
+    errorMessage = truncateErrorMessage(String(raw));
+    if (errorData?.type) errorCode = truncateErrorMessage(String(errorData.type));
+  } catch (parseErr: unknown) {
+    log.warn("X API error response JSON parse failed, using statusText", {
+      operation: "parseXApiResponse", err: parseErr,
+    });
+    errorMessage = response.statusText;
+  }
+  const retryAfter = response.headers.get("retry-after");
+  const retrySeconds = retryAfter && !isNaN(parseInt(retryAfter, 10))
+    ? parseInt(retryAfter, 10)
+    : undefined;
+  return {
+    ok: false,
+    error: { code: errorCode, message: errorMessage, status: response.status, retryAfterSeconds: retrySeconds },
+  };
+}
+
+/** Parse JSON body from a successful X API response. */
+async function parseXApiSuccessBody<T>(response: Response): Promise<XApiResult<T>> {
+  try {
+    return { ok: true, value: (await response.json()) as T };
   } catch (parseErr: unknown) {
     log.warn("X API success response JSON parse failed", {
-      operation: "parseXApiResponse",
-      err: parseErr,
-      status: response.status,
+      operation: "parseXApiResponse", err: parseErr, status: response.status,
     });
     return {
       ok: false,
-      error: {
-        code: "PARSE_FAILED",
-        message: `X API returned HTTP ${response.status} with invalid JSON body`,
-        status: response.status,
-      },
+      error: { code: "PARSE_FAILED", message: `X API returned HTTP ${response.status} with invalid JSON body`, status: response.status },
     };
   }
+}
+
+/** Parse an X API response into a typed Result. */
+function parseXApiResponse<T>(response: Response): Promise<XApiResult<T>> {
+  if (!response.ok) return parseXApiErrorResponse(response);
+  if (response.status === 204) {
+    return Promise.resolve({
+      ok: false as const,
+      error: { code: "UNEXPECTED_EMPTY_RESPONSE", message: `X API returned 204 with no response body`, status: 204 },
+    });
+  }
+  return parseXApiSuccessBody<T>(response);
+}
+
+/** Build the full URL from base, path, and optional query params. */
+function buildFullUrl(baseUrl: string, url: string, params?: Record<string, string>): string {
+  const base = url.startsWith("http") ? url : `${baseUrl}${url}`;
+  if (!params || Object.keys(params).length === 0) return base;
+  return `${base}?${new URLSearchParams(params).toString()}`;
+}
+
+function ssrfBlockedResult<T>(message: string): XApiResult<T> {
+  return { ok: false, error: { code: "SSRF_BLOCKED", message } };
+}
+
+/** Validate hostname against allowlist and SSRF DNS check. */
+async function validateRequestHost<T>(
+  hostname: string,
+  fullUrl: string,
+  ssrfCheck: (hostname: string) => Promise<Result<string, string>>,
+): Promise<XApiResult<T> | null> {
+  if (!ALLOWED_X_HOSTS.has(hostname)) {
+    log.error("X API request blocked: disallowed hostname", {
+      operation: "xApiRequest", hostname, url: fullUrl,
+    });
+    return ssrfBlockedResult(`X API request blocked: hostname '${hostname}' not in allowlist`);
+  }
+  const dnsCheck = await ssrfCheck(hostname);
+  if (!dnsCheck.ok) {
+    log.error("X API request blocked: DNS resolves to private IP", {
+      operation: "xApiRequest", hostname, err: dnsCheck.error,
+    });
+    return ssrfBlockedResult(`X API request blocked: ${dnsCheck.error}`);
+  }
+  return null;
+}
+
+/** Check rate limit and return error result if exhausted. */
+function checkRateLimit<T>(rateLimiter: XRateLimiter, endpoint: string): XApiResult<T> | null {
+  const limitCheck = rateLimiter.checkLimit(endpoint);
+  if (!limitCheck.ok) {
+    const retryAfterSeconds = Math.max(0, limitCheck.error.resetAt - Math.floor(Date.now() / 1000));
+    return { ok: false, error: { code: "RATE_LIMITED", message: limitCheck.error.message, retryAfterSeconds } };
+  }
+  return null;
+}
+
+/** Log a warning when the server returns 429. */
+function logServerRateLimit(response: Response, endpoint: string): void {
+  if (response.status !== 429) return;
+  log.warn("X API rate limited by server", {
+    operation: "xApiRequest", endpoint, retryAfter: response.headers.get("retry-after"),
+  });
 }
 
 /**
@@ -163,122 +190,60 @@ export function createXApiClient(
   const baseUrl = opts?.baseUrl ?? X_API_BASE;
   const ssrfCheck = opts?.ssrfCheck ?? defaultResolveAndCheck;
 
-  interface InternalRequestOpts {
-    readonly raw?: boolean;
-    readonly isRetry?: boolean;
+  /** Execute fetch, record rate limit headers, return response + endpoint. */
+  async function executeRequest(
+    method: string,
+    fullUrl: string,
+    token: string,
+    reqOpts?: XApiRequestOptions,
+  ): Promise<{ readonly response: Response; readonly endpoint: string }> {
+    const init = buildXApiRequestInit(method, token, reqOpts?.body, reqOpts);
+    const response = await fetchFn(fullUrl, init);
+    const endpoint = extractEndpoint(fullUrl);
+    rateLimiter.recordResponse(endpoint, response.headers);
+    return { response, endpoint };
+  }
+
+  /** Retry a request after forcing an auth token refresh. */
+  async function retryAfterRefresh<T>(
+    method: string,
+    url: string,
+    reqOpts?: XApiRequestOptions,
+  ): Promise<XApiResult<T>> {
+    log.info("X API 401, forcing token refresh before retry", {
+      operation: "xApiRequest", endpoint: url,
+    });
+    const refreshResult = await authManager.forceRefresh();
+    if (!refreshResult.ok) return { ok: false, error: refreshResult.error };
+    return request<T>(method, url, { ...reqOpts, isRetry: true });
   }
 
   async function request<T>(
     method: string,
     url: string,
-    body?: unknown,
-    params?: Record<string, string>,
-    requestOpts?: InternalRequestOpts,
+    reqOpts?: XApiRequestOptions,
   ): Promise<XApiResult<T>> {
-    let fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
-    if (params && Object.keys(params).length > 0) {
-      fullUrl = `${fullUrl}?${new URLSearchParams(params).toString()}`;
-    }
+    const fullUrl = buildFullUrl(baseUrl, url, reqOpts?.params);
+    const hostError = await validateRequestHost<T>(new URL(fullUrl).hostname, fullUrl, ssrfCheck);
+    if (hostError) return hostError;
 
-    const parsedHost = new URL(fullUrl).hostname;
-    if (!ALLOWED_X_HOSTS.has(parsedHost)) {
-      log.error("X API request blocked: disallowed hostname", {
-        operation: "xApiRequest",
-        hostname: parsedHost,
-        url: fullUrl,
-      });
-      return {
-        ok: false,
-        error: {
-          code: "SSRF_BLOCKED",
-          message: `X API request blocked: hostname '${parsedHost}' not in allowlist`,
-        },
-      };
-    }
-
-    const dnsCheck = await ssrfCheck(parsedHost);
-    if (!dnsCheck.ok) {
-      log.error("X API request blocked: DNS resolves to private IP", {
-        operation: "xApiRequest",
-        hostname: parsedHost,
-        err: dnsCheck.error,
-      });
-      return {
-        ok: false,
-        error: {
-          code: "SSRF_BLOCKED",
-          message: `X API request blocked: ${dnsCheck.error}`,
-        },
-      };
-    }
-
-    const endpoint = extractEndpoint(fullUrl);
-
-    const limitCheck = rateLimiter.checkLimit(endpoint);
-    if (!limitCheck.ok) {
-      return {
-        ok: false,
-        error: {
-          code: "RATE_LIMITED",
-          message: limitCheck.error.message,
-          retryAfterSeconds: Math.max(0, limitCheck.error.resetAt -
-            Math.floor(Date.now() / 1000)),
-        },
-      };
-    }
+    const rateLimitError = checkRateLimit<T>(rateLimiter, extractEndpoint(fullUrl));
+    if (rateLimitError) return rateLimitError;
 
     const tokenResult = await authManager.getAccessToken();
     if (!tokenResult.ok) return { ok: false, error: tokenResult.error };
 
-    const init = buildXApiRequestInit(method, tokenResult.value, body, requestOpts);
-    const response = await fetchFn(fullUrl, init);
-
-    rateLimiter.recordResponse(endpoint, response.headers);
-
-    if (response.status === 401 && !requestOpts?.isRetry) {
-      log.info("X API 401, forcing token refresh before retry", {
-        operation: "xApiRequest",
-        endpoint,
-      });
-      const refreshResult = await authManager.forceRefresh();
-      if (!refreshResult.ok) return { ok: false, error: refreshResult.error };
-      return request<T>(method, url, body, params, { ...requestOpts, isRetry: true });
-    }
-
-    if (response.status === 429) {
-      const retryAfter = response.headers.get("retry-after");
-      log.warn("X API rate limited by server", {
-        operation: "xApiRequest",
-        endpoint,
-        retryAfter,
-      });
-    }
-
+    const { response, endpoint } = await executeRequest(method, fullUrl, tokenResult.value, reqOpts);
+    if (response.status === 401 && !reqOpts?.isRetry) return retryAfterRefresh<T>(method, url, reqOpts);
+    logServerRateLimit(response, endpoint);
     return parseXApiResponse<T>(response);
   }
 
   return {
-    get<T>(
-      url: string,
-      params?: Record<string, string>,
-    ): Promise<XApiResult<T>> {
-      return request<T>("GET", url, undefined, params);
-    },
-
-    post<T>(url: string, body: unknown): Promise<XApiResult<T>> {
-      return request<T>("POST", url, body);
-    },
-
-    postRaw<T>(url: string, body: BodyInit): Promise<XApiResult<T>> {
-      return request<T>("POST", url, body, undefined, { raw: true });
-    },
-
-    put<T>(url: string, body: unknown): Promise<XApiResult<T>> {
-      return request<T>("PUT", url, body);
-    },
-
-    del<T>(url: string): Promise<XApiResult<T>> {
-      return request<T>("DELETE", url);
-    },
+    get: <T>(url: string, params?: Record<string, string>) => request<T>("GET", url, { params }),
+    post: <T>(url: string, body: unknown) => request<T>("POST", url, { body }),
+    postRaw: <T>(url: string, body: BodyInit) => request<T>("POST", url, { body, raw: true }),
+    put: <T>(url: string, body: unknown) => request<T>("PUT", url, { body }),
+    del: <T>(url: string) => request<T>("DELETE", url),
   };
 }

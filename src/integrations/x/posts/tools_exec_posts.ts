@@ -1,14 +1,14 @@
 /**
  * X posts tool action handlers.
  *
- * Each function takes the XToolContext and raw input, calls the service,
- * and returns a JSON-stringified result or error message.
- *
  * @module
  */
 
+import { createLogger } from "../../../core/logger/logger.ts";
 import type { XToolContext } from "../tools_shared.ts";
 import { formatXError } from "../tools_shared.ts";
+
+const log = createLogger("x-tools-posts");
 
 /** Handle x_posts search action. */
 export async function searchXPosts(
@@ -21,7 +21,10 @@ export async function searchXPosts(
   }
 
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
-  if (!quotaCheck.ok) return quotaCheck.error;
+  if (!quotaCheck.ok) {
+    log.warn("X API read quota exhausted", { operation: "searchXPosts" });
+    return quotaCheck.error;
+  }
 
   const result = await ctx.posts.search({
     query,
@@ -33,14 +36,17 @@ export async function searchXPosts(
       : undefined,
   });
 
-  if (!result.ok) return formatXError(result.error);
+  if (!result.ok) {
+    log.warn("X API call failed", { operation: "searchXPosts", err: result.error });
+    return formatXError(result.error);
+  }
   await ctx.quotaTracker.recordRead();
 
   const response: Record<string, unknown> = {
     posts: result.value.posts,
   };
   if (result.value.nextToken) response.next_token = result.value.nextToken;
-  if (quotaCheck.ok && quotaCheck.warning) response.warning = quotaCheck.warning;
+  if (quotaCheck.warning) response.warning = quotaCheck.warning;
   return JSON.stringify(response);
 }
 
@@ -50,7 +56,10 @@ export async function getXTimeline(
   input: Record<string, unknown>,
 ): Promise<string> {
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
-  if (!quotaCheck.ok) return quotaCheck.error;
+  if (!quotaCheck.ok) {
+    log.warn("X API read quota exhausted", { operation: "getXTimeline" });
+    return quotaCheck.error;
+  }
 
   const result = await ctx.posts.timeline({
     maxResults: typeof input.max_results === "number"
@@ -61,14 +70,17 @@ export async function getXTimeline(
       : undefined,
   });
 
-  if (!result.ok) return formatXError(result.error);
+  if (!result.ok) {
+    log.warn("X API call failed", { operation: "getXTimeline", err: result.error });
+    return formatXError(result.error);
+  }
   await ctx.quotaTracker.recordRead();
 
   const response: Record<string, unknown> = {
     posts: result.value.posts,
   };
   if (result.value.nextToken) response.next_token = result.value.nextToken;
-  if (quotaCheck.ok && quotaCheck.warning) response.warning = quotaCheck.warning;
+  if (quotaCheck.warning) response.warning = quotaCheck.warning;
   return JSON.stringify(response);
 }
 
@@ -83,10 +95,16 @@ export async function getXPost(
   }
 
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
-  if (!quotaCheck.ok) return quotaCheck.error;
+  if (!quotaCheck.ok) {
+    log.warn("X API read quota exhausted", { operation: "getXPost" });
+    return quotaCheck.error;
+  }
 
   const result = await ctx.posts.getPost(postId);
-  if (!result.ok) return formatXError(result.error);
+  if (!result.ok) {
+    log.warn("X API call failed", { operation: "getXPost", err: result.error });
+    return formatXError(result.error);
+  }
   await ctx.quotaTracker.recordRead();
 
   return JSON.stringify(result.value);
@@ -98,7 +116,10 @@ export async function getXMentions(
   input: Record<string, unknown>,
 ): Promise<string> {
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
-  if (!quotaCheck.ok) return quotaCheck.error;
+  if (!quotaCheck.ok) {
+    log.warn("X API read quota exhausted", { operation: "getXMentions" });
+    return quotaCheck.error;
+  }
 
   const result = await ctx.posts.mentions({
     maxResults: typeof input.max_results === "number"
@@ -107,7 +128,10 @@ export async function getXMentions(
     sinceId: typeof input.since_id === "string" ? input.since_id : undefined,
   });
 
-  if (!result.ok) return formatXError(result.error);
+  if (!result.ok) {
+    log.warn("X API call failed", { operation: "getXMentions", err: result.error });
+    return formatXError(result.error);
+  }
   await ctx.quotaTracker.recordRead();
 
   const response: Record<string, unknown> = {
@@ -128,14 +152,23 @@ export async function getXUserPosts(
   }
 
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
-  if (!quotaCheck.ok) return quotaCheck.error;
+  if (!quotaCheck.ok) {
+    log.warn("X API read quota exhausted", { operation: "getXUserPosts" });
+    return quotaCheck.error;
+  }
 
   const userResult = await ctx.users.getUser(username);
-  if (!userResult.ok) return formatXError(userResult.error);
+  if (!userResult.ok) {
+    log.warn("X API call failed", { operation: "getXUserPosts:resolveUser", err: userResult.error });
+    return formatXError(userResult.error);
+  }
   await ctx.quotaTracker.recordRead();
 
   const postsQuotaCheck = await ctx.quotaTracker.checkReadQuota();
-  if (!postsQuotaCheck.ok) return postsQuotaCheck.error;
+  if (!postsQuotaCheck.ok) {
+    log.warn("X API read quota exhausted", { operation: "getXUserPosts:posts" });
+    return postsQuotaCheck.error;
+  }
 
   const result = await ctx.posts.userPosts({
     userId: userResult.value.id,
@@ -147,7 +180,10 @@ export async function getXUserPosts(
       : undefined,
   });
 
-  if (!result.ok) return formatXError(result.error);
+  if (!result.ok) {
+    log.warn("X API call failed", { operation: "getXUserPosts", err: result.error });
+    return formatXError(result.error);
+  }
   await ctx.quotaTracker.recordRead();
 
   const response: Record<string, unknown> = {
@@ -168,7 +204,10 @@ export async function createXPost(
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
-  if (!quotaCheck.ok) return quotaCheck.error;
+  if (!quotaCheck.ok) {
+    log.warn("X API write quota exhausted", { operation: "createXPost" });
+    return quotaCheck.error;
+  }
 
   const result = await ctx.posts.createPost({
     text,
@@ -189,7 +228,10 @@ export async function createXPost(
       : undefined,
   });
 
-  if (!result.ok) return formatXError(result.error);
+  if (!result.ok) {
+    log.warn("X API call failed", { operation: "createXPost", err: result.error });
+    return formatXError(result.error);
+  }
   await ctx.quotaTracker.recordWrite();
 
   return JSON.stringify(result.value);
@@ -206,10 +248,16 @@ export async function deleteXPost(
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
-  if (!quotaCheck.ok) return quotaCheck.error;
+  if (!quotaCheck.ok) {
+    log.warn("X API write quota exhausted", { operation: "deleteXPost" });
+    return quotaCheck.error;
+  }
 
   const result = await ctx.posts.deletePost(postId);
-  if (!result.ok) return formatXError(result.error);
+  if (!result.ok) {
+    log.warn("X API call failed", { operation: "deleteXPost", err: result.error });
+    return formatXError(result.error);
+  }
   await ctx.quotaTracker.recordWrite();
 
   return JSON.stringify({ deleted: result.value.deleted, post_id: postId });
@@ -229,14 +277,20 @@ export async function uploadXMedia(
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
-  if (!quotaCheck.ok) return quotaCheck.error;
+  if (!quotaCheck.ok) {
+    log.warn("X API write quota exhausted", { operation: "uploadXMedia" });
+    return quotaCheck.error;
+  }
 
   const result = await ctx.posts.uploadMedia(
     filePath,
     typeof input.alt_text === "string" ? input.alt_text : undefined,
   );
 
-  if (!result.ok) return formatXError(result.error);
+  if (!result.ok) {
+    log.warn("X API call failed", { operation: "uploadXMedia", err: result.error });
+    return formatXError(result.error);
+  }
   await ctx.quotaTracker.recordWrite();
 
   return JSON.stringify({
