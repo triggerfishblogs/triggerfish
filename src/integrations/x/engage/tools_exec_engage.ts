@@ -17,7 +17,7 @@ export async function likeXPost(
 ): Promise<string> {
   const postId = input.post_id;
   if (typeof postId !== "string" || postId.length === 0) {
-    return "Error: x_engage like requires a 'post_id' parameter.";
+    return "x_engage like: 'post_id' parameter is required.";
   }
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
   if (!quotaCheck.ok) {
@@ -42,7 +42,7 @@ export async function unlikeXPost(
 ): Promise<string> {
   const postId = input.post_id;
   if (typeof postId !== "string" || postId.length === 0) {
-    return "Error: x_engage unlike requires a 'post_id' parameter.";
+    return "x_engage unlike: 'post_id' parameter is required.";
   }
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
   if (!quotaCheck.ok) {
@@ -67,7 +67,7 @@ export async function retweetXPost(
 ): Promise<string> {
   const postId = input.post_id;
   if (typeof postId !== "string" || postId.length === 0) {
-    return "Error: x_engage retweet requires a 'post_id' parameter.";
+    return "x_engage retweet: 'post_id' parameter is required.";
   }
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
   if (!quotaCheck.ok) {
@@ -95,7 +95,7 @@ export async function unretweetXPost(
 ): Promise<string> {
   const postId = input.post_id;
   if (typeof postId !== "string" || postId.length === 0) {
-    return "Error: x_engage unretweet requires a 'post_id' parameter.";
+    return "x_engage unretweet: 'post_id' parameter is required.";
   }
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
   if (!quotaCheck.ok) {
@@ -123,7 +123,7 @@ export async function bookmarkXPost(
 ): Promise<string> {
   const postId = input.post_id;
   if (typeof postId !== "string" || postId.length === 0) {
-    return "Error: x_engage bookmark requires a 'post_id' parameter.";
+    return "x_engage bookmark: 'post_id' parameter is required.";
   }
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
   if (!quotaCheck.ok) {
@@ -151,7 +151,7 @@ export async function unbookmarkXPost(
 ): Promise<string> {
   const postId = input.post_id;
   if (typeof postId !== "string" || postId.length === 0) {
-    return "Error: x_engage unbookmark requires a 'post_id' parameter.";
+    return "x_engage unbookmark: 'post_id' parameter is required.";
   }
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
   if (!quotaCheck.ok) {

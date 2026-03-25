@@ -8,9 +8,7 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import type { TriggerFishConfig } from "../../../core/config.ts";
-import type { SessionId } from "../../../core/types/session.ts";
 import type { SecretStore } from "../../../core/secrets/backends/secret_store.ts";
 import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
@@ -67,8 +65,6 @@ interface AssembleXServicesOpts {
   readonly config: TriggerFishConfig;
   readonly authState: XAuthState;
   readonly keychain: SecretStore;
-  readonly getSessionTaint: () => ClassificationLevel;
-  readonly sourceSessionId: SessionId;
   readonly workspacePath?: string;
 }
 
@@ -90,10 +86,7 @@ function assembleXServices(
     users: createUsersService(apiClient, uid),
     engage: createEngageService(apiClient, uid),
     lists: createListsService(apiClient, uid),
-    rateLimiter,
     quotaTracker,
-    sessionTaint: opts.getSessionTaint,
-    sourceSessionId: opts.sourceSessionId,
     tier,
     authenticatedUserId: uid,
   });
@@ -107,8 +100,6 @@ function assembleXServices(
  */
 export async function buildXExecutor(
   config: TriggerFishConfig,
-  getSessionTaint: () => ClassificationLevel,
-  sourceSessionId: SessionId,
   opts?: { readonly workspacePath?: string },
 ): Promise<
   | ((name: string, input: Record<string, unknown>) => Promise<string | null>)
@@ -130,8 +121,6 @@ export async function buildXExecutor(
     config,
     authState,
     keychain,
-    getSessionTaint,
-    sourceSessionId,
     workspacePath: opts?.workspacePath,
   });
 }

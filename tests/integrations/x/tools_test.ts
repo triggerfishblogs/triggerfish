@@ -11,17 +11,11 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import { createXToolExecutor } from "../../../src/integrations/x/tools.ts";
 import { enforceTierRestriction } from "../../../src/integrations/x/tools_shared.ts";
 import type { XToolContext } from "../../../src/integrations/x/tools_shared.ts";
-import type { XRateLimiter } from "../../../src/integrations/x/client/rate_limiter.ts";
 import type { XQuotaTracker } from "../../../src/integrations/x/client/quota_tracker.ts";
 
 // ─── Mock helpers ────────────────────────────────────────────────────────────
 
 function createMockContext(overrides?: Partial<XToolContext>): XToolContext {
-  const mockRateLimiter: XRateLimiter = {
-    recordResponse: () => {},
-    checkLimit: () => ({ ok: true }),
-    reset: () => {},
-  };
   const mockQuotaTracker: XQuotaTracker = {
     recordRead: () => Promise.resolve(),
     recordWrite: () => Promise.resolve(),
@@ -41,10 +35,7 @@ function createMockContext(overrides?: Partial<XToolContext>): XToolContext {
     users: {} as unknown as XToolContext["users"],
     engage: {} as unknown as XToolContext["engage"],
     lists: {} as unknown as XToolContext["lists"],
-    rateLimiter: mockRateLimiter,
     quotaTracker: mockQuotaTracker,
-    sessionTaint: () => "PUBLIC" as const,
-    sourceSessionId: "test-session" as unknown as XToolContext["sourceSessionId"],
     tier: "basic" as const,
     authenticatedUserId: "12345",
     ...overrides,
@@ -80,13 +71,13 @@ Deno.test("XToolExecutor: returns not configured for x_quota when ctx undefined"
 Deno.test("XToolExecutor: returns error when action parameter is missing", async () => {
   const executor = createXToolExecutor(createMockContext());
   const result = await executor("x_posts", {});
-  assertStringIncludes(result!, "requires an 'action' parameter");
+  assertStringIncludes(result!, "'action' parameter is required");
 });
 
 Deno.test("XToolExecutor: returns error when action parameter is empty string", async () => {
   const executor = createXToolExecutor(createMockContext());
   const result = await executor("x_posts", { action: "" });
-  assertStringIncludes(result!, "requires an 'action' parameter");
+  assertStringIncludes(result!, "'action' parameter is required");
 });
 
 Deno.test("XToolExecutor: returns error for unknown action on x_posts", async () => {

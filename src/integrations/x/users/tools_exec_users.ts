@@ -39,7 +39,7 @@ export async function getXUser(
 ): Promise<string> {
   const username = input.username;
   if (typeof username !== "string" || username.length === 0) {
-    return "Error: x_users get requires a 'username' parameter.";
+    return "x_users get: 'username' parameter is required.";
   }
 
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
@@ -141,13 +141,19 @@ export async function followXUser(
 ): Promise<string> {
   const username = input.username;
   if (typeof username !== "string" || username.length === 0) {
-    return "Error: x_users follow requires a 'username' parameter.";
+    return "x_users follow: 'username' parameter is required.";
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
   if (!quotaCheck.ok) {
     log.warn("X API write quota exhausted", { operation: "followXUser" });
     return quotaCheck.error;
+  }
+
+  const readQuotaCheck = await ctx.quotaTracker.checkReadQuota();
+  if (!readQuotaCheck.ok) {
+    log.warn("X API read quota exhausted", { operation: "followXUser" });
+    return readQuotaCheck.error;
   }
 
   const userResult = await ctx.users.getUser(username);
@@ -177,13 +183,19 @@ export async function unfollowXUser(
 ): Promise<string> {
   const username = input.username;
   if (typeof username !== "string" || username.length === 0) {
-    return "Error: x_users unfollow requires a 'username' parameter.";
+    return "x_users unfollow: 'username' parameter is required.";
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
   if (!quotaCheck.ok) {
     log.warn("X API write quota exhausted", { operation: "unfollowXUser" });
     return quotaCheck.error;
+  }
+
+  const readQuotaCheck = await ctx.quotaTracker.checkReadQuota();
+  if (!readQuotaCheck.ok) {
+    log.warn("X API read quota exhausted", { operation: "unfollowXUser" });
+    return readQuotaCheck.error;
   }
 
   const userResult = await ctx.users.getUser(username);

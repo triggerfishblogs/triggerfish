@@ -105,8 +105,6 @@ export async function buildExternalServiceExecutors(
   );
   const xExecutor = await buildXExecutor(
     config,
-    () => state.session.taint,
-    state.session.id,
     { workspacePath: opts?.workspacePath },
   );
   const obsidianExecutor = config.plugins?.obsidian

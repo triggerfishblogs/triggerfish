@@ -4,11 +4,8 @@
  * @module
  */
 
-import type { ClassificationLevel } from "../../core/types/classification.ts";
-import type { SessionId } from "../../core/types/session.ts";
 import type { XApiTier } from "./auth/types_auth.ts";
 import type { XQuotaTracker } from "./client/quota_tracker.ts";
-import type { XRateLimiter } from "./client/rate_limiter.ts";
 import type { EngageService } from "./engage/types_engage.ts";
 import type { ListsService } from "./lists/types_lists.ts";
 import type { PostsService } from "./posts/types_posts.ts";
@@ -20,11 +17,7 @@ export interface XToolContext {
   readonly users: UsersService;
   readonly engage: EngageService;
   readonly lists: ListsService;
-  readonly rateLimiter: XRateLimiter;
   readonly quotaTracker: XQuotaTracker;
-  /** Live getter for current session taint. */
-  readonly sessionTaint: () => ClassificationLevel;
-  readonly sourceSessionId: SessionId;
   readonly tier: XApiTier;
   /** Authenticated user's X user ID. */
   readonly authenticatedUserId: string;

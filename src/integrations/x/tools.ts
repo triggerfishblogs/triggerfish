@@ -147,7 +147,7 @@ export function createXToolExecutor(
 
     const action = input.action;
     if (typeof action !== "string" || action.length === 0) {
-      return `Error: ${name} requires an 'action' parameter (string).`;
+      return `${name}: 'action' parameter is required (string).`;
     }
 
     // Check tier availability
@@ -157,7 +157,7 @@ export function createXToolExecutor(
     const handler = actionMap[action];
     if (!handler) {
       const valid = Object.keys(actionMap).join(", ");
-      return `Error: unknown action "${action}" for ${name}. Valid actions: ${valid}`;
+      return `${name}: unknown action "${action}". Valid actions: ${valid}`;
     }
 
     return handler(ctx, input);

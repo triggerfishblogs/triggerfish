@@ -27,23 +27,30 @@ interface XApiRequestOptions {
   readonly isRetry?: boolean;
 }
 
+/** Options for building a RequestInit with optional body. */
+interface XRequestBodyOpts {
+  readonly body?: unknown;
+  readonly raw?: boolean;
+}
+
 /** Build fetch RequestInit with Bearer auth header and optional body. */
 function buildXApiRequestInit(
   method: string,
   token: string,
-  body?: unknown,
-  opts?: { readonly raw?: boolean },
+  bodyOpts?: XRequestBodyOpts,
 ): RequestInit {
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-  const init: RequestInit = { method, headers };
-  if (body === undefined) return init;
-  if (opts?.raw) {
-    init.body = body as BodyInit;
-  } else {
-    headers["Content-Type"] = "application/json";
-    init.body = JSON.stringify(body);
+  const baseHeaders: Record<string, string> = { Authorization: `Bearer ${token}` };
+  if (!bodyOpts?.body) {
+    return { method, headers: baseHeaders };
   }
-  return init;
+  if (bodyOpts.raw) {
+    return { method, headers: baseHeaders, body: bodyOpts.body as BodyInit };
+  }
+  return {
+    method,
+    headers: { ...baseHeaders, "Content-Type": "application/json" },
+    body: JSON.stringify(bodyOpts.body),
+  };
 }
 
 /** Extract the endpoint path from a full URL for rate limit tracking. */
@@ -197,7 +204,7 @@ export function createXApiClient(
     token: string,
     reqOpts?: XApiRequestOptions,
   ): Promise<{ readonly response: Response; readonly endpoint: string }> {
-    const init = buildXApiRequestInit(method, token, reqOpts?.body, reqOpts);
+    const init = buildXApiRequestInit(method, token, reqOpts);
     const response = await fetchFn(fullUrl, init);
     const endpoint = extractEndpoint(fullUrl);
     rateLimiter.recordResponse(endpoint, response.headers);

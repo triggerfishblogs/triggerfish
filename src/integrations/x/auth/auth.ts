@@ -95,13 +95,15 @@ function handleExchangeErrorResponse(response: Response, operation: string): Pro
 }
 
 /** Handle a non-OK HTTP response during token refresh. */
-function handleRefreshErrorResponse(response: Response, operation: string): Promise<XAuthResult> {
-  const isRevoked = response.status === 400 || response.status === 401;
-  return buildTokenErrorResult(
-    response, operation,
-    isRevoked ? "REFRESH_REVOKED" : "TOKEN_EXCHANGE_FAILED",
-    isRevoked ? "X refresh token revoked or expired. Run 'triggerfish connect x' to reconnect." : `X ${operation} failed (HTTP ${response.status})`,
-  );
+async function handleRefreshErrorResponse(response: Response, operation: string): Promise<XAuthResult> {
+  const text = (await response.text()).slice(0, 200);
+  log.error(`X ${operation} failed`, { operation, err: { status: response.status, body: text } });
+  const isRevoked = response.status === 401 || (response.status === 400 && text.includes("invalid_grant"));
+  const code = isRevoked ? "REFRESH_REVOKED" : "REFRESH_FAILED";
+  const message = isRevoked
+    ? "X refresh token revoked or expired. Run 'triggerfish connect x' to reconnect."
+    : `X ${operation} failed (HTTP ${response.status})`;
+  return { ok: false, error: { code, message, status: response.status } };
 }
 
 /** Parse JSON from a token endpoint response, returning error Result on failure. */

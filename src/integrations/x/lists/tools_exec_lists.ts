@@ -38,7 +38,7 @@ export async function getXListMembers(
 ): Promise<string> {
   const listId = input.list_id;
   if (typeof listId !== "string" || listId.length === 0) {
-    return "Error: x_lists members requires a 'list_id' parameter.";
+    return "x_lists members: 'list_id' parameter is required.";
   }
 
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
@@ -77,7 +77,7 @@ export async function createXList(
 ): Promise<string> {
   const name = input.name;
   if (typeof name !== "string" || name.length === 0) {
-    return "Error: x_lists create requires a 'name' parameter.";
+    return "x_lists create: 'name' parameter is required.";
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
@@ -111,16 +111,22 @@ export async function addXListMember(
   const listId = input.list_id;
   const username = input.username;
   if (typeof listId !== "string" || listId.length === 0) {
-    return "Error: x_lists add_member requires a 'list_id' parameter.";
+    return "x_lists add_member: 'list_id' parameter is required.";
   }
   if (typeof username !== "string" || username.length === 0) {
-    return "Error: x_lists add_member requires a 'username' parameter.";
+    return "x_lists add_member: 'username' parameter is required.";
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
   if (!quotaCheck.ok) {
     log.warn("X API write quota exhausted", { operation: "addXListMember" });
     return quotaCheck.error;
+  }
+
+  const readQuotaCheck = await ctx.quotaTracker.checkReadQuota();
+  if (!readQuotaCheck.ok) {
+    log.warn("X API read quota exhausted", { operation: "addXListMember" });
+    return readQuotaCheck.error;
   }
 
   const userResult = await ctx.users.getUser(username);
@@ -152,16 +158,22 @@ export async function removeXListMember(
   const listId = input.list_id;
   const username = input.username;
   if (typeof listId !== "string" || listId.length === 0) {
-    return "Error: x_lists remove_member requires a 'list_id' parameter.";
+    return "x_lists remove_member: 'list_id' parameter is required.";
   }
   if (typeof username !== "string" || username.length === 0) {
-    return "Error: x_lists remove_member requires a 'username' parameter.";
+    return "x_lists remove_member: 'username' parameter is required.";
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
   if (!quotaCheck.ok) {
     log.warn("X API write quota exhausted", { operation: "removeXListMember" });
     return quotaCheck.error;
+  }
+
+  const readQuotaCheck = await ctx.quotaTracker.checkReadQuota();
+  if (!readQuotaCheck.ok) {
+    log.warn("X API read quota exhausted", { operation: "removeXListMember" });
+    return readQuotaCheck.error;
   }
 
   const userResult = await ctx.users.getUser(username);

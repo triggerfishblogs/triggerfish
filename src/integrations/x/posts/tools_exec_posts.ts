@@ -17,7 +17,7 @@ export async function searchXPosts(
 ): Promise<string> {
   const query = input.query;
   if (typeof query !== "string" || query.length === 0) {
-    return "Error: x_posts search requires a 'query' parameter.";
+    return "x_posts search: 'query' parameter is required.";
   }
 
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
@@ -91,7 +91,7 @@ export async function getXPost(
 ): Promise<string> {
   const postId = input.post_id;
   if (typeof postId !== "string" || postId.length === 0) {
-    return "Error: x_posts get requires a 'post_id' parameter.";
+    return "x_posts get: 'post_id' parameter is required.";
   }
 
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
@@ -148,7 +148,7 @@ export async function getXUserPosts(
 ): Promise<string> {
   const username = input.username;
   if (typeof username !== "string" || username.length === 0) {
-    return "Error: x_posts user_posts requires a 'username' parameter.";
+    return "x_posts user_posts: 'username' parameter is required.";
   }
 
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
@@ -200,7 +200,7 @@ export async function createXPost(
 ): Promise<string> {
   const text = input.text;
   if (typeof text !== "string" || text.length === 0) {
-    return "Error: x_posts create requires a 'text' parameter.";
+    return "x_posts create: 'text' parameter is required.";
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
@@ -244,7 +244,7 @@ export async function deleteXPost(
 ): Promise<string> {
   const postId = input.post_id;
   if (typeof postId !== "string" || postId.length === 0) {
-    return "Error: x_posts delete requires a 'post_id' parameter.";
+    return "x_posts delete: 'post_id' parameter is required.";
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
@@ -270,10 +270,10 @@ export async function uploadXMedia(
 ): Promise<string> {
   const filePath = input.file_path;
   if (typeof filePath !== "string" || filePath.length === 0) {
-    return "Error: x_posts upload_media requires a 'file_path' parameter.";
+    return "x_posts upload_media: 'file_path' parameter is required.";
   }
   if (filePath.startsWith("/") || filePath.includes("..")) {
-    return "Error: x_posts upload_media file_path must be a relative path within the workspace (no absolute paths or '..' traversal).";
+    return "x_posts upload_media: file_path must be a relative path within the workspace (no absolute paths or '..' traversal).";
   }
 
   const quotaCheck = await ctx.quotaTracker.checkWriteQuota();
