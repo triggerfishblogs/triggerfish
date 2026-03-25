@@ -1,12 +1,6 @@
 /**
  * X OAuth 2.0 PKCE authentication manager.
- *
- * Handles consent URL generation with PKCE code challenge,
- * authorization code exchange, token refresh, and secure token
- * storage via SecretStore.
- *
- * X OAuth 2.0 PKCE is for public clients — no client_secret is used.
- *
+ * Consent URL generation, code exchange, token refresh, and storage.
  * @module
  */
 
