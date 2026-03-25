@@ -28,15 +28,12 @@ export {
   runConnectNotion,
 } from "./connect_notion.ts";
 
-export {
-  disconnectX,
-  initializeXAuth,
-} from "./connect_x.ts";
-
 import { disconnectGoogle, initializeGoogleAuth } from "./connect_google.ts";
 import { disconnectGithub, initializeGithubAuth } from "./connect_github.ts";
 import { disconnectNotion, initializeNotionAuth } from "./connect_notion.ts";
 import { disconnectX, initializeXAuth } from "./connect_x.ts";
+
+export { disconnectX, initializeXAuth };
 
 /** Print connect usage help. */
 function printConnectUsage(): void {

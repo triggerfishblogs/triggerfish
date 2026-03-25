@@ -10,7 +10,6 @@
 import { Input } from "@cliffy/prompt";
 import type { SecretStore } from "../../core/secrets/keychain/keychain.ts";
 import { createLogger } from "../../core/logger/mod.ts";
-import { resolveAndCheck } from "../../core/security/ssrf.ts";
 
 const log = createLogger("cli.connect-x-oauth");
 
@@ -140,62 +139,6 @@ export async function promptXClientId(
   const trimmed = clientId.trim();
   await store.setSecret("x:client_id", trimmed);
   return trimmed;
-}
-
-// ─── User verification ───────────────────────────────────────────────────────
-
-/** Fetch and store the authenticated X user's ID and username. */
-export async function fetchAndStoreXUser(
-  accessToken: string,
-  store: SecretStore,
-): Promise<string | null> {
-  try {
-    // SSRF: DNS check on hardcoded hostname. TOCTOU gap is theoretical —
-    // cli/ cannot import XApiClient (layer rules), and the target is a
-    // well-known public hostname that won't rebind to a private IP.
-    const dnsCheck = await resolveAndCheck("api.twitter.com");
-    if (!dnsCheck.ok) {
-      log.error("SSRF check failed for X API", {
-        operation: "fetchXUser",
-        err: dnsCheck.error,
-      });
-      console.log("\nFailed to verify X API endpoint (SSRF check).");
-      return null;
-    }
-    const resp = await fetch("https://api.twitter.com/2/users/me", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-    if (!resp.ok) {
-      const body = await resp.text();
-      log.error("X user verification failed", {
-        operation: "fetchXUser",
-        err: { status: resp.status, body },
-      });
-      console.log(`\nFailed to verify X user (HTTP ${resp.status}).`);
-      return null;
-    }
-    const data = await resp.json();
-    const user = (data as { data?: { id?: string; username?: string } }).data;
-    if (!user?.id || !user?.username) {
-      log.error("X user verification returned unexpected response shape", {
-        operation: "fetchXUser",
-        err: { data },
-      });
-      console.log("\nFailed to verify X user: unexpected API response.");
-      return null;
-    }
-    await store.setSecret("x:user_id", user.id);
-    return user.username;
-  } catch (err: unknown) {
-    log.error("X user fetch failed", {
-      operation: "fetchXUser",
-      err,
-    });
-    console.log("\nCould not reach X API. Check your network connection.");
-    return null;
-  }
 }
 
 // ─── URI utilities ───────────────────────────────────────────────────────────

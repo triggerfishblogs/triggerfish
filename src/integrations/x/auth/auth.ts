@@ -77,142 +77,113 @@ async function checkTokenEndpointSsrf(operation: string): Promise<XAuthResult | 
   return null;
 }
 
+/** Handle a non-OK HTTP response from the token endpoint. */
+async function handleTokenErrorResponse(
+  response: Response,
+  operation: string,
+  isRefresh: boolean,
+): Promise<XAuthResult> {
+  const text = (await response.text()).slice(0, 200);
+  log.error(`X ${operation} failed`, { operation, err: { status: response.status, body: text } });
+  const isRevoked = isRefresh && (response.status === 400 || response.status === 401);
+  const code = isRevoked ? "REFRESH_REVOKED" : "TOKEN_EXCHANGE_FAILED";
+  const message = isRevoked
+    ? "X refresh token revoked or expired. Run 'triggerfish connect x' to reconnect."
+    : `X ${operation} failed (HTTP ${response.status})`;
+  return { ok: false, error: { code, message, status: response.status } };
+}
+
+/** Parse JSON from a token endpoint response, returning error Result on failure. */
+async function parseTokenResponse(
+  response: Response,
+  operation: string,
+): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; result: XAuthResult }> {
+  try {
+    return { ok: true, data: await response.json() };
+  } catch (parseErr: unknown) {
+    log.error(`X ${operation} response JSON parse failed`, {
+      operation,
+      err: parseErr,
+    });
+    return {
+      ok: false,
+      result: { ok: false, error: { code: "PARSE_FAILED", message: `X ${operation} response was not valid JSON` } },
+    };
+  }
+}
+
+interface PostTokenOptions {
+  readonly params: URLSearchParams;
+  readonly operation: string;
+  readonly fetchFn: typeof globalThis.fetch;
+  readonly persistTokens: (tokens: XTokens) => Promise<void>;
+  readonly fallbackRefreshToken: string;
+  readonly clientId: string;
+  readonly isRefresh: boolean;
+}
+
+/** POST to the token endpoint, parse response, build and persist tokens. */
+async function postTokenEndpoint(opts: PostTokenOptions): Promise<XAuthResult> {
+  const ssrfBlock = await checkTokenEndpointSsrf(opts.operation);
+  if (ssrfBlock) return ssrfBlock;
+
+  const response = await opts.fetchFn(TOKEN_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: opts.params.toString(),
+  });
+
+  if (!response.ok) return handleTokenErrorResponse(response, opts.operation, opts.isRefresh);
+
+  const parsed = await parseTokenResponse(response, opts.operation);
+  if (!parsed.ok) return parsed.result;
+
+  const built = buildTokensFromResponse(parsed.data, opts.clientId, opts.fallbackRefreshToken, opts.operation);
+  if (!built.ok) return built;
+
+  await opts.persistTokens(built.tokens);
+  log.info(`X ${opts.operation} succeeded`, { operation: opts.operation });
+  return { ok: true, value: built.value };
+}
+
 /** Exchange an authorization code for X OAuth 2.0 tokens. */
-async function exchangeAuthorizationCode(
+function exchangeAuthorizationCode(
   code: string,
   config: XAuthConfig,
   codeVerifier: string,
   fetchFn: typeof globalThis.fetch,
   persistTokens: (tokens: XTokens) => Promise<void>,
 ): Promise<XAuthResult> {
-  const body = new URLSearchParams({
+  log.info("Exchanging X authorization code", { operation: "exchangeXAuthCode" });
+  const params = new URLSearchParams({
     code,
     grant_type: "authorization_code",
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
     code_verifier: codeVerifier,
   });
-
-  log.info("Exchanging X authorization code", { operation: "exchangeXAuthCode" });
-
-  const ssrfBlock = await checkTokenEndpointSsrf("exchangeXAuthCode");
-  if (ssrfBlock) return ssrfBlock;
-
-  const response = await fetchFn(TOKEN_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
+  return postTokenEndpoint({
+    params, operation: "exchangeXAuthCode", fetchFn, persistTokens,
+    fallbackRefreshToken: "", clientId: config.clientId, isRefresh: false,
   });
-
-  if (!response.ok) {
-    const text = (await response.text()).slice(0, 200);
-    log.error("X token exchange failed", {
-      operation: "exchangeXAuthCode",
-      err: { status: response.status, body: text },
-    });
-    return {
-      ok: false,
-      error: {
-        code: "TOKEN_EXCHANGE_FAILED",
-        message: `X token exchange failed (HTTP ${response.status})`,
-        status: response.status,
-      },
-    };
-  }
-
-  let data: Record<string, unknown>;
-  try {
-    data = await response.json();
-  } catch (parseErr: unknown) {
-    log.error("X token exchange response JSON parse failed", {
-      operation: "exchangeXAuthCode",
-      err: parseErr,
-    });
-    return {
-      ok: false,
-      error: { code: "PARSE_FAILED", message: "X token response was not valid JSON" },
-    };
-  }
-  const built = buildTokensFromResponse(data, config.clientId, "", "exchangeXAuthCode");
-  if (!built.ok) return built;
-  await persistTokens(built.tokens);
-  log.info("X tokens stored successfully", { operation: "exchangeXAuthCode" });
-  return { ok: true, value: built.value };
 }
 
 /** Refresh an expired X access token using the refresh token. */
-async function refreshXAccessToken(
+function refreshXAccessToken(
   tokens: XTokens,
   fetchFn: typeof globalThis.fetch,
   persistTokens: (tokens: XTokens) => Promise<void>,
 ): Promise<XAuthResult> {
   log.info("Refreshing X access token", { operation: "refreshXToken" });
-
-  const ssrfBlock = await checkTokenEndpointSsrf("refreshXToken");
-  if (ssrfBlock) return ssrfBlock;
-
-  const body = new URLSearchParams({
+  const params = new URLSearchParams({
     refresh_token: tokens.refresh_token,
     grant_type: "refresh_token",
     client_id: tokens.clientId,
   });
-
-  const response = await fetchFn(TOKEN_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
+  return postTokenEndpoint({
+    params, operation: "refreshXToken", fetchFn, persistTokens,
+    fallbackRefreshToken: tokens.refresh_token, clientId: tokens.clientId, isRefresh: true,
   });
-
-  if (!response.ok) {
-    const text = (await response.text()).slice(0, 200);
-    log.error("X token refresh failed", {
-      operation: "refreshXToken",
-      err: { status: response.status, body: text },
-    });
-    if (response.status === 400 || response.status === 401) {
-      return {
-        ok: false,
-        error: {
-          code: "REFRESH_REVOKED",
-          message: "X refresh token revoked or expired. Run 'triggerfish connect x' to reconnect.",
-          status: response.status,
-        },
-      };
-    }
-    return {
-      ok: false,
-      error: {
-        code: "REFRESH_FAILED",
-        message: `X token refresh failed (HTTP ${response.status})`,
-        status: response.status,
-      },
-    };
-  }
-
-  let data: Record<string, unknown>;
-  try {
-    data = await response.json();
-  } catch (parseErr: unknown) {
-    log.error("X token refresh response JSON parse failed", {
-      operation: "refreshXToken",
-      err: parseErr,
-    });
-    return {
-      ok: false,
-      error: { code: "PARSE_FAILED", message: "X refresh response was not valid JSON" },
-    };
-  }
-  const built = buildTokensFromResponse(
-    data,
-    tokens.clientId,
-    tokens.refresh_token,
-    "refreshXToken",
-  );
-  if (!built.ok) return built;
-
-  await persistTokens(built.tokens);
-  log.info("X token refreshed successfully", { operation: "refreshXToken" });
-  return { ok: true, value: built.value };
 }
 
 /** Load stored X tokens from the secret store. */
@@ -220,7 +191,16 @@ async function loadXTokens(secretStore: SecretStore): Promise<XTokens | null> {
   const result = await secretStore.getSecret(TOKEN_KEY);
   if (!result.ok) return null;
   try {
-    return JSON.parse(result.value) as XTokens;
+    const parsed = JSON.parse(result.value) as Record<string, unknown>;
+    if (typeof parsed.access_token !== "string" || typeof parsed.clientId !== "string") {
+      log.warn("X tokens missing required fields, clearing corrupt entry", {
+        operation: "loadXTokens",
+        err: { keys: Object.keys(parsed) },
+      });
+      await secretStore.deleteSecret(TOKEN_KEY);
+      return null;
+    }
+    return parsed as unknown as XTokens;
   } catch (err: unknown) {
     log.warn("X token JSON parse failed, clearing corrupt entry", {
       operation: "loadXTokens",

@@ -113,7 +113,14 @@ async function parseXApiResponse<T>(
   }
 
   if (response.status === 204) {
-    return { ok: true, value: {} as T };
+    return {
+      ok: false,
+      error: {
+        code: "UNEXPECTED_EMPTY_RESPONSE",
+        message: `X API returned ${response.status} with no response body`,
+        status: response.status,
+      },
+    };
   }
 
   try {

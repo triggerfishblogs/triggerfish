@@ -11,6 +11,7 @@
 // ─── Auth ────────────────────────────────────────────────────────────────────
 export { createXAuthManager } from "./auth/mod.ts";
 export { createXApiClient } from "./auth/mod.ts";
+export { verifyAndStoreXUser } from "./auth/mod.ts";
 
 // ─── Client utilities ────────────────────────────────────────────────────────
 export { createXRateLimiter } from "./client/mod.ts";

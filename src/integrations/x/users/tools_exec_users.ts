@@ -7,6 +7,20 @@
 import type { XToolContext } from "../tools_shared.ts";
 import { formatXError } from "../tools_shared.ts";
 
+/** Resolve user ID from username input, falling back to authenticated user. */
+async function resolveUserIdFromInput(
+  ctx: XToolContext,
+  input: Record<string, unknown>,
+): Promise<{ readonly userId: string } | string> {
+  if (typeof input.username !== "string" || input.username.length === 0) {
+    return { userId: ctx.authenticatedUserId };
+  }
+  const userResult = await ctx.users.getUser(input.username);
+  if (!userResult.ok) return formatXError(userResult.error);
+  await ctx.quotaTracker.recordRead();
+  return { userId: userResult.value.id };
+}
+
 /** Handle x_users get action. */
 export async function getXUser(
   ctx: XToolContext,
@@ -35,14 +49,9 @@ export async function listXFollowers(
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
   if (!quotaCheck.ok) return quotaCheck.error;
 
-  let userId = ctx.authenticatedUserId;
-
-  if (typeof input.username === "string" && input.username.length > 0) {
-    const userResult = await ctx.users.getUser(input.username);
-    if (!userResult.ok) return formatXError(userResult.error);
-    await ctx.quotaTracker.recordRead();
-    userId = userResult.value.id;
-  }
+  const resolved = await resolveUserIdFromInput(ctx, input);
+  if (typeof resolved === "string") return resolved;
+  const userId = resolved.userId;
 
   const result = await ctx.users.getFollowers({
     userId,
@@ -72,14 +81,9 @@ export async function listXFollowing(
   const quotaCheck = await ctx.quotaTracker.checkReadQuota();
   if (!quotaCheck.ok) return quotaCheck.error;
 
-  let userId = ctx.authenticatedUserId;
-
-  if (typeof input.username === "string" && input.username.length > 0) {
-    const userResult = await ctx.users.getUser(input.username);
-    if (!userResult.ok) return formatXError(userResult.error);
-    await ctx.quotaTracker.recordRead();
-    userId = userResult.value.id;
-  }
+  const resolved = await resolveUserIdFromInput(ctx, input);
+  if (typeof resolved === "string") return resolved;
+  const userId = resolved.userId;
 
   const result = await ctx.users.getFollowing({
     userId,

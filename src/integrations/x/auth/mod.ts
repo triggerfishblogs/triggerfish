@@ -21,3 +21,5 @@ export type {
 export { createXAuthManager } from "./auth.ts";
 
 export { createXApiClient } from "./client.ts";
+
+export { verifyAndStoreXUser } from "./user_verify.ts";

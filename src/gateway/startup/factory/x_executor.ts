@@ -11,6 +11,7 @@
 import type { ClassificationLevel } from "../../../core/types/classification.ts";
 import type { TriggerFishConfig } from "../../../core/config.ts";
 import type { SessionId } from "../../../core/types/session.ts";
+import type { SecretStore } from "../../../core/secrets/backends/secret_store.ts";
 import { createKeychain } from "../../../core/secrets/keychain/keychain.ts";
 import { createLogger } from "../../../core/logger/mod.ts";
 import {
@@ -23,12 +24,80 @@ import { createPostsService } from "../../../integrations/x/posts/mod.ts";
 import { createUsersService } from "../../../integrations/x/users/mod.ts";
 import { createEngageService } from "../../../integrations/x/engage/mod.ts";
 import { createListsService } from "../../../integrations/x/lists/mod.ts";
-import type { XApiTier } from "../../../integrations/x/auth/types_auth.ts";
+import type { XAuthManager } from "../../../integrations/x/auth/types_auth.ts";
 
 const log = createLogger("gateway.x");
 
 /** Key for the authenticated user's X user ID in the keychain. */
 const USER_ID_KEY = "x:user_id";
+
+/** Auth state loaded from the keychain, or null if unavailable. */
+interface XAuthState {
+  readonly authManager: XAuthManager;
+  readonly authenticatedUserId: string;
+}
+
+/** Load X auth tokens and user ID from keychain. Returns null if unavailable. */
+async function loadXAuthState(
+  keychain: SecretStore,
+  authManager: XAuthManager,
+): Promise<XAuthState | null> {
+  const hasTokens = await authManager.hasTokens();
+  if (!hasTokens) {
+    log.warn("X enabled but tokens not found in keychain", {
+      operation: "loadXAuthState",
+    });
+    return null;
+  }
+
+  const userIdResult = await keychain.getSecret(USER_ID_KEY);
+  if (!userIdResult.ok) {
+    log.warn("X tokens found but user ID not stored", {
+      operation: "loadXAuthState",
+      err: userIdResult.error,
+    });
+    return null;
+  }
+
+  return { authManager, authenticatedUserId: userIdResult.value };
+}
+
+/** Options for assembling X services. */
+interface AssembleXServicesOpts {
+  readonly config: TriggerFishConfig;
+  readonly authState: XAuthState;
+  readonly keychain: SecretStore;
+  readonly getSessionTaint: () => ClassificationLevel;
+  readonly sourceSessionId: SessionId;
+  readonly workspacePath?: string;
+}
+
+/** Create all X service instances and wire up the tool executor. */
+function assembleXServices(
+  opts: AssembleXServicesOpts,
+): (name: string, input: Record<string, unknown>) => Promise<string | null> {
+  const tier = opts.config.x?.tier ?? "free";
+  const rateLimiter = createXRateLimiter();
+  const quotaTracker = createXQuotaTracker(opts.keychain, tier, {
+    warningThreshold: opts.config.x?.quota?.log_warning_ratio,
+    cutoffThreshold: opts.config.x?.quota?.response_warning_ratio,
+  });
+  const apiClient = createXApiClient(opts.authState.authManager, rateLimiter);
+  const uid = opts.authState.authenticatedUserId;
+
+  return createXToolExecutor({
+    posts: createPostsService(apiClient, uid, opts.workspacePath),
+    users: createUsersService(apiClient, uid),
+    engage: createEngageService(apiClient, uid),
+    lists: createListsService(apiClient, uid),
+    rateLimiter,
+    quotaTracker,
+    sessionTaint: opts.getSessionTaint,
+    sourceSessionId: opts.sourceSessionId,
+    tier,
+    authenticatedUserId: uid,
+  });
+}
 
 /**
  * Build the X tool executor from config and keychain.
@@ -51,44 +120,18 @@ export async function buildXExecutor(
 
   const keychain = createKeychain();
   const authManager = createXAuthManager(keychain);
+  const authState = await loadXAuthState(keychain, authManager);
 
-  const hasTokens = await authManager.hasTokens();
-  if (!hasTokens) {
-    log.warn("X enabled but tokens not found in keychain", {
-      operation: "buildXExecutor",
-    });
+  if (!authState) {
     return createXToolExecutor(undefined);
   }
 
-  // Retrieve the authenticated user ID (stored during connect flow)
-  const userIdResult = await keychain.getSecret(USER_ID_KEY);
-  if (!userIdResult.ok) {
-    log.warn("X tokens found but user ID not stored", {
-      operation: "buildXExecutor",
-      err: userIdResult.error,
-    });
-    return createXToolExecutor(undefined);
-  }
-
-  const tier = (config.x.tier ?? "free") as XApiTier;
-  const rateLimiter = createXRateLimiter();
-  const quotaTracker = createXQuotaTracker(keychain, tier, {
-    warningThreshold: config.x.quota?.log_warning_ratio,
-    cutoffThreshold: config.x.quota?.response_warning_ratio,
-  });
-  const apiClient = createXApiClient(authManager, rateLimiter);
-  const authenticatedUserId = userIdResult.value;
-
-  return createXToolExecutor({
-    posts: createPostsService(apiClient, authenticatedUserId, opts?.workspacePath),
-    users: createUsersService(apiClient, authenticatedUserId),
-    engage: createEngageService(apiClient, authenticatedUserId),
-    lists: createListsService(apiClient, authenticatedUserId),
-    rateLimiter,
-    quotaTracker,
-    sessionTaint: getSessionTaint,
+  return assembleXServices({
+    config,
+    authState,
+    keychain,
+    getSessionTaint,
     sourceSessionId,
-    tier,
-    authenticatedUserId,
+    workspacePath: opts?.workspacePath,
   });
 }
