@@ -52,6 +52,9 @@ function handleOAuthSuccess(
   rejectCode: (err: Error) => void,
 ): Response {
   if (!state || state !== expectedState) {
+    log.warn("X OAuth CSRF state mismatch detected", {
+      operation: "handleOAuthSuccess", expectedState, receivedState: state,
+    });
     rejectCode(new Error("OAuth state mismatch — possible CSRF"));
     return textResponse("State mismatch. Authorization rejected.", 400);
   }

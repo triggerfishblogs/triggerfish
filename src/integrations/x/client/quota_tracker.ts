@@ -57,6 +57,12 @@ export type QuotaCheckResult =
   | { readonly ok: true; readonly warning?: string }
   | { readonly ok: false; readonly error: string };
 
+/** Safe fallback when quota check cannot complete. */
+const QUOTA_CHECK_UNAVAILABLE: QuotaCheckResult = {
+  ok: false,
+  error: "Quota check unavailable",
+} as const;
+
 /** Monthly API quota tracker for X integration. */
 export interface XQuotaTracker {
   /** Record a read API call. */
@@ -270,7 +276,7 @@ export function createXQuotaTracker(
     },
 
     async checkReadQuota(): Promise<QuotaCheckResult> {
-      let result!: QuotaCheckResult;
+      let result: QuotaCheckResult = QUOTA_CHECK_UNAVAILABLE;
       await serializeMutation(async () => {
         const state = await loadQuotaState(secretStore, nowFn);
         result = checkUsage({
@@ -285,7 +291,7 @@ export function createXQuotaTracker(
     },
 
     async checkWriteQuota(): Promise<QuotaCheckResult> {
-      let result!: QuotaCheckResult;
+      let result: QuotaCheckResult = QUOTA_CHECK_UNAVAILABLE;
       await serializeMutation(async () => {
         const state = await loadQuotaState(secretStore, nowFn);
         result = checkUsage({

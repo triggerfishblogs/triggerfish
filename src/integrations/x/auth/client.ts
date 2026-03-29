@@ -105,7 +105,7 @@ async function parseXApiSuccessBody<T>(response: Response): Promise<XApiResult<T
     return { ok: true, value: (await response.json()) as T };
   } catch (parseErr: unknown) {
     log.warn("X API success response JSON parse failed", {
-      operation: "parseXApiErrorResponse", err: parseErr, status: response.status,
+      operation: "parseXApiSuccessBody", err: parseErr, status: response.status,
     });
     return {
       ok: false,

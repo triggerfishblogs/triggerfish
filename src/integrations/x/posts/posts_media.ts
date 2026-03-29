@@ -28,6 +28,12 @@ export async function uploadMediaToX(
   altText?: string,
   workspaceRoot?: string,
 ): Promise<XApiResult<XMediaUploadResult>> {
+  if (!workspaceRoot) {
+    return {
+      ok: false,
+      error: { code: "NO_WORKSPACE", message: "Media upload requires a workspace root path" },
+    };
+  }
   const fileResult = await readMediaFile(filePath, workspaceRoot);
   if (!fileResult.ok) return fileResult;
 
@@ -52,9 +58,9 @@ export async function uploadMediaToX(
 /** Read a media file from disk, returning a typed error on failure. */
 async function readMediaFile(
   filePath: string,
-  workspaceRoot?: string,
+  workspaceRoot: string,
 ): Promise<XApiResult<Uint8Array>> {
-  const root = workspaceRoot ?? Deno.cwd();
+  const root = workspaceRoot;
   const resolved = resolve(root, filePath);
   const rel = relative(root, resolved);
   if (rel.startsWith("..") || isAbsolute(resolved) && !resolved.startsWith(root + "/") && resolved !== root) {
