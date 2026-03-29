@@ -82,6 +82,19 @@ export interface TriggerFishConfig {
       readonly redirect_uri?: string;
     };
   };
+  readonly x?: {
+    readonly enabled?: boolean;
+    readonly tier?: "free" | "basic" | "pro" | "pay_per_use";
+    readonly classification?: string;
+    readonly oauth?: {
+      readonly client_id?: string;
+      readonly redirect_uri?: string;
+    };
+    readonly quota?: {
+      readonly log_warning_ratio?: number;
+      readonly response_warning_ratio?: number;
+    };
+  };
   readonly caldav?: {
     readonly enabled?: boolean;
     readonly server_url?: string;

@@ -93,6 +93,7 @@ export function buildCompositeToolExecutor(
     githubExecutor: integrations.githubExecutor,
     caldavExecutor: integrations.caldavExecutor,
     notionExecutor: integrations.notionExecutor,
+    xExecutor: integrations.xExecutor,
     obsidianExecutor: integrations.obsidianExecutor,
     registry: baseDeps.registry,
     storage: coreInfra.storage,

@@ -25,6 +25,7 @@ import { getGoogleToolDefinitions } from "../../../integrations/google/mod.ts";
 import { getGitHubToolDefinitions } from "../../../integrations/github/mod.ts";
 import { getCalDavToolDefinitions } from "../../../integrations/caldav/mod.ts";
 import { getNotionToolDefinitions } from "../../../integrations/notion/mod.ts";
+import { getXToolDefinitions } from "../../../integrations/x/mod.ts";
 import { getObsidianToolDefinitions } from "../../../tools/obsidian/mod.ts";
 import {
   getHealthcheckToolDefinitions,
@@ -73,6 +74,7 @@ export const TOOL_GROUPS = {
   github: getGitHubToolDefinitions,
   caldav: getCalDavToolDefinitions,
   notion: getNotionToolDefinitions,
+  x: getXToolDefinitions,
   obsidian: getObsidianToolDefinitions,
   llmTask: getLlmTaskToolDefinitions,
   summarize: getSummarizeToolDefinitions,

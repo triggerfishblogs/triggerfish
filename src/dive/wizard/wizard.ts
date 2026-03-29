@@ -39,6 +39,7 @@ import {
   promptGitHubConnectionStep,
   promptGoogleWorkspaceStep,
   promptSearchProviderStep,
+  promptXConnectionStep,
 } from "./wizard_integrations.ts";
 
 import { writeWizardOutputFiles } from "./wizard_output.ts";
@@ -248,6 +249,7 @@ async function collectAllWizardSteps(
 
   await promptGoogleWorkspaceStep();
   await promptGitHubConnectionStep();
+  await promptXConnectionStep();
 
   // Triggerfish Gateway includes search — skip the search provider step
   let search: SearchProviderResult;

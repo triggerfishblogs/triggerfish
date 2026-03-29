@@ -164,6 +164,7 @@ export function assembleMainToolExecutor(
     readonly githubExecutor: ReturnType<typeof createGitHubToolExecutor>;
     readonly caldavExecutor?: ReturnType<typeof createCalDavToolExecutor>;
     readonly notionExecutor?: SubsystemExecutor;
+    readonly xExecutor?: SubsystemExecutor;
     readonly obsidianExecutor:
       | Awaited<ReturnType<typeof buildObsidianExecutor>>
       | undefined;

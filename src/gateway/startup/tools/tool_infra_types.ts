@@ -101,17 +101,21 @@ export async function detectServiceAvailability(
     typeof import("../../../core/secrets/keychain/keychain.ts").createKeychain
   >,
 ): Promise<ServiceAvailability> {
-  const [googleResult, githubResult, notionResult] = await Promise.all([
-    keychain.getSecret("google:tokens"),
-    keychain.getSecret("github-pat"),
-    keychain.getSecret("notion-api-key"),
-  ]);
+  const [googleResult, githubResult, notionResult, xResult] = await Promise.all(
+    [
+      keychain.getSecret("google:tokens"),
+      keychain.getSecret("github-pat"),
+      keychain.getSecret("notion-api-key"),
+      keychain.getSecret("x:tokens"),
+    ],
+  );
 
   const availability: ServiceAvailability = {
     google: googleResult.ok,
     github: githubResult.ok,
     caldav: config.caldav?.enabled === true,
     notion: config.notion?.enabled === true && notionResult.ok,
+    x: config.x?.enabled === true && xResult.ok,
     obsidian: config.plugins?.obsidian?.enabled === true,
     signal: config.channels?.signal !== undefined,
     telegram: (config.channels?.telegram as { botToken?: string } | undefined)

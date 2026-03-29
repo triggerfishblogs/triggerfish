@@ -44,6 +44,8 @@ export interface ToolExecutorOptions {
   readonly githubExecutor?: SubsystemExecutor;
   readonly caldavExecutor?: SubsystemExecutor;
   readonly notionExecutor?: SubsystemExecutor;
+  /** Executor for x_posts, x_users, x_engage, x_lists, x_quota. */
+  readonly xExecutor?: SubsystemExecutor;
   readonly obsidianExecutor?: SubsystemExecutor;
   readonly llmTaskExecutor?: SubsystemExecutor;
   readonly summarizeExecutor?: SubsystemExecutor;

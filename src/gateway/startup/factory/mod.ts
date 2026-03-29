@@ -1,5 +1,5 @@
 /**
- * Orchestrator factory, subagent, Google executor, web tools, and scheduler config.
+ * Orchestrator factory, subagent, Google/CalDAV/Notion/X executors, web tools, and scheduler config.
  *
  * @module
  */
@@ -15,3 +15,4 @@ export { buildNotionExecutor } from "./notion_executor.ts";
 export { buildTeamExecutor, buildTeamManager } from "./team_executor.ts";
 export type { TeamExecutorOptions } from "./team_executor.ts";
 export { createSessionRegistry } from "./team_session_registry.ts";
+export { buildXExecutor } from "./x_executor.ts";
