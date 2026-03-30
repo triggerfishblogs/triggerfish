@@ -13,6 +13,7 @@ import type {
   WorkspacePaths,
 } from "../../src/core/security/path_classification.ts";
 import type { ClassificationLevel } from "../../src/core/types/classification.ts";
+import type { DomainClassifier } from "../../src/core/types/domain.ts";
 import { join } from "@std/path";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -36,6 +37,34 @@ function makeWorkspacePaths(basePath: string): WorkspacePaths {
   };
 }
 
+/** Simulated repo classification cache for tests. */
+function makeRepoCache(
+  entries: ReadonlyMap<string, ClassificationLevel>,
+): (repoFullName: string) => ClassificationLevel | null {
+  return (repoFullName: string) => entries.get(repoFullName) ?? null;
+}
+
+/** Domain classifier that classifies GitHub domains as PUBLIC by default. */
+function makeGitHubDomainClassifier(
+  level: ClassificationLevel = "PUBLIC",
+): DomainClassifier {
+  const GITHUB_DOMAINS = [
+    "api.github.com",
+    "github.com",
+    "raw.githubusercontent.com",
+  ];
+  return {
+    classify(url: string) {
+      for (const domain of GITHUB_DOMAINS) {
+        if (url.includes(domain)) {
+          return { classification: level, source: `test:${domain}` };
+        }
+      }
+      return { classification: "PUBLIC", source: "test:default" };
+    },
+  };
+}
+
 function classifyRunCommand(
   command: string,
   opts?: {
@@ -44,6 +73,8 @@ function classifyRunCommand(
       ClassificationLevel
     >;
     readonly taint?: ClassificationLevel;
+    readonly repoClassifications?: ReadonlyMap<string, ClassificationLevel>;
+    readonly domainClassifier?: DomainClassifier;
   },
 ): ClassificationLevel | null {
   const workspace = "/tmp/test-workspace";
@@ -59,6 +90,10 @@ function classifyRunCommand(
     pathClassifier: classifier,
     getWorkspacePath: () => taintDir,
     integrationClassifications: opts?.integrationClassifications,
+    domainClassifier: opts?.domainClassifier,
+    classifyGitHubRepo: opts?.repoClassifications
+      ? makeRepoCache(opts.repoClassifications)
+      : undefined,
   });
   return ctx.resourceClassification;
 }
@@ -69,6 +104,23 @@ const GITHUB_PUBLIC = new Map<string, ClassificationLevel>([
 
 const GITHUB_INTERNAL = new Map<string, ClassificationLevel>([
   ["github_", "INTERNAL"],
+]);
+
+const GITHUB_CONFIDENTIAL = new Map<string, ClassificationLevel>([
+  ["github_", "CONFIDENTIAL"],
+]);
+
+/** Simulated known repos — PUBLIC repo in cache. */
+const KNOWN_REPOS = new Map<string, ClassificationLevel>([
+  ["greghavens/triggerfish", "PUBLIC"],
+  ["owner/name", "PUBLIC"],
+]);
+
+/** Cache with a private repo. */
+const KNOWN_REPOS_WITH_PRIVATE = new Map<string, ClassificationLevel>([
+  ["greghavens/triggerfish", "PUBLIC"],
+  ["owner/name", "PUBLIC"],
+  ["acme/secret", "CONFIDENTIAL"],
 ]);
 
 // ─── gh CLI recognition ─────────────────────────────────────────────────────
@@ -84,11 +136,16 @@ Deno.test("run_command: gh api repos/owner/name classifies at GitHub integration
   );
 });
 
-Deno.test("run_command: gh api with INTERNAL GitHub config classifies as INTERNAL", () => {
+Deno.test("run_command: gh api with INTERNAL GitHub config + PUBLIC repo in cache classifies as PUBLIC", () => {
   const result = classifyRunCommand("gh api repos/owner/name/releases", {
     integrationClassifications: GITHUB_INTERNAL,
+    repoClassifications: KNOWN_REPOS,
   });
-  assertEquals(result, "INTERNAL");
+  assertEquals(
+    result,
+    "PUBLIC",
+    "Repo classification must override integration default",
+  );
 });
 
 Deno.test("run_command: gh release list classifies at GitHub integration level", () => {
@@ -349,4 +406,199 @@ Deno.test("run_command: gh with --jq flag and complex expression classifies as P
     { integrationClassifications: GITHUB_PUBLIC },
   );
   assertEquals(result, "PUBLIC");
+});
+
+// ─── CRITICAL: integration classification must NOT leak into CLI commands ─────
+// These tests reproduce the production bug where github.classification=CONFIDENTIAL
+// in triggerfish.yaml caused ALL gh/curl/wget GitHub commands to be classified as
+// CONFIDENTIAL instead of PUBLIC, triggering false bumpers blocks.
+
+Deno.test("run_command: gh api with CONFIDENTIAL config + PUBLIC repo in cache classifies as PUBLIC", () => {
+  const result = classifyRunCommand("gh api repos/owner/name/releases", {
+    integrationClassifications: GITHUB_CONFIDENTIAL,
+    repoClassifications: KNOWN_REPOS,
+  });
+  assertEquals(
+    result,
+    "PUBLIC",
+    "Repo classification must override integration default",
+  );
+});
+
+Deno.test("run_command: curl api.github.com with CONFIDENTIAL config + PUBLIC repo in cache classifies as PUBLIC", () => {
+  const result = classifyRunCommand(
+    'curl -s "https://api.github.com/repos/greghavens/triggerfish/releases?per_page=100"',
+    { integrationClassifications: GITHUB_CONFIDENTIAL, repoClassifications: KNOWN_REPOS },
+  );
+  assertEquals(
+    result,
+    "PUBLIC",
+    "Repo classification must override integration default",
+  );
+});
+
+Deno.test("run_command: wget api.github.com with CONFIDENTIAL GitHub config + PUBLIC repo classifies as PUBLIC", () => {
+  const result = classifyRunCommand(
+    "wget -qO- https://api.github.com/repos/owner/name/tags",
+    { integrationClassifications: GITHUB_CONFIDENTIAL, repoClassifications: KNOWN_REPOS },
+  );
+  assertEquals(result, "PUBLIC", "Repo classification must override integration default");
+});
+
+Deno.test("run_command: GH_TOKEN='' gh api with CONFIDENTIAL config + PUBLIC repo classifies as PUBLIC", () => {
+  const result = classifyRunCommand(
+    'GH_TOKEN="" gh api /repos/greghavens/triggerfish/releases --paginate',
+    { integrationClassifications: GITHUB_CONFIDENTIAL, repoClassifications: KNOWN_REPOS },
+  );
+  assertEquals(result, "PUBLIC", "Repo classification must override integration default");
+});
+
+Deno.test("run_command: curl api.github.com piped to jq with CONFIDENTIAL config + PUBLIC repo classifies as PUBLIC", () => {
+  const result = classifyRunCommand(
+    'curl -s "https://api.github.com/repos/greghavens/triggerfish/releases?per_page=100" | jq \'.[].assets\'',
+    { integrationClassifications: GITHUB_CONFIDENTIAL, repoClassifications: KNOWN_REPOS },
+  );
+  assertEquals(result, "PUBLIC", "Repo classification must override integration default");
+});
+
+Deno.test("run_command: gh api piped to jq with CONFIDENTIAL config + PUBLIC repo classifies as PUBLIC", () => {
+  const result = classifyRunCommand(
+    "gh api repos/greghavens/triggerfish/releases --paginate | jq '.[].assets'",
+    { integrationClassifications: GITHUB_CONFIDENTIAL, repoClassifications: KNOWN_REPOS },
+  );
+  assertEquals(result, "PUBLIC", "Repo classification must override integration default");
+});
+
+Deno.test("run_command: curl github.com archive URL with CONFIDENTIAL config + PUBLIC repo classifies as PUBLIC", () => {
+  const result = classifyRunCommand(
+    "curl -L https://github.com/greghavens/triggerfish/archive/refs/tags/v0.7.5.tar.gz",
+    { integrationClassifications: GITHUB_CONFIDENTIAL, repoClassifications: KNOWN_REPOS },
+  );
+  assertEquals(result, "PUBLIC", "Repo classification must override integration default");
+});
+
+Deno.test("run_command: curl raw.githubusercontent.com with CONFIDENTIAL config + PUBLIC repo classifies as PUBLIC", () => {
+  const result = classifyRunCommand(
+    "curl https://raw.githubusercontent.com/greghavens/triggerfish/main/README.md",
+    { integrationClassifications: GITHUB_CONFIDENTIAL, repoClassifications: KNOWN_REPOS },
+  );
+  assertEquals(result, "PUBLIC", "Repo classification must override integration default");
+});
+
+Deno.test("run_command: curl with -H auth header to api.github.com with CONFIDENTIAL config + PUBLIC repo classifies as PUBLIC", () => {
+  const result = classifyRunCommand(
+    'curl -s -H "Authorization: token ghp_xxxx" "https://api.github.com/repos/owner/name/releases"',
+    { integrationClassifications: GITHUB_CONFIDENTIAL, repoClassifications: KNOWN_REPOS },
+  );
+  assertEquals(result, "PUBLIC", "Repo classification must override integration default");
+});
+
+Deno.test("run_command: GITHUB_TOKEN=xxx curl api.github.com with CONFIDENTIAL config + PUBLIC repo classifies as PUBLIC", () => {
+  const result = classifyRunCommand(
+    'GITHUB_TOKEN=abc123 curl -s "https://api.github.com/repos/owner/name/releases"',
+    { integrationClassifications: GITHUB_CONFIDENTIAL, repoClassifications: KNOWN_REPOS },
+  );
+  assertEquals(result, "PUBLIC", "Repo classification must override integration default");
+});
+
+// Compound commands with CONFIDENTIAL config + dangerous paths must STILL escalate
+Deno.test("run_command: gh api + cat /etc/passwd with CONFIDENTIAL config escalates to CONFIDENTIAL", () => {
+  const result = classifyRunCommand(
+    "gh api repos/owner/name && cat /etc/passwd",
+    { integrationClassifications: GITHUB_CONFIDENTIAL },
+  );
+  assertEquals(
+    result,
+    "CONFIDENTIAL",
+    "Dangerous paths must still escalate even with CONFIDENTIAL integration config",
+  );
+});
+
+Deno.test("run_command: curl api.github.com | tee /etc/shadow with CONFIDENTIAL config escalates", () => {
+  const result = classifyRunCommand(
+    "curl https://api.github.com/repos/owner/name | tee /etc/shadow",
+    { integrationClassifications: GITHUB_CONFIDENTIAL, repoClassifications: KNOWN_REPOS },
+  );
+  assertEquals(result, "CONFIDENTIAL");
+});
+
+// ─── Private repo classification ─────────────────────────────────────────────
+// When a PRIVATE repo is in the cache, its CONFIDENTIAL classification must be used.
+
+Deno.test("run_command: gh api with private repo in cache classifies as CONFIDENTIAL", () => {
+  const result = classifyRunCommand("gh api repos/acme/secret/releases", {
+    integrationClassifications: GITHUB_PUBLIC,
+    repoClassifications: KNOWN_REPOS_WITH_PRIVATE,
+  });
+  assertEquals(
+    result,
+    "CONFIDENTIAL",
+    "Private repo classification must be CONFIDENTIAL regardless of integration default",
+  );
+});
+
+Deno.test("run_command: curl api.github.com with private repo in cache classifies as CONFIDENTIAL", () => {
+  const result = classifyRunCommand(
+    'curl -s "https://api.github.com/repos/acme/secret/releases"',
+    { integrationClassifications: GITHUB_PUBLIC, repoClassifications: KNOWN_REPOS_WITH_PRIVATE },
+  );
+  assertEquals(
+    result,
+    "CONFIDENTIAL",
+    "Private repo classification must be CONFIDENTIAL regardless of integration default",
+  );
+});
+
+Deno.test("run_command: gh api with public repo in mixed cache classifies as PUBLIC", () => {
+  const result = classifyRunCommand("gh api repos/owner/name/releases", {
+    integrationClassifications: GITHUB_CONFIDENTIAL,
+    repoClassifications: KNOWN_REPOS_WITH_PRIVATE,
+  });
+  assertEquals(
+    result,
+    "PUBLIC",
+    "Public repo in cache must be PUBLIC even with CONFIDENTIAL integration default",
+  );
+});
+
+// ─── Unknown repo (not in cache) falls back to integration default ───────────
+
+Deno.test("run_command: gh api with unknown repo falls back to integration default", () => {
+  const result = classifyRunCommand("gh api repos/unknown/repo/releases", {
+    integrationClassifications: GITHUB_CONFIDENTIAL,
+    repoClassifications: KNOWN_REPOS,
+  });
+  assertEquals(
+    result,
+    "CONFIDENTIAL",
+    "Unknown repo must fall back to integration default classification",
+  );
+});
+
+Deno.test("run_command: curl api.github.com with unknown repo classifies via domain classifier", () => {
+  const result = classifyRunCommand(
+    'curl -s "https://api.github.com/repos/unknown/repo/releases"',
+    {
+      integrationClassifications: GITHUB_CONFIDENTIAL,
+      repoClassifications: KNOWN_REPOS,
+      domainClassifier: makeGitHubDomainClassifier("CONFIDENTIAL"),
+    },
+  );
+  assertEquals(
+    result,
+    "CONFIDENTIAL",
+    "Unknown repo URL must be classified by domain classifier",
+  );
+});
+
+Deno.test("run_command: gh api with unknown repo + PUBLIC integration defaults to PUBLIC", () => {
+  const result = classifyRunCommand("gh api repos/unknown/repo/releases", {
+    integrationClassifications: GITHUB_PUBLIC,
+    repoClassifications: KNOWN_REPOS,
+  });
+  assertEquals(
+    result,
+    "PUBLIC",
+    "Unknown repo with PUBLIC integration default should be PUBLIC",
+  );
 });

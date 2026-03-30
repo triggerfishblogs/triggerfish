@@ -86,26 +86,11 @@
           finishTool(evt.name, evt.result);
           break;
         case "response":
-          if (currentAssistantEl) {
-            currentAssistantEl.classList.remove("thinking");
-            currentAssistantEl.className = currentAssistantEl.className
-              .replace(/\btaint-\w+/g, "");
-            currentAssistantEl.classList.add(
-              "taint-" + currentTaint.toLowerCase(),
-            );
-            currentAssistantText = evt.text;
-            currentAssistantEl.innerHTML = renderMarkdown(evt.text);
-          } else {
-            var fallbackEl = addMessage("assistant", evt.text);
-            fallbackEl.classList.add("taint-" + currentTaint.toLowerCase());
-          }
+          var responseEl = addMessage("assistant", evt.text);
+          responseEl.classList.add("taint-" + currentTaint.toLowerCase());
           currentAssistantEl = null;
           currentAssistantText = "";
           todoListEl = null;
-          processing = false;
-          sendBtn.textContent = "Send";
-          sendBtn.disabled = false;
-          input.focus();
           break;
         case "vision_start":
           if (!currentAssistantEl) {
@@ -121,9 +106,6 @@
         case "vision_complete":
           break;
         case "cancelled":
-          if (currentAssistantEl) {
-            currentAssistantEl.classList.remove("thinking");
-          }
           currentAssistantEl = null;
           currentAssistantText = "";
           todoListEl = null;
@@ -133,10 +115,16 @@
           input.focus();
           break;
         case "error":
-          if (currentAssistantEl) {
-            currentAssistantEl.classList.remove("thinking");
-          }
           addMessage("error", evt.message);
+          currentAssistantEl = null;
+          currentAssistantText = "";
+          todoListEl = null;
+          processing = false;
+          sendBtn.textContent = "Send";
+          sendBtn.disabled = false;
+          input.focus();
+          break;
+        case "turn_end":
           currentAssistantEl = null;
           currentAssistantText = "";
           todoListEl = null;

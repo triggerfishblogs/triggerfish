@@ -65,61 +65,118 @@ function extractSegmentExecutable(segment: string): string | null {
   return null;
 }
 
-/**
- * GitHub domain patterns recognized in command segments.
- *
- * Any command referencing these domains is classified as a GitHub operation,
- * regardless of which executable invoked it (gh, curl, wget, etc.).
- * Works with or without a configured GitHub integration — defaults to PUBLIC
- * since public GitHub API access is public by nature.
- */
-const GITHUB_DOMAIN_PATTERNS = [
-  "api.github.com",
-  "github.com",
-  "raw.githubusercontent.com",
-] as const;
+/** URL pattern to extract URLs from command segments. */
+const URL_PATTERN = /https?:\/\/[^\s"']+/g;
 
 /**
- * Detect a GitHub reference in a command segment and return its classification.
+ * Extract owner/repo from a command segment referencing a GitHub resource.
  *
- * Checks for GitHub domain patterns (api.github.com, github.com, etc.).
- * Uses the configured `github_` integration classification if available,
- * otherwise defaults to PUBLIC.
+ * Recognizes patterns:
+ * - `/repos/owner/repo/...` (API paths)
+ * - `repos/owner/repo/...` (bare API paths in gh CLI)
+ * - `--repo owner/repo` (gh CLI flag)
+ * - `github.com/owner/repo` (URLs)
+ * - `raw.githubusercontent.com/owner/repo` (raw URLs)
  */
-function detectGitHubClassification(
+const REPO_PATTERNS: readonly RegExp[] = [
+  /\/repos\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)/,
+  /\brepos\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)/,
+  /--repo\s+([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)/,
+  /github\.com\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)/,
+  /raw\.githubusercontent\.com\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)/,
+];
+
+/** Extract the repo full name (owner/repo) from a command segment. */
+function extractRepoFromSegment(segment: string): string | null {
+  for (const pattern of REPO_PATTERNS) {
+    const match = segment.match(pattern);
+    if (match) return `${match[1]}/${match[2]}`;
+  }
+  return null;
+}
+
+/**
+ * Resolve repo-level classification for a GitHub resource in a command.
+ *
+ * Extracts owner/repo from the segment and looks it up in the
+ * repo classification cache (populated by prior github_* tool calls).
+ * Returns null if no repo is found or the repo isn't cached.
+ */
+function resolveRepoClassification(
   segment: string,
   config: SecurityContextConfig,
 ): ClassificationLevel | null {
-  const hasGitHubDomain = GITHUB_DOMAIN_PATTERNS.some(
-    (domain) => segment.includes(domain),
-  );
-  if (!hasGitHubDomain) return null;
-  return config.integrationClassifications?.get("github_") ?? "PUBLIC";
+  const repoFullName = extractRepoFromSegment(segment);
+  if (!repoFullName || !config.classifyGitHubRepo) return null;
+  const repoLevel = config.classifyGitHubRepo(repoFullName);
+  if (repoLevel !== null) {
+    log.debug("resolveRepoClassification resolved repo resource", {
+      operation: "resolveRepoClassification",
+      repo: repoFullName,
+      classification: repoLevel,
+    });
+  }
+  return repoLevel;
 }
 
 /**
- * Resolve the integration classification for a CLI executable.
+ * Classify URLs in a command segment via the domain classifier.
  *
- * Returns the configured integration level, or defaults to PUBLIC for
- * known integration CLIs (gh) even without explicit configuration.
+ * Extracts all URLs from the segment and classifies each through the
+ * domain classifier — the same classifier used by web_fetch and browser
+ * tools. Returns the highest classification across all URLs, or null
+ * if no URLs are found or no domain classifier is configured.
  */
-function resolveExecutableIntegrationLevel(
-  executable: string | null,
+function classifySegmentUrls(
+  segment: string,
   config: SecurityContextConfig,
 ): ClassificationLevel | null {
-  if (!executable) return null;
-  const prefix = CLI_TO_INTEGRATION_PREFIX.get(executable);
-  if (!prefix) return null;
-  return config.integrationClassifications?.get(prefix) ?? "PUBLIC";
+  if (!config.domainClassifier) return null;
+  const urls = segment.match(URL_PATTERN);
+  if (!urls || urls.length === 0) return null;
+
+  let highest: ClassificationLevel | null = null;
+  for (const url of urls) {
+    const result = config.domainClassifier.classify(url);
+    log.debug("classifySegmentUrls classified URL resource", {
+      operation: "classifySegmentUrls",
+      url: url.slice(0, 120),
+      classification: result.classification,
+      source: result.source,
+    });
+    if (highest === null) {
+      highest = result.classification;
+    } else {
+      highest = maxClassification(highest, result.classification);
+    }
+  }
+  return highest;
 }
 
 /**
- * Classify a single command segment using integration or filesystem rules.
+ * Recognize a CLI executable as belonging to a known integration.
  *
- * Classification priority:
- * 1. CLI executable maps to a configured integration (gh → github_)
- * 2. Segment contains a GitHub domain (api.github.com, github.com, etc.)
- * 3. Fall through to filesystem path extraction and classification
+ * When the executable is a known integration CLI (e.g. `gh` → GitHub),
+ * returns the integration prefix. The caller uses this to look up the
+ * integration's classification as a fallback after resource-level checks.
+ */
+function resolveExecutableIntegrationPrefix(
+  executable: string | null,
+): string | null {
+  if (!executable) return null;
+  return CLI_TO_INTEGRATION_PREFIX.get(executable) ?? null;
+}
+
+/**
+ * Classify a single command segment by identifying its target resource.
+ *
+ * Every command targets a resource. The resource's classification gates
+ * execution. Classification priority (resource-first):
+ *
+ * 1. **Resource-level**: repo classification from cache (most specific)
+ * 2. **Domain-level**: URLs classified via domain classifier (same as web_fetch)
+ * 3. **Integration fallback**: CLI executable maps to integration prefix
+ * 4. **Filesystem**: extract paths and classify against path classifier
  */
 function classifyCommandSegment(
   segment: string,
@@ -127,31 +184,45 @@ function classifyCommandSegment(
   workspacePath: string,
 ): ClassificationLevel {
   const executable = extractSegmentExecutable(segment);
+  const integrationPrefix = resolveExecutableIntegrationPrefix(executable);
 
-  // 1. Check CLI executable → integration prefix mapping.
-  const execLevel = resolveExecutableIntegrationLevel(executable, config);
-  if (execLevel !== null) {
-    log.debug("classifyCommandSegment matched executable integration", {
+  // 1. Resource-level: repo classification from cache (most specific).
+  const repoLevel = resolveRepoClassification(segment, config);
+  if (repoLevel !== null) {
+    log.debug("classifyCommandSegment resolved resource via repo cache", {
+      operation: "classifyCommandSegment",
+      segment: segment.slice(0, 120),
+      classification: repoLevel,
+    });
+    return repoLevel;
+  }
+
+  // 2. Domain-level: classify URLs via domain classifier.
+  const domainLevel = classifySegmentUrls(segment, config);
+  if (domainLevel !== null) {
+    log.debug("classifyCommandSegment resolved resource via domain classifier", {
+      operation: "classifyCommandSegment",
+      segment: segment.slice(0, 120),
+      classification: domainLevel,
+    });
+    return domainLevel;
+  }
+
+  // 3. Integration fallback: known CLI executable with no URL/repo to classify.
+  if (integrationPrefix !== null) {
+    const level = config.integrationClassifications?.get(integrationPrefix) ??
+      "PUBLIC";
+    log.debug("classifyCommandSegment resolved via integration prefix fallback", {
       operation: "classifyCommandSegment",
       segment: segment.slice(0, 120),
       executable,
-      classification: execLevel,
+      prefix: integrationPrefix,
+      classification: level,
     });
-    return execLevel;
+    return level;
   }
 
-  // 2. Check for GitHub domain patterns in the segment.
-  const githubLevel = detectGitHubClassification(segment, config);
-  if (githubLevel !== null) {
-    log.debug("classifyCommandSegment matched GitHub domain pattern", {
-      operation: "classifyCommandSegment",
-      segment: segment.slice(0, 120),
-      classification: githubLevel,
-    });
-    return githubLevel;
-  }
-
-  // 3. Not an integration CLI — classify extracted paths against filesystem.
+  // 4. Filesystem: extract paths and classify against path classifier.
   const paths = extractCommandPaths(segment);
   if (paths.length === 0) return "PUBLIC";
   const result = classifyCommandPaths({
@@ -159,7 +230,7 @@ function classifyCommandSegment(
     classifier: config.pathClassifier!,
     workspaceCwd: workspacePath,
   });
-  log.debug("classifyCommandSegment filesystem path classification", {
+  log.debug("classifyCommandSegment resolved resource via filesystem paths", {
     operation: "classifyCommandSegment",
     segment: segment.slice(0, 120),
     pathCount: paths.length,

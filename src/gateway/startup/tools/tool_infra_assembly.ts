@@ -196,6 +196,7 @@ export function assembleToolInfraResult(
     channelAdapters: sessionExecs.channelAdapters,
     toolClassifications: baseDeps.toolClassifications,
     integrationClassifications: baseDeps.integrationClassifications,
+    classifyGitHubRepo: baseDeps.classifyGitHubRepo,
     keychain: integrations.keychain,
     mcpBroadcastRefs: integrations.mcpBroadcastRefs,
     mcpWiring: integrations.mcpWiring,

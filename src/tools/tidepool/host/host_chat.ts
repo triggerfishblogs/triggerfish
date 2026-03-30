@@ -144,5 +144,6 @@ function executeAgentTurnFromSocket(
 
   ctx.chatSession.executeAgentTurn(content, send, signal).finally(() => {
     ctx.ref.current = null;
+    send({ type: "turn_end" });
   });
 }

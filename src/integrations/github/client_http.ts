@@ -56,6 +56,22 @@ export function extractRepoVisibility(raw: RawRepo): string {
   return raw.visibility ?? (raw.private ? "private" : "public");
 }
 
+/**
+ * Module-level cache of repo full-name → classification.
+ *
+ * Populated by fetchRepoClassification on every github_* tool call.
+ * Read synchronously by the command classifier to determine the
+ * classification of repos referenced in run_command shell commands.
+ */
+const repoClassificationCache = new Map<string, ClassificationLevel>();
+
+/** Look up a cached repo classification. Returns null if not yet seen. */
+export function getCachedRepoClassification(
+  repoFullName: string,
+): ClassificationLevel | null {
+  return repoClassificationCache.get(repoFullName) ?? null;
+}
+
 /** Fetch classification for a repo by querying its metadata. */
 export async function fetchRepoClassification(
   apiRequest: ApiRequestFn,
@@ -66,10 +82,12 @@ export async function fetchRepoClassification(
   const repoResult = await apiRequest<RawRepo>(buildRepoPath(owner, repo));
   if (!repoResult.ok) return "CONFIDENTIAL" as ClassificationLevel;
   const raw = repoResult.value.data;
-  return classifyRepo(
+  const classification = classifyRepo(
     raw.visibility ?? (raw.private ? "private" : "public"),
     raw.full_name,
   );
+  repoClassificationCache.set(raw.full_name, classification);
+  return classification;
 }
 
 // ─── API request infrastructure ──────────────────────────────────────────────

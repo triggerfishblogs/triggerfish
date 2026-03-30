@@ -122,3 +122,37 @@ Deno.test("recordToolCallsAndDetectLoop: mixed unique and repeated calls", () =>
 Deno.test("TOOL_LOOP_THRESHOLD: is 3", () => {
   assertEquals(TOOL_LOOP_THRESHOLD, 3);
 });
+
+// ─── Pagination tool exemption ──────────────────────────────────────────────
+
+Deno.test("recordToolCallsAndDetectLoop: read_more is exempt from loop detection", () => {
+  const history = makeHistory();
+  let detected = false;
+  // Call read_more 10 times with the same cache_id — must never trigger
+  for (let i = 0; i < 10; i++) {
+    detected = recordToolCallsAndDetectLoop(history, [
+      { name: "read_more", args: { cache_id: "abc123" } },
+    ]);
+  }
+  assertEquals(
+    detected,
+    false,
+    "read_more is a pagination tool — repetition detection must not fire on it",
+  );
+});
+
+Deno.test("recordToolCallsAndDetectLoop: read_more exempt but other tools still detected", () => {
+  const history = makeHistory();
+  // Mix read_more with a regular tool
+  for (let i = 0; i < TOOL_LOOP_THRESHOLD; i++) {
+    recordToolCallsAndDetectLoop(history, [
+      { name: "read_more", args: { cache_id: "abc123" } },
+      { name: "web_search", args: { query: "same" } },
+    ]);
+  }
+  // web_search should still be tracked and trigger at threshold
+  const detected = recordToolCallsAndDetectLoop(history, [
+    { name: "web_search", args: { query: "same" } },
+  ]);
+  assertEquals(detected, true);
+});

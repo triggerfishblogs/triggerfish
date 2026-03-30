@@ -115,6 +115,18 @@ export interface ToolCallHistory {
 export const TOOL_LOOP_THRESHOLD = 3;
 
 /**
+ * Tools excluded from repetition detection.
+ *
+ * `read_more` is a pagination tool designed to be called repeatedly with
+ * the same cache_id to page through truncated responses. Firing the
+ * repetition nudge on it causes the LLM to abandon the efficient
+ * github_repos + read_more path and fall back to CLI commands.
+ */
+const LOOP_DETECTION_EXEMPT: ReadonlySet<string> = new Set([
+  "read_more",
+]);
+
+/**
  * Serialize a tool call's name and arguments into a deterministic string key.
  *
  * Arguments are sorted by key name to ensure identical payloads with different
@@ -131,6 +143,8 @@ export function serializeToolCallKey(
  * Record tool calls and detect if any call has been repeated at or above the threshold.
  *
  * Mutates the history's call map. Returns true if a loop was detected.
+ * Pagination tools (read_more) are exempt — they are designed to be
+ * called repeatedly with the same arguments.
  */
 export function recordToolCallsAndDetectLoop(
   history: ToolCallHistory,
@@ -141,6 +155,7 @@ export function recordToolCallsAndDetectLoop(
 ): boolean {
   let detected = false;
   for (const call of calls) {
+    if (LOOP_DETECTION_EXEMPT.has(call.name)) continue;
     const key = serializeToolCallKey(call.name, call.args);
     const count = (history.calls.get(key) ?? 0) + 1;
     history.calls.set(key, count);

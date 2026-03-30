@@ -40,6 +40,8 @@ export interface SecurityContextConfig {
   readonly getWorkspacePath?: () => string | null;
   /** Integration prefix → classification map for CLI tool recognition. */
   readonly integrationClassifications?: ReadonlyMap<string, ClassificationLevel>;
+  /** Synchronous repo classification lookup (cache populated by github_* tools). */
+  readonly classifyGitHubRepo?: (repoFullName: string) => ClassificationLevel | null;
 }
 
 /** Computed security context returned alongside the hook input. */

@@ -70,6 +70,7 @@ export interface FactoryInfra {
   readonly keychain: ReturnType<typeof createKeychain>;
   readonly toolClassifications: ReadonlyMap<string, ClassificationLevel>;
   readonly integrationClassifications: ReadonlyMap<string, ClassificationLevel>;
+  readonly classifyGitHubRepo: (repoFullName: string) => ClassificationLevel | null;
   readonly visionProvider: ReturnType<typeof resolveVisionProvider>;
   readonly skillLoader: ReturnType<typeof createSkillLoader>;
 }

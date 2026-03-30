@@ -63,6 +63,7 @@ export interface ToolInfraResult {
   readonly channelAdapters: Map<string, RegisteredChannel>;
   readonly toolClassifications: Map<string, ClassificationLevel>;
   readonly integrationClassifications: Map<string, ClassificationLevel>;
+  readonly classifyGitHubRepo: (repoFullName: string) => ClassificationLevel | null;
   readonly keychain: ReturnType<
     typeof import("../../../core/secrets/keychain/keychain.ts").createKeychain
   >;

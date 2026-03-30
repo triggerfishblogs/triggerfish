@@ -117,6 +117,7 @@ export function assembleOrchestratorConfig(
     visionProvider: config.visionProvider,
     toolClassifications: config.toolClassifications,
     integrationClassifications: config.integrationClassifications,
+    classifyGitHubRepo: config.classifyGitHubRepo,
     getSessionTaint,
     escalateTaint,
     isOwnerSession: () => state.activeSessionId === state.ownerSessionId,

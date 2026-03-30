@@ -13,7 +13,7 @@ function buildSubagentDef(): ToolDefinition {
   return {
     name: "subagent",
     description:
-      "Spawn a sub-agent for an autonomous multi-step task. Returns the result when complete.",
+      "Spawn a sub-agent ONLY for tasks requiring independent tool access (file operations, API calls, web searches). NEVER use for calculations, summarization, formatting, or any task you can do with the data you already have. If you have the data, process it yourself.",
     parameters: {
       task: {
         type: "string",

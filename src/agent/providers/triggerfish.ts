@@ -21,6 +21,37 @@ import {
 
 const log = createLogger("triggerfish-cloud");
 
+/**
+ * Parse a response body that may be JSON or SSE-formatted.
+ *
+ * The Triggerfish Gateway occasionally returns SSE `data:` lines even
+ * when `stream:false` was requested. When the body isn't valid JSON,
+ * extract the last non-[DONE] SSE data line and parse that instead.
+ */
+// deno-lint-ignore no-explicit-any
+function parsePossibleSseResponse(rawText: string): any {
+  const trimmed = rawText.trimStart();
+  if (!trimmed.startsWith("data:")) {
+    return JSON.parse(rawText);
+  }
+  log.warn("Gateway returned SSE for non-streaming request — extracting last event", {
+    operation: "parsePossibleSseResponse",
+    rawLen: rawText.length,
+  });
+  const lines = rawText.split("\n");
+  let lastData: string | null = null;
+  for (const line of lines) {
+    const t = line.trim();
+    if (t.startsWith("data: ") && t !== "data: [DONE]") {
+      lastData = t.slice(6);
+    }
+  }
+  if (!lastData) {
+    throw new Error("Gateway returned SSE with no parseable data events");
+  }
+  return JSON.parse(lastData);
+}
+
 /** Configuration for the Triggerfish Gateway provider. */
 export interface TriggerfishConfig {
   /** Gateway base URL. Defaults to production. */
@@ -117,7 +148,7 @@ export function createTriggerfishProvider(
         const rawText = await response.text();
         log.trace(`status=${response.status} rawLen=${rawText.length}`);
 
-        const data = JSON.parse(rawText);
+        const data = parsePossibleSseResponse(rawText);
 
         if (data.error) {
           const code = data.error.code;
