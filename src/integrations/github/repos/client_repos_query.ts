@@ -11,6 +11,7 @@ import type {
   GitHubBranch,
   GitHubCommit,
   GitHubFileContent,
+  GitHubRelease,
   GitHubRepo,
   GitHubRepoDetail,
   RepoVisibility,
@@ -22,6 +23,7 @@ import type {
   RawBranch,
   RawCommit,
   RawContent,
+  RawRelease,
   RawRepo,
 } from "../client_http.ts";
 import {
@@ -323,4 +325,48 @@ export async function fetchRepoCommits(
     mapRawCommitToGitHubCommit(c, classification)
   );
   return { ok: true, value: commits };
+}
+
+/** Fetch releases from a GitHub repo. */
+export async function fetchRepoReleases(
+  apiRequest: ApiRequestFn,
+  classifyRepo: ClassifyRepoFn,
+  owner: string,
+  repo: string,
+  opts?: { readonly perPage?: number },
+): Promise<Result<readonly GitHubRelease[], GitHubError>> {
+  const params = new URLSearchParams();
+  params.set("per_page", String(opts?.perPage ?? 10));
+
+  const result = await apiRequest<readonly RawRelease[]>(
+    `${buildRepoPath(owner, repo)}/releases?${params.toString()}`,
+  );
+  if (!result.ok) return result;
+
+  const classification = await fetchRepoClassification(
+    apiRequest,
+    classifyRepo,
+    owner,
+    repo,
+  );
+  const releases: readonly GitHubRelease[] = result.value.data.map((r) => ({
+    id: r.id,
+    tagName: r.tag_name,
+    name: r.name ?? null,
+    draft: r.draft,
+    prerelease: r.prerelease,
+    createdAt: r.created_at,
+    publishedAt: r.published_at ?? null,
+    htmlUrl: r.html_url,
+    assets: r.assets.map((a) => ({
+      name: a.name,
+      contentType: a.content_type,
+      size: a.size,
+      downloadCount: a.download_count,
+      downloadUrl: a.browser_download_url,
+      classification,
+    })),
+    classification,
+  }));
+  return { ok: true, value: releases };
 }

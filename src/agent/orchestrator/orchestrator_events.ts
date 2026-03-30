@@ -16,7 +16,7 @@ import type { ClassificationLevel } from "../../core/types/classification.ts";
  * Used as a defense-in-depth guard — the primary fix is prompt hardening.
  */
 export const LEAKED_INTENT_PATTERN =
-  /\b(?:(?:I(?:'ll| will| need to| should| can| am going to)\s+(?:search|fetch|look up|find|check|browse|retrieve|use web_))|(?:(?:Let|let) me (?:search|fetch|look|find|check|browse|retrieve|use))|(?:(?:We|I) need to (?:fetch|search|look up|find|check|browse|retrieve)))/i;
+  /\b(?:(?:I(?:'ll| will| need to| should| can| am going to)\s+(?:search|fetch|look up|find|check|browse|retrieve|read|continue|keep|use web_))|(?:(?:Let|let) me (?:search|fetch|look|find|check|browse|retrieve|read|continue|keep|use))|(?:(?:We|I) need to (?:fetch|search|look up|find|check|browse|retrieve|read|continue|keep)))/i;
 
 /**
  * Pattern detecting trailing continuation intent at the end of a long response.
@@ -27,7 +27,7 @@ export const LEAKED_INTENT_PATTERN =
  * writes a long valid response but then trails off with unfulfilled intent.
  */
 export const TRAILING_CONTINUATION_PATTERN =
-  /(?:Let me (?:now |also |next )?(?:create|search|fetch|look|find|check|browse|retrieve|proceed|do|make|add|set up|handle|update|generate|build|write|run|open|close|delete|send|post|submit|call))|(?:I(?:'ll| will| am going to) (?:now |also |next )?(?:create|search|fetch|look|find|check|browse|retrieve|proceed|do|make|add|set up|handle|update|generate|build|write|run|open|close|delete|send|post|submit|call))|(?:Next,? I(?:'ll| will))|(?:Now (?:let me|I'll|I will))/i;
+  /(?:Let me (?:now |also |next )?(?:create|search|fetch|look|find|check|browse|retrieve|read|continue|keep|proceed|do|make|add|set up|handle|update|generate|build|write|run|open|close|delete|send|post|submit|call))|(?:I(?:'ll| will| am going to) (?:now |also |next )?(?:create|search|fetch|look|find|check|browse|retrieve|read|continue|keep|proceed|do|make|add|set up|handle|update|generate|build|write|run|open|close|delete|send|post|submit|call))|(?:Next,? I(?:'ll| will))|(?:Now (?:let me|I'll|I will))/i;
 
 /**
  * Structural snapshot of an active skill's capability declarations.

@@ -458,3 +458,84 @@ Deno.test("GitHubClient: listWorkflowRuns parses runs", async () => {
     assertEquals(result.value[0].conclusion, "success");
   }
 });
+
+// ─── List Releases ──────────────────────────────────────────────────────────
+
+Deno.test("GitHubClient: listReleases returns mapped releases with assets", async () => {
+  const rawRelease = {
+    id: 1,
+    tag_name: "v1.0.0",
+    name: "Version 1.0",
+    draft: false,
+    prerelease: false,
+    created_at: "2026-01-01T00:00:00Z",
+    published_at: "2026-01-01T12:00:00Z",
+    html_url: "https://github.com/o/r/releases/tag/v1.0.0",
+    assets: [
+      {
+        id: 10,
+        name: "app-linux-x64.tar.gz",
+        content_type: "application/gzip",
+        size: 50_000_000,
+        download_count: 1234,
+        browser_download_url:
+          "https://github.com/o/r/releases/download/v1.0.0/app-linux-x64.tar.gz",
+      },
+      {
+        id: 11,
+        name: "app-darwin-arm64.tar.gz",
+        content_type: "application/gzip",
+        size: 48_000_000,
+        download_count: 567,
+        browser_download_url:
+          "https://github.com/o/r/releases/download/v1.0.0/app-darwin-arm64.tar.gz",
+      },
+    ],
+  };
+
+  // Mock fetch returns releases on first call, repo detail on second (for classification)
+  let callCount = 0;
+  const fetchFn = (
+    _url: string | URL | Request,
+    _init?: RequestInit,
+  ): Promise<Response> => {
+    callCount++;
+    const body = callCount === 1
+      ? [rawRelease]
+      : {
+        id: 1,
+        full_name: "o/r",
+        description: null,
+        visibility: "public",
+        private: false,
+        default_branch: "main",
+        html_url: "https://github.com/o/r",
+        clone_url: "https://github.com/o/r.git",
+        ssh_url: "git@github.com:o/r.git",
+        stargazers_count: 0,
+        forks_count: 0,
+      };
+    return Promise.resolve(
+      new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+  };
+
+  const client = createGitHubClient({ token: "ghp_test", fetchFn });
+  const result = await client.listReleases("o", "r");
+
+  assertEquals(result.ok, true);
+  if (result.ok) {
+    assertEquals(result.value.length, 1);
+    assertEquals(result.value[0].tagName, "v1.0.0");
+    assertEquals(result.value[0].name, "Version 1.0");
+    assertEquals(result.value[0].classification, "PUBLIC");
+    assertEquals(result.value[0].assets.length, 2);
+    assertEquals(result.value[0].assets[0].name, "app-linux-x64.tar.gz");
+    assertEquals(result.value[0].assets[0].downloadCount, 1234);
+    assertEquals(result.value[0].assets[1].name, "app-darwin-arm64.tar.gz");
+    assertEquals(result.value[0].assets[1].downloadCount, 567);
+  }
+});

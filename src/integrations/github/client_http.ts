@@ -32,6 +32,8 @@ export type {
   RawPull,
   RawPullDetail,
   RawPullFile,
+  RawRelease,
+  RawReleaseAsset,
   RawRepo,
   RawWorkflowRun,
 } from "./client_http_types.ts";

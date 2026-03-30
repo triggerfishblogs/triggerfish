@@ -286,7 +286,8 @@ export function assembleSchedulerToolExecutor(opts: {
       integrationClassifications: infra.integrationClassifications
         ? new Map(infra.integrationClassifications)
         : undefined,
-      getWorkspacePath: () => workspace.path,
+      getWorkspacePath: () =>
+        resolveWorkspacePathForTaint(getTaint(), workspacePaths),
     }),
     workflowExecutor,
   });

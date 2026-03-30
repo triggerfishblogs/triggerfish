@@ -199,5 +199,6 @@ export function buildSecurityConfigProxy(
     isTriggerSession: ctx.isTrigger,
     getNonOwnerCeiling: ctx.getNonOwnerCeiling,
     getWorkspacePath: ctx.getWorkspacePath,
+    integrationClassifications: ctx.integrationClassifications,
   };
 }

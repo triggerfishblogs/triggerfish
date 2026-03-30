@@ -77,17 +77,28 @@ function parseCompletionToolCalls(
 /** Regex to strip `<think>...</think>` tags the LLM emits as raw text. */
 const THINK_TAG_REGEX = /<think>[\s\S]*?<\/think>/g;
 
+/**
+ * Strip orphaned `</think>` tags that appear without a matching `<think>`.
+ *
+ * The SSE provider synthesizes `<think>`/`</think>` around reasoning_content
+ * chunks. When the model returns reasoning followed by content, the opening
+ * `<think>` may be consumed during streaming while the `</think>` leaks into
+ * the accumulated content string. The paired regex above misses these orphans.
+ */
+const ORPHAN_THINK_CLOSE_REGEX = /<\/think>/g;
+
 /** Attempt recovery nudge for empty/junk, leaked-intent, or trailing-intent responses. */
 function attemptRecoveryNudge(
   ctx: AgentLoopContext,
-  completion: { content: string },
+  _completion: { content: string },
   quality: ResponseQuality,
 ): IterationOutcome | null {
   if (ctx.nudge.count >= 2) return null;
   ctx.nudge.count++;
-  if (completion.content.trim().length > 0) {
-    ctx.history.push({ role: "assistant", content: completion.content });
-  }
+  // Do NOT push the failed completion content into history. When the model
+  // outputs mimicked placeholders or leaked-intent narration, injecting that
+  // text as an assistant message reinforces the pattern and contaminates
+  // subsequent turns.
   ctx.history.push({
     role: "user",
     content: buildRecoveryNudge(quality, ctx.nudge.count),
@@ -100,7 +111,10 @@ async function handleNoToolCallsIteration(
   ctx: AgentLoopContext,
   iter: IterationData & { hasTools: boolean },
 ): Promise<IterationOutcome> {
-  const finalText = iter.completion.content.replace(THINK_TAG_REGEX, "").trim();
+  const finalText = iter.completion.content
+    .replace(THINK_TAG_REGEX, "")
+    .replace(ORPHAN_THINK_CLOSE_REGEX, "")
+    .trim();
   traceLog(
     ctx.state,
     `iter${iter.iteration} finalText`,
@@ -174,11 +188,17 @@ async function handleToolCallsIteration(
   ctx: AgentLoopContext,
   iter: IterationData & { parsedCalls: readonly ParsedToolCall[] },
 ): Promise<Result<void, string>> {
-  const cleanedContent = iter.completion.content.replace(THINK_TAG_REGEX, "")
+  const cleanedContent = iter.completion.content
+    .replace(THINK_TAG_REGEX, "")
+    .replace(ORPHAN_THINK_CLOSE_REGEX, "")
     .trim();
+  // When the LLM emits tool calls with no text content, use a single space
+  // as the assistant message. Any readable placeholder text (even "[results]")
+  // gets mimicked by the LLM on subsequent turns, producing zero-tool-call
+  // iterations. A space is invisible and non-mimicable.
   const assistantContent = cleanedContent.length > 0
     ? cleanedContent
-    : `(${iter.parsedCalls.length} tool call(s) executed — see results below)`;
+    : " ";
   ctx.history.push({ role: "assistant", content: assistantContent });
   const maxIter = ctx.state.config.maxIterations ?? MAX_TOOL_ITERATIONS;
   injectSoftLimitWarning(ctx.history, iter.iteration, maxIter);

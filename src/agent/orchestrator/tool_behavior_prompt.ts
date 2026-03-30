@@ -52,4 +52,11 @@ Wrong: "I'll search for TODO comments across the codebase. Let me use the search
 User: "Create a hello world script"
 
 Correct: Call write_file with the script content
-Wrong: "Sure! I'll create a hello world script for you. Let me write a Python file that prints hello world. Here's my plan: 1. Create the file 2. Add the print statement..."`;
+Wrong: "Sure! I'll create a hello world script for you. Let me write a Python file that prints hello world. Here's my plan: 1. Create the file 2. Add the print statement..."
+
+### Example 4: GitHub operations
+User: "How many downloads does each release asset have?"
+
+Correct: Call github_repos with action "list_releases" — it returns download counts per asset
+If github_* tools don't cover it: Call run_command with "gh release list" or "gh api /repos/owner/name/releases"
+Wrong: Call web_fetch on github.com/owner/name/releases — GitHub HTML does not extract reliably. Always prefer github_* tools or the gh CLI.`;

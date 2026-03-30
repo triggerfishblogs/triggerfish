@@ -130,9 +130,11 @@ export function detectDenseNarration(
 /**
  * Pattern matching echoed tool-call placeholder text.
  * Some models parrot back the assistant history entry instead of continuing.
+ * No `^` anchor on the second alternative — the placeholder may be embedded
+ * after narration text (e.g. "Let me keep reading.(1 tool call(s) executed...)").
  */
 const ECHOED_TOOL_PLACEHOLDER =
-  /^\[Used tools:.*\]$|^\(\d+ tool call(?:\(s\))? (?:executed|pending|queued|in progress)/;
+  /^\[Used tools:.*\]$|\(\d+ tool call(?:\(s\))? (?:executed|pending|queued|in progress)|^\[results\]$/;
 
 /** Response quality classification result. */
 export interface ResponseQuality {
