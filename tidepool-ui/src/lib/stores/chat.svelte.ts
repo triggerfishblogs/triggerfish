@@ -309,10 +309,22 @@ function handleMessage(msg: Record<string, unknown>): void {
       _visionActive = false;
       break;
 
-    case "cancelled":
+    case "cancelled": {
       _thinking = false;
       _partialText = "";
+      // Fold pending tool calls into a status message so they don't linger
+      if (_toolCalls.length > 0) {
+        _messages.push({
+          id: genId(),
+          role: "assistant",
+          text: "Generation cancelled.",
+          timestamp: Date.now(),
+          toolCalls: [..._toolCalls],
+        });
+        _toolCalls = [];
+      }
       break;
+    }
 
     case "bumpers_status": {
       if (!_bumpersTogglePending) break;
@@ -329,15 +341,20 @@ function handleMessage(msg: Record<string, unknown>): void {
       break;
     }
 
-    case "error":
+    case "error": {
       _thinking = false;
+      _partialText = "";
+      const errorTools = _toolCalls.length > 0 ? [..._toolCalls] : undefined;
       _messages.push({
         id: genId(),
         role: "error",
         text: msg.message as string,
         timestamp: Date.now(),
+        toolCalls: errorTools,
       });
+      _toolCalls = [];
       break;
+    }
   }
 }
 

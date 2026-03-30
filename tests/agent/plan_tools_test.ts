@@ -96,7 +96,7 @@ Deno.test("plan_manage exit: creates plan and returns markdown", async () => {
     plan: VALID_PLAN,
   });
   assert(result !== null);
-  assertStringIncludes(result!, "plan_presented");
+  assertStringIncludes(result!, "awaiting approval");
   assertStringIncludes(result!, "Implementation Plan");
   assertStringIncludes(result!, "Add auth");
 });

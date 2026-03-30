@@ -46,13 +46,9 @@ async function executeActionExit(
   try {
     const result = await manager.exit(sessionId, validated);
     return (
-      JSON.stringify({
-        status: "plan_presented",
-        mode: "awaiting_approval",
-        plan_id: result.planId,
-        awaiting_approval: true,
-      }) +
-      "\n\n---\n\n" +
+      "Plan saved and awaiting approval (plan_id: " + result.planId + ").\n" +
+      "IMPORTANT: You MUST now present the full plan to the user in your response. " +
+      "Include all sections below in your message — the user cannot see tool results.\n\n" +
       result.markdown
     );
   } catch (err) {

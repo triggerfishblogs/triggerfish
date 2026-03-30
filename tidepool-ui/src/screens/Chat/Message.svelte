@@ -118,6 +118,27 @@
     padding-left: 20px;
   }
 
+  .message-content :global(table) {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8px 0;
+    font-size: 13px;
+  }
+
+  .message-content :global(th),
+  .message-content :global(td) {
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: left;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .message-content :global(th) {
+    background: rgba(255, 255, 255, 0.05);
+    font-weight: 600;
+  }
+
   .user-content {
     white-space: pre-wrap;
   }

@@ -541,6 +541,29 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
+    function renderMarkdownTable(lines) {
+      var headerCells = lines[0].split("|").filter(function (c) {
+        return c.trim() !== "";
+      });
+      var html = "<table><thead><tr>";
+      for (var i = 0; i < headerCells.length; i++) {
+        html += "<th>" + headerCells[i].trim() + "</th>";
+      }
+      html += "</tr></thead><tbody>";
+      for (var r = 2; r < lines.length; r++) {
+        var cells = lines[r].split("|").filter(function (c) {
+          return c.trim() !== "";
+        });
+        html += "<tr>";
+        for (var c = 0; c < cells.length; c++) {
+          html += "<td>" + cells[c].trim() + "</td>";
+        }
+        html += "</tr>";
+      }
+      html += "</tbody></table>";
+      return html;
+    }
+
     function renderMarkdown(text) {
       if (!text) return "";
       var cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
@@ -555,6 +578,15 @@
       );
       html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
       html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      // Render markdown tables before converting newlines
+      html = html.replace(
+        /((?:^|\n)\|.+\|[ ]*\n\|[-| :]+\|[ ]*\n(?:\|.+\|[ ]*\n?)+)/g,
+        function (match) {
+          var lines = match.trim().split("\n");
+          if (lines.length < 3) return match;
+          return renderMarkdownTable(lines);
+        },
+      );
       html = html.replace(/\n/g, "<br>");
       return html;
     }
