@@ -23,7 +23,8 @@ import {
   createSettingsTopicDispatcher,
   createWorkflowsTopicDispatcher,
 } from "../../../tools/tidepool/host/host_topic_dispatch.ts";
-import { createWorkflowStore } from "../../../workflow/mod.ts";
+import { createWorkflowStore, parseWorkflowYaml } from "../../../workflow/mod.ts";
+import type { SimplifiedTask } from "../../../tools/tidepool/host/host_workflows_types.ts";
 import type { BootstrapResult } from "../bootstrap.ts";
 import type { CoreInfraResult } from "../infra/core_infra.ts";
 import type { ToolInfraResult } from "../tools/tool_infra.ts";
@@ -135,6 +136,26 @@ function registerSettingsHandler(
   );
 }
 
+/** Convert parsed workflow tasks to the simplified shape the UI needs. */
+function buildSimplifiedTasks(yaml: string): SimplifiedTask[] {
+  const parsed = parseWorkflowYaml(yaml);
+  if (!parsed.ok) return [];
+  return parsed.value.do.map((entry) => ({
+    name: entry.name,
+    type: entry.task.type,
+    condition: entry.task.if,
+    callType: entry.task.type === "call"
+      ? (entry.task as { call: string }).call
+      : undefined,
+    flowDirective: typeof entry.task.then === "string"
+      ? entry.task.then
+      : undefined,
+    metadata: entry.task.metadata
+      ? { description: entry.task.metadata.description as string | undefined }
+      : undefined,
+  }));
+}
+
 /** Wire workflows topic with store, run registry, executor, and cron. */
 function registerWorkflowsHandler(
   tidepoolHost: Awaited<ReturnType<typeof startTidepoolHost>>,
@@ -148,6 +169,7 @@ function registerWorkflowsHandler(
     {
       workflowExecutor: toolInfra.toolExecutor,
       cronManager: coreInfra.cronManager,
+      parseWorkflow: buildSimplifiedTasks,
     },
   );
   tidepoolHost.registerTopicHandler(
