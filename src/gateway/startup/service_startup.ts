@@ -57,6 +57,7 @@ export function buildMainChatSession(
     visionProvider: toolInfra.visionProvider,
     toolClassifications: toolInfra.toolClassifications,
     integrationClassifications: toolInfra.integrationClassifications,
+    classifyGitHubRepo: toolInfra.classifyGitHubRepo,
     browserHandle: toolInfra.browserHandle,
     log: bootstrap.log,
     pairingService: coreInfra.pairingService,

@@ -421,3 +421,96 @@ Deno.test("classifyCommandPaths: '.' from public/ resolves to public/ → PUBLIC
     "'.' from public/ must resolve to public/ and classify as PUBLIC",
   );
 });
+
+// ─── BUMPERS FALSE POSITIVE: gh CLI args with '/' must not escalate ──────────
+//
+// `gh api repos/owner/name/releases` extracts `repos/owner/name/releases` as a
+// path-like token (contains '/'). When workspaceCwd is the taint-aware subdir
+// (e.g. <basePath>/public/), this resolves to <basePath>/public/repos/owner/name/releases
+// which is INSIDE publicPath → must classify as PUBLIC, not fall to CONFIDENTIAL default.
+
+Deno.test("classifyCommandPaths: gh api route resolves inside taint-aware CWD → PUBLIC", () => {
+  const workspace = "/tmp/test-workspace";
+  const workspacePaths = makeWorkspacePaths(workspace);
+  const classifier = createPathClassifier(makeConfig(), workspacePaths);
+
+  // Simulate: session taint is PUBLIC, CWD is public/ subdir
+  const result = classifyCommandPaths({
+    paths: ["repos/owner/name/releases"],
+    classifier,
+    workspaceCwd: join(workspace, "public"),
+  });
+  assertEquals(
+    result.classification,
+    "PUBLIC",
+    "gh API route 'repos/owner/name/releases' resolved relative to public/ CWD must classify as PUBLIC",
+  );
+});
+
+Deno.test("classifyCommandPaths: gh api route with base CWD falls to CONFIDENTIAL default", () => {
+  const workspace = "/tmp/test-workspace";
+  const workspacePaths = makeWorkspacePaths(workspace);
+  const classifier = createPathClassifier(makeConfig(), workspacePaths);
+
+  // If CWD is the base workspace (NOT taint-aware), the path resolves to
+  // <basePath>/repos/owner/name/releases — inside basePath but not in any
+  // classification subdir → falls to CONFIDENTIAL default. This is the bug
+  // when getWorkspacePath returns the base path instead of taint-aware path.
+  const result = classifyCommandPaths({
+    paths: ["repos/owner/name/releases"],
+    classifier,
+    workspaceCwd: workspace,
+  });
+  assertEquals(
+    result.classification,
+    "CONFIDENTIAL",
+    "gh API route resolved against base workspace (not taint-aware) must hit CONFIDENTIAL default — this is the bug scenario",
+  );
+});
+
+Deno.test("extractCommandPaths: full gh api command extracts route as path", () => {
+  const paths = extractCommandPaths("gh api repos/owner/name/releases");
+  // "gh" and "api" have no slashes, but "repos/owner/name/releases" does
+  assertEquals(paths, ["repos/owner/name/releases"]);
+});
+
+Deno.test("classifyCommandPaths: full gh api command with taint-aware CWD → PUBLIC", () => {
+  const workspace = "/tmp/test-workspace";
+  const workspacePaths = makeWorkspacePaths(workspace);
+  const classifier = createPathClassifier(
+    makeConfig(),
+    workspacePaths,
+    { resolveCwd: () => join(workspace, "public") },
+  );
+
+  // End-to-end: extract paths from gh command, classify with taint-aware CWD
+  const extracted = extractCommandPaths("gh api repos/owner/name/releases");
+  const result = classifyCommandPaths({
+    paths: extracted,
+    classifier,
+    workspaceCwd: join(workspace, "public"),
+  });
+  assertEquals(
+    result.classification,
+    "PUBLIC",
+    "Full gh api command with taint-aware public/ CWD must classify as PUBLIC",
+  );
+});
+
+Deno.test("classifyCommandPaths: dangerous compound command still escalates", () => {
+  const workspace = "/tmp/test-workspace";
+  const workspacePaths = makeWorkspacePaths(workspace);
+  const classifier = createPathClassifier(makeConfig(), workspacePaths);
+
+  // Even with taint-aware CWD, absolute paths dominate via maxClassification
+  const result = classifyCommandPaths({
+    paths: ["repos/owner/name", "/etc/passwd"],
+    classifier,
+    workspaceCwd: join(workspace, "public"),
+  });
+  assertEquals(
+    result.classification,
+    "CONFIDENTIAL",
+    "Compound command with /etc/passwd must escalate to CONFIDENTIAL regardless of workspace-relative paths",
+  );
+});

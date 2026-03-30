@@ -107,6 +107,7 @@ async function forceTextOnlyResponse(
     responseLength: response.length,
   });
   if (response.length > 0) {
+    ctx.state.emit({ type: "response", text: response });
     return {
       ok: true,
       value: {

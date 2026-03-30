@@ -81,7 +81,8 @@ You have access to the internet via web_search and web_fetch tools.
 - web_fetch extracts article text by default. If extraction returns very little, retry with mode "raw".
 - If a fetch fails or returns an error, try a different URL from the search results rather than giving up.
 - When answering with web information, cite the source URLs inline so they are visible in all channels (e.g. Telegram, Slack).
-- Never narrate your intent to search or fetch — just use the tools directly.`;
+- Never narrate your intent to search or fetch — just use the tools directly.
+- **Do NOT use web_fetch on github.com or api.github.com URLs.** Use the github_* tools or \`run_command\` with the \`gh\` CLI instead. GitHub pages use complex dynamic HTML that does not extract reliably.`;
 
 // ─── Executor Helpers ───────────────────────────────────────────────────────
 

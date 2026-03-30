@@ -181,6 +181,7 @@ export function createOrchestratorFactory(
         visionProvider: infra.visionProvider,
         toolClassifications: infra.toolClassifications,
         integrationClassifications: infra.integrationClassifications,
+        classifyGitHubRepo: infra.classifyGitHubRepo,
         getSessionTaint: () => session.taint,
         escalateTaint: (level: ClassificationLevel, reason: string) => {
           session = updateTaint(session, level, reason);

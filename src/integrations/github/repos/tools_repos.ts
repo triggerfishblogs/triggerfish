@@ -172,6 +172,42 @@ export async function listGitHubBranches(
 /** @deprecated Use listGitHubBranches instead */
 export const executeListBranches = listGitHubBranches;
 
+// ─── List Releases ─────────────────────────────────────────────────────────
+
+/** Handle the github_list_releases tool invocation. */
+export async function listGitHubReleases(
+  client: GitHubClient,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const repoResult = assertValidRepoInput(input, "github_list_releases");
+  if (typeof repoResult === "string") return repoResult;
+
+  const perPage = typeof input.per_page === "number"
+    ? input.per_page
+    : undefined;
+  const result = await client.listReleases(repoResult.owner, repoResult.name, {
+    perPage,
+  });
+  if (!result.ok) return formatGitHubError(result.error);
+  return JSON.stringify({
+    releases: result.value.map((r) => ({
+      tag: r.tagName,
+      name: r.name,
+      draft: r.draft,
+      prerelease: r.prerelease,
+      published_at: r.publishedAt,
+      url: r.htmlUrl,
+      assets: r.assets.map((a) => ({
+        name: a.name,
+        size: a.size,
+        download_count: a.downloadCount,
+        download_url: a.downloadUrl,
+      })),
+      _classification: r.classification,
+    })),
+  });
+}
+
 // ─── Create Branch ──────────────────────────────────────────────────────────
 
 /** Handle the github_create_branch tool invocation. */

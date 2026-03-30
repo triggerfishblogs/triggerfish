@@ -10,6 +10,9 @@
 
 import type { ToolDefinition } from "../core/types/tool.ts";
 import type { LlmProviderRegistry } from "../core/types/llm.ts";
+import { createLogger } from "../core/logger/mod.ts";
+
+const log = createLogger("llm-task");
 
 /** Input shape for the llm_task tool. */
 interface LlmTaskInput {
@@ -18,17 +21,31 @@ interface LlmTaskInput {
   readonly model?: string;
 }
 
+/** Maximum time in ms to wait for an llm_task completion before aborting. */
+const LLM_TASK_TIMEOUT_MS = 30_000;
+
+/**
+ * Pattern detecting arithmetic/data-processing prompts that the model
+ * should handle inline instead of delegating to llm_task.
+ *
+ * Deterministic gate — the LLM ignores the tool description telling it
+ * not to use llm_task for arithmetic, so we enforce it in code.
+ */
+const TRIVIAL_TASK_PATTERN =
+  /\b(?:calculate|sum|total|count|add up|tally|aggregate|how many|tabulate|summar(?:y|ize|ise)|download.?count|group by)\b/i;
+
 /** Tool definitions for the llm_task tool. */
 export function buildLlmTaskToolDefinitions(): readonly ToolDefinition[] {
   return [
     {
       name: "llm_task",
       description:
-        "Run a one-shot LLM prompt for deep reasoning, analysis, or planning. " +
-        "Use this tool when you need to think through a complex problem, analyze code structure, " +
-        "plan a multi-step approach, summarize content, classify data, or extract structured information. " +
-        "The subtask runs in isolation — it sees only what you pass, not the full conversation. " +
-        "Get the analysis back, then act on it with tool calls.",
+        "Run a one-shot LLM prompt ONLY for problems requiring extended multi-step reasoning " +
+        "that you genuinely cannot solve yourself. Examples: complex architectural trade-off " +
+        "analysis, multi-constraint planning with many interacting rules, intricate debugging " +
+        "chains. Do NOT use for arithmetic, counting, summing, data extraction, summarization, " +
+        "formatting, or any task you can accomplish directly — those are faster and cheaper " +
+        "inline. The subtask runs in isolation with no tools and no conversation context.",
       parameters: {
         prompt: {
           type: "string",
@@ -51,29 +68,23 @@ export function buildLlmTaskToolDefinitions(): readonly ToolDefinition[] {
 }
 
 /** Platform-level system prompt section for the llm_task tool. */
-export const LLM_TASK_SYSTEM_PROMPT = `## LLM Task Tool — Your Reasoning Channel
+export const LLM_TASK_SYSTEM_PROMPT = `## LLM Task Tool — Extended Reasoning Only
 
-llm_task is your dedicated reasoning tool. When you need to think deeply about a
-problem before acting, delegate the thinking to llm_task — it runs with extended
-reasoning enabled, giving you higher-quality analysis.
+llm_task delegates a prompt to an LLM with extended reasoning enabled.
+It has NO tools and NO conversation context — it only sees what you pass.
 
 **When to use llm_task:**
-- Enhancing a user request with their known rules, preferences, and conventions
-  (search memories first, then pass those rules + the request to llm_task for
-  a refined plan that respects everything the user has told you)
-- Planning a multi-step approach before executing tool calls
-- Analyzing code structure or debugging complex issues
-- Reasoning through edge cases or architectural trade-offs
-- Summarizing fetched content or extracting structured data
-- Classifying, categorizing, or generating search queries
+- Reasoning through complex multi-constraint problems (many interacting rules)
+- Architectural trade-off analysis requiring deep chain-of-thought
+- Multi-step planning where the plan itself is the hard part
 
-**How to use it effectively:**
-1. Pass the relevant context (code, error messages, requirements) as the prompt
-2. Get the analysis back as text
-3. Act on the analysis with concrete tool calls
+**Do NOT use llm_task for:**
+- Arithmetic, counting, summing numbers — do it yourself
+- Summarizing or extracting data from tool responses — do it yourself
+- Formatting, categorizing, or listing — do it yourself
+- Any task you can accomplish directly in your response
 
-The subtask sees only what you pass it, not the full conversation.
-If you need structured data back, ask for JSON in the prompt.`;
+llm_task is slow and expensive. If you can do the work yourself, do it yourself.`;
 
 /**
  * Create a tool executor for the llm_task tool.
@@ -95,6 +106,20 @@ export function createLlmTaskToolExecutor(
       return "Error: llm_task requires a non-empty 'prompt' argument (string).";
     }
 
+    // Deterministic rejection of arithmetic/data-processing tasks.
+    // The LLM ignores the tool description, so we enforce in code.
+    if (TRIVIAL_TASK_PATTERN.test(taskInput.prompt)) {
+      log.warn("llm_task rejected — trivial arithmetic/data task", {
+        operation: "rejectTrivialLlmTask",
+        promptSnippet: taskInput.prompt.slice(0, 100),
+      });
+      return (
+        "REJECTED: Do not use llm_task for arithmetic, counting, summing, " +
+        "or data aggregation. You already have the data in your conversation " +
+        "context — calculate the answer yourself directly in your response."
+      );
+    }
+
     const modelName = typeof taskInput.model === "string"
       ? taskInput.model
       : undefined;
@@ -113,9 +138,21 @@ export function createLlmTaskToolExecutor(
     messages.push({ role: "user", content: taskInput.prompt });
 
     try {
-      const result = await provider.complete(messages, [], {});
+      const result = await Promise.race([
+        provider.complete(messages, [], {}),
+        new Promise<never>((_, reject) => {
+          setTimeout(
+            () => reject(new Error(`llm_task timed out after ${LLM_TASK_TIMEOUT_MS}ms`)),
+            LLM_TASK_TIMEOUT_MS,
+          );
+        }),
+      ]);
       return result.content;
     } catch (err) {
+      log.error("llm_task failed", {
+        operation: "executeLlmTask",
+        err,
+      });
       return `Error in llm_task: ${
         err instanceof Error ? err.message : String(err)
       }`;

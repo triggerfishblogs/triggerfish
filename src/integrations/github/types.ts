@@ -143,6 +143,30 @@ export interface GitHubWorkflowRun {
   readonly classification: ClassificationLevel;
 }
 
+/** A binary asset attached to a GitHub release. */
+export interface GitHubReleaseAsset {
+  readonly name: string;
+  readonly contentType: string;
+  readonly size: number;
+  readonly downloadCount: number;
+  readonly downloadUrl: string;
+  readonly classification: ClassificationLevel;
+}
+
+/** A GitHub release. */
+export interface GitHubRelease {
+  readonly id: number;
+  readonly tagName: string;
+  readonly name: string | null;
+  readonly draft: boolean;
+  readonly prerelease: boolean;
+  readonly createdAt: string;
+  readonly publishedAt: string | null;
+  readonly htmlUrl: string;
+  readonly assets: readonly GitHubReleaseAsset[];
+  readonly classification: ClassificationLevel;
+}
+
 /** A GitHub code search result item. */
 export interface GitHubCodeSearchItem {
   readonly path: string;

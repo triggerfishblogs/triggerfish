@@ -13,6 +13,7 @@ export {
   fetchRepoBranches,
   fetchRepoCommits,
   fetchRepoFile,
+  fetchRepoReleases,
   fetchUserRepos,
 } from "./client_repos_query.ts";
 

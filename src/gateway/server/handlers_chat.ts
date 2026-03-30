@@ -195,9 +195,11 @@ function handleUserMessage(
 
   abortRef.controller = new AbortController();
   const signal = abortRef.controller.signal;
-  chat.executeAgentTurn(msg.content, createWebSocketSender(socket), signal)
+  const send = createWebSocketSender(socket);
+  chat.executeAgentTurn(msg.content, send, signal)
     .finally(() => {
       abortRef.controller = null;
+      send({ type: "turn_end" });
     });
 }
 

@@ -12,6 +12,7 @@ export {
   fetchRepoBranches,
   fetchRepoCommits,
   fetchRepoFile,
+  fetchRepoReleases,
   fetchUserRepos,
   pullRepoAtPath,
 } from "./client_repos.ts";
@@ -32,6 +33,7 @@ export {
   fetchGitHubRepository,
   listGitHubBranches,
   listGitHubCommits,
+  listGitHubReleases,
   listGitHubRepositories,
   pullGitHubRepository,
   readGitHubRepositoryFile,

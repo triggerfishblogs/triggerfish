@@ -11,6 +11,7 @@ import { createExecTools } from "../../../exec/tools.ts";
 import { createTodoManager } from "../../../tools/mod.ts";
 import { mapToolPrefixClassifications } from "../../../agent/orchestrator/orchestrator_types.ts";
 import { createFilesystemSandbox } from "../../../exec/sandbox/mod.ts";
+import { getCachedRepoClassification } from "../../../integrations/github/client_http.ts";
 import type { BootstrapResult } from "../bootstrap.ts";
 import type { CoreInfraResult } from "../infra/core_infra.ts";
 import { initializeLlmProviders } from "../infra/storage.ts";
@@ -97,5 +98,6 @@ export async function initializeBaseToolDeps(
         integrationClassifications: integrations,
       };
     })(),
+    classifyGitHubRepo: getCachedRepoClassification,
   };
 }

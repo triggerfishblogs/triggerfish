@@ -15,14 +15,11 @@ import {
   URL_READ_TOOLS,
   URL_WRITE_TOOLS,
 } from "../../core/security/constants.ts";
-import {
-  classifyCommandPaths,
-  extractCommandPaths,
-} from "../../core/security/command_path_extraction.ts";
 import type { PathClassifier } from "../../core/security/path_classification.ts";
 import type { ToolFloorRegistry } from "../../core/security/tool_floors.ts";
 import type { DomainClassifier } from "../../core/types/domain.ts";
 import type { ParsedToolCall } from "../orchestrator/orchestrator_types.ts";
+import { classifyShellCommandResource } from "./command_classification.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -41,6 +38,10 @@ export interface SecurityContextConfig {
   readonly isTriggerSession?: () => boolean;
   readonly getNonOwnerCeiling?: () => ClassificationLevel | null;
   readonly getWorkspacePath?: () => string | null;
+  /** Integration prefix → classification map for CLI tool recognition. */
+  readonly integrationClassifications?: ReadonlyMap<string, ClassificationLevel>;
+  /** Synchronous repo classification lookup (cache populated by github_* tools). */
+  readonly classifyGitHubRepo?: (repoFullName: string) => ClassificationLevel | null;
 }
 
 /** Computed security context returned alongside the hook input. */
@@ -153,32 +154,6 @@ function assembleIdentityContext(config: SecurityContextConfig): {
     isOwner: config.isOwnerSession?.() ?? false,
     isTrigger: config.isTriggerSession?.() ?? false,
     nonOwnerCeiling: config.getNonOwnerCeiling?.() ?? null,
-  };
-}
-
-/** Classify a `run_command` tool call by extracting paths from the command string. */
-function classifyShellCommandResource(
-  call: ParsedToolCall,
-  config: SecurityContextConfig,
-): ResourceClassResult {
-  if (call.name !== "run_command") return NO_RESOURCE_CLASSIFICATION;
-  const command = call.args.command as string | undefined;
-  if (!command || !config.pathClassifier) return NO_RESOURCE_CLASSIFICATION;
-  const workspacePath = config.getWorkspacePath?.() ?? null;
-  if (!workspacePath) return NO_RESOURCE_CLASSIFICATION;
-
-  const paths = extractCommandPaths(command);
-  const targetPaths = paths.length > 0 ? paths : [workspacePath];
-  const result = classifyCommandPaths({
-    paths: targetPaths,
-    classifier: config.pathClassifier,
-    workspaceCwd: workspacePath,
-  });
-
-  return {
-    classification: result.classification,
-    operation: "write",
-    param: command,
   };
 }
 

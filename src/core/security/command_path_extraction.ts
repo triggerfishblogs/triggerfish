@@ -28,7 +28,7 @@ export interface CommandClassificationResult {
  * Split a command string on shell operators (`|`, `;`, `&&`, `||`),
  * respecting single and double quoted regions.
  */
-function splitOnShellOperators(command: string): readonly string[] {
+export function splitOnShellOperators(command: string): readonly string[] {
   const segments: string[] = [];
   let current = "";
   let inSingle = false;

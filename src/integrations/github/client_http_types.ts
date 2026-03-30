@@ -128,6 +128,27 @@ export interface RawWorkflowRun {
   readonly created_at: string;
 }
 
+export interface RawReleaseAsset {
+  readonly id: number;
+  readonly name: string;
+  readonly content_type: string;
+  readonly size: number;
+  readonly download_count: number;
+  readonly browser_download_url: string;
+}
+
+export interface RawRelease {
+  readonly id: number;
+  readonly tag_name: string;
+  readonly name?: string | null;
+  readonly draft: boolean;
+  readonly prerelease: boolean;
+  readonly created_at: string;
+  readonly published_at?: string | null;
+  readonly html_url: string;
+  readonly assets: readonly RawReleaseAsset[];
+}
+
 export interface RawCodeSearchItem {
   readonly path: string;
   readonly html_url: string;

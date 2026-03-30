@@ -114,6 +114,8 @@ export interface OrchestratorConfig {
    * Non-null = tools classified at or below this level are allowed.
    */
   readonly getNonOwnerCeiling?: () => ClassificationLevel | null;
+  /** Synchronous repo classification lookup for run_command security checks. */
+  readonly classifyGitHubRepo?: (repoFullName: string) => ClassificationLevel | null;
   /** Path classifier for filesystem tool security checks. */
   readonly pathClassifier?: PathClassifier;
   /** Returns the workspace root path for shell command classification. */

@@ -16,6 +16,7 @@ import {
 } from "../../../agent/providers/config.ts";
 import type { ModelsConfig } from "../../../agent/providers/config.ts";
 import { mapToolPrefixClassifications } from "../../../agent/orchestrator/orchestrator_types.ts";
+import { getCachedRepoClassification } from "../../../integrations/github/client_http.ts";
 import { createPolicyEngine } from "../../../core/policy/engine.ts";
 import {
   createDefaultRules,
@@ -110,6 +111,7 @@ export function initializeFactoryInfra(
         integrationClassifications: integrations,
       };
     })(),
+    classifyGitHubRepo: getCachedRepoClassification,
     visionProvider: resolveVisionProvider(config.models as ModelsConfig),
     skillLoader: buildSchedulerSkillLoader(
       baseDir,

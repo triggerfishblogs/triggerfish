@@ -20,6 +20,7 @@ import {
   fetchRepoBranches,
   fetchRepoCommits,
   fetchRepoFile,
+  fetchRepoReleases,
   fetchUserRepos,
   pullRepoAtPath,
 } from "./repos/mod.ts";
@@ -128,6 +129,8 @@ function buildClientMethods(
       fetchRepoCommits(apiRequest, classifyRepo, owner, repo, opts),
     listBranches: (owner, repo, opts) =>
       fetchRepoBranches(apiRequest, classifyRepo, owner, repo, opts),
+    listReleases: (owner, repo, opts) =>
+      fetchRepoReleases(apiRequest, classifyRepo, owner, repo, opts),
     createBranch: (owner, repo, branchName, sha) =>
       createRepoBranch(apiRequest, classifyRepo, owner, repo, branchName, sha),
     deleteBranch: (owner, repo, branchName) =>

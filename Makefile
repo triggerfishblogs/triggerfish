@@ -1,6 +1,9 @@
-.PHONY: build install release test lint fmt check clean docker tidepool-ui tauri
+.PHONY: build build-cli install install-cli release test lint fmt check clean docker tidepool-ui tauri
 
 build: tidepool-ui
+	deno task compile
+
+build-cli:
 	deno task compile
 
 tidepool-ui:
@@ -21,6 +24,10 @@ install: build tauri
 		cp tauri/target/release/triggerfish-tidepool $(HOME)/.local/bin/triggerfish-tidepool; \
 		echo "Installed triggerfish-tidepool to $(HOME)/.local/bin/"; \
 	fi
+
+install-cli: build-cli
+	mkdir -p $(HOME)/.local/bin
+	cp triggerfish $(HOME)/.local/bin/triggerfish
 
 release:
 	./deploy/scripts/build.sh

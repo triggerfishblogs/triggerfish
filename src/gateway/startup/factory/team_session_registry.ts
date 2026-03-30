@@ -109,9 +109,15 @@ const MAX_LAST_OUTPUT_LENGTH = 500;
 /** Regex to strip `<think>...</think>` tags from LLM output. */
 const THINK_TAG_REGEX = /<think>[\s\S]*?<\/think>/g;
 
-/** Strip thinking tags and leading whitespace from LLM output. */
+/** Orphaned `</think>` tags that appear without a matching `<think>`. */
+const ORPHAN_THINK_CLOSE_REGEX = /<\/think>/g;
+
+/** Strip thinking tags (paired and orphaned) and leading whitespace from LLM output. */
 function stripThinkingTags(output: string): string {
-  return output.replace(THINK_TAG_REGEX, "").trimStart();
+  return output
+    .replace(THINK_TAG_REGEX, "")
+    .replace(ORPHAN_THINK_CLOSE_REGEX, "")
+    .trimStart();
 }
 
 /**

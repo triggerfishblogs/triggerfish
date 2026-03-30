@@ -171,6 +171,7 @@ export function assembleChatSession(
     visionProvider: deps.visionProvider,
     toolClassifications: deps.toolClassifications,
     integrationClassifications: deps.integrationClassifications,
+    classifyGitHubRepo: deps.classifyGitHubRepo,
     ...lifecycle,
     pairingService: deps.pairingService,
     pathClassifier: deps.pathClassifier,

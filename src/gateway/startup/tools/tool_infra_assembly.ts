@@ -12,7 +12,10 @@ import type { ClassificationLevel } from "../../../core/types/classification.ts"
 import type { BootstrapResult } from "../bootstrap.ts";
 import type { CoreInfraResult } from "../infra/core_infra.ts";
 import { buildIntegrationExecutors } from "../services/integration_init.ts";
-import { assembleMainToolExecutor } from "./tool_executor.ts";
+import {
+  assembleMainToolExecutor,
+  resolveWorkspacePathForTaint,
+} from "./tool_executor.ts";
 import { createSimulateToolExecutor } from "../../tools/simulate/mod.ts";
 import { createTriggerManageExecutor } from "../../tools/trigger/trigger_manage_executor.ts";
 import type { ServiceAvailability } from "../../tools/defs/tool_profiles.ts";
@@ -57,7 +60,13 @@ export function buildCompositeToolExecutor(
     pathClassifier: baseDeps.pathClassifier,
     domainClassifier: baseDeps.domainClassifier,
     toolFloorRegistry: coreInfra.toolFloorRegistry,
-    getWorkspacePath: () => baseDeps.mainWorkspace.path,
+    getWorkspacePath: () =>
+      resolveWorkspacePathForTaint(baseDeps.state.session.taint, {
+        publicPath: baseDeps.mainWorkspace.publicPath,
+        internalPath: baseDeps.mainWorkspace.internalPath,
+        confidentialPath: baseDeps.mainWorkspace.confidentialPath,
+        restrictedPath: baseDeps.mainWorkspace.restrictedPath,
+      }),
   });
   const sched = bootstrap.config.scheduler?.trigger;
   const triggerManageExecutor = createTriggerManageExecutor({
@@ -187,6 +196,7 @@ export function assembleToolInfraResult(
     channelAdapters: sessionExecs.channelAdapters,
     toolClassifications: baseDeps.toolClassifications,
     integrationClassifications: baseDeps.integrationClassifications,
+    classifyGitHubRepo: baseDeps.classifyGitHubRepo,
     keychain: integrations.keychain,
     mcpBroadcastRefs: integrations.mcpBroadcastRefs,
     mcpWiring: integrations.mcpWiring,

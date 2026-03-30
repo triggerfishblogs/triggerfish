@@ -11,12 +11,13 @@ export function buildGitHubReposDef(): ToolDefinition {
   return {
     name: "github_repos",
     description:
-      "Repository operations. Actions: list, get, read_file, list_commits, list_branches, create_branch, delete_branch, clone, pull.\n" +
+      "Repository operations. Actions: list, get, read_file, list_commits, list_branches, list_releases, create_branch, delete_branch, clone, pull.\n" +
       "- list: list user repos. Params: page?, per_page?\n" +
       "- get: get repo details. Params: repo (required)\n" +
       "- read_file: read file contents (max 1MB). Params: repo (required), path (required), ref?\n" +
       "- list_commits: list recent commits. Params: repo (required), sha?, per_page?\n" +
       "- list_branches: list branches. Params: repo (required), per_page?\n" +
+      "- list_releases: list releases with download assets and counts. Params: repo (required), per_page?\n" +
       "- create_branch: create branch. Params: repo (required), branch (required), sha (required)\n" +
       "- delete_branch: delete branch. Params: repo (required), branch (required)\n" +
       "- clone: clone repo to local dir. Params: repo (required), path?, branch?, depth?\n" +
@@ -25,7 +26,7 @@ export function buildGitHubReposDef(): ToolDefinition {
       action: {
         type: "string",
         description:
-          "The operation: list, get, read_file, list_commits, list_branches, create_branch, delete_branch, clone, pull",
+          "The operation: list, get, read_file, list_commits, list_branches, list_releases, create_branch, delete_branch, clone, pull",
         required: true,
       },
       repo: {
@@ -66,7 +67,8 @@ export function buildGitHubReposDef(): ToolDefinition {
       },
       per_page: {
         type: "number",
-        description: "Results per page (list, list_commits, list_branches)",
+        description:
+          "Results per page (list, list_commits, list_branches, list_releases)",
         required: false,
       },
     },
